@@ -12,7 +12,7 @@ Nivel D: sin `plan.md`; este archivo hace de plan. Los CA citados son los de `sp
 | T4 | Tooling raíz: tsconfig base, ESLint con límites, Prettier | devops | haiku | T3 | — | — | [x] |
 | T5 | `packages/shared` con esquema zod mínimo | devops | haiku | T4 | — | — | [x] |
 | T6 | `apps/backend` (NestJS HTTP, puerto 4000) | devops | haiku | T5 | — | — | [x] |
-| T7 | Decidir arranque del worker en 001 | arquitecto | opus | T6 | — | — | [ ] |
+| T7 | Decidir arranque del worker en 001 | arquitecto | opus | T6 | — | — | [x] |
 | T8 | `apps/worker` (NestJS standalone) | devops | haiku | T7 | — | — | [ ] |
 | T9 | `apps/frontend` (Next.js, puerto 3000) | devops | haiku | T8 | — | — | [ ] |
 | T10 | `.env.example` con adaptadores en `mock` | devops | haiku | T9 | — | — | [ ] |
@@ -89,7 +89,10 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/001-fundaciones/spec.md` (Alcance: `apps/worker` standalone sin procesadores; CA-6), `docs/03-arquitectura.md` §10 (worker: `pnpm dev`, sin puerto).
 - **Hacer**: decidir qué hace el worker de 001 al arrancar: (a) queda activo hasta SIGINT y registra su arranque, o (b) arranca y termina con código 0. Fijar qué cuenta como "arranca sin errores en consola" (CA-6) para el worker. Escribir el resultado en "Resultado". No cambiar código.
 - **Hecho cuando**: "Resultado" fijado. Commit `docs(001): decide arranque del worker`.
-- **Resultado**: _pendiente_
+- **Resultado** (arquitecto): **opción (a)**, el worker queda activo hasta SIGINT/SIGTERM. Razón: es el ciclo de vida del worker real (proceso largo con BullMQ y cierre ordenado); la opción (b) bajo `nest start --watch` deja un "proceso terminado" ambiguo y no ejercita el apagado.
+  - Implementación (T8): `createApplicationContext` + `app.enableShutdownHooks()`. Al terminar el arranque, `Logger` de Nest con contexto `Worker` registra exactamente `Worker iniciado`. Mantener vivo el proceso con un `setInterval` vacío (sin `unref`) en un servicio que lo limpia en `onApplicationShutdown` y registra `Worker detenido`. Ese temporizador es provisional: lo reemplaza el `Worker` de BullMQ en la spec de colas.
+  - "Arranca sin errores en consola" (CA-6) significa, en la salida del worker durante `pnpm dev`, hasta que frontend y backend responden 200 (máx. 60 s): (1) aparece la línea `Worker iniciado`; (2) no aparece ninguna línea de nivel `ERROR` de Nest, ni `Error:`, ni stack trace, ni `UnhandledPromiseRejection`; (3) el proceso sigue vivo (no hay mensaje de salida ni reinicio del worker). Warnings de herramientas (p. ej. de Next) no cuentan como error del worker.
+  - Verificación extra en T8 (local): `node dist/main.js` muestra `Worker iniciado` y sigue vivo a los 5 s; con Ctrl+C muestra `Worker detenido` y sale con código 0.
 
 ## T8 · apps/worker (NestJS standalone)
 - **Contexto (leer solo esto)**: `docs/specs/001-fundaciones/spec.md` (Alcance: apps; CA-1, CA-5, CA-6), "Resultado" de T7.
