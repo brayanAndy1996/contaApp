@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es-PE">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planta ContApp</title>
+<meta name="description" content="Explorador interactivo de ContApp: recorre la planta donde los comprobantes del SIRE se descargan, corrigen, clasifican y vuelven a SUNAT.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231d6fb8'/%3E%3Crect x='6' y='20' width='20' height='4' rx='2' fill='%23fff'/%3E%3Crect x='10' y='8' width='12' height='10' rx='2' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="estilos.css">
+<script>
+  try {
+    var t = localStorage.getItem('planta-tema');
+    if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) {}
+</script>
+</head>
+<body>
+<a class="skip" href="#indice">Saltar al índice de la planta</a>
+
+<header class="top">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <div>
+      <h1>La planta de ContApp</h1>
+      <p class="tagline">Del SIRE de SUNAT al archivo de reemplazo, estación por estación.</p>
+    </div>
+  </div>
+  <div class="toolbar" role="toolbar" aria-label="Controles del explorador">
+    <div class="seg" role="group" aria-label="Vista del contenido">
+      <button type="button" class="seg-btn" data-vista="contador" aria-pressed="true">Contador</button>
+      <button type="button" class="seg-btn" data-vista="tecnica" aria-pressed="false">Técnica</button>
+    </div>
+    <button type="button" class="btn btn-primary" id="btn-tour"><span aria-hidden="true">▶</span> Tour</button>
+    <button type="button" class="btn" id="btn-retos"><span aria-hidden="true">🎯</span> Retos</button>
+    <button type="button" class="btn btn-icon" id="btn-cinta" aria-pressed="false" aria-label="Pausar cinta" title="Pausar cinta"><span aria-hidden="true">⏸</span></button>
+    <button type="button" class="btn btn-icon" id="btn-tema" aria-label="Cambiar a modo oscuro" title="Cambiar tema"><span aria-hidden="true">◐</span></button>
+  </div>
+</header>
+
+<main class="layout">
+  <section class="scene-col" aria-label="Escena de la planta">
+    <div class="scene-wrap" id="scene-wrap">
+      <svg id="scene" viewBox="0 0 1000 860" role="group" aria-label="Planta de ContApp: cinta de comprobantes con estaciones y zonas alrededor" preserveAspectRatio="xMidYMid meet"></svg>
+      <div class="zoom" role="group" aria-label="Zoom de la escena">
+        <button type="button" class="btn btn-icon btn-sm" id="zoom-in" aria-label="Acercar">+</button>
+        <button type="button" class="btn btn-icon btn-sm" id="zoom-out" aria-label="Alejar">−</button>
+        <button type="button" class="btn btn-icon btn-sm" id="zoom-reset" aria-label="Ver toda la planta">⤢</button>
+      </div>
+    </div>
+
+    <div class="narr" id="narr" hidden>
+      <div class="narr-progress" aria-hidden="true"><span id="narr-bar"></span></div>
+      <div class="narr-body">
+        <p class="narr-step" id="narr-step"></p>
+        <h2 class="narr-title" id="narr-title" tabindex="-1"></h2>
+        <p class="narr-text" id="narr-text" aria-live="polite"></p>
+      </div>
+      <div class="narr-ctrl" role="group" aria-label="Controles del tour">
+        <button type="button" class="btn btn-icon" id="tour-prev" aria-label="Paso anterior">⏮</button>
+        <button type="button" class="btn btn-icon btn-primary" id="tour-play" aria-label="Pausar tour">⏸</button>
+        <button type="button" class="btn btn-icon" id="tour-next" aria-label="Paso siguiente">⏭</button>
+        <button type="button" class="btn btn-icon" id="tour-voz" aria-pressed="false" aria-label="Activar narración por voz" title="Narración por voz" hidden>🔈</button>
+        <button type="button" class="btn btn-sm" id="tour-exit">Salir</button>
+      </div>
+    </div>
+
+    <nav class="indice" id="indice" aria-label="Índice de la planta" tabindex="-1">
+      <h2 class="indice-h">Estaciones de la cinta</h2>
+      <ul class="chips" id="idx-estaciones"></ul>
+      <h2 class="indice-h">Zonas alrededor</h2>
+      <ul class="chips" id="idx-zonas"></ul>
+    </nav>
+  </section>
+
+  <aside class="panel" id="panel" aria-label="Detalle del elemento">
+    <div class="panel-inner" id="panel-inner"></div>
+  </aside>
+</main>
+<p class="sr" id="anuncio" role="status" aria-live="polite"></p>
+
+<dialog class="dlg" id="dlg" aria-labelledby="dlg-title">
+  <div class="dlg-inner" id="dlg-inner"></div>
+</dialog>
+
+<script src="datos/estaciones.js"></script>
+<script src="datos/retos.js"></script>
+<script src="datos/tour.js"></script>
+<script src="motor.js"></script>
+</body>
+</html>
