@@ -7,9 +7,9 @@ Nivel D: sin `plan.md`; este archivo hace de plan. Los CA citados son los de `sp
 | # | Tarea | Rol | Modelo | Depende de | TDD | ADV | Estado |
 |---|---|---|---|---|---|---|---|
 | T1 | Repo git `spec/001-fundaciones` y `.gitignore` | devops | haiku | — | — | — | [x] |
-| T2 | Decidir versiones de Node y pnpm | arquitecto | opus | T1 | — | — | [ ] |
+| T2 | Decidir versiones de Node y pnpm | arquitecto | opus | T1 | — | — | [x] |
 | T3 | Workspace raíz: pnpm, Turborepo, `pnpm install` | devops | haiku | T2 | — | — | [x] |
-| T4 | Tooling raíz: tsconfig base, ESLint con límites, Prettier | devops | haiku | T3 | — | — | [ ] |
+| T4 | Tooling raíz: tsconfig base, ESLint con límites, Prettier | devops | haiku | T3 | — | — | [x] |
 | T5 | `packages/shared` con esquema zod mínimo | devops | haiku | T4 | — | — | [ ] |
 | T6 | `apps/backend` (NestJS HTTP, puerto 4000) | devops | haiku | T5 | — | — | [ ] |
 | T7 | Decidir arranque del worker en 001 | arquitecto | opus | T6 | — | — | [ ] |
@@ -20,7 +20,8 @@ Nivel D: sin `plan.md`; este archivo hace de plan. Los CA citados son los de `sp
 | T12 | Verificación de CA-1 a CA-11 en clon limpio | devops | haiku | T10, T11 | — | — | [ ] |
 | T13 | Cierre: ESTADO a `hecha` y commit de cierre | devops | haiku | T12 | — | — | [ ] |
 
-Escalamientos: (ninguno al planificar)
+Escalamientos: T4 (devops, intento 1) · `typescript-eslint` 8.72.0 no soporta TypeScript 7.0.2 (instalado por `pnpm add -w typescript`; peer `>=4.8.4 <6.1.0`) y ESLint no carga `eslint.config.mjs` (sale con código 2) · falta decidir la versión de TypeScript (p. ej. línea 6.0.x) · T4 queda en WIP sin commit · T5 no iniciada.
+Escalamiento T4 resuelto: haiku → sonnet (devops, intento 2). TypeScript fijado en 6.0.3 (ver Resultado de T4).
 
 Reglas comunes:
 - Scaffolding con CLI o generador (`nest new`, `create-next-app`, `pnpm`, `turbo`); sin boilerplate escrito a mano.
@@ -63,6 +64,11 @@ Reglas comunes:
   - `.prettierrc` y `.prettierignore` en la raíz; `prettier` en devDependencies.
   - Script `lint` de cada paquete: `eslint . --max-warnings=0`.
 - **Hecho cuando**: `pnpm typecheck` y `pnpm lint` sin errores ni warnings (CA-2 y CA-3 parciales). La regla de límites se prueba en T12 (CA-4). Commit `chore(001): tooling compartido (tsconfig, eslint, prettier)`.
+- **Resultado** (sonnet, intento 2 tras el escalamiento de haiku):
+  - **TypeScript 6.0.3 exacto** (`pnpm add -w -D -E typescript@6.0.3`): última versión estable que cumple el peer de `typescript-eslint` 8.72.0 (`>=4.8.4 <6.1.0`); la línea 7.x (7.0.2) queda excluida hasta que `typescript-eslint` la soporte. Revisar al actualizar `typescript-eslint`.
+  - `.nvmrc` con `24` (mecanismo de T2; lo usa T11). T2 marcada `[x]` aquí.
+  - Hueco de límites cerrado: `eslint-plugin-boundaries` 7.3.0 se probó y se descartó. Resuelve el destino contra el sistema de archivos, por lo que no detecta `../../storage` (directorio sin `index`/`main`) ni destinos inexistentes. Equivalente adoptado: regla local `limites/imports-relativos` en `eslint.config.mjs`, que resuelve léxicamente cada specifier relativo contra la raíz del repo y aplica las mismas políticas que `no-restricted-imports` (que sigue cubriendo nombres `@contapp/*` y rutas con `apps`/`packages`). Sin dependencia nueva. Nota: `docs/03-arquitectura.md` §2 nombra `eslint-plugin-boundaries`; queda para que el arquitecto decida si actualiza ese texto.
+  - Verificado con 21 casos aislados (11 originales + 10 de huecos/relativos): todos como se esperaba. Los archivos de prueba se borraron.
 
 ## T5 · packages/shared
 - **Contexto (leer solo esto)**: `docs/specs/001-fundaciones/spec.md` (Alcance: packages/shared; decisión 4; CA-1), `docs/02-requerimientos.md` (RNF-080), `docs/03-arquitectura.md` §2 (paquetes).
