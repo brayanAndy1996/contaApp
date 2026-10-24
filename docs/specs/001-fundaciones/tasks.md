@@ -18,7 +18,7 @@ Nivel D: sin `plan.md`; este archivo hace de plan. Los CA citados son los de `sp
 | T10 | `.env.example` con adaptadores en `mock` | devops | haiku | T9 | — | — | [x] |
 | T11 | CI base: `.github/workflows/ci.yml` | devops | haiku | T9 ∥ | — | — | [x] |
 | T12 | Verificación de CA-1 a CA-11 en clon limpio | devops | haiku | T10, T11 | — | — | [x] |
-| T13 | Cierre: ESTADO a `hecha` y commit de cierre | devops | haiku | T12 | — | — | [ ] |
+| T13 | Cierre: ESTADO a `hecha` y commit de cierre | devops | haiku | T12 | — | — | [x] |
 
 Escalamientos: T4 (devops, intento 1) · `typescript-eslint` 8.72.0 no soporta TypeScript 7.0.2 (instalado por `pnpm add -w typescript`; peer `>=4.8.4 <6.1.0`) y ESLint no carga `eslint.config.mjs` (sale con código 2) · falta decidir la versión de TypeScript (p. ej. línea 6.0.x) · T4 queda en WIP sin commit · T5 no iniciada.
 Escalamiento T4 resuelto: haiku → sonnet (devops, intento 2). TypeScript fijado en 6.0.3 (ver Resultado de T4).

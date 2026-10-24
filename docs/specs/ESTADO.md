@@ -6,7 +6,7 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 
 | Spec | Nivel | Estado | Tarea actual | Bloqueo / nota |
 |---|---|---|---|---|
-| 001-fundaciones | D | en curso | tasks.md · T1 (git init) | Decisiones 1–8 registradas. Abierto en spec.md: lista de variables de adaptador (bloquea T10) |
+| 001-fundaciones | D | hecha | — | Sin Docker (decisión del usuario). TypeScript 6.0.3. CI de GitHub sin ejecutar: el repo no tiene remoto. |
 | 002-db-rls | A | pendiente | — | — |
 | 003-cifrado | A | pendiente | — | — |
 | 004-auth | A | pendiente | — | — |
