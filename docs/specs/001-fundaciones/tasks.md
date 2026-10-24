@@ -14,7 +14,7 @@ Nivel D: sin `plan.md`; este archivo hace de plan. Los CA citados son los de `sp
 | T6 | `apps/backend` (NestJS HTTP, puerto 4000) | devops | haiku | T5 | — | — | [x] |
 | T7 | Decidir arranque del worker en 001 | arquitecto | opus | T6 | — | — | [x] |
 | T8 | `apps/worker` (NestJS standalone) | devops | haiku | T7 | — | — | [x] |
-| T9 | `apps/frontend` (Next.js, puerto 3000) | devops | haiku | T8 | — | — | [ ] |
+| T9 | `apps/frontend` (Next.js, puerto 3000) | devops | haiku | T8 | — | — | [x] |
 | T10 | `.env.example` con adaptadores en `mock` | devops | haiku | T9 | — | — | [ ] |
 | T11 | CI base: `.github/workflows/ci.yml` | devops | haiku | T9 ∥ | — | — | [ ] |
 | T12 | Verificación de CA-1 a CA-11 en clon limpio | devops | haiku | T10, T11 | — | — | [ ] |
@@ -110,6 +110,10 @@ Reglas comunes:
   4. Usar `saludoSchema` de `@contapp/shared` en `app/page.tsx`.
   5. No añadir shadcn, TanStack ni React Hook Form: llegan con las specs que los necesitan.
 - **Hecho cuando**: `build`, `typecheck` y `lint` sin errores; el puerto 3000 se valida en T12. Commit `feat(001): apps/frontend mínimo (Next.js)`.
+- **Resultado** (devops, sonnet por orden del orquestador; ver nota en Escalamientos):
+  - `create-next-app` (Next 16.4.3, React 19.3.0, Tailwind 4) con `--ts --tailwind --no-eslint --app --no-src-dir --use-pnpm --skip-install --disable-git`. Se quitaron README, SVG de `public/`, `.gitignore` y `pnpm-workspace.yaml` del app; se conserva `AGENTS.md` (lo regenera `next dev`) y `next.config.ts` generado.
+  - `typecheck` = `next typegen && tsc --noEmit`: `LayoutProps` y las rutas tipadas salen de `.next/types`, que no existe en un clon limpio. `next-env.d.ts` y `*.tsbuildinfo` se añadieron al `.gitignore` raíz (se regeneran).
+  - `@types/node` ^24 como el resto; `typescript` sale del raíz (6.0.3). `build`, `typecheck` y `lint` del paquete sin errores; `pnpm lint` raíz: 4 tareas OK.
 
 ## T10 · .env.example
 - **Contexto (leer solo esto)**: `docs/specs/001-fundaciones/spec.md` (Alcance: `.env.example`; CA-8; sección "Variables de `.env.example`").

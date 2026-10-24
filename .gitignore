@@ -9,3 +9,5 @@ dist/
 .turbo/
 *.log
 .claude/settings.local.json
+*.tsbuildinfo
+next-env.d.ts
