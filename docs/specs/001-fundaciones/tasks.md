@@ -17,7 +17,7 @@ Nivel D: sin `plan.md`; este archivo hace de plan. Los CA citados son los de `sp
 | T9 | `apps/frontend` (Next.js, puerto 3000) | devops | haiku | T8 | — | — | [x] |
 | T10 | `.env.example` con adaptadores en `mock` | devops | haiku | T9 | — | — | [x] |
 | T11 | CI base: `.github/workflows/ci.yml` | devops | haiku | T9 ∥ | — | — | [x] |
-| T12 | Verificación de CA-1 a CA-11 en clon limpio | devops | haiku | T10, T11 | — | — | [ ] |
+| T12 | Verificación de CA-1 a CA-11 en clon limpio | devops | haiku | T10, T11 | — | — | [x] |
 | T13 | Cierre: ESTADO a `hecha` y commit de cierre | devops | haiku | T12 | — | — | [ ] |
 
 Escalamientos: T4 (devops, intento 1) · `typescript-eslint` 8.72.0 no soporta TypeScript 7.0.2 (instalado por `pnpm add -w typescript`; peer `>=4.8.4 <6.1.0`) y ESLint no carga `eslint.config.mjs` (sale con código 2) · falta decidir la versión de TypeScript (p. ej. línea 6.0.x) · T4 queda en WIP sin commit · T5 no iniciada.
@@ -143,6 +143,20 @@ Reglas comunes:
   11. Alcance: no existen `fixtures/`, `tests/`, `test/`, `infra/docker-compose.yml`, `packages/config` ni `plan.md`; en `apps/*` no hay `*.spec.ts`.
 - **Salida**: solo fallos (`archivo:línea · mensaje`) o "OK" + conteo. Si un check falla, no corregir aquí: reportar y escalar.
 - **Hecho cuando**: CA-1 a CA-11 en verde con evidencia (CA-7 retirado). En el repo de trabajo, ESTADO 001 → `verificada`. Commit `docs(001): verificación de CA en verde`.
+- **Resultado** (devops, haiku, 2026-10-24; clon limpio de `spec/001-fundaciones` (HEAD `c11fced`) en el scratchpad, carpeta `clon-001-t12`; Node v24.1.0, pnpm 10.12.1). Todos los CA en verde:
+  - **CA-1**: `pnpm install` → exit 0 sin errores (33.9 s); `pnpm install --frozen-lockfile` → exit 0, lockfile sin cambios. `pnpm-workspace.yaml` = `apps/*`, `packages/*`. `@contapp/shared` importado en `apps/frontend/app/page.tsx:1`, `apps/backend/src/app.service.ts:2` y `apps/worker/src/app.service.ts:3`, con `workspace:*`; sin error en typecheck, build ni dev.
+  - **CA-2**: `pnpm typecheck` → exit 0, 0 errores TS; turbo 5/5 OK (4 typecheck y `shared#build` por `^build`).
+  - **CA-3**: `pnpm lint` → exit 0, 0 errores y 0 warnings; turbo 4/4 OK (`eslint . --max-warnings=0`).
+  - **CA-4**: (a) `apps/frontend/ca4-prueba-frontend.ts` con `import "../../packages/db";` → `pnpm lint` exit 1: `1:1 error ... no-restricted-imports` y `1:1 error apps/frontend solo puede importar packages/shared ... limites/imports-relativos`; falla `@contapp/frontend#lint`. (b) worker→backend: `apps/worker/src/ca4-prueba-worker.ts` con `import "../../backend/src/main";` → exit 1: `1:1 error apps/worker no puede importar otras apps ... limites/imports-relativos`; falla `@contapp/worker#lint`. Ambos archivos borrados; `pnpm lint --force` tras revertir → exit 0 y árbol limpio.
+  - **CA-5**: `pnpm build --force` → exit 0, 4/4 OK sin caché; generados `apps/frontend/.next/BUILD_ID` (rutas `/` y `/_not-found`), `apps/backend/dist/main.js`, `apps/worker/dist/main.js` y `packages/shared/dist/index.d.ts`.
+  - **CA-6**: `pnpm dev --ui=stream` → `GET http://localhost:3000/` = 200; `GET http://localhost:4000/` = 200 (cuerpo `Hello World!`). Worker (T7): `[Worker] Worker iniciado`; sin líneas `ERROR`, `Error:`, stack ni `UnhandledPromiseRejection`; stderr vacío; proceso vivo. Árbol detenido con `taskkill /T /F`; puertos 3000 y 4000 libres.
+  - **CA-7**: retirado (decisión 1); no se verifica.
+  - **CA-8**: `.env.example` tiene 7 líneas `CLAVE=valor`; 5 adaptadores valen `mock`; `DATABASE_URL` y `REDIS_URL` apuntan a localhost; ningún secreto.
+  - **CA-9**: `git check-ignore -v .env secrets/x storage/x` → exit 0 con `.gitignore:2` (`.env`), `.gitignore:5` (`secrets/`) y `.gitignore:6` (`storage/`); `git ls-files` no lista esas rutas (solo `.env.example`, que no está ignorado).
+  - **CA-10**: `ci.yml` ejecuta `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck` y `pnpm build`, los mismos comandos verificados arriba. YAML válido (`prettier --parser yaml` exit 0). Las acciones `actions/checkout@v7`, `pnpm/action-setup@v6` y `actions/setup-node@v7` existen como tags (`git ls-remote`). Sin `secrets.`, `services:` ni pruebas. La ejecución en GitHub queda pendiente hasta que el usuario suba el repo.
+  - **CA-11**: `git branch --show-current` = `spec/001-fundaciones`; los 11 asuntos de commit cumplen Conventional Commits; commit inicial `49c28e2 chore(001): inicializa repo git y .gitignore`.
+  - **Alcance** (decisiones 1, 6, 7 y 8): no existen `fixtures/`, `tests/`, `test/`, `infra/`, `packages/config`, `plan.md` de 001 ni `apps/*/test*`; no hay `*.spec.ts` en `apps/`; `apps/` = backend, frontend, worker; `packages/` = shared; sin Mailpit. `docs/specs/_plantilla/plan.md` es la plantilla de metodología, no el plan de 001.
+  - **Pendiente**: ESTADO 001 sigue `en curso`. El "Hecho cuando" pide `verificada`, pero la orden limita el commit a tasks.md; `docs/specs/ESTADO.md` no se tocó.
 
 ## T13 · Cierre
 - **Contexto (leer solo esto)**: `docs/specs/ESTADO.md`, `docs/specs/001-fundaciones/tasks.md`, `docs/04-metodologia.md` §1.3 (paso 10).
