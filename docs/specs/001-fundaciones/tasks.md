@@ -8,7 +8,7 @@ Nivel D: sin `plan.md`; este archivo hace de plan. Los CA citados son los de `sp
 |---|---|---|---|---|---|---|---|
 | T1 | Repo git `spec/001-fundaciones` y `.gitignore` | devops | haiku | — | — | — | [x] |
 | T2 | Decidir versiones de Node y pnpm | arquitecto | opus | T1 | — | — | [ ] |
-| T3 | Workspace raíz: pnpm, Turborepo, `pnpm install` | devops | haiku | T2 | — | — | [ ] |
+| T3 | Workspace raíz: pnpm, Turborepo, `pnpm install` | devops | haiku | T2 | — | — | [x] |
 | T4 | Tooling raíz: tsconfig base, ESLint con límites, Prettier | devops | haiku | T3 | — | — | [ ] |
 | T5 | `packages/shared` con esquema zod mínimo | devops | haiku | T4 | — | — | [ ] |
 | T6 | `apps/backend` (NestJS HTTP, puerto 4000) | devops | haiku | T5 | — | — | [ ] |
