@@ -15,7 +15,7 @@ Nivel D: sin `plan.md`; este archivo hace de plan. Los CA citados son los de `sp
 | T7 | Decidir arranque del worker en 001 | arquitecto | opus | T6 | — | — | [x] |
 | T8 | `apps/worker` (NestJS standalone) | devops | haiku | T7 | — | — | [x] |
 | T9 | `apps/frontend` (Next.js, puerto 3000) | devops | haiku | T8 | — | — | [x] |
-| T10 | `.env.example` con adaptadores en `mock` | devops | haiku | T9 | — | — | [ ] |
+| T10 | `.env.example` con adaptadores en `mock` | devops | haiku | T9 | — | — | [x] |
 | T11 | CI base: `.github/workflows/ci.yml` | devops | haiku | T9 ∥ | — | — | [ ] |
 | T12 | Verificación de CA-1 a CA-11 en clon limpio | devops | haiku | T10, T11 | — | — | [ ] |
 | T13 | Cierre: ESTADO a `hecha` y commit de cierre | devops | haiku | T12 | — | — | [ ] |
