@@ -11,7 +11,7 @@ Nivel D: sin `plan.md`; este archivo hace de plan. Los CA citados son los de `sp
 | T3 | Workspace raíz: pnpm, Turborepo, `pnpm install` | devops | haiku | T2 | — | — | [x] |
 | T4 | Tooling raíz: tsconfig base, ESLint con límites, Prettier | devops | haiku | T3 | — | — | [x] |
 | T5 | `packages/shared` con esquema zod mínimo | devops | haiku | T4 | — | — | [x] |
-| T6 | `apps/backend` (NestJS HTTP, puerto 4000) | devops | haiku | T5 | — | — | [ ] |
+| T6 | `apps/backend` (NestJS HTTP, puerto 4000) | devops | haiku | T5 | — | — | [x] |
 | T7 | Decidir arranque del worker en 001 | arquitecto | opus | T6 | — | — | [ ] |
 | T8 | `apps/worker` (NestJS standalone) | devops | haiku | T7 | — | — | [ ] |
 | T9 | `apps/frontend` (Next.js, puerto 3000) | devops | haiku | T8 | — | — | [ ] |
