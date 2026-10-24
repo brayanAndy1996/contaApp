@@ -50,7 +50,7 @@ Los tres comparten código de `packages/*`. La lógica de negocio pura (reglas, 
 └──────────────────────────────────────────────────────────────┘
 ```
 
-Regla de dependencias (se valida con lint, `eslint-plugin-boundaries`):
+Regla de dependencias. Se valida con lint en `eslint.config.mjs`: `no-restricted-imports` bloquea nombres `@contapp/*` y rutas con `apps/`/`packages/`, y la regla local `limites/imports-relativos` resuelve cada import relativo contra la raíz del repo y aplica las mismas políticas. No se usa `eslint-plugin-boundaries`: resuelve contra el sistema de archivos y no detecta imports relativos a carpetas sin `index` (spec 001, T4).
 
 | Paquete | Puede depender de |
 |---|---|
@@ -58,9 +58,11 @@ Regla de dependencias (se valida con lint, `eslint-plugin-boundaries`):
 | `domain` | `shared` |
 | `db`, `crypto`, `storage`, `queue` | `shared` |
 | `sunat` | `shared`, `domain` (para formatos y montos) |
-| `apps/backend` | todos excepto `sunat` (el backend no habla con SUNAT) |
-| `apps/worker` | todos |
+| `apps/backend` | `packages/*` excepto `sunat` (el backend no habla con SUNAT); de `crypto` solo cifra (ADR-06). Ninguna otra app |
+| `apps/worker` | todos los `packages/*`. Ninguna otra app |
 | `apps/frontend` | solo `shared` |
+
+Ninguna app importa código de otra app (ni por nombre `@contapp/<app>` ni por ruta relativa). Lo que deban compartir va a un `packages/*`; backend y worker se comunican solo por colas, BD y Redis.
 
 ## 3. Puertos y adaptadores (todo lo externo es intercambiable)
 

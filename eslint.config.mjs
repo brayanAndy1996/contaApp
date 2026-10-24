@@ -20,6 +20,14 @@ const paquete = (nombre) => [
   `**/packages/${nombre}/**`,
 ];
 
+// Otra app, por nombre (@contapp/<app>) y por ruta (apps/<app>). Ninguna app importa de otra app.
+const app = (nombre) => [
+  `@contapp/${nombre}`,
+  `@contapp/${nombre}/**`,
+  `**/apps/${nombre}`,
+  `**/apps/${nombre}/**`,
+];
+
 const limite = (grupo, mensaje) => ({
   "no-restricted-imports": [
     "error",
@@ -39,9 +47,13 @@ const POLITICAS = {
       "apps/frontend solo puede importar packages/shared (03-arquitectura §2).",
   },
   "apps/backend": {
-    prohibidos: ["packages/sunat"],
+    prohibidos: ["packages/sunat", "apps/worker", "apps/frontend"],
     mensaje:
-      "apps/backend no puede importar packages/sunat (03-arquitectura §2).",
+      "apps/backend no puede importar packages/sunat ni otras apps (03-arquitectura §2).",
+  },
+  "apps/worker": {
+    prohibidos: ["apps/backend", "apps/frontend"],
+    mensaje: "apps/worker no puede importar otras apps (03-arquitectura §2).",
   },
   "packages/domain": {
     prohibidos: ["db", "sunat", "storage", "queue", "crypto"].map(
@@ -94,8 +106,8 @@ export default tseslint.config(
         "**/packages/**",
         "!**/packages/shared",
         "!**/packages/shared/**",
-        "**/apps/backend/**",
-        "**/apps/worker/**",
+        ...app("backend"),
+        ...app("worker"),
       ],
       "apps/frontend solo puede importar @contapp/shared (03-arquitectura §2).",
     ),
@@ -103,8 +115,15 @@ export default tseslint.config(
   {
     files: ["apps/backend/**"],
     rules: limite(
-      paquete("sunat"),
-      "apps/backend no puede importar packages/sunat (03-arquitectura §2).",
+      [...paquete("sunat"), ...app("worker"), ...app("frontend")],
+      "apps/backend no puede importar packages/sunat ni otras apps (03-arquitectura §2).",
+    ),
+  },
+  {
+    files: ["apps/worker/**"],
+    rules: limite(
+      [...app("backend"), ...app("frontend")],
+      "apps/worker no puede importar otras apps (03-arquitectura §2).",
     ),
   },
   {

@@ -71,6 +71,7 @@ Reglas comunes:
   - `.nvmrc` con `24` (mecanismo de T2; lo usa T11). T2 marcada `[x]` aquí.
   - Hueco de límites cerrado: `eslint-plugin-boundaries` 7.3.0 se probó y se descartó. Resuelve el destino contra el sistema de archivos, por lo que no detecta `../../storage` (directorio sin `index`/`main`) ni destinos inexistentes. Equivalente adoptado: regla local `limites/imports-relativos` en `eslint.config.mjs`, que resuelve léxicamente cada specifier relativo contra la raíz del repo y aplica las mismas políticas que `no-restricted-imports` (que sigue cubriendo nombres `@contapp/*` y rutas con `apps`/`packages`). Sin dependencia nueva. Nota: `docs/03-arquitectura.md` §2 nombra `eslint-plugin-boundaries`; queda para que el arquitecto decida si actualiza ese texto.
   - Verificado con 21 casos aislados (11 originales + 10 de huecos/relativos): todos como se esperaba. Los archivos de prueba se borraron.
+  - Ampliación (sonnet, `feat(001): bloquear imports entre apps en eslint`): ninguna app importa de otra app (`docs/03-arquitectura.md` §2), por nombre `@contapp/<app>`, por ruta `apps/<app>` y por ruta relativa (`../../worker/...`), con `import`, `export ... from` e `import()`. `apps/backend` bloquea además `worker` y `frontend`; `apps/worker` es un bloque nuevo (bloquea `backend` y `frontend`, permite todos los `packages/*`); `apps/frontend` añade las rutas sin `/**`. Verificado con 32 casos aislados nuevos (22 bloqueados, 10 permitidos: `@contapp/shared`, `packages/*` por ruta relativa, imports locales) y 11 de regresión de las reglas previas (frontend, backend→sunat, domain): todos como se esperaba. Archivos de prueba borrados. No se bloquea `require()` ni imports de packages hacia apps (fuera del alcance de §2).
 
 ## T5 · packages/shared
 - **Contexto (leer solo esto)**: `docs/specs/001-fundaciones/spec.md` (Alcance: packages/shared; decisión 4; CA-1), `docs/02-requerimientos.md` (RNF-080), `docs/03-arquitectura.md` §2 (paquetes).
@@ -132,7 +133,7 @@ Reglas comunes:
   1. CA-1: `pnpm install`; las tres apps importan `@contapp/shared`.
   2. CA-2: `pnpm typecheck`.
   3. CA-3: `pnpm lint`.
-  4. CA-4: en `apps/frontend`, crear un import prohibido de prueba hacia `packages/db`; `pnpm lint` debe fallar por la regla de límites; borrar el archivo.
+  4. CA-4: en `apps/frontend`, crear un import prohibido de prueba hacia `packages/db`; `pnpm lint` debe fallar por la regla de límites; borrar el archivo. Segundo caso (app → otra app): en `apps/worker`, un import de prueba hacia `apps/backend` (p. ej. `../../backend/src/main`); `pnpm lint` debe fallar por la regla de límites (`limites/imports-relativos`); borrar el archivo.
   5. CA-5: `pnpm build`.
   6. CA-6: `pnpm dev` en segundo plano; `GET` a `http://localhost:3000/` y `http://localhost:4000/` = 200; el worker sin errores según T7. Detener los procesos.
   7. CA-8: revisar `.env.example`.
