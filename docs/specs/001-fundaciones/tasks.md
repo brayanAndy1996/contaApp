@@ -13,7 +13,7 @@ Nivel D: sin `plan.md`; este archivo hace de plan. Los CA citados son los de `sp
 | T5 | `packages/shared` con esquema zod mínimo | devops | haiku | T4 | — | — | [x] |
 | T6 | `apps/backend` (NestJS HTTP, puerto 4000) | devops | haiku | T5 | — | — | [x] |
 | T7 | Decidir arranque del worker en 001 | arquitecto | opus | T6 | — | — | [x] |
-| T8 | `apps/worker` (NestJS standalone) | devops | haiku | T7 | — | — | [ ] |
+| T8 | `apps/worker` (NestJS standalone) | devops | haiku | T7 | — | — | [x] |
 | T9 | `apps/frontend` (Next.js, puerto 3000) | devops | haiku | T8 | — | — | [ ] |
 | T10 | `.env.example` con adaptadores en `mock` | devops | haiku | T9 | — | — | [ ] |
 | T11 | CI base: `.github/workflows/ci.yml` | devops | haiku | T9 ∥ | — | — | [ ] |
@@ -22,6 +22,8 @@ Nivel D: sin `plan.md`; este archivo hace de plan. Los CA citados son los de `sp
 
 Escalamientos: T4 (devops, intento 1) · `typescript-eslint` 8.72.0 no soporta TypeScript 7.0.2 (instalado por `pnpm add -w typescript`; peer `>=4.8.4 <6.1.0`) y ESLint no carga `eslint.config.mjs` (sale con código 2) · falta decidir la versión de TypeScript (p. ej. línea 6.0.x) · T4 queda en WIP sin commit · T5 no iniciada.
 Escalamiento T4 resuelto: haiku → sonnet (devops, intento 2). TypeScript fijado en 6.0.3 (ver Resultado de T4).
+Escalamiento T8 (devops, intento 1): arranque OK (`Worker iniciado`, vivo a 5 s, `Worker detenido` con Ctrl+C), pero el proceso sale con código 1, no 0 (criterio de T7). Causa probable: `enableShutdownHooks()` re-lanza la señal con `process.kill` (`apps/backend/node_modules/@nestjs/core/nest-application-context.js:251`), que en Windows termina con código 1. Decide el arquitecto (p. ej. `enableShutdownHooks({ useProcessExit: true })` o cambiar el criterio). `apps/worker` queda en WIP sin commit; T9 y la pieza de eslint no iniciadas.
+Escalamiento T8 resuelto: haiku → sonnet (devops, intento 2). `enableShutdownHooks([], { useProcessExit: true })` en `apps/worker/src/main.ts`: tras el cierre ordenado llama `process.exit(0)` en lugar de re-lanzar la señal. Verificado 3 de 3: `Worker iniciado`, vivo a 5 s, `Worker detenido`, código 0. Nota: en Windows `child.kill('SIGINT')` de Node termina el proceso sin señal real, así que el SIGINT se emuló con `process.emit('SIGINT')` (misma ruta que Ctrl+C, que dispara `process.on('SIGINT')`). Criterio de T7 sin cambios.
 
 Reglas comunes:
 - Scaffolding con CLI o generador (`nest new`, `create-next-app`, `pnpm`, `turbo`); sin boilerplate escrito a mano.
