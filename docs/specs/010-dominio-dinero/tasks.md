@@ -7,7 +7,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → cobertura y CI desde el diseño �
 | # | Tarea | Rol | Modelo | Depende de | TDD | ADV | Estado |
 |---|---|---|---|---|---|---|---|
 | T1 | Rama `spec/010-dominio-dinero` y commit de los docs | devops | haiku | — | — | — | [x] |
-| T2 | Andamiaje de `packages/domain` | devops | haiku | T1 | — | — | [ ] |
+| T2 | Andamiaje de `packages/domain` | devops | sonnet | T1 | — | — | [x] |
 | T3 | Cobertura por archivo (90 %), script raíz y CI | devops | sonnet | T2 | — | — | [ ] |
 | T4 | Pruebas de lint de dinero e IO (rojo) | tester | sonnet | T1 ∥ T3 | ✓ | — | [ ] |
 | T5 | Pruebas de `dinero/` (rojo) | tester | sonnet | T2 ∥ T3, T4 | ✓ | — | [ ] |
@@ -26,7 +26,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → cobertura y CI desde el diseño �
 | T16 | Revisión final contra la spec | arquitecto | opus | T15 | — | — | [ ] |
 | T17 | Cierre: ESTADO, tasks y commit | devops | haiku | T16 | — | — | [ ] |
 
-Escalamientos: (ninguno aún)
+Escalamientos: T2 haiku→sonnet (haiku se detuvo por un fallo de shell: una redirección apuntó a un directorio y `pnpm install` no corrió; sonnet revisó, instaló y verificó).
 
 Reglas comunes:
 - Un commit por tarea (Conventional Commits `feat(010): …`, `test(010): …`), con el trailer `Co-Authored-By` del modelo que la ejecutó. Las tareas ∥ hacen commit una tras otra. Sin remoto.
