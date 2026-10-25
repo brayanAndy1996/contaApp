@@ -120,6 +120,8 @@ const reglaImportsRelativos = {
     };
     const revisar = (nodo, fuente) => {
       if (typeof fuente !== "string") return;
+      if (estricto && (fuente === "module" || fuente === "node:module"))
+        context.report({ node: nodo, message: MSG_REQUIRE });
       revisarSubcarpeta(nodo, fuente);
       if (!politica || !fuente.startsWith(".")) return;
       const destino = path.resolve(path.dirname(archivo), fuente);
@@ -151,9 +153,37 @@ const reglaImportsRelativos = {
       if (valor !== undefined) return revisar(nodo, valor);
       if (estricto) context.report({ node: nodo, message: MSG_DINAMICO });
     };
+    const MSG_EVAL =
+      "apps/backend: eval/Function, alias de require/module y mainModule prohibidos; pueden evadir la prohibición del descifrado (spec 003, CA-4b).";
+    const RAICES_REQUIRE = ["module", "require", "process", "globalThis", "global"];
     const raizRequire = (e) => {
-      while (e?.type === "MemberExpression") e = e.object;
-      return e?.type === "Identifier" && ["module", "require", "process"].includes(e.name);
+      while (e?.type === "MemberExpression" || e?.type === "ChainExpression")
+        e = e.type === "ChainExpression" ? e.expression : e.object;
+      return e?.type === "Identifier" && RAICES_REQUIRE.includes(e.name);
+    };
+    // Identificador sin declaración local (global del entorno): un `module` o `require` propio no cuenta.
+    const esGlobal = (id) => {
+      for (let s = context.sourceCode.getScope(id); s; s = s.upper) {
+        const v = s.set.get(id.name);
+        if (v && v.defs.length > 0) return false;
+      }
+      return true;
+    };
+    const esPropiedad = (n) => {
+      const p = n.parent;
+      if (p?.type === "MemberExpression" && p.property === n && !p.computed) return true;
+      if (p?.type === "Property" && p.key === n && !p.computed && !p.shorthand) return true;
+      return p?.type === "TSQualifiedName" || p?.type === "PropertyDefinition" && p.key === n;
+    };
+    // Usos legítimos: `typeof x`, `require.resolve`, `module.exports`/`module.hot`.
+    const usoInocuo = (n) => {
+      const p = n.parent;
+      if (p?.type === "UnaryExpression" && p.operator === "typeof") return true;
+      if (p?.type === "MemberExpression" && p.object === n) {
+        const m = nombreMiembro(p);
+        return n.name === "require" ? m === "resolve" : m === "exports" || m === "hot";
+      }
+      return false;
     };
     const handlers = {
       ImportDeclaration: (n) => revisar(n, n.source.value),
@@ -168,12 +198,34 @@ const reglaImportsRelativos = {
     if (estricto) {
       handlers.Identifier = (n) => {
         if (n.name === "createRequire") context.report({ node: n, message: MSG_REQUIRE });
+        if (esPropiedad(n) || !esGlobal(n)) return;
+        // `require` solo como callee directo (ya revisado) o `require.resolve`; `module` solo exports/hot.
+        if (n.name === "eval") context.report({ node: n, message: MSG_EVAL });
+        else if (
+          (n.name === "require" || n.name === "module") &&
+          !(n.name === "require" && n.parent?.type === "CallExpression" && n.parent.callee === n) &&
+          !usoInocuo(n)
+        )
+          context.report({ node: n, message: MSG_EVAL });
       };
       handlers.MemberExpression = (n) => {
         const nombre = nombreMiembro(n);
         if (nombre === "createRequire" || (nombre === "require" && raizRequire(n.object)))
           context.report({ node: n, message: MSG_REQUIRE });
+        if (nombre === "mainModule" || ((nombre === "eval" || nombre === "Function") && raizRequire(n.object)))
+          context.report({ node: n, message: MSG_EVAL });
       };
+      const funcion = (n) => {
+        if (n.callee.type === "Identifier" && n.callee.name === "Function" && esGlobal(n.callee))
+          context.report({ node: n, message: MSG_EVAL });
+      };
+      handlers.NewExpression = funcion;
+      const llamada = handlers.CallExpression;
+      handlers.CallExpression = (n) => {
+        llamada(n);
+        funcion(n);
+      };
+      handlers.TSExternalModuleReference = (n) => revisarArgumento(n, n.expression);
     }
     return handlers;
   },

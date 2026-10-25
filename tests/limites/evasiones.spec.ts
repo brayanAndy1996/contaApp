@@ -42,6 +42,18 @@ const PROHIBIDOS: Array<[string, string]> = [
   ['module["require"]', 'export const d = module["require"]("@contapp/crypto/descifrado");'],
   ["require.main.require", 'export const d = require.main?.require("@contapp/crypto/descifrado");'],
   ["process.mainModule.require", 'export const d = process.mainModule?.require("x");'],
+  // Spec 003, R2a-2 (ronda adversarial 2).
+  ["alias de require", 'const r = require;\nexport const d = r("@contapp/crypto/descifrado");'],
+  ["require.call", 'export const d = require.call(null, "@contapp/crypto/descifrado");'],
+  ["eval", "export const d = eval('require(\"@contapp/crypto/descifrado\")');"],
+  ["new Function", "export const d = new Function('r', 'return r(1)')(require);"],
+  ["secuencia (0, require)", 'export const d = (0, require)("@contapp/crypto/descifrado");'],
+  ["desestructurado de module", 'const { require: r } = module;\nexport const d = r("x");'],
+  ["alias de module", 'const m = module;\nexport const d = m.require("x");'],
+  ["module.constructor._load", 'export const d = module.constructor._load("x", module);'],
+  ["require('module')", 'export const d = require("module")._load("x", module);'],
+  ["globalThis.process.mainModule", 'export const d = globalThis.process.mainModule?.require("x");'],
+  ["import = require (TypeScript)", 'import d = require("@contapp/crypto/descifrado");\nexport { d };'],
 ];
 
 const PERMITIDOS: Array<[string, string]> = [
@@ -51,6 +63,11 @@ const PERMITIDOS: Array<[string, string]> = [
   ["require literal del paquete principal", 'export const d = require("@contapp/crypto");'],
   ["import estático de un paquete cualquiera", 'import { Injectable } from "@nestjs/common";\nexport { Injectable };'],
   ["require.resolve no es require()", 'export const d = require.resolve("@contapp/crypto");'],
+  ["module.exports / module.hot", "if (module.hot) module.hot.accept();\nmodule.exports = {};"],
+  ["typeof require / module", 'export const d = typeof require !== "undefined" && typeof module !== "undefined";'],
+  ["module local (Nest Test)", "export async function f(t: { compile(): Promise<unknown> }) {\n  const module = await t.compile();\n  return module;\n}"],
+  ["Function como tipo", "export type Cb = Function;\nexport const g = (cb: Function) => cb;"],
+  ["import = require del principal", 'import c = require("@contapp/crypto");\nexport { c };'],
 ];
 
 describe("F4: apps/backend no evade la prohibición del descifrado", () => {
