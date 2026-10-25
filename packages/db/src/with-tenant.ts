@@ -142,7 +142,8 @@ export async function ejecutarEnContexto<T>(
   let terminada = false;
   let conexionRota: Error | undefined;
   try {
-    await client.query(`${LIMPIAR_SESION}; BEGIN`);
+    await client.query(LIMPIAR_SESION);
+    await client.query("BEGIN");
     await client.query(SET_ROLE[rolApp]);
     await client.query(ajuste.sql, ajuste.valores);
     const tx = crearTx(client, () => terminada);

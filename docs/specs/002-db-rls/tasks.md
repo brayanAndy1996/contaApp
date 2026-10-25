@@ -15,7 +15,7 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T7 | Job de CI `aislamiento` y `pnpm ci:db` en local | devops | haiku | T5, T6 | — | — | [x] |
 | T8 | Ronda adversarial 1 | adversario | opus | T7 | — | ✓ | [x] |
 | T9 | Corregir hallazgos de la ronda 1 | backend | opus | T8 | — | — | [ ] |
-| T9c | Regla de lint contra SQL crudo fuera de `packages/db` | devops | sonnet | — | — | — | [ ] |
+| T9c | Regla de lint contra SQL crudo fuera de `packages/db` | devops | sonnet | — | — | — | [x] |
 | T10 | Ronda adversarial 2 (solo si T8 tuvo fallos) | adversario | opus | T9 | — | ✓ | [ ] |
 | T11 | Corregir hallazgos de la ronda 2 | backend | opus | T10 | — | — | [ ] |
 | T12 | Verificar CA-1 a CA-9 con evidencia | tester | sonnet | T11 | — | — | [ ] |

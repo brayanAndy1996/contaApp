@@ -47,10 +47,15 @@ async function sincronizarPassword(
     return "sin cambios";
   }
   const verificador = generaVerificador(password);
-  // ALTER ROLE no admite parámetros: el verificador se valida contra su formato antes de interpolarlo.
   if (!FORMATO_VERIFICADOR.test(verificador))
     throw new ErrorCli("verificador SCRAM con formato invalido");
-  await client.query(`ALTER ROLE ${ROL_LOGIN} PASSWORD '${verificador}'`);
+  // ALTER ROLE no admite parámetros: el servidor arma la sentencia con format(%I, %L) a partir de
+  // valores enviados como $1/$2 (nunca se interpola en el cliente) y luego se ejecuta tal cual.
+  const ddl = await client.query<{ sentencia: string }>(
+    "select format('ALTER ROLE %I PASSWORD %L', $1::text, $2::text) as sentencia",
+    [ROL_LOGIN, verificador],
+  );
+  await client.query(ddl.rows[0]!.sentencia);
   return "actualizada";
 }
 
