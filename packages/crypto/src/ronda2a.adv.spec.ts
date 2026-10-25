@@ -12,11 +12,16 @@ import {
 
 const RAIZ = resolve(__dirname, "..", "..", "..");
 
+// Revisión T16a (opus): el período se fija en 10 000, el volumen de CA-2, y no en VENTANA_HUELLAS + 1.
+// Atado a la ventana, la prueba fallaría con cualquier ventana acotada (no tendría arreglo posible); así
+// exige que un ciclo dentro del volumen que garantiza CA-2 se detecte (hoy la ventana es de 4096).
+const PERIODO_CA2 = 10_000;
+
 describe("T16a · F5 por otra vía: RNG en ciclo más largo que la ventana de huellas", () => {
-  it(`un RNG de período ${VENTANA_HUELLAS + 1} no repite (DEK, nonce) sin detectarlo`, () => {
+  it(`un RNG de período ${PERIODO_CA2} (CA-2; ventana actual ${VENTANA_HUELLAS}) no repite (DEK, nonce) sin detectarlo`, () => {
     // La ventana recuerda las últimas VENTANA_HUELLAS huellas. Un ciclo de una longitud mayor hace que
     // la primera DEK y el primer nonce ya no estén en la ventana cuando vuelven a salir.
-    const periodo = VENTANA_HUELLAS + 1;
+    const periodo = PERIODO_CA2;
     const deks = Array.from({ length: periodo }, (_, i) => {
       const b = Buffer.alloc(32, 0x5a);
       b.writeUInt32BE(i + 1, 0);
@@ -96,6 +101,17 @@ describe("T16a · F4 por otra vía: cargas de @contapp/crypto/descifrado que el 
         'export const d = globalThis.process.mainModule?.require("@contapp/crypto/descifrado");\n',
       ],
       ["import d = require() (TypeScript)", 'import d = require("@contapp/crypto/descifrado");\nexport { d };\n'],
+      // Revisión T16a (opus): apps/backend es ESM ("type": "module", nodenext); ahí `require` y `module`
+      // no existen en ejecución, así que los casos de arriba solo son explotables desde un .cts/.cjs. Estas
+      // dos vías sí funcionan en ESM (comprobado en Node 24 con un builtin) y la regla no las reporta.
+      [
+        "ESM: process.getBuiltinModule con clave calculada",
+        'export const d = process.getBuiltinModule("node:module")["create" + "Require"](import.meta.url)("@contapp/crypto/descifrado");\n',
+      ],
+      [
+        "ESM: new Module().require",
+        'import Module from "node:module";\nconst m = new Module(import.meta.filename);\nexport const d = m.require("@contapp/crypto/descifrado");\n',
+      ],
     ];
     const sinReportar: string[] = [];
     for (const [nombre, codigo] of casos) {

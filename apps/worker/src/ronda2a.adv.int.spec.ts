@@ -4,8 +4,13 @@
 // SEGURO esperado: si falla, es un hallazgo (tasks.md, T16a). Llaves `local` temporales (r2a-k1 retirada,
 // r2a-k2 activa) o el fixture `mock`; nunca se imprimen.
 import { cifrarCredencial, crearKeyWrapper, type Sobre } from "@contapp/crypto";
-import { Secreto, crearKeyUnwrapper, crearKeyUnwrapperAnterior } from "@contapp/crypto/descifrado";
-import { reemplazarDekEnvuelta, type ContappDb } from "@contapp/db";
+import {
+  Secreto,
+  SecretoDestruidoError,
+  crearKeyUnwrapper,
+  crearKeyUnwrapperAnterior,
+} from "@contapp/crypto/descifrado";
+import type { ContappDb } from "@contapp/db";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   borrarDirectorio,
@@ -90,58 +95,77 @@ const corromper = (s: Sobre): Sobre => {
   return { ...s, dekEnvuelta: d };
 };
 
-describe("T16a · F3 por otra vía: CAS de reemplazarDekEnvuelta sin kekAnterior", () => {
-  it("sin kekAnterior, la rotación no pisa un kek_id que el backend escribió tras la lectura", async () => {
+// Revisión T16a (opus): la versión anterior llamaba a reemplazarDekEnvuelta SIN kekAnterior, cosa que la
+// rotación nunca hace (rotar-kek.ts siempre pasa `desde`); el parámetro es opcional a propósito (T15 · F3,
+// contrato de tests/aislamiento). Era un falso positivo. Ahora ataca F3 por la vía real y con concurrencia
+// verdadera: el backend tiene la fila bloqueada (UPDATE sin confirmar) mientras corre el CAS de la rotación.
+describe("T16a · F3 por otra vía: UPDATE concurrente del backend con la fila bloqueada durante el CAS", () => {
+  it("la rotación espera el bloqueo y, tras el COMMIT del backend, no pisa su kek_id (re-evalúa el CAS)", async () => {
     const x = await sembrarK1();
-    // El backend re-etiqueta la fila (kek_id) después de que el worker la leyera con dek_envuelta vigente.
-    await backend.withTenant({ tenantId: A }, (tx) =>
-      tx.query("update credencial set kek_id = $2, updated_at = now() where id = $1", [x.id, "r2a-k3"]),
-    );
-    // El contrato de tests/aislamiento/credencial.spec.ts llama sin kekAnterior: el CAS solo compara dek_envuelta.
-    const aplicado = await worker.withTenant({ tenantId: A }, (tx) =>
-      reemplazarDekEnvuelta(tx, {
-        id: x.id,
-        dekAnterior: x.sobre.dekEnvuelta,
-        dekNueva: Buffer.alloc(512, 7),
-        kekNuevo: "r2a-k2",
-      }),
-    );
+    let liberar!: () => void;
+    const bloqueo = new Promise<void>((r) => (liberar = r));
+    let marcarBloqueada!: () => void;
+    const bloqueada = new Promise<void>((r) => (marcarBloqueada = r));
+    let txBackend: Promise<unknown> | undefined;
+    let llamadas = 0;
+    // Llamada 1 = listar; llamada 2 = transacción del CAS. Antes de la 2, el backend abre su transacción,
+    // re-etiqueta la fila y la mantiene bloqueada; la confirma 300 ms después (con el CAS ya esperando).
+    const db: Pick<ContappDb, "withTenant"> = {
+      withTenant: async (ctx, fn) => {
+        llamadas += 1;
+        if (llamadas === 2) {
+          txBackend = backend.withTenant({ tenantId: A }, async (tx) => {
+            await tx.query("update credencial set kek_id = $2, updated_at = now() where id = $1", [x.id, "r2a-k3"]);
+            marcarBloqueada();
+            await bloqueo;
+          });
+          await bloqueada;
+          setTimeout(liberar, 300);
+        }
+        return worker.withTenant(ctx, fn);
+      },
+    };
+    const res = await rotarKekTenantDetalle({ db, anterior: anteriorK1(), activa: activaK2(), tenantId: A, desde: "r2a-k1" });
+    await txBackend;
     const fila = (await instantanea(worker, A, [x.id])).get(x.id)!;
-    expect(aplicado, "el CAS sin kekAnterior aceptó pisar una fila re-etiquetada por el backend").toBe(false);
-    expect(fila.kek_id, "la rotación pisó el kek_id escrito por el backend").toBe("r2a-k3");
+    expect(fila.kek_id, "la rotación pisó el kek_id escrito por el backend en paralelo").toBe("r2a-k3");
+    expect(Buffer.compare(fila.dek_envuelta, x.sobre.dekEnvuelta)).toBe(0);
+    expect(res).toEqual({ reenvueltas: 0, omitidas: 1, corruptas: [] });
   });
 });
 
-describe("T16a · F6 por otra vía: logger que rechaza de forma asíncrona tras el COMMIT", () => {
-  it("el Secreto no se entrega sin destruirse cuando el logger falla de forma asíncrona", async () => {
+// Revisión T16a (opus): la versión anterior exigía que un logger con rechazo ASÍNCRONO impidiera entregar el
+// Secreto. Era un falso positivo: `LoggerCredenciales.log` es síncrono (`void`) y, si no lanza, el Secreto se
+// ENTREGA a su dueño (el llamador), que es lo contrario de F6 ("ni se entrega ni se destruye"). El rechazo
+// sin manejar es un defecto del logger, no una fuga. Ahora ataca F6 por otra vía síncrona: `log` es un
+// getter que lanza un valor que no es Error, y se comprueba que el Secreto quedó realmente inservible.
+describe("T16a · F6 por otra vía: logger cuyo acceso a `log` lanza un valor que no es Error", () => {
+  it("el Secreto no se entrega y queda destruido de verdad (usar() lanza SecretoDestruidoError)", async () => {
     const x = await sembrar(crearKeyWrapper(ENV_MOCK));
     const destruir = vi.spyOn(Secreto.prototype, "destruir");
-    const servicio = crearServicioCredenciales({
-      db: worker,
-      unwrapper: crearKeyUnwrapper(ENV_MOCK),
-      logger: {
-        log: () => {
-          // Rechazo asíncrono: no lanza en la llamada. Se marca como manejado en la propia prueba para no
-          // contaminar la ejecución; el servicio debería esperarlo o tratarlo como el fallo síncrono de F6.
-          const rechazo = Promise.reject(new Error("logger caído (asíncrono)"));
-          rechazo.catch(() => undefined);
-          return rechazo as unknown as void;
-        },
-        warn: () => undefined,
+    const logger = {
+      get log(): () => void {
+        const valor: unknown = "logger caído (no es Error)";
+        throw valor;
       },
-    });
+      warn: () => undefined,
+    };
+    const servicio = crearServicioCredenciales({ db: worker, unwrapper: crearKeyUnwrapper(ENV_MOCK), logger });
     let secreto: Secreto | undefined;
     let error: unknown;
     try {
-      secreto = await servicio.descifrarCredencial({ tenantId: A }, x.id, "r2a:logger-asincrono");
+      secreto = await servicio.descifrarCredencial({ tenantId: A }, x.id, "r2a:logger-getter");
     } catch (e) {
       error = e;
     }
-    // Se mira antes de la limpieza de la prueba, que también llama a destruir().
-    const destruidoPorServicio = destruir.mock.calls.length > 0;
+    const instancias = destruir.mock.contexts as Secreto[];
     secreto?.destruir();
-    expect(error, "el Secreto se entregó aunque el logger falló de forma asíncrona").toBeInstanceOf(Error);
-    expect(destruidoPorServicio, "el Secreto quedó vivo sin dueño tras el fallo del logger").toBe(true);
+    expect(secreto, "el Secreto se entregó aunque el logger falló").toBeUndefined();
+    expect(error).toBe("logger caído (no es Error)");
+    expect(instancias.length, "el Secreto quedó vivo sin dueño tras el fallo del logger").toBeGreaterThan(0);
+    for (const s of instancias) {
+      expect(() => s.usar(() => undefined)).toThrow(SecretoDestruidoError);
+    }
   });
 });
 
