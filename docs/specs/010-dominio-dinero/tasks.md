@@ -17,7 +17,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → cobertura y CI desde el diseño �
 | T9 | Implementar `comprobante/` | backend | opus | T6, T8 | ✓ | — | [x] |
 | T10 | Integración: checks completos | devops | haiku | T7, T9 | — | — | [x] |
 | T11a | Ronda 1a: lista mínima de la spec (caja negra) | adversario | opus | T10 | — | ✓ | [x] |
-| T11b | Ronda 1b: escenarios nuevos (caja blanca) | adversario | opus | T10 ∥ T11a | — | ✓ | [ ] |
+| T11b | Ronda 1b: escenarios nuevos (caja blanca) | adversario | opus | T10 ∥ T11a | — | ✓ | [x] |
 | T12 | Corregir hallazgos de la ronda 1 | backend | opus | T11a, T11b | — | — | [ ] |
 | T13a | Ronda 2a: regresión de correcciones | adversario | opus | T12 | — | ✓ | [ ] |
 | T13b | Ronda 2b: escenarios nuevos contra las correcciones | adversario | opus | T12 ∥ T13a | — | ✓ | [ ] |
@@ -100,6 +100,12 @@ Reglas comunes:
 - **Hacer**: hasta **7** pruebas en `packages/domain/src/dinero/ronda1b.adv.spec.ts`, `packages/domain/src/comprobante/ronda1b.adv.spec.ts` y, solo para evasión del lint, `tests/limites/dominio-r1b.adv.spec.ts`, **distintas** de la lista de T11a: divisiones (`igv / 0.18`) y TC de 3 decimales seguidos de redondeo, valores a 1 ulp del límite tras `por`/`entre`, `Symbol.toPrimitive` y coerciones, acceso a internos (`#d`, prototipo, `Object.getOwnPropertyDescriptors`, subclases), `clone` heredando configuración global, `consolidados` con signos mezclados, `convertirAPen` con columnas negativas, gramáticas con longitudes extremas, evasión del lint contra `number` (alias de tipo, `Number` aliasado, `globalThis.parseFloat`) y riesgos del plan.
 - **Defensas**: igual que T11a; además, no reportar como hallazgo lo que el plan ya declara como riesgo aceptado (Riesgos) salvo que lleve a un monto incorrecto.
 - **Hecho cuando**: igual que T11a. Commit `test(010): ronda adversarial 1b`.
+- **Resultado** (7 pruebas: R1b-1…R1b-7; pasan 2: R1b-1 config global antes de cargar + ida y vuelta + 1 ulp, R1b-4 cadenas cambiarDestino/moverMonto + `sumar` en cualquier orden). Hallazgos abiertos:
+  - R1b-2 · **media** · `packages/domain/src/dinero/monto-exacto.ts:69` (precisión 40 de `decimal.ts:8`): `entre` trunca y una cadena `entre → por` que da un medio céntimo exacto redondea hacia abajo: `0.02 ÷ 0.18 × 0.495 = 0.055` → `"0.05"` (D1 exige `"0.06"`); igual con −, con `÷ 3.3 × 18.15` y con `÷ 3 × TipoCambio 16.5`. Contradice el plan (Precisión).
+  - R1b-3 · **media** · `dinero/money.ts:37`, `monto-exacto.ts:19`, `tipo-cambio.ts:14`, `factor.ts:13`, `tolerancia.ts:14`, `comprobante/montos-comprobante.ts:24`: los constructores son privados solo en TS; `new (Money as unknown as Ctor)(decimal, "EUR")` crea Money de 0.001 (imprime `"0.00"`, diez suman `"0.01"`), moneda EUR, TipoCambio/Factor/Tolerancia negativos y MontosComprobante PEN con columnas USD o faltantes.
+  - R1b-6 · **baja** · `comprobante/mover-monto.ts:19` y `cambiar-destino.ts:17`: aceptan un objeto que no es `MontosComprobante` y devuelven uno real con columnas que no son Money (`toJSON().columnas.isc = "1e3"`) o PEN con columna USD; además `cambiar-destino.ts:31` devuelve la misma instancia en el caso sin cambios (el plan pide nueva instancia).
+  - R1b-7 · **baja** · `eslint.config.mjs:471-483` y `:446-453`: el lint no detecta `globalThis.parseFloat`, `Number`/`parseFloat`/`Math` aliasados, `globalThis.Number`, el tipo `Number` ni `import { D } from "../dinero/decimal"; D.set(…)` desde `comprobante/`.
+  - R1b-5 · **baja · decide usuario** · `comprobante/convertir.ts:20`: una fila USD que no cuadra (total 999.00 ≠ Σ 118.00) sale cuadrando en PEN porque el total USD se descarta sin verificar; D7 no dice qué hacer. El resto de R1b-5 (por componente, |Δ| ≤ 0.05, simetría con notas de crédito, desborde) pasa.
 
 ## T12 · Corregir ronda 1 (backend · opus)
 - **Contexto (leer solo esto)**: hallazgos de 010 en `docs/specs/ESTADO.md`, los `*.adv.spec.ts` que fallan, los archivos de producción que señalan, `plan.md` (Decisiones).
