@@ -1,9 +1,7 @@
 // Ronda adversarial 1b (spec 003, T14b), caja blanca sobre la rotación y el descifrado del worker con
-// BD real de desarrollo (DATABASE_URL / MIGRATIONS_DATABASE_URL de ../../.env y ./.env; falla si faltan).
+// BD real de desarrollo (integracion: `pnpm --filter @contapp/worker test:int`, que carga ../../.env y ./.env; falla si faltan).
 // Cada prueba afirma el comportamiento SEGURO esperado: si falla, es un hallazgo (tasks.md, T14b).
 // Llaves `local` temporales (r1b-k1 retirada, r1b-k2 activa) o el fixture `mock`; nunca se imprimen.
-import { existsSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { cifrarCredencial, crearKeyWrapper, type Sobre, type TipoCredencial } from "@contapp/crypto";
 import {
   Secreto,
@@ -31,11 +29,6 @@ import {
 import { ENV_MOCK, fugas, uuid, valorDe } from "../test/soporte.js";
 import { crearServicioCredenciales } from "./credenciales/descifrar-credencial.js";
 import { rotarKekTenant } from "./credenciales/rotar-kek.js";
-
-for (const rel of ["../../../.env", "../.env"]) {
-  const archivo = fileURLToPath(new URL(rel, import.meta.url));
-  if (existsSync(archivo)) process.loadEnvFile(archivo);
-}
 
 vi.setConfig({ testTimeout: 60_000, hookTimeout: 180_000 });
 
