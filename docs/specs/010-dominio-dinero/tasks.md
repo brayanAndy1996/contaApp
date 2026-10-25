@@ -11,7 +11,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → cobertura y CI desde el diseño �
 | T3 | Cobertura por archivo (90 %), script raíz y CI | devops | sonnet | T2 | — | — | [x] |
 | T4 | Pruebas de lint de dinero e IO (rojo) | tester | sonnet | T1 ∥ T3 | ✓ | — | [x] |
 | T5 | Pruebas de `dinero/` (rojo) | tester | sonnet | T2 ∥ T3, T4 | ✓ | — | [x] |
-| T6 | Pruebas de `comprobante/` y casos reales (rojo) | tester | sonnet | T2 ∥ T5 | ✓ | — | [ ] |
+| T6 | Pruebas de `comprobante/` y casos reales (rojo) | tester | sonnet | T2 ∥ T5 | ✓ | — | [x] |
 | T7 | Reglas de lint de dinero e IO | devops | sonnet | T4 ∥ T8 | ✓ | — | [ ] |
 | T8 | Implementar `dinero/` | backend | opus | T3, T5 | ✓ | — | [ ] |
 | T9 | Implementar `comprobante/` | backend | opus | T6, T8 | ✓ | — | [ ] |
