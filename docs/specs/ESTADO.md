@@ -8,7 +8,7 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 |---|---|---|---|---|
 | 001-fundaciones | D | hecha | — | Sin Docker (decisión del usuario). TypeScript 6.0.3. CI de GitHub sin ejecutar: el repo no tiene remoto. |
 | 002-db-rls | A | hecha | — | Spec aprobada por el usuario (D1–D3, D5–D7). P7 resuelta en el plan. Rama `spec/002-db-rls` desde `spec/001-fundaciones`. |
-| 003-cifrado | A | pendiente | — | Hereda de 002 (D3): permiso por columnas de `credencial`; backend no lee el cifrado. |
+| 003-cifrado | A | aprobada | T1 | Spec aprobada por el usuario ("todo recomendado": D1–D8; RNF-002 y 01 §5 corregidos, D4). Plan y tareas listos. Rama `spec/003-cifrado` desde `spec/002-db-rls` (002 sin mergear). Hereda de 002 (D3): permiso por columnas de `credencial` (CA-4c). |
 | 004-auth | A | pendiente | — | — |
 | 005-acceso | A | pendiente | — | Hereda de 002 (D2): criterio de HU-40 "por API" (aislamiento entre estudios probado vía endpoints). |
 | 006-planes | B | pendiente | — | — |
@@ -54,3 +54,5 @@ No son decisiones tomadas ni pendientes del usuario: cada spec las resuelve al p
 - [infra] Restringir con `pg_hba` que `contapp_app` no entre a otras bases del clúster (hoy `postgres` conserva `CONNECT` y `TEMP` para PUBLIC).
 - [005] Heredar la prueba "por API" de HU-40 (D2).
 - [003] Heredar el permiso por columnas de `credencial` (D3).
+- [008] El job `kek.rotar` necesita la lista de estudios: el rol worker no ve otros tenants (D9 de 002). 003 entrega la rotación por estudio (`--tenant`); 008 decide cómo enumerarlos sin `BYPASSRLS` en el login.
+- [007] Agregar la FK `credencial(tenant_id, cliente_id) → cliente(tenant_id, id)` y las columnas de estado (RF-034/035) con sus grants por columna; el backend guarda con el repositorio de 003 (`ON CONFLICT … DO UPDATE` con parámetros, nunca con `EXCLUDED`).
