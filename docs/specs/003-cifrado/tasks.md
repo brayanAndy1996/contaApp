@@ -20,7 +20,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → pruebas (rojo) → implementación
 | T12 | Servicio `descifrarCredencial`, rotación y `kek:rotar` en el worker | backend | opus | T7, T9, T10 | ✓ | — | [x] |
 | T13 | Integración: scripts raíz y checks completos | devops | haiku | T11, T12 | — | — | [x] |
 | T14a | Ronda adversarial 1a: lista mínima de la spec (caja negra) | adversario | opus | T13 | — | ✓ | [x] |
-| T14b | Ronda adversarial 1b: ataques nuevos (caja blanca) | adversario | opus | T13 ∥ T14a | — | ✓ | [ ] |
+| T14b | Ronda adversarial 1b: ataques nuevos (caja blanca) | adversario | opus | T13 ∥ T14a | — | ✓ | [x] |
 | T15 | Corregir hallazgos de la ronda 1 | backend | opus | T14a, T14b | — | — | [ ] |
 | T16a | Ronda adversarial 2a: regresión de correcciones y reconversión de aceptados | adversario | opus | T15 | — | ✓ | [ ] |
 | T16b | Ronda adversarial 2b: ataques nuevos contra las correcciones | adversario | opus | T15 ∥ T16a | — | ✓ | [ ] |
@@ -117,6 +117,14 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: igual que T14a + `plan.md` (Decisiones, Riesgos); después (caja blanca) `packages/crypto/src/`, `packages/db/src/credenciales/`, `packages/db/migrations/0006_*.sql`, `apps/worker/src/`.
 - **Hacer**: hasta ~7 pruebas en `apps/worker/src/ronda1b.adv.spec.ts` y `packages/crypto/src/ronda1b.adv.spec.ts`, distintas de T14a: RNG forzado/atascado, rotación concurrente con `UPDATE` del backend, proveedor caído a mitad de la rotación, auditoría que falla tras descifrar, importación del descifrado por vías no previstas (alias, `exports`, `dist`), llave débil o pública con privada, errores de `pg` con valores, riesgos del plan.
 - **Hecho cuando**: igual que T14a. Commit `test(003): ronda adversarial 1b`.
+- **Resultado (2026-10-25)**: 7 pruebas (`packages/crypto/src/ronda1b.adv.spec.ts` 3, `apps/worker/src/ronda1b.adv.spec.ts` 4, esta con BD de desarrollo: carga `../../.env` y `./.env`); **1 pasa, 6 fallan** (hallazgos abiertos para T15; no se anotaron en `ESTADO.md` por indicación del orquestador):
+  - **Alta** · `packages/crypto/src/descifrado/reenvolver.ts:27` y `apps/worker/src/cli/kek-rotar.ts:101`: la rotación acepta como activa el proveedor `mock`; con `KEY_PROVIDER=mock` (valor por defecto) `kek:rotar` re-envuelve DEKs reales con la KEK del fixture, cuya privada está en el repo (downgrade; contradice CA-10 y "nunca fallback a mock").
+  - **Media** · `apps/worker/src/credenciales/rotar-kek.ts:89`: una sola `dek_envuelta` alterada (`IntegridadError`) aborta la rotación de todo el estudio en cada corrida; la KEK retirada no se puede jubilar. Requiere usuario: omitir y contar, o fallar cerrado.
+  - **Baja** · `packages/db/src/credenciales/repositorio.ts:81` (y firma en `:173`): el CAS compara `dek_envuelta` pero no `kek_id = desde` (lo pide plan, Decisiones · Rotación); un `UPDATE` del backend que cambia solo `kek_id` queda pisado (CA-6).
+  - **Baja** · `eslint.config.mjs:137` y `:138-145`: `require`/`import()` con plantilla sin expresiones, `createRequire(...)(…)` y `module.require(…)` importan `@contapp/crypto/descifrado` desde `apps/backend` sin que el lint lo reporte (CA-4b; mitigado porque el backend no tiene la privada en `local`).
+  - **Baja** · `packages/crypto/src/comun/aleatorio.ts:29-32`: la guarda de RNG solo compara con el cifrado anterior; un RNG en ciclo A, B, A repite (DEK, nonce) en GCM.
+  - **Baja** · `apps/worker/src/credenciales/descifrar-credencial.ts:149-151`: si `logger.log` lanza tras el COMMIT, el `Secreto` ni se entrega ni se destruye.
+  - Pasa: un CHECK violado en el CAS (pg con la fila en `detail`) se reduce a `PersistenciaCredencialError` sin DEK ni bytes del sobre y revierte el lote.
 
 ## T15 · Corregir ronda 1 (backend · opus)
 - **Contexto (leer solo esto)**: hallazgos de 003 en `docs/specs/ESTADO.md`, los `*.adv.spec.ts` que fallan, los archivos de producción que señalan, `plan.md` (Decisiones).
