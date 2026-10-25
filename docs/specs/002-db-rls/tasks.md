@@ -24,7 +24,7 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T12c | Refactor de `cli/` a funciones con conexión inyectada (verde) | backend | sonnet | T12b | ✓ | — | [x] |
 | T12e | Medir cobertura y completar el Resultado de T12 | tester | sonnet | T12c, T12d | — | — | [x] |
 | T12 | Verificar CA-1 a CA-9 con evidencia | tester | sonnet | T11, T12e | — | — | [x] |
-| T13 | Revisión final contra la spec | arquitecto | opus | T12 | — | — | [ ] |
+| T13 | Revisión final contra la spec | arquitecto | opus | T12 | — | — | [x] |
 | T14 | Cierre: ESTADO, tasks y commit | devops | haiku | T13 | — | — | [ ] |
 
 Escalamientos:
@@ -160,6 +160,16 @@ Se cumple el 90 % real, sin excluir `cli/` ni `schema/` (definición en `spec.md
 - **Contexto (leer solo esto)**: `docs/specs/002-db-rls/spec.md`, `docs/specs/002-db-rls/plan.md`, "Resultado" de T12, `packages/db/migrations/*.sql`, `packages/db/src/with-tenant.ts`.
 - **Hacer**: contrastar cada CA con su evidencia y el DoD de nivel A (04 §5); listar faltantes y riesgos aceptados para informar al usuario.
 - **Hecho cuando**: veredicto "aprobada" o lista de faltantes con tarea asignada. Sin commit si no cambia archivos.
+- **Resultado T13 (arquitecto · opus, 2026-10-24) — APROBADA CON OBSERVACIONES.** Sin incumplimientos de CA ni de D1–D10. Revisado sobre 0000–0004, `with-tenant.ts`, `eslint.config.mjs:96-311`, `catalogo.spec.ts` y el Resultado de T12 (sin correr pruebas).
+  - CA-1…CA-9 con evidencia en el Resultado de T12; DoD A (04 §5): TDD verde, 2 rondas ADV sin fallos abiertos (30/30 adv), cobertura 97,88/96,2/98,27/99,19 %, sin secretos. Falta solo "usuario informado" de H10–H13 (lo hace el orquestador con este resultado).
+  - Desvíos de T5, aceptados por justificados: `USAGE` en `public` para `contapp_app` (da `permission denied` y no 42P01; sin `CREATE` ni `TEMP`) y `contapp_migrator` (FK como dueño) en `0002:35`; `lc_messages='C'` en `0000:30`, mantenido por `reparar-rol`. Política `tenant_isolation FOR SELECT` en `tenant`/`usuario` (`0003:17`, `0004:32`): cumple D9; `membresia`/`cliente` siguen `FOR ALL` con `USING`+`WITH CHECK` (CA-3). `0000:32` aún concede `contapp_platform` y `0003:4` lo revoca: correcto porque el migrador de Drizzle aplica todo en una transacción.
+  - H1–H13: H1, H8, H11, H12 cerrados en `with-tenant.ts:102-140`; H2 (D8), H6 y H13 (D9), H10 en `0003`/`0004`; H7 mitigado según D10 (repara `migrar`); H3, H4, H5, H9 en "Riesgos aceptados".
+  - O1 · baja · bookkeeping → T14: `ESTADO.md` marca H10–H13 "abierto" (pasar a cerrado); T9 y T10 siguen `[ ]` en la tabla; casillas CA-1…CA-9 de `spec.md` sin marcar.
+  - O2 · baja · docs → T14: `plan.md:44` dice `USAGE` solo a backend/worker/platform y `plan.md:32` dice `tenant`/`usuario` sin RLS; actualizar con 0002–0004 para que 003+ no copien el contrato viejo.
+  - O3 · baja · límites residuales que no figuran en "Riesgos aceptados": H7 (hasta el siguiente `migrar` el rol puede persistir ajustes o `PASSWORD NULL`: denegación de servicio; `row_security=off` falla cerrado), H10 (`pg_largeobject_metadata` legible, solo OID/dueño; el REVOKE es por base), H11 (`olvidarSentencias`, `with-tenant.ts:121`, depende de `parsedStatements` interno de `pg`; si cambia, el efecto es error "prepared statement does not exist", no fuga; `pg` fijado en 8.23.1). Pregunta al usuario: ¿aceptarlos explícitamente en `spec.md`?
+  - O4 · baja · lint (`eslint.config.mjs:195-201`): el veto a `sql` solo mira `ImportSpecifier`; `import * as d from "drizzle-orm"` y luego `d.sql` lo evita. Para 007 (upsert con `excluded.*`, sumas `NUMERIC`) hará falta `sql`: o `packages/db` expone repositorios/ayudantes, o se relaja a permitir la plantilla `sql` (parametrizada) y se mantiene el veto a `.raw(`, `sql.raw` y `set_config`. Decidir en la spec 007.
+  - O5 · baja · para 004/008: la detección de anidado (ALS, `with-tenant.ts:191`) se propaga a tareas asíncronas lanzadas dentro de `fn`; si después llaman a `withTenant`, lanzan `WithTenantAnidadoError` (falla cerrado). Documentarlo al conectar las apps.
+  - O6 · baja · despliegue: las otras bases del clúster (p. ej. `postgres`) conservan `CONNECT`/`TEMP` para PUBLIC y `contapp_app` puede entrar en ellas (sin datos de estudios). Restringir con `pg_hba` en la spec de infraestructura.
 
 ## T14 · Cierre (devops · haiku)
 - **Contexto (leer solo esto)**: `docs/specs/ESTADO.md`, `docs/specs/002-db-rls/tasks.md`.
