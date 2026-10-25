@@ -72,29 +72,59 @@ describe("CA-2 roles de la app", () => {
     expect(r!.rolcanlogin).toBe(false);
   });
 
-  it.each(TABLAS_NEGOCIO)("contapp_platform recibe permission denied al leer y escribir %s", async (tabla) => {
-    const A = semilla().tenantA;
-    const sentencias: [string, unknown[]][] = [
-      [`select 1 from ${tabla} limit 1`, []],
-      [`update ${tabla} set tenant_id = tenant_id`, []],
-      [`delete from ${tabla}`, []],
-      tabla === "cliente"
-        ? [`insert into cliente (tenant_id, ruc, razon_social) values ($1, '20999999991', 'x')`, [A]]
-        : [`insert into membresia (tenant_id, usuario_id, rol) values ($1, $2, 'admin')`, [A, semilla().uB]],
-    ];
-    for (const [sql, valores] of sentencias) {
-      const r = await intentarRaw(pool, "contapp_platform", sql, valores);
-      expect(r.ok, sql).toBe(false);
-      if (!r.ok) {
-        expect(r.code, sql).toBe("42501");
-        expect(r.message, sql).toMatch(/permission denied/i);
-      }
+  // D8 (spec 002): contapp_platform queda fuera del alcance del login; no se puede ejercer via SET ROLE,
+  // asi que el "permission denied" sobre negocio se verifica con los privilegios efectivos del catalogo.
+  it.each(TABLAS_NEGOCIO)("contapp_platform no tiene ningun privilegio (permission denied) sobre %s", async (tabla) => {
+    const r = await pool.query(
+      `select has_table_privilege('contapp_platform', $1, 'SELECT')     as sel,
+              has_table_privilege('contapp_platform', $1, 'INSERT')     as ins,
+              has_table_privilege('contapp_platform', $1, 'UPDATE')     as upd,
+              has_table_privilege('contapp_platform', $1, 'DELETE')     as del,
+              has_table_privilege('contapp_platform', $1, 'TRUNCATE')   as trunc,
+              has_table_privilege('contapp_platform', $1, 'REFERENCES') as ref,
+              has_table_privilege('contapp_platform', $1, 'TRIGGER')    as trg,
+              has_any_column_privilege('contapp_platform', $1, 'SELECT')     as csel,
+              has_any_column_privilege('contapp_platform', $1, 'INSERT')     as cins,
+              has_any_column_privilege('contapp_platform', $1, 'UPDATE')     as cupd,
+              has_any_column_privilege('contapp_platform', $1, 'REFERENCES') as cref`,
+      [tabla],
+    );
+    expect(r.rows[0], tabla).toEqual({
+      sel: false, ins: false, upd: false, del: false, trunc: false, ref: false, trg: false,
+      csel: false, cins: false, cupd: false, cref: false,
+    });
+  });
+
+  it("contapp_platform si tiene privilegios sobre tablas de plataforma (el rechazo es por grants, no un fallo general)", async () => {
+    const r = await pool.query(
+      `select has_table_privilege('contapp_platform', 'tenant', 'SELECT') as sel,
+              has_schema_privilege('contapp_platform', 'public', 'USAGE')  as uso`,
+    );
+    expect(r.rows[0]).toEqual({ sel: true, uso: true });
+  });
+
+  it("el login de la app NO puede asumir contapp_platform (SET ROLE rechazado con permission denied)", async () => {
+    const r = await intentarRaw(pool, null, "SET ROLE contapp_platform");
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.code).toBe("42501");
+      expect(r.message).toMatch(/permission denied/i);
     }
   });
 
-  it("contapp_platform si lee tablas de plataforma (el rechazo es por grants, no un fallo general)", async () => {
-    const r = await filasRaw(pool, "contapp_platform", "select count(*)::int as n from tenant");
-    expect(r[0].n).toBeGreaterThanOrEqual(2);
+  it("tras el rechazo de SET ROLE contapp_platform la sesion sigue siendo contapp_app, sin acceso a negocio", async () => {
+    const c = await pool.connect();
+    try {
+      await c.query("BEGIN");
+      await expect(c.query("SET LOCAL ROLE contapp_platform")).rejects.toMatchObject({ code: "42501" });
+      await c.query("ROLLBACK");
+      await c.query("BEGIN");
+      expect((await c.query("select current_user as u")).rows[0].u).toBe("contapp_app");
+      await expect(c.query("select 1 from cliente limit 1")).rejects.toMatchObject({ code: "42501" });
+    } finally {
+      await c.query("ROLLBACK").catch(() => undefined);
+      c.release();
+    }
   });
 });
 
@@ -117,7 +147,7 @@ describe("CA-2 rol de login de DATABASE_URL", () => {
     expect(o).toEqual({ clases: 0, funciones: 0, esquemas: 0, tipos: 0, bases: 0 });
   });
 
-  it("sus membresias son solo backend, worker y platform, con INHERIT FALSE y SET TRUE", async () => {
+  it("sus membresias son solo backend y worker (nunca platform), con INHERIT FALSE y SET TRUE", async () => {
     const r = await pool.query(
       `select g.rolname as rol, m.inherit_option, m.set_option, m.admin_option
          from pg_auth_members m
@@ -126,7 +156,7 @@ describe("CA-2 rol de login de DATABASE_URL", () => {
         where u.rolname = 'contapp_app'
         order by g.rolname`,
     );
-    expect(r.rows.map((x) => x.rol)).toEqual(["contapp_backend", "contapp_platform", "contapp_worker"]);
+    expect(r.rows.map((x) => x.rol)).toEqual(["contapp_backend", "contapp_worker"]);
     for (const x of r.rows) {
       expect(x.inherit_option, x.rol).toBe(false);
       expect(x.set_option, x.rol).toBe(true);
