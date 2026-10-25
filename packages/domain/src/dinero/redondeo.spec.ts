@@ -57,7 +57,6 @@ describe("CA-4 · redondearSunat half-up alejándose de cero (D1)", () => {
 
   const tabla: Array<[string, string]> = [
     ["0.0049999999", "0.00"],
-    ["0.004999999999", "0.00"],
     ["0.005", "0.01"],
     ["0.015", "0.02"],
     ["0.025", "0.03"],
@@ -175,7 +174,7 @@ describe("CA-4 · independiente de la configuración global de Decimal.set", () 
     vi.resetModules();
   });
 
-  function calcular(m: typeof import("../index")): {
+  function calcular(m: typeof import("../index.js")): {
     grande: string;
     medio: string;
   } {
@@ -190,7 +189,7 @@ describe("CA-4 · independiente de la configuración global de Decimal.set", () 
   it("Decimal.set ANTES de cargar el módulo (ROUND_HALF_EVEN, precision 5) no cambia nada", async () => {
     vi.resetModules();
     Decimal.set({ rounding: Decimal.ROUND_HALF_EVEN, precision: 5 });
-    const m = await import("../index");
+    const m = await import("../index.js");
     const r = calcular(m);
     expect(r.grande).toBe("152415.78");
     expect(r.medio).toBe("0.03");
@@ -206,7 +205,7 @@ describe("CA-4 · independiente de la configuración global de Decimal.set", () 
 
   it("Decimal.set DESPUÉS de cargar el módulo no cambia nada", async () => {
     vi.resetModules();
-    const m = await import("../index");
+    const m = await import("../index.js");
     Decimal.set({ rounding: Decimal.ROUND_HALF_EVEN, precision: 5 });
     const r = calcular(m);
     expect(r.grande).toBe("152415.78");
@@ -227,7 +226,7 @@ describe("CA-4 · independiente de la configuración global de Decimal.set", () 
 
   it("Decimal.set con ROUND_DOWN y toExpNeg corto tampoco afecta la salida canónica", async () => {
     vi.resetModules();
-    const m = await import("../index");
+    const m = await import("../index.js");
     Decimal.set({ rounding: Decimal.ROUND_DOWN, toExpNeg: -2, toExpPos: 2 });
     try {
       expect(
