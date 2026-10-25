@@ -11,8 +11,13 @@ export interface Material {
   nonce: Buffer;
 }
 
-/** Huellas recordadas por tipo (DEK y nonce): memoria acotada (~64 B por huella). */
-export const VENTANA_HUELLAS = 4096;
+/**
+ * Huellas recordadas por tipo (DEK y nonce). CA-2 exige 10 000 cifrados con nonces y DEKs distintos, así
+ * que la ventana debe cubrir al menos ese volumen: un RNG en ciclo de período ≤ 10 000 se detecta antes de
+ * repetir un par (hallazgo R2a-1). 16 384 (2^14) deja margen sobre CA-2 con memoria acotada: ~1-2 MB por
+ * generador (2 ventanas × 16 384 huellas SHA-256 en base64 de 44 caracteres, más el índice del Set).
+ */
+export const VENTANA_HUELLAS = 16_384;
 
 export class RngNoConfiableError extends CryptoError {
   constructor() {
@@ -20,14 +25,17 @@ export class RngNoConfiableError extends CryptoError {
   }
 }
 
-/** Conjunto FIFO de huellas con capacidad fija: al llenarse olvida la más antigua. */
+/**
+ * Conjunto FIFO de huellas con capacidad fija: al llenarse olvida la más antigua. Búfer circular + Set:
+ * `contiene` y `agregar` en O(1) (sin `Array.shift`, que es O(n) con ventanas grandes).
+ */
 class VentanaHuellas {
-  readonly #orden: string[] = [];
+  readonly #anillo: (string | undefined)[];
   readonly #presentes = new Set<string>();
-  readonly #capacidad: number;
+  #siguiente = 0;
 
   constructor(capacidad: number) {
-    this.#capacidad = capacidad;
+    this.#anillo = new Array<string | undefined>(capacidad);
   }
 
   contiene(huella: string): boolean {
@@ -35,20 +43,20 @@ class VentanaHuellas {
   }
 
   agregar(huella: string): void {
-    this.#orden.push(huella);
+    const antigua = this.#anillo[this.#siguiente];
+    if (antigua !== undefined) this.#presentes.delete(antigua);
+    this.#anillo[this.#siguiente] = huella;
     this.#presentes.add(huella);
-    if (this.#orden.length > this.#capacidad) {
-      this.#presentes.delete(this.#orden.shift() as string);
-    }
+    this.#siguiente = (this.#siguiente + 1) % this.#anillo.length;
   }
 }
 
-const huella = (b: Buffer): string => createHash("sha256").update(b).digest("hex");
+const huella = (b: Buffer): string => createHash("sha256").update(b).digest("base64");
 
 /**
  * Devuelve un generador que lanza si la DEK es todo ceros o si la DEK o el nonce repiten alguno de los
  * últimos `capacidad` generados (detecta un RNG atascado o en ciclo corto: A, B, A). Solo se recuerdan
- * huellas SHA-256, nunca la DEK.
+ * huellas SHA-256, nunca la DEK. `capacidad` es un entero ≥ 1 (solo las pruebas internas la cambian).
  */
 export function crearGeneradorMaterial(
   rng: Rng = randomBytes,

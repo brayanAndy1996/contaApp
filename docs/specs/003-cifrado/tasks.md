@@ -24,7 +24,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → pruebas (rojo) → implementación
 | T15 | Corregir hallazgos de la ronda 1 | backend | opus | T14a, T14b | — | — | [x] |
 | T16a | Ronda adversarial 2a: regresión de correcciones y reconversión de aceptados | adversario | opus | T15 | — | ✓ | [x] |
 | T16b | Ronda adversarial 2b: ataques nuevos contra las correcciones | adversario | opus | T15 ∥ T16a | — | ✓ | [x] |
-| T17 | Corregir hallazgos de la ronda 2 | backend | opus | T16a, T16b | — | — | [~] |
+| T17 | Corregir hallazgos de la ronda 2 | backend | opus | T16a, T16b | — | — | [x] |
 | T18 | Verificar CA-1 a CA-12 y cobertura con evidencia | tester | sonnet | T17 | — | — | [ ] |
 | T19 | Revisión final contra la spec | arquitecto | opus | T18 | — | — | [ ] |
 | T20 | Cierre: ESTADO, tasks y commit | devops | haiku | T19 | — | — | [ ] |
@@ -177,6 +177,7 @@ Reglas comunes:
   - R2b-3 (baja): `esProduccion()` (trim + minúsculas) en `validarEntornoMock` y en el constructor de `MockKeyProvider`.
   - R2b-4 (baja): `exigirSalidaIgnorada` en `kek:generar`: dentro del repo exige que `git check-ignore` ignore `<salida>/kek-private.pem` (mensaje fijo, sin la ruta); fuera del repo, o sin repositorio git, no aplica; con `.git` que git no reconoce, falla cerrado. Prueba nueva: `packages/crypto/src/cli/kek-generar-salida.spec.ts` (3).
   - Pruebas: crypto 278 (solo fallan R2a-1); worker unit 95 ✓, `test:int` 37 ✓; `ci:db` ✓ (aislamiento 348); limites 104 ✓; typecheck, lint y build ✓. Cobertura: db 98.13/96.55/98.64/99.29 ✓; crypto (sin la prueba de R2a-1) 98.41/97.35/96.29/98.57.
+- **Resultado (2026-10-25)**: corregido R2a-1 (baja). `VENTANA_HUELLAS` pasa de 4096 a 16 384 (≥ 10 000, el volumen de CA-2) en `packages/crypto/src/comun/aleatorio.ts`; la ventana pasa a búfer circular + `Set` (O(1), sin `Array.shift`) y la huella SHA-256 se guarda en base64 (~1-2 MB por generador). Ninguna prueba existente dependía de 4096. Pruebas: crypto 280 ✓ (incluida `ronda2a.adv.spec.ts:16`); typecheck, lint y build ✓; `pnpm cobertura:crypto` 583 ✓, 98.42/97.35/96.29/98.57; `ci:db` ✓ (aislamiento 348, worker `test:int` 37).
 
 ## T18 · Verificación (tester · sonnet)
 - **Contexto (leer solo esto)**: `docs/specs/003-cifrado/spec.md` (Criterios, "Cobertura"), `plan.md` (Contratos: comandos), hallazgos de 003 en `docs/specs/ESTADO.md`.
