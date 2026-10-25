@@ -245,7 +245,14 @@ const reglaSqlCrudo = {
 };
 
 export default tseslint.config(
-  { ignores: ["**/dist/**", "**/.next/**", "**/node_modules/**"] },
+  {
+    ignores: [
+      "**/dist/**",
+      "**/.next/**",
+      "**/node_modules/**",
+      "**/coverage/**",
+    ],
+  },
   ...tseslint.configs.recommended,
   eslintConfigPrettier,
   {
