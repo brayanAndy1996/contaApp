@@ -11,7 +11,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → pruebas (rojo) → implementación
 | T3 | Comando `cobertura:crypto` (umbral 90 %), `ci:db` y CI | devops | sonnet | T2 | — | — | [x] |
 | T4 | `.env.example` a 11 variables, `.env` local y fixture `mock` | devops | haiku | T2 ∥ T3 | — | — | [x] |
 | T5 | Pruebas unitarias de `@contapp/crypto` (rojo) | tester | sonnet | T3, T4 | ✓ | — | [ ] |
-| T6 | Pruebas de BD de `credencial` y auditoría (rojo) | tester | sonnet | T3 ∥ T5 | ✓ | — | [ ] |
+| T6 | Pruebas de BD de `credencial` y auditoría (rojo) | tester | sonnet | T3 ∥ T5 | ✓ | — | [x] |
 | T7 | Pruebas del servicio del worker y la rotación (rojo) | tester | sonnet | T3, T4 ∥ T6 | ✓ | — | [ ] |
 | T8 | Pruebas de lint y de llaves en el repo (rojo) | tester | sonnet | T2, T4 ∥ T7 | ✓ | — | [x] |
 | T9 | Implementar `packages/crypto` y `kek:generar` | backend | opus | T5 | ✓ | — | [ ] |
