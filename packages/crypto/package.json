@@ -19,6 +19,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run --passWithNoTests",
+    "test:cobertura": "vitest run --config vitest.cobertura.config.mts --coverage --passWithNoTests",
     "kek:generar": "node dist/cli/kek-generar.js"
   },
   "devDependencies": {

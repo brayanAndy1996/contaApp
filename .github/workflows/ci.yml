@@ -41,6 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       MIGRATIONS_DATABASE_URL: postgresql://postgres@localhost:5432/contapp
+      KEY_PROVIDER: mock
     services:
       postgres:
         image: postgres:17
@@ -79,8 +80,14 @@ jobs:
       - name: Build de @contapp/db
         run: pnpm --filter @contapp/db build
 
+      - name: Build de @contapp/crypto
+        run: pnpm --filter @contapp/crypto build
+
       - name: Migraciones, seed y suite de aislamiento
         run: pnpm ci:db
 
       - name: Cobertura de packages/db (umbral 90 %)
         run: pnpm cobertura:db
+
+      - name: Cobertura de 003 cifrado (umbral 90 %)
+        run: pnpm cobertura:crypto
