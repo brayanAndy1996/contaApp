@@ -19,7 +19,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → pruebas (rojo) → implementación
 | T11 | Regla de lint contra el descifrado en `apps/backend` | devops | sonnet | T8 ∥ T10 | ✓ | — | [x] |
 | T12 | Servicio `descifrarCredencial`, rotación y `kek:rotar` en el worker | backend | opus | T7, T9, T10 | ✓ | — | [x] |
 | T13 | Integración: scripts raíz y checks completos | devops | haiku | T11, T12 | — | — | [x] |
-| T14a | Ronda adversarial 1a: lista mínima de la spec (caja negra) | adversario | opus | T13 | — | ✓ | [ ] |
+| T14a | Ronda adversarial 1a: lista mínima de la spec (caja negra) | adversario | opus | T13 | — | ✓ | [x] |
 | T14b | Ronda adversarial 1b: ataques nuevos (caja blanca) | adversario | opus | T13 ∥ T14a | — | ✓ | [ ] |
 | T15 | Corregir hallazgos de la ronda 1 | backend | opus | T14a, T14b | — | — | [ ] |
 | T16a | Ronda adversarial 2a: regresión de correcciones y reconversión de aceptados | adversario | opus | T15 | — | ✓ | [ ] |
@@ -109,6 +109,9 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/003-cifrado/spec.md` (Criterios y "Ataques mínimos"), `docs/specs/003-cifrado/plan.md` (Contratos). Caja negra: no leer implementación.
 - **Hacer**: hasta ~8 pruebas en `packages/crypto/src/ronda1a.adv.spec.ts` y `tests/aislamiento/credencial-r1a.adv.spec.ts` sobre la lista mínima: tag truncado/vacío, bit-flip por campo, AAD cruzada y con `|`/orden alterado, `kek_id` ajeno o retirado, sobre `mock` en `local`, backend leyendo el sobre por cualquier vía SQL (vistas, funciones, oráculos `WHERE`), descifrado entre estudios, canario en logs y errores.
 - **Hecho cuando**: pruebas commiteadas; cada fallo en "Hallazgos adversariales abiertos" de `ESTADO.md` (archivo:línea + una línea). Commit `test(003): ronda adversarial 1a`.
+- **Resultado (2026-10-25)**: 10 pruebas (45 casos con `it.each`), todas en verde; **0 hallazgos**.
+  - `packages/crypto/src/ronda1a.adv.spec.ts` (7): tag vacío/truncado (0–15 B, 17 B) y nonce de otra longitud se rechazan sin llamar a `unwrap`; tipos confusos y `kek_id` ajeno (`__proto__`, `constructor`, `MOCK`, `mock\0`, `k1`, con `|`, `version` 0/2/"1") dan `CryptoError` sin canario; TOCTOU con un tag que mide 16 B al validarse y 4 B al usarse no descifra; la llave `mock` re-codificada (PKCS#1, CRLF, líneas en blanco) con nombre neutro no arranca en `local` (backend y worker); la rotación no blanquea sobres `mock` hacia `local` (`kek_id` mock o re-etiquetado); `Secreto` sin canario por `inspect` (incl. `customInspect:false`/`showHidden`), `%o`, `structuredClone`, `v8.serialize`, spread y propiedades propias.
+  - `tests/aislamiento/credencial-r1a.adv.spec.ts` (3): catálogo sin vistas/matviews/funciones `SECURITY DEFINER`/reglas que expongan el sobre al backend; `MERGE` (ON, WHEN MATCHED AND, SET, RETURNING), `EXPLAIN`, `EXPLAIN ANALYZE`, `TABLE`, comparación de fila completa y `DECLARE CURSOR` dan 42501; tras `ANALYZE`, `pg_stats` no muestra al backend columnas ni bytes del sobre.
 
 ## T14b · Ronda adversarial 1b: ataques nuevos (adversario · opus) ∥ T14a
 - **Contexto (leer solo esto)**: igual que T14a + `plan.md` (Decisiones, Riesgos); después (caja blanca) `packages/crypto/src/`, `packages/db/src/credenciales/`, `packages/db/migrations/0006_*.sql`, `apps/worker/src/`.
