@@ -13,6 +13,7 @@
     "kek:rotar": "pnpm --filter @contapp/worker kek:rotar",
     "test:aislamiento": "pnpm --filter @contapp/tests-aislamiento test:aislamiento",
     "cobertura:db": "pnpm --filter @contapp/db build && pnpm --filter @contapp/db test:cobertura",
+    "cobertura:dominio": "pnpm --filter @contapp/domain test:cobertura",
     "cobertura:crypto": "pnpm --filter @contapp/db build && pnpm --filter @contapp/crypto build && pnpm --filter @contapp/crypto test:cobertura",
     "ci:db": "pnpm db:migrate && pnpm db:migrate && pnpm db:seed && pnpm test:aislamiento && pnpm --filter @contapp/worker test:int"
   },

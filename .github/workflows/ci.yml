@@ -36,6 +36,9 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Cobertura de @contapp/domain (90 % por archivo)
+        run: pnpm cobertura:dominio
+
   aislamiento:
     name: Aislamiento entre estudios (PostgreSQL 17)
     runs-on: ubuntu-latest

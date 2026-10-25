@@ -8,7 +8,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → cobertura y CI desde el diseño �
 |---|---|---|---|---|---|---|---|
 | T1 | Rama `spec/010-dominio-dinero` y commit de los docs | devops | haiku | — | — | — | [x] |
 | T2 | Andamiaje de `packages/domain` | devops | sonnet | T1 | — | — | [x] |
-| T3 | Cobertura por archivo (90 %), script raíz y CI | devops | sonnet | T2 | — | — | [ ] |
+| T3 | Cobertura por archivo (90 %), script raíz y CI | devops | sonnet | T2 | — | — | [x] |
 | T4 | Pruebas de lint de dinero e IO (rojo) | tester | sonnet | T1 ∥ T3 | ✓ | — | [ ] |
 | T5 | Pruebas de `dinero/` (rojo) | tester | sonnet | T2 ∥ T3, T4 | ✓ | — | [ ] |
 | T6 | Pruebas de `comprobante/` y casos reales (rojo) | tester | sonnet | T2 ∥ T5 | ✓ | — | [ ] |

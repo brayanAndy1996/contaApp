@@ -14,7 +14,8 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --max-warnings=0",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "test:cobertura": "vitest run --config vitest.cobertura.config.mts --coverage --passWithNoTests"
   },
   "dependencies": {
     "decimal.js": "10.6.0"
