@@ -6,8 +6,10 @@
 import { pathToFileURL } from "node:url";
 import {
   CryptoError,
+  RotacionConMockError,
   crearKeyUnwrapper,
   crearKeyUnwrapperAnterior,
+  esLlaveMock,
 } from "@contapp/crypto/descifrado";
 import { ConfiguracionDbError, createDb, type ContappDb } from "@contapp/db";
 import {
@@ -99,6 +101,8 @@ export async function main(
     // createDb no abre conexiones hasta la primera consulta: crearla aquí no toca la BD.
     const db = deps.db ?? (propia = createDb({ rolApp: "contapp_worker", url: env.DATABASE_URL }));
     const activa = crearKeyUnwrapper(env);
+    // KEY_PROVIDER=mock (valor por defecto) nunca re-envuelve DEKs reales con la llave del fixture.
+    if (esLlaveMock(activa)) throw new RotacionConMockError();
     if (args.desde === activa.kekId) throw new ArgumentoInvalidoError("--desde es la KEK activa");
     const anterior = crearKeyUnwrapperAnterior({
       kekId: args.desde,

@@ -62,4 +62,12 @@ describe("kek:rotar: argumentos invalidos (no toca BD ni llaves)", () => {
       expect(r.usos, falta).toBe(0);
     }
   });
+
+  // T15 · F1: con KEY_PROVIDER=mock (valor por defecto) no se re-envuelven DEKs reales con el fixture.
+  it("KEY_PROVIDER=mock: rechaza la rotación con un mensaje claro y sin usar la BD", async () => {
+    const r = await correr(base(), { KEY_PROVIDER: "mock", NODE_ENV: "test" });
+    expect(r.codigo).toBe(1);
+    expect(r.usos).toBe(0);
+    expect(r.salida).toContain("[rotacion_mock]");
+  });
 });

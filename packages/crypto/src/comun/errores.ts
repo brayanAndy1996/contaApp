@@ -60,6 +60,16 @@ export class ConfiguracionKeyProviderError extends CryptoError {
   }
 }
 
+/**
+ * La rotación de KEK no admite la llave `mock` (su privada está en el repo): re-envolver DEKs reales
+ * con ella sería un downgrade. Se lanza antes de tocar la BD o la llave.
+ */
+export class RotacionConMockError extends CryptoError {
+  constructor() {
+    super("rotacion_mock", false, "La rotación de KEK no admite la llave mock");
+  }
+}
+
 /** Normaliza cualquier fallo de un proveedor: los errores propios pasan, el resto es KeyProviderError. */
 export function aErrorProveedor(e: unknown): CryptoError {
   return e instanceof CryptoError ? e : new KeyProviderError();

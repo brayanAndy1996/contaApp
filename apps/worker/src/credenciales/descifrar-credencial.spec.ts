@@ -1,9 +1,9 @@
 import { inspect } from "node:util";
 import { crearKeyWrapper, cifrarCredencial, CryptoError, KeyProviderError } from "@contapp/crypto";
 import type { ContextoAad, Sobre, TipoCredencial } from "@contapp/crypto";
-import { crearKeyUnwrapper } from "@contapp/crypto/descifrado";
+import { Secreto, crearKeyUnwrapper } from "@contapp/crypto/descifrado";
 import type { KeyUnwrapper } from "@contapp/crypto/descifrado";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   canario,
   crearDbFalso,
@@ -360,6 +360,32 @@ describe("CA-9: sin fugas en logs ni errores", () => {
       const { servicio, espia, log } = armar(caso, { fallas: { [donde]: errorPg("22001", `valor (${c})`) } });
       const e = await rechazo(() => servicio.descifrarCredencial({ tenantId: TENANT_A }, caso.id, MOTIVO));
       expect(fugas([e, log.llamadas], [c, ...espia.deks])).toEqual([]);
+    }
+  });
+});
+
+// T15 · F6: un logger que falla tras el COMMIT no deja el Secreto vivo sin dueño.
+describe("logger caído tras descifrar", () => {
+  it("logger.log lanza: el servicio rechaza y el Secreto descifrado queda destruido", async () => {
+    const caso = await sembrar("sol", { usuario: "u-logger", clave: "k-logger" });
+    const falso = crearDbFalso(caso.fila);
+    const destruir = vi.spyOn(Secreto.prototype, "destruir");
+    try {
+      const servicio = crearServicioCredenciales({
+        db: falso.db as never,
+        unwrapper: crearKeyUnwrapper(ENV_MOCK),
+        logger: {
+          log: () => {
+            throw new Error("logger caído");
+          },
+          warn: () => undefined,
+        },
+      });
+      const e = await rechazo(() => servicio.descifrarCredencial({ tenantId: TENANT_A }, caso.id, MOTIVO));
+      expect(e.message).toBe("logger caído");
+      expect(destruir).toHaveBeenCalledTimes(1);
+    } finally {
+      destruir.mockRestore();
     }
   });
 });

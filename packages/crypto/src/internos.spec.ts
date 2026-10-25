@@ -98,6 +98,32 @@ describe("generador de DEK y nonce", () => {
     generar();
     expect(() => generar()).toThrow(RngNoConfiableError);
   });
+
+  // T15 · F5: la guarda recuerda una ventana de huellas, no solo el cifrado anterior.
+  const ciclo = (salidas: Buffer[]) => {
+    let i = 0;
+    return (n: number) => {
+      const b = salidas[i++ % salidas.length]!;
+      expect(b).toHaveLength(n);
+      return Buffer.from(b);
+    };
+  };
+  const A = [Buffer.alloc(32, 1), Buffer.alloc(12, 1)];
+  const B = [Buffer.alloc(32, 2), Buffer.alloc(12, 2)];
+
+  it("RNG en ciclo A, B, A -> RngNoConfiableError", () => {
+    const generar = crearGeneradorMaterial(ciclo([...A, ...B]));
+    generar();
+    generar();
+    expect(() => generar()).toThrow(RngNoConfiableError);
+  });
+
+  it("la ventana es acotada: con capacidad 1, A, B, A ya no se detecta (olvida lo más antiguo)", () => {
+    const generar = crearGeneradorMaterial(ciclo([...A, ...B]), 1);
+    generar();
+    generar();
+    expect(generar().dek).toHaveLength(32);
+  });
 });
 
 describe("Perezoso", () => {

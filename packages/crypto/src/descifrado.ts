@@ -8,6 +8,7 @@ export {
   KeyProviderError,
   KekDesconocidaError,
   ConfiguracionKeyProviderError,
+  RotacionConMockError,
 } from "./comun/errores";
 export type {
   TipoCredencial,
@@ -24,7 +25,7 @@ export {
   crearKeyUnwrapperAnterior,
 } from "./descifrado/fabrica";
 export { descifrarSobre } from "./descifrado/descifrar";
-export { reenvolverDek } from "./descifrado/reenvolver";
+export { esLlaveMock, reenvolverDek } from "./descifrado/reenvolver";
 export { Secreto, SecretoDestruidoError } from "./descifrado/secreto";
 export { MockKeyProvider } from "./descifrado/mock";
 export type { OpcionesMock } from "./cifrado/mock";

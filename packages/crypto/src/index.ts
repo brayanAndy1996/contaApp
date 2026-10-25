@@ -8,6 +8,7 @@ export {
   KeyProviderError,
   KekDesconocidaError,
   ConfiguracionKeyProviderError,
+  RotacionConMockError,
 } from "./comun/errores";
 export type {
   TipoCredencial,

@@ -1,5 +1,9 @@
 import type { KeyWrapper } from "@contapp/crypto";
-import type { KeyUnwrapper } from "@contapp/crypto/descifrado";
+import {
+  RotacionConMockError,
+  crearKeyUnwrapper,
+  type KeyUnwrapper,
+} from "@contapp/crypto/descifrado";
 import { describe, expect, it } from "vitest";
 import { dbProhibido, rechazo, uuid } from "../../test/soporte.js";
 import { rotarKekTenant } from "./rotar-kek.js";
@@ -81,6 +85,19 @@ describe("rotarKekTenant: argumentos invalidos (sin tocar la BD)", () => {
   ])("rechaza lote invalido (%s)", async (_n, lote) => {
     const t = llamar({ lote });
     await rechazo(t.promesa);
+    expect(t.usos()).toBe(0);
+  });
+
+  // T15 · F1: la llave mock (privada en el repo) nunca participa en una rotación.
+  it("rechaza la KEK activa mock con RotacionConMockError", async () => {
+    const t = llamar({ activa: crearKeyUnwrapper({ KEY_PROVIDER: "mock", NODE_ENV: "test" }) });
+    await expect(t.promesa()).rejects.toBeInstanceOf(RotacionConMockError);
+    expect(t.usos()).toBe(0);
+  });
+
+  it("rechaza una llave anterior que dice ser mock", async () => {
+    const t = llamar({ desde: "mock", anterior: anterior("mock") });
+    await expect(t.promesa()).rejects.toBeInstanceOf(RotacionConMockError);
     expect(t.usos()).toBe(0);
   });
 });

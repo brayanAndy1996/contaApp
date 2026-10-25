@@ -2,12 +2,14 @@
 //   1) withTenant: listar sobres con kek_id = desde;
 //   2) fuera de la transacción: reenvolverDek (unwrap con la anterior, wrap con la activa y
 //      comprobación de que la activa abre la misma DEK). No descifra el ciphertext;
-//   3) withTenant: UPDATE con CAS sobre dek_envuelta por fila. Si el backend escribió entre la lectura
+//   3) withTenant: UPDATE con CAS sobre dek_envuelta y kek_id = desde por fila. Si el backend escribió entre la lectura
 //      y el CAS, gana el backend y la fila se cuenta como omitida (no se reintenta en esta corrida).
 // Un fallo del proveedor en el paso 2 rechaza con su error reintentable sin escribir nada del lote en
 // curso; los lotes ya confirmados quedan (idempotente y reanudable). Valida todo antes de tocar la BD.
 import {
   CryptoError,
+  RotacionConMockError,
+  esLlaveMock,
   reenvolverDek,
   type KeyUnwrapper,
   type KeyWrapper,
@@ -41,10 +43,13 @@ interface Reenvoltura {
   dekAnterior: Buffer;
   dekNueva: Buffer;
   kekNuevo: string;
+  kekAnterior: string;
 }
 
 function validar(o: OpcionesRotacion): number {
   const lote = o.lote ?? LOTE_POR_DEFECTO;
+  // La llave `mock` (privada en el repo) nunca participa en una rotación real: ni activa ni anterior.
+  if (esLlaveMock(o.activa) || esLlaveMock(o.anterior)) throw new RotacionConMockError();
   if (!esKekId(o.desde)) throw new ArgumentoInvalidoError("desde");
   if (o.desde === o.activa.kekId) throw new ArgumentoInvalidoError("desde (es la KEK activa)");
   if (o.desde !== o.anterior.kekId) {
@@ -92,6 +97,7 @@ export async function rotarKekTenant(o: OpcionesRotacion): Promise<ResultadoRota
         dekAnterior: f.sobre.dekEnvuelta,
         dekNueva: nuevo.dekEnvuelta,
         kekNuevo: nuevo.kekId,
+        kekAnterior: desde,
       });
     }
 

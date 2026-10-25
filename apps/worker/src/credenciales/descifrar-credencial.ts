@@ -2,7 +2,7 @@
 // withTenant(ctx) → leerSobre → descifrarSobre → registrarDescifrado(resultado). La función de la
 // transacción no lanza por fallos de descifrado: devuelve el desenlace, se audita y el error se lanza
 // fuera, tras el COMMIT. Si la lectura, la auditoría o el COMMIT fallan, el Secreto se destruye y no
-// se entrega. El AAD sale de ctx.tenantId y de la fila (cliente_id, tipo). El logger recibe solo ids,
+// se entrega; si el logger falla tras el COMMIT, el Secreto también se destruye. El AAD sale de ctx.tenantId y de la fila (cliente_id, tipo). El logger recibe solo ids,
 // código y resultado.
 import {
   CryptoError,
@@ -147,7 +147,13 @@ export function crearServicioCredenciales(deps: DepsServicioCredenciales): Servi
     }
 
     if (desenlace.secreto !== undefined) {
-      logger.log({ tenantId, credencialId, resultado: "ok" });
+      try {
+        logger.log({ tenantId, credencialId, resultado: "ok" });
+      } catch (e) {
+        // El descifrado ya quedó auditado, pero el Secreto no se entrega sin dueño: se destruye.
+        desenlace.secreto.destruir();
+        throw e;
+      }
       return desenlace.secreto;
     }
     const error = desenlace.error as ErrorTipado;
