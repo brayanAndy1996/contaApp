@@ -7,10 +7,10 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 | Spec | Nivel | Estado | Tarea actual | Bloqueo / nota |
 |---|---|---|---|---|
 | 001-fundaciones | D | hecha | — | Sin Docker (decisión del usuario). TypeScript 6.0.3. CI de GitHub sin ejecutar: el repo no tiene remoto. |
-| 002-db-rls | A | pendiente | — | — |
-| 003-cifrado | A | pendiente | — | — |
+| 002-db-rls | A | en curso | T1 (plan.md y tasks.md listos) | Spec aprobada por el usuario (D1–D3, D5–D7). P7 resuelta en el plan. Rama `spec/002-db-rls` desde `spec/001-fundaciones`. |
+| 003-cifrado | A | pendiente | — | Hereda de 002 (D3): permiso por columnas de `credencial`; backend no lee el cifrado. |
 | 004-auth | A | pendiente | — | — |
-| 005-acceso | A | pendiente | — | — |
+| 005-acceso | A | pendiente | — | Hereda de 002 (D2): criterio de HU-40 "por API" (aislamiento entre estudios probado vía endpoints). |
 | 006-planes | B | pendiente | — | — |
 | 007-clientes | B | pendiente | — | — |
 | 008-cola | A | pendiente | — | — |
@@ -30,4 +30,4 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 |---|---|---|---|
 
 ## Decisiones pendientes del usuario
-- (ninguna)
+- Ninguna.

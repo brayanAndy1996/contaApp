@@ -1,0 +1,15 @@
+{
+  "name": "@contapp/tests-aislamiento",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "test:aislamiento": "vitest run"
+  },
+  "dependencies": {
+    "@contapp/db": "workspace:*",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "vitest": "5.0.5"
+  }
+}
