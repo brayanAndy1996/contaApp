@@ -28,7 +28,7 @@ import {
 } from "../test/bd.js";
 import { ENV_MOCK, fugas, uuid, valorDe } from "../test/soporte.js";
 import { crearServicioCredenciales } from "./credenciales/descifrar-credencial.js";
-import { rotarKekTenant } from "./credenciales/rotar-kek.js";
+import { rotarKekTenant, rotarKekTenantDetalle } from "./credenciales/rotar-kek.js";
 
 vi.setConfig({ testTimeout: 60_000, hookTimeout: 180_000 });
 
@@ -116,8 +116,13 @@ describe("T14b · CAS de la rotación", () => {
   });
 });
 
+// T16a (ronda 2a) · reconvertida: F2 es decisión del usuario (opción A). Esta prueba fija el comportamiento
+// aceptado: la rotación continúa, la fila corrupta queda intacta en `desde` y su id se reporta en
+// `corruptas`; mientras quede una, la KEK anterior NO se puede jubilar. El límite conocido (en corridas
+// posteriores con solo filas corruptas, la CLI sale con código 1) está pendiente de aceptación del usuario
+// y no se fija aquí.
 describe("T14b · una fila corrupta durante la rotación", () => {
-  it("una sola dek_envuelta alterada no bloquea la rotación del resto del estudio (la KEK retirada se puede jubilar)", async () => {
+  it("opción A (T16a): una dek_envuelta alterada no bloquea el resto del estudio; queda en k1 y su id se reporta", async () => {
     const sana1 = await sembrarK1();
     const corrupta = await sembrarK1((s) => {
       const d = Buffer.from(s.dekEnvuelta);
@@ -128,18 +133,18 @@ describe("T14b · una fila corrupta durante la rotación", () => {
     let error: unknown;
     let res: unknown;
     try {
-      res = await rotarKekTenant({ db: worker, anterior: anteriorK1(), activa: activaK2(), tenantId: A, desde: "r1b-k1", lote: 10 });
+      res = await rotarKekTenantDetalle({ db: worker, anterior: anteriorK1(), activa: activaK2(), tenantId: A, desde: "r1b-k1", lote: 10 });
     } catch (e) {
       error = e;
     }
     const filas = await instantanea(worker, A, [sana1.id, corrupta.id, sana2.id]);
-    // Seguro: las sanas pasan a k2; la corrupta queda intacta en k1 y se reporta como omitida.
+    // Seguro: las sanas pasan a k2; la corrupta queda intacta en k1, cuenta como omitida y su id va a corruptas.
     expect(
       [filas.get(sana1.id)!.kek_id, filas.get(sana2.id)!.kek_id],
       `rotación abortada por una fila corrupta (${(error as { codigo?: string } | undefined)?.codigo ?? "sin error"})`,
     ).toEqual(["r1b-k2", "r1b-k2"]);
     expect(filas.get(corrupta.id)!.kek_id).toBe("r1b-k1");
-    expect(res).toEqual({ reenvueltas: 2, omitidas: 1 });
+    expect(res).toEqual({ reenvueltas: 2, omitidas: 1, corruptas: [corrupta.id] });
   });
 });
 

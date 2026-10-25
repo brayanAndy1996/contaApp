@@ -22,7 +22,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → pruebas (rojo) → implementación
 | T14a | Ronda adversarial 1a: lista mínima de la spec (caja negra) | adversario | opus | T13 | — | ✓ | [x] |
 | T14b | Ronda adversarial 1b: ataques nuevos (caja blanca) | adversario | opus | T13 ∥ T14a | — | ✓ | [x] |
 | T15 | Corregir hallazgos de la ronda 1 | backend | opus | T14a, T14b | — | — | [x] |
-| T16a | Ronda adversarial 2a: regresión de correcciones y reconversión de aceptados | adversario | opus | T15 | — | ✓ | [ ] |
+| T16a | Ronda adversarial 2a: regresión de correcciones y reconversión de aceptados | adversario | opus | T15 | — | ✓ | [x] |
 | T16b | Ronda adversarial 2b: ataques nuevos contra las correcciones | adversario | opus | T15 ∥ T16a | — | ✓ | [x] |
 | T17 | Corregir hallazgos de la ronda 2 | backend | opus | T16a, T16b | — | — | [ ] |
 | T18 | Verificar CA-1 a CA-12 y cobertura con evidencia | tester | sonnet | T17 | — | — | [ ] |
@@ -146,6 +146,10 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: igual que T14b + `git diff <commit T14b>..HEAD -- packages apps`.
 - **Hacer**: si T14a y T14b no tuvieron fallos, marcar T16a, T16b y T17 `[x]` "omitida: ronda 1 sin fallos". Si no: reconvertir las pruebas de hallazgos aceptados por el usuario para que fijen el comportamiento aceptado (con comentario) y hasta ~5 pruebas que reintenten cada hallazgo corregido por otra vía.
 - **Hecho cuando**: igual que T14a. Commit `test(003): ronda adversarial 2a`.
+- **Resultado (2026-10-25)**: 7 pruebas (6 nuevas de reintento por otra vía y 1 reconvertida); **3 pasan, 4 fallan** (hallazgos R2a-1 a R2a-4 abiertos en `ESTADO.md`, para T17). Typecheck de worker y crypto, y lint de los 4 archivos, sin errores.
+  - Reconvertida, F2 (opción A, decisión del usuario): `apps/worker/src/ronda1b.adv.int.spec.ts:125` fija la rotación que continúa, la corrupta intacta en `desde` y su id en `corruptas`. El límite (código 1 frente a 3 en corridas posteriores con solo filas corruptas) no se fija: pendiente de aceptación del usuario.
+  - Pasan: F1 por CLI con `KEY_PROVIDER=mock` (`apps/worker/src/ronda2a.adv.spec.ts:10`) y F2 con lote 1 y dos corruptas (`apps/worker/src/ronda2a.adv.int.spec.ts:149`).
+  - Fallan: R2a-1, F5 (`packages/crypto/src/ronda2a.adv.spec.ts:16`); R2a-2, F4 (`:58`); R2a-3, F3 (`apps/worker/src/ronda2a.adv.int.spec.ts:94`); R2a-4, F6 (`:116`).
 
 ## T16b · Ronda 2b: ataques nuevos (adversario · opus) ∥ T16a
 - **Contexto (leer solo esto)**: igual que T16a.
