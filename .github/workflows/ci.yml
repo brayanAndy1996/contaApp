@@ -35,3 +35,49 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  aislamiento:
+    name: Aislamiento entre estudios (PostgreSQL 17)
+    runs-on: ubuntu-latest
+    env:
+      MIGRATIONS_DATABASE_URL: postgresql://postgres@localhost:5432/contapp
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: contapp
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: pnpm (versión de packageManager en package.json)
+        uses: pnpm/action-setup@v6
+
+      - name: Node (versión de .nvmrc)
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Generar DATABASE_URL del rol de app (contraseña por corrida)
+        run: |
+          PASS="$(openssl rand -hex 24)"
+          echo "::add-mask::${PASS}"
+          echo "DATABASE_URL=postgresql://contapp_app:${PASS}@localhost:5432/contapp" >> "$GITHUB_ENV"
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Build de @contapp/db
+        run: pnpm --filter @contapp/db build
+
+      - name: Migraciones, seed y suite de aislamiento
+        run: pnpm ci:db

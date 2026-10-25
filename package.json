@@ -10,7 +10,7 @@
     "db:migrate": "pnpm --filter @contapp/db db:migrate",
     "db:seed": "pnpm --filter @contapp/db db:seed",
     "test:aislamiento": "pnpm --filter @contapp/tests-aislamiento test:aislamiento",
-    "ci:db": "pnpm --filter @contapp/db build && pnpm db:migrate && pnpm db:seed && pnpm test:aislamiento"
+    "ci:db": "pnpm db:migrate && pnpm db:migrate && pnpm db:seed && pnpm test:aislamiento"
   },
   "packageManager": "pnpm@10.12.1",
   "private": true,

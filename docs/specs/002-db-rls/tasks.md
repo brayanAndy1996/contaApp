@@ -12,7 +12,7 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T4 | Suite de aislamiento CA-2 a CA-7 (rojo) | tester | sonnet | T1 ∥ | ✓ | — | [x] |
 | T5 | Esquema, migraciones, roles, RLS, `migrar` y seed | backend | opus | T2, T4 | ✓ | — | [x] |
 | T6 | `createDb`, `withTenant`, `withUsuario`, SCRAM | backend | opus | T3, T4 ∥ | ✓ | — | [x] |
-| T7 | Job de CI `aislamiento` y `pnpm ci:db` en local | devops | haiku | T5, T6 | — | — | [ ] |
+| T7 | Job de CI `aislamiento` y `pnpm ci:db` en local | devops | haiku | T5, T6 | — | — | [x] |
 | T8 | Ronda adversarial 1 | adversario | opus | T7 | — | ✓ | [ ] |
 | T9 | Corregir hallazgos de la ronda 1 | backend | opus | T8 | — | — | [ ] |
 | T10 | Ronda adversarial 2 (solo si T8 tuvo fallos) | adversario | opus | T9 | — | ✓ | [ ] |
