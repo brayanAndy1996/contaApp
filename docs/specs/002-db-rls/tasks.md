@@ -18,7 +18,12 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T9c | Regla de lint contra SQL crudo fuera de `packages/db` | devops | sonnet | — | — | — | [x] |
 | T10 | Ronda adversarial 2 (solo si T8 tuvo fallos) | adversario | opus | T9 | — | ✓ | [ ] |
 | T11 | Corregir hallazgos de la ronda 2 | backend | opus | T10 | — | — | [x] |
-| T12 | Verificar CA-1 a CA-9 con evidencia | tester | sonnet | T11 | — | — | [ ] |
+| T12a | Comando `cobertura:db` reproducible con umbral 90 % | devops | sonnet | T11 | — | — | [ ] |
+| T12b | Pruebas de `cli/` contra el contrato nuevo (rojo) + integración | tester | sonnet | T12a | ✓ | — | [ ] |
+| T12d | Pruebas de `scram`, `with-tenant` y `schema` (ramas faltantes) | tester | sonnet | T12a ∥ T12b | — | — | [ ] |
+| T12c | Refactor de `cli/` a funciones con conexión inyectada (verde) | backend | sonnet | T12b | ✓ | — | [ ] |
+| T12e | Medir cobertura y completar el Resultado de T12 | tester | sonnet | T12c, T12d | — | — | [ ] |
+| T12 | Verificar CA-1 a CA-9 con evidencia | tester | sonnet | T11, T12e | — | — | [ ] |
 | T13 | Revisión final contra la spec | arquitecto | opus | T12 | — | — | [ ] |
 | T14 | Cierre: ESTADO, tasks y commit | devops | haiku | T13 | — | — | [ ] |
 
@@ -119,8 +124,37 @@ Reglas comunes:
 
 ## T12 · Verificación (tester · sonnet)
 - **Contexto (leer solo esto)**: `docs/specs/002-db-rls/spec.md` (Criterios), `docs/specs/002-db-rls/plan.md` (comandos raíz), `docs/specs/ESTADO.md` (hallazgos de 002).
-- **Hacer**: evidencia por CA: CA-1 base vacía nueva (`createdb contapp_ca1` con el superusuario; migrar dos veces y comparar `pg_dump --schema-only` de ambas corridas; luego `dropdb`); CA-2 a CA-7 salida de `pnpm test:aislamiento`; CA-2b búsqueda de T7 y `.env.example`; CA-3 crear a mano una tabla `zz_sin_rls(tenant_id uuid)` como superusuario, ver `catalogo` en rojo y borrarla; CA-8 `pnpm ci:db` y la prueba roja de T7; CA-9 hallazgos cerrados o aceptados. Cobertura de `packages/db/src` ≥ 90 % (unitarias + suite).
+- **Hacer**: evidencia por CA: CA-1 base vacía nueva (`createdb contapp_ca1` con el superusuario; migrar dos veces y comparar `pg_dump --schema-only` de ambas corridas; luego `dropdb`); CA-2 a CA-7 salida de `pnpm test:aislamiento`; CA-2b búsqueda de T7 y `.env.example`; CA-3 crear a mano una tabla `zz_sin_rls(tenant_id uuid)` como superusuario, ver `catalogo` en rojo y borrarla; CA-8 `pnpm ci:db` y la prueba roja de T7; CA-9 hallazgos cerrados o aceptados. Cobertura de `packages/db/src` ≥ 90 % según `spec.md` ("Cobertura"), con `pnpm cobertura:db` (T12a–T12e).
 - **Hecho cuando**: cada CA con comando y resultado en "Resultado" de esta tarea; ESTADO 002 → `verificada`. Commit `docs(002): verificación de CA con evidencia`.
+
+## Cobertura < 90 % (Resultado de T12) · política
+Se cumple el 90 % real, sin excluir `cli/` ni `schema/` (definición en `spec.md`, "Cobertura"). `schema/` sube ejecutando sus callbacks perezosos (`getTableConfig` + `fk.reference()`), lo que además fija CA-7 a nivel de declaración; `cli/` se separa en funciones con la conexión inyectada (unitarias con `pg` falso) más una prueba de integración desde la fuente dentro de `src/cli/` (única carpeta que puede leer `MIGRATIONS_DATABASE_URL`, CA-2b). Si alguna rama resulta imposible de cubrir, escalar al arquitecto; no bajar el umbral ni agregar exclusiones.
+
+## T12a · Comando de cobertura (devops · sonnet)
+- **Contexto (leer solo esto)**: `docs/specs/002-db-rls/spec.md` ("Cobertura"), `packages/db/package.json`, `tests/aislamiento/vitest.config.mts`, `tests/aislamiento/package.json`, `package.json`, `.github/workflows/ci.yml` (job `aislamiento`).
+- **Hacer**: (1) `packages/db/vitest.config.mts`: unitarias sin BD, excluye `**/*.int.spec.ts` (`pnpm --filter @contapp/db test` sigue sin pedir BD). (2) `packages/db/vitest.cobertura.config.mts` con tres proyectos: unitarias (`src/**/*.spec.ts` sin `.int`), integración (`src/cli/**/*.int.spec.ts`) y aislamiento (`tests/aislamiento/**/*.spec.ts` con alias `@contapp/db` → `packages/db/src/index.ts`); carga `../../.env` si existe con `process.loadEnvFile` (sin nombrar variables); las suites con BD no corren en paralelo entre sí; coverage v8 `include: ['src/**/*.ts']`, `exclude` solo archivos de prueba, `thresholds` 90 en `lines`, `statements`, `functions` y `branches`. (3) Script `test:cobertura` en `@contapp/db` y raíz `cobertura:db` = build de `@contapp/db` (el H7 de `escalada.adv` usa el CLI de `dist`) + `test:cobertura`. (4) Paso `pnpm cobertura:db` en el job `aislamiento` tras `pnpm ci:db`.
+- **Hecho cuando**: `pnpm cobertura:db` corre las 244 pruebas, reporta cifras dentro de ±1 punto de las de T12 y sale ≠ 0 por umbral; `pnpm --filter @contapp/db test` 67/67 sin BD; `git grep -n MIGRATIONS_DATABASE_URL` sin resultados nuevos fuera de `packages/db/src/cli/`; `prettier --check` del YAML OK. Commit `test(002): comando de cobertura de packages/db con umbral 90 %`.
+
+## T12b · Pruebas de cli, rojo (tester · sonnet)
+- **Contexto (leer solo esto)**: `packages/db/src/cli/{comun,migrar,seed,reparar-rol}.ts`, `packages/db/src/cli/reparar-rol.spec.ts` (patrón de cliente falso), esta sección (contrato).
+- **Contrato que fija T12c** (sin cambiar la salida de consola, que usa `escalada.adv.spec.ts:167`): `comun.ts` · `ejecutar(nombre, fn)` devuelve `Promise<void>` (mismo log y `process.exitCode`). `migrar.ts` · exporta `sincronizarPassword(client, password)`; `migrar(client, password, aplicar = aplicarMigraciones): Promise<string[]>` aplica, hace `BEGIN`, `repararRolLogin`, `sincronizarPassword`, `COMMIT` y devuelve las 3 líneas `migrar: …` sin imprimir; ante error, `ROLLBACK` y relanza; `main()` exportada: lee el entorno, conecta, imprime las líneas y cierra siempre. `seed.ts` · `sembrar(client)` y `main()` exportadas. `client` tipado como lo mínimo que usan (p. ej. `Pick<Client, "query">`).
+- **Hacer**: (1) `src/cli/comun.spec.ts`: `urlMigraciones` con y sin variable; todas las ramas de `mensajeSeguro` (`ErrorCli`, causa anidada de Drizzle, error de servidor con `severity`+`code`, error de red cuyo mensaje contiene una URL con contraseña → salida sin la URL ni la contraseña, sin `code`); `ejecutar` OK y error (`exitCode = 1`, mensaje seguro). (2) `src/cli/migrar.spec.ts` con cliente falso: `passwordDeDatabaseUrl` (falta, URL inválida, otro usuario, sin contraseña, codificada); `sincronizarPassword` (sin cambios, `rolpassword` null o md5 → actualizada con verificador SCRAM válido, rol inexistente); `migrar` (orden BEGIN…COMMIT, ROLLBACK si falla la reparación o la contraseña, `aplicar` que lanza no abre transacción); ninguna salida ni error contiene la contraseña. (3) `src/cli/cli.int.spec.ts` (solo proyecto de integración; falla si faltan las variables, no se salta): `main` de migrar ×2 (2.ª: ajustes, atributos y contraseña "sin cambios") y de seed ×2 desde la fuente, salida capturada sin contraseña ni URL; `migrar.main` con `MIGRATIONS_DATABASE_URL` a un puerto cerrado rechaza con mensaje sin la URL.
+- **Hecho cuando**: las nuevas fallan solo por el contrato aún no implementado (import o firma), no por errores de la prueba; las 67 actuales siguen verdes. Commit `test(002): pruebas de los CLI de migrar y seed (rojo)`.
+
+## T12d · Ramas de scram, with-tenant y schema (tester · sonnet) ∥ T12b
+- **Contexto (leer solo esto)**: `packages/db/src/{scram,with-tenant,errores}.ts`, `packages/db/src/{scram,with-tenant}.spec.ts`, `packages/db/src/schema/*.ts`, reporte HTML/texto de `pnpm cobertura:db` (líneas sin cubrir).
+- **Hacer**: solo pruebas, sin BD (pool falso). `scram.spec.ts`: contraseña no ASCII (SASLprep: espacio no ASCII y carácter "mapeado a nada" dan el mismo verificador que su forma normalizada), iteraciones fuera de rango o no enteras, sal vacía o no Buffer, verificador con claves de longitud distinta de 32, iteraciones > máximo, tipos no string. `with-tenant.spec.ts`: `tx.orm` usable dentro y rechazado tras cerrar; `ROLLBACK` que falla → `release(error)`; limpieza final que falla → `release(error)`; conexión que queda en transacción tras limpiar → destruida; cliente sin `getTransactionStatus` o sin `connection.parsedStatements`; 10 conexiones con transacción abierta → error sin ejecutar nada en ellas. `src/schema/schema.spec.ts`: con `getTableConfig`, toda tabla con `tenant_id` lo tiene `NOT NULL` y en cada `UNIQUE` de negocio; FKs (`fk.reference()`) de `membresia` a `tenant`/`usuario` y de `cliente` a `tenant`; check de RUC de 11 dígitos. Si una prueba revela un fallo de producción, escalar a backend (no corregir).
+- **Hecho cuando**: `pnpm --filter @contapp/db test` verde sin BD; en `pnpm cobertura:db`, `scram.ts`, `with-tenant.ts` y `schema/*` ≥ 90 % en las cuatro métricas. Commit `test(002): ramas de scram, withTenant y esquema`.
+
+## T12c · Refactor de cli, verde (backend · sonnet)
+- **Contexto (leer solo esto)**: `packages/db/src/cli/*.ts`, `packages/db/src/cli/*.spec.ts` de T12b, contrato en T12b.
+- **Hacer**: implementar el contrato de T12b sin cambiar mensajes de consola, orden de operaciones ni lectura de variables (solo `comun.ts` lee `MIGRATIONS_DATABASE_URL`); `require.main === module` sigue llamando a `ejecutar(nombre, main)`. No editar pruebas.
+- **Hecho cuando**: `pnpm --filter @contapp/db test` verde; `pnpm ci:db` verde (incluye `escalada.adv.spec.ts:167`); build, typecheck y lint OK; `cli/*` ≥ 90 % en `pnpm cobertura:db`. Commit `refactor(002): CLI de migrar y seed con conexión inyectada`.
+
+## T12e · Medición final (tester · sonnet)
+- **Contexto (leer solo esto)**: `docs/specs/002-db-rls/spec.md` ("Cobertura"), "Resultado T12" de este archivo.
+- **Hacer**: correr `pnpm ci:db` y `pnpm cobertura:db`; reemplazar la viñeta "Cobertura FALLA" del Resultado de T12 por las cifras nuevas (global y por archivo) y el comando. Si pasa y el resto de CA sigue OK, marcar T12 `[x]` y ESTADO 002 → `verificada`.
+- **Hecho cuando**: `pnpm cobertura:db` sale 0 con las cuatro métricas ≥ 90 %, salida pegada en el Resultado. Commit `docs(002): cobertura de packages/db ≥ 90 %`.
 
 ## T13 · Revisión final (arquitecto · opus)
 - **Contexto (leer solo esto)**: `docs/specs/002-db-rls/spec.md`, `docs/specs/002-db-rls/plan.md`, "Resultado" de T12, `packages/db/migrations/*.sql`, `packages/db/src/with-tenant.ts`.
