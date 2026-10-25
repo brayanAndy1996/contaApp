@@ -130,6 +130,12 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: hallazgos de 003 en `docs/specs/ESTADO.md`, los `*.adv.spec.ts` que fallan, los archivos de producción que señalan, `plan.md` (Decisiones).
 - **Hacer**: corregir en `src/` o con una migración nueva. Si un hallazgo pide cambiar la spec o aceptar un riesgo, no decidir: `abierto · requiere usuario`.
 - **Hecho cuando**: `pnpm test`, `pnpm ci:db` y `pnpm cobertura:crypto` en verde salvo lo marcado para el usuario; hallazgos en `corregido (<commit>)`. Commit `fix(003): hallazgos de la ronda adversarial 1`.
+- **Avance (2026-10-25, parte 1, commit `1e11e8d`)**: corregidos F1, F3, F5 y F6; F2 (fila corrupta en la rotación) sigue `abierto · requiere usuario`; F4 (lint) lo hace otro agente.
+  - F1 (alta): `RotacionConMockError` (`rotacion_mock`, en ambas entradas). `rotarKekTenant` y `kek:rotar` rechazan activa o anterior `mock` antes de tocar la BD; `reenvolverDek` rechaza la activa `mock` tras el `wrap` (para no romper la prueba existente "proveedor activo caído → KeyProviderError", que usa un `MockKeyProvider` caído como activa) y borra la DEK envuelta.
+  - F3 (baja): CAS `... and ($5::text is null or kek_id = $5)`; `kekAnterior` es opcional para respetar el contrato de `tests/aislamiento/credencial.spec.ts` (no lo pasa); la rotación siempre pasa `desde`.
+  - F5 (baja): ventana FIFO de 4096 huellas SHA-256 de DEK y de nonce (`VENTANA_HUELLAS`).
+  - F6 (baja): si `logger.log` lanza tras el COMMIT, el `Secreto` se destruye y se relanza el error del logger.
+  - Pruebas: crypto 268 ✓; db 202 ✓; worker unit 71 ✓; `ci:db` aislamiento 348 ✓ y worker `test:int` 28/29 (falla solo F2); limites 64 ✓; typecheck, lint y build ✓. Cobertura (sin la prueba de F2): crypto 98.26/96.96/96.05/98.44, db 98.13/96.55/98.64/99.29. Sin cambios de esquema.
 
 ## T16a · Ronda 2a: regresión y reconversión (adversario · opus)
 - **Contexto (leer solo esto)**: igual que T14b + `git diff <commit T14b>..HEAD -- packages apps`.
