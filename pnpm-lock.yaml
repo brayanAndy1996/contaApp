@@ -137,6 +137,9 @@ importers:
 
   packages/crypto:
     devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.2
       '@vitest/coverage-v8':
         specifier: 5.0.5
         version: 5.0.5(vitest@5.0.5)
