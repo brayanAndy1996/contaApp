@@ -23,7 +23,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → pruebas (rojo) → implementación
 | T14b | Ronda adversarial 1b: ataques nuevos (caja blanca) | adversario | opus | T13 ∥ T14a | — | ✓ | [x] |
 | T15 | Corregir hallazgos de la ronda 1 | backend | opus | T14a, T14b | — | — | [x] |
 | T16a | Ronda adversarial 2a: regresión de correcciones y reconversión de aceptados | adversario | opus | T15 | — | ✓ | [ ] |
-| T16b | Ronda adversarial 2b: ataques nuevos contra las correcciones | adversario | opus | T15 ∥ T16a | — | ✓ | [ ] |
+| T16b | Ronda adversarial 2b: ataques nuevos contra las correcciones | adversario | opus | T15 ∥ T16a | — | ✓ | [x] |
 | T17 | Corregir hallazgos de la ronda 2 | backend | opus | T16a, T16b | — | — | [ ] |
 | T18 | Verificar CA-1 a CA-12 y cobertura con evidencia | tester | sonnet | T17 | — | — | [ ] |
 | T19 | Revisión final contra la spec | arquitecto | opus | T18 | — | — | [ ] |
@@ -151,6 +151,12 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: igual que T16a.
 - **Hacer**: hasta ~10 pruebas nuevas en `*-r2b.adv.spec.ts` contra las correcciones y huecos restantes. Omitida si la ronda 1 no tuvo fallos.
 - **Hecho cuando**: igual que T14a. Commit `test(003): ronda adversarial 2b`.
+- **Resultado (2026-10-25)**: 9 pruebas (`packages/crypto/src/crypto-r2b.adv.spec.ts` 4, `apps/worker/src/credenciales/descifrar-r2b.adv.spec.ts` 1, `apps/worker/src/cli/kek-rotar-r2b.adv.spec.ts` 2, `apps/worker/src/credenciales/descifrar-r2b.adv.int.spec.ts` 2 con BD de desarrollo); **5 pasan, 4 fallan** (hallazgos abiertos para T17):
+  - **Media** · `apps/worker/src/cli/kek-rotar.ts:118-127` (y `apps/worker/src/credenciales/rotar-kek.ts:65-77`): no se compara el material de la anterior con el de la activa; con `--privada-anterior` = copia de la privada activa y otro `--desde`, `kek:rotar` avanza a la BD y "rota" sin sacar ninguna DEK de la llave que se quiere jubilar (p. ej. `KEK_PRIVATE_KEY_PATH` aún apunta a la llave vieja con `KEK_ID` nuevo). Falsa sensación de rotación tras un compromiso.
+  - **Baja** · `packages/crypto/src/comun/plazo.ts:50`: al vencer el plazo, `carga.then(fn)` sigue y ejecuta `fn` cuando la llave llega; en `unwrap` (`descifrado/local.ts:58-61`, `descifrado/mock.ts:32-35`) la DEK desenvuelta tarde no tiene dueño y nunca se pone a cero (contradice plan, Decisiones · Algoritmos).
+  - **Baja** · `packages/crypto/src/comun/config.ts:25` y `packages/crypto/src/cifrado/mock.ts:45`: `mock` solo se bloquea con `NODE_ENV === "production"` exacto; `Production`, `PRODUCTION`, `"production "` o `" production"` arrancan `mock` (CA-10).
+  - **Baja** · `packages/crypto/src/cli/kek-generar.ts:31-46`: `--salida` dentro del repo en una carpeta que git no ignora (p. ej. `packages/crypto/x`) escribe `kek-private.pem` versionable (CA-11).
+  - Pasan: llaves ed25519/x25519/RSA-PSS 4096 (backend y worker) y ruta relativa con `..` al fixture `mock` → `configuracion` no reintentable; motivo con `\n`, CRLF, NUL, U+2028, ANSI, tab, espacio, SQL, ancho completo, 121 car., vacío o no string → `argumento_invalido` sin BD, sin log y sin reflejo; `kek:rotar` con `--tenant` en mayúsculas, `{}`, `urn:uuid:`, `\n`, U+200B o canario, `--desde`/`--privada-anterior` repetidos, `--desde=` y `--desde` con salto → código 2 sin BD ni reflejo; sobre copiado por el backend a otro cliente, tipo o estudio → `integridad`, sin secreto, una fila de auditoría por intento en el estudio y fila correctos; `registrarDescifrado` con motivo hostil (saltándose el servicio) → CHECK `23514` sin el valor y sin fila.
 
 ## T17 · Corregir ronda 2 (backend · opus)
 - **Contexto / Hacer / Hecho cuando**: igual que T15 con los hallazgos de T16a/T16b; omitida si no hubo. Commit `fix(003): hallazgos de la ronda adversarial 2`.
