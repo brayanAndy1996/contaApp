@@ -49,6 +49,14 @@ Garantizar en la base de datos que ningún estudio ve ni modifica datos de otro 
 - D5 (ex P5): PostgreSQL local 17.5 (`psql`); instancia confirmada: PG 17, puerto 5432, base `contapp` existente; el CI usa 17. El usuario de conexión para migraciones es el superusuario local (vía `MIGRATIONS_DATABASE_URL`, D7); los roles de la app se crean en las migraciones. La spec, el plan y el código no contienen contraseñas.
 - D6 (ex P6): el CI se verifica en local (sin remoto), como en 001.
 - D7 (reemplaza D4): dos variables. `DATABASE_URL` conecta con un rol de login de la app sin superusuario ni `BYPASSRLS`, que solo puede hacer `SET ROLE` hacia roles de menor privilegio y no puede volver al superusuario con `RESET ROLE`; `MIGRATIONS_DATABASE_URL` conecta como superusuario local y solo la usa el comando de migraciones/seed. `.env.example` queda con 8 variables. Las contraseñas de los roles de la app nunca van en la spec ni en el repo: se generan o leen del `.env` local.
+- D8 (H2 de la ronda adversarial 1, opción A): `contapp_platform` queda fuera del alcance del login de la app; se acepta que el worker pase a `contapp_backend`.
+- D9 (H6 de la ronda adversarial 1): corregir. Dentro de `withTenant(A)` solo se ven los usuarios con membresía en A y el tenant A, no los de otros estudios.
+- D10 (H7 de la ronda adversarial 1, opción A): `migrar` repara en cada ejecución la configuración del rol `contapp_app` (`ALTER ROLE … RESET ALL` y `lc_messages`, opción (a) de T9).
+
+## Riesgos aceptados
+Aceptados por el usuario en la ronda adversarial 1 (estado en `ESTADO.md`):
+- H3 (media): un `set_config` a mitad de `withTenant(A)` puede cambiar de estudio. Compensación: consultas parametrizadas y regla de lint contra SQL crudo fuera de `packages/db` (T9c en `tasks.md`).
+- H4 (media), H5 (media) y H9 (baja): oráculos de existencia por ID (PK `23505`, `ON CONFLICT (id)` y FK `23503`). Motivo: IDs UUID aleatorios, así que el oráculo exige conocer un ID de otro estudio; UNIQUE de RUC compuesto por estudio (CA-7).
 
 ## Preguntas abiertas
 - P7 (diseño, se informa): con RLS en `membresia`, listar los estudios de un usuario antes de que elija uno (01 §2) necesita un camino acotado (función restringida o política por `app.user_id`). Resuelto en `plan.md` (política `membresia_por_usuario` + `withUsuario`), sin cambio de alcance.
