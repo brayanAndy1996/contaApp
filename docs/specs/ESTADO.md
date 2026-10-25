@@ -55,8 +55,15 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 | 003-cifrado | packages/crypto/src/crypto-r2b.adv.spec.ts:52 | R2b-2 (baja): si la llave llega después del plazo, la DEK se desenvuelve igual y nunca se pone a cero (causa `packages/crypto/src/comun/plazo.ts:50`) | corregido (463cf81) |
 | 003-cifrado | packages/crypto/src/crypto-r2b.adv.spec.ts:79 | R2b-3 (baja): `mock` solo se bloquea con `NODE_ENV` exactamente `production`; `Production`, `PRODUCTION` o con espacios alrededor del valor lo dejan arrancar (CA-10) (causa `packages/crypto/src/comun/config.ts:25` y `packages/crypto/src/cifrado/mock.ts:45`) | corregido (463cf81) |
 | 003-cifrado | packages/crypto/src/crypto-r2b.adv.spec.ts:142 | R2b-4 (baja): `--salida` acepta una carpeta del repo que git no ignora y deja `kek-private.pem` versionable (CA-11) (causa `packages/crypto/src/cli/kek-generar.ts:31-46`) | corregido (463cf81) |
+| 010-dominio-dinero | T11b (archivo no indicado) | R1b-1 (media; T11b: R1b-2): `entre→por` con resultado exacto de medio céntimo redondea hacia abajo: `0.02 ÷ 0.18 × 0.495 = 0.055` da `"0.05"` (D1 pide `"0.06"`) (`packages/domain/src/dinero/monto-exacto.ts:69`; precisión 40 en `packages/domain/src/dinero/decimal.ts:8`) | abierto |
+| 010-dominio-dinero | T11b (archivo no indicado) | R1b-2 (media; T11b: R1b-3): constructores privados solo en TypeScript, invocables en ejecución (`packages/domain/src/dinero/money.ts:37`, `packages/domain/src/dinero/monto-exacto.ts:19`, `packages/domain/src/dinero/tipo-cambio.ts:14`, `packages/domain/src/dinero/factor.ts:13`, `packages/domain/src/dinero/tolerancia.ts:14`, `packages/domain/src/comprobante/montos-comprobante.ts:24`): permiten Money de 0.001, monedas EUR, TipoCambio negativo, comprobante PEN con columnas USD | abierto |
+| 010-dominio-dinero | T11b (archivo no indicado) | R1b-3 (baja; T11b: R1b-6): `packages/domain/src/comprobante/mover-monto.ts:19` y `packages/domain/src/comprobante/cambiar-destino.ts:17` aceptan un objeto falso; `packages/domain/src/comprobante/cambiar-destino.ts:31` devuelve la misma instancia sin cambios (el plan pide una nueva) | abierto |
+| 010-dominio-dinero | T11b (archivo no indicado) | R1b-4 (baja; T11b: R1b-7): `eslint.config.mjs:471-483` y `eslint.config.mjs:446-453`: el lint no detecta `globalThis.parseFloat`, `Number`/`parseFloat`/`Math` con otro nombre, el tipo `Number` ni `D.set` importado desde `comprobante/` | abierto |
+| 010-dominio-dinero | T11b (archivo no indicado) | R1b-5 (baja, decide usuario): `packages/domain/src/comprobante/convertir.ts:20`: una fila USD que no cuadra sale cuadrando en PEN porque se descarta el total USD sin verificarlo (ver Decisiones pendientes del usuario) | abierto |
 
 ## Decisiones pendientes del usuario
+
+- R1b-5: ¿convertirAPen debe verificar el cuadre del comprobante USD y fallar si no cuadra?
 
 ## Notas para specs futuras
 
