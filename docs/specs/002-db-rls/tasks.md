@@ -13,7 +13,7 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T5 | Esquema, migraciones, roles, RLS, `migrar` y seed | backend | opus | T2, T4 | ✓ | — | [x] |
 | T6 | `createDb`, `withTenant`, `withUsuario`, SCRAM | backend | opus | T3, T4 ∥ | ✓ | — | [x] |
 | T7 | Job de CI `aislamiento` y `pnpm ci:db` en local | devops | haiku | T5, T6 | — | — | [x] |
-| T8 | Ronda adversarial 1 | adversario | opus | T7 | — | ✓ | [ ] |
+| T8 | Ronda adversarial 1 | adversario | opus | T7 | — | ✓ | [x] |
 | T9 | Corregir hallazgos de la ronda 1 | backend | opus | T8 | — | — | [ ] |
 | T10 | Ronda adversarial 2 (solo si T8 tuvo fallos) | adversario | opus | T9 | — | ✓ | [ ] |
 | T11 | Corregir hallazgos de la ronda 2 | backend | opus | T10 | — | — | [ ] |
@@ -71,6 +71,16 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/002-db-rls/spec.md` (Criterios y "Ataques mínimos"), `docs/specs/002-db-rls/plan.md` (Contratos, Riesgos); después (caja blanca) `packages/db/src/`, `packages/db/migrations/`.
 - **Hacer**: hasta ~15 pruebas en `tests/aislamiento/*.adv.spec.ts`, solo con `DATABASE_URL`, que cubran como mínimo la lista de ataques de la spec más los riesgos del plan (oráculo de PK/UNIQUE, `set_config` a mitad de transacción). Primero caja negra, luego caja blanca. No modificar producción.
 - **Hecho cuando**: pruebas commiteadas; cada fallo anotado en "Hallazgos adversariales abiertos" de `ESTADO.md` (archivo de prueba + una línea). Commit `test(002): ronda adversarial 1`.
+- **Resultado**: 16 pruebas en `tests/aislamiento/{oraculos,escalada,contexto}.adv.spec.ts`; 7 pasan (regresión: migrator/superusuario/RESET ROLE desde withTenant, DDL contra RLS y SECURITY DEFINER/vistas/TEMP/esquemas/extensiones, `row_security=off` y `session_replication_role`, catálogo sin SECURITY DEFINER, orden RLS vs. expresiones que lanzan error, tx filtrada tras su withTenant, `app.tenant_id` inválido o con inyección). 9 fallan (ataques que funcionan):
+  - H1 · alta · `contexto.adv.spec.ts:67` — `set_config('app.tenant_id', B, false)` dentro de `withTenant(A)` sobrevive en la conexión del pool (no hay reset al liberar) y un `withUsuario(uA)` posterior ve los 3 clientes de B: `withUsuario` no fija `app.tenant_id` local a `''` (`with-tenant.ts` `ajusteUsuario`). Rompe CA-6.
+  - H2 · alta · requiere usuario (D7) · `escalada.adv.spec.ts:90` — desde un rol de app, `SET LOCAL ROLE contapp_platform` funciona (la membresía `SET TRUE` es del rol de login, no del rol actual) y permite `UPDATE usuario` de cualquier estudio (p. ej. email de uB); igual worker → backend lee `usuario`. La separación backend/worker/platform no existe en la BD frente a inyección o código defectuoso.
+  - H3 · media · requiere usuario (riesgo del plan) · `contexto.adv.spec.ts:47` — `set_config('app.tenant_id', B, true)` a mitad de `withTenant(A)` cambia de tenant y lee los clientes de B.
+  - H4 · media · `oraculos.adv.spec.ts:53` — PK como oráculo: `INSERT` en A con el `id` de un cliente/membresía de B da `23505`; con un id libre, 1 fila.
+  - H5 · media · `oraculos.adv.spec.ts:77` — `ON CONFLICT (id) DO NOTHING` devuelve 0 filas si el id existe en B (oráculo silencioso, sin error) y `DO UPDATE` da `42501` frente a éxito.
+  - H6 · media · requiere usuario (diseño del plan) · `oraculos.adv.spec.ts:132` — dentro de `withTenant(A)`, backend lee todo `usuario` (incluye uB, solo de B, con email) y backend/worker todo `tenant`: tablas de plataforma sin RLS exponen otros estudios si el código olvida el filtro (HU-40).
+  - H7 · media · `escalada.adv.spec.ts:167` — el rol de login puede `ALTER ROLE contapp_app SET role = 'contapp_platform'`, `SET row_security = off` y `PASSWORD NULL` (persistente para conexiones nuevas: arranque como platform o denegación de servicio). `SET app.tenant_id` sí es rechazado. Probado dentro de ROLLBACK.
+  - H8 · baja · `contexto.adv.spec.ts:102` — `SET ROLE contapp_platform` (de sesión) dentro de `withTenant` persiste: la conexión vuelve al pool como `contapp_platform`, no `contapp_app` (misma causa que H1: sin reset al liberar).
+  - H9 · baja · `oraculos.adv.spec.ts:99` — FK como oráculo: worker (sin SELECT en `usuario`) distingue usuarios existentes (1 fila) de inexistentes (`23503`) insertando en `membresia`.
 
 ## T9 · Corregir ronda 1 (backend · opus)
 - **Contexto (leer solo esto)**: hallazgos de 002 en `docs/specs/ESTADO.md`, los `*.adv.spec.ts` que fallan, los archivos de producción que señalan, `docs/specs/002-db-rls/plan.md` (Decisiones).
