@@ -100,13 +100,17 @@ describe("cambiarDestino", () => {
     expect(r.consolidados).toEqual([]);
   });
 
-  it("mismo destino con montos en otros destinos tampoco cambia nada", () => {
+  it("D4: mismo destino con montos en otros destinos los consolida en ese destino", () => {
     const m = MontosComprobante.desde("PEN", {
       biDg: "100.00", igvDg: "18.00", biDgng: "50.00", igvDgng: "9.00", total: "177.00",
     });
     const r = cambiarDestino(m, "DG");
-    expect(JSON.stringify(r.montos)).toBe(JSON.stringify(m));
-    expect(r.consolidados).toEqual([]);
+    expect(r.montos.obtener("biDg").toString()).toBe("150.00");
+    expect(r.montos.obtener("igvDg").toString()).toBe("27.00");
+    expect(r.montos.obtener("biDgng").toString()).toBe("0.00");
+    expect(r.montos.obtener("igvDgng").toString()).toBe("0.00");
+    expect(r.montos.total.toString()).toBe("177.00");
+    expect(r.consolidados).toEqual(["DGNG"]);
   });
 
   it("fila sin montos en destinos: todo 0.00 y consolidados vacío", () => {
