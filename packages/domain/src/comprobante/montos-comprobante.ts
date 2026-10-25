@@ -10,6 +10,9 @@ import type { ColumnaCompra } from "./columnas";
 
 export type ColumnasMoney = Readonly<Record<ColumnaCompra, Money>>;
 
+// Clave de módulo: el constructor solo se invoca desde este archivo (R1b-3 de la ronda 1b).
+const CLAVE = Symbol("MontosComprobante");
+
 let crearMontos: (moneda: Moneda, columnas: ColumnasMoney, total: Money) => MontosComprobante;
 
 export class MontosComprobante implements Cuadrable {
@@ -21,7 +24,10 @@ export class MontosComprobante implements Cuadrable {
    * Único constructor: copia y congela el registro. Solo lo llaman `desde`, `sumar` y
    * `montosDesdeColumnas` (interno), que ya entregan columnas y total en `moneda`.
    */
-  private constructor(moneda: Moneda, columnas: ColumnasMoney, total: Money) {
+  private constructor(clave: symbol, moneda: Moneda, columnas: ColumnasMoney, total: Money) {
+    if (clave !== CLAVE) {
+      throw new TypeError("Constructor privado: usa MontosComprobante.desde.");
+    }
     const copia = {} as Record<ColumnaCompra, Money>;
     for (const c of COLUMNAS_COMPRA) copia[c] = columnas[c];
     this.#columnas = Object.freeze(copia);
@@ -49,7 +55,7 @@ export class MontosComprobante implements Cuadrable {
         ? Money.desde(v[c] as string, moneda)
         : Money.cero(moneda);
     }
-    return new MontosComprobante(total.moneda, columnas, total);
+    return new MontosComprobante(CLAVE, total.moneda, columnas, total);
   }
 
   obtener(c: ColumnaCompra): Money {
@@ -71,7 +77,7 @@ export class MontosComprobante implements Cuadrable {
     for (const c of COLUMNAS_COMPRA) {
       columnas[c] = this.#columnas[c].sumar(o.#columnas[c]);
     }
-    return new MontosComprobante(this.moneda, columnas, this.total.sumar(o.total));
+    return new MontosComprobante(CLAVE, this.moneda, columnas, this.total.sumar(o.total));
   }
 
   toJSON(): { moneda: Moneda; total: string; columnas: Record<ColumnaCompra, string> } {
@@ -81,7 +87,7 @@ export class MontosComprobante implements Cuadrable {
   }
 
   static {
-    crearMontos = (moneda, columnas, total) => new MontosComprobante(moneda, columnas, total);
+    crearMontos = (moneda, columnas, total) => new MontosComprobante(CLAVE, moneda, columnas, total);
   }
 }
 
@@ -94,8 +100,12 @@ export function montosDesdeColumnas(
   return crearMontos(moneda, columnas, total);
 }
 
-/** Uso interno de comprobante/: copia mutable de las columnas. */
+/**
+ * Uso interno de comprobante/: copia mutable de las columnas; lanza MontoInvalidoError
+ * si `m` no es un MontosComprobante real (R1b-6 de la ronda 1b).
+ */
 export function copiarColumnas(m: MontosComprobante): Record<ColumnaCompra, Money> {
+  if (!(m instanceof MontosComprobante)) throw new MontoInvalidoError();
   const copia = {} as Record<ColumnaCompra, Money>;
   for (const c of COLUMNAS_COMPRA) copia[c] = m.obtener(c);
   return copia;

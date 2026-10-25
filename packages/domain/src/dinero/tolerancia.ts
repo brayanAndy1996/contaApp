@@ -6,12 +6,18 @@ import { decimalDeMoney, type Money } from "./money";
 const GRAMATICA_TOLERANCIA = /^(0|[1-9][0-9]{0,11})(\.[0-9]{1,2})?$/;
 const LARGO_MAX_TOLERANCIA = 15;
 
+// Clave de módulo: el constructor solo se invoca desde este archivo (R1b-3 de la ronda 1b).
+const CLAVE = Symbol("Tolerancia");
+
 let leerTolerancia: (t: Tolerancia) => Dec;
 
 export class Tolerancia {
   readonly #d: Dec;
 
-  private constructor(d: Dec) {
+  private constructor(clave: symbol, d: Dec) {
+    if (clave !== CLAVE) {
+      throw new TypeError("Constructor privado: usa Tolerancia.desde.");
+    }
     this.#d = d;
     Object.freeze(this);
   }
@@ -24,7 +30,7 @@ export class Tolerancia {
     ) {
       throw new MontoInvalidoError();
     }
-    return new Tolerancia(new D(s));
+    return new Tolerancia(CLAVE, new D(s));
   }
 
   static {

@@ -1,5 +1,4 @@
-import { aCentimos } from "./decimal";
-import { decimalDeExacto, type MontoExacto } from "./monto-exacto";
+import { centimosDeExacto, type MontoExacto } from "./monto-exacto";
 import { type Money, moneyDesdeDecimal } from "./money";
 
 /**
@@ -7,5 +6,5 @@ import { type Money, moneyDesdeDecimal } from "./money";
  * monorepo. Si el resultado excede NUMERIC(14,2) lanza MontoFueraDeRangoError.
  */
 export function redondearSunat(x: MontoExacto): Money {
-  return moneyDesdeDecimal(aCentimos(decimalDeExacto(x)), x.moneda);
+  return moneyDesdeDecimal(centimosDeExacto(x), x.moneda);
 }

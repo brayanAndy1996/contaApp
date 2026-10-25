@@ -8,7 +8,8 @@ import type { MontosComprobante } from "./montos-comprobante";
 /**
  * Suma los tres BI en el BI de `d` y los tres IGV en el IGV de `d`; los demás destinos
  * quedan en 0.00 y el total no cambia. `consolidados` lista (en orden DG, DGNG, DNG) los
- * otros destinos que tenían BI o IGV distinto de cero. Mismo destino → sin cambios y [].
+ * otros destinos que tenían BI o IGV distinto de cero. Sin nada que consolidar → [] y una
+ * instancia nueva congelada igual en valor a `m` (plan, Movimientos).
  */
 export function cambiarDestino(
   m: MontosComprobante,
@@ -28,7 +29,6 @@ export function cambiarDestino(
     columnas[bi] = Money.cero(m.moneda);
     columnas[igv] = Money.cero(m.moneda);
   }
-  if (consolidados.length === 0) return { montos: m, consolidados };
   columnas[PAR_DESTINO[d].bi] = Money.suma(bis, m.moneda);
   columnas[PAR_DESTINO[d].igv] = Money.suma(igvs, m.moneda);
   return { montos: montosDesdeColumnas(m.moneda, columnas, m.total), consolidados };

@@ -5,12 +5,18 @@ import { FactorInvalidoError } from "./errores";
 const GRAMATICA_FACTOR = /^(0|[1-9][0-9]{0,5})(\.[0-9]{1,10})?$/;
 const LARGO_MAX_FACTOR = 17;
 
+// Clave de módulo: el constructor solo se invoca desde este archivo (R1b-3 de la ronda 1b).
+const CLAVE = Symbol("Factor");
+
 let leerFactor: (f: Factor) => Dec;
 
 export class Factor {
   readonly #d: Dec;
 
-  private constructor(d: Dec) {
+  private constructor(clave: symbol, d: Dec) {
+    if (clave !== CLAVE) {
+      throw new TypeError("Constructor privado: usa Factor.desde.");
+    }
     this.#d = d;
     Object.freeze(this);
   }
@@ -23,7 +29,7 @@ export class Factor {
     ) {
       throw new FactorInvalidoError();
     }
-    return new Factor(new D(s));
+    return new Factor(CLAVE, new D(s));
   }
 
   static {

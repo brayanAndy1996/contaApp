@@ -6,12 +6,18 @@ import { Factor, decimalDeFactor } from "./factor";
 const GRAMATICA_TC = /^(0|[1-9][0-9]{0,3})(\.[0-9]{1,3})?$/;
 const LARGO_MAX_TC = 8;
 
+// Clave de módulo: el constructor solo se invoca desde este archivo (R1b-3 de la ronda 1b).
+const CLAVE = Symbol("TipoCambio");
+
 let leerTipoCambio: (t: TipoCambio) => Dec;
 
 export class TipoCambio {
   readonly #d: Dec;
 
-  private constructor(d: Dec) {
+  private constructor(clave: symbol, d: Dec) {
+    if (clave !== CLAVE) {
+      throw new TypeError("Constructor privado: usa TipoCambio.desde.");
+    }
     this.#d = d;
     Object.freeze(this);
   }
@@ -26,7 +32,7 @@ export class TipoCambio {
     }
     const d = new D(s);
     if (d.isZero()) throw new FactorInvalidoError();
-    return new TipoCambio(d);
+    return new TipoCambio(CLAVE, d);
   }
 
   static {
