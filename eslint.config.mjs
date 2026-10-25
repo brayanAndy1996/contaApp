@@ -93,6 +93,157 @@ const reglaImportsRelativos = {
   },
 };
 
+// SQL crudo (spec 002, riesgo H3 aceptado: un set_config a mitad de transacción cambia de estudio;
+// se compensa con consultas siempre parametrizadas y esta regla). Regla local `sql-crudo/sin-sql-crudo`:
+//  - modo "fuera" (apps/** y packages/* salvo db): sin imports de pg/postgres ni de sus adaptadores
+//    drizzle, sin `sql` de drizzle-orm ni `.raw(`/`.unsafe(`, sin `set_config`, y `.query(`/`.execute(`
+//    solo con texto estático (ni plantillas con interpolación ni concatenación).
+//  - modo "dentro" (packages/db): SQL permitido, pero `.query(` solo con texto estático
+//    (parámetros $1; sin interpolación en plantillas ni concatenación).
+// El argumento se sigue por identificador (const) y por la propiedad `text` de un objeto.
+const MODULO_SQL =
+  /^(?:pg|postgres|pg-[\w-]+|postgres-[\w-]+|drizzle-orm\/(?:node-postgres|postgres-js))(?:\/.*)?$/;
+const METODOS_CONCAT = new Set(["concat", "replace", "replaceAll", "join"]);
+
+const nombreMiembro = (callee) =>
+  callee.type === "MemberExpression"
+    ? callee.computed
+      ? callee.property.type === "Literal"
+        ? String(callee.property.value)
+        : null
+      : callee.property.name
+    : null;
+
+const reglaSqlCrudo = {
+  meta: {
+    type: "problem",
+    schema: [
+      {
+        type: "object",
+        properties: { modo: { enum: ["fuera", "dentro"] } },
+        required: ["modo"],
+        additionalProperties: false,
+      },
+    ],
+  },
+  create(context) {
+    const fuera = context.options[0].modo === "fuera";
+    const sourceCode = context.sourceCode;
+    const reportar = (node, message) => context.report({ node, message });
+
+    const resolverConst = (id) => {
+      for (let s = sourceCode.getScope(id); s; s = s.upper) {
+        const v = s.set.get(id.name);
+        if (v) {
+          const def = v.defs[0];
+          return def?.node.type === "VariableDeclarator" &&
+            def.node.id.type === "Identifier"
+            ? def.node.init
+            : null;
+        }
+      }
+      return null;
+    };
+
+    const dinamica = (e, prof = 0) => {
+      if (!e || prof > 4) return false;
+      switch (e.type) {
+        case "TemplateLiteral":
+          return e.expressions.length > 0;
+        case "BinaryExpression":
+          return (
+            e.operator === "+" &&
+            (e.left.type !== "Literal" || e.right.type !== "Literal")
+          );
+        case "CallExpression":
+          return METODOS_CONCAT.has(nombreMiembro(e.callee));
+        case "ConditionalExpression":
+          return (
+            dinamica(e.consequent, prof + 1) || dinamica(e.alternate, prof + 1)
+          );
+        case "Identifier":
+          return dinamica(resolverConst(e), prof + 1);
+        case "ObjectExpression":
+          return e.properties.some(
+            (p) =>
+              p.type === "Property" &&
+              ((p.key.type === "Identifier" && p.key.name === "text") ||
+                (p.key.type === "Literal" && p.key.value === "text")) &&
+              dinamica(p.value, prof + 1),
+          );
+        case "TSAsExpression":
+        case "TSNonNullExpression":
+        case "TSSatisfiesExpression":
+          return dinamica(e.expression, prof + 1);
+        default:
+          return false;
+      }
+    };
+
+    const revisarModulo = (nodo, fuente) => {
+      if (!fuera || typeof fuente !== "string") return;
+      if (MODULO_SQL.test(fuente))
+        reportar(
+          nodo,
+          `Import de '${fuente}' prohibido fuera de packages/db (SQL crudo; spec 002).`,
+        );
+    };
+
+    const reglas = {
+      ImportDeclaration(n) {
+        revisarModulo(n, n.source.value);
+        if (fuera && String(n.source.value).startsWith("drizzle-orm"))
+          for (const sp of n.specifiers)
+            if (sp.type === "ImportSpecifier" && sp.imported.name === "sql")
+              reportar(
+                sp,
+                "`sql` de drizzle-orm (SQL crudo) solo se usa dentro de packages/db (spec 002).",
+              );
+      },
+      ExportAllDeclaration: (n) => revisarModulo(n, n.source.value),
+      ExportNamedDeclaration: (n) =>
+        n.source && revisarModulo(n, n.source.value),
+      ImportExpression: (n) => revisarModulo(n, n.source.value),
+      CallExpression(n) {
+        if (
+          n.callee.type === "Identifier" &&
+          n.callee.name === "require" &&
+          n.arguments[0]?.type === "Literal"
+        )
+          revisarModulo(n, n.arguments[0].value);
+        const metodo = nombreMiembro(n.callee);
+        if (fuera && (metodo === "raw" || metodo === "unsafe"))
+          reportar(
+            n,
+            `\`.${metodo}(\` (SQL crudo) prohibido fuera de packages/db (spec 002).`,
+          );
+        if (metodo === "query" || (fuera && metodo === "execute")) {
+          if (dinamica(n.arguments[0]))
+            reportar(
+              n.arguments[0],
+              `\`.${metodo}(\` con interpolación o concatenación: usa texto estático y parámetros $1 (spec 002, riesgo H3).`,
+            );
+        }
+      },
+    };
+    if (fuera) {
+      const buscarSetConfig = (n, texto) => {
+        if (/set_config/i.test(texto))
+          reportar(
+            n,
+            "`set_config` solo se invoca dentro de packages/db (spec 002, riesgo H3).",
+          );
+      };
+      reglas.Literal = (n) =>
+        typeof n.value === "string" && buscarSetConfig(n, n.value);
+      reglas.TemplateElement = (n) =>
+        buscarSetConfig(n, n.value.cooked ?? n.value.raw);
+      reglas.Identifier = (n) => buscarSetConfig(n, n.name);
+    }
+    return reglas;
+  },
+};
+
 export default tseslint.config(
   { ignores: ["**/dist/**", "**/.next/**", "**/node_modules/**"] },
   ...tseslint.configs.recommended,
@@ -139,5 +290,16 @@ export default tseslint.config(
       limites: { rules: { "imports-relativos": reglaImportsRelativos } },
     },
     rules: { "limites/imports-relativos": "error" },
+  },
+  {
+    files: ["apps/**", "packages/**"],
+    ignores: ["packages/db/**"],
+    plugins: { "sql-crudo": { rules: { "sin-sql-crudo": reglaSqlCrudo } } },
+    rules: { "sql-crudo/sin-sql-crudo": ["error", { modo: "fuera" }] },
+  },
+  {
+    files: ["packages/db/**"],
+    plugins: { "sql-crudo": { rules: { "sin-sql-crudo": reglaSqlCrudo } } },
+    rules: { "sql-crudo/sin-sql-crudo": ["error", { modo: "dentro" }] },
   },
 );
