@@ -465,23 +465,39 @@ const GLOBALES_IO_DOMINIO = [
   name,
   message: `packages/domain no hace IO: '${name}' prohibido (spec 010, CA-12).`,
 }));
+// Cualquier referencia (alias, desestructurado, tipo, `globalThis.x`) a estos globales; solo se
+// exime la propiedad `x` de `obj.x` (p. ej. `Money.Math`), no el objeto ni los alias.
+const GLOBALES_NUMBER_DOMINIO = "Number|parseFloat|parseInt|Math|globalThis";
 const SINTAXIS_SIN_NUMBER_DOMINIO = [
   ["TSNumberKeyword", "el tipo `number` está prohibido; usa Money/decimal (dinero)"],
   [
-    "CallExpression[callee.name=/^(parseFloat|parseInt|Number)$/]",
-    "parseFloat/parseInt/Number() prohibidos en dinero",
+    `Identifier[name=/^(${GLOBALES_NUMBER_DOMINIO})$/]:not(MemberExpression[computed=false] > Identifier.property)`,
+    "Number/parseFloat/parseInt/Math/globalThis (también como alias, desestructurado o tipo) prohibidos en dinero",
   ],
   [
-    "CallExpression[callee.object.name='Number'][callee.property.name=/^(parseFloat|parseInt)$/]",
-    "Number.parseFloat/Number.parseInt prohibidos en dinero",
+    `MemberExpression[computed=true][property.value=/^(${GLOBALES_NUMBER_DOMINIO})$/]`,
+    "acceso por índice a Number/parseFloat/parseInt/Math prohibido en dinero",
   ],
-  ["NewExpression[callee.name='Number']", "`new Number` prohibido en dinero"],
   [
     "CallExpression[callee.property.name=/^(toNumber|valueOf)$/]",
     "toNumber()/valueOf() prohibidos en dinero",
   ],
-  ["MemberExpression[object.name='Math']", "Math.* prohibido en dinero"],
   ["UnaryExpression[operator='+']", "el `+x` unario (conversión a number) está prohibido en dinero"],
+];
+// `D` (clon de Decimal) y `Decimal` no se reconfiguran ni se renombran fuera de dinero/decimal.ts.
+const SINTAXIS_DECIMAL_DOMINIO = [
+  [
+    "ImportSpecifier[imported.name='D'][local.name!='D']",
+    "`D` no se importa con alias (spec 010, CA-1)",
+  ],
+  [
+    "ImportDeclaration[source.value=/decimal$/] > ImportNamespaceSpecifier",
+    "`import * as` de dinero/decimal prohibido: importa `D` por nombre (spec 010, CA-1)",
+  ],
+  [
+    "MemberExpression[computed=true][object.name=/^(D|Decimal)$/][property.value=/^(set|config)$/]",
+    "D/Decimal.set y .config solo en dinero/decimal.ts (spec 010, CA-1)",
+  ],
 ];
 
 export default tseslint.config(
@@ -579,10 +595,19 @@ export default tseslint.config(
       "no-restricted-imports": ["error", restriccionesImports(true)],
       "no-restricted-properties": [
         "error",
-        ...["set", "config"].map((property) => ({
-          object: "Decimal",
-          property,
-          message: `packages/domain: Decimal.${property} solo se usa en dinero/decimal.ts (spec 010, CA-1).`,
+        ...["Decimal", "D"].flatMap((object) =>
+          ["set", "config"].map((property) => ({
+            object,
+            property,
+            message: `packages/domain: ${object}.${property} solo se usa en dinero/decimal.ts (spec 010, CA-1).`,
+          })),
+        ),
+      ],
+      "no-restricted-syntax": [
+        "error",
+        ...SINTAXIS_DECIMAL_DOMINIO.map(([selector, message]) => ({
+          selector,
+          message: `packages/domain: ${message}`,
         })),
       ],
     },
@@ -600,6 +625,10 @@ export default tseslint.config(
         ...SINTAXIS_SIN_NUMBER_DOMINIO.map(([selector, message]) => ({
           selector,
           message: `packages/domain: ${message} (spec 010, CA-1).`,
+        })),
+        ...SINTAXIS_DECIMAL_DOMINIO.map(([selector, message]) => ({
+          selector,
+          message: `packages/domain: ${message}`,
         })),
       ],
     },
