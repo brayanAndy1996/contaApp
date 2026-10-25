@@ -15,7 +15,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → cobertura y CI desde el diseño �
 | T7 | Reglas de lint de dinero e IO | devops | sonnet | T4 ∥ T8 | ✓ | — | [x] |
 | T8 | Implementar `dinero/` | backend | opus | T3, T5 | ✓ | — | [x] |
 | T9 | Implementar `comprobante/` | backend | opus | T6, T8 | ✓ | — | [x] |
-| T10 | Integración: checks completos | devops | haiku | T7, T9 | — | — | [ ] |
+| T10 | Integración: checks completos | devops | haiku | T7, T9 | — | — | [x] |
 | T11a | Ronda 1a: lista mínima de la spec (caja negra) | adversario | opus | T10 | — | ✓ | [ ] |
 | T11b | Ronda 1b: escenarios nuevos (caja blanca) | adversario | opus | T10 ∥ T11a | — | ✓ | [ ] |
 | T12 | Corregir hallazgos de la ronda 1 | backend | opus | T11a, T11b | — | — | [ ] |
