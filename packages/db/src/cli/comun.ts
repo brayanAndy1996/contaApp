@@ -13,9 +13,15 @@ export function urlMigraciones(): string {
 /** Mensaje mostrable de un error sin filtrar valores de conexión. */
 export function mensajeSeguro(e: unknown): string {
   if (e instanceof ErrorCli) return e.message;
-  const err = e as { code?: unknown; message?: unknown; severity?: unknown; cause?: unknown };
+  const err = e as {
+    code?: unknown;
+    message?: unknown;
+    severity?: unknown;
+    cause?: unknown;
+  };
   // Drizzle envuelve el error de pg (DrizzleQueryError) y su mensaje incluye parámetros: usar la causa.
-  if (err?.cause !== undefined && err.cause !== e) return mensajeSeguro(err.cause);
+  if (err?.cause !== undefined && err.cause !== e)
+    return mensajeSeguro(err.cause);
   // Errores del servidor PostgreSQL (traen severity y SQLSTATE): su mensaje no incluye la URL.
   if (typeof err?.severity === "string" && typeof err.code === "string") {
     return `PostgreSQL ${err.code}: ${String(err.message)}`;
@@ -25,8 +31,11 @@ export function mensajeSeguro(e: unknown): string {
   return `error de conexion o de ejecucion (${codigo})`;
 }
 
-export function ejecutar(nombre: string, fn: () => Promise<void>): void {
-  fn().then(
+export function ejecutar(
+  nombre: string,
+  fn: () => Promise<void>,
+): Promise<void> {
+  return fn().then(
     () => {
       console.log(`${nombre}: OK`);
     },

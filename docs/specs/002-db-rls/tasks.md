@@ -21,7 +21,7 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T12a | Comando `cobertura:db` reproducible con umbral 90 % | devops | sonnet | T11 | — | — | [x] |
 | T12b | Pruebas de `cli/` contra el contrato nuevo (rojo) + integración | tester | sonnet | T12a | ✓ | — | [x] |
 | T12d | Pruebas de `scram`, `with-tenant` y `schema` (ramas faltantes) | tester | sonnet | T12a ∥ T12b | — | — | [x] |
-| T12c | Refactor de `cli/` a funciones con conexión inyectada (verde) | backend | sonnet | T12b | ✓ | — | [ ] |
+| T12c | Refactor de `cli/` a funciones con conexión inyectada (verde) | backend | sonnet | T12b | ✓ | — | [x] |
 | T12e | Medir cobertura y completar el Resultado de T12 | tester | sonnet | T12c, T12d | — | — | [ ] |
 | T12 | Verificar CA-1 a CA-9 con evidencia | tester | sonnet | T11, T12e | — | — | [ ] |
 | T13 | Revisión final contra la spec | arquitecto | opus | T12 | — | — | [ ] |

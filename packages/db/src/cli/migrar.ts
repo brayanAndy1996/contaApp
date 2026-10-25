@@ -29,8 +29,8 @@ export function passwordDeDatabaseUrl(databaseUrl: string | undefined): string {
   return password;
 }
 
-async function sincronizarPassword(
-  client: Client,
+export async function sincronizarPassword(
+  client: Pick<Client, "query">,
   password: string,
 ): Promise<"sin cambios" | "actualizada"> {
   const r = await client.query<{ rolpassword: string | null }>(
@@ -59,29 +59,50 @@ async function sincronizarPassword(
   return "actualizada";
 }
 
-async function main(): Promise<void> {
+type Conexion = Pick<Client, "query">;
+/** Aplica las migraciones de drizzle; inyectable para probar `migrar` sin base de datos. */
+export type Aplicador = (client: Conexion) => Promise<void>;
+
+export const aplicarMigraciones: Aplicador = async (client) => {
+  await migrate(drizzle(client as Client), {
+    migrationsFolder: CARPETA_MIGRACIONES,
+  });
+};
+
+/** Migra, repara el rol y sincroniza su contraseña (en una transacción). Devuelve las líneas a mostrar. */
+export async function migrar(
+  client: Conexion,
+  password: string,
+  aplicar: Aplicador = aplicarMigraciones,
+): Promise<string[]> {
+  await aplicar(client);
+  // Reparación y contraseña en una sola transacción: no queda el rol a medio reparar.
+  await client.query("BEGIN");
+  try {
+    const rep = await repararRolLogin(client);
+    const estado = await sincronizarPassword(client, password);
+    await client.query("COMMIT");
+    return [
+      `migrar: ajustes de ${ROL_LOGIN} ${rep.ajustes}`,
+      `migrar: atributos de ${ROL_LOGIN} ${rep.atributos}`,
+      `migrar: contrasena de ${ROL_LOGIN} ${estado}`,
+    ];
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw e;
+  }
+}
+
+export async function main(): Promise<void> {
   const urlMigr = urlMigraciones();
   const password = passwordDeDatabaseUrl(process.env.DATABASE_URL);
   const client = new Client({ connectionString: urlMigr });
   await client.connect();
   try {
-    await migrate(drizzle(client), { migrationsFolder: CARPETA_MIGRACIONES });
-    // Reparación y contraseña en una sola transacción: no queda el rol a medio reparar.
-    await client.query("BEGIN");
-    try {
-      const rep = await repararRolLogin(client);
-      const estado = await sincronizarPassword(client, password);
-      await client.query("COMMIT");
-      console.log(`migrar: ajustes de ${ROL_LOGIN} ${rep.ajustes}`);
-      console.log(`migrar: atributos de ${ROL_LOGIN} ${rep.atributos}`);
-      console.log(`migrar: contrasena de ${ROL_LOGIN} ${estado}`);
-    } catch (e) {
-      await client.query("ROLLBACK").catch(() => undefined);
-      throw e;
-    }
+    for (const linea of await migrar(client, password)) console.log(linea);
   } finally {
     await client.end();
   }
 }
 
-if (require.main === module) ejecutar("migrar", main);
+if (require.main === module) void ejecutar("migrar", main);
