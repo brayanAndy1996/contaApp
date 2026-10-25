@@ -26,7 +26,7 @@ describe("CA-7 restricciones UNIQUE en el catalogo", () => {
   it("todo indice UNIQUE (no PK) de una tabla con tenant_id incluye tenant_id", async () => {
     const r = await pool.query(
       `select c.relname as tabla, i.relname as indice,
-              array_agg(a.attname order by k.ord) as columnas
+              array_agg(a.attname::text order by k.ord) as columnas
          from pg_index x
          join pg_class c on c.oid = x.indrelid
          join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
