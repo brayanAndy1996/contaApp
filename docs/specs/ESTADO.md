@@ -9,13 +9,13 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 | 001-fundaciones | D | hecha | — | Sin Docker (decisión del usuario). TypeScript 6.0.3. CI de GitHub sin ejecutar: el repo no tiene remoto. |
 | 002-db-rls | A | hecha | — | Spec aprobada por el usuario (D1–D3, D5–D7). P7 resuelta en el plan. Rama `spec/002-db-rls` desde `spec/001-fundaciones`. |
 | 003-cifrado | A | hecha | — | Sin Docker (decisión del usuario). Rama `spec/003-cifrado` sin mergear (desde `spec/002-db-rls`). F2: límite aceptado por el usuario (ver `spec.md`, Límites conocidos). |
-| 004-auth | A | pendiente | — | — |
+| 004-auth | A | aprobada | T1 | Spec aprobada por el usuario (D1–D12; P1–P10 según la recomendación del arquitecto, "todo lo recomendado"); decisiones pendientes: ninguna. Plan y tareas T1–T21 listos. Espera a que 010 esté cerrada: la rama `spec/004-auth` se crea en T1 desde el último commit de `spec/010-dominio-dinero` (no desde `spec/003-cifrado`). |
 | 005-acceso | A | pendiente | — | Hereda de 002 (D2): criterio de HU-40 "por API" (aislamiento entre estudios probado vía endpoints). |
 | 006-planes | B | pendiente | — | — |
 | 007-clientes | B | pendiente | — | — |
 | 008-cola | A | pendiente | — | — |
 | 009-adaptadores-mock | C | pendiente | — | — |
-| 010-dominio-dinero | A | pendiente | — | — |
+| 010-dominio-dinero | A | aprobada | T1 | Spec aprobada por el usuario (D1–D8, "todo lo recomendado"); decisiones pendientes: ninguna. Caso real USD diferido (pendiente no bloqueante, sin cifras; CA-13 sintético cubre D7). Rama `spec/010-dominio-dinero` desde `spec/003-cifrado`. Se implementa antes que 004 en el árbol compartido. Independiente de la BD. |
 | 011-motor-reglas | A | pendiente | — | — |
 | 012-prevalidacion-archivos | A | pendiente | — | — |
 | 013-ventas | B | pendiente | — | — |
