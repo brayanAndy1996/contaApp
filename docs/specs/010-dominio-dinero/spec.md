@@ -59,3 +59,4 @@ Desborde en el límite de NUMERIC(14,2) y en sumas largas; precisión con divisi
 - D6 Notas de crédito: montos negativos en todas las columnas (mismo signo); `moverMonto` exige el mismo signo que el saldo de origen y |monto| ≤ |saldo|.
 - D7 Moneda y tipo de cambio: `Money` lleva moneda PEN/USD y operar entre monedas distintas lanza `MonedaDistintaError`; el TC es un decimal de hasta 3 decimales; la conversión es por componente (cada columna se redondea) y el total convertido es la suma de los convertidos, para que cuadre en PEN.
 - D8 Más de 2 decimales: `Money.desde` los rechaza; el parser de XML (016) convierte el valor exacto y llama a `redondearSunat` explícitamente.
+- D9 Adiciones al alcance (aprobada por el usuario el 2026-10-25): quedan dentro de 010 tres adiciones que no figuraban en el texto original de Alcance: `entre` (división), `MontosComprobante.sumar` y `convertirAPen`.
