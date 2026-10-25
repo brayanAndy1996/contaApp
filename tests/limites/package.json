@@ -1,0 +1,11 @@
+{
+  "name": "@contapp/tests-limites",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "vitest": "5.0.5"
+  }
+}

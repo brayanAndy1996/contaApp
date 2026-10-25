@@ -7,7 +7,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → pruebas (rojo) → implementación
 | # | Tarea | Rol | Modelo | Depende de | TDD | ADV | Estado |
 |---|---|---|---|---|---|---|---|
 | T1 | Rama `spec/003-cifrado` y commit de los docs de la spec | devops | haiku | — | — | — | [x] |
-| T2 | Andamiaje de `packages/crypto`, vitest en `apps/worker`, `tests/limites` | devops | haiku | T1 | — | — | [ ] |
+| T2 | Andamiaje de `packages/crypto`, vitest en `apps/worker`, `tests/limites` | devops | haiku | T1 | — | — | [x] |
 | T3 | Comando `cobertura:crypto` (umbral 90 %), `ci:db` y CI | devops | sonnet | T2 | — | — | [ ] |
 | T4 | `.env.example` a 11 variables, `.env` local y fixture `mock` | devops | haiku | T2 ∥ T3 | — | — | [ ] |
 | T5 | Pruebas unitarias de `@contapp/crypto` (rojo) | tester | sonnet | T3, T4 | ✓ | — | [ ] |
