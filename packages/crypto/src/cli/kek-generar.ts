@@ -7,6 +7,7 @@ import { existsSync } from "node:fs";
 import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
 import { promisify } from "node:util";
+import { arrancarSiDirecta } from "../comun/arranque";
 import { raizRepo, resolverRuta } from "../comun/raiz";
 import { MODULO_MINIMO, huellaSpki } from "../comun/rsa";
 
@@ -114,8 +115,4 @@ export async function ejecutar(
   }
 }
 
-if (require.main === module) {
-  void ejecutar(process.argv.slice(2)).then((codigo) => {
-    process.exitCode = codigo;
-  });
-}
+arrancarSiDirecta(require.main, module, ejecutar, process.argv.slice(2));

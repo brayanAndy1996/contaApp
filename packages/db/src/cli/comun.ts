@@ -45,3 +45,21 @@ export function ejecutar(
     },
   );
 }
+
+/**
+ * ¿El proceso arrancó con este módulo como entrada (`node dist/cli/x.js`)? Recibe `require.main` y
+ * `module` como parámetros para poder probar sus dos ramas (bajo vitest nunca coinciden).
+ */
+export function esEjecucionDirecta(principal: unknown, modulo: unknown): boolean {
+  return principal === modulo;
+}
+
+/** Si el módulo es la entrada del proceso, corre `ejecutar(nombre, fn)`; si fue importado, nada. */
+export function ejecutarSiDirecta(
+  principal: unknown,
+  modulo: unknown,
+  nombre: string,
+  fn: () => Promise<void>,
+): void {
+  if (esEjecucionDirecta(principal, modulo)) void ejecutar(nombre, fn);
+}

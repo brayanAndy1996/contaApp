@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Client } from "pg";
 import * as schema from "../schema";
 import { SEED } from "../seed/datos";
-import { ejecutar, urlMigraciones } from "./comun";
+import { ejecutarSiDirecta, urlMigraciones } from "./comun";
 
 /** Inserta el seed (idempotente) en una transacción sobre la conexión recibida. */
 export async function sembrar(client: Pick<Client, "query">): Promise<void> {
@@ -33,4 +33,4 @@ export async function main(): Promise<void> {
   }
 }
 
-if (require.main === module) void ejecutar("seed", main);
+ejecutarSiDirecta(require.main, module, "seed", main);

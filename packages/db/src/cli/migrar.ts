@@ -6,7 +6,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Client } from "pg";
 import { generaVerificador, verificaPassword } from "../scram";
-import { ejecutar, ErrorCli, urlMigraciones } from "./comun";
+import { ejecutarSiDirecta, ErrorCli, urlMigraciones } from "./comun";
 import { repararRolLogin, ROL_LOGIN } from "./reparar-rol";
 const CARPETA_MIGRACIONES = path.resolve(__dirname, "../../migrations");
 const FORMATO_VERIFICADOR =
@@ -105,4 +105,4 @@ export async function main(): Promise<void> {
   }
 }
 
-if (require.main === module) void ejecutar("migrar", main);
+ejecutarSiDirecta(require.main, module, "migrar", main);
