@@ -1,7 +1,7 @@
 import { pgTable, text } from "drizzle-orm/pg-core";
 import { id, marcasDeTiempo } from "./comun";
 
-// Tablas de plataforma: sin tenant_id ni RLS (03 §8).
+// Tablas de plataforma: sin tenant_id (03 §8). RLS de solo lectura para backend/worker (H6, 0003).
 export const tenant = pgTable("tenant", {
   id: id(),
   nombre: text("nombre").notNull(),

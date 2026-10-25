@@ -1,15 +1,16 @@
-// `pnpm db:migrate`: aplica las migraciones con MIGRATIONS_DATABASE_URL (superusuario) y sincroniza
-// la contraseña de contapp_app con la de DATABASE_URL enviando solo un verificador SCRAM (plan 002).
+// `pnpm db:migrate`: aplica las migraciones con MIGRATIONS_DATABASE_URL (superusuario), repara los
+// ajustes persistentes y atributos de contapp_app (H7) y sincroniza su contraseña con la de
+// DATABASE_URL enviando solo un verificador SCRAM (plan 002).
 import path from "node:path";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Client } from "pg";
 import { generaVerificador, verificaPassword } from "../scram";
 import { ejecutar, ErrorCli, urlMigraciones } from "./comun";
-
-const ROL_LOGIN = "contapp_app";
+import { repararRolLogin, ROL_LOGIN } from "./reparar-rol";
 const CARPETA_MIGRACIONES = path.resolve(__dirname, "../../migrations");
-const FORMATO_VERIFICADOR = /^SCRAM-SHA-256\$\d+:[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+:[A-Za-z0-9+/=]+$/;
+const FORMATO_VERIFICADOR =
+  /^SCRAM-SHA-256\$\d+:[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+:[A-Za-z0-9+/=]+$/;
 
 /** Contraseña del rol de login tomada de DATABASE_URL; valida usuario y presencia sin revelar valores. */
 export function passwordDeDatabaseUrl(databaseUrl: string | undefined): string {
@@ -28,19 +29,27 @@ export function passwordDeDatabaseUrl(databaseUrl: string | undefined): string {
   return password;
 }
 
-async function sincronizarPassword(client: Client, password: string): Promise<"sin cambios" | "actualizada"> {
+async function sincronizarPassword(
+  client: Client,
+  password: string,
+): Promise<"sin cambios" | "actualizada"> {
   const r = await client.query<{ rolpassword: string | null }>(
     "select rolpassword from pg_authid where rolname = $1",
     [ROL_LOGIN],
   );
   if (r.rowCount !== 1) throw new ErrorCli(`no existe el rol ${ROL_LOGIN}`);
   const actual = r.rows[0]!.rolpassword;
-  if (actual && actual.startsWith("SCRAM-SHA-256$") && verificaPassword(actual, password)) {
+  if (
+    actual &&
+    actual.startsWith("SCRAM-SHA-256$") &&
+    verificaPassword(actual, password)
+  ) {
     return "sin cambios";
   }
   const verificador = generaVerificador(password);
   // ALTER ROLE no admite parámetros: el verificador se valida contra su formato antes de interpolarlo.
-  if (!FORMATO_VERIFICADOR.test(verificador)) throw new ErrorCli("verificador SCRAM con formato invalido");
+  if (!FORMATO_VERIFICADOR.test(verificador))
+    throw new ErrorCli("verificador SCRAM con formato invalido");
   await client.query(`ALTER ROLE ${ROL_LOGIN} PASSWORD '${verificador}'`);
   return "actualizada";
 }
@@ -52,8 +61,19 @@ async function main(): Promise<void> {
   await client.connect();
   try {
     await migrate(drizzle(client), { migrationsFolder: CARPETA_MIGRACIONES });
-    const estado = await sincronizarPassword(client, password);
-    console.log(`migrar: contrasena de ${ROL_LOGIN} ${estado}`);
+    // Reparación y contraseña en una sola transacción: no queda el rol a medio reparar.
+    await client.query("BEGIN");
+    try {
+      const rep = await repararRolLogin(client);
+      const estado = await sincronizarPassword(client, password);
+      await client.query("COMMIT");
+      console.log(`migrar: ajustes de ${ROL_LOGIN} ${rep.ajustes}`);
+      console.log(`migrar: atributos de ${ROL_LOGIN} ${rep.atributos}`);
+      console.log(`migrar: contrasena de ${ROL_LOGIN} ${estado}`);
+    } catch (e) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw e;
+    }
   } finally {
     await client.end();
   }

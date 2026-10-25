@@ -22,6 +22,13 @@
       "when": 1792889996625,
       "tag": "0002_rls_y_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792893621440,
+      "tag": "0003_rls_plataforma_y_roles",
+      "breakpoints": true
     }
   ]
 }
