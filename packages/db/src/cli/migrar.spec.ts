@@ -187,7 +187,7 @@ describe("sincronizarPassword", () => {
         ...(await original<typeof import("../scram")>()),
         generaVerificador: () => "verificador-malo",
       }));
-      const modulo = await import("./migrar");
+      const modulo = await import("./migrar.js");
       const c = clienteFalso({ rolpassword: null });
       const e = await modulo
         .sincronizarPassword(c, PASSWORD)
