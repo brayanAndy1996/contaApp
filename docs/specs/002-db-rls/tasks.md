@@ -19,7 +19,7 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T10 | Ronda adversarial 2 (solo si T8 tuvo fallos) | adversario | opus | T9 | — | ✓ | [ ] |
 | T11 | Corregir hallazgos de la ronda 2 | backend | opus | T10 | — | — | [x] |
 | T12a | Comando `cobertura:db` reproducible con umbral 90 % | devops | sonnet | T11 | — | — | [x] |
-| T12b | Pruebas de `cli/` contra el contrato nuevo (rojo) + integración | tester | sonnet | T12a | ✓ | — | [ ] |
+| T12b | Pruebas de `cli/` contra el contrato nuevo (rojo) + integración | tester | sonnet | T12a | ✓ | — | [x] |
 | T12d | Pruebas de `scram`, `with-tenant` y `schema` (ramas faltantes) | tester | sonnet | T12a ∥ T12b | — | — | [ ] |
 | T12c | Refactor de `cli/` a funciones con conexión inyectada (verde) | backend | sonnet | T12b | ✓ | — | [ ] |
 | T12e | Medir cobertura y completar el Resultado de T12 | tester | sonnet | T12c, T12d | — | — | [ ] |
