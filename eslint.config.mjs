@@ -1,3 +1,4 @@
+import { builtinModules } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import tseslint from "typescript-eslint";
@@ -414,6 +415,75 @@ const reglaSqlCrudo = {
   },
 };
 
+// Lint de IO y dinero en packages/domain (spec 010, plan: "Lint de dinero" y "Lint de IO").
+const MODULOS_BD_HTTP_DOMINIO = [
+  "pg",
+  "bullmq",
+  "ioredis",
+  "axios",
+  "undici",
+  "node-fetch",
+];
+const restriccionesImports = (conDecimal) => ({
+  // `paths` (nombre exacto): módulos de Node sin prefijo y paquetes de BD/colas/HTTP.
+  paths: [...new Set([...builtinModules, ...MODULOS_BD_HTTP_DOMINIO])].map(
+    (name) => ({
+      name,
+      message: `packages/domain no hace IO: no puede importar '${name}' (spec 010, CA-12).`,
+    }),
+  ),
+  patterns: [
+    {
+      group: ["node:*", "drizzle-orm", "drizzle-orm/**", "@nestjs/*"],
+      message:
+        "packages/domain no hace IO: sin node:*, drizzle-orm ni @nestjs/* (spec 010, CA-12).",
+    },
+    {
+      group: ["db", "sunat", "storage", "queue", "crypto"].flatMap(paquete),
+      message:
+        "packages/domain no puede importar paquetes de IO (03-arquitectura §2).",
+    },
+    ...(conDecimal
+      ? [
+          {
+            group: ["decimal.js", "decimal.js/**"],
+            message:
+              "packages/domain: decimal.js solo se importa en dinero/decimal.ts (spec 010, CA-1).",
+          },
+        ]
+      : []),
+  ],
+});
+const GLOBALES_IO_DOMINIO = [
+  "process",
+  "Buffer",
+  "fetch",
+  "require",
+  "XMLHttpRequest",
+  "WebSocket",
+].map((name) => ({
+  name,
+  message: `packages/domain no hace IO: '${name}' prohibido (spec 010, CA-12).`,
+}));
+const SINTAXIS_SIN_NUMBER_DOMINIO = [
+  ["TSNumberKeyword", "el tipo `number` está prohibido; usa Money/decimal (dinero)"],
+  [
+    "CallExpression[callee.name=/^(parseFloat|parseInt|Number)$/]",
+    "parseFloat/parseInt/Number() prohibidos en dinero",
+  ],
+  [
+    "CallExpression[callee.object.name='Number'][callee.property.name=/^(parseFloat|parseInt)$/]",
+    "Number.parseFloat/Number.parseInt prohibidos en dinero",
+  ],
+  ["NewExpression[callee.name='Number']", "`new Number` prohibido en dinero"],
+  [
+    "CallExpression[callee.property.name=/^(toNumber|valueOf)$/]",
+    "toNumber()/valueOf() prohibidos en dinero",
+  ],
+  ["MemberExpression[object.name='Math']", "Math.* prohibido en dinero"],
+  ["UnaryExpression[operator='+']", "el `+x` unario (conversión a number) está prohibido en dinero"],
+];
+
 export default tseslint.config(
   {
     ignores: [
@@ -491,12 +561,48 @@ export default tseslint.config(
       "apps/worker no puede importar otras apps (03-arquitectura §2).",
     ),
   },
+  // packages/domain sin IO (spec 010, CA-12): imports (paquetes del monorepo, node:*, BD, HTTP,
+  // frameworks) y globales de entorno prohibidos.
   {
     files: ["packages/domain/**"],
-    rules: limite(
-      ["db", "sunat", "storage", "queue", "crypto"].flatMap(paquete),
-      "packages/domain no puede importar paquetes de IO (03-arquitectura §2).",
-    ),
+    rules: {
+      "no-restricted-imports": ["error", restriccionesImports(false)],
+      "no-restricted-globals": ["error", ...GLOBALES_IO_DOMINIO],
+    },
+  },
+  // Dinero (spec 010, CA-1): decimal.js solo en dinero/decimal.ts (y en pruebas); tampoco se
+  // reconfigura `Decimal` fuera de ese archivo.
+  {
+    files: ["packages/domain/src/**"],
+    ignores: ["packages/domain/src/dinero/decimal.ts", "**/*.spec.ts"],
+    rules: {
+      "no-restricted-imports": ["error", restriccionesImports(true)],
+      "no-restricted-properties": [
+        "error",
+        ...["set", "config"].map((property) => ({
+          object: "Decimal",
+          property,
+          message: `packages/domain: Decimal.${property} solo se usa en dinero/decimal.ts (spec 010, CA-1).`,
+        })),
+      ],
+    },
+  },
+  // Dinero (spec 010, CA-1): sin `number` ni Math.* en dinero/ y comprobante/ (salvo pruebas).
+  {
+    files: [
+      "packages/domain/src/dinero/**",
+      "packages/domain/src/comprobante/**",
+    ],
+    ignores: ["**/*.spec.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        ...SINTAXIS_SIN_NUMBER_DOMINIO.map(([selector, message]) => ({
+          selector,
+          message: `packages/domain: ${message} (spec 010, CA-1).`,
+        })),
+      ],
+    },
   },
   {
     files: ["apps/**", "packages/**"],

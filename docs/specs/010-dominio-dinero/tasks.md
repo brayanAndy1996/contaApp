@@ -12,7 +12,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → cobertura y CI desde el diseño �
 | T4 | Pruebas de lint de dinero e IO (rojo) | tester | sonnet | T1 ∥ T3 | ✓ | — | [x] |
 | T5 | Pruebas de `dinero/` (rojo) | tester | sonnet | T2 ∥ T3, T4 | ✓ | — | [x] |
 | T6 | Pruebas de `comprobante/` y casos reales (rojo) | tester | sonnet | T2 ∥ T5 | ✓ | — | [x] |
-| T7 | Reglas de lint de dinero e IO | devops | sonnet | T4 ∥ T8 | ✓ | — | [ ] |
+| T7 | Reglas de lint de dinero e IO | devops | sonnet | T4 ∥ T8 | ✓ | — | [x] |
 | T8 | Implementar `dinero/` | backend | opus | T3, T5 | ✓ | — | [ ] |
 | T9 | Implementar `comprobante/` | backend | opus | T6, T8 | ✓ | — | [ ] |
 | T10 | Integración: checks completos | devops | haiku | T7, T9 | — | — | [ ] |
