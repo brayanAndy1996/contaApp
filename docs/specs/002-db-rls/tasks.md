@@ -10,7 +10,7 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T2 | `.env.example` a 8 variables y `.env` local | devops | haiku | T1 | — | — | [x] |
 | T3 | Pruebas unitarias de `@contapp/db` (rojo) | tester | sonnet | T1 ∥ | ✓ | — | [x] |
 | T4 | Suite de aislamiento CA-2 a CA-7 (rojo) | tester | sonnet | T1 ∥ | ✓ | — | [x] |
-| T5 | Esquema, migraciones, roles, RLS, `migrar` y seed | backend | opus | T2, T4 | ✓ | — | [ ] |
+| T5 | Esquema, migraciones, roles, RLS, `migrar` y seed | backend | opus | T2, T4 | ✓ | — | [x] |
 | T6 | `createDb`, `withTenant`, `withUsuario`, SCRAM | backend | opus | T3, T4 ∥ | ✓ | — | [x] |
 | T7 | Job de CI `aislamiento` y `pnpm ci:db` en local | devops | haiku | T5, T6 | — | — | [ ] |
 | T8 | Ronda adversarial 1 | adversario | opus | T7 | — | ✓ | [ ] |
@@ -21,7 +21,9 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T13 | Revisión final contra la spec | arquitecto | opus | T12 | — | — | [ ] |
 | T14 | Cierre: ESTADO, tasks y commit | devops | haiku | T13 | — | — | [ ] |
 
-Escalamientos: —
+Escalamientos:
+- T5 → tester: `ruc-repetido.spec.ts` "todo indice UNIQUE…" falla por la prueba: `array_agg(a.attname)` es `name[]` y `pg` lo devuelve como texto `"{tenant_id,ruc}"` (`.sort` no existe y `.includes` compara subcadenas). Arreglo: `array_agg(a.attname::text …)`.
+- T5 (desvíos menores del plan, informados): `GRANT USAGE ON SCHEMA public` también a `contapp_app` (sin él la consulta da 42P01, no el `permission denied` de CA-2/CA-4) y a `contapp_migrator` (las FK se comprueban como dueño); `ALTER ROLE contapp_app SET lc_messages TO 'C'` (el clúster local responde en español y las pruebas esperan `permission denied`).
 
 Reglas comunes:
 - Un commit por tarea (Conventional Commits, `feat(002): …`, `test(002): …`), con el trailer `Co-Authored-By` del modelo que la ejecutó. Las tareas ∥ hacen commit una tras otra. Sin remoto.
