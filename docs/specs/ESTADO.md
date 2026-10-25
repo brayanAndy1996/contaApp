@@ -51,9 +51,14 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 | 003-cifrado | packages/crypto/src/ronda2a.adv.spec.ts:58 | R2a-2 (baja): el lint de `apps/backend` no reporta 10 vías de cargar `@contapp/crypto/descifrado` (alias de `require`, `require.call`, `eval`, `new Function`, `(0, require)`, `module` desestructurado o aliasado, `module.constructor._load`, `require("module")._load`, `globalThis.process.mainModule`); mitigado: el backend no tiene la privada en `local` (causa `eslint.config.mjs:163-176`) | abierto |
 | 003-cifrado | apps/worker/src/ronda2a.adv.int.spec.ts:94 | R2a-3 (baja): sin `kekAnterior`, el CAS de `reemplazarDekEnvuelta` no compara `kek_id` y pisa una re-etiquetación del backend (causa `packages/db/src/credenciales/repositorio.ts:83` y `:191`); la rotación siempre lo pasa, pero `tests/aislamiento/credencial.spec.ts` no | abierto |
 | 003-cifrado | apps/worker/src/ronda2a.adv.int.spec.ts:116 | R2a-4 (baja): con un logger de rechazo asíncrono tras el COMMIT, el `Secreto` se entrega y el rechazo queda sin manejar; el síncrono sí se destruye y relanza (causa `apps/worker/src/credenciales/descifrar-credencial.ts:151-157`) | abierto |
+| 003-cifrado | apps/worker/src/cli/kek-rotar-r2b.adv.spec.ts:63 | R2b-1 (media): `kek:rotar` no compara el material de la llave anterior con el de la activa; con `--privada-anterior` copia de la activa y otro `--desde`, llega a la BD y "rota" sin sacar ninguna DEK de la llave a jubilar (causa `apps/worker/src/cli/kek-rotar.ts:118-127` y `apps/worker/src/credenciales/rotar-kek.ts:65-77`) | abierto |
+| 003-cifrado | packages/crypto/src/crypto-r2b.adv.spec.ts:52 | R2b-2 (baja): si la llave llega después del plazo, la DEK se desenvuelve igual y nunca se pone a cero (causa `packages/crypto/src/comun/plazo.ts:50`) | abierto |
+| 003-cifrado | packages/crypto/src/crypto-r2b.adv.spec.ts:79 | R2b-3 (baja): `mock` solo se bloquea con `NODE_ENV` exactamente `production`; `Production`, `PRODUCTION` o con espacios alrededor del valor lo dejan arrancar (CA-10) (causa `packages/crypto/src/comun/config.ts:25` y `packages/crypto/src/cifrado/mock.ts:45`) | abierto |
+| 003-cifrado | packages/crypto/src/crypto-r2b.adv.spec.ts:142 | R2b-4 (baja): `--salida` acepta una carpeta del repo que git no ignora y deja `kek-private.pem` versionable (CA-11) (causa `packages/crypto/src/cli/kek-generar.ts:31-46`) | abierto |
 
 ## Decisiones pendientes del usuario
 - [003] ¿aceptar el límite de F2 (código 1 vs 3 en corridas posteriores con solo filas corruptas)?
+- [003] ¿aceptar como límite R2a-1 (la guarda del RNG tiene memoria acotada de 4096 huellas; un ciclo de período 4097 no se detecta)?
 
 ## Notas para specs futuras
 
