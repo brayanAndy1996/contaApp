@@ -81,3 +81,6 @@ jobs:
 
       - name: Migraciones, seed y suite de aislamiento
         run: pnpm ci:db
+
+      - name: Cobertura de packages/db (umbral 90 %)
+        run: pnpm cobertura:db
