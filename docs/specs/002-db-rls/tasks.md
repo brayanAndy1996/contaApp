@@ -101,6 +101,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: igual que T8 + diff de T9 (`git diff <commit T8>..HEAD -- packages/db`).
 - **Hacer**: si T8 no tuvo fallos, marcar `[x]` con "omitida: ronda 1 sin fallos". Si no, hasta ~15 pruebas nuevas contra las correcciones y huecos restantes.
 - **Hecho cuando**: igual que T8. Commit `test(002): ronda adversarial 2`.
+- **Avance (parte a: reconversión de las 8 rojas según "Riesgos aceptados" y D8–D10)**: H3 (`contexto.adv:47`), H4 (`oraculos.adv:53`), H5 (`:77`) y H9 (`:99`) pasan fijando el comportamiento conocido (23505, 0/1 filas y 42501 en upsert, 23503) con comentario que cita el riesgo aceptado. H2 (`escalada.adv:90`): backend → platform falla con 42501 y worker → backend se fija como aceptado (D8); `:117` quita platform del bucle de DDL y comprueba que `SET ROLE contapp_platform` da 42501. H8 (`contexto.adv:102`) usa `contapp_worker`. H7 (`escalada.adv:167`, D10): persiste `row_security=off` e `IN DATABASE … work_mem` como `contapp_app`, ejecuta el CLI `migrar` compilado (siempre, en `finally`) y verifica que deja solo `lc_messages=C`, que una conexión nueva arranca limpia y que la salida no contiene la contraseña; `ALTER ROLE … SET app.tenant_id` resulta rechazado (42501). `pnpm test:aislamiento`: 163/163 en verde.
 
 ## T11 · Corregir ronda 2 (backend · opus)
 - **Contexto / Hacer / Hecho cuando**: igual que T9 con los hallazgos de T10; omitida si T10 no tuvo fallos. Commit `fix(002): hallazgos de la ronda adversarial 2`.

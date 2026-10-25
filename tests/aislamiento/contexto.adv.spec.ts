@@ -44,7 +44,11 @@ async function estadoConexion(db: ContappDb) {
 const idsB = () => clientesDe("B").map((c) => c.id);
 
 describe("ADV contexto de tenant (rol contapp_backend)", () => {
-  it("set_config('app.tenant_id', B, true) a mitad de withTenant(A) no da acceso a filas de B", async () => {
+  // RIESGO ACEPTADO H3 (spec 002, "Riesgos aceptados"): un set_config a mitad de withTenant(A)
+  // cambia de estudio. Compensacion: consultas parametrizadas y lint contra SQL crudo fuera de
+  // packages/db (T9c). La prueba fija el comportamiento conocido: si deja de cambiar de estudio
+  // (o cambia a otra cosa), falla y obliga a revisar la decision.
+  it("H3 aceptado: set_config('app.tenant_id', B, true) a mitad de withTenant(A) pasa a ver solo las filas de B", async () => {
     const db = crearDb("contapp_backend");
     try {
       const vistos = await db.withTenant(
@@ -58,7 +62,7 @@ describe("ADV contexto de tenant (rol contapp_backend)", () => {
           );
         },
       );
-      expect(vistos.some((id) => idsB().includes(id))).toBe(false);
+      expect([...vistos].sort()).toEqual([...idsB()].sort());
     } finally {
       await db.close();
     }
@@ -99,11 +103,15 @@ describe("ADV contexto de tenant (rol contapp_backend)", () => {
     }
   });
 
+  // H8: tras D8 contapp_platform no es alcanzable desde el login, asi que se usa contapp_worker
+  // (otro rol al que contapp_app si puede pasar) para comprobar que el SET ROLE de sesion no persiste.
   it("SET ROLE de sesion dentro de withTenant no deja la conexion del pool con otro rol", async () => {
     const db = crearDb("contapp_backend", 1);
     try {
       await db.withTenant({ tenantId: tenantDe("A") }, async (tx) => {
-        await tx.query(`set role contapp_platform`);
+        await tx.query(`set role contapp_worker`);
+        const r = await tx.query(`select current_user as u`);
+        expect(r.rows[0].u).toBe("contapp_worker"); // control: el ataque si cambio el rol
       });
       const est = await estadoConexion(db);
       expect(est.u).toBe("contapp_app");

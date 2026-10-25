@@ -16,6 +16,27 @@ import {
   type Tx,
 } from "./soporte";
 import type { Pool } from "pg";
+import { execFile } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
+/** Ejecuta el CLI `migrar` ya compilado (como `pnpm db:migrate`); devuelve stdout+stderr. */
+function correrMigrar(): Promise<string> {
+  const script = fileURLToPath(
+    new URL("../../packages/db/dist/cli/migrar.js", import.meta.url),
+  );
+  return new Promise((resolve, reject) => {
+    execFile(
+      process.execPath,
+      [script],
+      { env: process.env, timeout: 50_000 },
+      (err, stdout, stderr) => {
+        const salida = `${stdout}${stderr}`;
+        if (err) reject(new Error(`migrar fallo (codigo ${String(err.code)})`));
+        else resolve(salida);
+      },
+    );
+  });
+}
 
 async function capturar(
   tx: Tx,
@@ -108,10 +129,14 @@ describe("ADV escalada desde DATABASE_URL", () => {
         : set;
       return { set, lectura };
     });
+    // D8: contapp_platform queda fuera del alcance del login de la app.
     expect(aPlatform.set.ok).toBe(false);
+    if (!aPlatform.set.ok) expect(aPlatform.set.code).toBe("42501");
     expect(aPlatform.escritura.ok).toBe(false);
-    expect(aBackend.set.ok).toBe(false);
-    expect(aBackend.lectura.ok).toBe(false);
+    // RIESGO ACEPTADO (D8): el worker puede pasar a contapp_backend (y leer usuario con su RLS).
+    // Se fija el comportamiento conocido; si cambia, la prueba falla y obliga a revisar D8.
+    expect(aBackend.set).toEqual({ ok: true, rowCount: 0 });
+    expect(aBackend.lectura.ok).toBe(true);
   });
 
   it("ningun rol de la conexion puede desactivar RLS, tocar politicas ni crear objetos que la esquiven", async () => {
@@ -133,12 +158,9 @@ describe("ADV escalada desde DATABASE_URL", () => {
       `create schema s_adv`,
       `create extension if not exists dblink`,
     ];
-    const roles = [
-      null,
-      "contapp_backend",
-      "contapp_worker",
-      "contapp_platform",
-    ];
+    // D8: contapp_platform ya no es alcanzable desde el login (se comprueba aparte), asi que el
+    // DDL se intenta solo con los roles a los que la conexion de DATABASE_URL si puede pasar.
+    const roles = [null, "contapp_backend", "contapp_worker"];
     const exitos: string[] = [];
     for (const rol of roles) {
       for (const sql of ddl) {
@@ -147,6 +169,13 @@ describe("ADV escalada desde DATABASE_URL", () => {
       }
     }
     expect(exitos).toEqual([]);
+    const aPlatform = await intentarRaw(
+      pool,
+      null,
+      `set local role contapp_platform`,
+    );
+    expect(aPlatform.ok).toBe(false);
+    if (!aPlatform.ok) expect(aPlatform.code).toBe("42501");
   });
 
   it("row_security = off falla cerrado y session_replication_role (salta FK/triggers) es rechazado", async () => {
@@ -164,36 +193,67 @@ describe("ADV escalada desde DATABASE_URL", () => {
     expect(srr.ok).toBe(false);
   });
 
-  it("el rol de login no puede fijar valores por defecto de sesion para si mismo (app.tenant_id, role) ni su contraseña", async () => {
-    const tenantB = tenantDe("B");
-    const intentos = [
-      await intentarRaw(
-        pool,
-        null,
-        `alter role contapp_app set app.tenant_id = '${tenantB}'`,
-      ),
-      await intentarRaw(
-        pool,
-        null,
-        `alter role contapp_app set role = 'contapp_platform'`,
-      ),
-      await intentarRaw(
-        pool,
-        null,
-        `alter role contapp_app set row_security = off`,
-      ),
-      await intentarRaw(pool, null, `alter role contapp_app password null`),
-    ];
-    // Todo se revirtio (ROLLBACK): ningun ajuste quedo persistido.
-    const persistido = await filasRaw(
-      pool,
-      null,
-      `select s.setconfig from pg_db_role_setting s join pg_roles r on r.oid = s.setrole
-        where r.rolname = 'contapp_app'`,
-    );
-    expect(JSON.stringify(persistido)).not.toContain("app.tenant_id");
-    expect(intentos.map((r) => r.ok)).toEqual([false, false, false, false]);
-  });
+  // H7, D10 (opcion A): limite conocido de PostgreSQL 17 (todo rol LOGIN puede fijar sus propios
+  // valores por defecto de sesion con ALTER ROLE self [IN DATABASE d] SET). No se exige que el ataque
+  // falle: se comprueba que `migrar` (el CLI real, unico lector de MIGRATIONS_DATABASE_URL, CA-2b)
+  // restaura la configuracion de contapp_app. El ataque se persiste con valores que solo afectan a
+  // conexiones nuevas y `migrar` se ejecuta siempre (finally) para limpiarlo. La contrasena
+  // (PASSWORD NULL) no se ataca aqui: dejaria sin login a la suite si la reparacion fallara.
+  it("H7 (D10): tras persistir valores por defecto de sesion en contapp_app, migrar los restaura", async () => {
+    const leerAjustes = `select s.setdatabase::int as setdatabase, s.setconfig
+        from pg_db_role_setting s join pg_roles r on r.oid = s.setrole
+       where r.rolname = 'contapp_app' order by 1`;
+    const esperado = [{ setdatabase: 0, setconfig: ["lc_messages=C"] }];
+    const sondear = async (sql: string): Promise<true | string> => {
+      try {
+        await pool.query(sql);
+        return true;
+      } catch (e) {
+        return String((e as { code?: string }).code ?? "");
+      }
+    };
+    let antes: unknown[] = [];
+    const resultados: (true | string)[] = [];
+    let salida = "";
+    try {
+      // Nombre de la base citado en el servidor (%I), no interpolado en el cliente.
+      const enBase = (
+        await pool.query(
+          `select format('alter role contapp_app in database %I set work_mem = %L', current_database(), '64kB') as s`,
+        )
+      ).rows[0].s as string;
+      resultados.push(
+        await sondear(`alter role contapp_app set app.tenant_id = '${tenantDe("B")}'`),
+        await sondear(`alter role contapp_app set row_security = off`),
+        await sondear(enBase),
+      );
+      antes = await filasRaw(pool, null, leerAjustes);
+    } finally {
+      salida = await correrMigrar();
+    }
+    // Comportamiento conocido: PG rechaza el GUC propio app.tenant_id (placeholder sin privilegio
+    // SET), pero acepta los parametros USERSET, tambien IN DATABASE (limite de PG). Si cambia, revisar D10.
+    expect(resultados).toEqual(["42501", true, true]);
+    expect(JSON.stringify(antes)).toContain("row_security=off");
+    expect(JSON.stringify(antes)).toContain("work_mem=64kB");
+    // migrar repara y solo informa estados fijos, sin secretos.
+    expect(salida).toContain("migrar: ajustes de contapp_app reparados");
+    expect(salida).toContain("migrar: OK");
+    const pw = decodeURIComponent(new URL(String(process.env.DATABASE_URL)).password);
+    expect(pw.length > 0 && salida.includes(pw)).toBe(false);
+    // Estado restaurado: solo el ajuste esperado y una conexion nueva arranca sin los valores del ataque.
+    expect(await filasRaw(pool, null, leerAjustes)).toEqual(esperado);
+    const nuevo = abrirPool(1);
+    try {
+      const r = await nuevo.query(
+        `select current_setting('row_security') as rs, current_setting('work_mem') as wm`,
+      );
+      expect(r.rows[0].rs).toBe("on");
+      expect(r.rows[0].wm).not.toBe("64kB");
+    } finally {
+      await nuevo.end();
+    }
+  }, 60_000);
 
   it("no existen funciones SECURITY DEFINER ni vistas sin security_invoker fuera de los esquemas del sistema", async () => {
     const defs = await filasRaw(

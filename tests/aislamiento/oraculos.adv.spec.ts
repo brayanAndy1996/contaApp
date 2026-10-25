@@ -49,8 +49,13 @@ describe("ADV oraculos de existencia (rol contapp_backend)", () => {
 
   const ctxA = () => ({ tenantId: tenantDe("A") });
   const membresiaB = () => "01920000-0000-7000-8000-0000000002b1"; // SEED.membresias[1] (uB en B)
+  // ON CONFLICT DO UPDATE sobre una fila que la politica USING oculta: PG lo rechaza con 42501.
+  const UPSERT_SOBRE_B = { ok: false, code: "42501" };
 
-  it("PK: insertar en A con el id de una fila de B se comporta igual que con un id libre", async () => {
+  // RIESGO ACEPTADO H4 (spec 002, "Riesgos aceptados"): oraculo de existencia por PK (23505).
+  // Motivo: IDs UUID aleatorios (exige conocer un ID de otro estudio) y UNIQUE de RUC por estudio
+  // (CA-7). Se fija el comportamiento conocido; si cambia, la prueba falla y obliga a revisarlo.
+  it("H4 aceptado: insertar en A con el id de una fila de B da 23505; con un id libre inserta", async () => {
     const idB = clientesDe("B")[0].id;
     const sql = `insert into cliente (id, tenant_id, ruc, razon_social) values ($1, $2, '20999999981', 'sonda')`;
     const conIdDeB = await intentar(db, ctxA(), sql, [idB, tenantDe("A")]);
@@ -69,12 +74,18 @@ describe("ADV oraculos de existencia (rol contapp_backend)", () => {
       tenantDe("A"),
       semilla().uB,
     ]);
-    // Si difieren (23505 vs 1 fila), A puede confirmar que un UUID existe en otro estudio.
-    expect(sinMensaje(conIdDeB)).toEqual(sinMensaje(conIdLibre));
-    expect(sinMensaje(mConIdDeB)).toEqual(sinMensaje(mConIdLibre));
+    // Difieren (23505 vs 1 fila): A puede confirmar que un UUID existe en otro estudio (aceptado).
+    expect(sinMensaje(conIdDeB)).toEqual({ ok: false, code: "23505" });
+    expect(conIdLibre).toEqual({ ok: true, rowCount: 1 });
+    expect(sinMensaje(mConIdDeB)).toEqual({ ok: false, code: "23505" });
+    expect(mConIdLibre).toEqual({ ok: true, rowCount: 1 });
+    // El mensaje de 23505 no revela datos de la fila de B (solo la clave que A ya conoce).
+    if (!conIdDeB.ok) expect(conIdDeB.message).not.toContain(clientesDe("B")[0].ruc);
   });
 
-  it("ON CONFLICT (id) DO NOTHING / DO UPDATE no distinguen un id de B de uno libre", async () => {
+  // RIESGO ACEPTADO H5 (spec 002, "Riesgos aceptados"): oraculo por ON CONFLICT (id). Mismo motivo
+  // que H4. Se fija el comportamiento conocido; si cambia, la prueba falla y obliga a revisarlo.
+  it("H5 aceptado: ON CONFLICT (id) DO NOTHING / DO UPDATE distinguen un id de B de uno libre", async () => {
     const idB = clientesDe("B")[1].id;
     const nada = `insert into cliente (id, tenant_id, ruc, razon_social) values ($1, $2, '20999999982', 'sonda')
                   on conflict (id) do nothing`;
@@ -92,11 +103,17 @@ describe("ADV oraculos de existencia (rol contapp_backend)", () => {
       tenantDe("A"),
     ]);
     // DO NOTHING devuelve 0 filas solo si el id ya existe (en cualquier estudio): oraculo silencioso.
-    expect(r.nadaB).toEqual(rLibre.nadaLibre);
-    expect(sinMensaje(uB)).toEqual(sinMensaje(uLibre));
+    expect(r.nadaB).toEqual({ ok: true, rowCount: 0 });
+    expect(rLibre.nadaLibre).toEqual({ ok: true, rowCount: 1 });
+    // DO UPDATE sobre la fila de B no la modifica: RLS lo rechaza con error (no 1 fila).
+    expect(uB.ok).toBe(false);
+    expect(sinMensaje(uB)).toEqual(UPSERT_SOBRE_B);
+    expect(uLibre).toEqual({ ok: true, rowCount: 1 });
   });
 
-  it("FK: contapp_worker (sin SELECT en usuario) no puede sondear si un usuario existe via membresia", async () => {
+  // RIESGO ACEPTADO H9 (spec 002, "Riesgos aceptados"): oraculo de existencia por FK (23503). Mismo
+  // motivo que H4. Se fija el comportamiento conocido; si cambia, la prueba falla y obliga a revisarlo.
+  it("H9 aceptado: contapp_worker (sin SELECT en usuario) distingue por FK si un usuario existe", async () => {
     const lectura = await intentar(worker, ctxA(), `select id from usuario`);
     expect(lectura.ok).toBe(false); // control: worker no tiene SELECT sobre usuario
     const sql = `insert into membresia (tenant_id, usuario_id, rol) values ($1, $2, 'sonda')`;
@@ -108,7 +125,8 @@ describe("ADV oraculos de existencia (rol contapp_backend)", () => {
       tenantDe("A"),
       randomUUID(),
     ]);
-    expect(sinMensaje(existente)).toEqual(sinMensaje(inexistente));
+    expect(existente).toEqual({ ok: true, rowCount: 1 });
+    expect(sinMensaje(inexistente)).toEqual({ ok: false, code: "23503" });
   });
 
   it("RLS se evalua antes que una expresion que lanza error sobre filas de B (sin oraculo por error)", async () => {
