@@ -29,7 +29,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → pruebas (rojo) → implementación
 | T19 | Revisión final contra la spec | arquitecto | opus | T18 | — | — | [x] |
 | T20 | Cierre: ESTADO, tasks y commit | devops | haiku | T19 | — | — | [x] |
 
-Escalamientos: (1) T16a ejecutada por devops · haiku por un error de coordinación y revisada/corregida por el adversario · opus en `9f2e0cf`; (2) pruebas escritas por el implementador: `kek-rotar.defectos.spec.ts` y casos de T12/T17; (3) tester: T4 reescrito; (4) el adversario reescribió R2a-3 y R2a-4 como falsos positivos.
+Escalamientos: (1) T16a ejecutada por devops · haiku por un error de coordinación y revisada/corregida por el adversario · opus en `9f2e0cf`; (2) pruebas escritas por el implementador: `kek-rotar.defectos.spec.ts` y casos de T12/T17; (4) el adversario reescribió R2a-3 y R2a-4 como falsos positivos.
 
 Reglas comunes:
 - Un commit por tarea (Conventional Commits `feat(003): …`, `test(003): …`), con el trailer `Co-Authored-By` del modelo que la ejecutó. Las tareas ∥ hacen commit una tras otra. Sin remoto.
