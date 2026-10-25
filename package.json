@@ -9,6 +9,8 @@
     "typecheck": "turbo run typecheck",
     "db:migrate": "pnpm --filter @contapp/db db:migrate",
     "db:seed": "pnpm --filter @contapp/db db:seed",
+    "kek:generar": "pnpm --filter @contapp/crypto kek:generar",
+    "kek:rotar": "pnpm --filter @contapp/worker kek:rotar",
     "test:aislamiento": "pnpm --filter @contapp/tests-aislamiento test:aislamiento",
     "cobertura:db": "pnpm --filter @contapp/db build && pnpm --filter @contapp/db test:cobertura",
     "cobertura:crypto": "pnpm --filter @contapp/db build && pnpm --filter @contapp/crypto build && pnpm --filter @contapp/crypto test:cobertura",

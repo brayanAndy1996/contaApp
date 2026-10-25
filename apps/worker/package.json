@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run --passWithNoTests",
-    "test:int": "vitest run --mode int --passWithNoTests"
+    "test:int": "vitest run --mode int --passWithNoTests",
+    "kek:rotar": "node --env-file-if-exists=../../.env --env-file-if-exists=.env dist/cli/kek-rotar.js"
   },
   "dependencies": {
     "@contapp/crypto": "workspace:*",
