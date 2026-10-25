@@ -14,9 +14,9 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T6 | `createDb`, `withTenant`, `withUsuario`, SCRAM | backend | opus | T3, T4 ∥ | ✓ | — | [x] |
 | T7 | Job de CI `aislamiento` y `pnpm ci:db` en local | devops | haiku | T5, T6 | — | — | [x] |
 | T8 | Ronda adversarial 1 | adversario | opus | T7 | — | ✓ | [x] |
-| T9 | Corregir hallazgos de la ronda 1 | backend | opus | T8 | — | — | [ ] |
+| T9 | Corregir hallazgos de la ronda 1 | backend | opus | T8 | — | — | [x] |
 | T9c | Regla de lint contra SQL crudo fuera de `packages/db` | devops | sonnet | — | — | — | [x] |
-| T10 | Ronda adversarial 2 (solo si T8 tuvo fallos) | adversario | opus | T9 | — | ✓ | [ ] |
+| T10 | Ronda adversarial 2 (solo si T8 tuvo fallos) | adversario | opus | T9 | — | ✓ | [x] |
 | T11 | Corregir hallazgos de la ronda 2 | backend | opus | T10 | — | — | [x] |
 | T12a | Comando `cobertura:db` reproducible con umbral 90 % | devops | sonnet | T11 | — | — | [x] |
 | T12b | Pruebas de `cli/` contra el contrato nuevo (rojo) + integración | tester | sonnet | T12a | ✓ | — | [x] |
@@ -25,7 +25,7 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T12e | Medir cobertura y completar el Resultado de T12 | tester | sonnet | T12c, T12d | — | — | [x] |
 | T12 | Verificar CA-1 a CA-9 con evidencia | tester | sonnet | T11, T12e | — | — | [x] |
 | T13 | Revisión final contra la spec | arquitecto | opus | T12 | — | — | [x] |
-| T14 | Cierre: ESTADO, tasks y commit | devops | haiku | T13 | — | — | [ ] |
+| T14 | Cierre: ESTADO, tasks y commit | devops | haiku | T13 | — | — | [x] |
 
 Escalamientos:
 - T5 → tester: `ruc-repetido.spec.ts` "todo indice UNIQUE…" falla por la prueba: `array_agg(a.attname)` es `name[]` y `pg` lo devuelve como texto `"{tenant_id,ruc}"` (`.sort` no existe y `.includes` compara subcadenas). Arreglo: `array_agg(a.attname::text …)`.

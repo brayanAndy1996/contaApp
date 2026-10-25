@@ -7,7 +7,7 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 | Spec | Nivel | Estado | Tarea actual | Bloqueo / nota |
 |---|---|---|---|---|
 | 001-fundaciones | D | hecha | — | Sin Docker (decisión del usuario). TypeScript 6.0.3. CI de GitHub sin ejecutar: el repo no tiene remoto. |
-| 002-db-rls | A | en curso | T1 (plan.md y tasks.md listos) | Spec aprobada por el usuario (D1–D3, D5–D7). P7 resuelta en el plan. Rama `spec/002-db-rls` desde `spec/001-fundaciones`. |
+| 002-db-rls | A | hecha | — | Spec aprobada por el usuario (D1–D3, D5–D7). P7 resuelta en el plan. Rama `spec/002-db-rls` desde `spec/001-fundaciones`. |
 | 003-cifrado | A | pendiente | — | Hereda de 002 (D3): permiso por columnas de `credencial`; backend no lee el cifrado. |
 | 004-auth | A | pendiente | — | — |
 | 005-acceso | A | pendiente | — | Hereda de 002 (D2): criterio de HU-40 "por API" (aislamiento entre estudios probado vía endpoints). |
@@ -34,13 +34,23 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 | 002-db-rls | oraculos.adv.spec.ts:53 | H4 (media): la PK revela si un ID existe en otro estudio (`23505`) | aceptado por el usuario |
 | 002-db-rls | oraculos.adv.spec.ts:77 | H5 (media): `ON CONFLICT DO NOTHING` revela si un ID existe en otro estudio | aceptado por el usuario |
 | 002-db-rls | oraculos.adv.spec.ts:132 | H6 (media, decide usuario): dentro de `withTenant(A)` se leen todos los usuarios (email) y tenant de otros estudios | corregido (28375cb) |
-| 002-db-rls | escalada.adv.spec.ts:167 | H7 (media): el rol de login puede cambiar su propia configuración persistente (rol inicial, `row_security=off`, `PASSWORD NULL`) | corregido (28375cb; H7 límite de PostgreSQL, reparado por migrar) |
+| 002-db-rls | escalada.adv.spec.ts:167 | H7 (media): el rol de login puede cambiar su propia configuración persistente (rol inicial, `row_security=off`, `PASSWORD NULL`) | corregido/mitigado, límite aceptado por el usuario (D11) |
 | 002-db-rls | contexto.adv.spec.ts:102 | H8 (baja): `SET ROLE` dentro de `withTenant` devuelve la conexión al pool con otro rol (misma causa que H1) | corregido (120db97) |
 | 002-db-rls | oraculos.adv.spec.ts:99 | H9 (baja): el worker averigua si un usuario existe por el error de FK (`23503`) | aceptado por el usuario |
-| 002-db-rls | ronda2.adv.spec.ts:284 | H10 (media): los objetos grandes (`lo_from_bytea`/`lo_get`) permiten leer datos de A desde `withTenant(B)`: almacén fuera de RLS | abierto |
-| 002-db-rls | ronda2.adv.spec.ts:206 | H11 (baja): la limpieza no hace `DEALLOCATE` (causa `packages/db/src/with-tenant.ts:99-100`); un `PREPARE` dentro de un `DO` lleva ids de A a `withTenant(B)` | abierto |
-| 002-db-rls | ronda2.adv.spec.ts:266 | H12 (baja): si la conexión vuelve al pool con transacción abierta, `BEGIN` solo avisa y `fn` corre dentro de esa transacción ajena (causa `packages/db/src/with-tenant.ts:145-146`) | abierto |
-| 002-db-rls | ronda2.adv.spec.ts:119 | H13 (baja): `withTenant({A, userId: uB})` ve a `uB` sin ser miembro de A; contradice D9 (causa `packages/db/migrations/0003_rls_plataforma_y_roles.sql:33`) | abierto |
+| 002-db-rls | ronda2.adv.spec.ts:284 | H10 (media): los objetos grandes (`lo_from_bytea`/`lo_get`) permiten leer datos de A desde `withTenant(B)`: almacén fuera de RLS | corregido (1ab1976) |
+| 002-db-rls | ronda2.adv.spec.ts:206 | H11 (baja): la limpieza no hace `DEALLOCATE` (causa `packages/db/src/with-tenant.ts:99-100`); un `PREPARE` dentro de un `DO` lleva ids de A a `withTenant(B)` | corregido (1ab1976) |
+| 002-db-rls | ronda2.adv.spec.ts:266 | H12 (baja): si la conexión vuelve al pool con transacción abierta, `BEGIN` solo avisa y `fn` corre dentro de esa transacción ajena (causa `packages/db/src/with-tenant.ts:145-146`) | corregido (1ab1976) |
+| 002-db-rls | ronda2.adv.spec.ts:119 | H13 (baja): `withTenant({A, userId: uB})` ve a `uB` sin ser miembro de A; contradice D9 (causa `packages/db/migrations/0003_rls_plataforma_y_roles.sql:33`) | corregido (1ab1976) |
 
 ## Decisiones pendientes del usuario
 (ninguna)
+
+## Notas para specs futuras
+
+No son decisiones tomadas ni pendientes del usuario: cada spec las resuelve al planificarse.
+
+- [007] Decidir si la regla de lint relaja el veto a la plantilla `sql` de drizzle (manteniendo prohibidos `.raw` y `set_config`) o si se usan ayudantes/repositorios en `packages/db`. El veto actual solo mira `ImportSpecifier`, así que `import * as d` lo evita (O4 de T13).
+- [004/008] El contexto anidado de `withTenant` alcanza a las tareas asíncronas lanzadas dentro de `fn`; si luego llaman a `withTenant`, fallan cerrado (`WithTenantAnidadoError`).
+- [infra] Restringir con `pg_hba` que `contapp_app` no entre a otras bases del clúster (hoy `postgres` conserva `CONNECT` y `TEMP` para PUBLIC).
+- [005] Heredar la prueba "por API" de HU-40 (D2).
+- [003] Heredar el permiso por columnas de `credencial` (D3).
