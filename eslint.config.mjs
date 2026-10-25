@@ -78,6 +78,7 @@ const POLITICAS_SUBCARPETA = [
     desde: "apps/backend/",
     rutas: RUTAS_DESCIFRADO,
     paquetes: /^@contapp\/crypto\/(?:descifrado|dist|src)(?:[/.].*)?$/,
+    sinEvasiones: true,
     mensaje:
       "apps/backend no puede importar el descifrado de @contapp/crypto (solo el worker; spec 003, CA-4b).",
   },
@@ -130,20 +131,51 @@ const reglaImportsRelativos = {
         : politica.prohibidos.includes(elemento);
       if (prohibido) context.report({ node: nodo, message: politica.mensaje });
     };
-    return {
+    // Evasiones del descifrado en apps/backend (spec 003, F4): solo se aceptan especificadores
+    // estáticos (literal o plantilla sin expresiones); `createRequire` y `module.require` se prohíben.
+    const estricto = subpoliticas.some((p) => p.sinEvasiones);
+    const MSG_DINAMICO =
+      "apps/backend: import()/require() solo con cadena estática; un especificador dinámico puede evadir la prohibición del descifrado (spec 003, CA-4b).";
+    const MSG_REQUIRE =
+      "apps/backend: createRequire/module.require prohibidos; pueden evadir la prohibición del descifrado (spec 003, CA-4b).";
+    // Valor estático del argumento, o undefined si no es una cadena estática.
+    const estatico = (e) => {
+      if (!e) return undefined;
+      if (e.type === "Literal") return typeof e.value === "string" ? e.value : undefined;
+      if (e.type === "TemplateLiteral" && e.expressions.length === 0)
+        return e.quasis[0]?.value.cooked ?? undefined;
+      return undefined;
+    };
+    const revisarArgumento = (nodo, arg) => {
+      const valor = estatico(arg);
+      if (valor !== undefined) return revisar(nodo, valor);
+      if (estricto) context.report({ node: nodo, message: MSG_DINAMICO });
+    };
+    const raizRequire = (e) => {
+      while (e?.type === "MemberExpression") e = e.object;
+      return e?.type === "Identifier" && ["module", "require", "process"].includes(e.name);
+    };
+    const handlers = {
       ImportDeclaration: (n) => revisar(n, n.source.value),
       ExportAllDeclaration: (n) => revisar(n, n.source.value),
       ExportNamedDeclaration: (n) => n.source && revisar(n, n.source.value),
-      ImportExpression: (n) => revisar(n, n.source.value),
+      ImportExpression: (n) => revisarArgumento(n, n.source),
       CallExpression(n) {
-        if (
-          n.callee.type === "Identifier" &&
-          n.callee.name === "require" &&
-          n.arguments[0]?.type === "Literal"
-        )
-          revisar(n, n.arguments[0].value);
+        if (n.callee.type === "Identifier" && n.callee.name === "require")
+          revisarArgumento(n, n.arguments[0]);
       },
     };
+    if (estricto) {
+      handlers.Identifier = (n) => {
+        if (n.name === "createRequire") context.report({ node: n, message: MSG_REQUIRE });
+      };
+      handlers.MemberExpression = (n) => {
+        const nombre = nombreMiembro(n);
+        if (nombre === "createRequire" || (nombre === "require" && raizRequire(n.object)))
+          context.report({ node: n, message: MSG_REQUIRE });
+      };
+    }
+    return handlers;
   },
 };
 
