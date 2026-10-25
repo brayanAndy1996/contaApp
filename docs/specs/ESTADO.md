@@ -8,7 +8,7 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 |---|---|---|---|---|
 | 001-fundaciones | D | hecha | — | Sin Docker (decisión del usuario). TypeScript 6.0.3. CI de GitHub sin ejecutar: el repo no tiene remoto. |
 | 002-db-rls | A | hecha | — | Spec aprobada por el usuario (D1–D3, D5–D7). P7 resuelta en el plan. Rama `spec/002-db-rls` desde `spec/001-fundaciones`. |
-| 003-cifrado | A | aprobada | T1 | Spec aprobada por el usuario ("todo recomendado": D1–D8; RNF-002 y 01 §5 corregidos, D4). Plan y tareas listos. Rama `spec/003-cifrado` desde `spec/002-db-rls` (002 sin mergear). Hereda de 002 (D3): permiso por columnas de `credencial` (CA-4c). |
+| 003-cifrado | A | hecha | — | Sin Docker (decisión del usuario). Rama `spec/003-cifrado` sin mergear (desde `spec/002-db-rls`). F2: límite aceptado por el usuario (ver `spec.md`, Límites conocidos). |
 | 004-auth | A | pendiente | — | — |
 | 005-acceso | A | pendiente | — | Hereda de 002 (D2): criterio de HU-40 "por API" (aislamiento entre estudios probado vía endpoints). |
 | 006-planes | B | pendiente | — | — |
@@ -42,7 +42,7 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 | 002-db-rls | ronda2.adv.spec.ts:266 | H12 (baja): si la conexión vuelve al pool con transacción abierta, `BEGIN` solo avisa y `fn` corre dentro de esa transacción ajena (causa `packages/db/src/with-tenant.ts:145-146`) | corregido (1ab1976) |
 | 002-db-rls | ronda2.adv.spec.ts:119 | H13 (baja): `withTenant({A, userId: uB})` ve a `uB` sin ser miembro de A; contradice D9 (causa `packages/db/migrations/0003_rls_plataforma_y_roles.sql:33`) | corregido (1ab1976) |
 | 003-cifrado | packages/crypto/src/ronda1b.adv.spec.ts | F1 (alta): la rotación acepta el proveedor `mock` como llave activa; con `KEY_PROVIDER=mock` (por defecto) `kek:rotar` re-envuelve DEKs reales con la KEK del fixture, cuya privada está en el repo (causa `packages/crypto/src/descifrado/reenvolver.ts:27` y `apps/worker/src/cli/kek-rotar.ts:101`) | corregido (1e11e8d) |
-| 003-cifrado | apps/worker/src/ronda1b.adv.spec.ts | F2 (media, decide usuario): una sola `dek_envuelta` alterada (`IntegridadError`) aborta la rotación de todo el estudio en cada corrida; la KEK retirada nunca se puede jubilar (causa `apps/worker/src/credenciales/rotar-kek.ts:89`) | corregido (636410b; opción A elegida por el usuario: la rotación continúa, reporta corruptas por id, CLI sale con código 3; límite conocido: si solo quedan filas corruptas en una corrida posterior no se distingue de una KEK anterior equivocada y sale con 1; pendiente de que el usuario lo acepte como límite) |
+| 003-cifrado | apps/worker/src/ronda1b.adv.spec.ts | F2 (media, decide usuario): una sola `dek_envuelta` alterada (`IntegridadError`) aborta la rotación de todo el estudio en cada corrida; la KEK retirada nunca se puede jubilar (causa `apps/worker/src/credenciales/rotar-kek.ts:89`) | corregido; límite aceptado por el usuario (636410b; opción A: la rotación continúa, reporta corruptas por id, CLI sale con código 3; ver `spec.md`, Límites conocidos) |
 | 003-cifrado | T14b (archivo no indicado) | F3 (baja): el CAS de `reemplazarDekEnvuelta` compara `dek_envuelta` pero no `kek_id = desde` (causa `packages/db/src/credenciales/repositorio.ts:81`) | corregido (1e11e8d) |
 | 003-cifrado | T14b (archivo no indicado) | F4 (baja): el lint no detecta el import de `@contapp/crypto/descifrado` desde `apps/backend` con `require` o `import()` con plantilla, `createRequire` o `module.require` (causa `eslint.config.mjs:137-145`) | corregido (27f831d) |
 | 003-cifrado | T14b (archivo no indicado) | F5 (baja): la guarda del RNG solo compara con el cifrado anterior; un RNG A, B, A repite DEK y nonce (causa `packages/crypto/src/comun/aleatorio.ts:29-32`) | corregido (1e11e8d) |
@@ -57,7 +57,6 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 | 003-cifrado | packages/crypto/src/crypto-r2b.adv.spec.ts:142 | R2b-4 (baja): `--salida` acepta una carpeta del repo que git no ignora y deja `kek-private.pem` versionable (CA-11) (causa `packages/crypto/src/cli/kek-generar.ts:31-46`) | corregido (463cf81) |
 
 ## Decisiones pendientes del usuario
-- [003] ¿aceptar el límite de F2 (código 1 vs 3 en corridas posteriores con solo filas corruptas)?
 
 ## Notas para specs futuras
 
@@ -70,3 +69,6 @@ No son decisiones tomadas ni pendientes del usuario: cada spec las resuelve al p
 - [003] Heredar el permiso por columnas de `credencial` (D3).
 - [008] El job `kek.rotar` necesita la lista de estudios: el rol worker no ve otros tenants (D9 de 002). 003 entrega la rotación por estudio (`--tenant`); 008 decide cómo enumerarlos sin `BYPASSRLS` en el login.
 - [007] Agregar la FK `credencial(tenant_id, cliente_id) → cliente(tenant_id, id)` y las columnas de estado (RF-034/035) con sus grants por columna; el backend guarda con el repositorio de 003 (`ON CONFLICT … DO UPDATE` con parámetros, nunca con `EXCLUDED`).
+- [004/005] El backend nunca importa `@contapp/crypto/descifrado`. El lint lo vigila de forma heurística; la barrera real es la migración `0006`.
+- [008] Volver obligatorio `kekAnterior` en `reemplazarDekEnvuelta` cuando el job `kek.rotar` lo use (el tester ajusta `tests/aislamiento/credencial.spec.ts`) y enumerar estudios para rotar.
+- [despliegue] `huellaPublica` es opcional: si un adaptador KMS/Vault no la trae, la rotación no comprueba que anterior y activa sean distintas, así que debe implementarla o fallar cerrado en producción. Fuera del monorepo, las rutas de llaves deben ser absolutas.
