@@ -1,6 +1,8 @@
 // withTenant / withUsuario: cada llamada es UNA transacción en una conexión del pool con
-//   BEGIN; SET LOCAL ROLE <rolApp>; SELECT set_config(..., true) ...; fn(tx); COMMIT | ROLLBACK
-// Todo lo fijado es LOCAL a la transacción: al terminar, la conexión vuelve a contapp_app sin contexto.
+//   <limpiar sesión>; BEGIN; SET LOCAL ROLE <rolApp>; SELECT set_config(..., true) ...; fn(tx);
+//   COMMIT | ROLLBACK; <limpiar sesión>
+// Lo que fijamos es LOCAL a la transacción, y lo que `fn` haya fijado a nivel de sesión se limpia al
+// liberar: la conexión vuelve al pool como contapp_app sin contexto (si la limpieza falla, se destruye).
 // El rol sale de una lista cerrada (nunca de la entrada) y los UUID van como parámetros.
 // Nunca se registra el contexto ni la URL.
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -73,7 +75,10 @@ export function ajusteTenant(ctx: unknown): Ajuste {
   };
 }
 
-/** Valida el contexto de withUsuario (P7): solo app.user_id; app.tenant_id queda sin fijar. */
+/**
+ * Valida el contexto de withUsuario (P7): solo app.user_id; app.tenant_id queda sin fijar. Que no
+ * arrastre un valor de sesión anterior (H1) lo garantiza LIMPIAR_SESION antes de BEGIN.
+ */
 export function ajusteUsuario(ctx: unknown): Ajuste {
   if (typeof ctx !== "object" || ctx === null) throw new ContextoInvalidoError();
   const { userId } = ctx as { userId?: unknown };
@@ -83,6 +88,16 @@ export function ajusteUsuario(ctx: unknown): Ajuste {
     valores: [userId.toLowerCase()],
   };
 }
+
+/**
+ * Limpia el estado de SESIÓN que `fn` pudo dejar en la conexión (set_config(..., false), SET ROLE
+ * o SET de sesión, cursores WITH HOLD, LISTEN, advisory locks de sesión) para que no se herede en
+ * la siguiente petición del pool (H1, H8). `RESET ALL` no incluye `role`, de ahí el `RESET ROLE`.
+ * No usa DISCARD ALL para no invalidar las sentencias preparadas con nombre que cachea `pg`.
+ * Se envía antes de BEGIN (conexiones que vengan sucias de fuera de withTenant) y al liberar.
+ */
+const LIMPIAR_SESION =
+  "CLOSE ALL; RESET ROLE; RESET ALL; UNLISTEN *; SELECT pg_advisory_unlock_all()";
 
 function crearTx(client: PoolClient, cerrada: () => boolean): Tx {
   const query = (text: string, values?: unknown[]) => {
@@ -127,7 +142,7 @@ export async function ejecutarEnContexto<T>(
   let terminada = false;
   let conexionRota: Error | undefined;
   try {
-    await client.query("BEGIN");
+    await client.query(`${LIMPIAR_SESION}; BEGIN`);
     await client.query(SET_ROLE[rolApp]);
     await client.query(ajuste.sql, ajuste.valores);
     const tx = crearTx(client, () => terminada);
@@ -146,6 +161,15 @@ export async function ejecutarEnContexto<T>(
     throw e;
   } finally {
     terminada = true;
+    if (conexionRota === undefined) {
+      try {
+        await client.query(LIMPIAR_SESION);
+      } catch (errLimpieza) {
+        // No se pudo garantizar una sesión limpia: la conexión no vuelve al pool.
+        conexionRota =
+          errLimpieza instanceof Error ? errLimpieza : new Error("limpieza de sesión fallida");
+      }
+    }
     client.release(conexionRota);
   }
 }
