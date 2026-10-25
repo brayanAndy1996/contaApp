@@ -24,7 +24,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → pruebas (rojo) → implementación
 | T15 | Corregir hallazgos de la ronda 1 | backend | opus | T14a, T14b | — | — | [x] |
 | T16a | Ronda adversarial 2a: regresión de correcciones y reconversión de aceptados | adversario | opus | T15 | — | ✓ | [x] |
 | T16b | Ronda adversarial 2b: ataques nuevos contra las correcciones | adversario | opus | T15 ∥ T16a | — | ✓ | [x] |
-| T17 | Corregir hallazgos de la ronda 2 | backend | opus | T16a, T16b | — | — | [ ] |
+| T17 | Corregir hallazgos de la ronda 2 | backend | opus | T16a, T16b | — | — | [~] |
 | T18 | Verificar CA-1 a CA-12 y cobertura con evidencia | tester | sonnet | T17 | — | — | [ ] |
 | T19 | Revisión final contra la spec | arquitecto | opus | T18 | — | — | [ ] |
 | T20 | Cierre: ESTADO, tasks y commit | devops | haiku | T19 | — | — | [ ] |
@@ -171,6 +171,12 @@ Reglas comunes:
 
 ## T17 · Corregir ronda 2 (backend · opus)
 - **Contexto / Hacer / Hecho cuando**: igual que T15 con los hallazgos de T16a/T16b; omitida si no hubo. Commit `fix(003): hallazgos de la ronda adversarial 2`.
+- **Avance (2026-10-25)**: corregidos R2b-1 a R2b-4. R2a-3 y R2a-4 quedaron como falsos positivos (revisión del adversario, `9f2e0cf`): sin cambios en `reemplazarDekEnvuelta` (`kekAnterior` sigue opcional) ni en el logger. R2a-1 (ventana del RNG, pendiente del usuario) y R2a-2 (lint, `e767e83`) no son de esta tarea. No se marca `[x]`: `pnpm cobertura:crypto` sigue en rojo solo por la prueba de R2a-1 (`packages/crypto/src/ronda2a.adv.spec.ts:16`).
+  - R2b-1 (media): `KeyUnwrapper.huellaPublica?()` (SHA-256 del SPKI; `local` la implementa). `exigirLlavesDistintas` (`rotar-kek.ts`) la compara antes de tocar la BD, en `rotarKekTenantDetalle` y en `kek:rotar` tras `verificar`. Error nuevo `AnteriorIgualActivaError` (`anterior_igual_activa`), subclase de `AnteriorNoAbreError` para respetar la prueba de T15 que pasa la privada activa como "llave equivocada" y espera `[anterior_no_abre]` (código 1, con el aviso de que la KEK anterior sigue necesaria). Un proveedor sin huella (dobles de prueba) no se compara.
+  - R2b-2 (baja): `Perezoso.usar` no ejecuta `fn` si la llave llega después de vencer el plazo (no se desenvuelve ninguna DEK sin dueño).
+  - R2b-3 (baja): `esProduccion()` (trim + minúsculas) en `validarEntornoMock` y en el constructor de `MockKeyProvider`.
+  - R2b-4 (baja): `exigirSalidaIgnorada` en `kek:generar`: dentro del repo exige que `git check-ignore` ignore `<salida>/kek-private.pem` (mensaje fijo, sin la ruta); fuera del repo, o sin repositorio git, no aplica; con `.git` que git no reconoce, falla cerrado. Prueba nueva: `packages/crypto/src/cli/kek-generar-salida.spec.ts` (3).
+  - Pruebas: crypto 278 (solo fallan R2a-1); worker unit 95 ✓, `test:int` 37 ✓; `ci:db` ✓ (aislamiento 348); limites 104 ✓; typecheck, lint y build ✓. Cobertura: db 98.13/96.55/98.64/99.29 ✓; crypto (sin la prueba de R2a-1) 98.41/97.35/96.29/98.57.
 
 ## T18 · Verificación (tester · sonnet)
 - **Contexto (leer solo esto)**: `docs/specs/003-cifrado/spec.md` (Criterios, "Cobertura"), `plan.md` (Contratos: comandos), hallazgos de 003 en `docs/specs/ESTADO.md`.

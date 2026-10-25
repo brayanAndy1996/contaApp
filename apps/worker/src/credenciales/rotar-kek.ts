@@ -5,7 +5,8 @@
 //   3) withTenant: UPDATE con CAS sobre dek_envuelta y kek_id = desde por fila. Si el backend escribió entre la lectura
 //      y el CAS, gana el backend y la fila se cuenta como omitida (no se reintenta en esta corrida).
 // Un fallo del proveedor en el paso 2 rechaza con su error reintentable sin escribir nada del lote en
-// curso; los lotes ya confirmados quedan (idempotente y reanudable). Valida todo antes de tocar la BD.
+// curso; los lotes ya confirmados quedan (idempotente y reanudable). Valida todo antes de tocar la BD,
+// incluido que la anterior no sea la misma llave que la activa (huella del SPKI, T17 · R2b-1).
 //
 // Filas corruptas (T15 · F2, decisión del usuario: opción A). Una fila cuyo sobre no abre con la
 // anterior (IntegridadError/SobreInvalidoError) no aborta el estudio: queda intacta en `desde`, se
@@ -25,6 +26,7 @@ import {
 } from "@contapp/crypto/descifrado";
 import { listarParaReenvolver, reemplazarDekEnvuelta, type ContappDb } from "@contapp/db";
 import {
+  AnteriorIgualActivaError,
   AnteriorNoAbreError,
   ArgumentoInvalidoError,
   PersistenciaCredencialError,
@@ -76,6 +78,21 @@ function validar(o: OpcionesRotacion): number {
   return lote;
 }
 
+/**
+ * La anterior no puede tener el mismo material que la activa aunque traiga otro kek_id u otra ruta
+ * (p. ej. KEK_PRIVATE_KEY_PATH sigue en la llave vieja con KEK_ID nuevo): esa "rotación" terminaría bien
+ * sin sacar ninguna DEK de la llave que se quiere jubilar (T17 · R2b-1). Compara la huella del SPKI de
+ * ambas; se llama antes de tocar la BD. Un proveedor sin huella (dobles de prueba) no se compara.
+ */
+export async function exigirLlavesDistintas(
+  anterior: KeyUnwrapper,
+  activa: KeyUnwrapper,
+): Promise<void> {
+  if (anterior.huellaPublica === undefined || activa.huellaPublica === undefined) return;
+  const [a, b] = await Promise.all([anterior.huellaPublica(), activa.huellaPublica()]);
+  if (a === b) throw new AnteriorIgualActivaError();
+}
+
 /** Errores de la BD se reducen a uno fijo; los de @contapp/crypto pasan tal cual (ya son seguros). */
 async function enBd<T>(fn: () => Promise<T>): Promise<T> {
   try {
@@ -95,6 +112,7 @@ function esFilaCorrupta(e: unknown): boolean {
 export async function rotarKekTenantDetalle(o: OpcionesRotacion): Promise<DetalleRotacion> {
   const lote = validar(o);
   const { db, anterior, activa, tenantId, desde } = o;
+  await exigirLlavesDistintas(anterior, activa);
   const omitidas = new Set<string>(); // CAS perdido o corrupta: no se vuelven a pedir en esta corrida
   const corruptas: string[] = [];
   let reenvueltas = 0;

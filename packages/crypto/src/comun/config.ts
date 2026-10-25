@@ -20,9 +20,17 @@ export function leerProveedor(env: Entorno): NombreProveedor {
   throw new ConfiguracionKeyProviderError();
 }
 
+/**
+ * NODE_ENV denota producción sin importar mayúsculas ni espacios alrededor (`Production`,
+ * `" production "`…): así `mock` no se cuela por una variación de escritura (T17 · R2b-3).
+ */
+export function esProduccion(nodeEnv: string | undefined): boolean {
+  return typeof nodeEnv === "string" && nodeEnv.trim().toLowerCase() === "production";
+}
+
 /** `mock` nunca arranca en producción ni con un KEK_ID distinto de `mock`. */
 export function validarEntornoMock(env: Entorno): void {
-  if (env.NODE_ENV === "production") throw new ConfiguracionKeyProviderError();
+  if (esProduccion(env.NODE_ENV)) throw new ConfiguracionKeyProviderError();
   if (env.KEK_ID && env.KEK_ID !== KEK_ID_MOCK) {
     throw new ConfiguracionKeyProviderError();
   }

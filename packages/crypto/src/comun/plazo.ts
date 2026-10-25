@@ -43,13 +43,23 @@ export class Perezoso<T> {
     if (this.carga === carga) this.carga = undefined;
   }
 
-  /** Ejecuta `fn` con la llave dentro del plazo; normaliza los errores del proveedor. */
+  /**
+   * Ejecuta `fn` con la llave dentro del plazo; normaliza los errores del proveedor. Si la llave llega
+   * después de vencer el plazo, `fn` no se ejecuta: una DEK desenvuelta tarde no tendría dueño y nunca
+   * se pondría a cero (T17 · R2b-2).
+   */
   async usar<R>(fn: (llave: T) => R, plazoMs: number): Promise<R> {
     const carga = this.obtener();
+    let vencido = false;
+    const trabajo = carga.then((llave) => {
+      if (vencido) throw new KeyProviderError();
+      return fn(llave);
+    });
     try {
-      return await conPlazo(carga.then(fn), plazoMs, () =>
-        this.olvidar(carga),
-      );
+      return await conPlazo(trabajo, plazoMs, () => {
+        vencido = true;
+        this.olvidar(carga);
+      });
     } catch (e) {
       throw aErrorProveedor(e);
     }

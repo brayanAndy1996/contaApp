@@ -1,11 +1,13 @@
 // `kek:generar`: crea el par RSA 4096 local (kek-public.pem 0644, kek-private.pem 0600) sin
-// sobrescribir archivos existentes. Imprime solo rutas y la huella SHA-256 del SPKI.
+// sobrescribir archivos existentes. Imprime solo rutas y la huella SHA-256 del SPKI. Dentro del repo
+// solo escribe en una carpeta que git ignore (CA-11, T17 · R2b-4).
+import { spawnSync } from "node:child_process";
 import { createPublicKey, generateKeyPair } from "node:crypto";
 import { existsSync } from "node:fs";
 import { chmod, mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, join, relative, sep } from "node:path";
 import { promisify } from "node:util";
-import { resolverRuta } from "../comun/raiz";
+import { raizRepo, resolverRuta } from "../comun/raiz";
 import { MODULO_MINIMO, huellaSpki } from "../comun/rsa";
 
 export interface OpcionesKekGenerar {
@@ -23,6 +25,27 @@ export interface ResultadoKekGenerar {
 const SALIDA_POR_DEFECTO = "./secrets";
 const generarPar = promisify(generateKeyPair);
 
+/**
+ * Si `salida` cae dentro del repo, exige que git ignore `kek-private.pem` en ella; si no, la privada
+ * quedaría versionable. Sin repositorio git (p. ej. una copia sin `.git`) no hay nada que versionar.
+ * El mensaje es fijo: no repite la ruta.
+ */
+export function exigirSalidaIgnorada(salida: string, raiz: string = raizRepo()): void {
+  const rel = relative(raiz, salida);
+  if (isAbsolute(rel) || rel.split(sep)[0] === "..") return; // fuera del repo
+  const archivo = join(rel, "kek-private.pem").split(sep).join("/");
+  const r = spawnSync("git", ["check-ignore", "-q", "--", archivo], {
+    cwd: raiz,
+    stdio: "ignore",
+  });
+  if (r.status === 0) return; // git la ignora
+  if (r.status !== 1 && !existsSync(join(raiz, ".git"))) return; // no es un repositorio git
+  throw new Error(
+    "La carpeta de salida está dentro del repositorio y git no la ignora; " +
+      "use ./secrets (ignorada) o una carpeta fuera del repositorio.",
+  );
+}
+
 export async function generarKek(
   opts: OpcionesKekGenerar,
   deps: DepsKekGenerar = {},
@@ -37,6 +60,7 @@ export async function generarKek(
       "Ya existe una llave en la carpeta de salida; kek:generar no sobrescribe.",
     );
   }
+  exigirSalidaIgnorada(salida);
   await mkdir(salida, { recursive: true });
   const { publicKey, privateKey } = await generarPar("rsa", {
     modulusLength: MODULO_MINIMO,

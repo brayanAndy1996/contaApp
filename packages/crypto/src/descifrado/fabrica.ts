@@ -15,6 +15,11 @@ export interface KeyUnwrapper {
   readonly kekId: string;
   unwrap(dekEnvuelta: Buffer, kekId: string): Promise<Buffer>;
   verificar(): Promise<void>;
+  /**
+   * Huella SHA-256 (hex) del SPKI de la pública derivada de la privada. La rotación la usa para rechazar
+   * una llave anterior con el mismo material que la activa (T17 · R2b-1). `local` la implementa.
+   */
+  huellaPublica?(): Promise<string>;
 }
 
 /** Llave activa (KEK_ID). Con `local`, la pública se deriva de KEK_PRIVATE_KEY_PATH. */

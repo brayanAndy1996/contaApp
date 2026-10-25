@@ -7,6 +7,7 @@ import {
   ConfiguracionKeyProviderError,
   KeyProviderError,
 } from "../comun/errores";
+import { esProduccion } from "../comun/config";
 import { PLAZO_POR_DEFECTO_MS, Perezoso } from "../comun/plazo";
 import { KEK_ID_MOCK, cargarPublica, envolverDek } from "../comun/rsa";
 import type { KeyWrapper } from "./fabrica";
@@ -42,7 +43,7 @@ export class MockKeyProvider implements KeyWrapper {
   readonly #publica: Perezoso<KeyObject>;
 
   constructor(o: OpcionesMock = {}) {
-    if (process.env.NODE_ENV === "production") {
+    if (esProduccion(process.env.NODE_ENV)) {
       throw new ConfiguracionKeyProviderError();
     }
     this.plazoMs = o.plazoMs ?? PLAZO_POR_DEFECTO_MS;

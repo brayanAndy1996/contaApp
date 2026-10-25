@@ -9,7 +9,7 @@ import {
   KeyProviderError,
 } from "../comun/errores";
 import { PLAZO_POR_DEFECTO_MS, Perezoso, leerLlave } from "../comun/plazo";
-import { envolverDek } from "../comun/rsa";
+import { envolverDek, huellaSpki } from "../comun/rsa";
 import type { KeyUnwrapper } from "./fabrica";
 import { cargarPrivada, desenvolverDek } from "./rsa-privada";
 
@@ -61,6 +61,7 @@ export function crearLocalCompleto(
       );
     },
     verificar: () => par.usar(() => undefined, plazoMs),
+    huellaPublica: () => par.usar((k) => huellaSpki(k.publica), plazoMs),
   };
 }
 
@@ -75,5 +76,6 @@ export function crearLocalAnterior(
     kekId,
     unwrap: completo.unwrap,
     verificar: completo.verificar,
+    huellaPublica: completo.huellaPublica,
   };
 }

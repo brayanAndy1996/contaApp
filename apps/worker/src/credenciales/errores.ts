@@ -54,11 +54,24 @@ export class CredencialNoEncontradaError extends CredencialesWorkerError {
  * corruptas, así que se falla cerrado sin escribir nada.
  */
 export class AnteriorNoAbreError extends CredencialesWorkerError {
+  constructor(
+    codigo = "anterior_no_abre",
+    mensaje = "Ninguna DEK abrió con la llave anterior (llave equivocada o todas las filas corruptas)",
+  ) {
+    super(codigo, false, mensaje);
+  }
+}
+
+/**
+ * Rotación: la llave anterior tiene el mismo material que la activa (huella del SPKI), aunque traiga otro
+ * kek_id u otra ruta. Re-envolver así no sacaría ninguna DEK de la llave que se quiere jubilar
+ * (T17 · R2b-1). Es un caso de AnteriorNoAbreError: la llave de `desde` real sigue siendo necesaria.
+ */
+export class AnteriorIgualActivaError extends AnteriorNoAbreError {
   constructor() {
     super(
-      "anterior_no_abre",
-      false,
-      "Ninguna DEK abrió con la llave anterior (llave equivocada o todas las filas corruptas)",
+      "anterior_igual_activa",
+      "La llave anterior tiene el mismo material que la activa: la rotación no jubilaría ninguna llave",
     );
   }
 }

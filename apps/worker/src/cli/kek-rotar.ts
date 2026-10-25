@@ -7,7 +7,8 @@
 //   0  todo re-envuelto (salvo omitidas por el CAS, que se rotan en la siguiente corrida);
 //   1  error: la corrida se detuvo (proveedor caído, llave anterior equivocada, BD…). Incluye
 //      `anterior_no_abre`: ninguna fila del estudio abrió con la anterior y no se puede distinguir una
-//      llave equivocada de un estudio cuyas filas restantes están todas corruptas (la KEK sigue necesaria);
+//      llave equivocada de un estudio cuyas filas restantes están todas corruptas (la KEK sigue necesaria),
+//      y `anterior_igual_activa`: la anterior tiene el mismo material que la activa (T17 · R2b-1);
 //   2  uso: argumentos inválidos (no tocó la BD);
 //   3  terminó, pero quedan credenciales corruptas en `desde` (CODIGO_CORRUPTAS, T15 · F2): sus
 //      ids van a stderr y la KEK anterior NO se puede jubilar hasta resolverlas. Es distinto de 0 para
@@ -28,7 +29,7 @@ import {
   esKekId,
   esUuid,
 } from "../credenciales/errores.js";
-import { rotarKekTenantDetalle } from "../credenciales/rotar-kek.js";
+import { exigirLlavesDistintas, rotarKekTenantDetalle } from "../credenciales/rotar-kek.js";
 
 /** Código de salida cuando la corrida terminó pero quedan credenciales corruptas (ver cabecera). */
 export const CODIGO_CORRUPTAS = 3;
@@ -125,6 +126,8 @@ export async function main(
     });
     await activa.verificar();
     await anterior.verificar();
+    // Misma llave con otro --desde u otra ruta: se rechaza antes de tocar la BD (T17 · R2b-1).
+    await exigirLlavesDistintas(anterior, activa);
 
     for (const tenantId of args.tenants) {
       const r = await rotarKekTenantDetalle({ db, anterior, activa, tenantId, desde: args.desde });
