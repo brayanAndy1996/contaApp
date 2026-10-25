@@ -14,7 +14,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → pruebas (rojo) → implementación
 | T6 | Pruebas de BD de `credencial` y auditoría (rojo) | tester | sonnet | T3 ∥ T5 | ✓ | — | [x] |
 | T7 | Pruebas del servicio del worker y la rotación (rojo) | tester | sonnet | T3, T4 ∥ T6 | ✓ | — | [x] |
 | T8 | Pruebas de lint y de llaves en el repo (rojo) | tester | sonnet | T2, T4 ∥ T7 | ✓ | — | [x] |
-| T9 | Implementar `packages/crypto` y `kek:generar` | backend | opus | T5 | ✓ | — | [ ] |
+| T9 | Implementar `packages/crypto` y `kek:generar` | backend | opus | T5 | ✓ | — | [x] |
 | T10 | Esquema, migraciones 0005/0006 y repositorios en `packages/db` | backend | opus | T6 ∥ T9 | ✓ | — | [x] |
 | T11 | Regla de lint contra el descifrado en `apps/backend` | devops | sonnet | T8 ∥ T10 | ✓ | — | [x] |
 | T12 | Servicio `descifrarCredencial`, rotación y `kek:rotar` en el worker | backend | opus | T7, T9, T10 | ✓ | — | [ ] |

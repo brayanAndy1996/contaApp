@@ -77,7 +77,13 @@ export default defineConfig({
         "apps/worker/src/credenciales/**/*.ts",
         "apps/worker/src/cli/kek-rotar.ts",
       ],
-      exclude: ["**/*.spec.ts", "**/*.adv.spec.ts", "**/*.int.spec.ts"],
+      exclude: [
+        "**/*.spec.ts",
+        "**/*.adv.spec.ts",
+        "**/*.int.spec.ts",
+        // Helper de pruebas (T5), no es código de producción.
+        "packages/crypto/src/soporte-pruebas.ts",
+      ],
       reporter: ["text", "html"],
       thresholds: {
         lines: 90,

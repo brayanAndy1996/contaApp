@@ -1,5 +1,13 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-// STUB (T5, rojo)
+// `kek:generar`: crea el par RSA 4096 local (kek-public.pem 0644, kek-private.pem 0600) sin
+// sobrescribir archivos existentes. Imprime solo rutas y la huella SHA-256 del SPKI.
+import { createPublicKey, generateKeyPair } from "node:crypto";
+import { existsSync } from "node:fs";
+import { chmod, mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { promisify } from "node:util";
+import { resolverRuta } from "../comun/raiz";
+import { MODULO_MINIMO, huellaSpki } from "../comun/rsa";
+
 export interface OpcionesKekGenerar {
   salida: string;
 }
@@ -11,12 +19,79 @@ export interface ResultadoKekGenerar {
   rutaPrivada: string;
   huella: string;
 }
-export function generarKek(
-  _opts: OpcionesKekGenerar,
-  _deps?: DepsKekGenerar,
+
+const SALIDA_POR_DEFECTO = "./secrets";
+const generarPar = promisify(generateKeyPair);
+
+export async function generarKek(
+  opts: OpcionesKekGenerar,
+  deps: DepsKekGenerar = {},
 ): Promise<ResultadoKekGenerar> {
-  throw new Error("no implementado");
+  const log = deps.log ?? (() => {});
+  const salida = resolverRuta(opts.salida);
+  const rutaPublica = join(salida, "kek-public.pem");
+  const rutaPrivada = join(salida, "kek-private.pem");
+  // Perder la privada pierde todas las credenciales: nunca se pisa un par existente.
+  if (existsSync(rutaPublica) || existsSync(rutaPrivada)) {
+    throw new Error(
+      "Ya existe una llave en la carpeta de salida; kek:generar no sobrescribe.",
+    );
+  }
+  await mkdir(salida, { recursive: true });
+  const { publicKey, privateKey } = await generarPar("rsa", {
+    modulusLength: MODULO_MINIMO,
+    publicKeyEncoding: { type: "spki", format: "pem" },
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+  });
+  await writeFile(rutaPrivada, privateKey, { mode: 0o600, flag: "wx" });
+  await chmod(rutaPrivada, 0o600);
+  await writeFile(rutaPublica, publicKey, { mode: 0o644, flag: "wx" });
+  await chmod(rutaPublica, 0o644);
+  const huella = huellaSpki(createPublicKey(publicKey));
+  log(`Llave pública: ${rutaPublica}`);
+  log(`Llave privada: ${rutaPrivada}`);
+  log(`Huella SHA-256 (SPKI): ${huella}`);
+  return { rutaPublica, rutaPrivada, huella };
 }
-export function main(_argv: string[]): Promise<void> {
-  throw new Error("no implementado");
+
+/** `kek:generar [--salida <carpeta>]`; las rutas relativas son relativas a la raíz del repo. */
+export async function main(
+  argv: string[],
+  deps: DepsKekGenerar = {},
+): Promise<void> {
+  const args = argv.filter((a) => a !== "--");
+  let salida = SALIDA_POR_DEFECTO;
+  for (let i = 0; i < args.length; i += 1) {
+    const valor = args[i + 1];
+    if (args[i] !== "--salida" || valor === undefined) {
+      throw new Error("Uso: kek:generar [--salida <carpeta>]");
+    }
+    salida = valor;
+    i += 1;
+  }
+  const log =
+    deps.log ?? ((linea: string) => process.stdout.write(`${linea}\n`));
+  await generarKek({ salida }, { log });
+}
+
+/** Punto de entrada del proceso: devuelve el código de salida sin volcar nada más que el mensaje. */
+export async function ejecutar(
+  argv: string[],
+  deps: DepsKekGenerar & { error?: (linea: string) => void } = {},
+): Promise<number> {
+  try {
+    await main(argv, deps);
+    return 0;
+  } catch (e) {
+    const error =
+      deps.error ?? ((linea: string) => process.stderr.write(`${linea}\n`));
+    error(`kek:generar: ${(e as Error).message}`);
+    return 1;
+  }
+}
+
+if (require.main === module) {
+  void ejecutar(process.argv.slice(2)).then((codigo) => {
+    process.exitCode = codigo;
+  });
 }

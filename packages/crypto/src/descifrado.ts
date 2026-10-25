@@ -1,5 +1,14 @@
-// STUB (T5, rojo): punto de entrada de descifrado (solo worker).
-export * from "./comun/errores";
+// Punto de entrada de descifrado (solo el worker; la regla de lint impide que lo importe el backend).
+export {
+  CryptoError,
+  SecretoInvalidoError,
+  ContextoAadInvalidoError,
+  SobreInvalidoError,
+  IntegridadError,
+  KeyProviderError,
+  KekDesconocidaError,
+  ConfiguracionKeyProviderError,
+} from "./comun/errores";
 export type {
   TipoCredencial,
   CredencialSol,
@@ -16,6 +25,6 @@ export {
 } from "./descifrado/fabrica";
 export { descifrarSobre } from "./descifrado/descifrar";
 export { reenvolverDek } from "./descifrado/reenvolver";
-export { Secreto } from "./descifrado/secreto";
+export { Secreto, SecretoDestruidoError } from "./descifrado/secreto";
 export { MockKeyProvider } from "./descifrado/mock";
 export type { OpcionesMock } from "./cifrado/mock";

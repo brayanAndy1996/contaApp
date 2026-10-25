@@ -1,18 +1,37 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-// STUB (T5, rojo): MockKeyProvider completo (wrap + unwrap) para el worker.
-import type { KeyWrapper } from "../cifrado/fabrica";
-import type { OpcionesMock } from "../cifrado/mock";
+// MockKeyProvider completo (wrap + unwrap) para el worker, con el par fijo del fixture (D1).
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import {
+  DIR_FIXTURE_MOCK,
+  MockKeyProvider as MockWrapper,
+  cargaSimulada,
+  type OpcionesMock,
+} from "../cifrado/mock";
+import { KekDesconocidaError } from "../comun/errores";
+import { Perezoso } from "../comun/plazo";
+import { KEK_ID_MOCK } from "../comun/rsa";
 import type { KeyUnwrapper } from "./fabrica";
-export class MockKeyProvider implements KeyUnwrapper, KeyWrapper {
-  readonly kekId = "mock";
-  constructor(_o?: OpcionesMock) {}
-  wrap(_dek: Buffer): Promise<Buffer> {
-    throw new Error("no implementado");
+import { cargarPrivada, desenvolverDek, type ParRsa } from "./rsa-privada";
+
+const RUTA_PRIVADA = join(DIR_FIXTURE_MOCK, "SOLO-PRUEBAS-kek-mock-private.pem");
+
+export class MockKeyProvider extends MockWrapper implements KeyUnwrapper {
+  readonly #par: Perezoso<ParRsa>;
+
+  constructor(o: OpcionesMock = {}) {
+    super(o);
+    this.#par = new Perezoso(() =>
+      cargaSimulada(o.falla, () =>
+        cargarPrivada(readFileSync(RUTA_PRIVADA), false),
+      ),
+    );
   }
-  unwrap(_dekEnvuelta: Buffer, _kekId: string): Promise<Buffer> {
-    throw new Error("no implementado");
-  }
-  verificar(): Promise<void> {
-    throw new Error("no implementado");
+
+  async unwrap(dekEnvuelta: Buffer, kekId: string): Promise<Buffer> {
+    if (kekId !== KEK_ID_MOCK) throw new KekDesconocidaError();
+    return this.#par.usar(
+      (k) => desenvolverDek(k.privada, KEK_ID_MOCK, dekEnvuelta),
+      this.plazoMs,
+    );
   }
 }

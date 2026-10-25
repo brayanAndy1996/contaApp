@@ -1,5 +1,14 @@
-// STUB (T5, rojo): punto de entrada de cifrado (backend).
-export * from "./comun/errores";
+// Punto de entrada de cifrado (lo usa el backend). Nunca alcanza el código de descifrado.
+export {
+  CryptoError,
+  SecretoInvalidoError,
+  ContextoAadInvalidoError,
+  SobreInvalidoError,
+  IntegridadError,
+  KeyProviderError,
+  KekDesconocidaError,
+  ConfiguracionKeyProviderError,
+} from "./comun/errores";
 export type {
   TipoCredencial,
   CredencialSol,
