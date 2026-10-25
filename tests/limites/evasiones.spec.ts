@@ -54,6 +54,44 @@ const PROHIBIDOS: Array<[string, string]> = [
   ["require('module')", 'export const d = require("module")._load("x", module);'],
   ["globalThis.process.mainModule", 'export const d = globalThis.process.mainModule?.require("x");'],
   ["import = require (TypeScript)", 'import d = require("@contapp/crypto/descifrado");\nexport { d };'],
+  // Spec 003, R2a-2 (revisión T16a): vías ESM.
+  ["process.getBuiltinModule literal", 'export const m = process.getBuiltinModule("node:module");'],
+  [
+    "process.getBuiltinModule con clave calculada",
+    'export const m = process.getBuiltinModule(["mo", "dule"].join(""));',
+  ],
+  ["process.getBuiltinModule sin llamar", "export const f = process.getBuiltinModule;"],
+  ["process con alias", 'const p = process;\nexport const m = p.getBuiltinModule("node:module");'],
+  ["globalThis.process.getBuiltinModule", 'export const m = globalThis.process.getBuiltinModule("node:fs");'],
+  ["process['getBuiltinModule']", 'export const m = process["getBuiltinModule"]("node:module");'],
+  ["process[clave calculada]", 'export const m = process["getBuiltin" + "Module"]("node:module");'],
+  ["process[identificador]", 'const k = "getBuiltinModule";\nexport const m = process[k]("node:module");'],
+  ["process con plantilla estática", "export const m = process[`getBuiltinModule`]('node:module');"],
+  [
+    "desestructurado de process",
+    'const { getBuiltinModule } = process;\nexport const m = getBuiltinModule("node:module");',
+  ],
+  [
+    "desestructurado de process con alias",
+    'const { getBuiltinModule: g } = process;\nexport const m = g("node:module");',
+  ],
+  [
+    "desestructurado de process con clave calculada",
+    'const k = "getBuiltinModule";\nconst { [k]: g } = process;\nexport const m = g("node:module");',
+  ],
+  [
+    "asignación desestructurada de process con clave calculada",
+    'let g: unknown;\nconst k = "getBuiltinModule";\n({ [k]: g } = process);\nexport { g };',
+  ],
+  [
+    "new Module().require",
+    'import Module from "node:module";\nconst m = new Module("x");\nexport const d = m.require("@contapp/crypto/descifrado");',
+  ],
+  ["import Module de 'module'", 'import Module from "module";\nexport const m = new Module("x");'],
+  ["import() de node:module", 'export const m = import("node:module");'],
+  ["require de node:module", 'export const m = require("node:module");'],
+  ["instancia con .require()", "export const f = (m: { require(s: string): unknown }) => m.require('x');"],
+  ["Module._load", "export const f = (M: { _load(s: string): unknown }) => M._load('x');"],
 ];
 
 const PERMITIDOS: Array<[string, string]> = [
@@ -68,6 +106,11 @@ const PERMITIDOS: Array<[string, string]> = [
   ["module local (Nest Test)", "export async function f(t: { compile(): Promise<unknown> }) {\n  const module = await t.compile();\n  return module;\n}"],
   ["Function como tipo", "export type Cb = Function;\nexport const g = (cb: Function) => cb;"],
   ["import = require del principal", 'import c = require("@contapp/crypto");\nexport { c };'],
+  ["process.env con clave calculada", "export const v = (k: string) => process.env[k];"],
+  ["process.env / process.cwd", "export const v = [process.env.NODE_ENV, process.cwd(), process.exit];"],
+  ["globalThis estático", "export const t = globalThis.setTimeout;"],
+  ["desestructurado de process.env", "const { NODE_ENV, PORT } = process.env;\nexport { NODE_ENV, PORT };"],
+  ["propiedad require sin llamar", "export const s = { require: true };\nexport const r = s.require;"],
 ];
 
 describe("F4: apps/backend no evade la prohibición del descifrado", () => {

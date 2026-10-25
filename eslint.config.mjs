@@ -185,6 +185,28 @@ const reglaImportsRelativos = {
       }
       return false;
     };
+    // Vías ESM para obtener `module`/`require`: process.getBuiltinModule (prohibido por completo,
+    // con o sin alias de `process`, clave estática o calculada) y Module._load / new Module().require.
+    const NOMBRES_CARGA = new Set(["getBuiltinModule", "_load"]);
+    const esLlamado = (n) => n.parent?.type === "CallExpression" && n.parent.callee === n;
+    // `process`, `globalThis`, `global` (globales) o `<x>.process` / `<x>.globalThis` / `<x>.global`.
+    const NOMBRES_ENTORNO = ["process", "globalThis", "global"];
+    const esRaizEntorno = (e) => {
+      while (e?.type === "ChainExpression") e = e.expression;
+      if (e?.type === "Identifier") return NOMBRES_ENTORNO.includes(e.name) && esGlobal(e);
+      return (
+        e?.type === "MemberExpression" &&
+        !e.computed &&
+        NOMBRES_ENTORNO.includes(e.property.name)
+      );
+    };
+    // const { [k]: g } = process;  /  ({ [k]: g } = process);
+    const desestructuraCalculado = (patron, init) => {
+      if (patron?.type !== "ObjectPattern" || !esRaizEntorno(init)) return;
+      for (const p of patron.properties)
+        if (p.type === "Property" && p.computed && estatico(p.key) === undefined)
+          context.report({ node: p, message: MSG_REQUIRE });
+    };
     const handlers = {
       ImportDeclaration: (n) => revisar(n, n.source.value),
       ExportAllDeclaration: (n) => revisar(n, n.source.value),
@@ -197,7 +219,8 @@ const reglaImportsRelativos = {
     };
     if (estricto) {
       handlers.Identifier = (n) => {
-        if (n.name === "createRequire") context.report({ node: n, message: MSG_REQUIRE });
+        if (n.name === "createRequire" || NOMBRES_CARGA.has(n.name))
+          context.report({ node: n, message: MSG_REQUIRE });
         if (esPropiedad(n) || !esGlobal(n)) return;
         // `require` solo como callee directo (ya revisado) o `require.resolve`; `module` solo exports/hot.
         if (n.name === "eval") context.report({ node: n, message: MSG_EVAL });
@@ -209,8 +232,15 @@ const reglaImportsRelativos = {
           context.report({ node: n, message: MSG_EVAL });
       };
       handlers.MemberExpression = (n) => {
-        const nombre = nombreMiembro(n);
-        if (nombre === "createRequire" || (nombre === "require" && raizRequire(n.object)))
+        const nombre = nombreMiembro(n) ?? (n.computed ? estatico(n.property) : null);
+        if (
+          nombre === "createRequire" ||
+          NOMBRES_CARGA.has(nombre) ||
+          (nombre === "require" && (raizRequire(n.object) || esLlamado(n)))
+        )
+          context.report({ node: n, message: MSG_REQUIRE });
+        // process[expr] / globalThis[expr] con clave calculada: puede resolver getBuiltinModule.
+        if (n.computed && estatico(n.property) === undefined && esRaizEntorno(n.object))
           context.report({ node: n, message: MSG_REQUIRE });
         if (nombre === "mainModule" || ((nombre === "eval" || nombre === "Function") && raizRequire(n.object)))
           context.report({ node: n, message: MSG_EVAL });
@@ -225,6 +255,8 @@ const reglaImportsRelativos = {
         llamada(n);
         funcion(n);
       };
+      handlers.VariableDeclarator = (n) => desestructuraCalculado(n.id, n.init);
+      handlers.AssignmentExpression = (n) => desestructuraCalculado(n.left, n.right);
       handlers.TSExternalModuleReference = (n) => revisarArgumento(n, n.expression);
     }
     return handlers;
