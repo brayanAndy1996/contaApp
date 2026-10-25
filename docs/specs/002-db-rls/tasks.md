@@ -17,7 +17,7 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T9 | Corregir hallazgos de la ronda 1 | backend | opus | T8 | — | — | [ ] |
 | T9c | Regla de lint contra SQL crudo fuera de `packages/db` | devops | sonnet | — | — | — | [x] |
 | T10 | Ronda adversarial 2 (solo si T8 tuvo fallos) | adversario | opus | T9 | — | ✓ | [ ] |
-| T11 | Corregir hallazgos de la ronda 2 | backend | opus | T10 | — | — | [ ] |
+| T11 | Corregir hallazgos de la ronda 2 | backend | opus | T10 | — | — | [x] |
 | T12 | Verificar CA-1 a CA-9 con evidencia | tester | sonnet | T11 | — | — | [ ] |
 | T13 | Revisión final contra la spec | arquitecto | opus | T12 | — | — | [ ] |
 | T14 | Cierre: ESTADO, tasks y commit | devops | haiku | T13 | — | — | [ ] |
@@ -110,6 +110,12 @@ Reglas comunes:
 
 ## T11 · Corregir ronda 2 (backend · opus)
 - **Contexto / Hacer / Hecho cuando**: igual que T9 con los hallazgos de T10; omitida si T10 no tuvo fallos. Commit `fix(002): hallazgos de la ronda adversarial 2`.
+- **Avance**: H10–H13 cerrados sin tocar pruebas.
+  - H10 · `migrations/0004_ronda2_lo_y_usuario.sql` (custom, generada con `drizzle-kit generate --custom`): `REVOKE EXECUTE ... FROM PUBLIC` en las 17 funciones de objetos grandes de `pg_catalog` (`lo_creat`, `lo_create`, `lo_from_bytea`, `lo_open`, `lo_close`, `loread`, `lowrite`, `lo_get` ×2, `lo_put`, `lo_lseek[64]`, `lo_tell[64]`, `lo_truncate[64]`, `lo_unlink`); `lo_import`/`lo_export` ya eran solo del superusuario y `lo_compat_privileges` es SUSET. Límite: `pg_largeobject_metadata` sigue legible (solo OID y dueño, y ya nadie de la app puede crear LO); el REVOKE vive en la BD, así que una BD recreada sin migrar no lo tiene.
+  - H11 · `src/with-tenant.ts`: `LIMPIAR_SESION` incluye `DEALLOCATE ALL`; tras cada limpieza se vacía la caché `parsedStatements` de `pg` (interna de pg 8.x, con guarda) para que vuelva a preparar sus sentencias con nombre.
+  - H12 · `src/with-tenant.ts`: antes de usar la conexión se lee `client.getTransactionStatus()` (API pública de pg, estado de ReadyForQuery, sin ir al servidor); si es `T` o `E` la conexión se destruye y se pide otra (máx. 10; si no, error). Al liberar, si quedara en transacción, también se destruye. Sin ROLLBACK previo (no se revierte trabajo ajeno y `with-tenant.spec.ts:190` exige que no haya rollback en el camino feliz).
+  - H13 · misma migración: la política `tenant_isolation` de `usuario` se recrea (`DROP POLICY IF EXISTS` + `CREATE`): con tenant, solo miembros del estudio actual; sin tenant (withUsuario), solo la propia fila.
+  - `pnpm ci:db`: migrar ×2 (2.ª sin cambios) y seed OK; aislamiento 177/177. Unitarias 67/67; `pnpm lint` (raíz) y typecheck OK; `drizzle-kit generate` sin cambios.
 
 ## T12 · Verificación (tester · sonnet)
 - **Contexto (leer solo esto)**: `docs/specs/002-db-rls/spec.md` (Criterios), `docs/specs/002-db-rls/plan.md` (comandos raíz), `docs/specs/ESTADO.md` (hallazgos de 002).

@@ -29,6 +29,13 @@
       "when": 1792893621440,
       "tag": "0003_rls_plataforma_y_roles",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792894679394,
+      "tag": "0004_ronda2_lo_y_usuario",
+      "breakpoints": true
     }
   ]
 }

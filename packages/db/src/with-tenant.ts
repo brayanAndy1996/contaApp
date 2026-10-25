@@ -93,11 +93,51 @@ export function ajusteUsuario(ctx: unknown): Ajuste {
  * Limpia el estado de SESIÓN que `fn` pudo dejar en la conexión (set_config(..., false), SET ROLE
  * o SET de sesión, cursores WITH HOLD, LISTEN, advisory locks de sesión) para que no se herede en
  * la siguiente petición del pool (H1, H8). `RESET ALL` no incluye `role`, de ahí el `RESET ROLE`.
- * No usa DISCARD ALL para no invalidar las sentencias preparadas con nombre que cachea `pg`.
- * Se envía antes de BEGIN (conexiones que vengan sucias de fuera de withTenant) y al liberar.
+ * `DEALLOCATE ALL` (H11) borra también las sentencias creadas con PREPARE por SQL (incluso desde
+ * DO/EXECUTE), que podrían devolver datos de otro estudio o suplantar una sentencia con nombre de
+ * `pg`; por eso, tras la limpieza, se vacía la caché de sentencias de `pg` (olvidarSentencias) y
+ * `pg` las vuelve a preparar cuando haga falta. No se usa DISCARD ALL (incluiría DISCARD TEMP/PLANS,
+ * innecesarios aquí). Se envía antes de BEGIN (conexiones sucias de fuera de withTenant) y al liberar.
  */
 const LIMPIAR_SESION =
-  "CLOSE ALL; RESET ROLE; RESET ALL; UNLISTEN *; SELECT pg_advisory_unlock_all()";
+  "CLOSE ALL; RESET ROLE; RESET ALL; UNLISTEN *; DEALLOCATE ALL; SELECT pg_advisory_unlock_all()";
+
+/** Intentos de obtener del pool una conexión sin transacción abierta antes de fallar cerrado. */
+const MAX_INTENTOS_CONEXION = 10;
+
+/**
+ * H12: `pg` no hace ROLLBACK al liberar, así que una conexión usada fuera de withTenant puede volver
+ * al pool con una transacción abierta (`T`) o abortada (`E`). Se consulta el estado que informa el
+ * propio protocolo (ReadyForQuery), sin enviar nada al servidor.
+ */
+function tieneTransaccionAbierta(client: PoolClient): boolean {
+  const estado = (client as { getTransactionStatus?: () => string | null }).getTransactionStatus;
+  if (typeof estado !== "function") return false;
+  const s = estado.call(client);
+  return s === "T" || s === "E";
+}
+
+/** Tras DEALLOCATE ALL, `pg` no debe creer que sus sentencias con nombre siguen preparadas. */
+function olvidarSentencias(client: PoolClient): void {
+  const conexion = (client as { connection?: { parsedStatements?: Record<string, string> } })
+    .connection;
+  if (conexion !== undefined && typeof conexion.parsedStatements === "object") {
+    conexion.parsedStatements = {};
+  }
+}
+
+/**
+ * Pide una conexión al pool; si llega con una transacción ajena abierta, la destruye (no se ejecuta
+ * nada dentro de ella: ni se confirma ni se revierte trabajo de otra petición) y pide otra.
+ */
+async function conexionSinTransaccion(pool: Pool): Promise<PoolClient> {
+  for (let i = 0; i < MAX_INTENTOS_CONEXION; i++) {
+    const client = await pool.connect();
+    if (!tieneTransaccionAbierta(client)) return client;
+    client.release(new Error("conexión del pool con una transacción abierta"));
+  }
+  throw new Error("No se obtuvo del pool una conexión sin transacción abierta");
+}
 
 function crearTx(client: PoolClient, cerrada: () => boolean): Tx {
   const query = (text: string, values?: unknown[]) => {
@@ -138,11 +178,12 @@ export async function ejecutarEnContexto<T>(
   const ajuste = preparar();
   if (!esRolApp(rolApp)) throw new ContextoInvalidoError();
 
-  const client = await pool.connect();
+  const client = await conexionSinTransaccion(pool);
   let terminada = false;
   let conexionRota: Error | undefined;
   try {
     await client.query(LIMPIAR_SESION);
+    olvidarSentencias(client);
     await client.query("BEGIN");
     await client.query(SET_ROLE[rolApp]);
     await client.query(ajuste.sql, ajuste.valores);
@@ -165,6 +206,10 @@ export async function ejecutarEnContexto<T>(
     if (conexionRota === undefined) {
       try {
         await client.query(LIMPIAR_SESION);
+        olvidarSentencias(client);
+        if (tieneTransaccionAbierta(client)) {
+          conexionRota = new Error("la conexión quedó con una transacción abierta");
+        }
       } catch (errLimpieza) {
         // No se pudo garantizar una sesión limpia: la conexión no vuelve al pool.
         conexionRota =
