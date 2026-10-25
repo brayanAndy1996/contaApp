@@ -21,7 +21,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → pruebas (rojo) → implementación
 | T13 | Integración: scripts raíz y checks completos | devops | haiku | T11, T12 | — | — | [x] |
 | T14a | Ronda adversarial 1a: lista mínima de la spec (caja negra) | adversario | opus | T13 | — | ✓ | [x] |
 | T14b | Ronda adversarial 1b: ataques nuevos (caja blanca) | adversario | opus | T13 ∥ T14a | — | ✓ | [x] |
-| T15 | Corregir hallazgos de la ronda 1 | backend | opus | T14a, T14b | — | — | [ ] |
+| T15 | Corregir hallazgos de la ronda 1 | backend | opus | T14a, T14b | — | — | [x] |
 | T16a | Ronda adversarial 2a: regresión de correcciones y reconversión de aceptados | adversario | opus | T15 | — | ✓ | [ ] |
 | T16b | Ronda adversarial 2b: ataques nuevos contra las correcciones | adversario | opus | T15 ∥ T16a | — | ✓ | [ ] |
 | T17 | Corregir hallazgos de la ronda 2 | backend | opus | T16a, T16b | — | — | [ ] |
@@ -136,6 +136,11 @@ Reglas comunes:
   - F5 (baja): ventana FIFO de 4096 huellas SHA-256 de DEK y de nonce (`VENTANA_HUELLAS`).
   - F6 (baja): si `logger.log` lanza tras el COMMIT, el `Secreto` se destruye y se relanza el error del logger.
   - Pruebas: crypto 268 ✓; db 202 ✓; worker unit 71 ✓; `ci:db` aislamiento 348 ✓ y worker `test:int` 28/29 (falla solo F2); limites 64 ✓; typecheck, lint y build ✓. Cobertura (sin la prueba de F2): crypto 98.26/96.96/96.05/98.44, db 98.13/96.55/98.64/99.29. Sin cambios de esquema.
+- **Resultado (2026-10-25, parte 2)**: F4 corregido en `27f831d`; F2 corregido con la decisión del usuario (opción A). T15 cerrada.
+  - F2: `rotarKekTenantDetalle` (nuevo) devuelve `{ reenvueltas, omitidas, corruptas: string[] }`; una fila con `IntegridadError`/`SobreInvalidoError` no aborta: queda en `desde`, cuenta en `omitidas` y su id va a `corruptas`. `rotarKekTenant` mantiene el contrato de T7 (`{ reenvueltas, omitidas }`). Otro error (proveedor caído, mock) sigue abortando el lote sin escribir. Si ninguna fila abre en toda la corrida y hubo fallos de integridad → `AnteriorNoAbreError` (`anterior_no_abre`, sin escribir): necesario para la prueba de T7 "llave anterior equivocada → rechaza".
+  - `kek:rotar`: línea por estudio y total con `corruptas N`; ids de las corruptas a stderr; sale con `CODIGO_CORRUPTAS = 3` y el aviso "la KEK anterior sigue siendo necesaria (no la jubile)". Códigos documentados en la cabecera: 0 ok, 1 error, 2 uso, 3 corruptas.
+  - Límite conocido: si en una corrida solo quedan filas corruptas (p. ej. reejecución tras rotar las sanas), no se distingue de una llave equivocada → código 1 `anterior_no_abre` (también con el aviso de que la KEK sigue necesaria), no 3.
+  - Pruebas nuevas: `apps/worker/src/cli/kek-rotar-corruptas.int.spec.ts` (3). worker unit 71 ✓, `test:int` 32/32 ✓ (incluye F2); `ci:db` ✓ (aislamiento 348); limites 64 ✓; typecheck, lint y build ✓. Cobertura: crypto 98.34/97.14/96.12/98.52, db 98.13/96.55/98.64/99.29.
 
 ## T16a · Ronda 2a: regresión y reconversión (adversario · opus)
 - **Contexto (leer solo esto)**: igual que T14b + `git diff <commit T14b>..HEAD -- packages apps`.

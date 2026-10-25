@@ -6,9 +6,18 @@
 //      y el CAS, gana el backend y la fila se cuenta como omitida (no se reintenta en esta corrida).
 // Un fallo del proveedor en el paso 2 rechaza con su error reintentable sin escribir nada del lote en
 // curso; los lotes ya confirmados quedan (idempotente y reanudable). Valida todo antes de tocar la BD.
+//
+// Filas corruptas (T15 · F2, decisión del usuario: opción A). Una fila cuyo sobre no abre con la
+// anterior (IntegridadError/SobreInvalidoError) no aborta el estudio: queda intacta en `desde`, se
+// cuenta como omitida y su id se reporta en `corruptas` (solo ids, nunca bytes). Mientras quede una,
+// la KEK anterior NO se puede jubilar. Si ninguna fila abrió en toda la corrida y hubo corruptas, no se
+// distingue una llave anterior equivocada de un estudio cuyas filas restantes (p. ej. en una corrida
+// posterior) son todas corruptas: AnteriorNoAbreError, sin escribir.
 import {
   CryptoError,
+  IntegridadError,
   RotacionConMockError,
+  SobreInvalidoError,
   esLlaveMock,
   reenvolverDek,
   type KeyUnwrapper,
@@ -16,6 +25,7 @@ import {
 } from "@contapp/crypto/descifrado";
 import { listarParaReenvolver, reemplazarDekEnvuelta, type ContappDb } from "@contapp/db";
 import {
+  AnteriorNoAbreError,
   ArgumentoInvalidoError,
   PersistenciaCredencialError,
   esKekId,
@@ -35,7 +45,13 @@ export interface OpcionesRotacion {
 
 export interface ResultadoRotacion {
   reenvueltas: number;
+  /** Filas que siguen sin re-envolver en esta corrida: ganó el backend en el CAS o están corruptas. */
   omitidas: number;
+}
+
+export interface DetalleRotacion extends ResultadoRotacion {
+  /** Ids de las filas corruptas (subconjunto de `omitidas`). Si no está vacío, la KEK anterior sigue necesaria. */
+  corruptas: string[];
 }
 
 interface Reenvoltura {
@@ -70,11 +86,19 @@ async function enBd<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-export async function rotarKekTenant(o: OpcionesRotacion): Promise<ResultadoRotacion> {
+/** El sobre de la fila no abre (o no tiene forma válida): culpa de la fila, no del proveedor. */
+function esFilaCorrupta(e: unknown): boolean {
+  return e instanceof IntegridadError || e instanceof SobreInvalidoError;
+}
+
+/** Rotación con el detalle de las filas corruptas (lo usa `kek:rotar` para alertar). */
+export async function rotarKekTenantDetalle(o: OpcionesRotacion): Promise<DetalleRotacion> {
   const lote = validar(o);
   const { db, anterior, activa, tenantId, desde } = o;
-  const omitidas = new Set<string>();
+  const omitidas = new Set<string>(); // CAS perdido o corrupta: no se vuelven a pedir en esta corrida
+  const corruptas: string[] = [];
   let reenvueltas = 0;
+  let abiertas = 0;
 
   for (;;) {
     // Se piden `lote` filas además de las ya omitidas (siguen con kek_id = desde) para no atascarse en ellas.
@@ -91,7 +115,17 @@ export async function rotarKekTenant(o: OpcionesRotacion): Promise<ResultadoRota
 
     const cambios: Reenvoltura[] = [];
     for (const f of filas) {
-      const nuevo = await reenvolverDek(f.sobre, anterior, activa);
+      let nuevo: Awaited<ReturnType<typeof reenvolverDek>>;
+      try {
+        nuevo = await reenvolverDek(f.sobre, anterior, activa);
+      } catch (e) {
+        // Cualquier otro error (proveedor caído, mock…) aborta el lote en curso sin escribir.
+        if (!esFilaCorrupta(e)) throw e;
+        omitidas.add(f.id);
+        corruptas.push(f.id);
+        continue;
+      }
+      abiertas += 1;
       cambios.push({
         id: f.id,
         dekAnterior: f.sobre.dekEnvuelta,
@@ -101,13 +135,16 @@ export async function rotarKekTenant(o: OpcionesRotacion): Promise<ResultadoRota
       });
     }
 
-    const aplicadas = await enBd(() =>
-      db.withTenant({ tenantId }, async (tx) => {
-        const r: boolean[] = [];
-        for (const c of cambios) r.push(await reemplazarDekEnvuelta(tx, c));
-        return r;
-      }),
-    );
+    const aplicadas =
+      cambios.length === 0
+        ? []
+        : await enBd(() =>
+            db.withTenant({ tenantId }, async (tx) => {
+              const r: boolean[] = [];
+              for (const c of cambios) r.push(await reemplazarDekEnvuelta(tx, c));
+              return r;
+            }),
+          );
     aplicadas.forEach((ok, i) => {
       if (ok) reenvueltas += 1;
       else omitidas.add(cambios[i]!.id);
@@ -116,5 +153,12 @@ export async function rotarKekTenant(o: OpcionesRotacion): Promise<ResultadoRota
     if (filas.length < lote) break;
   }
 
-  return { reenvueltas, omitidas: omitidas.size };
+  if (abiertas === 0 && corruptas.length > 0) throw new AnteriorNoAbreError();
+  return { reenvueltas, omitidas: omitidas.size, corruptas };
+}
+
+/** Contrato de T7: solo `{ reenvueltas, omitidas }` (las corruptas cuentan como omitidas). */
+export async function rotarKekTenant(o: OpcionesRotacion): Promise<ResultadoRotacion> {
+  const { reenvueltas, omitidas } = await rotarKekTenantDetalle(o);
+  return { reenvueltas, omitidas };
 }

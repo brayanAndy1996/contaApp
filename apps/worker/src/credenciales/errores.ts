@@ -48,6 +48,21 @@ export class CredencialNoEncontradaError extends CredencialesWorkerError {
   }
 }
 
+/**
+ * Rotación: hubo filas que no abrieron con la llave anterior y ninguna sí lo hizo. No se puede
+ * distinguir una llave anterior equivocada (o una activa defectuosa) de un estudio con todas sus filas
+ * corruptas, así que se falla cerrado sin escribir nada.
+ */
+export class AnteriorNoAbreError extends CredencialesWorkerError {
+  constructor() {
+    super(
+      "anterior_no_abre",
+      false,
+      "Ninguna DEK abrió con la llave anterior (llave equivocada o todas las filas corruptas)",
+    );
+  }
+}
+
 /** Fallo de la BD (lectura, auditoría o COMMIT). El error de `pg` se descarta. */
 export class PersistenciaCredencialError extends CredencialesWorkerError {
   constructor() {
