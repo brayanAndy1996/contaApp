@@ -64,17 +64,63 @@ const POLITICAS = {
   },
 };
 
+// Descifrado de @contapp/crypto (spec 003, CA-4b): solo el worker lo importa. Prohibiciones por
+// subcarpeta, con rutas relativas a la raíz del repo y especificadores de paquete (regex):
+//  - apps/backend: ni el subpath `@contapp/crypto/descifrado`, ni `dist/**` o `src/**` del paquete,
+//    ni rutas relativas a packages/crypto/{src,dist}/descifrado[…].
+//  - packages/crypto/src/cifrado: ni `../descifrado` ni `../descifrado/…` (cifrado/ nunca importa descifrado/).
+const RUTAS_DESCIFRADO = [
+  "packages/crypto/src/descifrado",
+  "packages/crypto/dist/descifrado",
+];
+const POLITICAS_SUBCARPETA = [
+  {
+    desde: "apps/backend/",
+    rutas: RUTAS_DESCIFRADO,
+    paquetes: /^@contapp\/crypto\/(?:descifrado|dist|src)(?:[/.].*)?$/,
+    mensaje:
+      "apps/backend no puede importar el descifrado de @contapp/crypto (solo el worker; spec 003, CA-4b).",
+  },
+  {
+    desde: "packages/crypto/src/cifrado/",
+    rutas: ["packages/crypto/src/descifrado"],
+    paquetes: null,
+    mensaje:
+      "packages/crypto/src/cifrado no puede importar el descifrado (spec 003, CA-4b).",
+  },
+];
+// ¿`rel` es la ruta `base` o algo bajo ella (carpeta o archivo con extensión)?
+const bajoRuta = (rel, base) =>
+  rel === base || rel.startsWith(`${base}/`) || rel.startsWith(`${base}.`);
+
 const reglaImportsRelativos = {
   meta: { type: "problem", schema: [] },
   create(context) {
     const archivo = path.resolve(context.filename);
-    const origen = elementoDe(
-      path.relative(RAIZ, archivo).split(path.sep).join("/"),
-    );
+    const relArchivo = path.relative(RAIZ, archivo).split(path.sep).join("/");
+    const origen = elementoDe(relArchivo);
     const politica = origen && POLITICAS[origen];
-    if (!politica) return {};
+    const subpoliticas = POLITICAS_SUBCARPETA.filter((p) =>
+      relArchivo.startsWith(p.desde),
+    );
+    if (!politica && subpoliticas.length === 0) return {};
+    const revisarSubcarpeta = (nodo, fuente) => {
+      for (const sp of subpoliticas) {
+        let prohibido = false;
+        if (fuente.startsWith(".")) {
+          const destino = path.resolve(path.dirname(archivo), fuente);
+          const rel = path.relative(RAIZ, destino).split(path.sep).join("/");
+          prohibido = sp.rutas.some((r) => bajoRuta(rel, r));
+        } else {
+          prohibido = sp.paquetes?.test(fuente) ?? false;
+        }
+        if (prohibido) context.report({ node: nodo, message: sp.mensaje });
+      }
+    };
     const revisar = (nodo, fuente) => {
-      if (typeof fuente !== "string" || !fuente.startsWith(".")) return;
+      if (typeof fuente !== "string") return;
+      revisarSubcarpeta(nodo, fuente);
+      if (!politica || !fuente.startsWith(".")) return;
       const destino = path.resolve(path.dirname(archivo), fuente);
       const rel = path.relative(RAIZ, destino).split(path.sep).join("/");
       const elemento = elementoDe(rel);
@@ -89,6 +135,14 @@ const reglaImportsRelativos = {
       ExportAllDeclaration: (n) => revisar(n, n.source.value),
       ExportNamedDeclaration: (n) => n.source && revisar(n, n.source.value),
       ImportExpression: (n) => revisar(n, n.source.value),
+      CallExpression(n) {
+        if (
+          n.callee.type === "Identifier" &&
+          n.callee.name === "require" &&
+          n.arguments[0]?.type === "Literal"
+        )
+          revisar(n, n.arguments[0].value);
+      },
     };
   },
 };
@@ -272,9 +326,46 @@ export default tseslint.config(
   },
   {
     files: ["apps/backend/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                ...paquete("sunat"),
+                ...app("worker"),
+                ...app("frontend"),
+              ],
+              message:
+                "apps/backend no puede importar packages/sunat ni otras apps (03-arquitectura §2).",
+            },
+            {
+              group: [
+                "@contapp/crypto/descifrado",
+                "@contapp/crypto/descifrado/**",
+                "@contapp/crypto/dist",
+                "@contapp/crypto/dist/**",
+                "@contapp/crypto/src",
+                "@contapp/crypto/src/**",
+                "**/packages/crypto/src/descifrado*",
+                "**/packages/crypto/src/descifrado/**",
+                "**/packages/crypto/dist/descifrado*",
+                "**/packages/crypto/dist/descifrado/**",
+              ],
+              message:
+                "apps/backend no puede importar el descifrado de @contapp/crypto (solo el worker; spec 003, CA-4b).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["packages/crypto/src/cifrado/**"],
     rules: limite(
-      [...paquete("sunat"), ...app("worker"), ...app("frontend")],
-      "apps/backend no puede importar packages/sunat ni otras apps (03-arquitectura §2).",
+      ["../descifrado", "../descifrado/**"],
+      "packages/crypto/src/cifrado no puede importar el descifrado (spec 003, CA-4b).",
     ),
   },
   {
