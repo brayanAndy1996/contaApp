@@ -10,8 +10,8 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → pruebas (rojo) → implementación
 | T3 | `cobertura:auth` (90 % por archivo), `ci:db` y CI | devops | sonnet | T2 | — | — | [x] |
 | T4 | `.env.example`, `.env` local y `comunes.txt` | devops | haiku | T2 ∥ T3 | — | — | [x] |
 | T5 | Pruebas de BD del esquema `auth` y de `withAuth` (rojo) | tester | sonnet | T3 | ✓ | — | [ ] |
-| T6 | Pruebas unitarias de shared y backend sin BD, y de lint (rojo) | tester | sonnet | T3, T4 ∥ T5 | ✓ | — | [ ] |
-| T7 | Pruebas de integración HTTP del backend (rojo) | tester | sonnet | T3 ∥ T6 | ✓ | — | [ ] |
+| T6 | Pruebas unitarias de shared y backend sin BD, y de lint (rojo) | tester | sonnet | T3, T4 ∥ T5 | ✓ | — | [x] |
+| T7 | Pruebas de integración HTTP del backend (rojo) | tester | sonnet | T3 ∥ T6 | ✓ | — | [x] |
 | T8 | Pruebas del frontend (rojo) | tester | sonnet | T2 ∥ T7 | ✓ | — | [x] |
 | T9 | Migración `0007_auth`, `AuthRepo`, `withAuth` y seed | backend | opus | T5 | ✓ | — | [ ] |
 | T10 | `shared/auth`, entorno, puerto `Correo`, `Hasher` y política | backend | sonnet | T6 ∥ T9 | ✓ | — | [ ] |
