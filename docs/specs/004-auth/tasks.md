@@ -12,7 +12,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → pruebas (rojo) → implementación
 | T5 | Pruebas de BD del esquema `auth` y de `withAuth` (rojo) | tester | sonnet | T3 | ✓ | — | [ ] |
 | T6 | Pruebas unitarias de shared y backend sin BD, y de lint (rojo) | tester | sonnet | T3, T4 ∥ T5 | ✓ | — | [ ] |
 | T7 | Pruebas de integración HTTP del backend (rojo) | tester | sonnet | T3 ∥ T6 | ✓ | — | [ ] |
-| T8 | Pruebas del frontend (rojo) | tester | sonnet | T2 ∥ T7 | ✓ | — | [ ] |
+| T8 | Pruebas del frontend (rojo) | tester | sonnet | T2 ∥ T7 | ✓ | — | [x] |
 | T9 | Migración `0007_auth`, `AuthRepo`, `withAuth` y seed | backend | opus | T5 | ✓ | — | [ ] |
 | T10 | `shared/auth`, entorno, puerto `Correo`, `Hasher` y política | backend | sonnet | T6 ∥ T9 | ✓ | — | [ ] |
 | T11 | Núcleo de sesión: `AuthService`, recuperación, tokens, CSRF y guards | backend | opus | T7, T9, T10 | ✓ | — | [ ] |
