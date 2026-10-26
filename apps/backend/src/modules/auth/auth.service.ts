@@ -60,6 +60,18 @@ export function parsear<T>(esquema: Esquema<T>, cuerpo: unknown): T {
   return r.data as T;
 }
 
+/**
+ * D10 + T16 (decisión del usuario, H-r1b-4): correo normalizado; fuera de ASCII -> 400
+ * `solicitud_invalida`. Depende solo del formato de la entrada (esa cuenta no puede existir: no enumera).
+ */
+export function correoDeEntrada(valor: string): string {
+  try {
+    return normalizarCorreo(valor);
+  } catch {
+    throw new AuthError("solicitud_invalida");
+  }
+}
+
 /** D7: clave del contador de intentos = SHA-256 del correo ya normalizado. */
 export function claveCorreo(correoNormalizado: string): Buffer {
   return createHash("sha256").update(correoNormalizado, "utf8").digest();
@@ -100,7 +112,7 @@ export class AuthService {
     const permitido = await this.db.withAuth((a) => a.limiteConsumir("login_ip", sujetoIp(ip ?? "")));
     if (!permitido) throw new AuthError("demasiados_intentos");
     const entrada = parsear(loginSchema, cuerpo);
-    const correo = normalizarCorreo(entrada.correo);
+    const correo = correoDeEntrada(entrada.correo);
 
     const cred = await this.verificarCredencial(correo, entrada.contrasena);
     // CA-2: inexistente, contraseña errónea, bloqueada o demasiado larga salen por esta misma línea.

@@ -20,6 +20,7 @@ const CODIGO_POR_ESTADO: Record<number, string> = {
   403: "prohibido",
   404: "no_encontrado",
   413: "solicitud_demasiado_grande",
+  415: "solicitud_invalida",
   429: "demasiados_intentos",
 };
 
@@ -84,10 +85,13 @@ export class FiltroErrores implements ExceptionFilter {
         cuerpo: { codigo: CODIGO_POR_ESTADO[estado] ?? "error" },
       };
     }
-    // Errores del analizador de cuerpo (JSON mal formado o demasiado grande): `status` 400 o 413.
+    // Errores del analizador de cuerpo: JSON mal formado (400), demasiado grande (413) o charset /
+    // Content-Encoding no soportados (415, T16/H-r1b-3). Solo el código; nunca el mensaje del analizador.
     if (
       esObjeto(excepcion) &&
-      (excepcion.status === 400 || excepcion.status === 413)
+      (excepcion.status === 400 ||
+        excepcion.status === 413 ||
+        excepcion.status === 415)
     ) {
       return {
         estado: excepcion.status,

@@ -38,6 +38,7 @@ export function crearEntorno(): Entorno {
     sesionesCerrarTodas: vi.fn(async () => 2),
     ultimoEstudio: vi.fn(async () => null),
     recuperacionCrear: vi.fn(async () => true),
+    recuperacionVigente: vi.fn(async () => true),
     recuperacionConsumir: vi.fn(async () => ({ usuarioId: U, correo: CORREO })),
     contrasenaCambiar: vi.fn(async () => CORREO),
   };

@@ -196,7 +196,7 @@ describe("CA-11 contapp_backend no toca las tablas de auth por ninguna via SQL (
 });
 
 describe("CA-11 funciones auth.*: solo contapp_backend ejecuta", () => {
-  it("el esquema auth contiene exactamente las 11 funciones del plan (una firma cada una)", async () => {
+  it("el esquema auth contiene exactamente las funciones del plan (una firma cada una)", async () => {
     const r = await consulta(
       "select p.proname from pg_proc p where p.pronamespace = to_regnamespace('auth') order by 1",
     );

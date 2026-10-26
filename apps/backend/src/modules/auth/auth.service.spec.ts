@@ -94,6 +94,17 @@ describe("login", () => {
     expect(await codigo(svc.login(null, "10.0.0.1"))).toBe("solicitud_invalida");
   });
 
+  // T16 (decisión del usuario, H-r1b-4): correos solo ASCII.
+  it("correo no ASCII: 400 solicitud_invalida sin reservar intento ni verificar; el ASCII equivalente sigue entrando", async () => {
+    expect(await codigo(svc.login({ correo: "straße@t004.contapp.test", contrasena: PWD }, "10.0.0.1"))).toBe(
+      "solicitud_invalida",
+    );
+    expect(e.repo.loginPreparar).not.toHaveBeenCalled();
+    expect(e.hasher.verificar).not.toHaveBeenCalled();
+    await svc.login({ correo: ` ${CORREO.toUpperCase()} `, contrasena: PWD }, "10.0.0.1");
+    expect(e.repo.loginPreparar).toHaveBeenCalledWith(CORREO, expect.any(Buffer));
+  });
+
   it("contraseña errónea: 401 con UNA verificación contra el hash real y sin sesión", async () => {
     expect(await codigo(svc.login({ correo: CORREO, contrasena: "otra-Zz-1234" }, "1.1.1.1"))).toBe(
       "credenciales_invalidas",

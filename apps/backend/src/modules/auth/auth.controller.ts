@@ -84,8 +84,8 @@ export class AuthController {
   @Post("recuperar/restablecer")
   @Publico()
   @HttpCode(204)
-  restablecer(@Body() cuerpo: unknown): Promise<void> {
-    return this.recuperacion.restablecer(cuerpo);
+  restablecer(@Body() cuerpo: unknown, @Req() req: Request): Promise<void> {
+    return this.recuperacion.restablecer(cuerpo, req.ip);
   }
 
   /**

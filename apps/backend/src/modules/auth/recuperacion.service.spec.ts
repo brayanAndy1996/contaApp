@@ -64,6 +64,14 @@ describe("solicitar", () => {
   );
 });
 
+describe("solicitar · correos solo ASCII (T16, decisión del usuario)", () => {
+  it("correo no ASCII: 400 solicitud_invalida sin consumir el límite por correo ni crear token", async () => {
+    expect(await codigo(svc.solicitar({ correo: "İlse@t004.contapp.test" }, "1.1.1.1"))).toBe("solicitud_invalida");
+    expect(e.repo.limiteConsumir).toHaveBeenCalledTimes(1); // solo el de IP
+    expect(e.repo.recuperacionCrear).not.toHaveBeenCalled();
+  });
+});
+
 describe("restablecer", () => {
   it("consume el token por su hash con la contraseña nueva y avisa al titular (P9)", async () => {
     const token = generarToken();
@@ -102,5 +110,29 @@ describe("restablecer", () => {
 
   it("cuerpo inválido: 400 solicitud_invalida", async () => {
     expect(await codigo(svc.restablecer({ token: generarToken() }))).toBe("solicitud_invalida");
+  });
+
+  // T16 (H-r1b-1): límite por IP y token comprobado antes de calcular Argon2.
+  it("consume el límite restab_ip con el sujeto de la IP y comprueba el token por su hash", async () => {
+    const token = generarToken();
+    await svc.restablecer({ token, contrasena: NUEVA }, "10.2.2.2");
+    expect(e.repo.limiteConsumir).toHaveBeenCalledWith("restab_ip", "10.2.2.2");
+    expect(e.repo.recuperacionVigente.mock.calls[0]![0].equals(hashToken(token))).toBe(true);
+  });
+
+  it("límite por IP agotado: 429 sin mirar el token ni calcular hash", async () => {
+    e.repo.limiteConsumir.mockResolvedValueOnce(false);
+    expect(await codigo(svc.restablecer({ token: generarToken(), contrasena: NUEVA }))).toBe("demasiados_intentos");
+    expect(e.repo.limiteConsumir).toHaveBeenCalledWith("restab_ip", "");
+    expect(e.repo.recuperacionVigente).not.toHaveBeenCalled();
+    expect(e.hasher.calcular).not.toHaveBeenCalled();
+  });
+
+  it("token no vigente (desconocido, usado, invalidado o vencido): token_invalido sin calcular hash ni consumir", async () => {
+    e.repo.recuperacionVigente.mockResolvedValueOnce(false);
+    expect(await codigo(svc.restablecer({ token: generarToken(), contrasena: NUEVA }, "10.2.2.3"))).toBe("token_invalido");
+    expect(e.hasher.calcular).not.toHaveBeenCalled();
+    expect(e.repo.recuperacionConsumir).not.toHaveBeenCalled();
+    expect(e.cola.encolar).not.toHaveBeenCalled();
   });
 });

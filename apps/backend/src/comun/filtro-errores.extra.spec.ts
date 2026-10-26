@@ -41,6 +41,22 @@ describe("errores del analizador de cuerpo (body-parser)", () => {
       cuerpo: { codigo: "solicitud_demasiado_grande" },
     });
   });
+
+  // T16 (H-r1b-3): charset o Content-Encoding no soportados -> 415 con código, no 500.
+  it.each([
+    ["charset.unsupported", 'unsupported charset "CANARIO"'],
+    ["encoding.unsupported", 'unsupported content encoding "CANARIO"'],
+  ])("%s (status 415) -> 415 solicitud_invalida sin eco", (type, mensaje) => {
+    const e = Object.assign(new Error(mensaje), { status: 415, type });
+    const r = ejecutar(e);
+    expect(r).toEqual({ estado: 415, cuerpo: { codigo: "solicitud_invalida" } });
+    expect(JSON.stringify(r)).not.toContain("CANARIO");
+  });
+
+  it("un error con otro status (p. ej. 500 del analizador) sigue como 500 error_interno", () => {
+    const e = Object.assign(new Error("stream error"), { status: 500, type: "stream.not.readable" });
+    expect(ejecutar(e)).toEqual({ estado: 500, cuerpo: { codigo: "error_interno" } });
+  });
 });
 
 describe("HttpException sin código conocido por estado", () => {

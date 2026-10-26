@@ -73,6 +73,14 @@ describe("Origin presente", () => {
   it.each(METODOS)("%s con Origin ajeno -> 403", (m) => {
     expectaRechazo(m, { origin: "http://evil.example" });
   });
+
+  // T16 (H2): con Origin correcto, un Sec-Fetch-Site presente también decide.
+  it.each([["cross-site"], ["same-site"], ["none"], [""]])(
+    "Origin igual con Sec-Fetch-Site %j -> 403",
+    (valor) => {
+      expectaRechazo("POST", { origin: APP, "sec-fetch-site": valor });
+    },
+  );
 });
 
 describe("sin Origin: decide Sec-Fetch-Site", () => {

@@ -1,4 +1,4 @@
-// AuthRepo: una función TS por función SQL `auth.*` (SECURITY DEFINER, migración 0007_auth).
+// AuthRepo: una función TS por función SQL `auth.*` (SECURITY DEFINER, migraciones 0007_auth y 0008_auth_ronda1).
 // SQL estático `select * from auth.<función>($1, ...)` con parámetros posicionales (nunca se interpola un
 // valor); columnas de salida = nombres OUT del plan (las escalares: columna con el nombre de la función);
 // camelCase en TS; cero filas -> null; cualquier error de `pg` -> AuthRepoError (solo SQLSTATE).
@@ -6,7 +6,7 @@ import type { Tx } from "../with-tenant";
 import { AuthRepoError } from "./errores";
 
 export type TxConsulta = Pick<Tx, "query">;
-export type TipoLimite = "login_ip" | "recup_correo" | "recup_ip";
+export type TipoLimite = "login_ip" | "recup_correo" | "recup_ip" | "restab_ip";
 
 export interface LoginPreparado {
   permitido: boolean;
@@ -49,6 +49,8 @@ export interface AuthRepo {
   sesionesCerrarTodas(tokenHash: Buffer): Promise<number>;
   ultimoEstudio(tokenHash: Buffer): Promise<string | null>;
   recuperacionCrear(correo: string, tokenHash: Buffer): Promise<boolean>;
+  /** Sin efectos: el token existe, no se usó, no se invalidó y no venció (0008, antes de Argon2). */
+  recuperacionVigente(tokenHash: Buffer): Promise<boolean>;
   recuperacionConsumir(tokenHash: Buffer, hashNuevo: string): Promise<RecuperacionConsumida | null>;
   contrasenaCambiar(tokenHash: Buffer, hashNuevo: string, tokenHashNuevo: Buffer): Promise<string | null>;
 }
@@ -64,6 +66,7 @@ const SQL = {
   sesionesCerrarTodas: "select * from auth.sesiones_cerrar_todas($1::bytea)",
   ultimoEstudio: "select * from auth.ultimo_estudio($1::bytea)",
   recuperacionCrear: "select * from auth.recuperacion_crear($1::text, $2::bytea)",
+  recuperacionVigente: "select * from auth.recuperacion_vigente($1::bytea)",
   recuperacionConsumir: "select * from auth.recuperacion_consumir($1::bytea, $2::text)",
   contrasenaCambiar: "select * from auth.contrasena_cambiar($1::bytea, $2::text, $3::bytea)",
 } as const;
@@ -127,6 +130,8 @@ export function crearAuthRepo(tx: TxConsulta): AuthRepo {
       ejecutar(SQL.ultimoEstudio, [tokenHash], (f) => (f[0]!.ultimo_estudio as string | null) ?? null),
     recuperacionCrear: (correo, tokenHash) =>
       ejecutar(SQL.recuperacionCrear, [correo, tokenHash], (f) => f[0]!.recuperacion_crear === true),
+    recuperacionVigente: (tokenHash) =>
+      ejecutar(SQL.recuperacionVigente, [tokenHash], (f) => f[0]!.recuperacion_vigente === true),
     recuperacionConsumir: (tokenHash, hashNuevo) =>
       ejecutar(SQL.recuperacionConsumir, [tokenHash, hashNuevo], (f) =>
         f.length === 0 ? null : { usuarioId: f[0]!.usuario_id as string, correo: f[0]!.correo as string },

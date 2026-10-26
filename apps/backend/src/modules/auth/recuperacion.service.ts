@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { normalizarCorreo, recuperarSchema, restablecerSchema } from "@contapp/shared";
-import { claveCorreo, parsear, type DbAuth, type Encolador } from "./auth.service.js";
+import { recuperarSchema, restablecerSchema } from "@contapp/shared";
+import { claveCorreo, correoDeEntrada, parsear, type DbAuth, type Encolador } from "./auth.service.js";
 import type { Hasher } from "./contrasena/hasher.js";
 import { validarContrasena } from "./contrasena/politica.js";
 import { AuthError, ContrasenaInvalidaError } from "./errores.js";
@@ -33,7 +33,7 @@ export class RecuperacionService {
   async solicitar(cuerpo: unknown, ip: string | undefined): Promise<{ ok: true }> {
     const porIp = await this.db.withAuth((a) => a.limiteConsumir("recup_ip", sujetoIp(ip ?? "")));
     if (!porIp) throw new AuthError("demasiados_intentos");
-    const correo = normalizarCorreo(parsear(recuperarSchema, cuerpo).correo);
+    const correo = correoDeEntrada(parsear(recuperarSchema, cuerpo).correo);
     if (!FORMA_CORREO.test(correo)) throw new AuthError("solicitud_invalida");
     const sujeto = claveCorreo(correo).toString("hex");
     const porCorreo = await this.db.withAuth((a) => a.limiteConsumir("recup_correo", sujeto));
@@ -46,17 +46,24 @@ export class RecuperacionService {
   }
 
   /**
-   * POST /auth/recuperar/restablecer: política (P5) antes de tocar el token; token mal formado ->
-   * `token_invalido` sin consultar; consumo atómico; aviso al titular (P9).
+   * POST /auth/recuperar/restablecer: límite por IP (`restab_ip`, 10 cada 15 min: 429) -> política (P5)
+   * antes de tocar el token -> token mal formado: `token_invalido` sin consultar -> token vigente
+   * (existe, sin usar, sin invalidar, sin vencer) ANTES de calcular Argon2 (H-r1b-1) -> consumo atómico
+   * -> aviso al titular (P9).
    */
-  async restablecer(cuerpo: unknown): Promise<void> {
+  async restablecer(cuerpo: unknown, ip?: string): Promise<void> {
+    const porIp = await this.db.withAuth((a) => a.limiteConsumir("restab_ip", sujetoIp(ip ?? "")));
+    if (!porIp) throw new AuthError("demasiados_intentos");
     const { token, contrasena } = parsear(restablecerSchema, cuerpo);
     const motivo = validarContrasena(contrasena, this.comunes);
     if (motivo !== null) throw new ContrasenaInvalidaError(motivo);
     if (!tokenConFormatoValido(token)) throw new AuthError("token_invalido");
+    const tokenHash = hashToken(token);
+    const vigente = await this.db.withAuth((a) => a.recuperacionVigente(tokenHash));
+    if (!vigente) throw new AuthError("token_invalido");
 
     const hash = await this.hasher.calcular(contrasena);
-    const consumido = await this.db.withAuth((a) => a.recuperacionConsumir(hashToken(token), hash));
+    const consumido = await this.db.withAuth((a) => a.recuperacionConsumir(tokenHash, hash));
     if (consumido === null) throw new AuthError("token_invalido");
     this.cola.encolar(mensajeContrasenaCambiada(consumido.correo));
   }

@@ -21,6 +21,7 @@ export const FUNCIONES_AUTH = [
   "login_preparar",
   "recuperacion_consumir",
   "recuperacion_crear",
+  "recuperacion_vigente", // 0008 (T16): consulta sin efectos antes de Argon2 en restablecer
   "sesion_revocar",
   "sesion_rotar",
   "sesion_validar",
