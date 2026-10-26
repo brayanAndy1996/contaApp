@@ -14,7 +14,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → pruebas (rojo) → implementación
 | T7 | Pruebas de integración HTTP del backend (rojo) | tester | sonnet | T3 ∥ T6 | ✓ | — | [x] |
 | T8 | Pruebas del frontend (rojo) | tester | sonnet | T2 ∥ T7 | ✓ | — | [x] |
 | T9 | Migración `0007_auth`, `AuthRepo`, `withAuth` y seed | backend | opus | T5 | ✓ | — | [ ] |
-| T10 | `shared/auth`, entorno, puerto `Correo`, `Hasher` y política | backend | sonnet | T6 ∥ T9 | ✓ | — | [ ] |
+| T10 | `shared/auth`, entorno, puerto `Correo`, `Hasher` y política | backend | sonnet | T6 ∥ T9 | ✓ | — | [x] |
 | T11 | Núcleo de sesión: `AuthService`, recuperación, tokens, CSRF y guards | backend | opus | T7, T9, T10 | ✓ | — | [ ] |
 | T12 | Controladores, módulo, filtro de errores y `crearApp` | backend | sonnet | T11 | ✓ | — | [ ] |
 | T13 | Pantallas: login, recuperación, selector y menú de estudio | frontend | sonnet | T8 ∥ T9–T12 | ✓ | — | [x] |
@@ -95,6 +95,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/004-auth/plan.md` (Contratos: Backend; Decisiones: Argon2, Política, Correo, Sin fugas, Entorno), `packages/shared/src/auth/*.spec.ts`, los `*.spec.ts` de `apps/backend/src/{config,infra,modules/auth/contrasena}/`, `packages/shared/src/index.ts`, `packages/crypto/src/comun/config.ts` (`esProduccion`, patrón).
 - **Hacer**: `packages/shared/src/auth/**` y exportar; `apps/backend/src/config/entorno.ts`; `infra/correo/**`; `modules/auth/contrasena/{hasher,politica}.ts` (incluida `fijarContrasena` para 005). Sin tocar `packages/db` (T9) ni guards/servicios (T11).
 - **Hecho cuando**: las pruebas de esos archivos en verde (`shared` y backend unitarias); build, typecheck y lint OK; esos archivos ≥ 90 % por archivo. Commit `feat(004): esquemas de auth, entorno, correo, Argon2id y política de contraseña`.
+- **Resultado**: shared 58 pruebas y backend 165 (11 archivos de T6 más 5 `*.extra.spec.ts`/`fabrica.smtp.spec.ts` nuevos para ramas que T6 no cubría) en verde; cobertura de mis archivos 100 % en las 4 métricas; `nest-cli.json` copia `comunes.txt` al build. Pendiente fuera de T10: `politica.spec.ts:83` (`_p` sin usar) falla `no-unused-vars`; arreglo sin tocar la prueba: `argsIgnorePattern: "^_"` en `eslint.config.mjs`, o en la prueba `async () => "..."` sin `_p`.
 
 ## T11 · Núcleo de sesión (backend · opus)
 - **Contexto (leer solo esto)**: `docs/specs/004-auth/plan.md` (todo), `docs/specs/004-auth/spec.md` (CA-1 a CA-11), `apps/backend/src/modules/auth/**/*.spec.ts` e `*.int.spec.ts`, `packages/db/src/auth/repositorio.ts`, `apps/backend/src/modules/auth/contrasena/{hasher,politica}.ts`, `apps/backend/src/infra/correo/{correo,cola}.ts`.
