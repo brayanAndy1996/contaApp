@@ -19,7 +19,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → cobertura y CI desde el diseño �
 | T11a | Ronda 1a: lista mínima de la spec (caja negra) | adversario | opus | T10 | — | ✓ | [x] |
 | T11b | Ronda 1b: escenarios nuevos (caja blanca) | adversario | opus | T10 ∥ T11a | — | ✓ | [x] |
 | T12 | Corregir hallazgos de la ronda 1 | backend | opus | T11a, T11b | — | — | [x] |
-| T13a | Ronda 2a: regresión de correcciones | adversario | opus | T12 | — | ✓ | [ ] |
+| T13a | Ronda 2a: regresión de correcciones | adversario | opus | T12 | — | ✓ | [x] |
 | T13b | Ronda 2b: escenarios nuevos contra las correcciones | adversario | opus | T12 ∥ T13a | — | ✓ | [ ] |
 | T14 | Corregir hallazgos de la ronda 2 | backend | opus | T13a, T13b | — | — | [ ] |
 | T15 | Verificar CA-1 a CA-13 y cobertura con evidencia | tester | sonnet | T14 | — | — | [ ] |
@@ -123,6 +123,10 @@ Reglas comunes:
 - **Hacer**: hasta **5** pruebas en `packages/domain/src/ronda2a.adv.spec.ts`: reintentar cada hallazgo corregido por otra vía y reconvertir las pruebas de hallazgos aceptados por el usuario para que fijen el comportamiento aceptado (con comentario que cite la decisión).
 - **Defensas**: igual que T11a; no reabrir hallazgos descartados sin una vía nueva.
 - **Hecho cuando**: igual que T11a. Commit `test(010): ronda adversarial 2a`.
+- **Resultado** (adversario · opus; fast-check semilla 20261026): 6 pruebas (R2a-1…R2a-5 en `packages/domain/src/ronda2a.adv.spec.ts`; R2a-6 de lint en `tests/limites/dominio-r2a.adv.spec.ts`); **pasan 3**: R2a-1 (R1b-2: 1500 cadenas aleatorias por/TC/entre en ambos signos contra oráculo racional bigint + 10 empates construidos ×2 signos), R2a-2 (cadena de 600 operaciones con factores de 16 dígitos exacta y < 3 s; fracciones equivalentes muestran y redondean igual), R2a-3 (R1b-3: `Symbol.for`/mismo description/well-known, `new.target` ajeno y subclases lanzan en las 6 clases; sin Symbol expuesto; falsos `Object.create`/`setPrototypeOf`/`structuredClone`/`JSON.parse __proto__`/Proxy/congelados rechazados por todas las APIs). Hallazgos abiertos:
+  - R2a-4 · **baja** · `comprobante/montos-comprobante.ts:108-110` (`copiarColumnas`: `instanceof` + `m.obtener` público) y `comprobante/convertir.ts:22-24` (sin comprobación de tipo): la corrección de R1b-6 no es un brand check. Un falso con `MontosComprobante.prototype` y `obtener` propio (también congelado) o un Proxy de uno real con métodos ligados pasa `moverMonto`/`cambiarDestino` y sale un `MontosComprobante` real PEN con la columna `isc` en USD (`toJSON` la muestra como `"1000.00"` PEN); `convertirAPen` acepta además duck typing puro y su cuadre (opción A) se salta: `componentes()`/`total` cuadran pero `obtener()` da otra fila, que se convierte sin verificar.
+  - R2a-5 · **baja** · `comprobante/convertir.ts:24` → `dinero/cuadre.ts:23` (`Money.suma`): una fila USD cuya Σ de componentes desborda (p. ej. 999 999 999 999.99 + 0.01 con total 999 999 999 999.99, o NC simétrica) nunca cuadra, pero `convertirAPen` lanza `MontoFueraDeRangoError` en vez de `ComprobanteDescuadradoError` (opción A: el error de cuadre va "antes que cualquier error de rango"). El resto (±0.01 en el borde y en NC, filas que cuadran con parciales fuera de rango) pasa.
+  - R2a-6 · **media** (decimal.js) / **baja** (number) · `eslint.config.mjs:470-501` y `:427-455`: el lint no detecta reconfigurar `D` por `(new D(0).constructor as typeof D).set(…)`, `Reflect.get(D, "set")` ni `import("decimal.js")` dinámico (sí detecta ``D[`set`]``); tampoco `global.parseFloat`, `self.Number`, `window.Math`, `(0).constructor(s)`, `new Function("…parseFloat…")`, `Function("return this")()` ni los tipos `string["length"]` / `ReturnType<String["indexOf"]>` (alias de `number`). El grep de CA-1 solo atrapa `global.parseFloat`, `self.Number(` y el string de `new Function`.
 
 ## T13b · Ronda 2b: escenarios nuevos (adversario · opus) ∥ T13a
 - **Contexto (leer solo esto)**: igual que T13a.
