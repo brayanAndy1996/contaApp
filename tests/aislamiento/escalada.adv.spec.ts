@@ -16,6 +16,7 @@ import {
   type Tx,
 } from "./soporte";
 import type { Pool } from "pg";
+import { FUNCIONES_AUTH } from "./auth-soporte";
 import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -275,7 +276,8 @@ describe("ADV escalada desde DATABASE_URL", () => {
       `select p.prosecdef, pg_get_userbyid(p.proowner) as dueno from pg_proc p
          join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'uuid_v7'`,
     );
-    expect(defs).toEqual([]);
+    // Spec 004 (D10): las unicas SECURITY DEFINER admitidas son las 11 funciones del esquema `auth`.
+    expect(defs.map((d) => d.f).sort()).toEqual(FUNCIONES_AUTH.map((n) => `auth.${n}`).sort());
     expect(vistas).toEqual([]);
     expect(uuid).toEqual([{ prosecdef: false, dueno: "contapp_migrator" }]);
   });

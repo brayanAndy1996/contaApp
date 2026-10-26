@@ -366,10 +366,10 @@ describe("ADV2 reparar-rol (H7, D10) e idempotencia de migrar", () => {
     expect(pw.length > 0 && salida.includes(pw)).toBe(false);
     expect(/postgres(ql)?:\/\//i.test(salida)).toBe(false);
 
-    // Las politicas de 0003 siguen en su sitio tras reparar y volver a migrar.
+    // Las politicas de 0003 siguen en su sitio tras reparar y volver a migrar (spec 004 agrega auth_definer, que no cuenta).
     const pol = (
       await pool.query(
-        `select c.relname, c.relrowsecurity and c.relforcerowsecurity as rls, count(p.polname)::int as n
+        `select c.relname, c.relrowsecurity and c.relforcerowsecurity as rls, count(p.polname) filter (where p.polname <> 'auth_definer')::int as n
            from pg_class c left join pg_policy p on p.polrelid = c.oid
           where c.relnamespace = 'public'::regnamespace and c.relname in ('tenant','usuario')
           group by 1, 2 order by 1`,

@@ -4,7 +4,8 @@ import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { abrirPool, TABLAS_NEGOCIO } from "./soporte";
 
-const POLITICAS_PERMITIDAS = ["tenant_isolation", "membresia_por_usuario"];
+// auth_definer (spec 004, CA-11) solo se admite como la define el plan: ver la prueba dedicada abajo.
+const POLITICAS_PERMITIDAS = ["tenant_isolation", "membresia_por_usuario", "auth_definer"];
 
 let pool: Pool;
 beforeAll(() => {
@@ -30,13 +31,14 @@ async function tablasConTenantId() {
 
 async function politicas() {
   const r = await pool.query(
-    `select tablename, policyname, cmd, qual, with_check
+    `select tablename, policyname, cmd, roles::text[] as roles, qual, with_check
        from pg_policies where schemaname = 'public' order by tablename, policyname`,
   );
   return r.rows as {
     tablename: string;
     policyname: string;
     cmd: string;
+    roles: string[];
     qual: string | null;
     with_check: string | null;
   }[];
@@ -79,6 +81,16 @@ describe("CA-3 catalogo de RLS", () => {
       expect(p.cmd).toBe("SELECT");
     }
     expect(pols.some((p) => p.tablename === "membresia" && p.policyname === "membresia_por_usuario")).toBe(true);
+  });
+
+  it("auth_definer (spec 004) existe solo en usuario y membresia, es SELECT, solo para contapp_auth y USING (true)", async () => {
+    const pols = (await politicas()).filter((p) => p.policyname === "auth_definer");
+    expect(pols.map((p) => p.tablename).sort()).toEqual(["membresia", "usuario"]);
+    for (const p of pols) {
+      expect(p.cmd).toBe("SELECT");
+      expect(p.roles).toEqual(["contapp_auth"]);
+      expect(p.qual).toBe("true");
+    }
   });
 
   it("tenant_id es uuid NOT NULL en toda tabla de negocio", async () => {
