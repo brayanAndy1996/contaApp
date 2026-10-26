@@ -136,16 +136,15 @@ describe("T17b · ronda adversarial 2b", () => {
     const srv = app.getHttpServer();
     try {
       const cookieFalsa = `${COOKIE}=${generarToken()}`;
-      const { resultado, logs } = await capturarLogs(async () => [
-        await request(srv).post("/auth/login").set("Origin", ORIGEN).send({ correo: "x@t004.contapp.test", contrasena: canario }),
-        await request(srv).get("/auth/sesion").set("Cookie", cookieFalsa),
-        await request(srv).get("/auth/estudios").set("Cookie", cookieFalsa),
-        await request(srv).post("/auth/estudio").set("Origin", ORIGEN).set("Cookie", cookieFalsa).send({ tenantId: S.tenantA }),
-        await request(srv).post("/auth/recuperar").set("Origin", ORIGEN).send({ correo: "x@t004.contapp.test" }),
-        await request(srv).post("/auth/recuperar/restablecer").set("Origin", ORIGEN).send({ token: generarToken(), contrasena: NUEVA }),
+      const { resultado, logs } = await capturarLogs(async (): Promise<[string, request.Response][]> => [
+        ["POST /auth/login", await request(srv).post("/auth/login").set("Origin", ORIGEN).send({ correo: "x@t004.contapp.test", contrasena: canario })],
+        ["GET /auth/sesion", await request(srv).get("/auth/sesion").set("Cookie", cookieFalsa)],
+        ["GET /auth/estudios", await request(srv).get("/auth/estudios").set("Cookie", cookieFalsa)],
+        ["POST /auth/estudio", await request(srv).post("/auth/estudio").set("Origin", ORIGEN).set("Cookie", cookieFalsa).send({ tenantId: S.tenantA })],
+        ["POST /auth/recuperar", await request(srv).post("/auth/recuperar").set("Origin", ORIGEN).send({ correo: "x@t004.contapp.test" })],
+        ["POST /auth/recuperar/restablecer", await request(srv).post("/auth/recuperar/restablecer").set("Origin", ORIGEN).send({ token: generarToken(), contrasena: NUEVA })],
       ]);
-      for (const r of resultado) {
-        const ruta = `${r.req.method} ${r.req.path}`;
+      for (const [ruta, r] of resultado) {
         expect.soft(r.status >= 500 || r.status === 401 || r.status === 403, `${ruta} no falla cerrado (${r.status})`).toBe(true);
         expect.soft(r.status < 200 || r.status >= 300, `${ruta} responde 2xx con la BD caída`).toBe(true);
         expect.soft(r.headers["set-cookie"] ?? [], `${ruta} emite cookie`).toEqual([]);
