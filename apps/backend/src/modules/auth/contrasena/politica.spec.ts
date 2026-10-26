@@ -80,7 +80,7 @@ describe("validarContrasena", () => {
 
 describe("fijarContrasena (función de dominio para 005)", () => {
   const fabricaHasher = () => ({
-    calcular: vi.fn(async (_p: string) => "$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA"),
+    calcular: vi.fn(async () => "$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA"),
     verificar: vi.fn(async () => true),
     necesitaRehash: vi.fn(() => false),
     hashFicticio: "$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$ZmljdGljaW8",
