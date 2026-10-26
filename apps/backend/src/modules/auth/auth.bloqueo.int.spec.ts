@@ -1,4 +1,5 @@
 // T7 (004) · CA-3 (bloqueo RF-015, límite por IP, aviso P3/P13). Rojo: `crearApp` aun no existe (T12).
+import { randomBytes } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   abrirHarness,
@@ -114,7 +115,10 @@ describe("CA-3 · límite por IP (D7)", () => {
   });
 
   it("IPv6 se agrupa por prefijo /64 y una IPv4 mapeada cuenta como la IPv4", async () => {
-    const base = "2001:db8:abcd:12";
+    // Prefijo /64 aleatorio por ejecución dentro de 2001:db8::/32 (documentación): auth.limite_tasa
+    // conserva el contador 10 min y un prefijo fijo daría 429 en una segunda ejecución.
+    const hex = randomBytes(4).toString("hex");
+    const base = `2001:db8:${hex.slice(0, 4)}:${hex.slice(4, 8)}`;
     for (let i = 0; i < 20; i++) {
       const r = await h.login(h.correoInexistente(), "Contrasena-cualquiera-1", { ip: `${base}::${i + 1}` });
       expect(r.status).toBe(401);

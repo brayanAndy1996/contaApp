@@ -67,9 +67,11 @@ export const esHashDe = (fila: Buffer, valorCookie: string): boolean =>
 
 let contadorIp = 0;
 export function ipUnica(): string {
+  // Aleatoria en todos los octetos: auth.limite_tasa persiste 10 min entre ejecuciones y el contador
+  // por archivo reiniciaría la secuencia; el azar evita chocar con filas de ejecuciones previas.
   contadorIp += 1;
-  const r = randomBytes(2);
-  return `10.${(contadorIp >> 8) & 255}.${r[0] ?? 1}.${(r[1] ?? 1) % 250 + 1}`;
+  const r = randomBytes(3);
+  return `10.${((r[0] ?? 0) + contadorIp) & 255}.${r[1] ?? 1}.${(r[2] ?? 1) % 250 + 1}`;
 }
 export const pausa = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 export const mediana = (xs: number[]): number => {
