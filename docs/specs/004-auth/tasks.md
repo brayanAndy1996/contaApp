@@ -6,7 +6,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → pruebas (rojo) → implementación
 | # | Tarea | Rol | Modelo | Depende de | TDD | ADV | Estado |
 |---|---|---|---|---|---|---|---|
 | T1 | Rama `spec/004-auth` desde 010 cerrada y commit de los docs | devops | haiku | 010 `hecha` | — | — | [x] |
-| T2 | Andamiaje: deps, vitest en backend/shared/frontend, prueba humo de Nest | devops | haiku | T1 | — | — | [ ] |
+| T2 | Andamiaje: deps, vitest en backend/shared/frontend, prueba humo de Nest | devops | haiku | T1 | — | — | [x] |
 | T3 | `cobertura:auth` (90 % por archivo), `ci:db` y CI | devops | sonnet | T2 | — | — | [ ] |
 | T4 | `.env.example`, `.env` local y `comunes.txt` | devops | haiku | T2 ∥ T3 | — | — | [ ] |
 | T5 | Pruebas de BD del esquema `auth` y de `withAuth` (rojo) | tester | sonnet | T3 | ✓ | — | [ ] |
@@ -29,7 +29,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → pruebas (rojo) → implementación
 | T20 | Revisión final contra la spec | arquitecto | opus | T19 | — | — | [ ] |
 | T21 | Cierre: ESTADO, tasks y commit | devops | haiku | T20 | — | — | [ ] |
 
-Escalamientos: (ninguno aún)
+Escalamientos: T2 haiku→sonnet (haiku se detuvo antes de cerrar la tarea; sonnet revisó, corrigió el lint de `humo.spec.ts`, subió `testTimeout` y fijó versiones con 14 días de publicadas).
 
 Reglas comunes:
 - Un commit por tarea (Conventional Commits `feat(004): …`, `test(004): …`) con el trailer `Co-Authored-By` del modelo que la ejecutó. Las tareas ∥ hacen commit una tras otra. Sin remoto.
@@ -50,6 +50,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/004-auth/plan.md` (Archivos; Decisiones: Argon2, Correo, Nest y pruebas, Frontend), `apps/backend/package.json`, `apps/backend/tsconfig.json`, `apps/worker/vitest.config.mts` (patrón), `apps/worker/package.json`, `packages/shared/package.json`, `apps/frontend/package.json`.
 - **Hacer**: (1) `apps/backend`: deps `@contapp/db` `workspace:*`, `@node-rs/argon2` 2.0.2 y `nodemailer` (exactas, `-E`); dev `vitest` y `@vitest/coverage-v8` 5.0.5, `supertest`, `@types/supertest`, `@types/nodemailer` (exactas). `vitest.config.mts` como el del worker (unitarias / `--mode int`); scripts `test`, `test:int`. Prueba humo `src/humo.spec.ts`: un módulo Nest con un proveedor inyectado con `@Inject(TOKEN)` resuelve bajo vitest y `require('@node-rs/argon2').hash` corre en este Windows. Si la inyección falla, configurar `unplugin-swc` y anotarlo. (2) `packages/shared`: dev `vitest` 5.0.5, script `test`. (3) `apps/frontend`: dev `vitest` 5.0.5, `@testing-library/react`, `@testing-library/user-event`, `jsdom`, `@vitejs/plugin-react` (exactas); `vitest.config.mts` con `environment: 'jsdom'`; script `test`.
 - **Hecho cuando**: `pnpm install`, `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm test` sin errores; la prueba humo pasa; `pnpm ls -r @node-rs/argon2` muestra 2.0.2 solo en `@contapp/backend`. Commit `chore(004): andamiaje de pruebas y dependencias de autenticación`.
+- **Resultado**: pnpm install --frozen-lockfile, build, typecheck, lint, `pnpm test` y la humo del backend en verde (2 pruebas: `@Inject(TOKEN)` resuelve bajo vitest sin `unplugin-swc`; `@node-rs/argon2` carga y produce argon2id en este Windows). `pnpm ls -r @node-rs/argon2`: 2.0.2 solo en `@contapp/backend`. `humo.spec.ts` importa `@node-rs/argon2` de forma estática (la regla `limites/imports-relativos` de 003 se mantiene estricta). `testTimeout` 30 s en `tests/limites/vitest.config.mts` (nuevo) y `packages/domain/vitest.config.mts`: las pruebas de lint y una de `ronda1a.adv.spec.ts` superaban los 5 s solo bajo la carga paralela de `turbo run test` (pasan solas en ~2 s, sin aserción fallida). Versiones exactas (`-E`) y fecha de publicación (≥ 14 días antes del 2026-10-26): nodemailer 10.1.0 (2026-10-10; la 10.2.1 era de hace 4 días), @types/nodemailer 8.0.2 (2026-09-15), supertest 7.3.1 (2026-10-02), @types/supertest 7.2.1 (2026-07-14), @testing-library/react 16.3.3 (2026-08-27), @testing-library/user-event 14.6.7 (2026-09-02; la 14.6.8 era de hace 13 días), jsdom 30.1.2 (2026-10-04; la 30.1.3 era de hace 11 días), @vitejs/plugin-react 6.1.2 (2026-10-05), @node-rs/argon2 2.0.2 (2024-12-05). Excepción: vitest y @vitest/coverage-v8 5.0.5 (2026-10-15, 11 días) son la versión que fija la tarea y la que ya usa el resto del monorepo.
 
 ## T3 · Cobertura y CI (devops · sonnet)
 - **Contexto (leer solo esto)**: `docs/specs/004-auth/plan.md` (Decisiones: Cobertura), `docs/specs/004-auth/spec.md` ("Cobertura"), `packages/crypto/vitest.cobertura.config.mts` (patrón), `package.json`, `.github/workflows/ci.yml` (job `aislamiento`).
