@@ -461,15 +461,31 @@ const GLOBALES_IO_DOMINIO = [
   "require",
   "XMLHttpRequest",
   "WebSocket",
+  "global",
+  "self",
+  "window",
 ].map((name) => ({
   name,
   message: `packages/domain no hace IO: '${name}' prohibido (spec 010, CA-12).`,
 }));
 // Cualquier referencia (alias, desestructurado, tipo, `globalThis.x`) a estos globales; solo se
 // exime la propiedad `x` de `obj.x` (p. ej. `Money.Math`), no el objeto ni los alias.
-const GLOBALES_NUMBER_DOMINIO = "Number|parseFloat|parseInt|Math|globalThis";
+// `global`/`self`/`window` son alias de `globalThis` (Node/web) y también dan `Number`/`Math`.
+const GLOBALES_NUMBER_DOMINIO =
+  "Number|parseFloat|parseInt|Math|globalThis|global|self|window";
 const SINTAXIS_SIN_NUMBER_DOMINIO = [
   ["TSNumberKeyword", "el tipo `number` está prohibido; usa Money/decimal (dinero)"],
+  // Alias de tipo que resuelven a `number` sin escribir la palabra (R2a-6): `string["length"]`,
+  // `ReturnType<String["indexOf"]>`, `ReturnType<typeof s.indexOf>`, `T extends {length: infer N}`.
+  [
+    "TSIndexedAccessType",
+    "los tipos indexados (T[\"k\"]) están prohibidos en dinero (pueden resolver a number)",
+  ],
+  [
+    "TSTypeQuery",
+    "`typeof x` en posición de tipo está prohibido en dinero (puede resolver a number)",
+  ],
+  ["TSInferType", "`infer` está prohibido en dinero (puede resolver a number)"],
   [
     `Identifier[name=/^(${GLOBALES_NUMBER_DOMINIO})$/]:not(MemberExpression[computed=false] > Identifier.property)`,
     "Number/parseFloat/parseInt/Math/globalThis (también como alias, desestructurado o tipo) prohibidos en dinero",
@@ -498,7 +514,58 @@ const SINTAXIS_DECIMAL_DOMINIO = [
     "MemberExpression[computed=true][object.name=/^(D|Decimal)$/][property.value=/^(set|config)$/]",
     "D/Decimal.set y .config solo en dinero/decimal.ts (spec 010, CA-1)",
   ],
+  // R2a-6: D con índice de plantilla o dinámico (D[clave]), asignar a `D.x`/`D.prototype.x` y
+  // tocar `D.prototype`.
+  [
+    "MemberExpression[computed=true][object.name=/^(D|Decimal)$/][property.type!='Literal']",
+    "acceso a D/Decimal con índice no literal (D[`set`], D[clave]) prohibido (spec 010, CA-1)",
+  ],
+  [
+    "AssignmentExpression[left.object.name=/^(D|Decimal)$/], AssignmentExpression[left.object.object.name=/^(D|Decimal)$/], UpdateExpression[argument.object.name=/^(D|Decimal)$/], UnaryExpression[operator='delete'][argument.object.name=/^(D|Decimal)$/]",
+    "asignar/borrar propiedades de D/Decimal (D.precision = …) prohibido (spec 010, CA-1)",
+  ],
+  [
+    "MemberExpression[object.name=/^(D|Decimal)$/][property.name='prototype']",
+    "D/Decimal.prototype prohibido (spec 010, CA-1)",
+  ],
+  // `D` solo se usa como `new D(...)`, `D.miembro`, `x instanceof D` o al importarlo: pasarlo como
+  // argumento, alias, valor de objeto o retorno (Object.assign(D, …), `const {set} = D`,
+  // `Object.getOwnPropertyDescriptor(D, "set")`) lo deja escapar a vías no analizables.
+  [
+    "Identifier[name='D']:not(NewExpression > Identifier.callee, MemberExpression[computed=false] > Identifier.object, MemberExpression[computed=false] > Identifier.property, ImportSpecifier > Identifier, BinaryExpression[operator='instanceof'] > Identifier.right, Property[computed=false] > Identifier.key, TSTypeReference > Identifier.typeName, ExportNamedDeclaration > VariableDeclaration > VariableDeclarator > Identifier.id)",
+    "`D` solo se usa como `new D(...)`, `D.miembro` o `instanceof D`; no como argumento, alias ni valor (spec 010, CA-1)",
+  ],
 ];
+// Vías dinámicas hacia decimal.js, Number/Math/parseFloat o globalThis que una regla estática sí
+// puede cerrar (R2a-6): `.constructor` ((0).constructor, `new D(0).constructor.set`), `__proto__`,
+// getPrototypeOf/setPrototypeOf, Function/new Function/eval, Reflect.
+const SINTAXIS_DINAMICA_DOMINIO = [
+  [
+    "MemberExpression[computed=false][property.name=/^(constructor|__proto__)$/], MemberExpression[computed=true][property.value=/^(constructor|__proto__)$/], MemberExpression[computed=true][property.type='TemplateLiteral']",
+    "`.constructor`/`__proto__`/índices con plantilla prohibidos (dan Number, Function o el constructor de Decimal)",
+  ],
+  [
+    "MemberExpression[computed=false][property.name=/^(getPrototypeOf|setPrototypeOf)$/]",
+    "getPrototypeOf/setPrototypeOf prohibidos (dan el constructor de Decimal)",
+  ],
+  [
+    "Identifier[name=/^(Function|eval|Reflect)$/]:not(MemberExpression[computed=false] > Identifier.property)",
+    "Function/new Function/eval/Reflect prohibidos (ejecución o acceso dinámico a decimal.js/Number)",
+  ],
+];
+// `import()` dinámico: en todo packages/domain (R2a-6; evade la restricción de imports estáticos).
+const SINTAXIS_PAQUETE_DOMINIO = [
+  [
+    "ImportExpression",
+    "`import()` dinámico prohibido en packages/domain (evade la restricción de imports)",
+  ],
+];
+// RUTAS QUE EL LINT ESTÁTICO NO CIERRA (R2a-6; las demás de R2a-6 sí están cerradas arriba):
+//  - Un `number` por inferencia pura, sin sintaxis de tipo ni de acceso prohibida (p. ej.
+//    `const n = s.length`, o `keyof string[]` dentro de un tipo condicional sin `infer`):
+//    riesgo aceptado del plan ("valores numéricos inferidos sin anotación").
+//  - Una clase Decimal/Number obtenida sin nombrarla por un valor que la filtre (p. ej. un
+//    método de Money que devolviera su constructor): se cierra por diseño de la API, no por lint.
 
 export default tseslint.config(
   {
@@ -586,6 +653,21 @@ export default tseslint.config(
       "no-restricted-globals": ["error", ...GLOBALES_IO_DOMINIO],
     },
   },
+  // import() dinámico prohibido en todo el paquete salvo pruebas (que lo usan para recargar
+  // módulos); en src/ lo repiten los bloques siguientes porque reemplazan no-restricted-syntax.
+  {
+    files: ["packages/domain/**"],
+    ignores: ["**/*.spec.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        ...SINTAXIS_PAQUETE_DOMINIO.map(([selector, message]) => ({
+          selector,
+          message: `packages/domain: ${message} (spec 010, CA-12).`,
+        })),
+      ],
+    },
+  },
   // Dinero (spec 010, CA-1): decimal.js solo en dinero/decimal.ts (y en pruebas); tampoco se
   // reconfigura `Decimal` fuera de ese archivo.
   {
@@ -605,7 +687,11 @@ export default tseslint.config(
       ],
       "no-restricted-syntax": [
         "error",
-        ...SINTAXIS_DECIMAL_DOMINIO.map(([selector, message]) => ({
+        ...[
+          ...SINTAXIS_PAQUETE_DOMINIO,
+          ...SINTAXIS_DECIMAL_DOMINIO,
+          ...SINTAXIS_DINAMICA_DOMINIO,
+        ].map(([selector, message]) => ({
           selector,
           message: `packages/domain: ${message}`,
         })),
@@ -626,7 +712,11 @@ export default tseslint.config(
           selector,
           message: `packages/domain: ${message} (spec 010, CA-1).`,
         })),
-        ...SINTAXIS_DECIMAL_DOMINIO.map(([selector, message]) => ({
+        ...[
+          ...SINTAXIS_PAQUETE_DOMINIO,
+          ...SINTAXIS_DECIMAL_DOMINIO,
+          ...SINTAXIS_DINAMICA_DOMINIO,
+        ].map(([selector, message]) => ({
           selector,
           message: `packages/domain: ${message}`,
         })),
