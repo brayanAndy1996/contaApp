@@ -4,7 +4,7 @@ import {
   arbFila, centavosAString, COLS, NUM_RUNS, SEMILLA, valores,
 } from "../../tests/ayudas/comprobante";
 import {
-  DineroError, MontoFueraDeRangoError, TipoCambio, Tolerancia, verificarCuadre,
+  ComprobanteDescuadradoError, DineroError, MontoFueraDeRangoError, TipoCambio, Tolerancia, verificarCuadre,
 } from "../dinero/index";
 import { convertirAPen } from "./convertir";
 import { MontosComprobante } from "./montos-comprobante";
@@ -88,6 +88,25 @@ describe("convertirAPen", () => {
   it("exige un comprobante en USD: uno en PEN lanza un error de dominio", () => {
     const enPen = MontosComprobante.desde("PEN", { biDg: "1.00", total: "1.00" });
     expect(() => convertirAPen(enPen, TipoCambio.desde("3.300"))).toThrow(DineroError);
+  });
+
+  it("R1b-5 opción A: un USD que no cuadra (incluso por 0.01) lanza ComprobanteDescuadradoError sin valores", () => {
+    const usd = MontosComprobante.desde("USD", { biDg: "100.00", igvDg: "18.00", total: "118.01" });
+    let e: unknown;
+    try {
+      convertirAPen(usd, TipoCambio.desde("3.500"));
+    } catch (x) {
+      e = x;
+    }
+    expect(e).toBeInstanceOf(ComprobanteDescuadradoError);
+    expect((e as ComprobanteDescuadradoError).codigo).toBe("COMPROBANTE_DESCUADRADO");
+    expect((e as Error).message).not.toMatch(/118|100|18\.0/);
+  });
+
+  it("R1b-5 opción A: un USD que cuadra se convierte (100.00 + 18.00 = 118.00 a TC 3.500)", () => {
+    const usd = MontosComprobante.desde("USD", { biDg: "100.00", igvDg: "18.00", total: "118.00" });
+    const pen = convertirAPen(usd, TipoCambio.desde("3.500"));
+    expect([pen.obtener("biDg"), pen.obtener("igvDg"), pen.total].map(String)).toEqual(["350.00", "63.00", "413.00"]);
   });
 
   it("si la conversión excede el rango NUMERIC(14,2) lanza MontoFueraDeRangoError", () => {

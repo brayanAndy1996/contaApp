@@ -1,5 +1,12 @@
 // Conversión USD → PEN (plan 010, Decisiones: Conversión; D7).
-import { Money, MonedaDistintaError, redondearSunat } from "../dinero/index";
+import {
+  ComprobanteDescuadradoError,
+  Money,
+  MonedaDistintaError,
+  redondearSunat,
+  TOLERANCIA_CUADRE,
+  verificarCuadre,
+} from "../dinero/index";
 import type { TipoCambio } from "../dinero/index";
 import { COLUMNAS_COMPRA } from "./columnas";
 import type { ColumnaCompra } from "./columnas";
@@ -7,11 +14,14 @@ import { montosDesdeColumnas } from "./montos-comprobante";
 import type { MontosComprobante } from "./montos-comprobante";
 
 /**
+ * Exige un comprobante en USD que cuadre con TOLERANCIA_CUADRE (D2; decisión del usuario,
+ * opción A de R1b-5): si no cuadra lanza ComprobanteDescuadradoError antes de convertir.
  * Cada columna = redondearSunat(columna × tc) en PEN; total = suma de las columnas
- * convertidas (no el total USD convertido). Exige un comprobante en USD.
+ * convertidas (no el total USD convertido).
  */
 export function convertirAPen(m: MontosComprobante, tc: TipoCambio): MontosComprobante {
   if (m.moneda !== "USD") throw new MonedaDistintaError();
+  if (!verificarCuadre(m, TOLERANCIA_CUADRE).cuadra) throw new ComprobanteDescuadradoError();
   const columnas = {} as Record<ColumnaCompra, Money>;
   for (const c of COLUMNAS_COMPRA) {
     // redondearSunat conserva la moneda (USD): se reexpresa en PEN por su string canónico.

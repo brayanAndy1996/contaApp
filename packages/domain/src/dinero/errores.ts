@@ -46,6 +46,16 @@ export class FactorInvalidoError extends DineroError {
   }
 }
 
+/** El total del comprobante no coincide con la suma de sus columnas (D2). */
+export class ComprobanteDescuadradoError extends DineroError {
+  constructor() {
+    super(
+      "COMPROBANTE_DESCUADRADO",
+      "El comprobante no cuadra: el total no coincide con la suma de sus columnas.",
+    );
+  }
+}
+
 export class MovimientoInvalidoError extends DineroError {
   constructor() {
     super(

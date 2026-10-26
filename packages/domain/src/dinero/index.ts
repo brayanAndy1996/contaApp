@@ -1,6 +1,7 @@
 // API pública de dinero/ (plan 010, Contratos). Nunca exporta Decimal, D ni los
 // accesos internos (decimalDe*, *DesdeDecimal).
 export {
+  ComprobanteDescuadradoError,
   DineroError,
   FactorInvalidoError,
   MonedaDistintaError,

@@ -18,7 +18,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → cobertura y CI desde el diseño �
 | T10 | Integración: checks completos | devops | haiku | T7, T9 | — | — | [x] |
 | T11a | Ronda 1a: lista mínima de la spec (caja negra) | adversario | opus | T10 | — | ✓ | [x] |
 | T11b | Ronda 1b: escenarios nuevos (caja blanca) | adversario | opus | T10 ∥ T11a | — | ✓ | [x] |
-| T12 | Corregir hallazgos de la ronda 1 | backend | opus | T11a, T11b | — | — | [ ] |
+| T12 | Corregir hallazgos de la ronda 1 | backend | opus | T11a, T11b | — | — | [x] |
 | T13a | Ronda 2a: regresión de correcciones | adversario | opus | T12 | — | ✓ | [ ] |
 | T13b | Ronda 2b: escenarios nuevos contra las correcciones | adversario | opus | T12 ∥ T13a | — | ✓ | [ ] |
 | T14 | Corregir hallazgos de la ronda 2 | backend | opus | T13a, T13b | — | — | [ ] |
@@ -116,6 +116,7 @@ Reglas comunes:
   - R1b-3 · corregido: `Money`, `MontoExacto`, `Factor`, `TipoCambio`, `Tolerancia` y `MontosComprobante` exigen una clave `Symbol` de módulo como primer argumento del constructor; sin ella lanzan `TypeError`. API pública sin cambios.
   - R1b-6 · corregido: `copiarColumnas` (usada por `moverMonto` y `cambiarDestino`) exige `instanceof MontosComprobante` (`MontoInvalidoError`); `cambiarDestino` sin nada que consolidar devuelve una instancia nueva congelada igual en valor.
   - Pendientes: R1b-7 (lint, otro agente); R1b-5 `abierto · requiere usuario` (única prueba en rojo del paquete: 482/483 + 1 todo). Cobertura de `dinero/` y `comprobante/` 100 % en las 4 métricas (el comando sale ≠ 0 solo por R1b-5); typecheck, build, `pnpm lint`, `tests-limites` (194) OK; grep de `number` vacío.
+  - R1b-5 · opción A del usuario · **resuelto** (commit `fix(010): convertirAPen verifica el cuadre del comprobante USD`): el adversario reconvirtió la prueba a la opción A (`50f2742`); `convertirAPen` verifica `verificarCuadre(m, TOLERANCIA_CUADRE)` antes de convertir y, si no cuadra (incluso ±0.01), lanza `ComprobanteDescuadradoError` (`DineroError`, código `COMPROBANTE_DESCUADRADO`, mensaje sin valores), antes que cualquier error de rango; si cuadra convierte por componente (D7). Dominio 485/485 + 1 todo, cobertura 100 % (sale 0), typecheck, `pnpm lint` y `tests-limites` (194) OK.
 
 ## T13a · Ronda 2a: regresión (adversario · opus)
 - **Contexto (leer solo esto)**: igual que T11b + `git diff <commit de T11b>..HEAD -- packages/domain eslint.config.mjs`.
