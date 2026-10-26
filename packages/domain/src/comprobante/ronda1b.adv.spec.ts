@@ -4,10 +4,13 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import {
   COLUMNAS_COMPRA,
+  DineroError,
   Factor,
+  FactorInvalidoError,
   MonedaDistintaError,
   Money,
   MontoFueraDeRangoError,
+  MontoInvalidoError,
   MontosComprobante,
   MovimientoInvalidoError,
   TOLERANCIA_CUADRE,
@@ -147,19 +150,45 @@ describe("T11b · comprobante (ronda 1b)", () => {
     );
   });
 
-  it("R1b-5 · convertirAPen por componente frente al total: cuadra en PEN, |Δ| frente a convertir Σ ≤ 0.05, simétrico con notas de crédito y sin desborde silencioso (D7, CA-3, CA-13, D6)", () => {
+  // Decisión del usuario (2026-10-26, opción A sobre el hallazgo R1b-5): convertirAPen verifica
+  // primero que el comprobante USD cuadre con TOLERANCIA_CUADRE (D2) y, si no, lanza un error de
+  // cuadre del dominio (subclase de DineroError, mensaje sin valores) antes de cualquier conversión,
+  // aunque la fila además se saliera de rango al convertir. Si cuadra, convierte por componente (D7).
+  it("R1b-5 · convertirAPen (opción A): exige que el USD cuadre antes de convertir; si cuadra convierte por componente, cuadra en PEN, |Δ| ≤ 0.05, simétrico con notas de crédito y sin desborde silencioso (D2, D7, CA-3, CA-13, D6)", () => {
     const arbTc = fc
       .tuple(fc.integer({ min: 0, max: 9999 }), fc.integer({ min: 0, max: 3 }), fc.integer({ min: 0, max: 999 }))
       .map(([e, largo, f]) => (largo === 0 ? `${e}` : `${e}.${(f % 10 ** largo).toString().padStart(largo, "0")}`))
       .filter((s) => /[1-9]/.test(s));
-    const arbFilaUsd = fc.tuple(
-      fc.array(fc.bigInt({ min: -1000000000n, max: 1000000000n }), { minLength: 10, maxLength: 10 }),
-      fc.bigInt({ min: -1000000000n, max: 1000000000n }),
+    const arbColumnas = fc.array(fc.bigInt({ min: -1000000000n, max: 1000000000n }), { minLength: 10, maxLength: 10 });
+    const arbDescuadre = fc.oneof(
+      fc.constantFrom(1n, -1n),
+      fc.bigInt({ min: -1000000000n, max: 1000000000n }).filter((x) => x !== 0n),
     );
+    const sumaCols = (cols: bigint[]) => cols.reduce((a, b) => a + b, 0n);
+
+    /** El error de cuadre: DineroError propio (no uno de los existentes) y sin valores en el mensaje. */
+    function esperaErrorDeCuadre(f: () => unknown, valores: readonly string[]): void {
+      let e: unknown = undefined;
+      try {
+        f();
+      } catch (x) {
+        e = x;
+      }
+      expect(e, "debe lanzar el error de cuadre").toBeInstanceOf(DineroError);
+      for (const otro of [MontoFueraDeRangoError, MontoInvalidoError, MonedaDistintaError, FactorInvalidoError, MovimientoInvalidoError]) {
+        expect(e, `no debe ser ${otro.name}`).not.toBeInstanceOf(otro);
+      }
+      const err = e as DineroError;
+      expect(typeof err.codigo === "string" && err.codigo.length > 0).toBe(true);
+      for (const v of valores) expect(err.message).not.toContain(v);
+    }
+
+    // (1) Filas USD que cuadran (total = Σ columnas): convierten por componente sin error.
     fc.assert(
-      fc.property(arbFilaUsd, arbTc, (fila, tcs) => {
+      fc.property(arbColumnas, arbTc, (cols, tcs) => {
         const tc = TipoCambio.desde(tcs);
-        const usd = crear("USD", fila);
+        const usd = crear("USD", [cols, sumaCols(cols)]);
+        expect(verificarCuadre(usd, TOLERANCIA_CUADRE).cuadra).toBe(true);
         const pen = convertirAPen(usd, tc);
         expect(pen.moneda).toBe("PEN");
         for (const c of COLUMNAS_COMPRA) {
@@ -168,9 +197,9 @@ describe("T11b · comprobante (ronda 1b)", () => {
         }
         expect(pen.total.toString()).toBe(suma(pen));
         expect(verificarCuadre(pen, TOLERANCIA_CUADRE).cuadra).toBe(true);
-        const directo = Money.desde(redondearSunat(Money.suma(usd.componentes(), "USD").por(tc)).toString(), "PEN");
+        const directo = Money.desde(redondearSunat(usd.total.por(tc)).toString(), "PEN");
         expect(pen.total.restar(directo).abs().comparar(Money.desde("0.05", "PEN"))).toBeLessThanOrEqual(0);
-        const penNeg = convertirAPen(crear("USD", fila, -1n), tc);
+        const penNeg = convertirAPen(crear("USD", [cols, sumaCols(cols)], -1n), tc);
         for (const c of COLUMNAS_COMPRA) {
           expect(penNeg.obtener(c).toString()).toBe(pen.obtener(c).negar().toString());
         }
@@ -179,18 +208,57 @@ describe("T11b · comprobante (ronda 1b)", () => {
       OPCIONES,
     );
 
+    // (2) Filas USD que no cuadran (incluso por ±0.01): lanzan el error de cuadre.
+    fc.assert(
+      fc.property(arbColumnas, arbDescuadre, arbTc, (cols, delta, tcs) => {
+        const total = sumaCols(cols) + delta;
+        const usd = crear("USD", [cols, total]);
+        esperaErrorDeCuadre(() => convertirAPen(usd, TipoCambio.desde(tcs)), [aTexto(total)]);
+      }),
+      { seed: 20261025, numRuns: 300 },
+    );
+
     const tc = (s: string) => TipoCambio.desde(s);
     const usd = (v: Partial<Record<ColumnaCompra, string>> & { total: string }) => MontosComprobante.desde("USD", v);
-    // Límites de rango por columna y en el total recalculado.
+
+    // CA-13 con fila que cuadra.
+    const ca13 = convertirAPen(usd({ biDg: "0.15", igvDg: "0.03", total: "0.18" }), tc("3.300"));
+    expect([ca13.obtener("biDg"), ca13.obtener("igvDg"), ca13.total].map(String)).toEqual(["0.50", "0.10", "0.60"]);
+
+    // Descuadre del caso de R1b-5 (total 999.00 ≠ Σ 118.00).
+    esperaErrorDeCuadre(() => convertirAPen(usd({ biDg: "100.00", igvDg: "18.00", total: "999.00" }), tc("3.500")), [
+      "999",
+      "118",
+      "100.00",
+      "18.00",
+    ]);
+
+    // El error de cuadre va primero: no cuadra Y además se saldría de rango al convertir.
+    esperaErrorDeCuadre(() => convertirAPen(usd({ biDg: "999999999999.99", total: "0.00" }), tc("1.001")), [
+      "999999999999",
+    ]);
+    esperaErrorDeCuadre(() => convertirAPen(usd({ biDg: "-999999999999.99", total: "0.00" }), tc("1.001")), [
+      "999999999999",
+    ]);
+
+    // (3) Rango con filas que cuadran: por columna y en el total recalculado.
     expect(convertirAPen(usd({ biDg: "999999999999.99", total: "999999999999.99" }), tc("1")).total.toString()).toBe(
       "999999999999.99",
     );
-    expect(() => convertirAPen(usd({ biDg: "999999999999.99", total: "0.00" }), tc("1.001"))).toThrow(MontoFueraDeRangoError);
-    expect(() => convertirAPen(usd({ biDg: "-999999999999.99", total: "0.00" }), tc("1.001"))).toThrow(MontoFueraDeRangoError);
+    expect(() => convertirAPen(usd({ biDg: "999999999999.99", total: "999999999999.99" }), tc("1.001"))).toThrow(
+      MontoFueraDeRangoError,
+    );
+    expect(() => convertirAPen(usd({ biDg: "-999999999999.99", total: "-999999999999.99" }), tc("1.001"))).toThrow(
+      MontoFueraDeRangoError,
+    );
     expect(() =>
-      convertirAPen(usd({ biDg: "600000000000.00", noGravado: "600000000000.00", total: "0.00" }), tc("1")),
+      convertirAPen(
+        usd({ biDg: "600000000000.00", noGravado: "399999999999.99", total: "999999999999.99" }),
+        tc("1.001"),
+      ),
     ).toThrow(MontoFueraDeRangoError);
-    // Medio céntimo por columna con TC de 3 decimales, positivo y negativo.
+
+    // Medio céntimo por columna, positivo y negativo, con fila que cuadra (Σ 0.15).
     const chica = convertirAPen(usd({ biDg: "0.01", igvDg: "-0.01", isc: "0.15", total: "0.15" }), tc("0.5"));
     expect([chica.obtener("biDg"), chica.obtener("igvDg"), chica.obtener("isc"), chica.total].map(String)).toEqual([
       "0.01",
@@ -198,19 +266,6 @@ describe("T11b · comprobante (ronda 1b)", () => {
       "0.08",
       "0.08",
     ]);
-
-    // decide usuario: una fila USD que NO cuadra (total 999.00 ≠ Σ 118.00) sale cuadrando en PEN,
-    // porque D7 recalcula el total como Σ convertidos y descarta el total USD sin verificarlo:
-    // el descuadre de origen desaparece y la prevalidación (012) ya no puede verlo.
-    const descuadrada = usd({ biDg: "100.00", igvDg: "18.00", total: "999.00" });
-    expect(verificarCuadre(descuadrada, TOLERANCIA_CUADRE).cuadra).toBe(false);
-    let trasConvertir: boolean | "lanza";
-    try {
-      trasConvertir = verificarCuadre(convertirAPen(descuadrada, tc("3.500")), TOLERANCIA_CUADRE).cuadra;
-    } catch {
-      trasConvertir = "lanza";
-    }
-    expect.soft(trasConvertir, "decide usuario: el descuadre USD no debería desaparecer al convertir").not.toBe(true);
   });
 
   it("R1b-6 · cambiarDestino y moverMonto no lavan objetos que no son MontosComprobante (columnas que no son Money, monedas mezcladas) y el caso sin cambios devuelve una instancia nueva (CA-7, plan: Movimientos e Inmutabilidad)", () => {
