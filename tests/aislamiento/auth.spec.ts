@@ -293,12 +293,16 @@ describe("CA-6 restricciones CHECK de las tablas de auth (solo hashes de 32 B, f
   const LIMITE = `insert into auth.limite_tasa (tipo, sujeto, ventana_inicio, conteo) values ($1, 'sujeto-prueba', now(), 1)`;
   const CONTRASENA = `insert into auth.usuario_contrasena (usuario_id, hash, actualizada_en) values ($1, $2, now())`;
 
+  const CONTRASENA_USUARIO_NUEVO = `with u as (insert into usuario (email, nombre) values ('control-contrasena@auth.test', 'Control T5') returning id)
+                                   insert into auth.usuario_contrasena (usuario_id, hash, actualizada_en) select id, $1, now() from u`;
+
   const control: [string, string, () => unknown[]][] = [
     ["sesion", SESION, () => [bytes(32), uid(), null]],
     ["token_recuperacion", TOKEN, () => [bytes(32), uid()]],
     ["intento_login", INTENTO, () => [bytes(32)]],
     ["limite_tasa", LIMITE, () => ["login_ip"]],
-    ["usuario_contrasena", CONTRASENA, () => [uid(), phc]],
+    // uA ya tiene credencial en la semilla (usuario_id es PK): el control crea un usuario nuevo y se revierte.
+    ["usuario_contrasena", CONTRASENA_USUARIO_NUEVO, () => [phc]],
   ];
 
   it.each(control)("control: un INSERT valido en %s pasa (la prueba no es vacua)", async (_t, sql, valores) => {
