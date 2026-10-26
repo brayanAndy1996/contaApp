@@ -15,6 +15,12 @@ export interface OpcionesApi {
   body?: unknown;
   /** Login y recuperación: sin consultar la sesión ni añadir cabeceras de sesión. */
   sinSesion?: boolean;
+  /**
+   * Por defecto (`true`) todo 401 es sesión caducada: se vacía la sesión y se va a /login. Con
+   * `false` el 401 llega a la pantalla (p. ej. contraseña actual errónea), salvo que el cuerpo
+   * traiga `codigo: "sesion_invalida"`, que sigue siendo sesión caducada.
+   */
+  manejar401?: boolean;
 }
 
 /** Evento de `window` cuando el estudio de la pestaña quedó desfasado (409). */
@@ -63,7 +69,11 @@ async function ejecutar<T>(
   const datos = await leerCuerpo(respuesta);
 
   if (!opciones.sinSesion) {
-    if (respuesta.status === 401) {
+    if (
+      respuesta.status === 401 &&
+      (opciones.manejar401 !== false ||
+        (datos as { codigo?: string } | null)?.codigo === "sesion_invalida")
+    ) {
       reiniciarSesion();
       irALogin();
     } else if (respuesta.status === 409) {

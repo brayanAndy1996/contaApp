@@ -111,6 +111,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/004-auth/plan.md` (Contratos: HTTP; Decisiones: Frontend), `docs/specs/004-auth/spec.md` (CA-12, P3, P7), `apps/frontend/**/*.spec.tsx`, `apps/frontend/{next.config.ts,app/layout.tsx}`, `packages/shared/src/auth/esquemas.ts` (si aún no existe, usar los contratos del plan y alinear al terminar T10).
 - **Hacer**: páginas, `lib/{api,sesion}.ts` y `next.config.ts` según el plan, con el formulario de cambio de contraseña. Mensajes genéricos (P3: el de bloqueo es el de credenciales inválidas). Sin lógica de negocio ni endpoints inventados.
 - **Hecho cuando**: `pnpm --filter @contapp/frontend test` en verde; `typecheck`, `lint` y `build` OK. Commit `feat(004): pantallas de login, recuperación y selector de estudio`.
+- **Hecho (formulario P11)**: `/cuenta/contrasena` hecho (10 pruebas en verde; `api()` con opción `manejar401: false`, `sesion_invalida` sigue redirigiendo). Commit `feat(004): formulario de cambio de contraseña`.
 
 ## T14 · Integración (devops · haiku)
 - **Contexto (leer solo esto)**: `docs/specs/004-auth/plan.md` (Contratos: HTTP; Decisiones: Entorno), `package.json`.
