@@ -1,4 +1,5 @@
 // `pnpm db:seed`: seed mínimo idempotente (ON CONFLICT DO NOTHING) con MIGRATIONS_DATABASE_URL.
+import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Client } from "pg";
 import * as schema from "../schema";
@@ -20,6 +21,13 @@ export async function sembrar(client: Pick<Client, "query">): Promise<void> {
       ...SEED.clientesB.map((c) => ({ ...c, tenantId: SEED.tenantB })),
     ];
     await tx.insert(schema.cliente).values(clientes).onConflictDoNothing();
+    // Spec 004: credenciales de desarrollo (PHC precalculado; la tabla no está en el esquema de drizzle).
+    for (const c of SEED.credenciales) {
+      await tx.execute(
+        sql`insert into auth.usuario_contrasena (usuario_id, hash, actualizada_en)
+            values (${c.usuarioId}, ${c.hash}, now()) on conflict (usuario_id) do nothing`,
+      );
+    }
   });
 }
 

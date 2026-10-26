@@ -22,6 +22,17 @@ export type {
   TxConsulta,
 } from "./credenciales/repositorio";
 export { CredencialRepoError } from "./credenciales/errores";
+export { crearAuthRepo } from "./auth/repositorio";
+export type {
+  AuthRepo,
+  LoginExitoArgs,
+  LoginPreparado,
+  RecuperacionConsumida,
+  SesionEmitida,
+  SesionValida,
+  TipoLimite,
+} from "./auth/repositorio";
+export { AuthRepoError } from "./auth/errores";
 export * as schema from "./schema";
 export { auditoriaDescifrado, credencial } from "./schema/credenciales";
 export { SEED } from "./seed/datos";

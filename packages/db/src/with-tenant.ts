@@ -90,6 +90,17 @@ export function ajusteUsuario(ctx: unknown): Ajuste {
 }
 
 /**
+ * Contexto de withAuth (spec 004): app.tenant_id y app.user_id vacíos (como parámetros). Las funciones
+ * `auth.*` (SECURITY DEFINER) no dependen del contexto: el usuario sale de la sesión, nunca de un GUC.
+ */
+export function ajusteAuth(): Ajuste {
+  return {
+    sql: "SELECT set_config('app.tenant_id', $1, true), set_config('app.user_id', $2, true)",
+    valores: ["", ""],
+  };
+}
+
+/**
  * Limpia el estado de SESIÓN que `fn` pudo dejar en la conexión (set_config(..., false), SET ROLE
  * o SET de sesión, cursores WITH HOLD, LISTEN, advisory locks de sesión) para que no se herede en
  * la siguiente petición del pool (H1, H8). `RESET ALL` no incluye `role`, de ahí el `RESET ROLE`.
