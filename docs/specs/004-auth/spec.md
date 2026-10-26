@@ -56,6 +56,7 @@ Que un usuario entre con correo y contraseña, recupere su contraseña por corre
 - D10 Acceso a BD: tablas `usuario_contrasena`, `sesion`, `token_recuperacion` e `intento_login` sin `GRANT` a los roles de la app. El acceso pasa por funciones `SECURITY DEFINER` en un esquema `auth` (`search_path` fijo), con `EXECUTE` solo para `contapp_backend`, y cada función devuelve lo mínimo (el hash solo para el correo exacto pedido). Índice único sobre `lower(email)` y correo normalizado con trim, minúsculas y NFC.
 - D11 Correo: puerto `Correo` con los adaptadores `consola` (por defecto) y `smtp` (despliegue). Un `CORREO_PROVIDER` desconocido o `consola` con `NODE_ENV=production` (sin distinguir mayúsculas ni espacios) impide arrancar.
 - D12 Estudio activo: uno por sesión. El frontend envía `X-Estudio` y el backend responde 409 si no coincide, para que una pestaña vieja no escriba en el estudio equivocado. El cambio de estudio verifica la membresía con `withUsuario` antes de tocar la sesión.
+- D13 Correos solo ASCII (decisión del usuario tras la ronda adversarial 1b, hallazgo B4): los correos son solo ASCII; los dominios internacionales se escriben en forma punycode (`xn--`). La BD y `normalizarCorreo` rechazan los correos no ASCII.
 
 ## Decisiones de producto y alcance (aprobadas; antes P1–P10 y Q1–Q3)
 - P1 TOTP (RF-012): fuera de 004; va en una spec de R2.
