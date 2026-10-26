@@ -17,7 +17,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → pruebas (rojo) → implementación
 | T10 | `shared/auth`, entorno, puerto `Correo`, `Hasher` y política | backend | sonnet | T6 ∥ T9 | ✓ | — | [ ] |
 | T11 | Núcleo de sesión: `AuthService`, recuperación, tokens, CSRF y guards | backend | opus | T7, T9, T10 | ✓ | — | [ ] |
 | T12 | Controladores, módulo, filtro de errores y `crearApp` | backend | sonnet | T11 | ✓ | — | [ ] |
-| T13 | Pantallas: login, recuperación, selector y menú de estudio | frontend | sonnet | T8 ∥ T9–T12 | ✓ | — | [ ] |
+| T13 | Pantallas: login, recuperación, selector y menú de estudio | frontend | sonnet | T8 ∥ T9–T12 | ✓ | — | [x] |
 | T14 | Integración: scripts, checks completos y prueba manual de punta a punta | devops | haiku | T12, T13 | — | — | [ ] |
 | T15a | Ronda adversarial 1a: lista mínima (caja negra) | adversario | opus | T14 | — | ✓ | [ ] |
 | T15b | Ronda adversarial 1b: escenarios nuevos (caja blanca) | adversario | opus | T14 ∥ T15a | — | ✓ | [ ] |
