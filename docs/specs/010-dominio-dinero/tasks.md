@@ -24,9 +24,9 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → cobertura y CI desde el diseño �
 | T14 | Corregir hallazgos de la ronda 2 | backend | opus | T13a, T13b | — | — | [x] |
 | T15 | Verificar CA-1 a CA-13 y cobertura con evidencia | tester | sonnet | T14 | — | — | [x] |
 | T16 | Revisión final contra la spec | arquitecto | opus | T15 | — | — | [x] |
-| T17 | Cierre: ESTADO, tasks y commit | devops | haiku | T16 | — | — | [ ] |
+| T17 | Cierre: ESTADO, tasks y commit | devops | haiku | T16 | — | — | [x] |
 
-Escalamientos: T2 haiku→sonnet (haiku se detuvo por un fallo de shell: una redirección apuntó a un directorio y `pnpm install` no corrió; sonnet revisó, instaló y verificó).
+Escalamientos: T2 haiku→sonnet (haiku se detuvo por un fallo de shell: una redirección apuntó a un directorio y `pnpm install` no corrió; sonnet revisó, instaló y verificó). T9 detenida por una contradicción entre pruebas de T6: el arquitecto la resolvió en `87c98fe` (docs: precisa la semántica de `cambiarDestino`) y el tester la corrigió en `0319697`. Pruebas escritas por el implementador, aceptadas en T16 aunque la regla común dice que backend no edita pruebas: `dinero/robustez.spec.ts` (`5ffac6e`), `comprobante/robustez.spec.ts` (`98c29b4`), `dinero/marca-privada.spec.ts` (`c9cab48`) y 20 líneas de `comprobante/convertir.spec.ts` (`5cd7a03`), validadas por el tester en T15 (salvo el cambio posterior de `98c0319` en `comprobante/robustez.spec.ts`). `comprobante/convertir-propaga.spec.ts` es de `98c0319`, posterior a T15, así que T15 no la validó. R1b-5 se resolvió con la opción A del usuario: el adversario reconvirtió su prueba en `50f2742` y el fix es `5cd7a03`.
 
 Reglas comunes:
 - Un commit por tarea (Conventional Commits `feat(010): …`, `test(010): …`), con el trailer `Co-Authored-By` del modelo que la ejecutó. Las tareas ∥ hacen commit una tras otra. Sin remoto.
