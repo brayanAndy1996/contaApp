@@ -8,7 +8,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → pruebas (rojo) → implementación
 | T1 | Rama `spec/004-auth` desde 010 cerrada y commit de los docs | devops | haiku | 010 `hecha` | — | — | [x] |
 | T2 | Andamiaje: deps, vitest en backend/shared/frontend, prueba humo de Nest | devops | haiku | T1 | — | — | [x] |
 | T3 | `cobertura:auth` (90 % por archivo), `ci:db` y CI | devops | sonnet | T2 | — | — | [x] |
-| T4 | `.env.example`, `.env` local y `comunes.txt` | devops | haiku | T2 ∥ T3 | — | — | [ ] |
+| T4 | `.env.example`, `.env` local y `comunes.txt` | devops | haiku | T2 ∥ T3 | — | — | [x] |
 | T5 | Pruebas de BD del esquema `auth` y de `withAuth` (rojo) | tester | sonnet | T3 | ✓ | — | [ ] |
 | T6 | Pruebas unitarias de shared y backend sin BD, y de lint (rojo) | tester | sonnet | T3, T4 ∥ T5 | ✓ | — | [ ] |
 | T7 | Pruebas de integración HTTP del backend (rojo) | tester | sonnet | T3 ∥ T6 | ✓ | — | [ ] |
@@ -61,6 +61,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/004-auth/plan.md` (Decisiones: Entorno, Política), `.env.example`, `.gitignore`. No leer ni mostrar `.env`.
 - **Hacer**: (1) `.env.example`: las 10 variables del plan, sin secretos (`SMTP_URL=` vacío con comentario "solo con CORREO_PROVIDER=smtp; secreto"). (2) `.env` local: agregar las mismas con un script de Node que no imprime valores. (3) `apps/backend/src/modules/auth/contrasena/comunes.txt` armada a mano (unos cientos de entradas comunes, sin descargas; UTF-8, una por línea, minúsculas, sin duplicados, solo 12–128 puntos de código) y `LEEME.md` con origen (lista propia), fecha y criterio de filtro.
 - **Hecho cuando**: `.env.example` con 21 variables; un script imprime solo los nombres que tiene `.env`; `comunes.txt` sin líneas fuera de 12–128 ni duplicadas (script de comprobación, salida: conteo). Commit `chore(004): variables de autenticación y lista local de contraseñas comunes`.
+- **Resultado**: `.env.example` con 21 variables; `SMTP_URL=` y `CORREO_REMITENTE=` vacías (el plan no fija el remitente). `.env` local: 10 variables agregadas, ninguna existía (script sin valores). `comunes.txt`: OK 386 entradas (12–128 puntos de código, minúsculas, NFC, sin duplicados); `LEEME.md` con origen, fecha 2026-10-26 y criterio.
 
 ## T5 · Pruebas de BD, rojo (tester · sonnet)
 - **Contexto (leer solo esto)**: `docs/specs/004-auth/spec.md` (CA-3, CA-6, CA-8, CA-9, CA-11), `docs/specs/004-auth/plan.md` (Contratos: packages/db, Esquema `auth`, Funciones; Decisiones: BD, Seed), `tests/aislamiento/soporte.ts`, `tests/aislamiento/catalogo.spec.ts`, `tests/aislamiento/credencial.spec.ts` (patrón de privilegios), `packages/db/src/with-tenant.spec.ts` (patrón).
