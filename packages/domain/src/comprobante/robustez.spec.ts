@@ -28,7 +28,7 @@ describe("MontosComprobante: entradas mal formadas", () => {
   });
 
   it("desde rechaza una moneda desconocida", () => {
-    expect(() => MontosComprobante.desde("EUR" as never, { total: "1.00" })).toThrow();
+    expect(() => MontosComprobante.desde("EUR" as never, { total: "1.00" })).toThrow(MontoInvalidoError);
   });
 
   it("obtener con una columna desconocida lanza MontoInvalidoError", () => {

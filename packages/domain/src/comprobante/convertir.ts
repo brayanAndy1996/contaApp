@@ -3,6 +3,7 @@ import {
   ComprobanteDescuadradoError,
   Money,
   MonedaDistintaError,
+  MontoFueraDeRangoError,
   redondearSunat,
   TOLERANCIA_CUADRE,
   verificarCuadre,
@@ -23,8 +24,9 @@ import type { MontosComprobante } from "./montos-comprobante";
 function cuadraExacto(m: MontosComprobante): boolean {
   try {
     return verificarCuadre(m, TOLERANCIA_CUADRE).cuadra;
-  } catch {
-    return false;
+  } catch (e) {
+    if (e instanceof MontoFueraDeRangoError) return false;
+    throw e;
   }
 }
 
