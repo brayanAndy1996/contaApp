@@ -43,6 +43,14 @@ Dar a todo ContApp un único módulo de dinero exacto y probado en `packages/dom
 ## Pendientes no bloqueantes
 - Caso real de redondeo en USD: el video no da las cifras. No se inventan. Cuando el equipo las entregue, se agrega como prueba en `packages/domain/tests/casos-reales/` (tester) y, si contradice D7, se reabre D7 con el usuario. No impide cerrar la spec; CA-13 cubre la regla con valores sintéticos.
 
+## Límites conocidos (revisión final, T16)
+- Caso real USD: diferido sin cifras (arriba); D7 queda fijada solo por CA-13 sintético.
+- Ventas: fuera de 010; 013 reutiliza `Money` y `verificarCuadre` sobre su propia lista de componentes (D4).
+- Tolerancias (D2): `TOLERANCIA_CUADRE` 0.00 para total = Σ componentes; `TOLERANCIA_IGV` ±0.01 solo para IGV contra base × tasa. Ningún otro cuadre usa ±0.01.
+- Fuera de rango: `verificarCuadre` lanza `MontoFueraDeRangoError` si Σ o la diferencia exceden NUMERIC(14,2) (CA-3); `igvCuadra` devuelve `false` y `convertirAPen` lanza `ComprobanteDescuadradoError`.
+- Cadenas largas: `MontoExacto` es una fracción exacta sin reducir; cada `por`/`entre` suma hasta 16 dígitos. Probado exacto hasta 600 pasos; quien encadene operaciones en bucle debe redondear con `redondearSunat` en cada paso que la regla de negocio defina, no acumular sin límite.
+- Lint contra `number`: heurístico (plan, Riesgos); tres límites abiertos sujetos a aceptación del usuario.
+
 ## Ataques obligatorios del adversario
 Desborde en el límite de NUMERIC(14,2) y en sumas largas; precisión con divisiones (`igv / 0.18`) y TC de 3+ decimales; medio centavo exacto (0.005, 0.015, 0.025, …, −0.005) y valores a 1 ulp del límite; signos y notas de crédito; cero negativo; NaN, ±Infinity, `number` disfrazado (`as any`, objeto con `toString`); notación científica (`1e2`, `1E-2`); strings con coma, espacios, `+`, ceros a la izquierda, Unicode (dígitos árabes, NBSP); conmutatividad y asociatividad al sumar en distinto orden; cuadre con ±0.01; conservación del total en `cambiarDestino` y `moverMonto` encadenados; mutación del original o de internos (`Object.freeze`, `Decimal` expuesto); `Decimal.set` global alterado por otro módulo; ida y vuelta NUMERIC(14,2) y JSON (`JSON.stringify` no debe producir `number`).
 
