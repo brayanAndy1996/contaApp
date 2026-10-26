@@ -14,6 +14,17 @@ export type ColumnasMoney = Readonly<Record<ColumnaCompra, Money>>;
 const CLAVE = Symbol("MontosComprobante");
 
 let crearMontos: (moneda: Moneda, columnas: ColumnasMoney, total: Money) => MontosComprobante;
+let leerColumnas: (m: MontosComprobante) => ColumnasMoney;
+let tieneEstadoMontos: (o: object) => boolean;
+
+/**
+ * Marca privada (R2a-4/R2b-2 de la ronda 2): solo un MontosComprobante creado por su
+ * constructor sellado tiene `#columnas`. A diferencia de `instanceof`, no la pasan objetos
+ * con el prototipo correcto, Proxy de uno real ni un Symbol.hasInstance parcheado.
+ */
+function esMontosComprobante(o: unknown): o is MontosComprobante {
+  return typeof o === "object" && o !== null && tieneEstadoMontos(o);
+}
 
 export class MontosComprobante implements Cuadrable {
   readonly #columnas: ColumnasMoney;
@@ -70,7 +81,7 @@ export class MontosComprobante implements Cuadrable {
 
   /** Suma por columna y total; exige la misma moneda. */
   sumar(o: MontosComprobante): MontosComprobante {
-    if (!(o instanceof MontosComprobante) || o.moneda !== this.moneda) {
+    if (!esMontosComprobante(o) || o.moneda !== this.moneda) {
       throw new MonedaDistintaError();
     }
     const columnas = {} as Record<ColumnaCompra, Money>;
@@ -88,8 +99,13 @@ export class MontosComprobante implements Cuadrable {
 
   static {
     crearMontos = (moneda, columnas, total) => new MontosComprobante(CLAVE, moneda, columnas, total);
+    leerColumnas = (m) => m.#columnas;
+    tieneEstadoMontos = (o) => #columnas in o;
   }
 }
+// La clase y su prototipo no se pueden parchear (R2b-2 de la ronda 2).
+Object.freeze(MontosComprobante);
+Object.freeze(MontosComprobante.prototype);
 
 /** Uso interno de comprobante/: crea un MontosComprobante desde columnas ya en Money. */
 export function montosDesdeColumnas(
@@ -101,12 +117,11 @@ export function montosDesdeColumnas(
 }
 
 /**
- * Uso interno de comprobante/: copia mutable de las columnas; lanza MontoInvalidoError
- * si `m` no es un MontosComprobante real (R1b-6 de la ronda 1b).
+ * Uso interno de comprobante/: copia mutable de las columnas, leídas del estado privado
+ * (no de `obtener`); lanza MontoInvalidoError si `m` no es un MontosComprobante real
+ * (R1b-6 de la ronda 1b; marca privada por R2a-4 de la ronda 2).
  */
 export function copiarColumnas(m: MontosComprobante): Record<ColumnaCompra, Money> {
-  if (!(m instanceof MontosComprobante)) throw new MontoInvalidoError();
-  const copia = {} as Record<ColumnaCompra, Money>;
-  for (const c of COLUMNAS_COMPRA) copia[c] = m.obtener(c);
-  return copia;
+  if (!esMontosComprobante(m)) throw new MontoInvalidoError();
+  return { ...leerColumnas(m) };
 }

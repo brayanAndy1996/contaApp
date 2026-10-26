@@ -24,6 +24,7 @@ const CLAVE = Symbol("MontoExacto");
 
 let crearExacto: (num: Dec, moneda: Moneda) => MontoExacto;
 let leerFraccion: (x: MontoExacto) => readonly [Dec, Dec];
+let tieneEstadoExacto: (o: object) => boolean;
 
 export class MontoExacto {
   readonly #num: Dec;
@@ -90,8 +91,12 @@ export class MontoExacto {
   static {
     crearExacto = (num, moneda) => new MontoExacto(CLAVE, num, UNO, moneda);
     leerFraccion = (x) => [x.#num, x.#den];
+    tieneEstadoExacto = (o) => #num in o;
   }
 }
+// La clase y su prototipo no se pueden parchear (R2b-2 de la ronda 2).
+Object.freeze(MontoExacto);
+Object.freeze(MontoExacto.prototype);
 
 /** Uso interno de dinero/: MontoExacto con el valor exacto `d` (Money ya validado). */
 export function exactoDesdeDecimal(d: Dec, moneda: Moneda): MontoExacto {
@@ -103,7 +108,10 @@ export function exactoDesdeDecimal(d: Dec, moneda: Moneda): MontoExacto {
  * MontoInvalidoError si `x` no es un MontoExacto.
  */
 export function centimosDeExacto(x: MontoExacto): Dec {
-  if (!(x instanceof MontoExacto)) throw new MontoInvalidoError();
+  // Marca privada, no `instanceof` (R2a-4/R2b-2 de la ronda 2).
+  if (typeof x !== "object" || x === null || !tieneEstadoExacto(x)) {
+    throw new MontoInvalidoError();
+  }
   const [num, den] = leerFraccion(x);
   return centimosDeCociente(num, den);
 }

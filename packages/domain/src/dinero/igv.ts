@@ -1,5 +1,7 @@
 import { Factor } from "./factor";
-import type { Money } from "./money";
+import { asegurarMismaMoneda } from "./moneda";
+import { decimalDeMoney, type Money } from "./money";
+import { centimosDeExacto } from "./monto-exacto";
 import { redondearSunat } from "./redondeo";
 import { TOLERANCIA_IGV, type Tolerancia, dentroDeTolerancia } from "./tolerancia";
 
@@ -15,12 +17,18 @@ export function igvEsperado(base: Money, tasa: TasaIgv): Money {
   return redondearSunat(base.por(tasa));
 }
 
-/** D2/D3: |igv − igvEsperado(base, tasa)| ≤ tolerancia (por defecto ±0.01). */
+/**
+ * D2/D3: |igv − igvEsperado(base, tasa)| ≤ tolerancia (por defecto ±0.01). La diferencia se
+ * calcula sin límite de rango: si sale de NUMERIC(14,2) no cuadra (false), nunca lanza
+ * MontoFueraDeRangoError (R2b-8 de la ronda 2).
+ */
 export function igvCuadra(
   base: Money,
   igv: Money,
   tasa: TasaIgv,
   tol: Tolerancia = TOLERANCIA_IGV,
 ): boolean {
-  return dentroDeTolerancia(igv.restar(igvEsperado(base, tasa)), tol);
+  const esperado = centimosDeExacto(base.por(tasa));
+  asegurarMismaMoneda(base.moneda, igv.moneda);
+  return dentroDeTolerancia(decimalDeMoney(igv).minus(esperado), tol);
 }

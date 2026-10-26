@@ -21,7 +21,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → cobertura y CI desde el diseño �
 | T12 | Corregir hallazgos de la ronda 1 | backend | opus | T11a, T11b | — | — | [x] |
 | T13a | Ronda 2a: regresión de correcciones | adversario | opus | T12 | — | ✓ | [x] |
 | T13b | Ronda 2b: escenarios nuevos contra las correcciones | adversario | opus | T12 ∥ T13a | — | ✓ | [x] |
-| T14 | Corregir hallazgos de la ronda 2 | backend | opus | T13a, T13b | — | — | [ ] |
+| T14 | Corregir hallazgos de la ronda 2 | backend | opus | T13a, T13b | — | — | [x] |
 | T15 | Verificar CA-1 a CA-13 y cobertura con evidencia | tester | sonnet | T14 | — | — | [ ] |
 | T16 | Revisión final contra la spec | arquitecto | opus | T15 | — | — | [ ] |
 | T17 | Cierre: ESTADO, tasks y commit | devops | haiku | T16 | — | — | [ ] |
@@ -140,6 +140,11 @@ Reglas comunes:
 
 ## T14 · Corregir ronda 2 (backend · opus)
 - **Contexto / Hacer / Hecho cuando**: igual que T12 con los hallazgos de T13a/T13b; omitida si no hubo. No hay ronda 3: lo que quede abierto pasa al usuario. Commit `fix(010): hallazgos de la ronda adversarial 2`.
+- **Avance** (backend · opus, commit `fix(010): hallazgos de la ronda adversarial 2`):
+  - R2a-4, R2b-2 · corregidos: ningún archivo de producción usa ya `instanceof` para validar montos. Cada clase (`Money`, `MontoExacto`, `Factor`, `TipoCambio`, `Tolerancia`, `MontosComprobante`) expone internamente una marca privada `#campo in o` (ES2022; equivale al WeakSet: solo la tienen las instancias del constructor sellado, no la pasan prototipos falsos, Proxy ni `Symbol.hasInstance`) y las 6 clases y sus prototipos quedan con `Object.freeze`. `copiarColumnas` lee el estado privado (no `obtener`); `convertirAPen` exige la marca (vía `copiarColumnas`) y verifica el cuadre sobre el comprobante real; `moverMonto` normaliza `monto` con `Money.suma([monto], m.moneda)` (marca privada + moneda → `MonedaDistintaError`).
+  - R2b-6 · corregido: `verificarCuadre` exige que `total` sea un Money real (`MontoInvalidoError`).
+  - R2a-5, R2b-8 · corregidos: `igvCuadra` calcula `igv − esperado` como decimal sin límite de rango y devuelve `false` si excede NUMERIC(14,2); `convertirAPen` trata un desborde de Σ o de `total − Σ` como "no cuadra" y lanza `ComprobanteDescuadradoError` antes que cualquier error de rango (opción A). **Para el arquitecto**: `verificarCuadre` sigue lanzando `MontoFueraDeRangoError` cuando Σ o la diferencia no caben en NUMERIC(14,2), porque su contrato (plan, Contratos) devuelve `sumaComponentes` y `diferencia` como `Money` y no hay Money que devolver; R2b-8 lo acepta (CA-3). Devolver `cuadra: false` exigiría cambiar ese contrato (p. ej. `diferencia: Money | null`): decide arquitecto/usuario.
+  - Prueba unitaria nueva `src/dinero/marca-privada.spec.ts` (igv/total falsos, clases congeladas, `igvCuadra` fuera de rango) para cubrir la rama nueva de `decimalDeMoney`. Dominio 504/504 + 1 todo; cobertura de `dinero/` y `comprobante/` 100 % en las 4 métricas (`pnpm cobertura:dominio` sale 0); typecheck, build, `pnpm lint` y `tests-limites` (222) OK; grep de `number` vacío. R2a-6 (lint) lo corrige otro agente.
 
 ## T15 · Verificación (tester · sonnet)
 - **Contexto (leer solo esto)**: `docs/specs/010-dominio-dinero/spec.md` (Criterios, Pendientes), `plan.md` (Contratos: comando), hallazgos de 010 en `docs/specs/ESTADO.md`.

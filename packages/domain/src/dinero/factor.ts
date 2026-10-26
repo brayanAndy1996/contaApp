@@ -9,6 +9,7 @@ const LARGO_MAX_FACTOR = 17;
 const CLAVE = Symbol("Factor");
 
 let leerFactor: (f: Factor) => Dec;
+let tieneEstadoFactor: (o: object) => boolean;
 
 export class Factor {
   readonly #d: Dec;
@@ -34,7 +35,16 @@ export class Factor {
 
   static {
     leerFactor = (f) => f.#d;
+    tieneEstadoFactor = (o) => #d in o;
   }
+}
+// La clase y su prototipo no se pueden parchear (R2b-2 de la ronda 2).
+Object.freeze(Factor);
+Object.freeze(Factor.prototype);
+
+/** Uso interno de dinero/: marca privada de Factor (no `instanceof`; R2a-4 de la ronda 2). */
+export function esFactor(o: unknown): o is Factor {
+  return typeof o === "object" && o !== null && tieneEstadoFactor(o);
 }
 
 /** Uso interno de dinero/: valor decimal de un Factor. */

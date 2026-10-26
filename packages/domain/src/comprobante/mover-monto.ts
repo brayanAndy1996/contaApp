@@ -1,5 +1,5 @@
 // Movimiento de un monto entre columnas (plan 010, Decisiones: Movimientos; D4, D6).
-import { MonedaDistintaError, Money, MovimientoInvalidoError } from "../dinero/index";
+import { Money, MovimientoInvalidoError } from "../dinero/index";
 import { esColumnaCompra } from "./columnas";
 import type { ColumnaCompra } from "./columnas";
 import { copiarColumnas, montosDesdeColumnas } from "./montos-comprobante";
@@ -16,21 +16,23 @@ export function moverMonto(
   destino: ColumnaCompra,
   monto: Money,
 ): MontosComprobante {
-  if (!(monto instanceof Money) || monto.moneda !== m.moneda) throw new MonedaDistintaError();
+  // Money.suma de un solo sumando valida por marca privada (no `instanceof`; R2a-4 de la
+  // ronda 2) que `monto` sea un Money real en la moneda de `m`; si no, MonedaDistintaError.
+  const real = Money.suma([monto], m.moneda);
   if (!esColumnaCompra(origen) || !esColumnaCompra(destino) || origen === destino) {
     throw new MovimientoInvalidoError();
   }
   const columnas = copiarColumnas(m);
   const saldo = columnas[origen];
   if (
-    monto.esCero() ||
+    real.esCero() ||
     saldo.esCero() ||
-    monto.esNegativo() !== saldo.esNegativo() ||
-    monto.abs().comparar(saldo.abs()) > 0
+    real.esNegativo() !== saldo.esNegativo() ||
+    real.abs().comparar(saldo.abs()) > 0
   ) {
     throw new MovimientoInvalidoError();
   }
-  columnas[origen] = saldo.restar(monto);
-  columnas[destino] = columnas[destino].sumar(monto);
+  columnas[origen] = saldo.restar(real);
+  columnas[destino] = columnas[destino].sumar(real);
   return montosDesdeColumnas(m.moneda, columnas, m.total);
 }

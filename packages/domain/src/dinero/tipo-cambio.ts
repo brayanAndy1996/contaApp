@@ -1,6 +1,6 @@
 import { D, type Dec } from "./decimal";
 import { FactorInvalidoError } from "./errores";
-import { Factor, decimalDeFactor } from "./factor";
+import { type Factor, decimalDeFactor, esFactor } from "./factor";
 
 // D7: hasta 4 enteros y 3 decimales, mayor que cero. Solo dígitos ASCII.
 const GRAMATICA_TC = /^(0|[1-9][0-9]{0,3})(\.[0-9]{1,3})?$/;
@@ -10,6 +10,7 @@ const LARGO_MAX_TC = 8;
 const CLAVE = Symbol("TipoCambio");
 
 let leerTipoCambio: (t: TipoCambio) => Dec;
+let tieneEstadoTipoCambio: (o: object) => boolean;
 
 export class TipoCambio {
   readonly #d: Dec;
@@ -37,12 +38,21 @@ export class TipoCambio {
 
   static {
     leerTipoCambio = (t) => t.#d;
+    tieneEstadoTipoCambio = (o) => #d in o;
   }
 }
+// La clase y su prototipo no se pueden parchear (R2b-2 de la ronda 2).
+Object.freeze(TipoCambio);
+Object.freeze(TipoCambio.prototype);
 
-/** Uso interno de dinero/: valor decimal de un Factor o TipoCambio. */
+/**
+ * Uso interno de dinero/: valor decimal de un Factor o TipoCambio reales (marca privada,
+ * no `instanceof`; R2a-4 de la ronda 2).
+ */
 export function decimalDeMultiplicador(f: Factor | TipoCambio): Dec {
-  if (f instanceof TipoCambio) return leerTipoCambio(f);
-  if (f instanceof Factor) return decimalDeFactor(f);
+  if (esFactor(f)) return decimalDeFactor(f);
+  if (typeof f === "object" && f !== null && tieneEstadoTipoCambio(f)) {
+    return leerTipoCambio(f);
+  }
   throw new FactorInvalidoError();
 }

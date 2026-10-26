@@ -20,6 +20,16 @@ const CLAVE = Symbol("Money");
 
 let crearMoney: (d: Dec, moneda: Moneda) => Money;
 let leerMoney: (m: Money) => Dec;
+let tieneEstadoMoney: (o: object) => boolean;
+
+/**
+ * Uso interno de dinero/: marca privada (R2a-4/R2b-2 de la ronda 2). Solo un Money creado
+ * por su constructor sellado tiene `#d`; no se engaña con prototipos, Proxy ni
+ * Symbol.hasInstance (a diferencia de `instanceof`).
+ */
+export function esMoney(o: unknown): o is Money {
+  return typeof o === "object" && o !== null && tieneEstadoMoney(o);
+}
 
 function parsear(valor: unknown): Dec {
   if (
@@ -82,7 +92,7 @@ export class Money {
     const m = asegurarMoneda(moneda);
     let acumulado = new D(0);
     for (const x of lista) {
-      if (!(x instanceof Money) || x.moneda !== m) {
+      if (!esMoney(x) || x.moneda !== m) {
         throw new MonedaDistintaError();
       }
       acumulado = acumulado.plus(x.#d);
@@ -154,15 +164,20 @@ export class Money {
   static {
     crearMoney = (d, moneda) => new Money(CLAVE, d, moneda);
     leerMoney = (m) => m.#d;
+    tieneEstadoMoney = (o) => #d in o;
   }
 }
+// La clase y su prototipo no se pueden parchear (R2b-2 de la ronda 2).
+Object.freeze(Money);
+Object.freeze(Money.prototype);
 
 /** Uso interno de dinero/: crea un Money desde un decimal ya en céntimos (valida rango). */
 export function moneyDesdeDecimal(d: Dec, moneda: Moneda): Money {
   return crearMoney(d, moneda);
 }
 
-/** Uso interno de dinero/. */
+/** Uso interno de dinero/: valor de un Money real; si no lo es lanza MontoInvalidoError. */
 export function decimalDeMoney(m: Money): Dec {
+  if (!esMoney(m)) throw new MontoInvalidoError();
   return leerMoney(m);
 }
