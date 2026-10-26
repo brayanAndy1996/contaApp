@@ -20,6 +20,8 @@ export const MENSAJES = {
   tokenInvalido: "El enlace no es válido o venció. Solicita uno nuevo.",
   contrasenaLongitud: "La contraseña debe tener entre 12 y 128 caracteres.",
   contrasenaComun: "Esa contraseña es demasiado común. Elige otra.",
+  // /cuenta/contrasena (cambio con sesión iniciada, P11): el servidor responde 401 si la actual falla.
+  actualIncorrecta: "La contraseña actual no es correcta.",
 } as const;
 
 /** Evento de `window` que `api()` emite ante 409 `estudio_desfasado` ("avisa", CA-12). */
