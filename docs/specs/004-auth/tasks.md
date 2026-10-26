@@ -15,7 +15,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → pruebas (rojo) → implementación
 | T8 | Pruebas del frontend (rojo) | tester | sonnet | T2 ∥ T7 | ✓ | — | [x] |
 | T9 | Migración `0007_auth`, `AuthRepo`, `withAuth` y seed | backend | opus | T5 | ✓ | — | [~] |
 | T10 | `shared/auth`, entorno, puerto `Correo`, `Hasher` y política | backend | sonnet | T6 ∥ T9 | ✓ | — | [x] |
-| T11 | Núcleo de sesión: `AuthService`, recuperación, tokens, CSRF y guards | backend | opus | T7, T9, T10 | ✓ | — | [ ] |
+| T11 | Núcleo de sesión: `AuthService`, recuperación, tokens, CSRF y guards | backend | opus | T7, T9, T10 | ✓ | — | [x] |
 | T12 | Controladores, módulo, filtro de errores y `crearApp` | backend | sonnet | T11 | ✓ | — | [ ] |
 | T13 | Pantallas: login, recuperación, selector y menú de estudio | frontend | sonnet | T8 ∥ T9–T12 | ✓ | — | [x] |
 | T14 | Integración: scripts, checks completos y prueba manual de punta a punta | devops | haiku | T12, T13 | — | — | [ ] |
@@ -102,6 +102,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/004-auth/plan.md` (todo), `docs/specs/004-auth/spec.md` (CA-1 a CA-11), `apps/backend/src/modules/auth/**/*.spec.ts` e `*.int.spec.ts`, `packages/db/src/auth/repositorio.ts`, `apps/backend/src/modules/auth/contrasena/{hasher,politica}.ts`, `apps/backend/src/infra/correo/{correo,cola}.ts`.
 - **Hacer**: `auth.service.ts` (login con una sola verificación, logout, cambio de estudio, cerrar todas, cambiar contraseña), `recuperacion.service.ts`, `sesion/{token,cookie,csrf}.ts`, `guards/*` y `decoradores.ts`, `limites/ip.ts`, `errores.ts`, según el plan. Sin SQL en el backend; sin `withTenant` en guards.
 - **Hecho cuando**: unitarias de esos archivos en verde; los `*.int.spec.ts` que no dependen de controladores en verde; typecheck y lint OK; esos archivos ≥ 90 % por archivo. Commit `feat(004): sesión por cookie, bloqueo, recuperación y guards`.
+- **Resultado**: backend unitarias 239 en verde (T6 de `sesion/` y `guards/` más `auth.service.spec.ts`, `recuperacion.service.spec.ts` y `guards/guards.spec.ts` nuevos, con dobles en `test/fakes-auth.ts`); cobertura de `modules/auth/**` 100 % salvo `sesion/cookie.ts` (95/91.7/100/100). Todos los `*.int.spec.ts` dependen de `crearApp` (T12). Para T12: tokens en `inyeccion.ts` (`DB`, `HASHER`, `COLA_CORREO`, `COMUNES`, `APP_ORIGIN`); decoradores `@Publico()` (login, recuperar, restablecer), `@SinEstudio()` (rutas `/auth/*` con sesión), `@SesionOpcional()` (logout) y `@Sesion()` (parámetro); los servicios reciben el cuerpo crudo (`unknown`), `req.ip` y la cabecera `Cookie`, y devuelven `{ respuesta, cookie }` o el valor de `Set-Cookie`. Cambio de contraseña: la actual se verifica con `login_preparar` (cuenta en el mismo contador de bloqueo; un éxito no lo reinicia).
 
 ## T12 · Controladores y arranque (backend · sonnet)
 - **Contexto (leer solo esto)**: `docs/specs/004-auth/plan.md` (Contratos: HTTP, Backend; Decisiones: IP, Sin fugas, Nest y pruebas), `apps/backend/src/modules/auth/*.int.spec.ts`, `apps/backend/src/modules/auth/{auth.service,recuperacion.service}.ts`, `apps/backend/src/modules/auth/guards/decoradores.ts`, `apps/backend/src/{main,app.module}.ts`.
