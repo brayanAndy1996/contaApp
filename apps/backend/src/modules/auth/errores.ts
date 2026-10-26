@@ -20,6 +20,7 @@ export class ContrasenaInvalidaError extends Error {
 /** Códigos de error del módulo `auth` (plan: Contratos HTTP). */
 export type CodigoAuth =
   | "credenciales_invalidas"
+  | "actual_incorrecta"
   | "demasiados_intentos"
   | "sesion_invalida"
   | "solicitud_invalida"
@@ -32,6 +33,7 @@ export type CodigoAuth =
 
 const ESTADO: Record<CodigoAuth, number> = {
   credenciales_invalidas: HttpStatus.UNAUTHORIZED,
+  actual_incorrecta: HttpStatus.UNAUTHORIZED,
   demasiados_intentos: HttpStatus.TOO_MANY_REQUESTS,
   sesion_invalida: HttpStatus.UNAUTHORIZED,
   solicitud_invalida: HttpStatus.BAD_REQUEST,

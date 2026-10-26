@@ -16,7 +16,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → pruebas (rojo) → implementación
 | T9 | Migración `0007_auth`, `AuthRepo`, `withAuth` y seed | backend | opus | T5 | ✓ | — | [~] |
 | T10 | `shared/auth`, entorno, puerto `Correo`, `Hasher` y política | backend | sonnet | T6 ∥ T9 | ✓ | — | [x] |
 | T11 | Núcleo de sesión: `AuthService`, recuperación, tokens, CSRF y guards | backend | opus | T7, T9, T10 | ✓ | — | [x] |
-| T12 | Controladores, módulo, filtro de errores y `crearApp` | backend | sonnet | T11 | ✓ | — | [ ] |
+| T12 | Controladores, módulo, filtro de errores y `crearApp` | backend | sonnet | T11 | ✓ | — | [x] |
 | T13 | Pantallas: login, recuperación, selector y menú de estudio | frontend | sonnet | T8 ∥ T9–T12 | ✓ | — | [x] |
 | T14 | Integración: scripts, checks completos y prueba manual de punta a punta | devops | haiku | T12, T13 | — | — | [ ] |
 | T15a | Ronda adversarial 1a: lista mínima (caja negra) | adversario | opus | T14 | — | ✓ | [ ] |
@@ -108,6 +108,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/004-auth/plan.md` (Contratos: HTTP, Backend; Decisiones: IP, Sin fugas, Nest y pruebas), `apps/backend/src/modules/auth/*.int.spec.ts`, `apps/backend/src/modules/auth/{auth.service,recuperacion.service}.ts`, `apps/backend/src/modules/auth/guards/decoradores.ts`, `apps/backend/src/{main,app.module}.ts`.
 - **Hacer**: `auth.controller.ts`, `auth.module.ts`, `modules/estudio/**`, `comun/filtro-errores.ts`, `infra/db.ts`, `app.ts` (`crearApp`: guards globales en el orden del plan, `trust proxy`, límite de body, `x-powered-by` off, `no-store`) y `main.ts` (solo `crearApp` + `listen(PORT)`).
 - **Hecho cuando**: `pnpm --filter @contapp/backend test` y `test:int` en verde (incluido `auth.tiempo.int.spec.ts`); `pnpm cobertura:auth` sale 0; build, typecheck y lint OK. Commit `feat(004): endpoints de autenticación y estudio`.
+- **Hecho**: controladores `auth` y `estudio`, `NucleoModule`, `AppModule.registrar`, `crearApp` (guards globales Origen→Sesion→Estudio→Csrf, `trust proxy`, JSON 16 kB, `x-powered-by` y `etag` off, `no-store`) y `main.ts`. `requiereEstudio` = más de un estudio (sin estudios: `false`; el frontend decide por la lista, P7). `POST /auth/contrasena` con la actual incorrecta responde 401 `actual_incorrecta` (T7 no asertó ese código; la traducción vive en el controlador). Se quitó el `GET /` de ejemplo de 001 (`AppController`/`AppService`). Pruebas nuevas: `app.spec.ts`, `infra/db.spec.ts`, `estudio.controller.spec.ts`. Nota: `auth.bloqueo.int.spec.ts` (prueba IPv6) usa un prefijo fijo; repetirla antes de 10 min sobre la misma BD da 429 (`delete from auth.limite_tasa where sujeto like '2001:db8:abcd:12%'`).
 
 ## T13 · Pantallas (frontend · sonnet) ∥ T9–T12
 - **Contexto (leer solo esto)**: `docs/specs/004-auth/plan.md` (Contratos: HTTP; Decisiones: Frontend), `docs/specs/004-auth/spec.md` (CA-12, P3, P7), `apps/frontend/**/*.spec.tsx`, `apps/frontend/{next.config.ts,app/layout.tsx}`, `packages/shared/src/auth/esquemas.ts` (si aún no existe, usar los contratos del plan y alinear al terminar T10).
