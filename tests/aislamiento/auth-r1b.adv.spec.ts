@@ -3,6 +3,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { CorreoNoAsciiError, normalizarCorreo } from "../../packages/shared/src/auth/correo";
 import { abrirAdmin, abrirApp } from "./auth-soporte";
 import { semilla } from "./soporte";
 
@@ -86,27 +87,55 @@ describe("r1b · funciones SECURITY DEFINER frente a pg_temp, search_path hostil
   });
 });
 
-describe("r1b · correos no ASCII: normalizarCorreo (JS) frente a lower() de PostgreSQL (D10, riesgo del plan)", () => {
-  // normalizarCorreo = trim -> toLowerCase -> NFC. La BD debe rechazar (CHECK) todo correo que esa función
-  // cambiaría; si no, la fila es inalcanzable por login/recuperación o dos filas colisionan en la misma clave.
+describe("r1b · correos no ASCII (D13: solo ASCII, dominios internacionales en punycode)", () => {
+  // Reconvertida en T17a (ronda 2a). La versión de la ronda 1b (hallazgo H-r1b-4 / B4) afirmaba que `ß…` se
+  // aceptaba y pedía que el CHECK rechazara solo lo que `toLowerCase()` de JS cambiaría (ẞ, İ). El usuario
+  // decidió D13 (spec.md): los correos son solo ASCII. Ahora la prueba fija ese comportamiento aceptado: el
+  // CHECK de usuario.email (0008) rechaza con 23514 todo correo no ASCII y `normalizarCorreo` lanza
+  // `CorreoNoAsciiError`; así JS y `lower()` de PG no pueden divergir ni colisionar (ß / ẞ).
   const sufijo = () => `${randomBytes(5).toString("hex")}@t004.contapp.test`;
-  const js = (c: string) => c.trim().toLowerCase().normalize("NFC");
 
-  it("rechaza correos que JS normalizaría distinto (ẞ, İ) y no admite dos filas con la misma forma normalizada", async () => {
+  it("el CHECK de usuario.email y normalizarCorreo rechazan todo correo no ASCII (ß, ẞ, İ, homoglifos); ASCII y punycode pasan", async () => {
     await enRollback(admin, null, async (c) => {
       const insertar = (email: string) => estado(c, "insert into usuario (email, nombre) values ($1, 'r1b')", [email]);
-      const control = `control-${sufijo()}`;
-      expect(await insertar(control)).toBe("ok");
+      expect(await insertar(`control-${sufijo()}`)).toBe("ok");
+      expect(await insertar(`ana-${randomBytes(4).toString("hex")}@xn--estudio-zwa.pe`)).toBe("ok");
+      expect(normalizarCorreo(`  Control-${sufijo().toUpperCase()} `)).toMatch(/^[\x20-\x7e]+$/);
 
-      for (const email of [`ẞe-${sufijo()}`, `İlse-${sufijo()}`]) {
-        expect(js(email)).not.toBe(email); // la prueba no es vacua: JS sí lo cambia
-        expect.soft(await insertar(email), `CHECK con ${JSON.stringify(email.slice(0, 6))}`).not.toBe("ok");
+      const noAscii: [string, string][] = [
+        ["ß", `ß${sufijo()}`],
+        ["ẞ", `ẞ${sufijo()}`],
+        ["İ", `İlse-${sufijo()}`],
+        ["ı sin punto", `ılse-${sufijo()}`],
+        ["а cirílica", `pаypal-${sufijo()}`],
+        ["ο griega", `gοogle-${sufijo()}`],
+        ["ａ de ancho completo", `ａna-${sufijo()}`],
+        ["ligadura ﬁ", `ﬁn-${sufijo()}`],
+        ["e + acento combinante", `josé-${sufijo()}`],
+        ["espacio de ancho cero", `ana​-${sufijo()}`],
+        ["NBSP interno", `ana b-${sufijo()}`],
+        ["dominio no ASCII", `ana-${randomBytes(4).toString("hex")}@estudiño.pe`],
+      ];
+      for (const [etq, email] of noAscii) {
+        expect.soft(await insertar(email), `CHECK · ${etq}`).toBe("23514");
+        expect.soft(() => normalizarCorreo(email), `normalizarCorreo · ${etq}`).toThrow(CorreoNoAsciiError);
       }
 
-      const s = sufijo();
-      expect(js(`ẞ${s}`)).toBe(js(`ß${s}`));
-      expect(await insertar(`ß${s}`)).toBe("ok");
-      expect.soft(await insertar(`ẞ${s}`), "duplicado por normalización (ß / ẞ)").not.toBe("ok");
+      // Invariante (no hay fila inalcanzable): lo que normalizarCorreo acepta es ASCII y la BD lo admite. Caso
+      // límite: el signo Kelvin (U+212A) y el punto y coma griego (U+037E) se pliegan a ASCII ('k', ';') con
+      // toLowerCase/NFC; caen en la misma cuenta que su forma ASCII (como las mayúsculas), no en otra.
+      for (const entrada of [`Kelvin-${sufijo()}`, `a;b-${sufijo()}`]) {
+        let salida: string | null = null;
+        try {
+          salida = normalizarCorreo(entrada);
+        } catch (e) {
+          expect(e).toBeInstanceOf(CorreoNoAsciiError);
+        }
+        if (salida !== null) {
+          expect(salida).toMatch(/^[\x00-\x7f]+$/);
+          expect(await insertar(salida)).toBe("ok");
+        }
+      }
     });
   });
 });
