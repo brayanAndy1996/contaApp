@@ -31,6 +31,8 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → pruebas (rojo) → implementación
 
 Escalamientos: T2 haiku→sonnet (haiku se detuvo antes de cerrar la tarea; sonnet revisó, corrigió el lint de `humo.spec.ts`, subió `testTimeout` y fijó versiones con 14 días de publicadas).
 
+Tarea agregada al plan (T6 dejó en rojo `tests/limites/auth.spec.ts` y el plan no asignaba las reglas): lint de SQL sobre el esquema `auth` en `apps/**` y de `@node-rs/argon2`/`@contapp/db` en `apps/frontend` (CA-11), en `eslint.config.mjs` + `tests/limites/auth-lint.spec.ts`; hecha por devops·haiku, commit `feat(004): lint de SQL auth y de dependencias del frontend`.
+
 Reglas comunes:
 - Un commit por tarea (Conventional Commits `feat(004): …`, `test(004): …`) con el trailer `Co-Authored-By` del modelo que la ejecutó. Las tareas ∥ hacen commit una tras otra. Sin remoto.
 - **Nunca** agregar al índice `docs/explorador/`, `.codex/` ni `AGENTS.md` (cambios ajenos): `git add <rutas>` explícitas, nunca `git add -A`/`.`. El árbol es compartido con 010: no tocar archivos de 010.

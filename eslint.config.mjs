@@ -83,6 +83,17 @@ const POLITICAS_SUBCARPETA = [
     mensaje:
       "apps/backend no puede importar el descifrado de @contapp/crypto (solo el worker; spec 003, CA-4b).",
   },
+  // Autenticación (spec 004, CA-11): el hash de contraseñas (`@node-rs/argon2`) y la BD
+  // (`@contapp/db`) viven en el backend; el frontend los importa por ninguna vía (estático,
+  // dinámico, require, export … from, subruta). Complementa a no-restricted-imports, que no ve
+  // `import()` ni `require()`.
+  {
+    desde: "apps/frontend/",
+    rutas: [],
+    paquetes: /^(?:@node-rs\/argon2|@contapp\/db)(?:\/.*)?$/,
+    mensaje:
+      "apps/frontend no puede importar @node-rs/argon2 (argon2) ni @contapp/db (spec 004, CA-11).",
+  },
   {
     desde: "packages/crypto/src/cifrado/",
     rutas: ["packages/crypto/src/descifrado"],
@@ -276,6 +287,10 @@ const MODULO_SQL =
   /^(?:pg|postgres|pg-[\w-]+|postgres-[\w-]+|drizzle-orm\/(?:node-postgres|postgres-js))(?:\/.*)?$/;
 const METODOS_CONCAT = new Set(["concat", "replace", "replaceAll", "join"]);
 
+// Esquema `auth` en un texto SQL (spec 004, CA-11): `auth.<x>` o `"auth"."<x>"`, sin distinguir
+// mayúsculas ni espacios alrededor del punto; no confunde `authors` ni `author.x`.
+const SQL_ESQUEMA_AUTH = /(?<![\w$])"?auth"?\s*\.\s*"?[a-z_]/i;
+
 const nombreMiembro = (callee) =>
   callee.type === "MemberExpression"
     ? callee.computed
@@ -351,6 +366,42 @@ const reglaSqlCrudo = {
       }
     };
 
+    // Texto estático (concatenado) de un argumento: literales, plantillas (sus partes fijas),
+    // `+` entre cadenas, ramas de un condicional, constantes, propiedad `text` de un objeto.
+    const textoEstatico = (e, prof = 0) => {
+      if (!e || prof > 4) return "";
+      switch (e.type) {
+        case "Literal":
+          return typeof e.value === "string" ? e.value : "";
+        case "TemplateLiteral":
+          return e.quasis.map((q) => q.value.cooked ?? q.value.raw).join(" ");
+        case "BinaryExpression":
+          return e.operator === "+"
+            ? `${textoEstatico(e.left, prof + 1)} ${textoEstatico(e.right, prof + 1)}`
+            : "";
+        case "ConditionalExpression":
+          return `${textoEstatico(e.consequent, prof + 1)} ${textoEstatico(e.alternate, prof + 1)}`;
+        case "Identifier":
+          return textoEstatico(resolverConst(e), prof + 1);
+        case "ObjectExpression":
+          return e.properties
+            .filter(
+              (p) =>
+                p.type === "Property" &&
+                ((p.key.type === "Identifier" && p.key.name === "text") ||
+                  (p.key.type === "Literal" && p.key.value === "text")),
+            )
+            .map((p) => textoEstatico(p.value, prof + 1))
+            .join(" ");
+        case "TSAsExpression":
+        case "TSNonNullExpression":
+        case "TSSatisfiesExpression":
+          return textoEstatico(e.expression, prof + 1);
+        default:
+          return "";
+      }
+    };
+
     const revisarModulo = (nodo, fuente) => {
       if (!fuera || typeof fuente !== "string") return;
       if (MODULO_SQL.test(fuente))
@@ -388,6 +439,13 @@ const reglaSqlCrudo = {
             n,
             `\`.${metodo}(\` (SQL crudo) prohibido fuera de packages/db (spec 002).`,
           );
+        if (fuera && (metodo === "query" || metodo === "execute")) {
+          if (SQL_ESQUEMA_AUTH.test(textoEstatico(n.arguments[0])))
+            reportar(
+              n.arguments[0],
+              `SQL sobre el esquema \`auth\` prohibido fuera de packages/db: usa AuthRepo (spec 004, CA-11).`,
+            );
+        }
         if (metodo === "query" || (fuera && metodo === "execute")) {
           if (dinamica(n.arguments[0]))
             reportar(
@@ -582,6 +640,8 @@ export default tseslint.config(
     files: ["apps/frontend/**"],
     rules: limite(
       [
+        "@node-rs/argon2",
+        "@node-rs/argon2/**",
         "@contapp/*",
         "!@contapp/shared",
         "**/packages/**",
@@ -590,7 +650,7 @@ export default tseslint.config(
         ...app("backend"),
         ...app("worker"),
       ],
-      "apps/frontend solo puede importar @contapp/shared (03-arquitectura §2).",
+      "apps/frontend solo puede importar @contapp/shared y no @node-rs/argon2 (03-arquitectura §2; spec 004, CA-11).",
     ),
   },
   {
