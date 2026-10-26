@@ -7,7 +7,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → pruebas (rojo) → implementación
 |---|---|---|---|---|---|---|---|
 | T1 | Rama `spec/004-auth` desde 010 cerrada y commit de los docs | devops | haiku | 010 `hecha` | — | — | [x] |
 | T2 | Andamiaje: deps, vitest en backend/shared/frontend, prueba humo de Nest | devops | haiku | T1 | — | — | [x] |
-| T3 | `cobertura:auth` (90 % por archivo), `ci:db` y CI | devops | sonnet | T2 | — | — | [ ] |
+| T3 | `cobertura:auth` (90 % por archivo), `ci:db` y CI | devops | sonnet | T2 | — | — | [x] |
 | T4 | `.env.example`, `.env` local y `comunes.txt` | devops | haiku | T2 ∥ T3 | — | — | [ ] |
 | T5 | Pruebas de BD del esquema `auth` y de `withAuth` (rojo) | tester | sonnet | T3 | ✓ | — | [ ] |
 | T6 | Pruebas unitarias de shared y backend sin BD, y de lint (rojo) | tester | sonnet | T3, T4 ∥ T5 | ✓ | — | [ ] |

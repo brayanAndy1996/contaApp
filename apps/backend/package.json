@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run --passWithNoTests",
-    "test:int": "vitest run --mode int --passWithNoTests"
+    "test:int": "vitest run --mode int --passWithNoTests",
+    "test:cobertura": "vitest run --config vitest.cobertura.config.mts --coverage"
   },
   "dependencies": {
     "@contapp/db": "workspace:*",

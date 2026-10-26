@@ -89,6 +89,12 @@ jobs:
       - name: Migraciones, seed y suite de aislamiento
         run: pnpm ci:db
 
+      - name: Cobertura de 004 auth (umbral 90 % por archivo)
+        run: pnpm cobertura:auth
+        env:
+          CORREO_PROVIDER: consola
+          APP_ORIGIN: http://localhost:3000
+
       - name: Cobertura de packages/db (umbral 90 %)
         run: pnpm cobertura:db
 
