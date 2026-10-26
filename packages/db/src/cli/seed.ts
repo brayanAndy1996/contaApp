@@ -4,7 +4,19 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Client } from "pg";
 import * as schema from "../schema";
 import { SEED } from "../seed/datos";
-import { ejecutarSiDirecta, urlMigraciones } from "./comun";
+import { ErrorCli, ejecutarSiDirecta, urlMigraciones } from "./comun";
+
+/**
+ * H-r2b-3: el seed trae cuentas de desarrollo con una contraseña versionada en el repo. Con
+ * NODE_ENV=production se niega antes de abrir la conexión (no toca la base; código de salida 1). Como D11,
+ * sin distinguir mayúsculas ni espacios (`Production`, ` production `).
+ */
+export function exigirEntornoNoProduccion(env: NodeJS.ProcessEnv = process.env): void {
+  const nodeEnv = env.NODE_ENV;
+  if (typeof nodeEnv === "string" && nodeEnv.trim().toLowerCase() === "production") {
+    throw new ErrorCli("el seed de desarrollo no se ejecuta con NODE_ENV=production");
+  }
+}
 
 /** Inserta el seed (idempotente) en una transacción sobre la conexión recibida. */
 export async function sembrar(client: Pick<Client, "query">): Promise<void> {
@@ -32,6 +44,7 @@ export async function sembrar(client: Pick<Client, "query">): Promise<void> {
 }
 
 export async function main(): Promise<void> {
+  exigirEntornoNoProduccion();
   const client = new Client({ connectionString: urlMigraciones() });
   await client.connect();
   try {

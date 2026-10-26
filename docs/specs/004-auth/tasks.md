@@ -24,7 +24,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → pruebas (rojo) → implementación
 | T16 | Corregir hallazgos de la ronda 1 | backend (+frontend) | opus / sonnet | T15a, T15b | — | — | [x] |
 | T17a | Ronda adversarial 2a: regresión y reconversión | adversario | opus | T16 | — | ✓ | [x] |
 | T17b | Ronda adversarial 2b: ataques nuevos contra las correcciones | adversario | opus | T16 ∥ T17a | — | ✓ | [x] |
-| T18 | Corregir hallazgos de la ronda 2 | backend (+frontend) | opus / sonnet | T17a, T17b | — | — | [ ] |
+| T18 | Corregir hallazgos de la ronda 2 | backend (+frontend) | opus / sonnet | T17a, T17b | — | — | [x] |
 | T19 | Verificar CA-1 a CA-13 y cobertura con evidencia | tester | sonnet | T18 | — | — | [ ] |
 | T20 | Revisión final contra la spec | arquitecto | opus | T19 | — | — | [ ] |
 | T21 | Cierre: ESTADO, tasks y commit | devops | haiku | T20 | — | — | [ ] |
@@ -173,6 +173,12 @@ Reglas comunes:
 
 ## T18 · Corregir ronda 2 (backend · opus; frontend · sonnet si aplica)
 - **Contexto / Hacer / Hecho cuando**: igual que T16 con los hallazgos de T17a/T17b; omitida si no hubo. Commit `fix(004): hallazgos de la ronda adversarial 2`.
+- **Resultado** (commit `fix(004): hallazgos de la ronda adversarial 2`; migración nueva `0009_auth_ronda2.sql`, repetible; T17a sin hallazgos). Se revisó y corrigió el intento interrumpido: su 0009 redefinía `contrasena_cambiar` (de 0008) y rompía `auth-r2a.adv.spec.ts` (re-aplica 0008 y compara cuerpos); la BD de desarrollo, que ya la tenía aplicada, se restauró a 0007/0008 + la 0009 nueva.
+  - H-r2b-1 · corregido: `sesion_rotar` y `sesiones_cerrar_todas` toman `pg_advisory_xact_lock` por usuario y la rotación vuelve a leer su sesión tras los bloqueos (si el cierre ganó, no rota; si ganó la rotación, el cierre ve la sesión nueva).
+  - H-r2b-2 · corregido: `sesion_rotar` toma además `FOR SHARE` la fila de `auth.usuario_contrasena`, que `recuperacion_consumir` y `contrasena_cambiar` bloquean (upsert) antes de revocar todas: restablecer y cambiar la contraseña quedan serializados con la rotación sin redefinirlas. Orden de bloqueo de la rotación: usuario → credencial → sesión. Límite conocido (comentado en 0009): la misma cookie cambiando de estudio y de contraseña a la vez puede interbloquearse; PostgreSQL aborta una (500 genérico) y ninguna deja una sesión viva indebida.
+  - H-r2b-3 · corregido: `db:seed` (`exigirEntornoNoProduccion`) se niega con `NODE_ENV` de producción (`trim` + minúsculas, como D11) antes de abrir la conexión; mensaje fijo, salida 1.
+  - Pruebas nuevas: `apps/backend/src/modules/auth/auth-r2-correcciones.int.spec.ts` (cambio de contraseña con la cookie robada rotando a la vez → la rotada queda en 401; rotación con cerrar-todas en vuelo → no emite sesión; la primera falla si se quita el `FOR SHARE`, comprobado) y `packages/db/src/cli/seed-entorno.spec.ts` (variantes de `production` y valores parecidos). `plan.md` actualizado (Archivos, `sesion_rotar`, Seed).
+  - Verde: `pnpm test` (backend 355, db 302, shared 64, frontend 60, limites 254, worker 95, crypto 290, domain 505), `pnpm ci:db` (`test:aislamiento` 557, worker `test:int` 37, backend `test:int` 135, incluidas las 4 de `auth-r2b.adv.int` y la de `seed-r2b.adv`), `pnpm cobertura:auth` (832, umbral 90 % por archivo cumplido), lint, typecheck; `drizzle-kit generate` sin cambios.
 
 ## T19 · Verificación (tester · sonnet)
 - **Contexto (leer solo esto)**: `docs/specs/004-auth/spec.md` (Criterios, "Cobertura"), `plan.md` (Contratos; Decisiones: Umbral de tiempos, Cobertura, Lint), hallazgos de 004 en `docs/specs/ESTADO.md`.
