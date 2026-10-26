@@ -21,7 +21,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → pruebas (rojo) → implementación
 | T14 | Integración: scripts, checks completos y prueba manual de punta a punta | devops | haiku | T12, T13 | — | — | [ ] |
 | T15a | Ronda adversarial 1a: lista mínima (caja negra) | adversario | opus | T14 | — | ✓ | [x] |
 | T15b | Ronda adversarial 1b: escenarios nuevos (caja blanca) | adversario | opus | T14 ∥ T15a | — | ✓ | [x] |
-| T16 | Corregir hallazgos de la ronda 1 | backend (+frontend) | opus / sonnet | T15a, T15b | — | — | [ ] |
+| T16 | Corregir hallazgos de la ronda 1 | backend (+frontend) | opus / sonnet | T15a, T15b | — | — | [x] |
 | T17a | Ronda adversarial 2a: regresión y reconversión | adversario | opus | T16 | — | ✓ | [ ] |
 | T17b | Ronda adversarial 2b: ataques nuevos contra las correcciones | adversario | opus | T16 ∥ T17a | — | ✓ | [ ] |
 | T18 | Corregir hallazgos de la ronda 2 | backend (+frontend) | opus / sonnet | T17a, T17b | — | — | [ ] |
@@ -143,6 +143,15 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: hallazgos de 004 en `docs/specs/ESTADO.md`, los `*.adv*.spec.ts` que fallan, los archivos de producción que señalan, `plan.md` (Decisiones). Si el hallazgo está solo en archivos de T10/T12, puede hacerlo backend · sonnet.
 - **Hacer**: corregir en `src/` o con una migración nueva. Si un hallazgo pide cambiar la spec o aceptar un riesgo, no decidir: `abierto · requiere usuario`.
 - **Hecho cuando**: `pnpm test`, `pnpm ci:db`, `pnpm cobertura:auth` en verde salvo lo marcado para el usuario; hallazgos en `corregido (<commit>)`. Commit `fix(004): hallazgos de la ronda adversarial 1`.
+- **Resultado** (commit `7ad23ad`; migración nueva `0008_auth_ronda1.sql`, repetible: aplicada dos veces y ejecutada dos veces en una transacción):
+  - H1 · corregido (7ad23ad): `auth.contrasena_cambiar` invalida los tokens de recuperación vivos del usuario (restablecer ya lo hacía en `recuperacion_consumir`).
+  - H2 · corregido (7ad23ad): `OrigenGuard` comprueba las dos cabeceras que vengan: `Origin` = APP_ORIGIN y `Sec-Fetch-Site` = `same-origin`; ninguna → 403.
+  - H-r1b-1 · corregido (7ad23ad): restablecer consume `limite_consumir('restab_ip')` (10 cada 15 min por IP, 429 `demasiados_intentos`) y llama a la nueva `auth.recuperacion_vigente(token_hash)` (sin efectos) antes de calcular Argon2.
+  - H-r1b-2 · corregido (7ad23ad): `contrasena_cambiar` reinicia `intento_login` del correo tras el éxito (los fallos al cambiar siguen contando).
+  - H-r1b-3 · corregido (7ad23ad): el filtro responde 415 `{codigo: solicitud_invalida}` a los errores 415 del analizador.
+  - H-r1b-4 · corregido por decisión del usuario (7ad23ad): correos solo ASCII; `normalizarCorreo` lanza `CorreoNoAsciiError` (backend → 400 `solicitud_invalida`) y el CHECK de `usuario.email` exige `octet_length = char_length`. La prueba `tests/aislamiento/auth-r1b.adv.spec.ts:108` afirma el comportamiento anterior (`ß…` aceptado) y queda en rojo **a propósito** hasta que T17a la reconvierta; por ella salen con código 1 `test:aislamiento`, `cobertura:auth`, `cobertura:db` y `ci:db` (umbrales de cobertura cumplidos: auth ≥ 94 % por archivo, db 99 %).
+  - Pruebas cambiadas por las decisiones: `packages/shared/src/auth/correo.spec.ts` (café/É ya no se aceptan: ahora lanzan), `tests/aislamiento/auth-soporte.ts` (`FUNCIONES_AUTH` += `recuperacion_vigente`) y el título "11 funciones" de `auth.spec.ts`. Nuevas: `tests/aislamiento/auth-r1-correcciones.spec.ts` y casos en las unitarias de guard, filtro, servicios y `AuthRepo`. `plan.md` actualizado (Contratos, D6, D8, D10, CA-10).
+  - Verde: backend `test` (355), `test:int` (124 = 107 de T7 + 17 adversariales, dos ejecuciones seguidas), worker `test:int` (37), `tests/limites` (254), `test:aislamiento` (555/556, solo falla la de B4), lint, typecheck, build.
 
 ## T17a · Ronda 2a: regresión y reconversión (adversario · opus)
 - **Contexto (leer solo esto)**: igual que T15b + `git diff <commit T15b>..HEAD -- apps packages`.
