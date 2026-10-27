@@ -215,7 +215,7 @@ export const sinFecha = (h: Resp["headers"]): Record<string, unknown> => {
 export const forma = (r: Resp) => ({ status: r.status, body: r.body, headers: sinFecha(r.headers) });
 
 export interface Peticion {
-  metodo?: "GET" | "POST";
+  metodo?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   ruta: string;
   cuerpo?: unknown;
   /** Cuerpo JSON ya serializado (para probar tamaños o JSON roto). */
@@ -263,10 +263,13 @@ export interface Harness {
   cerrar(): Promise<void>;
 }
 
-export async function abrirHarness(): Promise<Harness> {
+/** Opciones extra para `crearApp` (spec 005: `cupoUsuarios`). Se pasan sin tipar: la opción nace en T9. */
+export type OpcionesHarness = Record<string, unknown>;
+
+export async function abrirHarness(opciones: OpcionesHarness = {}): Promise<Harness> {
   const correo = new CorreoMemoria();
   const hasher = await crearHasherEspia();
-  const app = await crearApp({ correo, hasher });
+  const app = await crearApp({ correo, hasher, ...opciones } as Parameters<typeof crearApp>[0]);
   await app.listen(0, "127.0.0.1");
   const direccion = app.getHttpServer().address() as { port: number };
   const base = `http://127.0.0.1:${direccion.port}`;
@@ -284,11 +287,20 @@ export async function abrirHarness(): Promise<Harness> {
   const pedir: Harness["pedir"] = async (p) => {
     const metodo = p.metodo ?? (p.cuerpo !== undefined || p.crudo !== undefined ? "POST" : "GET");
     const cliente = request(base);
-    const t = metodo === "GET" ? cliente.get(p.ruta) : cliente.post(p.ruta);
+    const t =
+      metodo === "GET"
+        ? cliente.get(p.ruta)
+        : metodo === "POST"
+          ? cliente.post(p.ruta)
+          : metodo === "PUT"
+            ? cliente.put(p.ruta)
+            : metodo === "PATCH"
+              ? cliente.patch(p.ruta)
+              : cliente.delete(p.ruta);
     t.ok(() => true);
     const ip = p.ip === undefined ? ipUnica() : p.ip;
     if (ip) t.set("X-Forwarded-For", ip);
-    const origen = p.origen === undefined ? (metodo === "POST" ? ORIGEN : null) : p.origen;
+    const origen = p.origen === undefined ? (metodo !== "GET" ? ORIGEN : null) : p.origen;
     if (origen !== null) t.set("Origin", origen);
     if (p.secFetchSite) t.set("Sec-Fetch-Site", p.secFetchSite);
     if (p.cookie) t.set("Cookie", p.cookie);
