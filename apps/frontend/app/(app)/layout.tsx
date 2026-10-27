@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { cargarYo, tiene, type Yo } from "../../lib/acceso";
 import { api, EVENTO_ESTUDIO_DESFASADO } from "../../lib/api";
 import { obtenerSesion, reiniciarSesion, type Sesion } from "../../lib/sesion";
 
@@ -22,6 +24,16 @@ export default function LayoutApp({ children }: { children: ReactNode }) {
   const [estudios, setEstudios] = useState<Estudio[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [yo, setYo] = useState<Yo | null>(null);
+
+  // El menú decide por permisos (`GET /acceso/yo`); si falla, simplemente no hay enlaces.
+  const refrescarYo = useCallback(async () => {
+    try {
+      setYo((await cargarYo()).yo);
+    } catch {
+      setYo(null);
+    }
+  }, []);
 
   useEffect(() => {
     let vigente = true;
@@ -34,13 +46,14 @@ export default function LayoutApp({ children }: { children: ReactNode }) {
       if (!vigente) return;
       setSesion(actual);
       if (lista.ok && lista.datos) setEstudios(lista.datos);
+      await refrescarYo();
     })().catch(() => {
       if (vigente) setError(ERROR_CARGA);
     });
     return () => {
       vigente = false;
     };
-  }, [router]);
+  }, [router, refrescarYo]);
 
   // Otra pestaña cambió de estudio: `api()` ya recargó la sesión; aquí se refleja y se refrescan datos.
   useEffect(() => {
@@ -49,13 +62,14 @@ export default function LayoutApp({ children }: { children: ReactNode }) {
         if (!s) return;
         setSesion(s);
         setAviso(AVISO_DESFASADO);
+        void refrescarYo();
         router.refresh();
       });
     };
     window.addEventListener(EVENTO_ESTUDIO_DESFASADO, alDesfasar);
     return () =>
       window.removeEventListener(EVENTO_ESTUDIO_DESFASADO, alDesfasar);
-  }, [router]);
+  }, [router, refrescarYo]);
 
   async function cambiarEstudio(tenantId: string) {
     setError(null);
@@ -73,6 +87,7 @@ export default function LayoutApp({ children }: { children: ReactNode }) {
       reiniciarSesion();
       const nueva = await obtenerSesion();
       if (nueva) setSesion(nueva);
+      await refrescarYo();
       router.refresh();
     } catch {
       setError(ERROR_CAMBIO);
@@ -97,6 +112,8 @@ export default function LayoutApp({ children }: { children: ReactNode }) {
             ))}
           </select>
         </label>
+        {tiene(yo, "clientes.ver") && <Link href="/clientes">Clientes</Link>}
+        {tiene(yo, "usuarios.ver") && <Link href="/usuarios">Usuarios</Link>}
         {aviso && <p role="status">{aviso}</p>}
         {error && (
           <p role="alert" className="text-red-600">

@@ -76,7 +76,12 @@ async function ejecutar<T>(
     ) {
       reiniciarSesion();
       irALogin();
-    } else if (respuesta.status === 409) {
+    } else if (
+      respuesta.status === 409 &&
+      (datos as { codigo?: string } | null)?.codigo === "estudio_desfasado"
+    ) {
+      // Solo el 409 de estudio desfasado (004) recarga la sesión; los 409 de negocio de 005
+      // (`ultimo_dueno`, `cupo_usuarios`…) llegan tal cual a la pantalla.
       await obtenerSesion(true);
       window.dispatchEvent(new Event(EVENTO_ESTUDIO_DESFASADO));
     } else if (
@@ -88,7 +93,11 @@ async function ejecutar<T>(
       return ejecutar<T>(ruta, opciones, true);
     }
   }
-  return { ok: respuesta.ok, status: respuesta.status, datos: datos as T | null };
+  return {
+    ok: respuesta.ok,
+    status: respuesta.status,
+    datos: datos as T | null,
+  };
 }
 
 export function api<T = unknown>(

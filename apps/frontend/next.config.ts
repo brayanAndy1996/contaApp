@@ -18,6 +18,8 @@ const nextConfig: NextConfig = {
     return [
       { source: "/recuperar/:path*", headers: politica },
       { source: "/login", headers: politica },
+      // La invitación también viaja en el fragmento (#t=): sin Referer (spec 005, D7).
+      { source: "/invitacion", headers: politica },
     ];
   },
   // El navegador llama a /api/*; Next lo reenvía al backend (mismo origen para la cookie).

@@ -16,7 +16,7 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T9 | Guards `Permiso` y `ClienteScope`, decoradores y arranque | backend | opus | T3, T7, T8 | ✓ | — | [ ] |
 | T10 | Usuarios e invitaciones (D8, aceptación, `CupoUsuarios`) | backend | opus | T4, T9 | ✓ | — | [ ] |
 | T11 | Clientes y asignaciones | backend | sonnet | T4, T9 ∥ T10 | ✓ | — | [ ] |
-| T12 | Pantallas: Usuarios, invitación, clientes y asignación, menú | frontend | sonnet | T6 ∥ T7–T11 | ✓ | — | [ ] |
+| T12 | Pantallas: Usuarios, invitación, clientes y asignación, menú | frontend | sonnet | T6 ∥ T7–T11 | ✓ | — | [x] |
 | T13 | Integración: checks completos y prueba manual | devops | haiku | T5, T10, T11, T12 | — | — | [ ] |
 | T14a | Ronda adversarial 1a: lista mínima (caja negra) | adversario | opus | T13 | — | ✓ | [ ] |
 | T14b | Ronda adversarial 1b: escenarios nuevos (caja blanca) | adversario | opus | T13 ∥ T14a | — | ✓ | [ ] |
@@ -115,6 +115,7 @@ Reglas comunes:
 - **Fijado por las pruebas (T6)**: textos y etiquetas exactos en `apps/frontend/pruebas/acceso.ts` (`MENSAJES_ACCESO`, `ETIQUETA_ROL`); reemplazar los 4 stubs vacíos `page.tsx` de T6 (`usuarios`, `clientes`, `clientes/[clienteId]`, `(publico)/invitacion`). En `lib/api.ts`: solo el 409 con `codigo: "estudio_desfasado"` recarga la sesión y emite `EVENTO_ESTUDIO_DESFASADO`; los demás 409 (`ultimo_dueno`, `ya_es_miembro`, `invitacion_existente`, `cupo_usuarios`, `miembro_no_asignable`, `requiere_sesion`) vuelven tal cual (`lib/api-conflictos.spec.ts`; `api.spec.ts` y `api-r2b.adv.spec.ts` de 004 siguen verdes).
 - **Hacer**: páginas, `lib/acceso.ts`, menú, `lib/api.ts` y `next.config.ts` según el plan. Ocultar acciones sin permiso (el backend sigue siendo la barrera). Sin endpoints inventados.
 - **Hecho cuando**: `pnpm --filter @contapp/frontend test` en verde; typecheck, lint y build OK. Commit `feat(005): pantallas de usuarios, invitación y asignación de clientes`.
+- **Resultado**: 134/134 pruebas del frontend en verde (17 archivos; las 74 de T6 incluidas), `tsc`, `eslint` y `next build` OK. Nuevo `lib/acceso.ts` (tipos, etiquetas, mensajes genéricos por código, `puedeOtorgar/puedeTocar` sobre `puedeGestionar` de `@contapp/shared`); páginas `usuarios`, `clientes`, `clientes/[clienteId]` (envuelta en `Suspense` por `useParams`) e `invitacion`; menú por permisos en `(app)/layout.tsx`; `api.ts` solo trata como desfase el 409 `estudio_desfasado`; `Referrer-Policy` en `/invitacion`. Sin shadcn (el frontend aún no lo tiene configurado; HTML + Tailwind como 004).
 
 ## T13 · Integración (devops · haiku)
 - **Contexto (leer solo esto)**: `docs/specs/005-acceso/plan.md` (Contratos: HTTP), `package.json`.
