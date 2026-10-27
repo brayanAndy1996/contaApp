@@ -5,7 +5,7 @@ Leyenda: rol `arquitecto` · `backend` · `frontend` · `tester` · `adversario`
 Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde, cobertura por archivo desde el diseño) → integración → adversario (máx. 2 rondas, cada una en dos piezas) → verificación → revisión final → cierre. La rama `spec/005-acceso` ya existe (desde `spec/004-auth`) y los docs aprobados están commiteados. CA = `spec.md`; contratos y decisiones = `plan.md`.
 | # | Tarea | Rol | Modelo | Depende de | TDD | ADV | Estado |
 |---|---|---|---|---|---|---|---|
-| T1 | Andamiaje: `cobertura:acceso` (90 % por archivo) y CI | devops | sonnet | — | — | — | [ ] |
+| T1 | Andamiaje: `cobertura:acceso` (90 % por archivo) y CI | devops | sonnet | — | — | — | [x] |
 | T2 | Pruebas de BD: esquema, RLS, trigger, funciones `auth` y repos (rojo) | tester | sonnet | T1 | ✓ | — | [ ] |
 | T3 | Pruebas unitarias de shared, guards y rutas declaradas (rojo) | tester | sonnet | T1 ∥ T2 | ✓ | — | [ ] |
 | T4 | Pruebas de integración HTTP de acceso (rojo) | tester | sonnet | T1 ∥ T3 | ✓ | — | [ ] |
@@ -45,6 +45,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/005-acceso/plan.md` (Decisiones: Cobertura), `apps/backend/vitest.cobertura.config.mts` (patrón), `apps/backend/package.json`, `package.json`, `.github/workflows/ci.yml` (job `aislamiento`).
 - **Hacer**: (1) `apps/backend/vitest.cobertura-acceso.config.mts` con los proyectos e `include` exactos del plan, alias a `src` de `shared` y `db`, `perFile: true` y 90 en `lines`, `statements`, `functions`, `branches`; `exclude` solo pruebas. (2) Script backend `test:cobertura:acceso`; raíz `cobertura:acceso` = build de `@contapp/shared` y `@contapp/db` + ese script. (3) CI, job `aislamiento`: paso `pnpm cobertura:acceso` tras `pnpm cobertura:auth`, con el mismo `env`.
 - **Hecho cuando**: `pnpm cobertura:acceso` corre y sale ≠ 0 solo por "sin pruebas" o umbral (archivos aún inexistentes), nunca por error de configuración; un archivo temporal incluido al 50 % hace fallar por ese archivo (revertido); `pnpm cobertura:auth` sigue en 0; `prettier --check .github/workflows/ci.yml` OK. Commit `test(005): comando cobertura:acceso con umbral 90 % por archivo`.
+- **Resultado**: creado `apps/backend/vitest.cobertura-acceso.config.mts` (proyectos backend-unit, backend-int, aislamiento-acceso, shared-acceso, db-acceso; `perFile` 90 en 4 métricas; alias a `src`), script backend `test:cobertura:acceso`, raíz `cobertura:acceso` y paso en CI (job `aislamiento`, tras `cobertura:auth`, mismo `env`). `pnpm cobertura:acceso` sale 0 hoy (43 archivos/583 pruebas, 9 archivos cubiertos al 100 %; los archivos de 005 aún no existen, así que `include` no los exige); un archivo temporal al 50 % de ramas hizo fallar por ese archivo (revertido). `cobertura:auth` sigue en 0; `prettier --check` OK.
 
 ## T2 · Pruebas de BD, rojo (tester · sonnet)
 - **Contexto (leer solo esto)**: `docs/specs/005-acceso/spec.md` (CA-3, CA-7, CA-8, CA-9, CA-10, CA-13; D6, D7, D9, D10, D19, D21), `docs/specs/005-acceso/plan.md` (Contratos: packages/db, BD), `tests/aislamiento/{soporte,auth-soporte}.ts`, `tests/aislamiento/catalogo.spec.ts`, `tests/aislamiento/auth.spec.ts` (patrón de privilegios), `tests/aislamiento/auth-funciones.spec.ts` (patrón de funciones y carreras), `packages/db/src/auth/repositorio.spec.ts` (patrón de tx falsa).
