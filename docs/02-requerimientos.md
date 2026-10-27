@@ -237,7 +237,7 @@ Cada compra recibe un **puntaje de sospecha** sumando señales. Si supera un umb
 | ID | Requerimiento |
 |---|---|
 | RNF-001 | Aislamiento multitenant con `tenant_id` en todas las tablas de negocio y **Row Level Security** en PostgreSQL. Ninguna consulta puede devolver datos de otro tenant aunque el código omita el filtro (verificado con pruebas automáticas). |
-| RNF-002 | Credenciales cifradas con envelope encryption: KEK fuera de la BD (`.env` en local, KMS/Vault en nube), DEK por tenant, AES-256-GCM con nonce único y AAD `tenant_id\|cliente_id\|tipo`. |
+| RNF-002 | Credenciales cifradas con envelope encryption híbrido (ADR-06): KEK fuera de la BD (par de llaves en archivos fuera de git en local, KMS/Vault en nube), una DEK aleatoria **por secreto** guardada envuelta por la KEK, AES-256-GCM con nonce único y AAD `v1\|tenant_id\|cliente_id\|tipo`. _Corregido en spec 003 (D4, D7): decía "DEK por tenant" y KEK en `.env`, en contradicción con 03 §5 y ADR-06._ |
 | RNF-003 | Solo el proceso worker puede descifrar credenciales; el backend no tiene acceso a la llave para descifrar. |
 | RNF-004 | Ningún secreto aparece en logs, mensajes de error, respuestas de API, exportaciones ni trazas. |
 | RNF-005 | Contraseñas de usuario con Argon2id. |

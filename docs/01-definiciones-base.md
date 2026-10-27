@@ -107,13 +107,13 @@ Todo lo que toca SUNAT corre en **cola de trabajos**, nunca en el request web:
 
 ### Cifrado (envelope encryption)
 
-> Refinado en [03-arquitectura.md §5](03-arquitectura.md): cifrado híbrido con una DEK por secreto; la API solo puede **cifrar** (llave pública / `kms:Encrypt`) y solo el worker puede **descifrar**. Lo de abajo sigue vigente salvo la "DEK por tenant".
+> Refinado en [03-arquitectura.md §5](03-arquitectura.md): cifrado híbrido con una DEK por secreto; la API solo puede **cifrar** (llave pública / `kms:Encrypt`) y solo el worker puede **descifrar**. Puntos 1–3 corregidos en la spec 003 (D4): antes decían "DEK por tenant" y KEK en `.env`.
 
 1. **Llave maestra (KEK)**: nunca está en la BD.
-   - Local: archivo/variable `CONTAPP_MASTER_KEY` fuera del repo (`.env` en `.gitignore`).
+   - Local: par de llaves RSA en archivos fuera del repo (`./secrets/`, en `.gitignore`); el backend solo tiene la pública.
    - Nube: AWS KMS / GCP KMS / Vault — mismo código, otro proveedor (`KeyProvider` intercambiable).
-2. **Llave de datos por tenant (DEK)**: generada al crear el estudio, guardada **cifrada con la KEK**.
-3. Cada secreto: **AES-256-GCM** con la DEK del tenant, nonce único y AAD = `tenant_id|cliente_id|tipo`. Copiar el cifrado a otra fila lo hace inservible.
+2. **Llave de datos por secreto (DEK)**: aleatoria en cada cifrado, guardada **envuelta con la KEK** junto al cifrado.
+3. Cada secreto: **AES-256-GCM** con su DEK, nonce único y AAD = `v1|tenant_id|cliente_id|tipo`. Copiar el cifrado a otra fila lo hace inservible.
 4. **Solo los workers descifran**, en memoria, justo antes de usar la credencial. El backend nunca devuelve el secreto: muestra `configurada ✓` / `inválida ✗` / `última verificación`.
 5. **Auditoría** de cada descifrado: quién/qué trabajo, cuándo, para qué RUC.
 6. Importación desde Excel: se procesa en memoria y el archivo se descarta.

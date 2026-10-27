@@ -1,0 +1,127 @@
+// Montos de un comprobante de compras (plan 010, Contratos; Decisiones: Inmutabilidad).
+import {
+  MonedaDistintaError,
+  MontoInvalidoError,
+  Money,
+} from "../dinero/index";
+import type { Cuadrable, Moneda } from "../dinero/index";
+import { COLUMNAS_COMPRA, esColumnaCompra } from "./columnas";
+import type { ColumnaCompra } from "./columnas";
+
+export type ColumnasMoney = Readonly<Record<ColumnaCompra, Money>>;
+
+// Clave de módulo: el constructor solo se invoca desde este archivo (R1b-3 de la ronda 1b).
+const CLAVE = Symbol("MontosComprobante");
+
+let crearMontos: (moneda: Moneda, columnas: ColumnasMoney, total: Money) => MontosComprobante;
+let leerColumnas: (m: MontosComprobante) => ColumnasMoney;
+let tieneEstadoMontos: (o: object) => boolean;
+
+/**
+ * Marca privada (R2a-4/R2b-2 de la ronda 2): solo un MontosComprobante creado por su
+ * constructor sellado tiene `#columnas`. A diferencia de `instanceof`, no la pasan objetos
+ * con el prototipo correcto, Proxy de uno real ni un Symbol.hasInstance parcheado.
+ */
+function esMontosComprobante(o: unknown): o is MontosComprobante {
+  return typeof o === "object" && o !== null && tieneEstadoMontos(o);
+}
+
+export class MontosComprobante implements Cuadrable {
+  readonly #columnas: ColumnasMoney;
+  readonly moneda: Moneda;
+  readonly total: Money;
+
+  /**
+   * Único constructor: copia y congela el registro. Solo lo llaman `desde`, `sumar` y
+   * `montosDesdeColumnas` (interno), que ya entregan columnas y total en `moneda`.
+   */
+  private constructor(clave: symbol, moneda: Moneda, columnas: ColumnasMoney, total: Money) {
+    if (clave !== CLAVE) {
+      throw new TypeError("Constructor privado: usa MontosComprobante.desde.");
+    }
+    const copia = {} as Record<ColumnaCompra, Money>;
+    for (const c of COLUMNAS_COMPRA) copia[c] = columnas[c];
+    this.#columnas = Object.freeze(copia);
+    this.moneda = moneda;
+    this.total = total;
+    Object.freeze(this);
+  }
+
+  /** Columna faltante = 0.00; clave desconocida o valor no string → MontoInvalidoError. */
+  static desde(
+    moneda: Moneda,
+    v: Partial<Record<ColumnaCompra, string>> & { total: string },
+  ): MontosComprobante {
+    if (typeof v !== "object" || v === null || Array.isArray(v)) {
+      throw new MontoInvalidoError();
+    }
+    for (const k of Object.keys(v)) {
+      if (k !== "total" && !esColumnaCompra(k)) throw new MontoInvalidoError();
+    }
+    if (!Object.hasOwn(v, "total")) throw new MontoInvalidoError();
+    const total = Money.desde(v.total, moneda);
+    const columnas = {} as Record<ColumnaCompra, Money>;
+    for (const c of COLUMNAS_COMPRA) {
+      columnas[c] = Object.hasOwn(v, c)
+        ? Money.desde(v[c] as string, moneda)
+        : Money.cero(moneda);
+    }
+    return new MontosComprobante(CLAVE, total.moneda, columnas, total);
+  }
+
+  obtener(c: ColumnaCompra): Money {
+    if (!esColumnaCompra(c)) throw new MontoInvalidoError();
+    return this.#columnas[c];
+  }
+
+  /** Arreglo congelado nuevo en cada llamada, en el orden de COLUMNAS_COMPRA. */
+  componentes(): readonly Money[] {
+    return Object.freeze(COLUMNAS_COMPRA.map((c) => this.#columnas[c]));
+  }
+
+  /** Suma por columna y total; exige la misma moneda. */
+  sumar(o: MontosComprobante): MontosComprobante {
+    if (!esMontosComprobante(o) || o.moneda !== this.moneda) {
+      throw new MonedaDistintaError();
+    }
+    const columnas = {} as Record<ColumnaCompra, Money>;
+    for (const c of COLUMNAS_COMPRA) {
+      columnas[c] = this.#columnas[c].sumar(o.#columnas[c]);
+    }
+    return new MontosComprobante(CLAVE, this.moneda, columnas, this.total.sumar(o.total));
+  }
+
+  toJSON(): { moneda: Moneda; total: string; columnas: Record<ColumnaCompra, string> } {
+    const columnas = {} as Record<ColumnaCompra, string>;
+    for (const c of COLUMNAS_COMPRA) columnas[c] = this.#columnas[c].toString();
+    return { moneda: this.moneda, total: this.total.toString(), columnas };
+  }
+
+  static {
+    crearMontos = (moneda, columnas, total) => new MontosComprobante(CLAVE, moneda, columnas, total);
+    leerColumnas = (m) => m.#columnas;
+    tieneEstadoMontos = (o) => #columnas in o;
+  }
+}
+// La clase y su prototipo no se pueden parchear (R2b-2 de la ronda 2).
+Object.freeze(MontosComprobante);
+Object.freeze(MontosComprobante.prototype);
+
+/** Uso interno de comprobante/: crea un MontosComprobante desde columnas ya en Money. */
+export function montosDesdeColumnas(
+  moneda: Moneda,
+  columnas: ColumnasMoney,
+  total: Money,
+): MontosComprobante {
+  return crearMontos(moneda, columnas, total);
+}
+
+/**
+ * Uso interno de comprobante/: copia mutable de las columnas, leídas del estado privado
+ * (no de `obtener`); lanza MontoInvalidoError si `m` no es un MontosComprobante real
+ * (R1b-6 de la ronda 1b; marca privada por R2a-4 de la ronda 2).
+ */
+export function copiarColumnas(m: MontosComprobante): Record<ColumnaCompra, Money> {
+  if (!esMontosComprobante(m)) throw new MontoInvalidoError();
+  return { ...leerColumnas(m) };
+}
