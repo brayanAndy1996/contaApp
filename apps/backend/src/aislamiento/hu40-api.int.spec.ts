@@ -84,6 +84,8 @@ let A: Recursos;
 let B: Recursos;
 let registradas: string[] = [];
 const sufijo = randomBytes(4).toString("hex");
+/** Clientes creados, registrados al instante para limpiarlos aunque el arranque falle a mitad. */
+const clientesCreados: string[] = [];
 
 const todos = (...n: number[]): Esperado => ({ dueno: n, asistente: n });
 const E404: Esperado = { dueno: [404], asistente: [403, 404] };
@@ -144,6 +146,7 @@ async function prepararEstudio(
       "insert into cliente (tenant_id, ruc, razon_social) values ($1, $2, $3) returning id",
       [tenantId, ruc, razon],
     );
+    clientesCreados.push(f[0].id);
     clientes.push(f[0].id);
   }
   const asig = await h.sql(
@@ -714,12 +717,12 @@ beforeAll(async () => {
   registradas = enumerarRutas();
 });
 
-afterAll(async () => {
+async function limpiar(): Promise<void> {
   if (!h) return;
-  const usuarios = [A, B]
-    .filter(Boolean)
-    .flatMap((r) => [r.dueno.id, r.asistente.id]);
-  const clientes = [A, B].filter(Boolean).flatMap((r) => r.clientes);
+  const filas = await h
+    .sql("select id from usuario where nombre like $1", [`HU40 _ % ${sufijo}`])
+    .catch(() => [] as { id: string }[]);
+  const usuarios = filas.map((f) => f.id);
   await h
     .sql("delete from invitacion where invitado_por = any($1::uuid[])", [
       usuarios,
@@ -728,12 +731,17 @@ afterAll(async () => {
   await h
     .sql(
       "delete from asignacion where usuario_id = any($1::uuid[]) or cliente_id = any($2::uuid[])",
-      [usuarios, clientes],
+      [usuarios, clientesCreados],
     )
     .catch(() => undefined);
   await h
-    .sql("delete from cliente where id = any($1::uuid[])", [clientes])
+    .sql("delete from cliente where id = any($1::uuid[])", [clientesCreados])
     .catch(() => undefined);
+}
+
+afterAll(async () => {
+  if (!h) return;
+  await limpiar();
   await h.cerrar();
 });
 
