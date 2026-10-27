@@ -16,8 +16,8 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T7 | Lint de dinero en `reglas/` | devops | sonnet | T2 ∥ T8 | ✓ | — | [x] |
 | T8 | Implementar `texto/` | backend | sonnet | T1, T3 | ✓ | — | [x] |
 | T9 | Implementar tipos, entrada, rango, R-ISC y R-MIX | backend | opus | T1, T4, T6b ∥ T8 | ✓ | — | [x] |
-| T10 | Implementar R-RED, R-NEW, R-GP, motor y aplicar | backend | opus | T5, T6, T6b, T8, T9 | ✓ | — | [[x] |
-| T11 | Integración: checks completos | devops | haiku | T7, T10 | — | — | [ ] |
+| T10 | Implementar R-RED, R-NEW, R-GP, motor y aplicar | backend | opus | T5, T6, T6b, T8, T9 | ✓ | — | [x] |
+| T11 | Integración: checks completos | devops | haiku | T7, T10 | — | — | [x] |
 | T12a | Ronda 1a: lista mínima de la spec (caja negra) | adversario | opus | T11 | — | ✓ | [ ] |
 | T12b | Ronda 1b: escenarios nuevos (caja blanca) | adversario | opus | T11 ∥ T12a | — | ✓ | [ ] |
 | T13 | Corregir hallazgos de la ronda 1 | backend | opus | T12a, T12b | — | — | [ ] |
@@ -115,6 +115,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `package.json` raíz.
 - **Hacer**: `pnpm build`, `typecheck`, `lint`, `test`, `cobertura:dominio`, `--filter @contapp/tests-limites test` y `git grep -nE "parseFloat|parseInt|Number\(|toNumber\(|:\s*number\b|Math\.|Date|random" -- packages/domain/src/reglas ":!*.spec.ts"`.
 - **Hecho cuando**: todo sale 0 (reportar conteos) y el grep está vacío. Sin commit si no cambia archivos.
+- **Resultado**: `pnpm build` 0 (7/7 tareas); `pnpm typecheck` 0 (10/10); `pnpm lint` 0 (7/7); `pnpm test` 0 (8/8 en turbo, 6 desde caché): domain 808 pasan + 2 todo (34 archivos), tests-limites 275 (11), db 410 (23), backend 500 (40), frontend 134 (17), crypto 290 + 1 omitida (16), shared 228 (5), worker 95 (7). `pnpm --filter @contapp/tests-limites test` 0: 11 archivos, 275 pruebas. `pnpm --filter @contapp/domain test` sin caché 0: 34 archivos, 808 pruebas, 2 todo. `pnpm cobertura:dominio` 0: All files 98.44 % sentencias, 97.22 % ramas, 100 % funciones, 99.06 % líneas. Los 13 archivos de `reglas/` y los 3 de `texto/` pasan el umbral de 90 % por archivo en las cuatro métricas (mínimos: `entrada.ts` ramas 91.48, `motor.ts` ramas 92.59, `r-red.ts` líneas 93.54, `diccionario.ts` líneas 97.22). `texto/normalizar.ts` 100/100/100/100: el reporte `text` no lo lista por estar completo; confirmado en `packages/domain/coverage/coverage-summary.json`. Grep de `reglas/` (13 archivos sin spec): vacío (exit 1); control positivo sobre `tests/limites/dominio-reglas.spec.ts` sí coincide. `ci:db`: no pedido en T11 (no aplica: 011 sin BD). Sin cambios de código ni migraciones.
 
 ## T12a · Ronda 1a: lista mínima (adversario · opus)
 - **Contexto (leer solo esto)**: `spec.md` (Criterios, Decisiones, "Ataques obligatorios"), `plan.md` (Contratos). **Caja negra**: no leer `packages/domain/src/{reglas,texto}/*.ts` que no sean pruebas.
