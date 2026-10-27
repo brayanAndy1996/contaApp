@@ -276,7 +276,7 @@ describe("ADV escalada desde DATABASE_URL", () => {
       `select p.prosecdef, pg_get_userbyid(p.proowner) as dueno from pg_proc p
          join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'uuid_v7'`,
     );
-    // Spec 004 (D10): las unicas SECURITY DEFINER admitidas son las 11 funciones del esquema `auth`.
+    // Spec 004 (D10) y 005 (D7): las unicas SECURITY DEFINER admitidas son las de FUNCIONES_AUTH (15) del esquema `auth`.
     expect(defs.map((d) => d.f).sort()).toEqual(FUNCIONES_AUTH.map((n) => `auth.${n}`).sort());
     expect(vistas).toEqual([]);
     expect(uuid).toEqual([{ prosecdef: false, dueno: "contapp_migrator" }]);
