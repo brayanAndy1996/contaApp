@@ -24,7 +24,7 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T15 | Corregir hallazgos de la ronda 1 | backend (+frontend) | opus / sonnet | T14a, T14b | — | — | [x] |
 | T16a | Ronda adversarial 2a: regresión y reconversión | adversario | opus | T15 | — | ✓ | [ ] |
 | T16b | Ronda adversarial 2b: ataques nuevos contra las correcciones | adversario | opus | T15 ∥ T16a | — | ✓ | [ ] |
-| T17 | Corregir hallazgos de la ronda 2 | backend (+frontend) | opus / sonnet | T16a, T16b | — | — | [ ] |
+| T17 | Corregir hallazgos de la ronda 2 | backend (+frontend) | opus / sonnet | T16a, T16b | — | — | [x] |
 | T18 | Verificar CA-1 a CA-16 y cobertura con evidencia | tester | sonnet | T17 | — | — | [ ] |
 | T19 | Revisión final contra la spec | arquitecto | opus | T18 | — | — | [ ] |
 | T20 | Cierre: ESTADO, tasks y commit | devops | haiku | T19 | — | — | [ ] |
@@ -190,6 +190,12 @@ Reglas comunes:
 
 ## T17 · Corregir ronda 2 (backend · opus; frontend · sonnet si aplica)
 - **Contexto / Hacer / Hecho cuando**: igual que T15 con los hallazgos de T16a/T16b; omitida si no hubo. Commit `fix(005): hallazgos de la ronda adversarial 2`.
+- **Resultado** (commit `76c6121`; migración nueva `0016_acceso_ronda2.sql` — `drizzle-kit generate --custom` + SQL a mano; repetible, `db:migrate` ×2 sin cambios y `drizzle-kit generate` sin cambios; misma firma, `FUNCIONES_AUTH` sigue en 15; decisiones en `plan.md`, Decisiones: "Correcciones de la ronda adversarial 2"):
+  - H-005-2a-1 y H-005-2b-1 · corregido (76c6121): orden global único de bloqueo para toda escritura de 005: membresías de actor y objetivos (incluido todo el lote) en una sentencia `bloquearMiembros` (`ORDER BY usuario_id FOR UPDATE`, nuevo en `packages/db/src/acceso/miembros.ts`) → bloqueo del último Dueño (trigger 0012) → clientes por id → asignaciones/invitaciones. Lo usan `UsuariosService` (`bloquearPar`) y `AsignacionesService` (asignar/PUT, retirar, por-usuario, por-cliente); los repos de lotes bloquean miembros antes que clientes (misma precedencia 404/409). Sin reintentos: ningún par se interbloquea.
+  - H-005-2a-2 = H-005-2b-2 · corregido (76c6121): nombre sin `\p{Cc}` ni `\p{Cf}` y con al menos una letra o dígito decimal (`\p{L}`/`\p{Nd}`): `nombreValido` → 400 `solicitud_invalida` antes del token y de Argon2; en la BD, `invitacion_aceptar_nueva` (0016) con rangos Cc/Cf explícitos y `[[:alnum:]]` bajo ICU `und-x-icu`. `\p{Nd}` en vez de `\p{N}` para que backend y BD coincidan (ICU no cuenta `²`/`Ⅻ`).
+  - H-005-2b-3 · corregido (76c6121): los IDs de los lotes se normalizan a minúsculas y se deduplican antes de contar y bloquear.
+  - Pruebas propias: `packages/db/src/acceso/asignaciones-r2.spec.ts` (6), `apps/backend/src/modules/acceso/correcciones-r2.spec.ts` (14), `apps/backend/src/modules/clientes/asignaciones-r2.spec.ts` (4) y `asignaciones-r2.int.spec.ts` (2: por-cliente vs por-usuario cruzados y por-cliente vs desactivar del Dueño; ambas daban 500/40P01 con el código anterior), `tests/aislamiento/acceso-correcciones-r2.spec.ts` (5: cada punto Cc/Cf de Node rechazado por la BD, escrituras no latinas aceptadas, ACL de la función, `bloquearMiembros` con RLS). `asignaciones-r1.spec.ts` (propia de T15) pasa a `bloquearMiembros`. Ninguna `*.adv*` editada.
+  - Checks: adversariales r1a/r1b/r2a/r2b 65/65 HTTP y 53/53 BD en verde, dos veces seguidas; `pnpm test` 8/8 paquetes (backend 500, db 410); `ci:db` OK (aislamiento 714, worker int 37, backend int 391); `cobertura:acceso` 1379 sin fallos de umbral (mínimo `usuarios.service` 92,3 % ramas); `cobertura:auth` 1421 y `cobertura:db` 1127 en 0; typecheck 10/10 y lint 7/7 OK.
 
 ## T18 · Verificación (tester · sonnet)
 - **Contexto (leer solo esto)**: `docs/specs/005-acceso/spec.md` (Criterios, "Cobertura"), `plan.md` (Contratos; Decisiones: Cobertura, Lint, HU-40), hallazgos de 005 en `ESTADO.md`.
