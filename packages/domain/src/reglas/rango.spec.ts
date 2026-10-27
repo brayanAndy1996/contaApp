@@ -3,8 +3,12 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { NUM_RUNS, SEMILLA, centavosAString } from "../../tests/ayudas/comprobante";
-import { de, evaluar, fila, pen, sug, unico } from "../../tests/ayudas/filas";
+import { ctxBase, de, evaluar, fila, pen, sug, unico } from "../../tests/ayudas/filas";
 import { ConfirmacionInvalidaError, aplicarSugerencia } from "./index";
+import type { FilaEvaluable } from "./index";
+
+/** Entorno con el que se evaluó el hallazgo (T15b-1). */
+const ent = (filas: FilaEvaluable[], contexto = ctxBase()) => ({ filas, contexto });
 
 // ---------------------------------------------------------------- oráculo (centavos enteros)
 /** igvEsperado en centavos: redondeo half-up de base × pct / 100 (la base ≥ 0). */
@@ -69,7 +73,7 @@ describe("rango del gravado: casos fijos (CA-4, D-3)", () => {
     const h = unico(evaluar([f]).hallazgos, "R-MIX");
     const s = sug(h, "separar");
     for (const g of [s.min, s.estimado, s.max]) {
-      const r = aplicarSugerencia(f.montos, h, { gravado: g }).montos;
+      const r = aplicarSugerencia(f.montos, h, { gravado: g }, ent([f])).montos;
       expect(r.total.toString()).toBe("1001.00");
       expect(r.obtener("biDg").toString()).toBe(g.toString());
     }
@@ -131,14 +135,14 @@ describe("rango del gravado: propiedad con oráculo de centavos (CA-4)", () => {
 
         // Aplicar: acepta lo, estimado y hi; rechaza lo−1 y hi+1; conserva el total.
         for (const g of [lo, estimado, hi]) {
-          const r = aplicarSugerencia(f.montos, h, { gravado: pen(centavosAString(s * g)) }).montos;
+          const r = aplicarSugerencia(f.montos, h, { gravado: pen(centavosAString(s * g)) }, ent([f])).montos;
           expect(r.obtener("biDg").toString()).toBe(centavosAString(s * g));
           expect(r.obtener("noGravado").toString()).toBe(centavosAString(s * (bi - g)));
           expect(r.obtener("igvDg").toString()).toBe(centavosAString(s * igv));
           expect(r.total.toString()).toBe(f.montos.total.toString());
         }
         for (const g of [lo - 1, hi + 1]) {
-          expect(() => aplicarSugerencia(f.montos, h, { gravado: pen(centavosAString(s * g)) })).toThrow(
+          expect(() => aplicarSugerencia(f.montos, h, { gravado: pen(centavosAString(s * g)) }, ent([f]))).toThrow(
             ConfirmacionInvalidaError,
           );
         }

@@ -1,8 +1,12 @@
 // T4 (rojo): R-MIX (RF-082; CA-2, CA-3, CA-10; D-3, D-7) vía evaluarReglas/aplicarSugerencia.
 import { describe, expect, it } from "vitest";
 import { MonedaDistintaError } from "../dinero/index";
-import { de, evaluar, fila, pen, sug, unico, usd, xmlDe } from "../../tests/ayudas/filas";
+import { ctxBase, de, evaluar, fila, pen, sug, unico, usd, xmlDe } from "../../tests/ayudas/filas";
 import { ConfirmacionInvalidaError, aplicarSugerencia } from "./index";
+import type { FilaEvaluable } from "./index";
+
+/** Entorno con el que se evaluó el hallazgo (T15b-1). */
+const ent = (filas: FilaEvaluable[], contexto = ctxBase()) => ({ filas, contexto });
 
 const MIXTA = { biDg: "21.48", igvDg: "1.61" }; // total 23.09
 const EXPLICACION_MIXTA = "1.61 no es 18 % ni 10 % de 21.48";
@@ -40,7 +44,7 @@ describe("R-MIX sin XML: la mixta 21.48 / 1.61 (CA-2, HU-24)", () => {
   it("aplicar con 8.97: gravado 8.97, no gravado 12.51, IGV intacto y total igual", () => {
     const f = fila(MIXTA);
     const h = unico(evaluar([f]).hallazgos, "R-MIX");
-    const r = aplicarSugerencia(f.montos, h, { gravado: pen("8.97") });
+    const r = aplicarSugerencia(f.montos, h, { gravado: pen("8.97") }, ent([f]));
     expect(r.excluir).toBe(false);
     expect(r.montos.obtener("biDg").toString()).toBe("8.97");
     expect(r.montos.obtener("noGravado").toString()).toBe("12.51");
@@ -52,7 +56,7 @@ describe("R-MIX sin XML: la mixta 21.48 / 1.61 (CA-2, HU-24)", () => {
   it("aplicar acepta los bordes 8.92 y 8.97 y el estimado 8.94", () => {
     const f = fila(MIXTA);
     const h = unico(evaluar([f]).hallazgos, "R-MIX");
-    const con = (g: string) => aplicarSugerencia(f.montos, h, { gravado: pen(g) }).montos;
+    const con = (g: string) => aplicarSugerencia(f.montos, h, { gravado: pen(g) }, ent([f])).montos;
     expect(con("8.92").obtener("noGravado").toString()).toBe("12.56");
     expect(con("8.94").obtener("noGravado").toString()).toBe("12.54");
     expect(con("8.97").obtener("noGravado").toString()).toBe("12.51");
@@ -61,27 +65,27 @@ describe("R-MIX sin XML: la mixta 21.48 / 1.61 (CA-2, HU-24)", () => {
   it("aplicar sin monto confirmado lanza ConfirmacionInvalidaError", () => {
     const f = fila(MIXTA);
     const h = unico(evaluar([f]).hallazgos, "R-MIX");
-    expect(() => aplicarSugerencia(f.montos, h)).toThrow(ConfirmacionInvalidaError);
+    expect(() => aplicarSugerencia(f.montos, h, undefined, ent([f]))).toThrow(ConfirmacionInvalidaError);
   });
 
   it("aplicar con un gravado fuera del rango (8.91 y 8.98) lanza ConfirmacionInvalidaError", () => {
     const f = fila(MIXTA);
     const h = unico(evaluar([f]).hallazgos, "R-MIX");
-    expect(() => aplicarSugerencia(f.montos, h, { gravado: pen("8.91") })).toThrow(ConfirmacionInvalidaError);
-    expect(() => aplicarSugerencia(f.montos, h, { gravado: pen("8.98") })).toThrow(ConfirmacionInvalidaError);
-    expect(() => aplicarSugerencia(f.montos, h, { gravado: pen("0.00") })).toThrow(ConfirmacionInvalidaError);
+    expect(() => aplicarSugerencia(f.montos, h, { gravado: pen("8.91") }, ent([f]))).toThrow(ConfirmacionInvalidaError);
+    expect(() => aplicarSugerencia(f.montos, h, { gravado: pen("8.98") }, ent([f]))).toThrow(ConfirmacionInvalidaError);
+    expect(() => aplicarSugerencia(f.montos, h, { gravado: pen("0.00") }, ent([f]))).toThrow(ConfirmacionInvalidaError);
   });
 
   it("aplicar con una confirmación de otro tipo ({ destino }) lanza ConfirmacionInvalidaError", () => {
     const f = fila(MIXTA);
     const h = unico(evaluar([f]).hallazgos, "R-MIX");
-    expect(() => aplicarSugerencia(f.montos, h, { destino: "DG" })).toThrow(ConfirmacionInvalidaError);
+    expect(() => aplicarSugerencia(f.montos, h, { destino: "DG" }, ent([f]))).toThrow(ConfirmacionInvalidaError);
   });
 
   it("aplicar con un gravado en otra moneda propaga MonedaDistintaError de 010", () => {
     const f = fila(MIXTA);
     const h = unico(evaluar([f]).hallazgos, "R-MIX");
-    expect(() => aplicarSugerencia(f.montos, h, { gravado: usd("8.97") })).toThrow(MonedaDistintaError);
+    expect(() => aplicarSugerencia(f.montos, h, { gravado: usd("8.97") }, ent([f]))).toThrow(MonedaDistintaError);
   });
 
   it("no se dispara R-ISC ni otra regla en la mixta (IGV ≠ 0)", () => {
@@ -102,7 +106,7 @@ describe("R-MIX con XML (CA-3, D-3, D-7)", () => {
     expect(s.max.toString()).toBe("8.97");
     expect(h.requiereConfirmacion).toBe(false);
     expect(h.dato).toBeNull();
-    const r = aplicarSugerencia(f.montos, h);
+    const r = aplicarSugerencia(f.montos, h, undefined, ent([f]));
     expect(r.montos.obtener("biDg").toString()).toBe("8.97");
     expect(r.montos.obtener("noGravado").toString()).toBe("12.51");
     expect(r.montos.total.toString()).toBe("23.09");
@@ -126,7 +130,7 @@ describe("R-MIX con XML (CA-3, D-3, D-7)", () => {
     expect(s.estimado.toString()).toBe("27.78");
     expect(s.exacto?.toString()).toBe("50.00");
     expect(h.requiereConfirmacion).toBe(false);
-    const r = aplicarSugerencia(f.montos, h);
+    const r = aplicarSugerencia(f.montos, h, undefined, ent([f]));
     expect(r.montos.obtener("biDg").toString()).toBe("50.00");
     expect(r.montos.obtener("noGravado").toString()).toBe("30.00");
     expect(r.montos.total.toString()).toBe("85.00");
@@ -211,7 +215,7 @@ describe("R-MIX: signos y moneda (CA-10)", () => {
     expect(s.min.toString()).toBe("-8.97");
     expect(s.max.toString()).toBe("-8.92");
     expect(h.explicacion).toContain("1.61");
-    const r = aplicarSugerencia(f.montos, h, { gravado: pen("-8.97") });
+    const r = aplicarSugerencia(f.montos, h, { gravado: pen("-8.97") }, ent([f]));
     expect(r.montos.obtener("biDg").toString()).toBe("-8.97");
     expect(r.montos.obtener("noGravado").toString()).toBe("-12.51");
     expect(r.montos.obtener("igvDg").toString()).toBe("-1.61");
@@ -221,7 +225,7 @@ describe("R-MIX: signos y moneda (CA-10)", () => {
   it("nota de crédito: aplicar acepta -8.92 y -8.97 (bordes) y rechaza -8.91 y -8.98", () => {
     const f = fila({ biDg: "-21.48", igvDg: "-1.61" });
     const h = unico(evaluar([f]).hallazgos, "R-MIX");
-    const con = (g: string) => aplicarSugerencia(f.montos, h, { gravado: pen(g) }).montos;
+    const con = (g: string) => aplicarSugerencia(f.montos, h, { gravado: pen(g) }, ent([f])).montos;
     expect(con("-8.92").obtener("noGravado").toString()).toBe("-12.56");
     expect(con("-8.97").obtener("noGravado").toString()).toBe("-12.51");
     expect(() => con("-8.91")).toThrow(ConfirmacionInvalidaError);
@@ -231,7 +235,7 @@ describe("R-MIX: signos y moneda (CA-10)", () => {
   it("nota de crédito: un gravado de signo opuesto es una confirmación inválida", () => {
     const f = fila({ biDg: "-21.48", igvDg: "-1.61" });
     const h = unico(evaluar([f]).hallazgos, "R-MIX");
-    expect(() => aplicarSugerencia(f.montos, h, { gravado: pen("8.97") })).toThrow(ConfirmacionInvalidaError);
+    expect(() => aplicarSugerencia(f.montos, h, { gravado: pen("8.97") }, ent([f]))).toThrow(ConfirmacionInvalidaError);
   });
 
   it("nota de crédito con XML negativo: exacto -8.97", () => {
@@ -249,10 +253,10 @@ describe("R-MIX: signos y moneda (CA-10)", () => {
     const s = sug(h, "separar");
     expect([s.min.moneda, s.max.moneda, s.estimado.moneda]).toEqual(["USD", "USD", "USD"]);
     expect([s.min.toString(), s.max.toString(), s.estimado.toString()]).toEqual(["8.92", "8.97", "8.94"]);
-    const r = aplicarSugerencia(f.montos, h, { gravado: usd("8.97") });
+    const r = aplicarSugerencia(f.montos, h, { gravado: usd("8.97") }, ent([f]));
     expect(r.montos.moneda).toBe("USD");
     expect(r.montos.obtener("noGravado").toString()).toBe("12.51");
-    expect(() => aplicarSugerencia(f.montos, h, { gravado: pen("8.97") })).toThrow(MonedaDistintaError);
+    expect(() => aplicarSugerencia(f.montos, h, { gravado: pen("8.97") }, ent([f]))).toThrow(MonedaDistintaError);
   });
 
   it("fila USD con XML en USD: exacto en USD", () => {

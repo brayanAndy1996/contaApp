@@ -2,8 +2,11 @@
 import { describe, expect, it } from "vitest";
 import { PROV, ctxBase, de, evaluar, fila, sug, unico, xmlDe } from "../../tests/ayudas/filas";
 import { aplicarSugerencia } from "./index";
+import type { FilaEvaluable } from "./index";
 
 const SAN_JUAN = { biDg: "770.00" };
+/** Entorno con el que se evaluó el hallazgo (T15b-1). */
+const ent = (filas: FilaEvaluable[], contexto = ctxBase()) => ({ filas, contexto });
 
 describe("R-ISC sin XML (CA-1, D-1)", () => {
   it("BI DG 770.00 con IGV 0.00: un hallazgo R-ISC con sugerencia exacta mover 770.00 de BI DG a ISC", () => {
@@ -33,7 +36,7 @@ describe("R-ISC sin XML (CA-1, D-1)", () => {
   it("aplicar: ISC 770.00, BI DG 0.00 y total igual (CA-1, CA-9)", () => {
     const f = fila(SAN_JUAN);
     const h = unico(evaluar([f]).hallazgos, "R-ISC");
-    const r = aplicarSugerencia(f.montos, h);
+    const r = aplicarSugerencia(f.montos, h, undefined, ent([f]));
     expect(r.excluir).toBe(false);
     expect(r.montos.obtener("isc").toString()).toBe("770.00");
     expect(r.montos.obtener("biDg").toString()).toBe("0.00");
@@ -45,7 +48,7 @@ describe("R-ISC sin XML (CA-1, D-1)", () => {
     const f = fila({ biDg: "770.00", isc: "30.00" });
     const h = unico(evaluar([f]).hallazgos, "R-ISC");
     expect(sug(h, "mover").monto.toString()).toBe("770.00");
-    expect(aplicarSugerencia(f.montos, h).montos.obtener("isc").toString()).toBe("800.00");
+    expect(aplicarSugerencia(f.montos, h, undefined, ent([f])).montos.obtener("isc").toString()).toBe("800.00");
   });
 
   it("destino en 0.00/0.00 se ignora y una fila que cuadra a 18 % no dispara R-ISC", () => {
@@ -66,7 +69,7 @@ describe("R-ISC con XML (D-1)", () => {
     expect(s.destino).toBe("isc");
     expect(s.monto.toString()).toBe("770.00");
     expect(h.requiereConfirmacion).toBe(false);
-    const r = aplicarSugerencia(f.montos, h);
+    const r = aplicarSugerencia(f.montos, h, undefined, ent([f]));
     expect(r.montos.obtener("isc").toString()).toBe("770.00");
     expect(r.montos.obtener("biDg").toString()).toBe("0.00");
     expect(r.montos.total.toString()).toBe("770.00");
@@ -117,7 +120,7 @@ describe("R-ISC: proveedor marcado como emisor de ISC (D-2)", () => {
     expect(s.destino).toBe("isc");
     expect(s.monto.toString()).toBe("20.00");
     expect(h.requiereConfirmacion).toBe(false);
-    const r = aplicarSugerencia(f.montos, h);
+    const r = aplicarSugerencia(f.montos, h, undefined, ent([f], ctxIsc));
     expect(r.montos.obtener("biDg").toString()).toBe("80.00");
     expect(r.montos.obtener("isc").toString()).toBe("20.00");
     expect(r.montos.total.toString()).toBe("118.00");
@@ -177,7 +180,7 @@ describe("R-ISC: signos y moneda (CA-10)", () => {
     const f = fila({ biDg: "-770.00" });
     const h = unico(evaluar([f]).hallazgos, "R-ISC");
     expect(sug(h, "mover").monto.toString()).toBe("-770.00");
-    const r = aplicarSugerencia(f.montos, h);
+    const r = aplicarSugerencia(f.montos, h, undefined, ent([f]));
     expect(r.montos.obtener("isc").toString()).toBe("-770.00");
     expect(r.montos.obtener("biDg").toString()).toBe("0.00");
     expect(r.montos.total.toString()).toBe("-770.00");
@@ -197,7 +200,7 @@ describe("R-ISC: signos y moneda (CA-10)", () => {
     expect(s.monto.moneda).toBe("USD");
     expect(s.monto.toString()).toBe("770.00");
     expect(h.lecturas.biDg?.moneda).toBe("USD");
-    const r = aplicarSugerencia(f.montos, h);
+    const r = aplicarSugerencia(f.montos, h, undefined, ent([f]));
     expect(r.montos.moneda).toBe("USD");
     expect(r.montos.obtener("isc").toString()).toBe("770.00");
   });

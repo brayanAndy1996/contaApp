@@ -4,7 +4,6 @@
 import { describe, expect, it } from "vitest";
 import {
   DICCIONARIO_GLOSAS_BASE,
-  EntradaReglasInvalidaError,
   Money,
   MontosComprobante,
   ReglasError,
@@ -59,6 +58,8 @@ function unico(hs: readonly Hallazgo[], regla: CodigoRegla, destino?: string): H
   return r[0] as Hallazgo;
 }
 
+/** Entorno con el que se evaluó el hallazgo (T15b-1): las filas y el contexto. */
+const ent = (filas: FilaEvaluable[], contexto: ContextoReglas = ctx()) => ({ filas, contexto });
 const evaluar = (f: FilaEvaluable, c: ContextoReglas = ctx()) => evaluarReglas([f], c).hallazgos;
 const falso = (h: Hallazgo, over: Record<string, unknown>): Hallazgo => ({ ...h, ...over }) as unknown as Hallazgo;
 const sinLectura = (h: Hallazgo, k: string): Hallazgo => {
@@ -72,11 +73,13 @@ const sanJuan = () => montos({ biDg: "770.00", total: "770.00" });
 const mixta = () => montos({ biDg: "21.48", igvDg: "1.61", total: "23.09" });
 const mixtaNc = () => montos({ biDg: "-21.48", igvDg: "-1.61", total: "-23.09" });
 // San Juan con XML que trae ISC 770.00 (CA-1): R-ISC exacto, sin confirmación.
-const hIscXml = () => unico(evaluar(fila(sanJuan(), { xml: xml({ isc: pen("770.00"), total: pen("770.00") }) })), "R-ISC");
+const fIscXml = () => fila(sanJuan(), { xml: xml({ isc: pen("770.00"), total: pen("770.00") }) });
+const hIscXml = () => unico(evaluar(fIscXml()), "R-ISC");
 const hIscSinXml = () => unico(evaluar(fila(sanJuan())), "R-ISC");
 // R-RED sin XML: diferencia −0.01 dentro del umbral (D-6) → total = Σ.
 const descuadre = () => montos({ biDg: "100.00", igvDg: "18.00", total: "118.01" });
-const hRed = () => unico(evaluar(fila(descuadre())), "R-RED");
+const fRed = () => fila(descuadre());
+const hRed = () => unico(evaluar(fRed()), "R-RED");
 // CA-3: XML de la mixta con gravado 8.97 → exacto, sin confirmación.
 const xmlMixta = () =>
   xml({ gravado: pen("8.97"), igv: pen("1.61"), noGravado: pen("12.51"), total: pen("23.09") });
@@ -88,24 +91,28 @@ describe("R2a-1 regresión: hallazgos legítimos siguen aplicándose tras T13 (C
       "NC R-ISC con XML (−770.00 a isc, CA-10 + D-1)",
       () => {
         const m = montos({ biDg: "-770.00", total: "-770.00" });
-        const h = unico(evaluar(fila(m, { xml: xml({ isc: pen("-770.00"), total: pen("-770.00") }) })), "R-ISC");
+        const f = fila(m, { xml: xml({ isc: pen("-770.00"), total: pen("-770.00") }) });
+        const h = unico(evaluar(f), "R-ISC");
         expect(h.requiereConfirmacion).toBe(false);
-        return aplicarSugerencia(m, h).montos;
+        return aplicarSugerencia(m, h, undefined, ent([f])).montos;
       },
       { biDg: "0.00", isc: "-770.00", total: "-770.00" },
     ],
     [
       "NC R-MIX sin XML confirmando −8.97 (CA-2 + CA-10)",
-      () => aplicarSugerencia(mixtaNc(), unico(evaluar(fila(mixtaNc())), "R-MIX"), { gravado: pen("-8.97") }).montos,
+      () =>
+        aplicarSugerencia(mixtaNc(), unico(evaluar(fila(mixtaNc())), "R-MIX"), { gravado: pen("-8.97") }, ent([fila(mixtaNc())]))
+          .montos,
       { biDg: "-8.97", noGravado: "-12.51", total: "-23.09" },
     ],
     [
       "R-MIX con XML exacto a 10 % (16.10, D-7)",
       () => {
         const x = xml({ gravado: pen("16.10"), igv: pen("1.61"), noGravado: pen("5.38"), total: pen("23.09") });
-        const h = unico(evaluar(fila(mixta(), { xml: x })), "R-MIX");
+        const f = fila(mixta(), { xml: x });
+        const h = unico(evaluar(f), "R-MIX");
         expect(h.requiereConfirmacion).toBe(false);
-        return aplicarSugerencia(mixta(), h).montos;
+        return aplicarSugerencia(mixta(), h, undefined, ent([f])).montos;
       },
       { biDg: "16.10", noGravado: "5.38", total: "23.09" },
     ],
@@ -113,7 +120,7 @@ describe("R2a-1 regresión: hallazgos legítimos siguen aplicándose tras T13 (C
       "R-MIX USD sin XML confirmando 8.94 (CA-10)",
       () => {
         const m = MontosComprobante.desde("USD", { biDg: "21.48", igvDg: "1.61", total: "23.09" });
-        return aplicarSugerencia(m, unico(evaluar(fila(m)), "R-MIX"), { gravado: usd("8.94") }).montos;
+        return aplicarSugerencia(m, unico(evaluar(fila(m)), "R-MIX"), { gravado: usd("8.94") }, ent([fila(m)])).montos;
       },
       { biDg: "8.94", noGravado: "12.54", total: "23.09" },
     ],
@@ -122,8 +129,10 @@ describe("R2a-1 regresión: hallazgos legítimos siguen aplicándose tras T13 (C
       () => {
         const m = montos({ biDg: "1000.00", igvDg: "180.00", total: "1180.00" });
         const x = xml({ gravado: pen("1000.00"), igv: pen("180.00"), isc: pen("50.00"), total: pen("1180.00") });
-        const h = unico(evaluar(fila(m, { xml: x }), ctx({ proveedoresIsc: [{ ...PROV }] })), "R-ISC");
-        return aplicarSugerencia(m, h).montos;
+        const f = fila(m, { xml: x });
+        const cx = ctx({ proveedoresIsc: [{ ...PROV }] });
+        const h = unico(evaluar(f, cx), "R-ISC");
+        return aplicarSugerencia(m, h, undefined, ent([f], cx)).montos;
       },
       { biDg: "950.00", isc: "50.00", total: "1180.00" },
     ],
@@ -132,10 +141,13 @@ describe("R2a-1 regresión: hallazgos legítimos siguen aplicándose tras T13 (C
       () => {
         const m = montos({ biDg: "100.00", biDgng: "200.00", total: "300.00" });
         const hs = evaluar(fila(m));
-        const r = aplicarMasivo([
-          { montos: m, hallazgo: unico(hs, "R-ISC", "DG") },
-          { montos: m, hallazgo: unico(hs, "R-ISC", "DGNG") },
-        ]);
+        const r = aplicarMasivo(
+          [
+            { montos: m, hallazgo: unico(hs, "R-ISC", "DG") },
+            { montos: m, hallazgo: unico(hs, "R-ISC", "DGNG") },
+          ],
+          ent([fila(m)]),
+        );
         expect(r.rechazadas).toEqual([]);
         return r.aplicadas[1]?.montos as MontosComprobante;
       },
@@ -143,7 +155,7 @@ describe("R2a-1 regresión: hallazgos legítimos siguen aplicándose tras T13 (C
     ],
     [
       "R-RED sin XML (total = Σ, D-6)",
-      () => aplicarSugerencia(descuadre(), hRed()).montos,
+      () => aplicarSugerencia(descuadre(), hRed(), undefined, ent([fRed()])).montos,
       { biDg: "100.00", igvDg: "18.00", total: "118.00" },
     ],
   ])("%s", (_n, aplicar, esperado) => {
@@ -162,12 +174,13 @@ describe("R2a-2 variante de R1b-1: el exacto de R-MIX con XML también depende d
   // contador agrega después una BI en DNG, el gravado total del XML ya no es el de DG y el
   // exacto (sin confirmación ni dato) se aplicaría solo en el masivo.
   it("R-MIX exacto 8.97 sobre una fila a la que luego se le agregó BI DNG 100.00 → obsoleta", () => {
-    const h = unico(evaluar(fila(mixta(), { xml: xmlMixta() })), "R-MIX");
+    const f = fila(mixta(), { xml: xmlMixta() });
+    const h = unico(evaluar(f), "R-MIX");
     expect(h.requiereConfirmacion).toBe(false);
     expect(h.dato).toBeNull();
     const editados = montos({ biDg: "21.48", igvDg: "1.61", biDng: "100.00", total: "123.09" });
-    expect(() => aplicarSugerencia(editados, h)).toThrow(SugerenciaObsoletaError);
-    const r = aplicarMasivo([{ montos: editados, hallazgo: h }]);
+    expect(() => aplicarSugerencia(editados, h, undefined, ent([f]))).toThrow(SugerenciaObsoletaError);
+    const r = aplicarMasivo([{ montos: editados, hallazgo: h }], ent([f]));
     expect(r.aplicadas).toEqual([]);
   });
 });
@@ -177,14 +190,18 @@ describe("R2a-3 variante de R1b-2: orden inverso en masivo, R-ISC (XML) antes qu
   // aplicar R-ISC (isc cambia), R-RED de la misma fila queda obsoleta.
   it("R-ISC se aplica y las dos R-RED repetidas quedan obsoletas", () => {
     const m = montos({ biDg: "770.00", total: "1540.00" });
-    const hs = evaluar(fila(m, { xml: xml({ gravado: pen("770.00"), isc: pen("770.00"), total: pen("1540.00") }) }));
+    const f = fila(m, { xml: xml({ gravado: pen("770.00"), isc: pen("770.00"), total: pen("1540.00") }) });
+    const hs = evaluar(f);
     const isc = unico(hs, "R-ISC");
     const red = unico(hs, "R-RED");
-    const r = aplicarMasivo([
-      { montos: m, hallazgo: isc },
-      { montos: m, hallazgo: red },
-      { montos: m, hallazgo: red },
-    ]);
+    const r = aplicarMasivo(
+      [
+        { montos: m, hallazgo: isc },
+        { montos: m, hallazgo: red },
+        { montos: m, hallazgo: red },
+      ],
+      ent([f]),
+    );
     expect(r.aplicadas).toHaveLength(1);
     expect(r.rechazadas).toEqual([
       { filaId: "f1", regla: "R-RED", codigo: "SUGERENCIA_OBSOLETA" },
@@ -197,15 +214,15 @@ describe("R2a-4 variante de R1b-3: quitar UNA lectura de las que la regla lee (p
   // "falta una lectura que la regla lee (R-ISC/R-MIX: BI e IGV del destino, más isc y las otras
   // BI con el ISC del XML; R-RED: todas y total) → SugerenciaObsoletaError" (o forma inválida).
   it.each([
-    ["R-ISC con XML sin isc (sobre isc ya corregido a 770)", () => sinLectura(hIscXml(), "isc"), () => montos({ biDg: "770.00", isc: "770.00", total: "1540.00" })],
-    ["R-ISC con XML sin biDng", () => sinLectura(hIscXml(), "biDng"), () => montos({ biDg: "770.00", biDng: "50.00", total: "820.00" })],
-    ["R-ISC con XML sin biDgng", () => sinLectura(hIscXml(), "biDgng"), () => montos({ biDg: "770.00", biDgng: "50.00", total: "820.00" })],
-    ["R-ISC con XML sin igvDg", () => sinLectura(hIscXml(), "igvDg"), () => montos({ biDg: "770.00", igvDg: "138.60", total: "908.60" })],
-    ["R-RED sin total", () => sinLectura(hRed(), "total"), () => montos({ biDg: "100.00", igvDg: "18.00", total: "500.00" })],
-    ["R-RED sin isc", () => sinLectura(hRed(), "isc"), () => montos({ biDg: "100.00", igvDg: "18.00", isc: "5.00", total: "118.01" })],
-    ["R-MIX sin igvDg", () => sinLectura(unico(evaluar(fila(mixta())), "R-MIX"), "igvDg"), () => montos({ biDg: "21.48", igvDg: "1.62", total: "23.10" })],
-  ])("%s → error de reglas", (_n, h, m) => {
-    expect(() => aplicarSugerencia(m(), h(), { gravado: pen("8.94") })).toThrow(ReglasError);
+    ["R-ISC con XML sin isc (sobre isc ya corregido a 770)", () => sinLectura(hIscXml(), "isc"), () => montos({ biDg: "770.00", isc: "770.00", total: "1540.00" }), fIscXml],
+    ["R-ISC con XML sin biDng", () => sinLectura(hIscXml(), "biDng"), () => montos({ biDg: "770.00", biDng: "50.00", total: "820.00" }), fIscXml],
+    ["R-ISC con XML sin biDgng", () => sinLectura(hIscXml(), "biDgng"), () => montos({ biDg: "770.00", biDgng: "50.00", total: "820.00" }), fIscXml],
+    ["R-ISC con XML sin igvDg", () => sinLectura(hIscXml(), "igvDg"), () => montos({ biDg: "770.00", igvDg: "138.60", total: "908.60" }), fIscXml],
+    ["R-RED sin total", () => sinLectura(hRed(), "total"), () => montos({ biDg: "100.00", igvDg: "18.00", total: "500.00" }), fRed],
+    ["R-RED sin isc", () => sinLectura(hRed(), "isc"), () => montos({ biDg: "100.00", igvDg: "18.00", isc: "5.00", total: "118.01" }), fRed],
+    ["R-MIX sin igvDg", () => sinLectura(unico(evaluar(fila(mixta())), "R-MIX"), "igvDg"), () => montos({ biDg: "21.48", igvDg: "1.62", total: "23.10" }), () => fila(mixta())],
+  ])("%s → error de reglas", (_n, h, m, f) => {
+    expect(() => aplicarSugerencia(m(), h(), { gravado: pen("8.94") }, ent([f()]))).toThrow(ReglasError);
   });
 });
 
@@ -214,14 +231,15 @@ describe("R2a-5 variante de R1b-2: R-ISC sin XML disfrazado de 'con XML' agregan
   // solo porque `isc` está en las lecturas: agregarlo (con los valores reales de la fila) permite
   // un monto parcial sin confirmación. Mismo límite declarado por T13 para el exacto de R-MIX
   // (aplicar no recibe el XML): decide usuario/arquitecto.
-  it("monto parcial 100.00, sin confirmación y con isc/otras BI agregadas → EntradaReglasInvalidaError", () => {
+  it("monto parcial 100.00, sin confirmación y con isc/otras BI agregadas → SugerenciaObsoletaError", () => {
     const h = hIscSinXml();
     const forjado = falso(h, {
       requiereConfirmacion: false,
       lecturas: { ...h.lecturas, isc: pen("0.00"), biDgng: pen("0.00"), biDng: pen("0.00") },
       sugerencia: { ...h.sugerencia, monto: pen("100.00") },
     });
-    expect(() => aplicarSugerencia(sanJuan(), forjado)).toThrow(EntradaReglasInvalidaError);
+    // T15b-1: con el entorno real lo rechaza la re-evaluación (obsoleta), no la forma.
+    expect(() => aplicarSugerencia(sanJuan(), forjado, undefined, ent([fila(sanJuan())]))).toThrow(SugerenciaObsoletaError);
   });
 });
 
@@ -233,10 +251,11 @@ describe("R2a-6 variante de R1b-2: R-RED (ajustar) falsificado con forma válida
     ["total 500.00 (deja la fila descuadrada)", { total: pen("500.00") }],
     ["biDg 9999.00 (columna inventada sin XML)", { biDg: pen("9999.00") }],
     ["biDg 0.00 y total 18.00 (cuadra, pero no es Σ de las lecturas)", { biDg: pen("0.00"), total: pen("18.00") }],
-  ])("%s → EntradaReglasInvalidaError", (_n, valores) => {
+  ])("%s → SugerenciaObsoletaError", (_n, valores) => {
     const h = hRed();
     const forjado = falso(h, { sugerencia: { tipo: "ajustar", valores } });
-    expect(() => aplicarSugerencia(descuadre(), forjado)).toThrow(EntradaReglasInvalidaError);
+    // T15b-1: con el entorno real lo rechaza la re-evaluación (obsoleta), no la forma.
+    expect(() => aplicarSugerencia(descuadre(), forjado, undefined, ent([fRed()]))).toThrow(SugerenciaObsoletaError);
   });
 });
 

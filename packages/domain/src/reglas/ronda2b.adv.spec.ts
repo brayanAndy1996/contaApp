@@ -59,7 +59,10 @@ function unico(hs: readonly Hallazgo[], regla: CodigoRegla, filaId = "f1"): Hall
 const mixta = () => montos({ biDg: "21.48", igvDg: "1.61", total: "23.09" });
 const xmlMixto = () =>
   xml({ gravado: pen("8.94"), igv: pen("1.61"), noGravado: pen("12.54"), total: pen("23.09") });
-const hMixExacto = () => unico(evaluarReglas([fila(mixta(), { xml: xmlMixto() })], ctx()).hallazgos, "R-MIX");
+const fMixExacto = () => fila(mixta(), { xml: xmlMixto() });
+const hMixExacto = () => unico(evaluarReglas([fMixExacto()], ctx()).hallazgos, "R-MIX");
+/** Entorno con el que se evaluó el hallazgo (T15b-1): las filas y el contexto. */
+const ent = (filas: FilaEvaluable[]) => ({ filas, contexto: ctx() });
 // El contador agrega una BI en DGNG después de evaluar: la fila ya no tiene "único destino con BI".
 const editadaConDgng = () => montos({ biDg: "21.48", igvDg: "1.61", biDgng: "100.00", total: "123.09" });
 
@@ -74,11 +77,11 @@ describe("R2b-1 R-MIX exacto del XML depende del 'único destino con BI' (CA-9, 
     expect(h.requiereConfirmacion).toBe(false);
     const re = evaluarReglas([fila(editadaConDgng(), { xml: xmlMixto() })], ctx()).hallazgos;
     expect(unico(re, "R-MIX").sugerencia).toMatchObject({ exacto: null });
-    expect(() => aplicarSugerencia(editadaConDgng(), h)).toThrow(SugerenciaObsoletaError);
+    expect(() => aplicarSugerencia(editadaConDgng(), h, undefined, ent([fMixExacto()]))).toThrow(SugerenciaObsoletaError);
   });
 
   it("en masivo (dato null, sin confirmación) la R-MIX vieja no se aplica en silencio", () => {
-    const r = aplicarMasivo([{ montos: editadaConDgng(), hallazgo: hMixExacto() }]);
+    const r = aplicarMasivo([{ montos: editadaConDgng(), hallazgo: hMixExacto() }], ent([fMixExacto()]));
     expect(r.aplicadas).toHaveLength(0);
     expect(r.rechazadas).toEqual([{ filaId: "f1", regla: "R-MIX", codigo: "SUGERENCIA_OBSOLETA" }]);
   });
@@ -157,16 +160,17 @@ describe("R2b-6 sin rechazos falsos en notas de crédito (Cambios de T13, Aplica
     const xmlNcMix = xml({ gravado: pen("-8.94"), igv: pen("-1.61"), noGravado: pen("-12.54"), total: pen("-23.09") });
     const ncIsc = montos({ biDg: "-770.00", total: "-770.00" });
     const xmlNcIsc = xml({ gravado: pen("-700.00"), isc: pen("-70.00"), total: pen("-770.00") });
-    const hs = evaluarReglas(
-      [fila(ncMix, { xml: xmlNcMix }), fila(ncIsc, { id: "f2", xml: xmlNcIsc })],
-      ctx(),
-    ).hallazgos;
+    const filasNc = [fila(ncMix, { xml: xmlNcMix }), fila(ncIsc, { id: "f2", xml: xmlNcIsc })];
+    const hs = evaluarReglas(filasNc, ctx()).hallazgos;
     const mix = unico(hs, "R-MIX");
     const isc = unico(hs, "R-ISC", "f2");
-    const r = aplicarMasivo([
-      { montos: ncMix, hallazgo: mix },
-      { montos: ncIsc, hallazgo: isc },
-    ]);
+    const r = aplicarMasivo(
+      [
+        { montos: ncMix, hallazgo: mix },
+        { montos: ncIsc, hallazgo: isc },
+      ],
+      ent(filasNc),
+    );
     expect(r.rechazadas).toEqual([]);
     expect(r.aplicadas[0]?.montos.obtener("biDg").toString()).toBe("-8.94");
     expect(r.aplicadas[1]?.montos.obtener("isc").toString()).toBe("-70.00");

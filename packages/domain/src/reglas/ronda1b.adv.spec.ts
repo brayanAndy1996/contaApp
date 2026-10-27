@@ -3,7 +3,6 @@
 import { describe, expect, it } from "vitest";
 import {
   DICCIONARIO_GLOSAS_BASE,
-  EntradaReglasInvalidaError,
   Money,
   MontosComprobante,
   ReglasError,
@@ -12,7 +11,7 @@ import {
   aplicarSugerencia,
   evaluarReglas,
 } from "../index";
-import type { CodigoRegla, ContextoReglas, FilaEvaluable, Hallazgo, ResumenXml } from "../index";
+import type { CodigoRegla, ContextoReglas, EntornoEvaluacion, FilaEvaluable, Hallazgo, ResumenXml } from "../index";
 
 const PROV = { tipo: "6", numero: "20100000001" };
 const COMP = { tipo: "01", serie: "F001", numero: "123" };
@@ -56,6 +55,9 @@ function unico(hs: readonly Hallazgo[], regla: CodigoRegla): Hallazgo {
   return r[0] as Hallazgo;
 }
 
+/** Entorno con el que se evaluó el hallazgo (T15b-1): las filas y el contexto. */
+const entorno = (...filas: FilaEvaluable[]): EntornoEvaluacion => ({ filas, contexto: ctx() });
+
 const falso = (h: Hallazgo, over: Record<string, unknown>): Hallazgo => ({ ...h, ...over }) as unknown as Hallazgo;
 const sugFalsa = (h: Hallazgo, over: Record<string, unknown>): Hallazgo =>
   falso(h, { sugerencia: { ...h.sugerencia, ...over } });
@@ -66,8 +68,9 @@ const sugFalsa = (h: Hallazgo, over: Record<string, unknown>): Hallazgo =>
 const cruzada = () => montos({ biDg: "770.00", total: "1540.00" });
 const xmlCruzado = () =>
   xml({ gravado: pen("770.00"), isc: pen("770.00"), total: pen("1540.00") });
+const filaCruzada = () => fila(cruzada(), { xml: xmlCruzado() });
 function hallazgosCruzados() {
-  const { hallazgos } = evaluarReglas([fila(cruzada(), { xml: xmlCruzado() })], ctx());
+  const { hallazgos } = evaluarReglas([filaCruzada()], ctx());
   return { isc: unico(hallazgos, "R-ISC"), red: unico(hallazgos, "R-RED") };
 }
 
@@ -85,7 +88,7 @@ describe("R1b-1 obsolescencia parcial: R-ISC con XML depende de la columna isc (
     expect(isc.sugerencia).toMatchObject({ tipo: "mover", destino: "isc" });
     expect(isc.requiereConfirmacion).toBe(false);
     const editados = montos({ biDg: "770.00", isc: "770.00", total: "1540.00" });
-    expect(() => aplicarSugerencia(editados, isc)).toThrow(SugerenciaObsoletaError);
+    expect(() => aplicarSugerencia(editados, isc, undefined, entorno(filaCruzada()))).toThrow(SugerenciaObsoletaError);
   });
 });
 
@@ -97,7 +100,7 @@ describe("R1b-2 masivo con la misma fila repetida y reglas cruzadas (CA-9, plan 
       { montos: cruzada(), hallazgo: red },
       { montos: cruzada(), hallazgo: isc },
       { montos: cruzada(), hallazgo: isc },
-    ]);
+    ], entorno(filaCruzada()));
     // Si se aplicara también R-ISC: biDg 0 e isc 1540, cuando el XML dice gravado 770 e ISC 770.
     expect(r.aplicadas).toHaveLength(1);
     expect(r.rechazadas).toEqual([
@@ -115,8 +118,9 @@ describe("R1b-3 R-ISC falsificado con forma válida (plan, Ratificación: Aplica
     ["destino noGravado en vez de isc", () => sugFalsa(hIsc(), { destino: "noGravado" })],
     ["monto parcial 100.00 sin XML (debe ser toda la BI leída)", () => sugFalsa(hIsc(), { monto: pen("100.00") })],
     ["hallazgo de destino DGNG con origen biDg", () => falso(hIsc(), { destino: "DGNG" })],
-  ])("%s → EntradaReglasInvalidaError", (_n, h) => {
-    expect(() => aplicarSugerencia(sanJuan(), h())).toThrow(EntradaReglasInvalidaError);
+  // T15b-1: con el entorno real de la fila el falso lo rechaza la re-evaluación (obsoleta), no la forma.
+  ])("%s → SugerenciaObsoletaError", (_n, h) => {
+    expect(() => aplicarSugerencia(sanJuan(), h(), undefined, entorno(fila(sanJuan())))).toThrow(SugerenciaObsoletaError);
   });
 });
 
@@ -124,13 +128,13 @@ describe("R1b-4 lecturas manipuladas evitan la obsolescencia (plan, Obsolescenci
   // R-ISC y R-MIX leen BI e IGV del destino; un hallazgo sin esas lecturas no lo produce
   // evaluarReglas (falsificado) y no debe aplicarse sobre montos distintos de los evaluados.
   it.each([
-    ["R-ISC sobre BI 1000.00", () => aplicarSugerencia(montos({ biDg: "1000.00", total: "1000.00" }), falso(hIsc(), { lecturas: {} }))],
+    ["R-ISC sobre BI 1000.00", () => aplicarSugerencia(montos({ biDg: "1000.00", total: "1000.00" }), falso(hIsc(), { lecturas: {} }), undefined, entorno(fila(sanJuan())))],
     [
       "R-MIX sobre BI 500.00",
       () =>
         aplicarSugerencia(montos({ biDg: "500.00", igvDg: "1.61", total: "501.61" }), falso(hMix(), { lecturas: {} }), {
           gravado: pen("8.94"),
-        }),
+        }, entorno(fila(mixta()))),
     ],
   ])("%s con lecturas vacías lanza", (_n, aplicar) => {
     expect(aplicar).toThrow(ReglasError);
@@ -140,10 +144,10 @@ describe("R1b-4 lecturas manipuladas evitan la obsolescencia (plan, Obsolescenci
 describe("R1b-5 R-MIX falsificado: rango o exacto que no salen de las lecturas (CA-2, D-3)", () => {
   // CA-2: gravado "fuera del rango lanza error". El rango de 21.48/1.61 es 8.92–8.97 (D-3).
   it.each([
-    ["exacto inventado 1.00 sin confirmación", () => aplicarSugerencia(mixta(), sugFalsa(hMix(), { exacto: pen("1.00") }))],
+    ["exacto inventado 1.00 sin confirmación", () => aplicarSugerencia(mixta(), sugFalsa(hMix(), { exacto: pen("1.00") }), undefined, entorno(fila(mixta())))],
     [
       "min ensanchado a 0.01 y confirmación 1.00",
-      () => aplicarSugerencia(mixta(), sugFalsa(hMix(), { min: pen("0.01") }), { gravado: pen("1.00") }),
+      () => aplicarSugerencia(mixta(), sugFalsa(hMix(), { min: pen("0.01") }), { gravado: pen("1.00") }, entorno(fila(mixta()))),
     ],
   ])("%s → error de reglas", (_n, aplicar) => {
     expect(aplicar).toThrow(ReglasError);

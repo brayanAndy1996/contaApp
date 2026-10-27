@@ -113,12 +113,9 @@ describe("R-GP: aplicar", () => {
       igvDg: "18.00",
       total: "118.00",
     });
-    const h = unico(
-      evaluar([fila({ montos: m, xml: xml({ glosas: ["zapatillas"] }) })])
-        .hallazgos,
-      "R-GP",
-    );
-    const r = aplicarSugerencia(m, h);
+    const f = fila({ montos: m, xml: xml({ glosas: ["zapatillas"] }) });
+    const h = unico(evaluar([f]).hallazgos, "R-GP");
+    const r = aplicarSugerencia(m, h, undefined, { filas: [f], contexto: ctx() });
     expect(r.excluir).toBe(true);
     expect(JSON.stringify(r.montos)).toBe(JSON.stringify(m));
   });

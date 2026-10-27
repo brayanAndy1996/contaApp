@@ -11,6 +11,7 @@ import {
   MontosComprobante,
   ReglasError,
   type ContextoReglas,
+  type EntornoEvaluacion,
   type FilaEvaluable,
   type Hallazgo,
   type ResumenXml,
@@ -59,6 +60,11 @@ function evaluar(f: FilaEvaluable): { hallazgos: readonly Hallazgo[]; avisos: re
   return evaluarReglas([f], CTX);
 }
 
+/** Entorno con el que se evaluó el hallazgo (T15b-1): la fila y el contexto. */
+function entorno(f: FilaEvaluable): EntornoEvaluacion {
+  return { filas: [f], contexto: CTX };
+}
+
 function unico(hs: readonly Hallazgo[]): Hallazgo {
   expect(hs).toHaveLength(1);
   return hs[0]!;
@@ -102,7 +108,7 @@ describe("caso real: Cervecería San Juan, ISC en DG (BI DG 770.00, IGV DG 0.00)
 
   it("aplicar la sugerencia deja ISC 770.00, BI DG 0.00, IGV DG 0.00 y el total igual", () => {
     const h = unico(evaluar(fila(m)).hallazgos);
-    const r = aplicarSugerencia(m, h);
+    const r = aplicarSugerencia(m, h, undefined, entorno(fila(m)));
     expect(r.excluir).toBe(false);
     expect(r.montos.obtener("isc").toString()).toBe("770.00");
     expect(r.montos.obtener("biDg").toString()).toBe("0.00");
@@ -112,7 +118,7 @@ describe("caso real: Cervecería San Juan, ISC en DG (BI DG 770.00, IGV DG 0.00)
 
   it("aplicar no toca los montos originales (RNF-052)", () => {
     const h = unico(evaluar(fila(m)).hallazgos);
-    aplicarSugerencia(m, h);
+    aplicarSugerencia(m, h, undefined, entorno(fila(m)));
     expect(m.obtener("biDg").toString()).toBe("770.00");
     expect(m.obtener("isc").toString()).toBe("0.00");
   });
@@ -145,18 +151,18 @@ describe("caso real: factura mixta BI 21.48 / IGV 1.61 sin XML · CA-2 / HU-24",
 
   it("aplicar sin gravado confirmado lanza error de confirmación", () => {
     const h = hallazgoMix();
-    expect(() => aplicarSugerencia(m, h)).toThrow(ConfirmacionInvalidaError);
-    expect(() => aplicarSugerencia(m, h)).toThrow(ReglasError);
+    expect(() => aplicarSugerencia(m, h, undefined, entorno(fila(m)))).toThrow(ConfirmacionInvalidaError);
+    expect(() => aplicarSugerencia(m, h, undefined, entorno(fila(m)))).toThrow(ReglasError);
   });
 
   it("aplicar con gravado fuera del rango (8.91 y 8.98) lanza error de confirmación", () => {
     const h = hallazgoMix();
-    expect(() => aplicarSugerencia(m, h, { gravado: pen("8.91") })).toThrow(ConfirmacionInvalidaError);
-    expect(() => aplicarSugerencia(m, h, { gravado: pen("8.98") })).toThrow(ConfirmacionInvalidaError);
+    expect(() => aplicarSugerencia(m, h, { gravado: pen("8.91") }, entorno(fila(m)))).toThrow(ConfirmacionInvalidaError);
+    expect(() => aplicarSugerencia(m, h, { gravado: pen("8.98") }, entorno(fila(m)))).toThrow(ConfirmacionInvalidaError);
   });
 
   it("aplicar con 8.97 deja BI DG 8.97, no gravado 12.51, IGV 1.61 y el total igual", () => {
-    const r = aplicarSugerencia(m, hallazgoMix(), { gravado: pen("8.97") });
+    const r = aplicarSugerencia(m, hallazgoMix(), { gravado: pen("8.97") }, entorno(fila(m)));
     expect(r.excluir).toBe(false);
     expect(r.montos.obtener("biDg").toString()).toBe("8.97");
     expect(r.montos.obtener("noGravado").toString()).toBe("12.51");
@@ -165,7 +171,7 @@ describe("caso real: factura mixta BI 21.48 / IGV 1.61 sin XML · CA-2 / HU-24",
   });
 
   it("aplicar con el extremo inferior del rango (8.92) también conserva el total", () => {
-    const r = aplicarSugerencia(m, hallazgoMix(), { gravado: pen("8.92") });
+    const r = aplicarSugerencia(m, hallazgoMix(), { gravado: pen("8.92") }, entorno(fila(m)));
     expect(r.montos.obtener("biDg").toString()).toBe("8.92");
     expect(r.montos.obtener("noGravado").toString()).toBe("12.56");
     expect(r.montos.total.toString()).toBe("23.09");
@@ -195,7 +201,7 @@ describe("caso real: factura mixta BI 21.48 / IGV 1.61 con XML · CA-3 / HU-24",
 
   it("aplicar sin confirmación deja exactamente 8.97 + 12.51 y el total igual", () => {
     const h = unico(evaluar(fila(m, xmlOk())).hallazgos);
-    const r = aplicarSugerencia(m, h);
+    const r = aplicarSugerencia(m, h, undefined, entorno(fila(m, xmlOk())));
     expect(r.montos.obtener("biDg").toString()).toBe("8.97");
     expect(r.montos.obtener("noGravado").toString()).toBe("12.51");
     expect(r.montos.obtener("igvDg").toString()).toBe("1.61");
@@ -242,7 +248,7 @@ describe("caso real: gasto personal, glosa 'zapatilla' · CA-12 / D-5", () => {
 
   it("aplicar la sugerencia marca excluir y deja los montos sin cambios", () => {
     const h = unico(evaluar(conGlosa("ZAPATILLAS URBANAS T-42")).hallazgos);
-    const r = aplicarSugerencia(m, h);
+    const r = aplicarSugerencia(m, h, undefined, entorno(conGlosa("ZAPATILLAS URBANAS T-42")));
     expect(r.excluir).toBe(true);
     expect(r.montos.toJSON()).toEqual(m.toJSON());
   });

@@ -53,6 +53,9 @@ function ctx(over: Partial<ContextoReglas> = {}): ContextoReglas {
   };
 }
 
+/** Entorno con el que se evaluó el hallazgo (T15b-1): las filas y el contexto. */
+const ent = (filas: FilaEvaluable[], contexto: ContextoReglas = ctx()) => ({ filas, contexto });
+
 function fila(
   montos: MontosComprobante,
   over: Partial<FilaEvaluable> = {},
@@ -192,9 +195,12 @@ describe("ronda 1a · rango de R-MIX con IGV a 1 céntimo de los bordes (CA-2, C
           expect(s.exacto).toBeNull();
           expect(h.requiereConfirmacion).toBe(true);
           for (const g of [min, max]) {
-            const ap = aplicarSugerencia(m, h, {
-              gravado: Money.desde(cs(g), moneda),
-            });
+            const ap = aplicarSugerencia(
+              m,
+              h,
+              { gravado: Money.desde(cs(g), moneda) },
+              ent([fila(m)]),
+            );
             expect(ap.montos.total.toString()).toBe(m.total.toString()); // CA-9
             expect(ap.montos.obtener("biDg").toString()).toBe(cs(g));
             expect(ap.montos.obtener("noGravado").toString()).toBe(
@@ -204,7 +210,12 @@ describe("ronda 1a · rango de R-MIX con IGV a 1 céntimo de los bordes (CA-2, C
           }
           for (const g of [min - 1n, max + 1n]) {
             expect(() =>
-              aplicarSugerencia(m, h, { gravado: Money.desde(cs(g), moneda) }),
+              aplicarSugerencia(
+                m,
+                h,
+                { gravado: Money.desde(cs(g), moneda) },
+                ent([fila(m)]),
+              ),
             ).toThrow(ConfirmacionInvalidaError);
           }
         },
@@ -235,7 +246,7 @@ describe("ronda 1a · rango vacío: BI 0 con IGV ≠ 0, IGV > BI, IGV > 18 % de 
         [destino, null],
       ]);
       expect(() =>
-        aplicarSugerencia(m, mix[0]!, { gravado: pen("0.01") }),
+        aplicarSugerencia(m, mix[0]!, { gravado: pen("0.01") }, ent([fila(m)])),
       ).toThrow(EntradaReglasInvalidaError);
     },
   );
@@ -273,14 +284,18 @@ describe("ronda 1a · todos los tributos, tres destinos y reglas cruzadas en la 
       ["R-RED", null],
     ]);
     // R-ISC y R-MIX tocan destinos distintos: se encadenan en ambos órdenes (lecturas = BI e IGV del destino).
+    const e = ent([fila(m)]);
     const a = aplicarSugerencia(
-      aplicarSugerencia(m, h("R-ISC")).montos,
+      aplicarSugerencia(m, h("R-ISC"), undefined, e).montos,
       h("R-MIX"),
       gravado,
+      e,
     ).montos;
     const b = aplicarSugerencia(
-      aplicarSugerencia(m, h("R-MIX"), gravado).montos,
+      aplicarSugerencia(m, h("R-MIX"), gravado, e).montos,
       h("R-ISC"),
+      undefined,
+      e,
     ).montos;
     const esperado = MontosComprobante.desde("PEN", {
       ...v,
@@ -292,25 +307,26 @@ describe("ronda 1a · todos los tributos, tres destinos y reglas cruzadas en la 
     expect(json(a)).toEqual(json(esperado));
     expect(json(b)).toEqual(json(esperado));
     // R-RED primero (solo cambia el total) no invalida R-ISC ni R-MIX; al final la fila cuadra.
-    const red = aplicarSugerencia(m, h("R-RED")).montos;
+    const red = aplicarSugerencia(m, h("R-RED"), undefined, e).montos;
     const c = aplicarSugerencia(
-      aplicarSugerencia(red, h("R-ISC")).montos,
+      aplicarSugerencia(red, h("R-ISC"), undefined, e).montos,
       h("R-MIX"),
       gravado,
+      e,
     ).montos;
     expect(c.total.toString()).toBe("920.59");
     expect(verificarCuadre(c, TOLERANCIA_CUADRE).cuadra).toBe(true);
     // R-RED después: o se aplica y cuadra, o es obsoleta; nunca un resultado descuadrado.
     let d: MontosComprobante | null = null;
     try {
-      d = aplicarSugerencia(a, h("R-RED")).montos;
+      d = aplicarSugerencia(a, h("R-RED"), undefined, e).montos;
     } catch (e) {
       expect(e).toBeInstanceOf(SugerenciaObsoletaError);
     }
     if (d !== null)
       expect(verificarCuadre(d, TOLERANCIA_CUADRE).cuadra).toBe(true);
     // Repetir R-ISC sobre el resultado: obsoleta (CA-9).
-    expect(() => aplicarSugerencia(a, h("R-ISC"))).toThrow(
+    expect(() => aplicarSugerencia(a, h("R-ISC"), undefined, e)).toThrow(
       SugerenciaObsoletaError,
     );
   });
@@ -357,10 +373,8 @@ describe("ronda 1a · R-RED con origen USD y TC de 3 decimales (CA-6, D7 de 010;
     "PEN %s → sin R-RED si coincide; si no, R-RED exacta sin confirmación que deja la fila convertida",
     (_n, cambio) => {
       const m = m$("PEN", { ...base(), ...cambio } as Valores);
-      const r = evaluarReglas(
-        [fila(m, { origenUsd: { montos: origen, tipoCambio: tc } })],
-        ctx(),
-      );
+      const f = fila(m, { origenUsd: { montos: origen, tipoCambio: tc } });
+      const r = evaluarReglas([f], ctx());
       const red = de(r.hallazgos, "R-RED");
       if (Object.keys(cambio).length === 0) {
         expect(red).toEqual([]);
@@ -369,7 +383,7 @@ describe("ronda 1a · R-RED con origen USD y TC de 3 decimales (CA-6, D7 de 010;
       expect(red).toHaveLength(1);
       expect(red[0]!.requiereConfirmacion).toBe(false);
       expect(red[0]!.sugerencia?.tipo).toBe("ajustar");
-      expect(json(aplicarSugerencia(m, red[0]!).montos)).toEqual(json(conv));
+      expect(json(aplicarSugerencia(m, red[0]!, undefined, ent([f])).montos)).toEqual(json(conv));
     },
   );
 });
@@ -437,7 +451,8 @@ describe("ronda 1a · XML con montos que no suman (D-6, CA-6)", () => {
       { gravado: "100.00", igv: "18.00", total: "200.00" },
     ],
   ])("%s → R-RED; si sugiere, el resultado cuadra", (_n, v) => {
-    const r = evaluarReglas([fila(m, { xml: xml("PEN", v) })], ctx());
+    const f = fila(m, { xml: xml("PEN", v) });
+    const r = evaluarReglas([f], ctx());
     const red = de(r.hallazgos, "R-RED");
     expect(red).toHaveLength(1);
     if (v.gravado === "100.01") {
@@ -449,7 +464,7 @@ describe("ronda 1a · XML con montos que no suman (D-6, CA-6)", () => {
       expect(red[0]!.requiereConfirmacion).toBe(false);
     }
     if (red[0]!.sugerencia !== null) {
-      const ap = aplicarSugerencia(m, red[0]!).montos;
+      const ap = aplicarSugerencia(m, red[0]!, undefined, ent([f])).montos;
       expect(verificarCuadre(ap, TOLERANCIA_CUADRE).cuadra).toBe(true);
     }
   });
@@ -471,7 +486,8 @@ describe("ronda 1a · R-NEW con documentos normalizados y orden por unidades de 
       fila(m, { id: "10", proveedor: { tipo: "6", numero: "20600000001" } }),
       fila(m, { id: "9", proveedor: { tipo: "6", numero: " 20600 000001" } }),
     ];
-    const r = evaluarReglas(filas, ctx({ proveedoresConocidos: conocidos }));
+    const cx = ctx({ proveedoresConocidos: conocidos });
+    const r = evaluarReglas(filas, cx);
     expect(
       r.hallazgos.map((h) => [
         h.filaId,
@@ -489,9 +505,12 @@ describe("ronda 1a · R-NEW con documentos normalizados y orden por unidades de 
         { tipo: "clasificar" },
       ]),
     );
-    const ap = aplicarSugerencia(m, r.hallazgos[0]!, {
-      destino: "DGNG",
-    }).montos;
+    const ap = aplicarSugerencia(
+      m,
+      r.hallazgos[0]!,
+      { destino: "DGNG" },
+      ent(filas, cx),
+    ).montos;
     expect([
       ap.obtener("biDgng").toString(),
       ap.obtener("igvDgng").toString(),

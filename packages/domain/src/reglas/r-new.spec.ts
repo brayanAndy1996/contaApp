@@ -87,14 +87,13 @@ describe("R-NEW", () => {
 
 describe("R-NEW: aplicar", () => {
   const m = montos("PEN", { biDg: "100.00", igvDg: "18.00", total: "118.00" });
-  const h = () =>
-    unico(
-      evaluar([fila({ proveedor: DESCONOCIDO, montos: m })]).hallazgos,
-      "R-NEW",
-    );
+  const f = fila({ proveedor: DESCONOCIDO, montos: m });
+  const h = () => unico(evaluar([f]).hallazgos, "R-NEW");
+  /** Entorno con el que se evaluó el hallazgo (T15b-1). */
+  const ent = { filas: [f], contexto: ctx() };
 
   it("con destino elegido consolida en ese destino y conserva el total", () => {
-    const r = aplicarSugerencia(m, h(), { destino: "DNG" });
+    const r = aplicarSugerencia(m, h(), { destino: "DNG" }, ent);
     expect(r.excluir).toBe(false);
     expect(r.montos.obtener("biDng").toString()).toBe("100.00");
     expect(r.montos.obtener("igvDng").toString()).toBe("18.00");
@@ -103,12 +102,12 @@ describe("R-NEW: aplicar", () => {
   });
 
   it("sin confirmación, con confirmación de otro tipo o con destino inexistente: ConfirmacionInvalidaError", () => {
-    expect(() => aplicarSugerencia(m, h())).toThrow(ConfirmacionInvalidaError);
-    expect(() => aplicarSugerencia(m, h(), { gravado: pen("1.00") })).toThrow(
+    expect(() => aplicarSugerencia(m, h(), undefined, ent)).toThrow(ConfirmacionInvalidaError);
+    expect(() => aplicarSugerencia(m, h(), { gravado: pen("1.00") }, ent)).toThrow(
       ConfirmacionInvalidaError,
     );
     expect(() =>
-      aplicarSugerencia(m, h(), { destino: "XX" as unknown as "DG" }),
+      aplicarSugerencia(m, h(), { destino: "XX" as unknown as "DG" }, ent),
     ).toThrow(ConfirmacionInvalidaError);
   });
 });

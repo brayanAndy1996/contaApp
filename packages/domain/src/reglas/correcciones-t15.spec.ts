@@ -2,6 +2,9 @@
 // R2b-1 a R2b-5). Con el entorno de evaluarReglas, aplicar re-evalúa la fila y solo aplica el
 // mismo hallazgo; sin él, contrasta además explicación y `ajustar`. Identidad del XML fuera de
 // gramática = XML_AJENO sin abortar el lote.
+// T15b-1: todas las llamadas pasan el entorno (el entorno pasará a ser obligatorio). Los casos que
+// antes ejercitaban las comprobaciones sin entorno (coherencia de explicación y `ajustar`) ahora
+// pasan el entorno real de la fila y se rechazan por la re-evaluación (SugerenciaObsoletaError).
 import { describe, expect, it } from "vitest";
 import { COMPROBANTE, PROVEEDOR, ctx, evaluar, fila, montos, pen, tc, unico, usd, xml } from "../../tests/ayudas/filas-motor";
 import type { EntornoEvaluacion, FilaEvaluable, Hallazgo } from "./index";
@@ -43,7 +46,7 @@ describe("T15 · con entorno: re-evaluación de la fila (R2a-1, R2a-2, R2a-3 = R
     expect(aplicarSugerencia(fGp.montos, hGp, undefined, entorno(fGp)).excluir).toBe(true);
   });
 
-  it("R-ISC sin XML falsificado del todo como 'con XML' (explicación incluida): sin entorno no se puede probar; con entorno, obsoleta", () => {
+  it("R-ISC sin XML falsificado del todo como 'con XML' (explicación incluida): con entorno, obsoleta", () => {
     const f = fila({ montos: sanJuan() });
     const h = unico(evaluar([f]).hallazgos, "R-ISC");
     const forjado = falso(h, {
@@ -52,8 +55,9 @@ describe("T15 · con entorno: re-evaluación de la fila (R2a-1, R2a-2, R2a-3 = R
       lecturas: { ...h.lecturas, isc: pen("0.00"), biDgng: pen("0.00"), biDng: pen("0.00") },
       sugerencia: { tipo: "mover", origen: "biDg", destino: "isc", monto: pen("100.00") },
     });
-    // Límite declarado (plan, Cambios de T15): sin entorno el respaldo del XML no se comprueba.
-    expect(aplicarSugerencia(sanJuan(), forjado).montos.obtener("isc").toString()).toBe("100.00");
+    // T15b-1: aquí había una aserción de que SIN entorno el falso se aplicaba (límite declarado de
+    // T15). Con el entorno opcional aún no se puede esperar un error por omitirlo; cuando el backend lo
+    // haga obligatorio, añadir: llamar sin entorno lanza EntradaReglasInvalidaError.
     expect(() => aplicarSugerencia(sanJuan(), forjado, undefined, entorno(f))).toThrow(SugerenciaObsoletaError);
   });
 
@@ -112,7 +116,7 @@ describe("T15 · con entorno: re-evaluación de la fila (R2a-1, R2a-2, R2a-3 = R
   });
 });
 
-describe("T15 · sin entorno: lecturas de R-MIX con XML y coherencia de la explicación (R2a-2, R2a-3)", () => {
+describe("T15 · lecturas de R-MIX con XML y explicación incoherente (R2a-2, R2a-3)", () => {
   it("R-MIX con XML lee las BI de los otros destinos; sin XML solo BI e IGV del destino", () => {
     const conXml = unico(evaluar([fila({ montos: mixta(), xml: xmlMixta() })]).hallazgos, "R-MIX");
     expect(Object.keys(conXml.lecturas).sort()).toEqual(["biDg", "biDgng", "biDng", "igvDg"]);
@@ -125,49 +129,67 @@ describe("T15 · sin entorno: lecturas de R-MIX con XML y coherencia de la expli
       "R-ISC con XML con explicación de otro caso",
       () => {
         const m = montos("PEN", { biDg: "1000.00", total: "1000.00" });
-        const h = unico(evaluar([fila({ montos: m, xml: xml({ gravado: pen("700.00"), igv: pen("0.00"), isc: pen("300.00"), total: pen("1000.00") }) })]).hallazgos, "R-ISC");
-        return aplicarSugerencia(m, falso(h, { explicacion: "Proveedor emisor de ISC: el XML indica ISC 300.00" }));
+        const f = fila({ montos: m, xml: xml({ gravado: pen("700.00"), igv: pen("0.00"), isc: pen("300.00"), total: pen("1000.00") }) });
+        const h = unico(evaluar([f]).hallazgos, "R-ISC");
+        return aplicarSugerencia(m, falso(h, { explicacion: "Proveedor emisor de ISC: el XML indica ISC 300.00" }), undefined, entorno(f));
       },
     ],
     [
       "R-ISC sin XML con explicación de otra BI",
-      () => aplicarSugerencia(sanJuan(), falso(unico(evaluar([fila({ montos: sanJuan() })]).hallazgos, "R-ISC"), { explicacion: "x" })),
+      () =>
+        aplicarSugerencia(
+          sanJuan(),
+          falso(unico(evaluar([fila({ montos: sanJuan() })]).hallazgos, "R-ISC"), { explicacion: "x" }),
+          undefined,
+          entorno(fila({ montos: sanJuan() })),
+        ),
     ],
     [
       "R-MIX con explicación ajena",
-      () => aplicarSugerencia(mixta(), falso(unico(evaluar([fila({ montos: mixta() })]).hallazgos, "R-MIX"), { explicacion: "x" }), { gravado: pen("8.94") }),
+      () =>
+        aplicarSugerencia(
+          mixta(),
+          falso(unico(evaluar([fila({ montos: mixta() })]).hallazgos, "R-MIX"), { explicacion: "x" }),
+          { gravado: pen("8.94") },
+          entorno(fila({ montos: mixta() })),
+        ),
     ],
     [
       "R-MIX exacto con otra BI ≠ 0 en lecturas y montos",
       () => {
-        const h = unico(evaluar([fila({ montos: mixta(), xml: xmlMixta() })]).hallazgos, "R-MIX");
+        const f = fila({ montos: mixta(), xml: xmlMixta() });
+        const h = unico(evaluar([f]).hallazgos, "R-MIX");
         const m = montos("PEN", { biDg: "21.48", igvDg: "1.61", biDgng: "5.00", total: "28.09" });
-        return aplicarSugerencia(m, falso(h, { lecturas: { ...h.lecturas, biDgng: pen("5.00") } }));
+        return aplicarSugerencia(m, falso(h, { lecturas: { ...h.lecturas, biDgng: pen("5.00") } }), undefined, entorno(f));
       },
     ],
-  ])("%s → EntradaReglasInvalidaError", (_n, aplicar) => {
-    expect(aplicar).toThrow(EntradaReglasInvalidaError);
+  ])("%s → SugerenciaObsoletaError", (_n, aplicar) => {
+    expect(aplicar).toThrow(SugerenciaObsoletaError);
   });
 });
 
-describe("T15 · sin entorno: `ajustar` de R-RED contrastado con su explicación (R2a-1)", () => {
+describe("T15 · `ajustar` de R-RED contrastado con su explicación (R2a-1)", () => {
   // XML que respalda biDg 100.01 (gravado del XML 100.01, total 118.01).
   const conXml = () => montos("PEN", { biDg: "100.00", igvDg: "18.00", total: "118.01" });
-  const hXml = () =>
-    unico(evaluar([fila({ montos: conXml(), xml: xml({ gravado: pen("100.01"), total: pen("118.01") }) })]).hallazgos, "R-RED");
+  const fXml = () => fila({ montos: conXml(), xml: xml({ gravado: pen("100.01"), total: pen("118.01") }) });
+  const hXml = () => unico(evaluar([fXml()]).hallazgos, "R-RED");
   const red = (h: Hallazgo, valores: Record<string, unknown>, over: Record<string, unknown> = {}) =>
     falso(h, { sugerencia: { tipo: "ajustar", valores }, ...over });
 
-  it("caso feliz: columna del XML y total = Σ con XML", () => {
-    expect(aplicarSugerencia(conXml(), hXml()).montos.obtener("biDg").toString()).toBe("100.01");
-    expect(aplicarSugerencia(conXml(), red(hXml(), { total: pen("118.00") })).montos.total.toString()).toBe("118.00");
+  it("caso feliz: columna del XML; total = Σ con XML (otra sugerencia distinta de la evaluada) es obsoleta", () => {
+    expect(aplicarSugerencia(conXml(), hXml(), undefined, entorno(fXml())).montos.obtener("biDg").toString()).toBe("100.01");
+    // T15b-1: antes (sin entorno) se aceptaba `total = Σ`; con entorno solo se aplica el hallazgo idéntico.
+    expect(() => aplicarSugerencia(conXml(), red(hXml(), { total: pen("118.00") }), undefined, entorno(fXml()))).toThrow(
+      SugerenciaObsoletaError,
+    );
   });
 
   it("caso feliz: origenUsd con varias columnas deja la fila convertida", () => {
     const origen = montos("USD", { biDg: "100.00", igvDg: "18.00", total: "118.00" });
     const m = montos("PEN", { biDg: "375.00", igvDg: "67.51", total: "442.51" });
-    const h = unico(evaluar([fila({ montos: m, origenUsd: { montos: origen, tipoCambio: tc("3.750") } })]).hallazgos, "R-RED");
-    expect(aplicarSugerencia(m, h).montos.total.toString()).toBe("442.50");
+    const f = fila({ montos: m, origenUsd: { montos: origen, tipoCambio: tc("3.750") } });
+    const h = unico(evaluar([f]).hallazgos, "R-RED");
+    expect(aplicarSugerencia(m, h, undefined, entorno(f)).montos.total.toString()).toBe("442.50");
   });
 
   it.each([
@@ -178,33 +200,36 @@ describe("T15 · sin entorno: `ajustar` de R-RED contrastado con su explicación
     ["sin XML: sin confirmación", () => falso(hXml(), { explicacion: hXml().explicacion.split(";")[0] })],
     ["USD: explicación de conversión sobre una fila que no queda cuadrada", () => red(hXml(), { biDg: pen("5.00") }, { explicacion: "Los montos en PEN no coinciden con la conversión por componente con TC 3.750" })],
     ["explicación ajena", () => falso(hXml(), { explicacion: "x" })],
-  ])("%s → EntradaReglasInvalidaError", (_n, h) => {
-    expect(() => aplicarSugerencia(conXml(), h())).toThrow(EntradaReglasInvalidaError);
+  ])("%s → SugerenciaObsoletaError", (_n, h) => {
+    expect(() => aplicarSugerencia(conXml(), h(), undefined, entorno(fXml()))).toThrow(SugerenciaObsoletaError);
   });
 
   it("sin XML fuera del umbral: total = Σ no es una sugerencia de R-RED", () => {
     const m = montos("PEN", { biDg: "100.00", igvDg: "18.00", total: "200.00" });
-    const h = unico(evaluar([fila({ montos: m })]).hallazgos, "R-RED");
+    const f = fila({ montos: m });
+    const h = unico(evaluar([f]).hallazgos, "R-RED");
     expect(h.sugerencia).toBeNull();
-    expect(() => aplicarSugerencia(m, falso(h, { sugerencia: { tipo: "ajustar", valores: { total: pen("118.00") } } }))).toThrow(
-      EntradaReglasInvalidaError,
-    );
+    expect(() =>
+      aplicarSugerencia(m, falso(h, { sugerencia: { tipo: "ajustar", valores: { total: pen("118.00") } } }), undefined, entorno(f)),
+    ).toThrow(SugerenciaObsoletaError);
   });
 
-  it("USD: explicación de conversión en una fila USD → EntradaReglasInvalidaError", () => {
+  it("USD: explicación de conversión en una fila USD → SugerenciaObsoletaError", () => {
     const m = montos("USD", { biDg: "100.00", igvDg: "18.00", total: "118.01" });
-    const h = unico(evaluar([fila({ montos: m })]).hallazgos, "R-RED");
+    const f = fila({ montos: m });
+    const h = unico(evaluar([f]).hallazgos, "R-RED");
     const forjado = falso(h, { requiereConfirmacion: false, explicacion: "Los montos en PEN no coinciden con la conversión por componente con TC 3.750" });
-    expect(() => aplicarSugerencia(m, forjado)).toThrow(EntradaReglasInvalidaError);
+    expect(() => aplicarSugerencia(m, forjado, undefined, entorno(f))).toThrow(SugerenciaObsoletaError);
   });
 
   it("fila fuera de NUMERIC(14,2) al sumar: cualquier ajustar es falso", () => {
     const m = montos("PEN", { biDg: "999999999999.99", igvDg: "999999999999.99", total: "1.00" });
-    const h = unico(evaluar([fila({ montos: m })]).hallazgos, "R-RED");
+    const f = fila({ montos: m });
+    const h = unico(evaluar([f]).hallazgos, "R-RED");
     expect(h.sugerencia).toBeNull();
-    expect(() => aplicarSugerencia(m, falso(h, { sugerencia: { tipo: "ajustar", valores: { total: pen("2.00") } } }))).toThrow(
-      EntradaReglasInvalidaError,
-    );
+    expect(() =>
+      aplicarSugerencia(m, falso(h, { sugerencia: { tipo: "ajustar", valores: { total: pen("2.00") } } }), undefined, entorno(f)),
+    ).toThrow(SugerenciaObsoletaError);
   });
 });
 
