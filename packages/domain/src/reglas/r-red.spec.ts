@@ -310,3 +310,107 @@ describe("R-RED con origenUsd (CA-6, D7 de 010; valores sintéticos)", () => {
     expect(() => evaluar([f], ctx())).toThrow(EntradaReglasInvalidaError);
   });
 });
+
+// T6b: ratificación del arquitecto (plan, "Ratificación de contratos").
+describe("R-RED: precedencia del XML y confirmación (ratificación)", () => {
+  const DESCUADRADA = montos("PEN", {
+    biDg: "100.00",
+    igvDg: "18.00",
+    total: "118.01",
+  });
+
+  it("XML válido con xml.total ≠ total y Σ = xml.total: ajusta el total al del XML, sin confirmación", () => {
+    const x = xml({ total: pen("118.00") });
+    const h = unico(
+      evaluar([fila({ montos: DESCUADRADA, xml: x })]).hallazgos,
+      "R-RED",
+    );
+    expect(h.sugerencia).toEqual({
+      tipo: "ajustar",
+      valores: { total: pen("118.00") },
+    });
+    expect(h.requiereConfirmacion).toBe(false);
+  });
+
+  it("XML válido con xml.total = total, diferencia 0.01 y ningún grupo que la explique: sin sugerencia (el umbral no aplica con XML)", () => {
+    const x = xml({ total: pen("118.01") });
+    const h = unico(
+      evaluar([fila({ montos: DESCUADRADA, xml: x })]).hallazgos,
+      "R-RED",
+    );
+    expect(h.sugerencia).toBeNull();
+  });
+
+  it("ajuste por umbral sin XML: requiere confirmación", () => {
+    const h = unico(evaluar([fila({ montos: DESCUADRADA })]).hallazgos, "R-RED");
+    expect(h.sugerencia).not.toBeNull();
+    expect(h.requiereConfirmacion).toBe(true);
+  });
+
+  it("XML que respalda una columna: no requiere confirmación", () => {
+    const sire = montos("PEN", {
+      biDg: "100.00",
+      igvDg: "18.00",
+      noGravado: "4.00",
+      total: "123.00",
+    });
+    const x = xml({ noGravado: pen("5.00"), total: pen("123.00") });
+    const h = unico(
+      evaluar([fila({ montos: sire, xml: x })]).hallazgos,
+      "R-RED",
+    );
+    expect(h.sugerencia).toEqual({
+      tipo: "ajustar",
+      valores: { noGravado: pen("5.00") },
+    });
+    expect(h.requiereConfirmacion).toBe(false);
+  });
+});
+
+describe("Explicaciones exactas del catálogo (ratificación)", () => {
+  it("R-RED sin respaldo: suma, total y diferencia con signo", () => {
+    const f = fila({
+      montos: montos("PEN", { biDg: "100.00", igvDg: "18.00", total: "118.01" }),
+    });
+    expect(unico(evaluar([f]).hallazgos, "R-RED").explicacion).toBe(
+      "La suma de componentes (118.00) no es igual al total (118.01): diferencia 0.01",
+    );
+  });
+
+  it("R-RED con diferencia negativa", () => {
+    const f = fila({
+      montos: montos("PEN", { biDg: "100.00", igvDg: "18.00", total: "117.99" }),
+    });
+    expect(unico(evaluar([f]).hallazgos, "R-RED").explicacion).toBe(
+      "La suma de componentes (118.00) no es igual al total (117.99): diferencia -0.01",
+    );
+  });
+
+  it("R-RED respaldado por el XML agrega el sufijo", () => {
+    const f = fila({
+      montos: montos("PEN", { biDg: "100.00", igvDg: "18.00", total: "118.01" }),
+      xml: xml({ total: pen("118.00") }),
+    });
+    expect(unico(evaluar([f]).hallazgos, "R-RED").explicacion).toBe(
+      "La suma de componentes (118.00) no es igual al total (118.01): diferencia 0.01; el XML indica el monto correcto",
+    );
+  });
+
+  it("R-ISC sin XML", () => {
+    const f = fila({
+      montos: montos("PEN", { biDg: "100.00", igvDg: "0.00", total: "100.00" }),
+    });
+    expect(unico(evaluar([f]).hallazgos, "R-ISC").explicacion).toBe(
+      "Base gravada 100.00 con IGV 0: posible ISC",
+    );
+  });
+
+  it("R-MIX con rango vacío", () => {
+    const f = fila({
+      montos: montos("PEN", { biDg: "10.00", igvDg: "3.00", total: "13.00" }),
+    });
+    expect(unico(evaluar([f]).hallazgos, "R-MIX").explicacion).toBe(
+      "3.00 no es 18 % ni 10 % de 10.00 y no se puede separar: revisar",
+    );
+  });
+});

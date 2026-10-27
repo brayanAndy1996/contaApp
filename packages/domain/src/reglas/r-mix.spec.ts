@@ -207,14 +207,25 @@ describe("R-MIX: signos y moneda (CA-10)", () => {
     const h = unico(evaluar([f]).hallazgos, "R-MIX");
     const s = sug(h, "separar");
     expect(s.estimado.toString()).toBe("-8.94");
-    // Contrato fijado: min/max conservan el signo de la BI; el orden (por magnitud o numérico) no se prueba.
-    expect([s.min.toString(), s.max.toString()].sort()).toEqual(["-8.92", "-8.97"]);
+    // Ratificación (plan): min ≤ max numéricamente, también en notas de crédito.
+    expect(s.min.toString()).toBe("-8.97");
+    expect(s.max.toString()).toBe("-8.92");
     expect(h.explicacion).toContain("1.61");
     const r = aplicarSugerencia(f.montos, h, { gravado: pen("-8.97") });
     expect(r.montos.obtener("biDg").toString()).toBe("-8.97");
     expect(r.montos.obtener("noGravado").toString()).toBe("-12.51");
     expect(r.montos.obtener("igvDg").toString()).toBe("-1.61");
     expect(r.montos.total.toString()).toBe("-23.09");
+  });
+
+  it("nota de crédito: aplicar acepta -8.92 y -8.97 (bordes) y rechaza -8.91 y -8.98", () => {
+    const f = fila({ biDg: "-21.48", igvDg: "-1.61" });
+    const h = unico(evaluar([f]).hallazgos, "R-MIX");
+    const con = (g: string) => aplicarSugerencia(f.montos, h, { gravado: pen(g) }).montos;
+    expect(con("-8.92").obtener("noGravado").toString()).toBe("-12.56");
+    expect(con("-8.97").obtener("noGravado").toString()).toBe("-12.51");
+    expect(() => con("-8.91")).toThrow(ConfirmacionInvalidaError);
+    expect(() => con("-8.98")).toThrow(ConfirmacionInvalidaError);
   });
 
   it("nota de crédito: un gravado de signo opuesto es una confirmación inválida", () => {

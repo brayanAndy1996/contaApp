@@ -12,7 +12,7 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T4 | Pruebas de R-ISC, R-MIX, rango y precedencia (rojo) | tester | sonnet | — ∥ T3 | ✓ | — | [x] |
 | T5 | Pruebas de R-RED, R-NEW, R-GP, motor y aplicar (rojo) | tester | sonnet | — ∥ T4 | ✓ | — | [x] |
 | T6 | Casos reales de reglas (rojo) | tester | sonnet | — ∥ T5 | ✓ | — | [x] |
-| T6b | Pruebas de la ratificación del arquitecto (rojo) | tester | sonnet | T6 | ✓ | — | [ ] |
+| T6b | Pruebas de la ratificación del arquitecto (rojo) | tester | sonnet | T6 | ✓ | — | [x] |
 | T7 | Lint de dinero en `reglas/` | devops | sonnet | T2 ∥ T8 | ✓ | — | [x] |
 | T8 | Implementar `texto/` | backend | sonnet | T1, T3 | ✓ | — | [x] |
 | T9 | Implementar tipos, entrada, rango, R-ISC y R-MIX | backend | opus | T1, T4, T6b ∥ T8 | ✓ | — | [ ] |
@@ -83,6 +83,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `plan.md` (Decisiones: "Ratificación de contratos"), `packages/domain/src/reglas/{r-red,r-mix}.spec.ts`, `packages/domain/tests/ayudas/{filas,filas-motor}.ts`.
 - **Hacer**: agregar (sin cambiar las existentes salvo la línea indicada) en `reglas/r-mix.spec.ts`: en la nota de crédito −21.48/−1.61, `min` = "-8.97" y `max` = "-8.92" exactos (reemplaza el `.sort()`), y aplicar con −8.92 y −8.97 válido, −8.91 y −8.98 inválido. En `reglas/r-red.spec.ts`: (a) XML válido con `xml.total ≠ total` y `Σ = xml.total` (p. ej. 100.00 + 18.00, total SIRE 118.01, XML 118.00) → `ajustar { total: 118.00 }` y `requiereConfirmacion = false`; (b) XML válido con `xml.total = total`, diferencia 0.01 y ningún grupo que la explique → sin sugerencia (el umbral no aplica con XML); (c) ajuste por umbral sin XML → `requiereConfirmacion = true`; (d) XML que respalda una columna → `requiereConfirmacion = false`; (e) explicaciones exactas de R-RED, R-ISC sin XML y R-MIX rango vacío según el catálogo del plan.
 - **Hecho cuando**: las nuevas fallan solo por falta de implementación; las demás no cambian. Commit `test(011): pruebas de la ratificación de contratos (rojo)`.
+- **Resultado**: `r-mix.spec.ts` (+1 prueba; `.sort()` reemplazado por min "-8.97" / max "-8.92") y `r-red.spec.ts` (+9: precedencia y confirmación a-d, y 5 explicaciones exactas del catálogo: R-RED sin respaldo, negativa, con sufijo XML, R-ISC sin XML, R-MIX rango vacío). Rojo: fallan por "no implementado" (stubs); no se probó la explicación de `origenUsd` (formato de TC no fijado).
 
 ## T7 · Lint de dinero en reglas/ (devops · sonnet) ∥ T8
 - **Contexto (leer solo esto)**: `plan.md` (Decisiones: Lint y cobertura), `eslint.config.mjs` (bloque "Dinero (spec 010, CA-1)"), `tests/limites/dominio-reglas.spec.ts`.
