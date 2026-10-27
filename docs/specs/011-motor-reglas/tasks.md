@@ -13,7 +13,7 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T5 | Pruebas de R-RED, R-NEW, R-GP, motor y aplicar (rojo) | tester | sonnet | — ∥ T4 | ✓ | — | [ ] |
 | T6 | Casos reales de reglas (rojo) | tester | sonnet | — ∥ T5 | ✓ | — | [ ] |
 | T7 | Lint de dinero en `reglas/` | devops | sonnet | T2 ∥ T8 | ✓ | — | [x] |
-| T8 | Implementar `texto/` | backend | sonnet | T1, T3 | ✓ | — | [ ] |
+| T8 | Implementar `texto/` | backend | sonnet | T1, T3 | ✓ | — | [x] |
 | T9 | Implementar tipos, entrada, rango, R-ISC y R-MIX | backend | opus | T1, T4 ∥ T8 | ✓ | — | [ ] |
 | T10 | Implementar R-RED, R-NEW, R-GP, motor y aplicar | backend | opus | T5, T6, T8, T9 | ✓ | — | [ ] |
 | T11 | Integración: checks completos | devops | haiku | T7, T10 | — | — | [ ] |
@@ -83,6 +83,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: `texto/`; Decisiones: R-GP), `packages/domain/src/texto/*.spec.ts`.
 - **Hacer**: `texto/{normalizar,diccionario,index}.ts` y reexportación en `src/index.ts`. Algoritmo lineal, sin regex con retroceso, sin IO, sin importar `dinero/`.
 - **Hecho cuando**: pruebas de `src/texto/` en verde; `build`, `typecheck`, `lint` del paquete OK; cada archivo de `texto/` ≥ 90 % en `pnpm cobertura:dominio`. Commit `feat(011): normalización de glosas y diccionario`.
+- **Resultado**: 74/74 pruebas de `src/texto/` en verde; `build` y lint de `texto/` OK; cobertura `texto/` 98 % (diccionario.ts 97 %). `typecheck` del paquete aún falla solo por `reglas/` (T9/T10).
 
 ## T9 · Implementar tipos, entrada, rango, R-ISC y R-MIX (backend · opus) ∥ T8
 - **Contexto (leer solo esto)**: `plan.md` (todo), `spec.md` (CA-1 a CA-5, CA-10, D-1–D-3, D-7), `packages/domain/src/reglas/{r-isc,r-mix,rango}.spec.ts`, `packages/domain/src/dinero/index.ts`, `packages/domain/src/comprobante/index.ts`.
