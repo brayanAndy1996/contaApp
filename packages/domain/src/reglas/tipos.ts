@@ -69,6 +69,15 @@ export interface ContextoReglas {
   readonly diccionario: DiccionarioGlosas;
 }
 
+/**
+ * Lo mismo que recibió evaluarReglas (T15). Con él, aplicar re-evalúa la fila del hallazgo con los
+ * montos actuales y solo aplica si sale el mismo hallazgo; si no, SugerenciaObsoletaError.
+ */
+export interface EntornoEvaluacion {
+  readonly filas: readonly FilaEvaluable[];
+  readonly contexto: ContextoReglas;
+}
+
 /** Columnas (y total) con su monto: lecturas de un hallazgo y valores de `ajustar`. */
 export type MontosParciales = Readonly<Partial<Record<ColumnaCompra | "total", Money>>>;
 

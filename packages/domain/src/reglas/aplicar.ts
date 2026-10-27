@@ -3,12 +3,44 @@
 // T9: mover (R-ISC) y separar (R-MIX) con sus pruebas; T10 completa y prueba el resto.
 // T13 (ronda adversarial 1): la sugerencia recibida no se cree; se contrasta con la regla, el
 // destino y las lecturas (pruebas R1b-1 a R1b-5 de ronda1b.adv.spec.ts).
+// T15 (ronda adversarial 2): con el entorno de evaluarReglas (filas y contexto, con el XML) la fila
+// se re-evalúa con los montos actuales y solo se aplica el mismo hallazgo. Sin entorno se contrasta
+// además la explicación y el `ajustar` de R-RED, pero el respaldo del XML no se puede probar: el
+// backend (014) debe pasar siempre el entorno.
 import { COLUMNAS_COMPRA, MontosComprobante, cambiarDestino, moverMonto } from "../comprobante/index";
 import type { ColumnaCompra, Destino } from "../comprobante/index";
-import { DineroError, Money, TASA_IGV_10, TASA_IGV_18 } from "../dinero/index";
-import type { Moneda } from "../dinero/index";
-import { PARES_DESTINO, esMoneyReal, esMontosReal, leerArreglo, leerObjeto } from "./entrada";
-import type { ParDestino } from "./entrada";
+import {
+  DineroError,
+  Money,
+  MontoFueraDeRangoError,
+  TASA_IGV_10,
+  TASA_IGV_18,
+  TOLERANCIA_CUADRE,
+  verificarCuadre,
+} from "../dinero/index";
+import type { Moneda, ResultadoCuadre } from "../dinero/index";
+import {
+  PARES_DESTINO,
+  esMoneyReal,
+  esMontosReal,
+  leerArreglo,
+  leerObjeto,
+  validarContexto,
+  validarFilas,
+} from "./entrada";
+import type { ContextoInterno, FilaInterna, ParDestino } from "./entrada";
+import {
+  ISC_XML_EXACTO,
+  SUFIJO_RED_XML,
+  iscSinXml,
+  marcaIscConXml,
+  mix,
+  red,
+  redUsd,
+  sufijoMixExacto,
+} from "./explicaciones";
+import { evaluarFila } from "./motor";
+import { COLUMNAS_RED_XML, valoresPorUmbral } from "./r-red";
 import { enRango, rangoGravado } from "./rango";
 import {
   ConfirmacionInvalidaError,
@@ -20,8 +52,11 @@ import { ORDEN_REGLAS } from "./tipos";
 import type {
   CodigoRegla,
   Confirmacion,
+  ContextoReglas,
   DatoRequerido,
+  EntornoEvaluacion,
   EntradaMasiva,
+  FilaEvaluable,
   Hallazgo,
   ResultadoAplicar,
   ResultadoMasivo,
@@ -86,11 +121,13 @@ type SugerenciaLeida =
   | { tipo: "separar"; columnaBi: ColumnaCompra; min: Money; max: Money; estimado: Money; exacto: Money | null }
   | { tipo: "ajustar"; valores: Map<string, Money> }
   | { tipo: "clasificar" }
-  | { tipo: "excluir" };
+  | { tipo: "excluir"; palabra: string; categoria: string };
 
 interface HallazgoLeido {
+  readonly filaId: string;
   readonly regla: CodigoRegla;
   readonly destino: Destino | null;
+  readonly explicacion: string;
   readonly requiereConfirmacion: boolean;
   readonly dato: DatoRequerido | null;
   readonly lecturas: Map<string, Money>;
@@ -129,8 +166,10 @@ function leerSugerencia(o: unknown, regla: CodigoRegla): SugerenciaLeida {
       return { tipo };
     default: {
       const v = leerObjeto(o, ["tipo", "palabra", "categoria"]);
-      if (typeof v.get("palabra") !== "string" || typeof v.get("categoria") !== "string") invalida();
-      return { tipo: "excluir" };
+      const palabra = v.get("palabra");
+      const categoria = v.get("categoria");
+      if (typeof palabra !== "string" || typeof categoria !== "string") invalida();
+      return { tipo: "excluir", palabra: palabra as string, categoria: categoria as string };
     }
   }
 }
@@ -141,17 +180,20 @@ function leerHallazgo(h: unknown): HallazgoLeido {
   const filaId = v.get("filaId");
   const regla = v.get("regla") as CodigoRegla;
   const destino = v.get("destino");
+  const explicacion = v.get("explicacion");
   const dato = v.get("dato");
   if (typeof filaId !== "string" || !ID_FILA.test(filaId)) invalida();
   if (!ORDEN_REGLAS.includes(regla)) invalida();
   if (destino !== null && (typeof destino !== "string" || !DESTINOS.includes(destino))) invalida();
-  if (typeof v.get("explicacion") !== "string" || typeof v.get("requiereConfirmacion") !== "boolean") invalida();
+  if (typeof explicacion !== "string" || typeof v.get("requiereConfirmacion") !== "boolean") invalida();
   if (dato !== null && dato !== "gravado" && dato !== "destino") invalida();
   if (v.get("sugerencia") === null) invalida();
   const lecturas = leerParciales(v.get("lecturas"));
   return {
+    filaId: filaId as string,
     regla,
     destino: destino as Destino | null,
+    explicacion: explicacion as string,
     requiereConfirmacion: v.get("requiereConfirmacion") as boolean,
     dato: dato as DatoRequerido | null,
     lecturas,
@@ -168,6 +210,7 @@ function parDe(destino: Destino | null): ParDestino {
   return par ?? invalida();
 }
 
+// ---------------------------------------------------------------- sin entorno (T13 + T15)
 /**
  * Forma de la sugerencia según su regla y su destino (R1b-3) y columnas que la regla leyó: sin
  * una de ellas no se puede comprobar la vigencia y la sugerencia es obsoleta (R1b-4).
@@ -183,7 +226,9 @@ function exigirLecturas(h: HallazgoLeido): void {
   } else if (s.tipo === "separar") {
     const par = parDe(h.destino);
     if (s.columnaBi !== par.bi) invalida();
-    requeridas = [par.bi, par.igv];
+    if (s.exacto !== null && !h.explicacion.endsWith(sufijoMixExacto(s.exacto))) invalida();
+    // El exacto del XML exige "único destino con BI ≠ 0": también leyó las otras BI (R2a-3).
+    requeridas = s.exacto === null ? [par.bi, par.igv] : [par.igv, ...COLUMNAS_BI];
   } else {
     if (h.destino !== null) invalida();
     if (s.tipo === "ajustar") requeridas = CLAVES_LECTURA;
@@ -195,29 +240,38 @@ function exigirLecturas(h: HallazgoLeido): void {
 /** Lectura ya exigida por exigirLecturas. */
 const lectura = (h: HallazgoLeido, k: string): Money => h.lecturas.get(k) as Money;
 
+/** Las BI de los destinos distintos de `par` están en 0 ("único destino con BI ≠ 0"). */
+const otrasBiEnCero = (h: HallazgoLeido, par: ParDestino): boolean =>
+  COLUMNAS_BI.every((c) => c === par.bi || lectura(h, c).esCero());
+
 /**
  * R-ISC: sin XML mueve toda la BI (IGV 0, con confirmación); con el ISC del XML (`isc` leído) el
- * monto cabe en la BI del único destino con BI ≠ 0 y no requiere confirmación.
+ * monto cabe en la BI del único destino con BI ≠ 0 y no requiere confirmación. La explicación
+ * es la del caso (R2a-2: un R-ISC sin XML con `isc` agregado a las lecturas conserva la suya).
  */
 function coherenciaMover(h: HallazgoLeido, s: Extract<SugerenciaLeida, { tipo: "mover" }>): void {
   const par = parDe(h.destino);
   const bi = lectura(h, par.bi);
+  const igv = lectura(h, par.igv);
   if (!h.lecturas.has("isc")) {
-    if (!lectura(h, par.igv).esCero() || !iguales(s.monto, bi) || !h.requiereConfirmacion) invalida();
+    if (!igv.esCero() || !iguales(s.monto, bi) || !h.requiereConfirmacion) invalida();
+    if (h.explicacion !== iscSinXml(bi)) invalida();
     return;
   }
-  const otrasEnCero = COLUMNAS_BI.every((c) => c === par.bi || lectura(h, c).esCero());
   const cabe =
     s.monto.moneda === bi.moneda &&
     !s.monto.esCero() &&
     s.monto.esNegativo() === bi.esNegativo() &&
     s.monto.abs().comparar(bi.abs()) <= 0;
-  if (!otrasEnCero || !cabe || h.requiereConfirmacion) invalida();
+  if (!otrasBiEnCero(h, par) || !cabe || h.requiereConfirmacion) invalida();
+  const esperada = igv.esCero() ? ISC_XML_EXACTO : marcaIscConXml(s.monto.sumar(lectura(h, "isc")));
+  if (h.explicacion !== esperada) invalida();
 }
 
 /**
  * R-MIX (R1b-5): min, max y estimado son los de `rangoGravado` a 18 % de las lecturas; un exacto
- * (solo del XML: sin confirmación ni dato) cae en el rango a 18 % o a 10 % (D-7).
+ * (solo del XML: sin confirmación ni dato, único destino con BI ≠ 0) cae en el rango a 18 % o a
+ * 10 % (D-7). La explicación empieza por la de R-MIX de esas lecturas.
  */
 function coherenciaSeparar(h: HallazgoLeido, s: Extract<SugerenciaLeida, { tipo: "separar" }>): void {
   const par = parDe(h.destino);
@@ -227,13 +281,52 @@ function coherenciaSeparar(h: HallazgoLeido, s: Extract<SugerenciaLeida, { tipo:
   if (r18 === null || !iguales(s.min, r18.min) || !iguales(s.max, r18.max) || !iguales(s.estimado, r18.estimado)) {
     invalida();
   }
+  if (!h.explicacion.startsWith(mix(igv, bi))) invalida();
   if (s.exacto === null) {
     if (h.dato !== "gravado" || !h.requiereConfirmacion) invalida();
     return;
   }
-  if (h.dato !== null || h.requiereConfirmacion || s.exacto.moneda !== bi.moneda) invalida();
+  if (h.dato !== null || h.requiereConfirmacion || s.exacto.moneda !== bi.moneda || !otrasBiEnCero(h, par)) {
+    invalida();
+  }
   const r10 = rangoGravado(bi, igv, TASA_IGV_10);
   if (!enRango(s.exacto, r18) && (r10 === null || !enRango(s.exacto, r10))) invalida();
+}
+
+/** Cuadre de 010; fuera de NUMERIC(14,2) R-RED no sugiere nada, así que la sugerencia es falsa. */
+function cuadreDe(m: MontosComprobante): ResultadoCuadre {
+  try {
+    return verificarCuadre(m, TOLERANCIA_CUADRE);
+  } catch (e) {
+    if (e instanceof MontoFueraDeRangoError) invalida();
+    throw e;
+  }
+}
+
+/**
+ * R-RED (R2a-1), según su explicación: sin respaldo, solo total = Σ dentro del umbral y con
+ * confirmación (D-6); con XML, total = Σ o una sola columna que deja la fila cuadrada; con
+ * origenUsd (la conversión no se puede comprobar sin el entorno), la fila PEN queda cuadrada.
+ */
+function coherenciaAjustar(h: HallazgoLeido, valores: Map<string, Money>, montos: MontosComprobante): void {
+  const c = cuadreDe(montos);
+  const base = red(c.sumaComponentes, c.total);
+  const total = valores.get("total");
+  const soloTotal = valores.size === 1 && total !== undefined && iguales(total, c.sumaComponentes);
+  if (h.explicacion === base) {
+    if (!h.requiereConfirmacion || !soloTotal || valoresPorUmbral(montos, c) === null) invalida();
+    return;
+  }
+  if (h.requiereConfirmacion) invalida();
+  if (h.explicacion === base + SUFIJO_RED_XML) {
+    if (soloTotal) return;
+    const [col, v] = [...valores][0] as [string, Money];
+    if (valores.size !== 1 || !COLUMNAS_RED_XML.includes(col as ColumnaCompra)) invalida();
+    if (!iguales(v, montos.obtener(col as ColumnaCompra).sumar(c.diferencia))) invalida();
+    return;
+  }
+  if (montos.moneda !== "PEN" || !h.explicacion.startsWith(redUsd(""))) invalida();
+  if (!cuadreDe(ajustar(montos, valores)).diferencia.esCero()) invalida();
 }
 
 /** CA-9: si alguna columna leída al evaluar cambió → SugerenciaObsoletaError. */
@@ -244,6 +337,46 @@ function verificarVigencia(montos: MontosComprobante, lecturas: Map<string, Mone
   }
 }
 
+// ---------------------------------------------------------------- con entorno (T15)
+interface EntornoInterno {
+  readonly filas: ReadonlyMap<string, FilaInterna>;
+  readonly contexto: ContextoInterno;
+}
+
+/** Entorno validado como en evaluarReglas (contexto y después filas). */
+function leerEntorno(e: unknown): EntornoInterno {
+  const v = leerObjeto(e, ["filas", "contexto"]);
+  const contexto = validarContexto(v.get("contexto") as ContextoReglas);
+  const filas = new Map<string, FilaInterna>();
+  for (const f of validarFilas(v.get("filas") as readonly FilaEvaluable[])) filas.set(f.id, f);
+  return { filas, contexto };
+}
+
+/** Texto canónico de un hallazgo leído: Money con su moneda (toJSON) y cada Map por clave. */
+function canonico(h: HallazgoLeido): string {
+  return JSON.stringify(h, (_k, v: unknown) =>
+    v instanceof Map ? [...(v as Map<string, Money>)].sort(([a], [b]) => (a < b ? -1 : 1)) : v,
+  );
+}
+
+/**
+ * CA-9 de raíz (R2a-1 a R2a-3): la fila re-evaluada con los montos actuales debe dar el mismo
+ * hallazgo (explicación, sugerencia, confirmación, dato y lecturas) para esa regla y destino;
+ * si no, la sugerencia recibida es obsoleta (o falsa).
+ */
+function reevaluar(h: HallazgoLeido, montos: MontosComprobante, entorno: EntornoInterno): void {
+  const fila = entorno.filas.get(h.filaId);
+  if (fila === undefined) invalida();
+  if (fila.montos.moneda !== montos.moneda) throw new SugerenciaObsoletaError();
+  const actual = evaluarFila({ ...fila, montos }, entorno.contexto).find(
+    (x) => x.regla === h.regla && x.destino === h.destino && x.sugerencia !== null,
+  );
+  if (actual === undefined || canonico(leerHallazgo(actual)) !== canonico(h)) {
+    throw new SugerenciaObsoletaError();
+  }
+}
+
+// ---------------------------------------------------------------- aplicar
 /**
  * Gravado de la confirmación: un Money real (si no, ConfirmacionInvalidaError) en la moneda de
  * la fila (si no, MonedaDistintaError de 010).
@@ -300,19 +433,30 @@ function ajustar(montos: MontosComprobante, valores: Map<string, Money>): Montos
   return MontosComprobante.desde(montos.moneda, nuevo);
 }
 
-/**
- * Aplica la sugerencia del hallazgo a `montos` (que deben ser los evaluados: CA-9). R-MIX sin
- * exacto exige `{ gravado }` en [min, max]; R-NEW exige `{ destino }`. Los errores de 010 se
- * propagan sin envolver.
- */
-export function aplicarSugerencia(montos: MontosComprobante, h: Hallazgo, c?: Confirmacion): ResultadoAplicar {
+/** Con entorno, re-evaluación; sin él, forma, lecturas, vigencia y coherencia (T13, T15). */
+function contrastar(h: HallazgoLeido, montos: MontosComprobante, entorno: EntornoInterno | null): void {
+  if (entorno !== null) {
+    reevaluar(h, montos, entorno);
+    return;
+  }
+  exigirLecturas(h);
+  verificarVigencia(montos, h.lecturas);
+  const s = h.sugerencia;
+  if (s.tipo === "mover") coherenciaMover(h, s);
+  if (s.tipo === "separar") coherenciaSeparar(h, s);
+  if (s.tipo === "ajustar") coherenciaAjustar(h, s.valores, montos);
+}
+
+function aplicarContrastado(
+  montos: MontosComprobante,
+  h: Hallazgo,
+  c: Confirmacion | undefined,
+  entorno: EntornoInterno | null,
+): ResultadoAplicar {
   const leido = leerHallazgo(h);
   if (!esMontosReal(montos)) invalida();
-  exigirLecturas(leido);
-  verificarVigencia(montos, leido.lecturas);
+  contrastar(leido, montos, entorno);
   const s = leido.sugerencia;
-  if (s.tipo === "mover") coherenciaMover(leido, s);
-  if (s.tipo === "separar") coherenciaSeparar(leido, s);
   let nuevos: MontosComprobante;
   switch (s.tipo) {
     case "mover":
@@ -334,11 +478,28 @@ export function aplicarSugerencia(montos: MontosComprobante, h: Hallazgo, c?: Co
 }
 
 /**
+ * Aplica la sugerencia del hallazgo a `montos` (que deben ser los evaluados: CA-9). R-MIX sin
+ * exacto exige `{ gravado }` en [min, max]; R-NEW exige `{ destino }`. Con `entorno` (lo que
+ * recibió evaluarReglas) re-evalúa la fila con `montos` y exige el mismo hallazgo (T15): 014 debe
+ * pasarlo siempre. Los errores de 010 se propagan sin envolver.
+ */
+export function aplicarSugerencia(
+  montos: MontosComprobante,
+  h: Hallazgo,
+  c?: Confirmacion,
+  entorno?: EntornoEvaluacion,
+): ResultadoAplicar {
+  return aplicarContrastado(montos, h, c, entorno === undefined ? null : leerEntorno(entorno));
+}
+
+/**
  * Aplica en el orden recibido y encadena por filaId (la segunda usa los montos de la primera).
  * Dato requerido sin confirmación → `requiere_dato`; ReglasError o DineroError → su `codigo`;
- * otro error es un defecto y se propaga.
+ * otro error es un defecto y se propaga. Con `entorno`, cada hallazgo se re-evalúa con los montos
+ * encadenados (T15); un entorno inválido aborta la llamada.
  */
-export function aplicarMasivo(entradas: readonly EntradaMasiva[]): ResultadoMasivo {
+export function aplicarMasivo(entradas: readonly EntradaMasiva[], entorno?: EntornoEvaluacion): ResultadoMasivo {
+  const leido = entorno === undefined ? null : leerEntorno(entorno);
   const vigentes = new Map<string, MontosComprobante>();
   const aplicadas: { filaId: string; montos: MontosComprobante; excluir: boolean }[] = [];
   const rechazadas: { filaId: string; regla: CodigoRegla; codigo: string }[] = [];
@@ -356,7 +517,7 @@ export function aplicarMasivo(entradas: readonly EntradaMasiva[]): ResultadoMasi
       continue;
     }
     try {
-      const res = aplicarSugerencia(vigentes.get(id) ?? (v.get("montos") as MontosComprobante), h, c);
+      const res = aplicarContrastado(vigentes.get(id) ?? (v.get("montos") as MontosComprobante), h, c, leido);
       vigentes.set(id, res.montos);
       aplicadas.push(Object.freeze({ filaId: id, montos: res.montos, excluir: res.excluir }));
     } catch (err) {

@@ -57,6 +57,15 @@ function compararHallazgos(a: Hallazgo, b: Hallazgo) {
   );
 }
 
+/** Hallazgos de una fila ya validada, sin ordenar (también los usa aplicar para re-evaluar: T15). */
+export function evaluarFila(fila: FilaInterna, contexto: ContextoInterno): Hallazgo[] {
+  const hallazgos = porDestino(fila, contexto);
+  for (const h of [evaluarRed(fila), evaluarNuevo(fila, contexto), evaluarGastoPersonal(fila, contexto)]) {
+    if (h !== null) hallazgos.push(h);
+  }
+  return hallazgos;
+}
+
 /**
  * Evalúa las filas sin mutarlas. Valida todo antes de evaluar (sin resultados parciales):
  * entrada inválida → EntradaReglasInvalidaError. Orden: id → ORDEN_REGLAS → DG, DGNG, DNG.
@@ -68,10 +77,7 @@ export function evaluarReglas(filas: readonly FilaEvaluable[], ctx: ContextoRegl
   const avisos: Aviso[] = [];
   for (const fila of internas) {
     if (fila.aviso !== null) avisos.push(fila.aviso);
-    hallazgos.push(...porDestino(fila, contexto));
-    for (const h of [evaluarRed(fila), evaluarNuevo(fila, contexto), evaluarGastoPersonal(fila, contexto)]) {
-      if (h !== null) hallazgos.push(h);
-    }
+    hallazgos.push(...evaluarFila(fila, contexto));
   }
   hallazgos.sort(compararHallazgos);
   avisos.sort((a, b) => compararTexto(a.filaId, b.filaId));

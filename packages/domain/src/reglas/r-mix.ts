@@ -1,8 +1,9 @@
 // R-MIX (RF-082; spec D-3, D-7, CA-2–CA-4; plan 011, Decisiones: "Rango de R-MIX" y
 // "Ratificación de contratos"). Rango y estimado siempre a 18 %; el 10 % solo valida el XML.
+import type { ColumnaCompra } from "../comprobante/index";
 import { TASA_IGV_10, TASA_IGV_18 } from "../dinero/index";
 import type { Money } from "../dinero/index";
-import { crearHallazgo } from "./entrada";
+import { PARES_DESTINO, crearHallazgo } from "./entrada";
 import type { FilaInterna, XmlInterno } from "./entrada";
 import {
   SUFIJO_MIX_RANGO_VACIO,
@@ -15,7 +16,7 @@ import {
 import { enRango, rangoGravado } from "./rango";
 import type { RangoGravado } from "./rango";
 import type { DestinoEvaluado } from "./r-isc";
-import type { Hallazgo } from "./tipos";
+import type { Hallazgo, MontosParciales } from "./tipos";
 
 /** El gravado del XML es exacto si cae en el rango a 18 % o, si no, en el rango a 10 % (D-7). */
 function gravadoExacto(d: DestinoEvaluado, xml: XmlInterno, r18: RangoGravado): boolean {
@@ -38,13 +39,25 @@ function conXml(
   return { exacto: null, sufijo: sufijoMixGravadoFuera(xml.gravado) };
 }
 
+/**
+ * BI e IGV del destino; con XML también las BI de los otros destinos, porque el exacto exige
+ * "único destino con BI ≠ 0" (T15, R2a-3 = R2b-1: si cambian, la sugerencia es obsoleta).
+ */
+function lecturas(fila: FilaInterna, d: DestinoEvaluado): MontosParciales {
+  const l: Partial<Record<ColumnaCompra, Money>> = { [d.par.bi]: d.bi, [d.par.igv]: d.igv };
+  if (fila.xml !== null) {
+    for (const p of PARES_DESTINO) if (p.destino !== d.par.destino) l[p.bi] = fila.montos.obtener(p.bi);
+  }
+  return l;
+}
+
 /** Destino con IGV ≠ 0 que no cuadra a 18 % ni a 10 %. */
 export function evaluarMix(fila: FilaInterna, d: DestinoEvaluado): Hallazgo {
   const base = {
     filaId: fila.id,
     regla: "R-MIX" as const,
     destino: d.par.destino,
-    lecturas: { [d.par.bi]: d.bi, [d.par.igv]: d.igv },
+    lecturas: lecturas(fila, d),
   };
   const r18 = rangoGravado(d.bi, d.igv, TASA_IGV_18);
   if (r18 === null) {

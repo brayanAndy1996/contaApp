@@ -182,34 +182,52 @@ function esDiccionarioReal(x: unknown): x is DiccionarioGlosas {
 }
 
 // ---------------------------------------------------------------- documentos
-function textoId(x: unknown): string {
-  if (typeof x !== "string" || x.length > LARGO_MAX_TEXTO_ID) invalida();
-  return x as string;
+/**
+ * Qué hacer con un campo de identidad fuera de gramática o de longitud: en la fila (y en el
+ * contexto) es una entrada inválida; en el XML, el XML es ajeno (T15, CA-11: no aborta el lote).
+ */
+type SiFuera = "lanza" | "nula";
+
+function fuera(si: SiFuera): null {
+  return si === "lanza" ? invalida() : null;
 }
 
-/** DocProveedor normalizado: numero sin espacios y en mayúsculas (solo ASCII antes de pasar). */
-export function normalizarProveedor(o: unknown): DocNormalizado {
+/** String (si no, forma inválida en cualquier caso) dentro de la cota previa a transformarlo. */
+function textoId(x: unknown, si: SiFuera): string | null {
+  if (typeof x !== "string") invalida();
+  return (x as string).length > LARGO_MAX_TEXTO_ID ? fuera(si) : (x as string);
+}
+
+function docProveedor(o: unknown, si: SiFuera): DocNormalizado | null {
   const v = leerObjeto(o, CLAVES_DOC);
-  const tipo = textoId(v.get("tipo"));
-  const numero = textoId(v.get("numero")).replace(ESPACIOS, "");
-  if (!TIPO_DOC.test(tipo) || !NUMERO_DOC.test(numero)) invalida();
+  const tipo = textoId(v.get("tipo"), si);
+  const crudo = textoId(v.get("numero"), si);
+  if (tipo === null || crudo === null) return null;
+  const numero = crudo.replace(ESPACIOS, "");
+  if (!TIPO_DOC.test(tipo) || !NUMERO_DOC.test(numero)) return fuera(si);
   const n = numero.toUpperCase();
   return Object.freeze({ tipo, numero: n, clave: `${tipo}:${n}` });
 }
 
+/** DocProveedor normalizado: numero sin espacios y en mayúsculas (solo ASCII antes de pasar). */
+export function normalizarProveedor(o: unknown): DocNormalizado {
+  return docProveedor(o, "lanza") as DocNormalizado;
+}
+
 /**
- * Clave del comprobante: tipo, serie en mayúsculas y numero sin ceros a la izquierda. Serie fuera
- * de gramática: la fila es inválida; en el XML devuelve null (XML_AJENO, no aborta el lote: R1b-6).
+ * Clave del comprobante: tipo, serie en mayúsculas y numero sin ceros a la izquierda. Un campo
+ * fuera de gramática o de longitud: la fila es inválida; en el XML devuelve null (XML_AJENO sin
+ * abortar el lote: R1b-6 para la serie, T15 para tipo y número).
  */
-function claveComprobante(o: unknown, serieInvalida: "lanza" | "nula"): string | null {
+function claveComprobante(o: unknown, si: SiFuera): string | null {
   const v = leerObjeto(o, CLAVES_COMPROBANTE);
-  const tipo = textoId(v.get("tipo"));
-  const serie = textoId(v.get("serie"));
-  const digitos = textoId(v.get("numero"));
-  if (!TIPO_COMPROBANTE.test(tipo) || !DIGITOS.test(digitos)) invalida();
+  const tipo = textoId(v.get("tipo"), si);
+  const serie = textoId(v.get("serie"), si);
+  const digitos = textoId(v.get("numero"), si);
+  if (tipo === null || serie === null || digitos === null) return null;
+  if (!TIPO_COMPROBANTE.test(tipo) || !DIGITOS.test(digitos) || !SERIE.test(serie)) return fuera(si);
   const numero = digitos.replace(CEROS_IZQUIERDA, "") || "0";
-  if (!NUMERO_COMPROBANTE.test(numero)) invalida();
-  if (!SERIE.test(serie)) return serieInvalida === "lanza" ? invalida() : null;
+  if (!NUMERO_COMPROBANTE.test(numero)) return fuera(si);
   return `${tipo}-${serie.toUpperCase()}-${numero}`;
 }
 
@@ -224,8 +242,9 @@ function leerOrigenUsd(o: unknown, monedaFila: Moneda): OrigenUsd {
 }
 
 interface XmlLeido {
-  readonly proveedor: string;
-  /** null: serie fuera de gramática (XML ajeno). */
+  /** null: documento fuera de gramática (XML ajeno). */
+  readonly proveedor: string | null;
+  /** null: tipo, serie o número fuera de gramática (XML ajeno). */
   readonly comprobante: string | null;
   /** Todos los montos están en `datos.moneda`. */
   readonly monedaUnica: boolean;
@@ -234,7 +253,7 @@ interface XmlLeido {
 
 function leerXml(o: unknown): XmlLeido {
   const v = leerObjeto(o, CLAVES_XML);
-  const proveedor = normalizarProveedor(v.get("proveedor")).clave;
+  const proveedor = docProveedor(v.get("proveedor"), "nula")?.clave ?? null;
   const comprobante = claveComprobante(v.get("comprobante"), "nula");
   const moneda = v.get("moneda");
   if (!esMoneda(moneda)) return invalida();
