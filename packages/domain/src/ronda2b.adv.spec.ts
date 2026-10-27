@@ -74,6 +74,10 @@ describe("T13b · ronda adversarial 2b", () => {
       "MontosComprobante", "MovimientoInvalidoError", "TASA_IGV_10", "TASA_IGV_18", "TOLERANCIA_CUADRE",
       "TOLERANCIA_IGV", "TipoCambio", "Tolerancia", "cambiarDestino", "convertirAPen", "igvCuadra",
       "igvEsperado", "moverMonto", "redondearSunat", "verificarCuadre",
+      // 011: exports legítimos de texto/ (T8) y reglas/ (T10).
+      "ConfirmacionInvalidaError", "DICCIONARIO_GLOSAS_BASE", "DiccionarioGlosas", "EntradaReglasInvalidaError",
+      "ORDEN_REGLAS", "ReglasError", "SugerenciaObsoletaError", "aplicarMasivo", "aplicarSugerencia",
+      "evaluarReglas", "tokensDeGlosa",
     ].sort();
     expect(Object.keys(Publico).sort()).toEqual(esperados);
 

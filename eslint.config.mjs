@@ -758,11 +758,12 @@ export default tseslint.config(
       ],
     },
   },
-  // Dinero (spec 010, CA-1): sin `number` ni Math.* en dinero/ y comprobante/ (salvo pruebas).
+  // Dinero (spec 010/011, CA-1): sin `number` ni Math.* en dinero/, comprobante/ y reglas/ (salvo pruebas).
   {
     files: [
       "packages/domain/src/dinero/**",
       "packages/domain/src/comprobante/**",
+      "packages/domain/src/reglas/**",
     ],
     ignores: ["**/*.spec.ts"],
     rules: {
@@ -770,7 +771,7 @@ export default tseslint.config(
         "error",
         ...SINTAXIS_SIN_NUMBER_DOMINIO.map(([selector, message]) => ({
           selector,
-          message: `packages/domain: ${message} (spec 010, CA-1).`,
+          message: `packages/domain: ${message} (spec 010/011, CA-1).`,
         })),
         ...[
           ...SINTAXIS_PAQUETE_DOMINIO,
