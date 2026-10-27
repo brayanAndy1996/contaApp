@@ -10,7 +10,7 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 | 002-db-rls | A | hecha | — | Spec aprobada por el usuario (D1–D3, D5–D7). P7 resuelta en el plan. Rama `spec/002-db-rls` desde `spec/001-fundaciones`. |
 | 003-cifrado | A | hecha | — | Sin Docker (decisión del usuario). Rama `spec/003-cifrado` sin mergear (desde `spec/002-db-rls`). F2: límite aceptado por el usuario (ver `spec.md`, Límites conocidos). |
 | 004-auth | A | hecha | — | Hecha. Rama `spec/004-auth` sin mergear (desde `spec/010-dominio-dinero`). O-2 y límites de T20a aceptados por el usuario. |
-| 005-acceso | A | en curso | T14a/T14b | T1–T12 y T10b hechas (último commit 917667f). Aprobada por el usuario (2026-10-26): D1–D14 y lo recomendado en P1–P7 (ahora D15–D21); también las 4 decisiones del plan. T1–T6 hechas (pruebas en rojo); contratos que fijaron ratificados en `plan.md`. Rama `spec/005-acceso` desde `spec/004-auth`. |
+| 005-acceso | A | verificada | T19 | T1–T18 hechas: CA-1 a CA-16 cumplidos con evidencia (T18); los 10 hallazgos adversariales de 005 están corregidos (3127e6e, 76c6121). Pendiente: revisión final T19 y cierre T20. CI: la migración 0016 exige la colación ICU `und-x-icu` (verificada en PG 17.5 local; en `postgres:17` del CI solo inferida, sin Docker). Antes: T1–T12 y T10b hechas (último commit 917667f). Aprobada por el usuario (2026-10-26): D1–D14 y lo recomendado en P1–P7 (ahora D15–D21); también las 4 decisiones del plan. T1–T6 hechas (pruebas en rojo); contratos que fijaron ratificados en `plan.md`. Rama `spec/005-acceso` desde `spec/004-auth`. |
 | 006-planes | B | pendiente | — | — |
 | 007-clientes | B | pendiente | — | — |
 | 008-cola | A | pendiente | — | — |
