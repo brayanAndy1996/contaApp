@@ -102,6 +102,9 @@ export default defineConfig({
         "**/*.adv.spec.ts",
         "**/*.int.spec.ts",
         "**/*.adv.int.spec.ts",
+        // Dobles de prueba (no son producción ni pruebas): fuera de la medición (plan 008, Ratificaciones (6)).
+        "packages/db/src/trabajos/soporte-prueba.ts",
+        "packages/queue/src/soporte-pruebas/**",
       ],
       reporter: ["text", "html"],
       thresholds: {

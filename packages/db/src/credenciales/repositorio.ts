@@ -77,10 +77,10 @@ const SQL_LEER = `select id, tenant_id, cliente_id, tipo, ciphertext, nonce, tag
 const SQL_LISTAR = `select id, tenant_id, cliente_id, tipo, ciphertext, nonce, tag, dek_envuelta, kek_id, version
   from credencial where kek_id = $1 order by id limit $2`;
 
-// CAS sobre dek_envuelta y kek_id (= $5, si se da): si el backend escribió cualquiera de los dos entre la
+// CAS sobre dek_envuelta y kek_id (= $5, obligatorio desde 008): si el backend escribió cualquiera de los dos entre la
 // lectura y esta escritura, gana el backend.
 const SQL_REEMPLAZAR_DEK = `update credencial set dek_envuelta = $3, kek_id = $4, updated_at = now()
-  where id = $1 and dek_envuelta = $2 and ($5::text is null or kek_id = $5::text)`;
+  where id = $1 and dek_envuelta = $2 and kek_id = $5`;
 
 // Sin RETURNING: contapp_worker no tiene SELECT sobre la auditoría.
 const SQL_AUDITAR = `insert into auditoria_descifrado (credencial_id, cliente_id, tipo, motivo, resultado)
@@ -168,10 +168,10 @@ export async function listarParaReenvolver(
 }
 
 /**
- * Re-envuelve la DEK de una credencial con CAS sobre `dek_envuelta` y, si se da `kekAnterior`, también
- * sobre `kek_id` (la rotación siempre lo pasa: `kek_id = desde`). true si la fila cambió; false si no
- * existe en el estudio, su DEK ya no es `dekAnterior` o su kek_id ya no es `kekAnterior`. Solo toca
- * dek_envuelta, kek_id y updated_at.
+ * Re-envuelve la DEK de una credencial con CAS sobre `dek_envuelta` y `kek_id` (= `kekAnterior`, la KEK de la
+ * que se rota). true si la fila cambió; false si no existe en el estudio, su DEK ya no es `dekAnterior` o su
+ * kek_id ya no es `kekAnterior`. Solo toca dek_envuelta, kek_id y updated_at.
+ * Spec 008 (CA-12): `kekAnterior` es obligatorio; sin él (o vacío) lanza antes de consultar (falla cerrado).
  */
 export async function reemplazarDekEnvuelta(
   tx: TxConsulta,
@@ -180,15 +180,19 @@ export async function reemplazarDekEnvuelta(
     dekAnterior: Buffer;
     dekNueva: Buffer;
     kekNuevo: string;
-    kekAnterior?: string;
+    kekAnterior: string;
   },
 ): Promise<boolean> {
+  const kekAnterior: unknown = a?.kekAnterior;
+  if (typeof kekAnterior !== "string" || kekAnterior.length === 0) {
+    throw new TypeError("reemplazarDekEnvuelta exige kekAnterior");
+  }
   const r = await consultar(tx, SQL_REEMPLAZAR_DEK, [
     a.id,
     a.dekAnterior,
     a.dekNueva,
     a.kekNuevo,
-    a.kekAnterior ?? null,
+    kekAnterior,
   ]);
   return r.rowCount === 1;
 }
