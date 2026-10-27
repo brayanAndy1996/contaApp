@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Pool, PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { FUNCIONES_AUTH, abrirAdmin } from "./auth-soporte";
+import { FUNCIONES_AUTH, FUNCIONES_AUTH_SOLO_WORKER, abrirAdmin } from "./auth-soporte";
 
 let admin: Pool;
 beforeAll(() => {
@@ -34,7 +34,13 @@ async function foto(c: PoolClient) {
         from pg_proc p join pg_namespace n on n.oid = p.pronamespace,
              lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
        where n.nspname = 'auth' order by 1, 2, 3`)
-  ).rows;
+  ).rows.filter(
+    // Ajuste de 008 (T3): 0008 termina con REVOKE ALL ON ALL FUNCTIONS IN SCHEMA auth FROM contapp_worker y GRANT EXECUTE ON
+    // ALL FUNCTIONS IN SCHEMA auth TO contapp_backend; reaplicarla dentro de esta transaccion le quitaria el EXECUTE al worker
+    // y se lo daria al backend sobre auth.purgar (008, solo-worker). Reaplicar una migracion vieja no es un escenario real:
+    // la ACL de purgar queda fuera de esta comparacion y la fija trabajos.spec.ts.
+    (a) => !FUNCIONES_AUTH_SOLO_WORKER.some((n) => String(a.firma).startsWith(`auth.${n}(`)),
+  );
   const checks = (
     await c.query(`
       select conname, pg_get_constraintdef(oid) as def from pg_constraint
@@ -80,10 +86,19 @@ describe("r2a · migración 0008_auth_ronda1", () => {
         expect.soft(f.config, `${f.firma}: search_path fijo`).toBe('{"search_path=pg_catalog, pg_temp"}');
       }
       // ACL: por función, solo el dueño y contapp_backend; nada a PUBLIC, worker, platform ni contapp_app; sin reconceder.
-      const ajenos = despues.acl.filter((a) => !["contapp_auth", "contapp_backend"].includes(String(a.a_quien)));
+      // Ajuste de 008 (T3): las de FUNCIONES_AUTH_SOLO_WORKER (auth.purgar) van solo al dueño y a contapp_worker.
+      const soloWorker = (firma: unknown) =>
+        FUNCIONES_AUTH_SOLO_WORKER.some((n) => String(firma).startsWith(`auth.${n}(`));
+      const ajenos = despues.acl.filter((a) =>
+        soloWorker(a.firma)
+          ? !["contapp_auth", "contapp_worker"].includes(String(a.a_quien))
+          : !["contapp_auth", "contapp_backend"].includes(String(a.a_quien)),
+      );
       expect(ajenos).toEqual([]);
       const backend = despues.acl.filter((a) => a.a_quien === "contapp_backend");
-      expect(backend.map((a) => a.priv)).toEqual(Array(FUNCIONES_AUTH.length).fill("EXECUTE"));
+      expect(backend.map((a) => a.priv)).toEqual(
+        Array(FUNCIONES_AUTH.length - FUNCIONES_AUTH_SOLO_WORKER.length).fill("EXECUTE"),
+      );
       expect(backend.some((a) => a.reconcede)).toBe(false);
     } finally {
       await c.query("ROLLBACK").catch(() => undefined);

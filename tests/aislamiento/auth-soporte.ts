@@ -23,6 +23,9 @@ export const FUNCIONES_AUTH = [
   "limite_consumir",
   "login_exito",
   "login_preparar",
+  // Spec 008 (T3): 16 funciones. 0018_trabajos_rls.sql agrega `purgar` (D16, CA-13), la UNICA con EXECUTE para
+  // contapp_worker y NO para contapp_backend (ver FUNCIONES_AUTH_SOLO_WORKER).
+  "purgar",
   "recuperacion_consumir",
   "recuperacion_crear",
   "recuperacion_vigente", // 0008 (T16): consulta sin efectos antes de Argon2 en restablecer
@@ -32,6 +35,12 @@ export const FUNCIONES_AUTH = [
   "sesiones_cerrar_todas",
   "ultimo_estudio",
 ] as const;
+
+/** Spec 008: funciones de `auth` que ejecuta contapp_worker (y no contapp_backend). */
+export const FUNCIONES_AUTH_SOLO_WORKER = ["purgar"] as const;
+
+/** Spec 008 (D18): funciones SECURITY DEFINER del esquema `sistema` (dueño contapp_enumerador, EXECUTE solo worker). */
+export const FUNCIONES_SISTEMA = ["estudios_con_trabajos", "estudios_ids"] as const;
 
 export const ROLES_SIN_ACCESO = ["contapp_backend", "contapp_worker", "contapp_platform", "contapp_app"] as const;
 

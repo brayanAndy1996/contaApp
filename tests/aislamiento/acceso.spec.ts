@@ -128,9 +128,23 @@ describe("privilegios exactos por rol (CA-13)", () => {
     expect(await concedidos("invitacion", "contapp_backend")).toEqual(["SELECT", "INSERT", "UPDATE"]);
   });
 
-  it.each(
-    ["contapp_worker", "contapp_platform", "contapp_app"].flatMap((rol) => NUEVAS.map((t) => [rol, t] as const)),
-  )("%s no tiene ningun privilegio sobre %s (ni de tabla ni de columna)", async (rol, t) => {
+  // Ajuste de 008 (T3, CA-14, D17): el despachador (contapp_worker, dentro de withTenant) revalida el alcance de quien
+  // encolo leyendo `asignacion`; por eso 0018 le concede SELECT (solo lectura, bajo la RLS tenant_isolation) y nada mas.
+  // HUECO DEL PLAN 008 (informado en T3): el plan no lista esta concesion; sin ella revalidarEncolado no puede
+  // comprobar el alcance `asignado`. `invitacion` sigue sin ningun privilegio para el worker.
+  it("contapp_worker: asignacion SOLO SELECT (008, D17) y nada sobre invitacion", async () => {
+    expect(await concedidos("asignacion", "contapp_worker")).toEqual(["SELECT"]);
+    for (const p of ["INSERT", "UPDATE", "REFERENCES"]) {
+      const r = await consulta("select has_any_column_privilege('contapp_worker', to_regclass('public.asignacion'), $1) as v", [p]);
+      expect(r[0].v, `worker ${p} (columna) en asignacion`).toBe(false);
+    }
+    expect(await concedidos("invitacion", "contapp_worker")).toEqual([]);
+  });
+
+  it.each([
+    ...["contapp_platform", "contapp_app"].flatMap((rol) => NUEVAS.map((t) => [rol, t] as const)),
+    ["contapp_worker", "invitacion"] as const,
+  ])("%s no tiene ningun privilegio sobre %s (ni de tabla ni de columna)", async (rol, t) => {
     expect(await concedidos(t, rol)).toEqual([]);
     for (const p of ["SELECT", "INSERT", "UPDATE", "REFERENCES"]) {
       const r = await consulta("select has_any_column_privilege($1, to_regclass($2), $3) as v", [rol, `public.${t}`, p]);
@@ -151,7 +165,8 @@ describe("privilegios exactos por rol (CA-13)", () => {
         order by 1`,
       [`public.${t}`],
     );
-    const esperado = t === "invitacion" ? ["contapp_auth", "contapp_backend"] : ["contapp_backend"];
+    // Ajuste de 008 (T3): asignacion tambien lista a contapp_worker (SELECT, D17).
+    const esperado = t === "invitacion" ? ["contapp_auth", "contapp_backend"] : ["contapp_backend", "contapp_worker"];
     expect(r.map((x) => x.quien)).toEqual(esperado);
   });
 
