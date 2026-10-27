@@ -2,6 +2,7 @@ import "reflect-metadata";
 import type { INestApplication } from "@nestjs/common";
 import { NestFactory, Reflector } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
+import { json } from "express";
 import type { ContappDb } from "@contapp/db";
 import { AppModule } from "./app.module.js";
 import { FiltroErrores } from "./comun/filtro-errores.js";
@@ -38,6 +39,13 @@ export interface OpcionesApp {
 
 /** Límite del cuerpo JSON (plan: Decisiones, Argon2): más de 16 kB responde 413 sin procesar. */
 const LIMITE_JSON = "16kb";
+
+/**
+ * Límite de las dos rutas de asignación masiva (plan 005): un lote de 501 UUID pesa ~19,6 kB y debe llegar a zod
+ * (400), no cortarse en 413. El resto de rutas conserva `LIMITE_JSON`.
+ */
+export const LIMITE_JSON_LOTES = "32kb";
+const RUTAS_LOTES = ["/asignaciones/por-usuario", "/asignaciones/por-cliente"];
 
 /** `TRUST_PROXY`: un entero es el número de saltos de confianza; si no, la lista o alias de Express. */
 export function confianzaProxy(valor: string): string | number {
@@ -76,6 +84,8 @@ export async function crearApp(o: OpcionesApp = {}): Promise<INestApplication> {
     res.setHeader("Cache-Control", "no-store");
     next();
   });
+  // El analizador de lotes va primero y solo en esas dos rutas; el global omite lo ya analizado.
+  app.use(RUTAS_LOTES, json({ limit: LIMITE_JSON_LOTES }));
   app.useBodyParser("json", { limit: LIMITE_JSON });
 
   const reflector = app.get(Reflector);

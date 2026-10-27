@@ -15,7 +15,7 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T8 | `shared/acceso`: catálogo, matriz, escalada y esquemas | backend | sonnet | T3 ∥ T7 | ✓ | — | [x] |
 | T9 | Guards `Permiso` y `ClienteScope`, decoradores y arranque | backend | opus | T3, T7, T8 | ✓ | — | [x] |
 | T10 | Usuarios e invitaciones (D8, aceptación, `CupoUsuarios`) | backend | opus | T4, T9 | ✓ | — | [ ] |
-| T11 | Clientes y asignaciones | backend | sonnet | T4, T9 ∥ T10 | ✓ | — | [ ] |
+| T11 | Clientes y asignaciones | backend | sonnet | T4, T9 ∥ T10 | ✓ | — | [x] |
 | T12 | Pantallas: Usuarios, invitación, clientes y asignación, menú | frontend | sonnet | T6 ∥ T7–T11 | ✓ | — | [x] |
 | T13 | Integración: checks completos y prueba manual | devops | haiku | T5, T10, T11, T12 | — | — | [ ] |
 | T14a | Ronda adversarial 1a: lista mínima (caja negra) | adversario | opus | T13 | — | ✓ | [ ] |
@@ -111,6 +111,7 @@ Reglas comunes:
 - **Fijado por las pruebas (T4)**: repos con `null` → 404 `no_encontrado` y `AccesoReglaError` → 409 `miembro_no_asignable` / 400 (`anterior_requerido`) (plan, packages/db); responsable sin `sire.clasificar` → 409 `miembro_no_asignable` comprobado en el servicio con `puedeSerResponsable` sobre `bloquearMiembro`. Lote de 500 → 200 `{asignados: 500}`; 0 o 501 → 400 (no 413).
 - **Hacer**: `clientes.controller`, `asignaciones.{controller,service}`; listados solo con `filtroAlcance`; lotes deduplicados, todo o nada. En `apps/backend/src/app.ts` (único cambio fuera de `modules/clientes`; T10 no toca `app.ts`): `LIMITE_JSON_LOTES = "32kb"` con un analizador JSON propio montado solo en `POST /asignaciones/por-usuario` y `/por-cliente` antes del global de 16 kB, que no cambia (plan, Backend).
 - **Hecho cuando**: las `*.int.spec.ts` de `clientes` en verde, incluido el lote de 500; las pruebas de 413 de 004 siguen verdes; typecheck y lint OK; `modules/clientes/**` ≥ 90 %. Commit `feat(005): clientes visibles y asignación individual y masiva`.
+- **Resultado**: `modules/clientes/{clientes.controller,asignaciones.controller,asignaciones.service,contexto,clientes.module}.ts` (+ `contexto.spec.ts`); `app.ts`: `LIMITE_JSON_LOTES = "32kb"` con `json()` de `express` solo en `/asignaciones/por-usuario` y `/por-cliente` antes del global de 16 kB; `express@5.3.0` añadido como dependencia directa del backend (ya estaba en el lockfile; solo se tocaron `package.json` y 3 líneas de `pnpm-lock.yaml`). Int de `clientes` 22/24: las 2 restantes (`PATCH /usuarios/:id/rol` y `POST /usuarios/:id/desactivar`) dependen de T10; lote de 500 y de 501 (400) en verde; `rutas.spec` (CA-11) en verde; `test:int` de 004 142/142; typecheck y lint OK. Cobertura de `modules/clientes/**` no medida con v8 mientras esas 2 fallen (se verifica en `cobertura:acceso` tras T10).
 
 ## T12 · Pantallas (frontend · sonnet) ∥ T7–T11
 - **Contexto (leer solo esto)**: `docs/specs/005-acceso/plan.md` (Contratos: HTTP; Decisiones: Aceptación), `docs/specs/005-acceso/spec.md` (CA-15), pruebas de T6, `apps/frontend/{next.config.ts,app/(app)/layout.tsx,lib/api.ts,lib/sesion.ts}`, `apps/frontend/app/(publico)/recuperar/nueva/page.tsx` (patrón del fragmento), `packages/shared/src/acceso/` (si aún no existe, usar el contrato y alinear al terminar T8).
