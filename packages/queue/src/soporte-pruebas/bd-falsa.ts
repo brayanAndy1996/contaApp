@@ -329,6 +329,18 @@ export const moduloDbFalso = {
     return vista(f);
   },
 
+  /**
+   * T9: `encolar` lee el RUC del cliente con `leerCliente` (repo de 005, bajo RLS) porque
+   * `insertarTrabajo` lo exige (encabezado de trabajos-repos.spec.ts). Aqui todo cliente existe.
+   */
+  async leerCliente(_tx: TxFalsa, clienteId: string) {
+    return {
+      id: clienteId,
+      ruc: "20100000001",
+      razonSocial: "Cliente de prueba",
+    };
+  },
+
   async trabajoVivoPorClave(tx: TxFalsa, clave: Uint8Array) {
     const hex = Buffer.from(clave).toString("hex");
     const f = [...bd.trabajos.values()].find(
