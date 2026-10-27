@@ -4,7 +4,7 @@ import {
   asignar,
   asignarPorCliente,
   asignarPorUsuario,
-  bloquearMiembro,
+  bloquearMiembros,
   listarAsignaciones,
   retirar,
   type AsignacionListada,
@@ -62,20 +62,19 @@ export function exigirAsignador(actor: MiembroEstado | null): void {
 }
 
 /**
- * Bloquea (FOR UPDATE) al actor y, si hay, al miembro objetivo en orden de ID, como `bloquearPar` de miembros
- * (sin interbloqueo con las mutaciones de miembros), exige al actor y devuelve el objetivo (null si no lo hay o
- * no es del estudio).
+ * Orden global de bloqueo (plan, Decisiones: "Orden de bloqueo"; H-005-2a-1, H-005-2b-1): el actor y TODOS los
+ * miembros que la acción toca se bloquean juntos (FOR UPDATE, una sentencia, por `usuario_id`) antes que
+ * cualquier cliente; así ninguna acción de 005 espera una membresía teniendo ya un cliente. Exige al actor y
+ * devuelve los bloqueados (por ID en minúsculas; falta quien no es del estudio).
  */
-async function bloquearActorYObjetivo(
+async function bloquearActorYMiembros(
   tx: Tx,
   actorId: string,
-  objetivoId: string | null,
-): Promise<MiembroEstado | null> {
-  const ids = objetivoId === null || objetivoId === actorId ? [actorId] : [actorId, objetivoId].sort();
-  const filas = new Map<string, MiembroEstado | null>();
-  for (const id of ids) filas.set(id, await bloquearMiembro(tx, id));
-  exigirAsignador(filas.get(actorId) ?? null);
-  return objetivoId === null ? null : (filas.get(objetivoId) ?? null);
+  usuarioIds: readonly string[],
+): Promise<Map<string, MiembroEstado>> {
+  const filas = await bloquearMiembros(tx, [actorId, ...usuarioIds]);
+  exigirAsignador(filas.get(actorId.toLowerCase()) ?? null);
+  return filas;
 }
 
 /**
@@ -113,7 +112,7 @@ export class AsignacionesService {
     if (!esUuid(usuarioId)) throw new AccesoError("no_encontrado");
     noNulo(
       await this.db.withTenant(contextoDe(sesion), async (tx) => {
-        await bloquearActorYObjetivo(tx, sesion.usuarioId, null);
+        await bloquearActorYMiembros(tx, sesion.usuarioId, [usuarioId]);
         return retirar(tx, { clienteId, usuarioId });
       }),
     );
@@ -141,7 +140,7 @@ export class AsignacionesService {
     return traducir(async () =>
       noNulo(
         await this.db.withTenant(contextoDe(sesion), async (tx) => {
-          await bloquearActorYObjetivo(tx, sesion.usuarioId, null);
+          await bloquearActorYMiembros(tx, sesion.usuarioId, datos.usuarioIds);
           return asignarPorCliente(tx, { clienteId: datos.clienteId, usuarioIds: datos.usuarioIds });
         }),
       ),
@@ -159,7 +158,8 @@ export class AsignacionesService {
     usuarioId: string,
     tipo: "responsable" | "colaborador",
   ): Promise<void> {
-    const m = noNulo(await bloquearActorYObjetivo(tx, actorId, usuarioId.toLowerCase()));
+    const id = usuarioId.toLowerCase();
+    const m = noNulo((await bloquearActorYMiembros(tx, actorId, [id])).get(id) ?? null);
     if (!m.activo) throw new AccesoError("miembro_no_asignable");
     if (tipo === "responsable" && !puedeSerResponsable(m.rol as Rol)) throw new AccesoError("miembro_no_asignable");
   }

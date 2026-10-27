@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
-  bloquearMiembro,
+  bloquearMiembros,
   cambiarRol,
   desactivar,
   listarMiembros,
@@ -41,21 +41,20 @@ export interface MiembroRespuesta {
 export type EstadoMiembro = Pick<MiembroEstado, "usuarioId" | "rol" | "activo">;
 
 /**
- * Bloquea (FOR UPDATE) al actor y al objetivo en orden de ID, así dos mutaciones cruzadas (A sobre B y B
- * sobre A) no se interbloquean: la segunda espera y relee los roles ya cambiados (plan: D3 y carreras).
+ * Bloquea (FOR UPDATE) al actor y al objetivo en una sentencia por `usuario_id` (orden global de 005, plan
+ * Decisiones: "Orden de bloqueo"), así dos mutaciones cruzadas (A sobre B y B sobre A) ni una mutación y un lote
+ * de asignaciones se interbloquean: la segunda espera y relee los roles ya cambiados (plan: D3 y carreras).
  */
 async function bloquearPar(
   tx: Tx,
   actorId: string,
   objetivoId: string,
 ): Promise<{ actor: MiembroEstado | null; objetivo: MiembroEstado | null }> {
-  const [primero, segundo] =
-    actorId < objetivoId ? [actorId, objetivoId] : [objetivoId, actorId];
-  const a = await bloquearMiembro(tx, primero);
-  const b = await bloquearMiembro(tx, segundo);
-  return primero === actorId
-    ? { actor: a, objetivo: b }
-    : { actor: b, objetivo: a };
+  const filas = await bloquearMiembros(tx, [actorId, objetivoId]);
+  return {
+    actor: filas.get(actorId.toLowerCase()) ?? null,
+    objetivo: filas.get(objetivoId.toLowerCase()) ?? null,
+  };
 }
 
 /**

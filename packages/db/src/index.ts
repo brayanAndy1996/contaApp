@@ -43,6 +43,7 @@ export { leerCliente, listarClientes } from "./acceso/clientes";
 export type { ClienteLeido, ClienteListado } from "./acceso/clientes";
 export {
   bloquearMiembro,
+  bloquearMiembros,
   cambiarRol,
   desactivar,
   listarMiembros,

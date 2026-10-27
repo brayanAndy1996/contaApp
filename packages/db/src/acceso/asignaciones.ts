@@ -1,6 +1,9 @@
-// Asignaciones de clientes (spec 005, D6, CA-7, CA-8). Con la `tx` de withTenant (RLS). Todo o nada:
-// se bloquean los clientes (ORDER BY id FOR NO KEY UPDATE, así dos cambios del mismo cliente se serializan) y
-// las membresías (FOR SHARE), se comprueba el lote completo y solo entonces se escribe.
+// Asignaciones de clientes (spec 005, D6, CA-7, CA-8). Con la `tx` de withTenant (RLS). Todo o nada, en el
+// orden global de bloqueo de 005 (plan, Decisiones: "Orden de bloqueo"; H-005-2a-1, H-005-2b-1): primero las
+// membresías (ORDER BY usuario_id FOR SHARE; el servicio ya las tomó FOR UPDATE junto con el actor), luego los
+// clientes (ORDER BY id FOR NO KEY UPDATE, así dos cambios del mismo cliente se serializan); se comprueba el lote
+// completo (clientes primero) y solo entonces se escribe. Los IDs del lote se normalizan a minúsculas y sin
+// repetir antes de contar (H-005-2b-3).
 // Rechazos: null = algún cliente o usuario no existe o no es del estudio (-> 404); AccesoReglaError =
 // miembro desactivado ('miembro_no_asignable') o falta `anterior` habiendo otro responsable ('anterior_requerido').
 // La regla D18 (puede ser responsable) la aplica el servicio sobre el rol de bloquearMiembro.
@@ -67,7 +70,8 @@ const SQL_LISTAR = `select a.usuario_id, u.nombre, a.tipo
 const SQL_RETIRAR =
   "delete from asignacion where cliente_id = $1::uuid and usuario_id = $2::uuid returning id";
 
-const unicos = (xs: string[]): string[] => [...new Set(xs)];
+/** Mismo UUID en otra grafía = mismo ID (H-005-2b-3). */
+const unicos = (xs: string[]): string[] => [...new Set(xs.map((x) => x.toLowerCase()))];
 
 /** Bloquea todos los clientes; false si alguno no existe o no es del estudio. */
 async function bloquearClientes(
@@ -80,14 +84,19 @@ async function bloquearClientes(
   );
 }
 
-/** Bloquea las membresías: null si alguna no es del estudio; AccesoReglaError si alguna está desactivada. */
-async function bloquearMiembros(
+/**
+ * Bloquea las membresías y después los clientes (orden global); evalúa como antes: null si algún cliente o
+ * miembro no es del estudio; AccesoReglaError si algún miembro está desactivado.
+ */
+async function bloquearLote(
   tx: TxConsulta,
   usuarioIds: string[],
+  clienteIds: string[],
 ): Promise<true | null> {
-  const filas = await consultar(tx, SQL_BLOQUEAR_MIEMBROS, [usuarioIds]);
-  if (filas.length !== usuarioIds.length) return null;
-  if (filas.some((f) => f.activo !== true))
+  const miembros = await consultar(tx, SQL_BLOQUEAR_MIEMBROS, [usuarioIds]);
+  if (!(await bloquearClientes(tx, clienteIds))) return null;
+  if (miembros.length !== usuarioIds.length) return null;
+  if (miembros.some((f) => f.activo !== true))
     throw new AccesoReglaError("miembro_no_asignable");
   return true;
 }
@@ -98,8 +107,7 @@ async function aplicarPorUsuario(
   a: AsignarPorUsuario,
 ): Promise<number | null> {
   const clienteIds = unicos(a.clienteIds);
-  if (!(await bloquearClientes(tx, clienteIds))) return null;
-  if ((await bloquearMiembros(tx, [a.usuarioId])) === null) return null;
+  if ((await bloquearLote(tx, [a.usuarioId], clienteIds)) === null) return null;
   if (
     a.tipo === "responsable" &&
     (await consultar(tx, SQL_OTROS_RESPONSABLES, [clienteIds, a.usuarioId]))
@@ -175,8 +183,7 @@ export async function asignarPorCliente(
   a: AsignarPorCliente,
 ): Promise<{ asignados: number } | null> {
   const usuarioIds = unicos(a.usuarioIds);
-  if (!(await bloquearClientes(tx, [a.clienteId]))) return null;
-  if ((await bloquearMiembros(tx, usuarioIds)) === null) return null;
+  if ((await bloquearLote(tx, usuarioIds, [a.clienteId])) === null) return null;
   await consultar(tx, SQL_INSERTAR_POR_CLIENTE, [a.clienteId, usuarioIds]);
   return { asignados: usuarioIds.length };
 }

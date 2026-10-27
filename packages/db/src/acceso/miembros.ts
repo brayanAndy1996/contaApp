@@ -43,6 +43,10 @@ const SQL_LISTAR = `select m.usuario_id, u.nombre, u.email as correo, m.rol, m.d
 const SQL_BLOQUEAR = `select usuario_id, rol, desactivada_en is null as activo
   from membresia where usuario_id = $1::uuid for update`;
 
+// Una sola sentencia: PostgreSQL bloquea las filas en el orden del ORDER BY (LockRows sobre Sort).
+const SQL_BLOQUEAR_VARIOS = `select usuario_id, rol, desactivada_en is null as activo
+  from membresia where usuario_id = any($1::uuid[]) order by usuario_id for update`;
+
 const SQL_CAMBIAR_ROL = `update membresia set rol = $2, updated_at = now() where usuario_id = $1::uuid
   returning usuario_id, rol, desactivada_en is null as activo`;
 
@@ -94,6 +98,23 @@ export async function bloquearMiembro(
   usuarioId: string,
 ): Promise<MiembroEstado | null> {
   return estado((await consultar(tx, SQL_BLOQUEAR, [usuarioId]))[0]);
+}
+
+/**
+ * Orden global de bloqueo de 005 (plan, Decisiones: "Orden de bloqueo"): primero TODAS las membresías que la
+ * acción toca (actor y objetivos) en UNA sentencia `ORDER BY usuario_id FOR UPDATE`, luego los clientes por id,
+ * luego las filas de asignación/invitación. Devuelve las que son del estudio (también desactivadas), por ID en
+ * minúsculas; los IDs se normalizan (minúsculas, sin repetir) antes de bloquear.
+ */
+export async function bloquearMiembros(
+  tx: TxConsulta,
+  usuarioIds: readonly string[],
+): Promise<Map<string, MiembroEstado>> {
+  const ids = [...new Set(usuarioIds.map((id) => id.toLowerCase()))];
+  const filas = await consultar(tx, SQL_BLOQUEAR_VARIOS, [ids]);
+  const m = new Map<string, MiembroEstado>();
+  for (const f of filas) m.set(f.usuario_id, estado(f) as MiembroEstado);
+  return m;
 }
 
 /**

@@ -6,7 +6,7 @@ import type { SesionResuelta } from "../auth/auth.service.js";
 import { AsignacionesService, exigirAsignador } from "./asignaciones.service.js";
 
 const db = vi.hoisted(() => ({
-  bloquearMiembro: vi.fn(),
+  bloquearMiembros: vi.fn(),
   asignar: vi.fn(),
   retirar: vi.fn(),
   asignarPorUsuario: vi.fn(),
@@ -27,11 +27,16 @@ const servicio = () => new AsignacionesService({ withTenant: (_c: unknown, fn: (
 const miembro = (usuarioId: string, rol: string, activo = true): MiembroEstado =>
   ({ usuarioId, rol, activo }) as MiembroEstado;
 
+/** `bloquearMiembros` falso: un Map por ID en minúsculas con lo que diga `f`. */
+function bloqueo(f: (id: string) => MiembroEstado) {
+  db.bloquearMiembros.mockImplementation(
+    async (_t: unknown, ids: string[]) => new Map(ids.map((id) => [id.toLowerCase(), f(id.toLowerCase())])),
+  );
+}
+
 /** El actor tiene `rolActor`; el objetivo es un contador activo. */
 function miembros(rolActor: string, activo = true) {
-  db.bloquearMiembro.mockImplementation(async (_t: unknown, id: string) =>
-    id === ACTOR ? miembro(ACTOR, rolActor, activo) : miembro(id, "contador"),
-  );
+  bloqueo((id) => (id === ACTOR ? miembro(ACTOR, rolActor, activo) : miembro(id, "contador")));
 }
 
 const acciones: Array<[string, (s: AsignacionesService) => Promise<unknown>, keyof typeof db]> = [
@@ -66,26 +71,20 @@ describe("H-005-1b-4 · actor releído en la transacción de la asignación", ()
     miembros("admin");
     await llamar(servicio());
     expect(db[repo]).toHaveBeenCalledTimes(1);
-    expect(db.bloquearMiembro).toHaveBeenCalledWith(tx, ACTOR);
+    expect(db.bloquearMiembros).toHaveBeenCalledTimes(1);
+    expect(db.bloquearMiembros.mock.calls[0]![1][0]).toBe(ACTOR);
   });
 
-  it("bloquea actor y objetivo en orden de ID (también con el objetivo en mayúsculas) y una sola vez si son el mismo", async () => {
+  it("bloquea actor y objetivo en una sola llamada (el orden lo da la BD), con el objetivo en minúsculas", async () => {
     miembros("dueno");
     await servicio().asignar(sesion, CLIENTE, OBJ.toUpperCase(), { tipo: "colaborador" });
-    expect(db.bloquearMiembro.mock.calls.map((c) => c[1])).toEqual([ACTOR, OBJ]);
+    expect(db.bloquearMiembros.mock.calls.map((c) => c[1])).toEqual([[ACTOR, OBJ]]);
 
     vi.clearAllMocks();
-    const alReves = { ...sesion, usuarioId: OBJ } as SesionResuelta;
-    db.bloquearMiembro.mockImplementation(async (_t: unknown, id: string) => miembro(id, "dueno"));
-    db.asignar.mockResolvedValue([]);
-    await servicio().asignar(alReves, CLIENTE, ACTOR, { tipo: "colaborador" });
-    expect(db.bloquearMiembro.mock.calls.map((c) => c[1])).toEqual([ACTOR, OBJ]);
-
-    vi.clearAllMocks();
-    db.bloquearMiembro.mockImplementation(async (_t: unknown, id: string) => miembro(id, "dueno"));
+    bloqueo((id) => miembro(id, "dueno"));
     db.asignar.mockResolvedValue([]);
     await servicio().asignar(sesion, CLIENTE, ACTOR, { tipo: "responsable" });
-    expect(db.bloquearMiembro.mock.calls.map((c) => c[1])).toEqual([ACTOR]);
+    expect(db.bloquearMiembros).toHaveBeenCalledTimes(1);
   });
 
   it("exigirAsignador: null o desactivado -> estudio_requerido; sin clientes.asignar -> permiso_denegado; Dueño pasa", () => {

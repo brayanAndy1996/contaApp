@@ -63,8 +63,23 @@ import {
 const FORMA_CORREO = /^[^\s@\p{Cc}]+@[^\s@\p{Cc}]+$/u;
 /** Nombre visible de la cuenta nueva (sin espacios al borde). */
 const NOMBRE_MAX = 200;
-/** Caracteres de control (C0, DEL, C1): no van en el nombre (H-005-1b-3). */
-const CONTROL = /\p{Cc}/u;
+/**
+ * Caracteres de control (C0, DEL, C1; H-005-1b-3) y de formato (ancho cero, marcas y aislamientos bidi, BOM,
+ * etiquetas; H-005-2a-2): no van en el nombre. La BD (0016) rechaza los mismos por rangos de código.
+ */
+const CONTROL_O_FORMATO = /[\p{Cc}\p{Cf}]/u;
+/** Al menos una letra o un dígito decimal (como `[[:alnum:]]` bajo ICU en 0016): un nombre no es solo signos. */
+const LETRA_O_DIGITO = /[\p{L}\p{Nd}]/u;
+
+/** Nombre visible válido (ya recortado): 1..200, sin control ni formato, con alguna letra o dígito. */
+export function nombreValido(nombre: string): boolean {
+  return (
+    nombre.length > 0 &&
+    nombre.length <= NOMBRE_MAX &&
+    !CONTROL_O_FORMATO.test(nombre) &&
+    LETRA_O_DIGITO.test(nombre)
+  );
+}
 
 /** Resultado de `invitacion_aceptar_nueva` -> error (null = aceptada). `cuenta_existe` no consume (D15). */
 const TRAS_ACEPTAR: Record<AceptacionNueva, CodigoAcceso | null> = {
@@ -181,14 +196,9 @@ export class InvitacionesService {
     } = parsearCuerpo(aceptarInvitacionSchema, cuerpo);
     const motivo = validarContrasena(contrasena, this.comunes);
     if (motivo !== null) throw new ContrasenaInvalidaError(motivo);
-    // H-005-1b-3: nombre inválido -> 400 antes de tocar el token y de Argon2 (la BD lo vuelve a validar).
+    // H-005-1b-3, H-005-2a-2: nombre inválido -> 400 antes de tocar el token y de Argon2 (la BD lo revalida).
     const nombre = nombreCrudo.trim();
-    if (
-      nombre.length === 0 ||
-      nombre.length > NOMBRE_MAX ||
-      CONTROL.test(nombre)
-    )
-      throw new AccesoError("solicitud_invalida");
+    if (!nombreValido(nombre)) throw new AccesoError("solicitud_invalida");
     const v = await this.vigente(token);
     if (v.cuentaExiste) throw new AccesoError("requiere_sesion");
 
