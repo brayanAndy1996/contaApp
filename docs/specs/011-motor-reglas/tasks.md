@@ -12,7 +12,7 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T4 | Pruebas de R-ISC, R-MIX, rango y precedencia (rojo) | tester | sonnet | — ∥ T3 | ✓ | — | [ ] |
 | T5 | Pruebas de R-RED, R-NEW, R-GP, motor y aplicar (rojo) | tester | sonnet | — ∥ T4 | ✓ | — | [ ] |
 | T6 | Casos reales de reglas (rojo) | tester | sonnet | — ∥ T5 | ✓ | — | [ ] |
-| T7 | Lint de dinero en `reglas/` | devops | sonnet | T2 ∥ T8 | ✓ | — | [ ] |
+| T7 | Lint de dinero en `reglas/` | devops | sonnet | T2 ∥ T8 | ✓ | — | [x] |
 | T8 | Implementar `texto/` | backend | sonnet | T1, T3 | ✓ | — | [ ] |
 | T9 | Implementar tipos, entrada, rango, R-ISC y R-MIX | backend | opus | T1, T4 ∥ T8 | ✓ | — | [ ] |
 | T10 | Implementar R-RED, R-NEW, R-GP, motor y aplicar | backend | opus | T5, T6, T8, T9 | ✓ | — | [ ] |
@@ -77,6 +77,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `plan.md` (Decisiones: Lint y cobertura), `eslint.config.mjs` (bloque "Dinero (spec 010, CA-1)"), `tests/limites/dominio-reglas.spec.ts`.
 - **Hacer**: agregar `packages/domain/src/reglas/**` a `files` de ese bloque; mensajes que digan "spec 010/011". No tocar otros bloques.
 - **Hecho cuando**: `pnpm --filter @contapp/tests-limites test` en verde (todos los archivos); `pnpm lint` en verde. Commit `feat(011): lint contra number en reglas`.
+- **Resultado**: `eslint.config.mjs`: `packages/domain/src/reglas/**` agregado a `files` del bloque "Dinero" (mensajes "spec 010/011, CA-1"). `pnpm --filter @contapp/tests-limites test` OK: 11 archivos, 275 pruebas. `pnpm --filter @contapp/domain lint`: sin errores de `number`; solo `no-unused-vars` en los stubs `reglas/aplicar.ts` y `reglas/motor.ts` (T2), que T9/T10 reemplazan.
 
 ## T8 · Implementar texto/ (backend · sonnet)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: `texto/`; Decisiones: R-GP), `packages/domain/src/texto/*.spec.ts`.
