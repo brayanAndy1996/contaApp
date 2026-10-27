@@ -17,6 +17,7 @@ const T2 = Buffer.alloc(32, 2);
 const T3 = Buffer.alloc(32, 4);
 const F = new Date("2026-10-26T12:00:00.000Z");
 const PHC = "$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA";
+const PHC_VIEJO = "$argon2id$v=19$m=8192,t=2,p=1$c2FsdA$dmllam8"; // el verificado (0010, O-1)
 const CORREO = "titular@ejemplo.test";
 type ErrorAuth = Error & { codigo: string };
 
@@ -77,8 +78,16 @@ const casos: Caso[] = [
     metodo: "loginExito",
     funcion: "login_exito",
     llamar: (r) =>
-      r.loginExito({ clave: K, usuarioId: U, tokenHash: T1, tenantActivo: T, hashNuevo: PHC, tokenAnteriorHash: T2 }),
-    valores: [K, U, T1, T, PHC, T2],
+      r.loginExito({
+        clave: K,
+        usuarioId: U,
+        hashVerificado: PHC_VIEJO,
+        tokenHash: T1,
+        tenantActivo: T,
+        hashNuevo: PHC,
+        tokenAnteriorHash: T2,
+      }),
+    valores: [K, U, PHC_VIEJO, T1, T, PHC, T2],
     filas: [{ sesion_id: S, expira_absoluta: F }],
     esperado: { sesionId: S, expiraAbsoluta: F },
   },
@@ -86,10 +95,35 @@ const casos: Caso[] = [
     metodo: "loginExito (sin estudio ni cookie previa)",
     funcion: "login_exito",
     llamar: (r) =>
-      r.loginExito({ clave: K, usuarioId: U, tokenHash: T1, tenantActivo: null, hashNuevo: null, tokenAnteriorHash: null }),
-    valores: [K, U, T1, null, null, null],
+      r.loginExito({
+        clave: K,
+        usuarioId: U,
+        hashVerificado: PHC,
+        tokenHash: T1,
+        tenantActivo: null,
+        hashNuevo: null,
+        tokenAnteriorHash: null,
+      }),
+    valores: [K, U, PHC, T1, null, null, null],
     filas: [{ sesion_id: S, expira_absoluta: F }],
     esperado: { sesionId: S, expiraAbsoluta: F },
+  },
+  {
+    metodo: "loginExito (cero filas: sin membresía o credencial cambiada, O-1)",
+    funcion: "login_exito",
+    llamar: (r) =>
+      r.loginExito({
+        clave: K,
+        usuarioId: U,
+        hashVerificado: PHC_VIEJO,
+        tokenHash: T1,
+        tenantActivo: T,
+        hashNuevo: null,
+        tokenAnteriorHash: null,
+      }),
+    valores: [K, U, PHC_VIEJO, T1, T, null, null],
+    filas: [],
+    esperado: null,
   },
   {
     metodo: "sesionValidar (vigente)",

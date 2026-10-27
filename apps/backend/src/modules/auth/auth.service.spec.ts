@@ -176,6 +176,20 @@ describe("login", () => {
     expect(e.repo.loginExito.mock.calls[1]![0].tenantActivo).toBeNull();
   });
 
+  it("O-1: pasa a loginExito el hash verificado (también en el re-hash), no el nuevo", async () => {
+    e.hasher.necesitaRehash.mockReturnValueOnce(true);
+    await svc.login({ correo: CORREO, contrasena: PWD }, "1.1.1.1");
+    const args = e.repo.loginExito.mock.calls[0]![0];
+    expect(args.hashVerificado).toBe(HASH);
+    expect(args.hashNuevo).not.toBe(HASH);
+  });
+
+  it("O-1: si la credencial cambió tras verificarla (loginExito sin filas), 401 genérico sin cookie", async () => {
+    e.repo.loginExito.mockResolvedValue(null);
+    expect(await codigo(svc.login({ correo: CORREO, contrasena: PWD }, "1.1.1.1"))).toBe("credenciales_invalidas");
+    expect(e.repo.loginExito.mock.calls.every((c) => c[0].hashVerificado === HASH)).toBe(true);
+  });
+
   it("si no se pudo crear la sesión, 401 sin cookie", async () => {
     e.datos.tenants.length = 0;
     e.repo.loginExito.mockResolvedValueOnce(null);

@@ -126,6 +126,8 @@ export class AuthService {
     const args = {
       clave: cred.clave,
       usuarioId: cred.usuarioId,
+      // O-1: la sesión solo se crea si la credencial sigue siendo la verificada (si no, el mismo 401).
+      hashVerificado: cred.hash,
       tokenHash: hashToken(token),
       tenantActivo: activo?.id ?? null,
       hashNuevo,

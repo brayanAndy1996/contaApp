@@ -71,6 +71,13 @@
       "when": 1793048476389,
       "tag": "0009_auth_ronda2",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793059862725,
+      "tag": "0010_auth_final",
+      "breakpoints": true
     }
   ]
 }

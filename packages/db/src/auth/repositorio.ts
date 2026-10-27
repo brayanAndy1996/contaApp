@@ -1,4 +1,4 @@
-// AuthRepo: una función TS por función SQL `auth.*` (SECURITY DEFINER, migraciones 0007_auth y 0008_auth_ronda1).
+// AuthRepo: una función TS por función SQL `auth.*` (SECURITY DEFINER, migraciones 0007_auth a 0010_auth_final).
 // SQL estático `select * from auth.<función>($1, ...)` con parámetros posicionales (nunca se interpola un
 // valor); columnas de salida = nombres OUT del plan (las escalares: columna con el nombre de la función);
 // camelCase en TS; cero filas -> null; cualquier error de `pg` -> AuthRepoError (solo SQLSTATE).
@@ -28,6 +28,8 @@ export interface SesionValida {
 export interface LoginExitoArgs {
   clave: Buffer;
   usuarioId: string;
+  /** Hash PHC que se verificó (el de `loginPreparar`): si la credencial cambió, no hay sesión (0010, O-1). */
+  hashVerificado: string;
   tokenHash: Buffer;
   tenantActivo: string | null;
   hashNuevo: string | null;
@@ -41,7 +43,7 @@ export interface RecuperacionConsumida {
 export interface AuthRepo {
   limiteConsumir(tipo: TipoLimite, sujeto: string): Promise<boolean>;
   loginPreparar(correo: string, clave: Buffer): Promise<LoginPreparado>;
-  /** null si el estudio pedido no tiene membresía (no se crea sesión). */
+  /** null si el estudio pedido no tiene membresía o la credencial ya no es la verificada (no se crea sesión). */
   loginExito(a: LoginExitoArgs): Promise<SesionEmitida | null>;
   sesionValidar(tokenHash: Buffer): Promise<SesionValida | null>;
   sesionRotar(tokenHash: Buffer, tokenHashNuevo: Buffer, tenantNuevo: string | null): Promise<SesionEmitida | null>;
@@ -59,7 +61,7 @@ const SQL = {
   limiteConsumir: "select * from auth.limite_consumir($1::text, $2::text)",
   loginPreparar: "select * from auth.login_preparar($1::text, $2::bytea)",
   loginExito:
-    "select * from auth.login_exito($1::bytea, $2::uuid, $3::bytea, $4::uuid, $5::text, $6::bytea)",
+    "select * from auth.login_exito($1::bytea, $2::uuid, $3::text, $4::bytea, $5::uuid, $6::text, $7::bytea)",
   sesionValidar: "select * from auth.sesion_validar($1::bytea)",
   sesionRotar: "select * from auth.sesion_rotar($1::bytea, $2::bytea, $3::uuid)",
   sesionRevocar: "select * from auth.sesion_revocar($1::bytea)",
@@ -104,7 +106,7 @@ export function crearAuthRepo(tx: TxConsulta): AuthRepo {
     loginExito: (a) =>
       ejecutar(
         SQL.loginExito,
-        [a.clave, a.usuarioId, a.tokenHash, a.tenantActivo, a.hashNuevo, a.tokenAnteriorHash],
+        [a.clave, a.usuarioId, a.hashVerificado, a.tokenHash, a.tenantActivo, a.hashNuevo, a.tokenAnteriorHash],
         (f) => (f.length === 0 ? null : sesionEmitida(f[0]!)),
       ),
     sesionValidar: (tokenHash) =>

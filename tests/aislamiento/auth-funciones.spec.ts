@@ -6,8 +6,8 @@
 // Contrato que fija (T9). Firmas SQL (nombres de columnas de salida incluidos):
 //   auth.limite_consumir(tipo text, sujeto text) -> boolean
 //   auth.login_preparar(correo text, clave bytea) -> (permitido, usuario_id, hash, alcanza_bloqueo)
-//   auth.login_exito(clave bytea, usuario_id uuid, token_hash bytea, tenant_activo uuid, hash_nuevo text,
-//                    token_anterior_hash bytea) -> (sesion_id, expira_absoluta)
+//   auth.login_exito(clave bytea, usuario_id uuid, hash_verificado text, token_hash bytea, tenant_activo uuid,
+//                    hash_nuevo text, token_anterior_hash bytea) -> (sesion_id, expira_absoluta)   (0010, O-1)
 //   auth.sesion_validar(token_hash) -> (sesion_id, usuario_id, tenant_activo, estudio_revocado, expira_absoluta)
 //   auth.sesion_rotar(token_hash, token_hash_nuevo, tenant_nuevo uuid) -> (sesion_id, expira_absoluta)
 //   auth.sesion_revocar(token_hash) · auth.sesiones_cerrar_todas(token_hash) -> int (incluye la propia)
@@ -73,15 +73,26 @@ const preparar = async (correo: string, k: Buffer) =>
     )
   )[0];
 const LOGIN_EXITO =
-  "select sesion_id, expira_absoluta from auth.login_exito($1::bytea, $2::uuid, $3::bytea, $4::uuid, $5::text, $6::bytea)";
-const loginExito = (
+  "select sesion_id, expira_absoluta from auth.login_exito($1::bytea, $2::uuid, $3::text, $4::bytea, $5::uuid, $6::text, $7::bytea)";
+/** `verificado` = hash que el backend verificó; por omisión, el vigente (login sin carrera). */
+const loginExito = async (
   k: Buffer,
   usuarioId: string,
   token: Buffer,
   tenant: string | null,
   hashNuevo: string | null = null,
   anterior: Buffer | null = null,
-) => llamar(app, LOGIN_EXITO, [k, usuarioId, token, tenant, hashNuevo, anterior]);
+  verificado?: string | null,
+) =>
+  llamar(app, LOGIN_EXITO, [
+    k,
+    usuarioId,
+    verificado === undefined ? await hashDe(usuarioId) : verificado,
+    token,
+    tenant,
+    hashNuevo,
+    anterior,
+  ]);
 const validar = async (t: Buffer) =>
   exito(
     llamar(
@@ -345,6 +356,36 @@ describe("auth.login_exito (D2, D4, CA-1, CA-5)", () => {
     const token = nuevoToken();
     const r = await loginExito(esc.clave(u.correo), u.id, token, B());
     expect(rechazada(r)).toBe(true);
+    expect(await filaSesion(token)).toBeUndefined();
+  });
+
+  it("O-1: si la credencial ya no es la verificada, rechaza sin efectos (ni sesion, ni re-hash, ni contador, ni cookie previa)", async () => {
+    const u = await esc.usuario({ estudios: [A()] });
+    const k = esc.clave(u.correo);
+    for (let i = 0; i < 2; i++) await preparar(u.correo, k);
+    const previo = await esc.sesion(u.id, A());
+    const vigente = hashFalso();
+    await adm("update auth.usuario_contrasena set hash = $2 where usuario_id = $1", [u.id, vigente]);
+    for (const [verificado, rehash] of [
+      [u.hash, null],
+      [u.hash, hashFalso()],
+      [null, null],
+    ] as const) {
+      const token = nuevoToken();
+      const r = await loginExito(k, u.id, token, A(), rehash, previo, verificado);
+      expect(rechazada(r)).toBe(true);
+      expect(await filaSesion(token)).toBeUndefined();
+    }
+    expect(await hashDe(u.id)).toBe(vigente);
+    expect((await intento(k))?.fallos).toBe(2);
+    expect(await validar(previo)).toHaveLength(1);
+  });
+
+  it("O-1: sin fila de credencial, rechaza y no deja sesion", async () => {
+    const u = await esc.usuario({ estudios: [A()] });
+    await adm("delete from auth.usuario_contrasena where usuario_id = $1", [u.id]);
+    const token = nuevoToken();
+    expect(rechazada(await loginExito(esc.clave(u.correo), u.id, token, A(), null, null, u.hash))).toBe(true);
     expect(await filaSesion(token)).toBeUndefined();
   });
 
@@ -737,7 +778,15 @@ describe("withAuth y AuthRepo contra la BD (T9)", () => {
 
     const t1 = nuevoToken();
     const ses = await auth.withAuth((a) =>
-      a.loginExito({ clave: k, usuarioId: u.id, tokenHash: t1, tenantActivo: A(), hashNuevo: null, tokenAnteriorHash: null }),
+      a.loginExito({
+        clave: k,
+        usuarioId: u.id,
+        hashVerificado: u.hash,
+        tokenHash: t1,
+        tenantActivo: A(),
+        hashNuevo: null,
+        tokenAnteriorHash: null,
+      }),
     );
     expect(ses.sesionId).toMatch(UUID);
     expect(ses.expiraAbsoluta).toBeInstanceOf(Date);
@@ -779,6 +828,7 @@ describe("withAuth y AuthRepo contra la BD (T9)", () => {
         a.loginExito({
           clave: esc.clave(u.correo),
           usuarioId: u.id,
+          hashVerificado: u.hash,
           tokenHash: canario,
           tenantActivo: A(),
           hashNuevo: null,
