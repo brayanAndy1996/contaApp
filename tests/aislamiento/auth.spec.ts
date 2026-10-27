@@ -78,27 +78,43 @@ describe("rol contapp_auth", () => {
     ]);
   });
 
-  it("solo lee usuario y membresia del esquema public (SELECT, sin escribir) y nada de cliente/credencial", async () => {
+  // Ajuste de 005 (T2, plan "BD"): contapp_auth ahora tambien INSERTA usuario y membresia (aceptar_nueva) y
+  // lee y actualiza invitacion. Sigue sin DELETE/TRUNCATE en nada, sin UPDATE de usuario/membresia y sin tocar
+  // tenant, cliente, credencial ni asignacion. Los privilegios exactos de las tablas nuevas estan en acceso.spec.ts.
+  it("lee usuario, membresia e invitacion; inserta solo usuario y membresia; actualiza solo invitacion; nunca borra", async () => {
+    // tabla o columna: el plan admite conceder INSERT/UPDATE por columna
     const tiene = async (t: string, p: string) =>
-      (await consulta("select has_table_privilege('contapp_auth', to_regclass($1), $2) as v", [`public.${t}`, p]))[0].v;
-    expect(await tiene("usuario", "SELECT")).toBe(true);
-    expect(await tiene("membresia", "SELECT")).toBe(true);
-    for (const t of ["usuario", "membresia", "tenant", "cliente", "credencial"]) {
-      for (const p of ["INSERT", "UPDATE", "DELETE", "TRUNCATE"]) {
-        expect(await tiene(t, p), `${t} ${p}`).toBe(false);
-      }
+      (
+        await consulta(
+          `select has_table_privilege('contapp_auth', to_regclass($1), $2)
+                  ${["SELECT", "INSERT", "UPDATE"].includes(p) ? "or has_any_column_privilege('contapp_auth', to_regclass($1), $2)" : ""} as v`,
+          [`public.${t}`, p],
+        )
+      )[0].v;
+    for (const t of ["usuario", "membresia", "invitacion"]) expect(await tiene(t, "SELECT"), `${t} SELECT`).toBe(true);
+    for (const t of ["usuario", "membresia"]) expect(await tiene(t, "INSERT"), `${t} INSERT`).toBe(true);
+    expect(await tiene("invitacion", "UPDATE")).toBe(true);
+    for (const t of ["usuario", "membresia", "invitacion", "tenant", "cliente", "credencial", "asignacion"]) {
+      for (const p of ["DELETE", "TRUNCATE"]) expect(await tiene(t, p), `${t} ${p}`).toBe(false);
     }
-    for (const t of ["cliente", "credencial", "auditoria_descifrado"]) {
+    for (const t of ["usuario", "membresia", "tenant", "cliente", "credencial", "asignacion"]) {
+      expect(await tiene(t, "UPDATE"), `${t} UPDATE`).toBe(false);
+    }
+    for (const t of ["invitacion", "tenant", "cliente", "credencial", "asignacion"]) {
+      expect(await tiene(t, "INSERT"), `${t} INSERT`).toBe(false);
+    }
+    for (const t of ["cliente", "credencial", "auditoria_descifrado", "asignacion"]) {
       expect(await tiene(t, "SELECT"), `${t} SELECT`).toBe(false);
     }
   });
 
-  it("las politicas de lectura de usuario y membresia para contapp_auth son solo SELECT (auth_definer)", async () => {
+  it("las politicas auth_definer de contapp_auth son solo SELECT (usuario, membresia e invitacion)", async () => {
     const r = await consulta(
       `select tablename, cmd, roles::text[] as roles, qual from pg_policies
         where schemaname = 'public' and policyname = 'auth_definer' order by tablename`,
     );
-    expect(r.map((x) => x.tablename)).toEqual(["membresia", "usuario"]);
+    // `tenant` se admite como unica tabla extra (hueco del plan: las funciones de invitacion devuelven el nombre del estudio).
+    expect(r.map((x) => x.tablename).filter((t) => t !== "tenant")).toEqual(["invitacion", "membresia", "usuario"]);
     for (const p of r) {
       expect(p.cmd).toBe("SELECT");
       expect(p.roles).toEqual(["contapp_auth"]);

@@ -4,8 +4,15 @@ import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { abrirPool, TABLAS_NEGOCIO } from "./soporte";
 
-// auth_definer (spec 004, CA-11) solo se admite como la define el plan: ver la prueba dedicada abajo.
-const POLITICAS_PERMITIDAS = ["tenant_isolation", "membresia_por_usuario", "auth_definer"];
+// auth_definer (spec 004, CA-11) y sus dos hermanas de la spec 005 solo se admiten como las define el plan:
+// ver la prueba dedicada abajo. Ajuste de 005 (T2): se agregan auth_definer_insert y auth_definer_update.
+const POLITICAS_PERMITIDAS = [
+  "tenant_isolation",
+  "membresia_por_usuario",
+  "auth_definer",
+  "auth_definer_insert",
+  "auth_definer_update",
+];
 
 let pool: Pool;
 beforeAll(() => {
@@ -83,14 +90,49 @@ describe("CA-3 catalogo de RLS", () => {
     expect(pols.some((p) => p.tablename === "membresia" && p.policyname === "membresia_por_usuario")).toBe(true);
   });
 
-  it("auth_definer (spec 004) existe solo en usuario y membresia, es SELECT, solo para contapp_auth y USING (true)", async () => {
+  // Ajuste de 005 (T2, plan "BD"): las politicas de contapp_auth son exactamente estas. SELECT en usuario, membresia e
+  // invitacion; INSERT (solo para crear la cuenta y la membresia al aceptar una invitacion) en usuario y membresia;
+  // UPDATE (marcar la invitacion como aceptada) en invitacion. Ninguna otra, ni DELETE.
+  // HUECO DEL PLAN (informado en T2): invitacion_vigente y aceptar_existente devuelven el nombre del estudio, y
+  // contapp_auth no lee `tenant`. Si T7 lo resuelve con una lectura de `tenant` para contapp_auth, es SOLO esta politica
+  // (auth_definer, SELECT, USING (true)) y se admite aqui y en auth.spec.ts; cualquier otra tabla extra falla.
+  it("politicas de contapp_auth (004 + 005): auth_definer SELECT en usuario, membresia e invitacion (y, opcional, tenant), USING (true), solo para contapp_auth", async () => {
     const pols = (await politicas()).filter((p) => p.policyname === "auth_definer");
-    expect(pols.map((p) => p.tablename).sort()).toEqual(["membresia", "usuario"]);
+    expect(pols.map((p) => p.tablename).filter((t) => t !== "tenant").sort()).toEqual(["invitacion", "membresia", "usuario"]);
     for (const p of pols) {
       expect(p.cmd).toBe("SELECT");
       expect(p.roles).toEqual(["contapp_auth"]);
       expect(p.qual).toBe("true");
     }
+  });
+
+  it("auth_definer_insert (005) existe solo en usuario y membresia: INSERT, WITH CHECK (true), solo para contapp_auth", async () => {
+    const pols = (await politicas()).filter((p) => p.policyname === "auth_definer_insert");
+    expect(pols.map((p) => p.tablename).sort()).toEqual(["membresia", "usuario"]);
+    for (const p of pols) {
+      expect(p.cmd).toBe("INSERT");
+      expect(p.roles).toEqual(["contapp_auth"]);
+      expect(p.with_check).toBe("true");
+    }
+  });
+
+  it("auth_definer_update (005) existe solo en invitacion: UPDATE, solo para contapp_auth", async () => {
+    const pols = (await politicas()).filter((p) => p.policyname === "auth_definer_update");
+    expect(pols.map((p) => p.tablename)).toEqual(["invitacion"]);
+    expect(pols[0]!.cmd).toBe("UPDATE");
+    expect(pols[0]!.roles).toEqual(["contapp_auth"]);
+  });
+
+  it("ninguna politica de contapp_auth cubre DELETE ni ALL, y asignacion no tiene politicas para contapp_auth", async () => {
+    const pols = (await politicas()).filter((p) => p.roles.includes("contapp_auth"));
+    expect(pols.filter((p) => p.cmd === "DELETE" || p.cmd === "ALL")).toEqual([]);
+    expect(pols.filter((p) => p.tablename === "asignacion")).toEqual([]);
+  });
+
+  it("asignacion e invitacion (005) estan en el catalogo de tablas con tenant_id (la prueba no es vacua)", async () => {
+    const nombres = (await tablasConTenantId()).map((t) => t.tabla);
+    expect(nombres).toContain("asignacion");
+    expect(nombres).toContain("invitacion");
   });
 
   it("tenant_id es uuid NOT NULL en toda tabla de negocio", async () => {

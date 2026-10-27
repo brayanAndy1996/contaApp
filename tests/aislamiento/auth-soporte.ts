@@ -16,6 +16,10 @@ export const TABLAS_AUTH = [
 
 export const FUNCIONES_AUTH = [
   "contrasena_cambiar",
+  // Spec 005 (T2): 15 funciones. 0013_acceso_auth.sql agrega las tres de invitacion; las demas conservan su firma.
+  "invitacion_aceptar_existente",
+  "invitacion_aceptar_nueva",
+  "invitacion_vigente",
   "limite_consumir",
   "login_exito",
   "login_preparar",

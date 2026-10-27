@@ -24,9 +24,12 @@ const conTenant = configs.filter((c) =>
 const dialecto = new PgDialect();
 
 describe("esquema: inventario", () => {
-  it("exporta las cuatro tablas del esquema", () => {
+  // Ajuste de 005 (T2): el esquema pasa de 4 a 6 tablas (asignacion e invitacion); su detalle se prueba en acceso.spec.ts.
+  it("exporta las seis tablas del esquema", () => {
     expect(configs.map((c) => c.name).sort()).toEqual([
+      "asignacion",
       "cliente",
+      "invitacion",
       "membresia",
       "tenant",
       "usuario",
@@ -34,9 +37,11 @@ describe("esquema: inventario", () => {
     expect(getTableName(esquema.cliente)).toBe("cliente");
   });
 
-  it("las tablas de negocio (con tenant_id) son membresia y cliente; tenant y usuario son de plataforma", () => {
+  it("las tablas de negocio (con tenant_id) son asignacion, cliente, invitacion y membresia; tenant y usuario son de plataforma", () => {
     expect(conTenant.map((c) => c.name).sort()).toEqual([
+      "asignacion",
       "cliente",
+      "invitacion",
       "membresia",
     ]);
     for (const nombre of ["tenant", "usuario"]) {
@@ -52,6 +57,8 @@ describe("esquema: inventario", () => {
       expect(pk?.primary, c.name).toBe(true);
       expect(pk?.getSQLType(), c.name).toBe("uuid");
       expect(pk?.hasDefault, c.name).toBe(true);
+      // Ajuste de 005 (T2, plan "BD"): invitacion tiene sus propias marcas (creada_en, vence_en, ...), no created_at/updated_at.
+      if (c.name === "invitacion") continue;
       for (const marca of ["created_at", "updated_at"]) {
         const col = c.columns.find((x) => x.name === marca);
         expect(col?.notNull, `${c.name}.${marca}`).toBe(true);
@@ -78,8 +85,12 @@ describe("esquema: tenant_id (CA-7)", () => {
   it.each(conTenant.map((c) => [c.name, c] as const))(
     "%s: cada UNIQUE de negocio incluye tenant_id",
     (_n, c) => {
-      expect(c.uniqueConstraints.length).toBeGreaterThan(0);
+      // Ajuste de 005 (T2, plan "BD"): invitacion.token_hash es UNIQUE por si solo (la funcion de aceptacion busca por
+      // hash sin conocer el estudio; 256 bits aleatorios). Es la unica excepcion y se prueba en acceso.spec.ts.
+      const UNICA_GLOBAL = c.name === "invitacion" ? ["token_hash"] : [];
+      expect(c.uniqueConstraints.length + c.indexes.filter((x) => x.config.unique).length).toBeGreaterThan(0);
       for (const u of c.uniqueConstraints) {
+        if (u.columns.length === 1 && UNICA_GLOBAL.includes(u.columns[0]!.name)) continue;
         expect(nombresColumnas(u.columns), u.name).toContain("tenant_id");
       }
       // Ningún índice único adicional (CREATE UNIQUE INDEX) puede saltarse tenant_id.
@@ -88,7 +99,7 @@ describe("esquema: tenant_id (CA-7)", () => {
         expect(cols, i.config.name).toContain("tenant_id");
       }
       // Ninguna columna de negocio es UNIQUE por sí sola (excepto la PK).
-      for (const col of c.columns.filter((x) => !x.primary)) {
+      for (const col of c.columns.filter((x) => !x.primary && !UNICA_GLOBAL.includes(x.name))) {
         expect(col.isUnique, `${c.name}.${col.name}`).toBe(false);
       }
     },
@@ -158,7 +169,16 @@ describe("esquema: claves foráneas (fk.reference())", () => {
   });
 
   it("toda tabla con tenant_id tiene una FK de tenant_id a tenant", () => {
+    // Ajuste de 005 (T2, CA-13): asignacion e invitacion se anclan al estudio por FK compuestas con tenant_id
+    // (hacia cliente y membresia); basta con que alguna FK incluya tenant_id. cliente y membresia siguen exactas.
     for (const c of conTenant) {
+      if (c.name === "asignacion" || c.name === "invitacion") {
+        expect(
+          destinos(c.name).some((d) => d.desde.includes("tenant_id")),
+          c.name,
+        ).toBe(true);
+        continue;
+      }
       expect(destinos(c.name), c.name).toContainEqual({
         desde: ["tenant_id"],
         hacia: "tenant",
