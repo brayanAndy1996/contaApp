@@ -59,5 +59,20 @@ Catálogo de dinero/reglas de 04-metodologia §2.3 más: IGV a 1 céntimo del bo
 - D-6 (era P-2, opción A) R-RED: ajustar el total a Σ componentes (coherente con D2/D7 de 010) cuando |diferencia| ≤ 0.01 × componentes distintos de cero; si hay XML y su total coincide con el del SIRE, ajustar la columna que difiere del XML; más allá, hallazgo sin sugerencia.
 - D-7 (era P-3, opción A) R-MIX sin XML estima solo a 18 %; la tasa de 10 % solo se usa con XML (por línea). La detección sigue mirando 18 % y 10 %.
 
+## Límites conocidos (revisión final, T17)
+- Caso real de redondeo USD: diferido sin cifras (igual que en 010). R-RED con `origenUsd` asume la conversión por componente (D7 de 010), probada solo con valores sintéticos; si el caso real la contradice, se reabre D7 de 010 y D-6 con el usuario.
+- R-GP (D-5) es solo la señal de palabra clave: da falsos positivos ("zapatilla de seguridad" en una ferretería, "polo a tierra") y no detecta homoglifos ni sinónimos. Solo sugiere; el puntaje completo (RF-116–118) es de R2.
+- Lectura de D-6 (ratificada en el plan): el umbral 0.01 × componentes limita solo el ajuste del total sin respaldo; con XML válido que señala una columna se ajusta esa columna sin umbral, y si Σ = total del XML se ajusta el total.
+- Fila PEN con `origenUsd` cuyo XML viene en USD: da `XML_MONEDA` y se evalúa sin XML (pierde R-ISC/R-MIX exactos); R-RED por `origenUsd` sí aplica.
+- `aplicarSugerencia`/`aplicarMasivo` exigen el entorno de la evaluación (filas, contexto y XML) y re-evalúan la fila: firma final en `plan.md` (Contratos). Un hallazgo falsificado pero bien formado se rechaza como obsoleto.
+- Aplicar una sugerencia puede volver obsoletas otras de la misma fila (p. ej. R-RED tras R-MIX): quien persiste debe re-evaluar la fila tras cada aplicación.
+- Lint contra `number` en `reglas/`: hereda los tres límites aceptados en 010 (D10 de 010).
+
+## Lo que 014 y 016 deben respetar
+- 014: llamar a `evaluarReglas` con todas las filas del periodo y el contexto del cliente (conocidos sin el periodo actual, marca ISC, diccionario); persistir hallazgos sin aplicarlos (D-4, RNF-052); al aceptar, pasar a `aplicarSugerencia`/`aplicarMasivo` el **mismo** entorno (filas, contexto y XML) y los montos vigentes de la fila; guardar el resultado como versión nueva y re-evaluar la fila; tratar `SugerenciaObsoletaError` y `requiere_dato` como "vuelve a revisar", no como fallo.
+- 014: las columnas y montos llegan como `MontosComprobante` reales de 010 (una sola copia de `@contapp/domain`); `origenUsd` solo cuando los montos están en PEN y el SIRE trae el origen en USD.
+- 016: entregar el `ResumenXml` con identidad (proveedor y comprobante) y moneda del documento, glosas por ítem y montos ya redondeados con `redondearSunat` (D8 de 010); un XML ajeno o de otra moneda no rompe la evaluación, solo genera aviso.
+- 015/016: mostrar `explicacion` tal cual (no contiene texto del XML), `min`/`max`/`estimado` y `exacto` de R-MIX (con `exacto` manda), y pedir el dato cuando `dato` ≠ null.
+
 ## Preguntas abiertas
 Ninguna.
