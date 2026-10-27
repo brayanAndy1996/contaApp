@@ -9,7 +9,7 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 | 001-fundaciones | D | hecha | — | Sin Docker (decisión del usuario). TypeScript 6.0.3. CI de GitHub sin ejecutar: el repo no tiene remoto. |
 | 002-db-rls | A | hecha | — | Spec aprobada por el usuario (D1–D3, D5–D7). P7 resuelta en el plan. Rama `spec/002-db-rls` desde `spec/001-fundaciones`. |
 | 003-cifrado | A | hecha | — | Sin Docker (decisión del usuario). Rama `spec/003-cifrado` sin mergear (desde `spec/002-db-rls`). F2: límite aceptado por el usuario (ver `spec.md`, Límites conocidos). |
-| 004-auth | A | verificada | T20 | Spec aprobada por el usuario (D1–D12; P1–P10 según la recomendación del arquitecto, "todo lo recomendado"); decisiones pendientes: ninguna. Plan y tareas T1–T21 listos. Espera a que 010 esté cerrada: la rama `spec/004-auth` se crea en T1 desde el último commit de `spec/010-dominio-dinero` (no desde `spec/003-cifrado`). |
+| 004-auth | A | hecha | — | Hecha. Rama `spec/004-auth` sin mergear (desde `spec/010-dominio-dinero`). O-2 y límites de T20a aceptados por el usuario. |
 | 005-acceso | A | pendiente | — | Hereda de 002 (D2): criterio de HU-40 "por API" (aislamiento entre estudios probado vía endpoints). |
 | 006-planes | B | pendiente | — | — |
 | 007-clientes | B | pendiente | — | — |
@@ -99,3 +99,6 @@ No son decisiones tomadas ni pendientes del usuario: cada spec las resuelve al p
 - [011/013] El lint contra `number` solo cubre `dinero/` y `comprobante/`, y ahí prohíbe tipos indexados, `typeof` e `infer`: si manejan montos en otra carpeta, ampliar `files` de esa regla en `eslint.config.mjs` y escribir las uniones a mano.
 - [013] Columnas de ventas: 010 no las trae (D4); 013 reutiliza `Money` y un `verificarCuadre` genérico sobre su propia lista de componentes.
 - [diferido] Caso real de redondeo en USD sin cifras (el video no las da): cuando el equipo las entregue, se agrega en `packages/domain/tests/casos-reales/`; si contradice D7, se reabre D7 con el usuario.
+- [004] Límites conocidos de la corrección O-1 (T20a, `0010_auth_final.sql`): dos logins simultáneos del mismo usuario con re-hash pendiente → el segundo da 401 y el reintento entra; login o cambio de estudio más cambio de contraseña con la misma cookie pueden interbloquearse → 500 genérico, sin sesión indebida. Aceptados por el usuario con O-2.
+- [005] Invitaciones con contraseña inicial (HU-03): 004 deja la función de dominio `fijarContrasena` en `apps/backend/src/modules/auth/contrasena/`; como `contapp_backend` no escribe `auth.*` (CA-11), la persistencia pasa por una función de `auth` que define 005.
+- [008] Purga de las tablas de `auth`: 004 no tiene purga global, así que las filas revocadas o vencidas se acumulan; la retención y el borrado los define 008.

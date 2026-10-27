@@ -28,7 +28,7 @@ Nivel A. Flujo 04 §1.3: rama y andamiaje → pruebas (rojo) → implementación
 | T19 | Verificar CA-1 a CA-13 y cobertura con evidencia | tester | sonnet | T18 | — | — | [x] |
 | T20 | Revisión final contra la spec | arquitecto | opus | T19 | — | — | [x] |
 | T20a | Corregir O-1: `login_exito` exige la credencial verificada (solo si el usuario lo aprueba) | backend | opus | T20 | ✓ | — | [x] |
-| T21 | Cierre: ESTADO, tasks y commit | devops | haiku | T20 (y T20a si se aprueba) | — | — | [ ] |
+| T21 | Cierre: ESTADO, tasks y commit | devops | haiku | T20 (y T20a si se aprueba) | — | — | [x] |
 
 Escalamientos: T2 haiku→sonnet (haiku se detuvo antes de cerrar la tarea; sonnet revisó, corrigió el lint de `humo.spec.ts`, subió `testTimeout` y fijó versiones con 14 días de publicadas).
 
