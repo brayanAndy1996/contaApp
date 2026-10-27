@@ -18,15 +18,15 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T9 | Implementar tipos, entrada, rango, R-ISC y R-MIX | backend | opus | T1, T4, T6b ∥ T8 | ✓ | — | [x] |
 | T10 | Implementar R-RED, R-NEW, R-GP, motor y aplicar | backend | opus | T5, T6, T6b, T8, T9 | ✓ | — | [x] |
 | T11 | Integración: checks completos | devops | haiku | T7, T10 | — | — | [x] |
-| T12a | Ronda 1a: lista mínima de la spec (caja negra) | adversario | opus | T11 | — | ✓ | [ ] |
-| T12b | Ronda 1b: escenarios nuevos (caja blanca) | adversario | opus | T11 ∥ T12a | — | ✓ | [ ] |
-| T13 | Corregir hallazgos de la ronda 1 | backend | opus | T12a, T12b | — | — | [[x] |
-| T14a | Ronda 2a: regresión de correcciones | adversario | opus | T13 | — | ✓ | [ ] |
-| T14b | Ronda 2b: escenarios nuevos contra las correcciones | adversario | opus | T13 ∥ T14a | — | ✓ | [ ] |
+| T12a | Ronda 1a: lista mínima de la spec (caja negra) | adversario | opus | T11 | — | ✓ | [x] |
+| T12b | Ronda 1b: escenarios nuevos (caja blanca) | adversario | opus | T11 ∥ T12a | — | ✓ | [x] |
+| T13 | Corregir hallazgos de la ronda 1 | backend | opus | T12a, T12b | — | — | [x] |
+| T14a | Ronda 2a: regresión de correcciones | adversario | opus | T13 | — | ✓ | [x] |
+| T14b | Ronda 2b: escenarios nuevos contra las correcciones | adversario | opus | T13 ∥ T14a | — | ✓ | [x] |
 | T15 | Corregir hallazgos de la ronda 2 | backend | opus | T14a, T14b | — | — | [x] |
 | T16 | Verificar CA-1 a CA-13 y cobertura con evidencia | tester | sonnet | T15 | — | — | [x] |
 | T17 | Revisión final contra la spec | arquitecto | opus | T16 | — | — | [x] |
-| T18 | Cierre: ESTADO, tasks y commit | devops | haiku | T17 | — | — | [ ] |
+| T18 | Cierre: ESTADO, tasks y commit | devops | haiku | T17 | — | — | [x] |
 
 Escalamientos: —
 
@@ -230,3 +230,39 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/ESTADO.md`, este archivo, veredicto de T17.
 - **Hacer**: marcar `[x]` tareas y casillas CA de `spec.md` (el caso USD queda sin marcar, diferido); ESTADO 011 → `hecha`, "Tarea actual" → `—`; hallazgos en su estado final; nota en "Notas para specs futuras": [014] re-evaluar la fila tras aplicar una sugerencia y persistir `lecturas`. Releer ESTADO antes de editar.
 - **Hecho cuando**: `git status` limpio salvo `docs/explorador/`, `.codex/`, `AGENTS.md`; `git log --oneline` muestra los commits de 011. Commit `chore(011): cierra spec 011`.
+- **Resultado**: `tasks.md`: `[x]` en T12a, T12b, T14a, T14b y T18 (esta tarea); T13 tenía `[[x]` y se corrigió a `[x]`. `spec.md`: `[x]` en CA-1 a CA-13 (líneas 30 a 42), con la evidencia de T16 y el veredicto APROBADA de T17. "Casos reales aplicables" (línea 43) queda `[ ]` porque incluye el caso real USD diferido (sin cifras, no bloqueante); CA-6 sí se marca, con su prueba sintética. `docs/specs/ESTADO.md` no se editó en esta rama (orden del orquestador): el orquestador aplica el bloque siguiente en `main` al mergear.
+
+**Para ESTADO.md** (filas listas para pegar, con el formato de `docs/specs/ESTADO.md`):
+
+Tabla principal:
+
+| Spec | Nivel | Estado | Tarea actual | Bloqueo / nota |
+|---|---|---|---|---|
+| 011-motor-reglas | A | hecha | — | Rama `spec/011-motor-reglas` sin mergear (desde `main`). Aprobada por el arquitecto (T17). Caso real USD diferido, sin cifras (pendiente no bloqueante; CA-6 sintético cubre D7). |
+
+Hallazgos adversariales abiertos (numeración de T12b a T14b; T16 nombra R1b-6 y R1b-7 a la serie y al punto final, aquí son R1b-5 y R1b-6):
+
+| Spec | Prueba | Hallazgo | Estado |
+|---|---|---|---|
+| 011-motor-reglas | T12b · `packages/domain/src/reglas/ronda1b.adv.spec.ts` | R1b-1 (alta): R-ISC con XML no lee `isc` en sus lecturas; si `isc` cambia, la sugerencia sigue vigente y duplica el ISC; `aplicarMasivo` [R-RED, R-ISC] deja biDg 0 e isc 1540 con XML de gravado 770 e ISC 770 (CA-9) (causa `packages/domain/src/reglas/r-isc.ts:54`) | corregido (ff94d08) |
+| 011-motor-reglas | T12b · `packages/domain/src/reglas/ronda1b.adv.spec.ts` | R1b-2 (media): `mover` falsificado con forma válida se aplica (destino `igvDg` o `noGravado` en vez de `isc`; monto que no es la BI leída) (causa `packages/domain/src/reglas/aplicar.ts:88`) | corregido (ff94d08) |
+| 011-motor-reglas | T12b · `packages/domain/src/reglas/ronda1b.adv.spec.ts` | R1b-3 (media): `lecturas: {}` desactiva la obsolescencia; R-ISC y R-MIX se aplican sobre otra BI (1000.00, 500.00) (causa `packages/domain/src/reglas/aplicar.ts:140`) | corregido (ff94d08) |
+| 011-motor-reglas | T12b · `packages/domain/src/reglas/ronda1b.adv.spec.ts` | R1b-4 (media-alta): R-MIX con `exacto` inventado (1.00) se aplica sin confirmación, y un `min` ensanchado a 0.01 habilita confirmarlo; rango y exacto no se contrastan con `rangoGravado` (CA-2, D-3) (causa `packages/domain/src/reglas/aplicar.ts:97-102`) | corregido (ff94d08) |
+| 011-motor-reglas | T12b · `packages/domain/src/reglas/ronda1b.adv.spec.ts` | R1b-5 (baja, decide usuario): serie del XML en minúsculas (`f001`) aborta todo el lote con `EntradaReglasInvalidaError` en vez de `XML_AJENO` (causa `packages/domain/src/reglas/entrada.ts:205`) | corregido (ff94d08) |
+| 011-motor-reglas | T12b · `packages/domain/src/texto/ronda1b.adv.spec.ts` | R1b-6 (media, decide usuario): un punto pegado no dispara R-GP (`ZAPATILLAS.`, `PERFUMES.`, `ZAPAT.DEP.`) (causa `packages/domain/src/texto/diccionario.ts:37` y `packages/domain/src/texto/normalizar.ts:9`) | corregido (ff94d08) |
+| 011-motor-reglas | T14a · `packages/domain/src/reglas/ronda2a.adv.spec.ts` | R2a-1 (media): `ajustar` de R-RED falsificado con forma válida se aplica (total 500.00 deja la fila descuadrada; biDg 9999.00 sin XML) (causa `packages/domain/src/reglas/aplicar.ts:324`, sin contraste en `exigirLecturas`, :189) | corregido (af52b87) |
+| 011-motor-reglas | T14a · `packages/domain/src/reglas/ronda2a.adv.spec.ts` | R2a-2 (media, decisión del usuario): R-ISC sin XML con `isc` agregado y monto parcial se aplica sin confirmación; "con XML" se reconocía solo por `isc` en las lecturas (causa `packages/domain/src/reglas/aplicar.ts:182,205`) | corregido (af52b87) |
+| 011-motor-reglas | T14a · `packages/domain/src/reglas/ronda2a.adv.spec.ts`; T14b · `packages/domain/src/reglas/ronda2b.adv.spec.ts` | R2a-3 = R2b-1 (media): R-MIX con exacto del XML no lee las otras BI; con biDng 100.00 agregada se aplica 8.97, también en masivo (causa `packages/domain/src/reglas/r-mix.ts:47`) | corregido (af52b87) |
+| 011-motor-reglas | T14a · `packages/domain/src/reglas/ronda2a.adv.spec.ts`; T14b · `packages/domain/src/reglas/ronda2b.adv.spec.ts` | R2a-4 = R2b-3 (baja, decisión del usuario): número ("F001-123"), tipo ("1") o RUC del XML fuera de gramática abortan el lote (causa `packages/domain/src/reglas/entrada.ts:195,209-211,237`) | corregido (af52b87) |
+| 011-motor-reglas | T14b · `packages/domain/src/reglas/ronda2b.adv.spec.ts` | R2b-2 (baja): una serie del XML de más de 64 caracteres aborta el lote con `EntradaReglasInvalidaError` en vez de dar `XML_AJENO` (causa `packages/domain/src/reglas/entrada.ts:185`) | corregido (af52b87) |
+| 011-motor-reglas | T14a · `packages/domain/src/reglas/ronda2a.adv.spec.ts`; T14b · `packages/domain/src/reglas/ronda2b.adv.spec.ts` | R2a-5 = R2b-4 + R2b-5 (baja): el punto solo separa si le sigue una letra, así que "PERFUMES.100ML", "ZAPAT.42", "ZAPATILLAS.38" y "ZAPATILLAS..." no disparan R-GP, y los puntos suspensivos no separan (causa `packages/domain/src/texto/normalizar.ts:37` y `packages/domain/src/texto/diccionario.ts:46-53`) | corregido (af52b87) |
+| 011-motor-reglas | T15b · orden del orquestador; `packages/domain/src/reglas/correcciones-t15.spec.ts` | Entorno obligatorio en `aplicarSugerencia` y `aplicarMasivo` (cambio de contrato, no es hallazgo de prueba): sin entorno o inválido → `EntradaReglasInvalidaError`; pruebas con el entorno en c7aecb2 (causa `packages/domain/src/reglas/aplicar.ts`) | corregido (1130f8a) |
+
+Notas para specs futuras (de T17; la de [014] incluye lo de T18):
+
+- [014] Pasar siempre el mismo entorno (filas, contexto y XML) al aplicar; re-evaluar la fila tras cada aplicación y persistir `lecturas` y los hallazgos sin aplicar; tratar `SugerenciaObsoletaError` y `requiere_dato` como "revisar de nuevo".
+- [014/016] Una fila PEN con `origenUsd` y XML en USD pierde hoy las sugerencias del XML: decidir si se compara con el origen.
+- [016] `ResumenXml` con montos redondeados por `redondearSunat` y glosas por ítem.
+- [013] La correlatividad (boleta 291, RF-053) va en `packages/domain/src/correlatividad/` y debe ampliar el lint de `number` si maneja montos.
+- [diferido] Caso real USD sin cifras: al llegar, agregarlo en `tests/casos-reales/` (dinero y reglas); si contradice D7 de 010, reabrir D7 y D-6 con el usuario.
+- [R2] R-GP completo (RF-116 a RF-118), R-ICB, R-HIS y catálogo de proveedores ISC (hoy es dato del contexto).
