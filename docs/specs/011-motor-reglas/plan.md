@@ -22,8 +22,9 @@ export function tokensDeGlosa(glosa: string): readonly string[];
 export interface EntradaDiccionario { readonly categoria: string; readonly palabras: readonly string[] }  // palabras en singular
 export class DiccionarioGlosas {
   static desde(e: readonly EntradaDiccionario[]): DiccionarioGlosas;   // palabra vacía, con espacios o < 3 letras → error
-  buscar(glosas: readonly string[]): { palabra: string; categoria: string } | null;  // primera coincidencia en orden de glosas y diccionario
+  buscar(glosas: readonly string[]): Coincidencia | null;  // gana la primera glosa con coincidencia; dentro de ella, la primera palabra del diccionario
 }
+export interface Coincidencia { readonly palabra: string; readonly categoria: string }  // palabra en singular normalizado
 export const DICCIONARIO_GLOSAS_BASE: DiccionarioGlosas;
   // calzado-ropa: zapatilla, zapato, polo, casaca, blusa, vestido · juguetes: juguete, peluche, muñeca
   // cuidado-personal: perfume, colonia, maquillaje, labial · entretenimiento: videojuego, cine
@@ -75,8 +76,9 @@ export function aplicarSugerencia(montos: MontosComprobante, h: Hallazgo, c?: Co
 export function aplicarMasivo(entradas: readonly { montos: MontosComprobante; hallazgo: Hallazgo; confirmacion?: Confirmacion }[]):
   { readonly aplicadas: readonly { filaId: string; montos: MontosComprobante; excluir: boolean }[];
     readonly rechazadas: readonly { filaId: string; regla: CodigoRegla; codigo: string }[] };
-// Errores (con `codigo`, mensaje fijo sin valores): ReglasError ← EntradaReglasInvalidaError,
-// SugerenciaObsoletaError, ConfirmacionInvalidaError. Los errores de 010 se propagan sin envolver.
+// Errores (con `codigo`, mensaje fijo sin valores): ReglasError ← EntradaReglasInvalidaError (ENTRADA_INVALIDA),
+// SugerenciaObsoletaError (SUGERENCIA_OBSOLETA), ConfirmacionInvalidaError (CONFIRMACION_INVALIDA).
+// Los errores de 010 se propagan sin envolver. Separar: siempre min ≤ max numéricamente (ver Ratificación).
 ```
 
 ## Decisiones
@@ -90,9 +92,19 @@ export function aplicarMasivo(entradas: readonly { montos: MontosComprobante; ha
 - **Obsolescencia** (CA-9): `lecturas` guarda las columnas que la regla leyó (R-ISC: BI e IGV del destino; R-MIX: BI e IGV del destino; R-RED: todas y total; R-NEW y R-GP: ninguna). `aplicarSugerencia` compara esas columnas con los montos actuales; si alguna cambió → `SugerenciaObsoletaError`. Así dos R-ISC de la misma fila (DG y DGNG) se aplican seguidas. `aplicarMasivo` aplica en el orden recibido y encadena por `filaId` (la segunda usa los montos de la primera); un error de una entrada va a `rechazadas` con su `codigo` y no detiene el lote. R-MIX sin `exacto` necesita `{ gravado }` dentro de [min, max]; en masivo, sin confirmación se rechaza con `requiere_dato` (nunca se aplica el estimado en lote).
 - **Entrada estricta**: `evaluarReglas` valida forma y gramáticas (`EntradaReglasInvalidaError`): ids repetidos, `montos` que no es `MontosComprobante` real (marca de 010), `origenUsd` con `montos` no PEN, claves extra. No muta ni congela lo que recibe; devuelve objetos nuevos congelados.
 - **Lint y cobertura**: el bloque "Dinero" de `eslint.config.mjs` agrega `packages/domain/src/reglas/**` a `files` (nota [011/013]); `texto/` queda fuera (usa índices) pero no importa `dinero/`. Cobertura: `include` agrega `src/reglas/**/*.ts` y `src/texto/**/*.ts`, mismo umbral `perFile` 90.
+- **Ratificación de contratos (arquitecto, 2026-10-27, tras las pruebas en rojo T2–T6)**:
+  - *R-RED, precedencia y lectura de D-6*: el umbral 0.01 × componentes solo limita el ajuste del **total sin respaldo**. Orden: (1) `origenUsd` presente → manda la conversión (dispara aunque la fila PEN cuadre sola; `ajustar` con las columnas que difieren y `total`; `requiereConfirmacion = false`); (2) XML válido (misma identidad y moneda) y la fila no cuadra → si `xml.total = total` y un solo grupo difiere en exactamente `dif` y cae en una columna, `ajustar` esa columna **sin umbral** (el XML respalda el monto); si `xml.total ≠ total` y `Σ = xml.total`, `ajustar { total: Σ }`; si no, sin sugerencia; el umbral no se aplica con XML válido; ambas con `requiereConfirmacion = false`; (3) sin respaldo → umbral, `requiereConfirmacion = true`. XML ajeno o de otra moneda = sin XML (más su aviso).
+  - *Rango de R-MIX en notas de crédito*: `min ≤ max` numéricamente siempre (`min.comparar(max) ≤ 0`): −21.48/−1.61 da `min` −8.97, `max` −8.92, `estimado` −8.94. La confirmación se valida con ese orden. `min/max/estimado` describen siempre la estimación a 18 % (D-7); si `exacto` sale del rango a 10 % (BI 80.00/IGV 5.00 con XML 50.00 → rango 27.75–27.80, exacto 50.00), manda `exacto` y `exacto` puede quedar fuera de [min, max].
+  - *Explicaciones* (catálogo fijo en `explicaciones.ts`; `{x}` = `toString()` canónico con signo): R-ISC sin XML `Base gravada {bi} con IGV 0: posible ISC`; con XML exacto `Base gravada con IGV 0: el XML indica ISC` (texto exacto); XML con ISC 0 `Base gravada {bi} con IGV 0. XML sin ISC: revisar`; ISC del XML que no cabe o varios destinos `Base gravada {bi} con IGV 0: el ISC del XML ({isc}) no cabe en un solo destino: revisar`; marca sin XML `Proveedor emisor de ISC: revisar con el XML`; marca con XML `Proveedor emisor de ISC: el XML indica ISC {isc}`. R-MIX `{igv} no es 18 % ni 10 % de {bi}` y, como sufijo: exacto `; el XML indica gravado {g}`; gravado del XML fuera de rango `; el gravado del XML ({g}) no produce ese IGV: confirma el monto`; IGV del XML distinto `; el IGV del XML ({igvXml}) es distinto: confirma el monto`; rango vacío ` y no se puede separar: revisar`. R-RED `La suma de componentes ({suma}) no es igual al total ({total}): diferencia {total − suma}` (+ `; el XML indica el monto correcto` si lo respalda el XML); con `origenUsd` `Los montos en PEN no coinciden con la conversión por componente con TC {tc}`. R-NEW `Proveedor nuevo: elige la clasificación`. R-GP `Posible gasto personal: la glosa dice "{palabra}"`. Avisos: `El XML no corresponde a este comprobante` / `El XML está en otra moneda que la fila`. Nunca texto del XML salvo la palabra del diccionario.
+  - *Orden*: hallazgos por id (unidades de código) → `ORDEN_REGLAS` → DG, DGNG, DNG; avisos por id.
+  - *Aplicar*: hallazgo sin sugerencia, falsificado o con `lecturas` que no son `Money` reales → `EntradaReglasInvalidaError`. `aplicarMasivo`: si el hallazgo tiene `dato ≠ null` y la entrada no trae confirmación → rechazo `requiere_dato` (sin llamar a `aplicarSugerencia`); cualquier otro `ReglasError` o `DineroError` → rechazo con su `codigo` (el mismo que lanzaría `aplicarSugerencia`); otro tipo de error se propaga (es un defecto, no un rechazo).
+  - *Contexto estricto*: `ContextoReglas` sin claves extra ni `__proto__` propio, arreglos de `DocProveedor` válidos y `diccionario` real (marca de `DiccionarioGlosas`); si no, `EntradaReglasInvalidaError` y no hay resultados parciales.
+  - *texto/*: `tokensDeGlosa` y `DiccionarioGlosas` como los fijó T3 y los implementó T8 (palabras en singular normalizado, ≥ 3 letras; abreviatura con punto y ≥ 4 letras; `Coincidencia` exportado; `DICCIONARIO_GLOSAS_BASE` congelado).
+  - *Stubs del tester*: `reglas/{tipos,errores,motor,aplicar,index}.ts` (T4) son provisionales; T9 reemplaza `tipos`, `errores` (conservando nombres y `codigo`), `motor` y `aplicar`; T10 completa `motor`, `aplicar` e `index`. `texto/index.ts` ya lo dejó T8.
 - **Propiedades**: fast-check con `SEMILLA` 20261025 y `NUM_RUNS` 1000 de `tests/ayudas/comprobante.ts`; oráculo del rango con centavos enteros (independiente de la implementación).
 
 ## Riesgos
+- Fila PEN con `origenUsd` cuyo XML viene en USD: hoy da `XML_MONEDA` y se evalúa sin XML (R-RED con `origenUsd` sí cubre el redondeo). Comparar ese XML con `origenUsd` queda para 014/016 si el caso aparece.
 - R-RED con `origenUsd` asume D7 de 010 (conversión por componente); el caso real USD sigue diferido y podría contradecirla: se detecta al agregarlo en `tests/casos-reales/`.
 - R-GP da falsos positivos ("zapatilla de seguridad" en una ferretería, "polo a tierra") y no detecta homoglifos: solo sugiere; el puntaje con giro e historial (R2) los reduce. Límite a escribir en la spec al cerrar.
 - Reglas cruzadas: aplicar una sugerencia puede volver obsoletas otras de la misma fila; 014 debe re-evaluar la fila tras cada aplicación (contrato con 014).
