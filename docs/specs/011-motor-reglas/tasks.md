@@ -20,7 +20,7 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T11 | Integración: checks completos | devops | haiku | T7, T10 | — | — | [x] |
 | T12a | Ronda 1a: lista mínima de la spec (caja negra) | adversario | opus | T11 | — | ✓ | [ ] |
 | T12b | Ronda 1b: escenarios nuevos (caja blanca) | adversario | opus | T11 ∥ T12a | — | ✓ | [ ] |
-| T13 | Corregir hallazgos de la ronda 1 | backend | opus | T12a, T12b | — | — | [ ] |
+| T13 | Corregir hallazgos de la ronda 1 | backend | opus | T12a, T12b | — | — | [[x] |
 | T14a | Ronda 2a: regresión de correcciones | adversario | opus | T13 | — | ✓ | [ ] |
 | T14b | Ronda 2b: escenarios nuevos contra las correcciones | adversario | opus | T13 ∥ T14a | — | ✓ | [ ] |
 | T15 | Corregir hallazgos de la ronda 2 | backend | opus | T14a, T14b | — | — | [ ] |
@@ -141,6 +141,16 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: hallazgos de 011 en `ESTADO.md`, `packages/domain/src/{reglas,texto}/ronda1*.adv.spec.ts`, los archivos de producción que citan.
 - **Hacer**: corregir hasta que las pruebas adversariales pasen sin editarlas. Lo marcado `decide usuario` no se corrige: se informa al orquestador con opciones.
 - **Hecho cuando**: `pnpm --filter @contapp/domain test` y `cobertura:dominio` en verde; cada hallazgo `corregido (<commit>)` en `ESTADO.md`. Commit `fix(011): hallazgos de la ronda adversarial 1`.
+- **Resultado**: las 6 + 1 pruebas de `ronda1b.adv.spec.ts` (reglas y texto) y las de `ronda1a` en verde sin editarlas. Hallazgos (anotados aquí, como en T12b):
+  - [011/R1b-1] · corregido (ff94d08): con el ISC del XML las lecturas de R-ISC incluyen `isc` y las BI de los otros destinos; `aplicarMasivo` [R-RED, R-ISC, R-ISC] aplica solo R-RED.
+  - [011/R1b-2] · corregido (ff94d08): `mover` solo desde la BI del destino del hallazgo a `isc`; sin XML monto = toda la BI con IGV 0 y confirmación; con XML monto ≠ 0, del signo de la BI, ≤ |BI|, otras BI en 0 y sin confirmación.
+  - [011/R1b-3] · corregido (ff94d08): faltan lecturas que la regla lee (R-ISC/R-MIX: BI e IGV del destino; R-RED: todas y total) → `SugerenciaObsoletaError`.
+  - [011/R1b-4] · corregido (ff94d08): `min`/`max`/`estimado` de R-MIX = `rangoGravado` a 18 % de las lecturas; `exacto` solo con `dato` null y sin confirmación, dentro del rango a 18 % o a 10 %; `exacto` null exige `dato: "gravado"`.
+  - [011/R1b-5] · corregido (ff94d08), decisión del usuario: serie `^[0-9A-Za-z]{1,4}$` comparada en mayúsculas; serie del XML fuera de gramática → `XML_AJENO` sin abortar el lote.
+  - [011/R1b-6] · corregido (ff94d08), decisión del usuario: un punto seguido de letra cierra el token (`zapat.dep.` → `zapat.`, `dep.`; `1.50` se conserva) y un token con punto final coincide también como palabra completa o plural (`zapatillas.`). Sin contradicción con las pruebas de T3 (`texto/*.spec.ts` sin cambios).
+  - Pruebas propias: `reglas/correcciones-t13.spec.ts` (28) y `texto/correcciones-t13.spec.ts`. Prueba propia cambiada: `aplicar-validacion.spec.ts` "separar con gravado igual a toda la BI" usaba un `max` falsificado (21.48); ahora espera `EntradaReglasInvalidaError` (la rama `resto = 0` de `separar` era inalcanzable y se quitó). Para T14a: ninguna adversarial contradice las decisiones.
+  - Contrato cambiado (lecturas de R-ISC, validación de aplicar, serie, texto): anotado en `plan.md` como "Cambios de T13", pendiente de ratificación del arquitecto en T17.
+  - Checks: `pnpm --filter @contapp/domain test` 39 archivos, 904 + 2 todo; `cobertura:dominio` 0 (All files 98.45/97.41/100/99.13; `aplicar.ts` 99.49/99.45/100/100, `entrada.ts` ramas 91.75); `tests-limites` 275; `typecheck` 10/10, `lint` 7/7, `build` 7/7; grep de `reglas/` vacío.
 
 ## T14a · Ronda 2a: regresión (adversario · opus)
 - **Contexto (leer solo esto)**: igual que T12b + diff de T13 (`git show <commit>`).
