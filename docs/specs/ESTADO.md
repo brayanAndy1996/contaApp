@@ -11,12 +11,12 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 | 003-cifrado | A | hecha | — | Sin Docker (decisión del usuario). Rama `spec/003-cifrado` sin mergear (desde `spec/002-db-rls`). F2: límite aceptado por el usuario (ver `spec.md`, Límites conocidos). |
 | 004-auth | A | hecha | — | Hecha. Rama `spec/004-auth` sin mergear (desde `spec/010-dominio-dinero`). O-2 y límites de T20a aceptados por el usuario. CI en rojo hasta 1216e84 de 005: faltaba compilar shared. |
 | 005-acceso | A | hecha | — | Hecha. Rama `spec/005-acceso` sin mergear (desde `spec/004-auth`). CI verde (1216e84). |
-| 006-planes | B | borrador | spec | Borrador en rama `spec/006-planes` (desde `main`), espera aprobación del usuario. |
+| 006-planes | B | aprobada | T1 | Aprobada por el usuario (2026-10-27) con todo lo recomendado. Plan y tareas en rama `spec/006-planes` (desde `main`). Orden de implementación: 011 → 008 → 006. |
 | 007-clientes | B | pendiente | — | — |
-| 008-cola | A | borrador | spec | Borrador en rama `spec/008-cola` (desde `main`), espera aprobación del usuario. |
+| 008-cola | A | aprobada | T1 | Aprobada por el usuario (2026-10-27) con todo lo recomendado. Plan y tareas en rama `spec/008-cola` (desde `main`). Orden de implementación: 011 → 008 → 006. |
 | 009-adaptadores-mock | C | pendiente | — | — |
 | 010-dominio-dinero | A | hecha | — | Rama `spec/010-dominio-dinero` sin mergear (desde `spec/003-cifrado`). Caso real USD diferido, sin cifras (pendiente no bloqueante; CA-13 sintético cubre D7). Los 3 límites del lint de `packages/domain` fueron aceptados por el usuario (D10 de la spec). |
-| 011-motor-reglas | A | borrador | spec | Borrador en rama `spec/011-motor-reglas` (desde `main`), espera aprobación del usuario. |
+| 011-motor-reglas | A | en curso | T1 | Aprobada por el usuario (2026-10-27) con todo lo recomendado. Plan y tareas en rama `spec/011-motor-reglas` (desde `main`). Orden de implementación: 011 → 008 → 006. |
 | 012-prevalidacion-archivos | A | pendiente | — | — |
 | 013-ventas | B | pendiente | — | — |
 | 014-compras-backend | B | pendiente | — | — |
