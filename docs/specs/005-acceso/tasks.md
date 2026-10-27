@@ -18,7 +18,7 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T10b | `invitacion_vigente` con estudio (0014) y cierre de T10 | backend | opus | T10 | — | — | [x] |
 | T11 | Clientes y asignaciones | backend | sonnet | T4, T9 ∥ T10 | ✓ | — | [x] |
 | T12 | Pantallas: Usuarios, invitación, clientes y asignación, menú | frontend | sonnet | T6 ∥ T7–T11 | ✓ | — | [x] |
-| T13 | Integración: checks completos y prueba manual | devops | haiku | T5, T10b, T11, T12 | — | — | [ ] |
+| T13 | Integración: checks completos y prueba manual | devops | haiku | T5, T10b, T11, T12 | — | — | [x] |
 | T14a | Ronda adversarial 1a: lista mínima (caja negra) | adversario | opus | T13 | — | ✓ | [ ] |
 | T14b | Ronda adversarial 1b: escenarios nuevos (caja blanca) | adversario | opus | T13 ∥ T14a | — | ✓ | [ ] |
 | T15 | Corregir hallazgos de la ronda 1 | backend (+frontend) | opus / sonnet | T14a, T14b | — | — | [ ] |
@@ -133,6 +133,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/005-acceso/plan.md` (Contratos: HTTP), `package.json`.
 - **Hacer**: correr `pnpm build`, `typecheck`, `lint`, `test`, `ci:db`, `cobertura:acceso`, `cobertura:auth`, `cobertura:db`. Prueba manual (backend `PORT=4000`, frontend `next build && next start`, `curl` vía `http://localhost:3000/api`): `uA` entra, `GET /acceso/yo` dice `dueno`; invita a un correo nuevo → el enlace aparece en el stdout del backend (no copiar el token al informe); `curl -I /invitacion` → `Referrer-Policy: no-referrer`; `uAB` (contador) en A ve solo su cliente asignado en `GET /clientes`.
 - **Hecho cuando**: todos salen 0 (reportar conteos); la prueba manual da lo esperado; servidores parados; `git status` sin archivos ajenos agregados. Commit `chore(005): integración y checks completos` solo si cambió algún archivo.
+- **Resultado**: `pnpm build` 7/7 tareas, `typecheck` 10/10 y `lint` 7/7, sin errores; `pnpm test` 2363 pruebas en verde en 8 paquetes (1 omitida en `crypto`, 1 `todo` en `domain`); `ci:db` OK: aislamiento 694/694, worker int 37/37, backend int 345/345; `cobertura:acceso` 1260/1260 (umbral 90 % por archivo sin fallos), `cobertura:auth` 1330/1330, `cobertura:db` 1099/1099; los cuatro comandos de cobertura y los demás salen 0. Prueba manual (backend `PORT=4000`, `next build && next start` en `:3000`, vía `/api`): `uA` entra y `GET /acceso/yo` da `dueno`; invitación a un correo nuevo → 201 y el enlace `/invitacion#t=` aparece en el stdout del backend (token no registrado); `curl -I /invitacion` → `Referrer-Policy: no-referrer`; `uAB` (contador) en A ve solo su cliente asignado (1 cliente; `uA` ve 3). Limpieza: invitación de prueba revocada (204) y sesiones cerradas (204). Servidores parados, puertos 3000 y 4000 libres.
 
 ## T14a · Ronda adversarial 1a: lista mínima (adversario · opus)
 - **Contexto (leer solo esto)**: `docs/specs/005-acceso/spec.md` (Criterios y "Ataques mínimos"), `docs/specs/005-acceso/plan.md` (Contratos). **Caja negra**: no leer implementación.
