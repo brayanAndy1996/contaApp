@@ -19,15 +19,15 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T11 | Clientes y asignaciones | backend | sonnet | T4, T9 ∥ T10 | ✓ | — | [x] |
 | T12 | Pantallas: Usuarios, invitación, clientes y asignación, menú | frontend | sonnet | T6 ∥ T7–T11 | ✓ | — | [x] |
 | T13 | Integración: checks completos y prueba manual | devops | haiku | T5, T10b, T11, T12 | — | — | [x] |
-| T14a | Ronda adversarial 1a: lista mínima (caja negra) | adversario | opus | T13 | — | ✓ | [ ] |
-| T14b | Ronda adversarial 1b: escenarios nuevos (caja blanca) | adversario | opus | T13 ∥ T14a | — | ✓ | [ ] |
+| T14a | Ronda adversarial 1a: lista mínima (caja negra) | adversario | opus | T13 | — | ✓ | [x] |
+| T14b | Ronda adversarial 1b: escenarios nuevos (caja blanca) | adversario | opus | T13 ∥ T14a | — | ✓ | [x] |
 | T15 | Corregir hallazgos de la ronda 1 | backend (+frontend) | opus / sonnet | T14a, T14b | — | — | [x] |
-| T16a | Ronda adversarial 2a: regresión y reconversión | adversario | opus | T15 | — | ✓ | [ ] |
-| T16b | Ronda adversarial 2b: ataques nuevos contra las correcciones | adversario | opus | T15 ∥ T16a | — | ✓ | [ ] |
+| T16a | Ronda adversarial 2a: regresión y reconversión | adversario | opus | T15 | — | ✓ | [x] |
+| T16b | Ronda adversarial 2b: ataques nuevos contra las correcciones | adversario | opus | T15 ∥ T16a | — | ✓ | [x] |
 | T17 | Corregir hallazgos de la ronda 2 | backend (+frontend) | opus / sonnet | T16a, T16b | — | — | [x] |
 | T18 | Verificar CA-1 a CA-16 y cobertura con evidencia | tester | sonnet | T17 | — | — | [x] |
 | T19 | Revisión final contra la spec | arquitecto | opus | T18 | — | — | [x] |
-| T20 | Cierre: ESTADO, tasks y commit | devops | haiku | T19 | — | — | [ ] |
+| T20 | Cierre: ESTADO, tasks y commit | devops | haiku | T19 | — | — | [x] |
 
 Escalamientos: —
 
@@ -248,3 +248,4 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/ESTADO.md`, `docs/specs/005-acceso/tasks.md`, observaciones de T19.
 - **Hacer**: marcar `[x]` las tareas hechas y las casillas CA de `spec.md`; ESTADO 005 → `hecha`, "Tarea actual" → `—`; hallazgos de 005 en su estado final; quitar de "Notas para specs futuras" las notas `[005]` resueltas y agregar las que deje 005 para 006/007/008.
 - **Hecho cuando**: `git status` limpio salvo `docs/explorador/`, `.codex/`, `AGENTS.md`; `git log --oneline` muestra los commits de 005. Commit `chore(005): cierra spec 005`.
+- **Resultado**: CI de GitHub en verde en `1216e84` (run 40524156972, verificado con la API de GitHub): «Instalar, lint, typecheck y build» y «Aislamiento entre estudios (PostgreSQL 17)» en `success`. Cumple la condición de T19 y confirma que la imagen `postgres:17` trae la colación `und-x-icu` (la migración 0016 falla si falta, y el job migró con ella). El CI estaba en rojo desde 004 porque `ci:db` no compilaba `@contapp/shared`; lo corrige `1216e84`. Marcadas `[x]` T14a, T14b, T16a y T16b (y T20) en la tabla y CA-1 a CA-16 en `spec.md`; la línea «Casos reales aplicables: ninguno.» queda sin marcar porque no es CA. `ESTADO.md`: 005 → `hecha`, tarea `—`; nota de CI en la fila 004; 10 hallazgos de 005 en «Hallazgos adversariales abiertos», todos `corregido` (ninguno abierto ni aceptado); notas `[005]` resueltas quitadas de «Notas para specs futuras» (HU-40 por API; contraseña inicial de la invitación en `auth`) y agregadas las de 006, 007, 008 y despliegue del Resultado de T19, con sus riesgos bajos aceptados. Sin push.
