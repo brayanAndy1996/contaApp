@@ -33,6 +33,7 @@ export async function sembrar(client: Pick<Client, "query">): Promise<void> {
       ...SEED.clientesB.map((c) => ({ ...c, tenantId: SEED.tenantB })),
     ];
     await tx.insert(schema.cliente).values(clientes).onConflictDoNothing();
+    await tx.insert(schema.asignacion).values(SEED.asignaciones).onConflictDoNothing();
     // Spec 004: credenciales de desarrollo (PHC precalculado; la tabla no está en el esquema de drizzle).
     for (const c of SEED.credenciales) {
       await tx.execute(

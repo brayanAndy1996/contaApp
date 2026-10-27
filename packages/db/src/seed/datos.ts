@@ -1,4 +1,5 @@
 // IDs fijos del seed mínimo (03 §10): 2 estudios, 4 usuarios, membresías y 3 clientes por estudio.
+// Spec 005: uA y uB son Dueños (`dueno`); uAB es responsable del primer cliente de cada estudio.
 // Un RUC se repite entre A y B (CA-7). Sin datos personales reales ni secretos.
 // Spec 004: `contrasenaDesarrollo` es la única contraseña versionada (solo desarrollo y pruebas); las
 // credenciales son su PHC argon2id en el piso (m=19456, t=2, p=1), precalculado una vez (packages/db no
@@ -12,6 +13,14 @@ export interface FilaClienteSeed {
 export interface FilaCredencialSeed {
   usuarioId: string;
   hash: string;
+}
+
+export interface FilaAsignacionSeed {
+  id: string;
+  tenantId: string;
+  clienteId: string;
+  usuarioId: string;
+  tipo: "responsable" | "colaborador";
 }
 
 export interface FilaMembresiaSeed {
@@ -56,8 +65,8 @@ export const SEED = {
     { usuarioId: uSin, hash: "$argon2id$v=19$m=19456,t=2,p=1$jfpMaA07JoQsLT/QqGlvJA$i0uGjyp1NUR3bX4IfPNxu9fDJQamX28JWmegn07kB9U" },
   ] as FilaCredencialSeed[],
   membresias: [
-    { id: "01920000-0000-7000-8000-0000000002a1", tenantId: tenantA, usuarioId: uA, rol: "admin" },
-    { id: "01920000-0000-7000-8000-0000000002b1", tenantId: tenantB, usuarioId: uB, rol: "admin" },
+    { id: "01920000-0000-7000-8000-0000000002a1", tenantId: tenantA, usuarioId: uA, rol: "dueno" },
+    { id: "01920000-0000-7000-8000-0000000002b1", tenantId: tenantB, usuarioId: uB, rol: "dueno" },
     { id: "01920000-0000-7000-8000-0000000002a2", tenantId: tenantA, usuarioId: uAB, rol: "contador" },
     { id: "01920000-0000-7000-8000-0000000002b2", tenantId: tenantB, usuarioId: uAB, rol: "contador" },
   ] as FilaMembresiaSeed[],
@@ -71,4 +80,21 @@ export const SEED = {
     { id: "01920000-0000-7000-8000-0000000003b2", ruc: "20100130204", razonSocial: "Cliente B dos" },
     { id: "01920000-0000-7000-8000-0000000003b3", ruc: "20601234567", razonSocial: "Cliente B tres" },
   ] as FilaClienteSeed[],
+  /** Spec 005: uAB (contador) es responsable del primer cliente de A y de B. */
+  asignaciones: [
+    {
+      id: "01920000-0000-7000-8000-0000000004a1",
+      tenantId: tenantA,
+      clienteId: "01920000-0000-7000-8000-0000000003a1",
+      usuarioId: uAB,
+      tipo: "responsable",
+    },
+    {
+      id: "01920000-0000-7000-8000-0000000004b1",
+      tenantId: tenantB,
+      clienteId: "01920000-0000-7000-8000-0000000003b1",
+      usuarioId: uAB,
+      tipo: "responsable",
+    },
+  ] as FilaAsignacionSeed[],
 };

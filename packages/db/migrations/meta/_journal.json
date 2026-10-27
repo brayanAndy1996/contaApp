@@ -78,6 +78,27 @@
       "when": 1793059862725,
       "tag": "0010_auth_final",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793071547816,
+      "tag": "0011_acceso",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793071717834,
+      "tag": "0012_acceso_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793071719941,
+      "tag": "0013_acceso_auth",
+      "breakpoints": true
     }
   ]
 }
