@@ -14,7 +14,7 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T5 | Pruebas de integración del worker y el despachador con Redis y PG (rojo) | tester | sonnet | T1, T2 ∥ T4 | ✓ | — | [ ] |
 | T6 | Pruebas HTTP de `/trabajos`, SSE y HU-40 (rojo) | tester | sonnet | T1, T2 ∥ T5 | ✓ | — | [ ] |
 | T7 | Migraciones 0017–0018, esquema y repos de `packages/db` | backend | opus | T3 | ✓ | — | [ ] |
-| T8 | `packages/sunat` y `shared/trabajos` | backend | sonnet | T4 ∥ T7 | ✓ | — | [ ] |
+| T8 | `packages/sunat` y `shared/trabajos` | backend | sonnet | T4 ∥ T7 | ✓ | — | [x] |
 | T9 | `packages/queue`: encolado, despachador, arriendos, reconciliador | backend | opus | T4b, T7, T8 | ✓ | — | [ ] |
 | T10 | Worker: ejecutor, errores y reintentos, credencial, token SIRE, `kek.rotar`, `auth.purgar` | backend | opus | T5, T9 | ✓ | — | [ ] |
 | T11 | Backend: módulo `trabajos` (lista, SSE, cancelar, `Encolador`) | backend | opus | T6, T9 ∥ T10 | ✓ | — | [ ] |
@@ -97,6 +97,7 @@ Reglas comunes:
 - **Fijado por las pruebas (T4)**: `ErrorSunat` y subclases con `codigo` = motivo (`sunat_no_responde`, `credencial_invalida`, `datos_invalidos`, `portal_cambio`), `message` fijo, `new ErrorX(causa?)` con la causa descartada o no enumerable (nunca en `message`, `String`, `JSON.stringify`, `stack` ni `inspect`); `clasificarError(e) → { clase, motivo }` que nunca lanza (no clasificado = transitorio); `MockSireAuth({ ahora?, vigenciaMs? })` con token determinista por RUC y número de llamada, `llamadas`, `llamadasDe(ruc)`, `fallar(modo, { veces? })`. Shared: tuplas exactas, `trabajoVistaSchema` descarta claves desconocidas, `posicion` entero ≥ 1 o `null`, fechas ISO; `listarTrabajosQuery` no parsea un `clienteId` mal formado.
 - **Hacer**: `packages/sunat/src/{errores,puertos,index}.ts`, `src/mock/sire-auth.mock.ts`; `packages/shared/src/trabajos/**` y exportar. Sin IO salvo el mock (en memoria).
 - **Hecho cuando**: `pnpm --filter @contapp/{shared,sunat} test` verde; build, typecheck y lint OK; esos archivos ≥ 90 % por archivo. Commit `feat(008): errores SUNAT, puerto SireAuth y esquemas de trabajos`.
+- **Resultado**: `packages/sunat/src/{errores,puertos,index}.ts`, `mock/sire-auth.mock.ts`; `packages/shared/src/trabajos/{esquemas,index}.ts` exportado. sunat 36 y shared 257 pruebas verdes; build, typecheck y lint OK; cobertura 100 % en `trabajos`, `errores` y `puertos`, `sire-auth.mock.ts` 96 % stmts / 95 % ramas.
 
 ## T9 · Paquete queue (backend · opus)
 - **Contexto (leer solo esto)**: `docs/specs/008-cola/plan.md` (Contratos: packages/queue, packages/db; Decisiones: Fuente de verdad, Posición, Sin anidar `withTenant`, Pruebas de tiempo), `docs/specs/008-cola/spec.md` (D1–D8, D17, D19, D20), pruebas de T4 (`queue`) y las de `packages/queue/src/*.int.spec.ts` de T5, `packages/db/src/index.ts`.
