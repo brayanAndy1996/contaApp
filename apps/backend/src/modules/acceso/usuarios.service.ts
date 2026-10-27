@@ -5,11 +5,13 @@ import {
   desactivar,
   listarMiembros,
   reactivar,
+  revocarPendientesDe,
   type ContappDb,
   type MiembroEstado,
   type Tx,
 } from "@contapp/db";
 import {
+  ROLES,
   cambiarRolSchema,
   puedeGestionar,
   puedeSerResponsable,
@@ -69,6 +71,15 @@ export function exigirGestor(actor: MiembroEstado | null): Rol {
   return rol;
 }
 
+/**
+ * Roles que `rol` puede otorgar al invitar (D8): ninguno sin `usuarios.gestionar`; si no, los que
+ * `puedeGestionar(rol, null, r)` admite. Sus invitaciones pendientes de otro rol se revocan (H-005-1b-1).
+ */
+export function rolesQueOtorga(rol: Rol): Rol[] {
+  if (!tienePermiso(rol, "usuarios.gestionar")) return [];
+  return ROLES.filter((r) => puedeGestionar(rol, null, r));
+}
+
 const estado = (m: MiembroEstado): EstadoMiembro => ({
   usuarioId: m.usuarioId,
   rol: m.rol,
@@ -101,7 +112,10 @@ export class UsuariosService {
     }));
   }
 
-  /** D8: nadie cambia su propio rol; solo se otorga lo que se tiene; D18 al perder `sire.clasificar`. */
+  /**
+   * D8: nadie cambia su propio rol (el ID de la ruta llega normalizado: H-005-1a-1); solo se otorga lo que se
+   * tiene; D18 al perder `sire.clasificar`.
+   */
   async cambiarRol(
     l: Llamante,
     idRuta: string | undefined,
@@ -113,12 +127,15 @@ export class UsuariosService {
     return this.mutar(l, objetivoId, async (tx, actorRol, objetivo) => {
       if (!puedeGestionar(actorRol, objetivo.rol as Rol, rol))
         throw new AccesoError("permiso_denegado");
-      return (await cambiarRol(
+      const m = (await cambiarRol(
         tx,
         objetivoId,
         rol,
         !puedeSerResponsable(rol),
       )) as MiembroEstado;
+      // H-005-1b-1: sus invitaciones pendientes que el rol nuevo ya no puede otorgar mueren con él.
+      await revocarPendientesDe(tx, objetivoId, rolesQueOtorga(rol));
+      return m;
     });
   }
 
@@ -132,7 +149,10 @@ export class UsuariosService {
     return this.mutar(l, objetivoId, async (tx, actorRol, objetivo) => {
       if (!puedeGestionar(actorRol, objetivo.rol as Rol, null))
         throw new AccesoError("permiso_denegado");
-      return (await desactivar(tx, objetivoId)) as MiembroEstado;
+      const m = (await desactivar(tx, objetivoId)) as MiembroEstado;
+      // H-005-1b-1: desactivado no puede otorgar nada; todas sus invitaciones pendientes quedan revocadas.
+      await revocarPendientesDe(tx, objetivoId, []);
+      return m;
     });
   }
 

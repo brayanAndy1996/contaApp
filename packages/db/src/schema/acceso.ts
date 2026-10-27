@@ -117,6 +117,8 @@ export const invitacion = pgTable(
       "invitacion_correo_normalizado",
       sql`${t.correo} = btrim(${t.correo}) AND ${t.correo} = lower(${t.correo}) AND ${t.correo} IS NFC NORMALIZED AND octet_length(${t.correo}) = char_length(${t.correo})`,
     ),
+    // T15 (H-005-1b-2, migración 0015): sin caracteres de control (el CHECK de arriba solo exige ASCII).
+    check("invitacion_correo_sin_control", sql`${t.correo} !~ '[[:cntrl:]]'`),
     check("invitacion_token_hash_32", sql`octet_length(${t.tokenHash}) = 32`),
     // Una invitación pendiente por correo y estudio.
     uniqueIndex("invitacion_pendiente_correo_unique")

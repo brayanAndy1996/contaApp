@@ -56,10 +56,15 @@ import {
   type Llamante,
 } from "./usuarios.service.js";
 
-/** Forma mínima de un correo (sin espacios, una arroba con texto a ambos lados), como en 004. */
-const FORMA_CORREO = /^[^\s@]+@[^\s@]+$/;
+/**
+ * Forma mínima de un correo (sin espacios, una arroba con texto a ambos lados), como en 004, y sin caracteres
+ * de control (H-005-1b-2: NUL daba 500 y BEL/ESC llegaban a la BD y al correo; la BD también lo rechaza).
+ */
+const FORMA_CORREO = /^[^\s@\p{Cc}]+@[^\s@\p{Cc}]+$/u;
 /** Nombre visible de la cuenta nueva (sin espacios al borde). */
 const NOMBRE_MAX = 200;
+/** Caracteres de control (C0, DEL, C1): no van en el nombre (H-005-1b-3). */
+const CONTROL = /\p{Cc}/u;
 
 /** Resultado de `invitacion_aceptar_nueva` -> error (null = aceptada). `cuenta_existe` no consume (D15). */
 const TRAS_ACEPTAR: Record<AceptacionNueva, CodigoAcceso | null> = {
@@ -176,8 +181,13 @@ export class InvitacionesService {
     } = parsearCuerpo(aceptarInvitacionSchema, cuerpo);
     const motivo = validarContrasena(contrasena, this.comunes);
     if (motivo !== null) throw new ContrasenaInvalidaError(motivo);
+    // H-005-1b-3: nombre inválido -> 400 antes de tocar el token y de Argon2 (la BD lo vuelve a validar).
     const nombre = nombreCrudo.trim();
-    if (nombre.length === 0 || nombre.length > NOMBRE_MAX)
+    if (
+      nombre.length === 0 ||
+      nombre.length > NOMBRE_MAX ||
+      CONTROL.test(nombre)
+    )
       throw new AccesoError("solicitud_invalida");
     const v = await this.vigente(token);
     if (v.cuentaExiste) throw new AccesoError("requiere_sesion");

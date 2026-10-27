@@ -56,6 +56,13 @@ const SQL_REVOCAR = `with i as (
 )
 select ${COLUMNAS} from i left join usuario u on u.id = i.invitado_por`;
 
+// H-005-1b-1 (D8): al desactivar o cambiar de rol a quien invitó, sus pendientes (vivas o vencidas) cuyo rol ya
+// no podría otorgar quedan revocadas. `$2` = roles que conserva (vacío al desactivarlo).
+const SQL_REVOCAR_PENDIENTES_DE = `update invitacion set revocada_en = now()
+ where invitado_por = $1::uuid and aceptada_en is null and revocada_en is null
+   and not (rol = any($2::text[]))
+ returning id`;
+
 const invitacion = (f: Fila): InvitacionListada => ({
   id: f.id,
   correo: f.correo,
@@ -108,4 +115,21 @@ export async function revocar(
   invitacionId: string,
 ): Promise<InvitacionListada | null> {
   return unaONinguna(await consultar(tx, SQL_REVOCAR, [invitacionId]));
+}
+
+/**
+ * Revoca las invitaciones pendientes emitidas por `usuarioId` cuyo rol no esté en `rolesQueConserva` (los que su
+ * nuevo estado aún le permite otorgar; ninguno si se desactiva). Devuelve cuántas revocó.
+ */
+export async function revocarPendientesDe(
+  tx: TxConsulta,
+  usuarioId: string,
+  rolesQueConserva: readonly RolMiembro[],
+): Promise<number> {
+  return (
+    await consultar(tx, SQL_REVOCAR_PENDIENTES_DE, [
+      usuarioId,
+      [...rolesQueConserva],
+    ])
+  ).length;
 }

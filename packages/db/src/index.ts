@@ -51,7 +51,13 @@ export {
   ROLES_MIEMBRO,
 } from "./acceso/miembros";
 export type { MiembroActual, MiembroEstado, MiembroListado, RolMiembro } from "./acceso/miembros";
-export { crearInvitacion, listarInvitaciones, reenviar, revocar } from "./acceso/invitaciones";
+export {
+  crearInvitacion,
+  listarInvitaciones,
+  reenviar,
+  revocar,
+  revocarPendientesDe,
+} from "./acceso/invitaciones";
 export type { InvitacionListada, NuevaInvitacion } from "./acceso/invitaciones";
 export {
   asignar,

@@ -4,11 +4,14 @@ import { AccesoError } from "./errores.js";
 /** UUID canónico (8-4-4-4-12 hex). Cualquier otra cosa en la ruta es 404, sin tocar la BD (plan, shared). */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** ID de la ruta o 404 `no_encontrado` (mismo cuerpo que inexistente o ajeno: D13). */
+/**
+ * ID de la ruta en minúsculas (forma canónica de la BD y de la sesión) o 404 `no_encontrado` (mismo cuerpo que
+ * inexistente o ajeno: D13). Normalizar evita que `ID-EN-MAYÚSCULAS` burle "no sobre uno mismo" (H-005-1a-1).
+ */
 export function idDeRuta(valor: string | undefined): string {
   if (valor === undefined || !UUID.test(valor))
     throw new AccesoError("no_encontrado");
-  return valor;
+  return valor.toLowerCase();
 }
 
 interface Esquema<T> {
