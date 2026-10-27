@@ -10,7 +10,7 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 | 002-db-rls | A | hecha | — | Spec aprobada por el usuario (D1–D3, D5–D7). P7 resuelta en el plan. Rama `spec/002-db-rls` desde `spec/001-fundaciones`. |
 | 003-cifrado | A | hecha | — | Sin Docker (decisión del usuario). Rama `spec/003-cifrado` sin mergear (desde `spec/002-db-rls`). F2: límite aceptado por el usuario (ver `spec.md`, Límites conocidos). |
 | 004-auth | A | hecha | — | Hecha. Rama `spec/004-auth` sin mergear (desde `spec/010-dominio-dinero`). O-2 y límites de T20a aceptados por el usuario. |
-| 005-acceso | A | pendiente | — | Hereda de 002 (D2): criterio de HU-40 "por API" (aislamiento entre estudios probado vía endpoints). |
+| 005-acceso | A | borrador | spec | Spec en borrador; esperando la aprobación del usuario (D1–D14, P1–P7). Hereda de 002 (D2) la prueba HU-40 "por API" (CA-12). Rama `spec/005-acceso` desde `spec/004-auth`. |
 | 006-planes | B | pendiente | — | — |
 | 007-clientes | B | pendiente | — | — |
 | 008-cola | A | pendiente | — | — |
