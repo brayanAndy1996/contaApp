@@ -61,7 +61,8 @@ const ID_FILA = /^[A-Za-z0-9_-]{1,64}$/;
 const TIPO_DOC = /^[0-9A-Z]$/;
 const NUMERO_DOC = /^[0-9A-Za-z-]{1,15}$/;
 const TIPO_COMPROBANTE = /^[0-9]{2}$/;
-const SERIE = /^[0-9A-Z]{1,4}$/;
+/** Serie recibida: ASCII alfanumérico; se compara en mayúsculas (T13, R1b-6). */
+const SERIE = /^[0-9A-Za-z]{1,4}$/;
 const DIGITOS = /^[0-9]{1,20}$/;
 const NUMERO_COMPROBANTE = /^[0-9]{1,8}$/;
 const ESPACIOS = /\s/g;
@@ -196,16 +197,20 @@ export function normalizarProveedor(o: unknown): DocNormalizado {
   return Object.freeze({ tipo, numero: n, clave: `${tipo}:${n}` });
 }
 
-/** Clave del comprobante: tipo, serie y numero sin ceros a la izquierda. */
-function claveComprobante(o: unknown): string {
+/**
+ * Clave del comprobante: tipo, serie en mayúsculas y numero sin ceros a la izquierda. Serie fuera
+ * de gramática: la fila es inválida; en el XML devuelve null (XML_AJENO, no aborta el lote: R1b-6).
+ */
+function claveComprobante(o: unknown, serieInvalida: "lanza" | "nula"): string | null {
   const v = leerObjeto(o, CLAVES_COMPROBANTE);
   const tipo = textoId(v.get("tipo"));
   const serie = textoId(v.get("serie"));
   const digitos = textoId(v.get("numero"));
-  if (!TIPO_COMPROBANTE.test(tipo) || !SERIE.test(serie) || !DIGITOS.test(digitos)) invalida();
+  if (!TIPO_COMPROBANTE.test(tipo) || !DIGITOS.test(digitos)) invalida();
   const numero = digitos.replace(CEROS_IZQUIERDA, "") || "0";
   if (!NUMERO_COMPROBANTE.test(numero)) invalida();
-  return `${tipo}-${serie}-${numero}`;
+  if (!SERIE.test(serie)) return serieInvalida === "lanza" ? invalida() : null;
+  return `${tipo}-${serie.toUpperCase()}-${numero}`;
 }
 
 // ---------------------------------------------------------------- partes de la fila
@@ -220,7 +225,8 @@ function leerOrigenUsd(o: unknown, monedaFila: Moneda): OrigenUsd {
 
 interface XmlLeido {
   readonly proveedor: string;
-  readonly comprobante: string;
+  /** null: serie fuera de gramática (XML ajeno). */
+  readonly comprobante: string | null;
   /** Todos los montos están en `datos.moneda`. */
   readonly monedaUnica: boolean;
   readonly datos: XmlInterno;
@@ -229,7 +235,7 @@ interface XmlLeido {
 function leerXml(o: unknown): XmlLeido {
   const v = leerObjeto(o, CLAVES_XML);
   const proveedor = normalizarProveedor(v.get("proveedor")).clave;
-  const comprobante = claveComprobante(v.get("comprobante"));
+  const comprobante = claveComprobante(v.get("comprobante"), "nula");
   const moneda = v.get("moneda");
   if (!esMoneda(moneda)) return invalida();
   // Montos reales en cualquier moneda: un XML con montos en otra moneda que la fila (o mezclados)
@@ -274,7 +280,7 @@ function leerFila(o: unknown): FilaInterna {
   const id = v.get("id");
   if (typeof id !== "string" || !ID_FILA.test(id)) return invalida();
   const proveedor = normalizarProveedor(v.get("proveedor"));
-  const comprobante = claveComprobante(v.get("comprobante"));
+  const comprobante = claveComprobante(v.get("comprobante"), "lanza");
   const montos = v.get("montos");
   if (!esMontosReal(montos)) return invalida();
   const origenUsd = v.has("origenUsd") ? leerOrigenUsd(v.get("origenUsd"), montos.moneda) : null;

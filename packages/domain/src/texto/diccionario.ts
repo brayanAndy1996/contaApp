@@ -32,15 +32,24 @@ function normalizarPalabra(palabra: string): string {
   return token;
 }
 
-/** token = palabra, palabra + "s", palabra + "es", o abreviatura con punto (>= 4 letras, prefijo). */
-function coincide(token: string, palabra: string): boolean {
-  if (token.endsWith(".")) {
-    const abreviatura = token.slice(0, -1);
-    return abreviatura.length >= MIN_LETRAS_ABREVIATURA && palabra.startsWith(abreviatura);
-  }
+/** token = palabra, palabra + "s" o palabra + "es". */
+function esPalabra(token: string, palabra: string): boolean {
   if (!token.startsWith(palabra)) return false;
   const resto = token.length - palabra.length;
   return resto === 0 || (resto === 1 && token.endsWith("s")) || (resto === 2 && token.endsWith("es"));
+}
+
+/**
+ * Palabra completa (o su plural), con o sin punto final (T13, R1b-7: "zapatillas." al final de
+ * una oración), o abreviatura con punto (>= 4 letras, prefijo de la palabra).
+ */
+function coincide(token: string, palabra: string): boolean {
+  if (!token.endsWith(".")) return esPalabra(token, palabra);
+  const sinPunto = token.slice(0, -1);
+  return (
+    esPalabra(sinPunto, palabra) ||
+    (sinPunto.length >= MIN_LETRAS_ABREVIATURA && palabra.startsWith(sinPunto))
+  );
 }
 
 export class DiccionarioGlosas {

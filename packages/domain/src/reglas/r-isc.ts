@@ -1,6 +1,7 @@
 // R-ISC (RF-081; spec D-1, D-2; plan 011, Decisiones: "R-ISC" y "Ratificación de contratos").
+import type { ColumnaCompra } from "../comprobante/index";
 import type { Money } from "../dinero/index";
-import { crearHallazgo } from "./entrada";
+import { PARES_DESTINO, crearHallazgo } from "./entrada";
 import type { FilaInterna, ParDestino } from "./entrada";
 import {
   ISC_XML_EXACTO,
@@ -10,7 +11,7 @@ import {
   iscXmlSinIsc,
   marcaIscConXml,
 } from "./explicaciones";
-import type { Hallazgo, Sugerencia } from "./tipos";
+import type { Hallazgo, MontosParciales, Sugerencia } from "./tipos";
 
 /** Destino evaluado: su par de columnas, BI e IGV leídos y si es el único con BI ≠ 0. */
 export interface DestinoEvaluado {
@@ -34,6 +35,19 @@ function iscDelXml(fila: FilaInterna, d: DestinoEvaluado, iscXml: Money): Money 
   return cabe ? monto : null;
 }
 
+/**
+ * BI e IGV del destino; si se usó el ISC del XML (`xml.isc − isc` y "único destino con BI ≠ 0")
+ * también `isc` y las BI de los otros destinos (T13, R1b-1: si cambian, la sugerencia es obsoleta).
+ */
+function lecturas(fila: FilaInterna, d: DestinoEvaluado, leeIscXml: boolean): MontosParciales {
+  const l: Partial<Record<ColumnaCompra, Money>> = { [d.par.bi]: d.bi, [d.par.igv]: d.igv };
+  if (leeIscXml) {
+    l.isc = fila.montos.obtener("isc");
+    for (const p of PARES_DESTINO) if (p.destino !== d.par.destino) l[p.bi] = fila.montos.obtener(p.bi);
+  }
+  return l;
+}
+
 function hallazgo(
   fila: FilaInterna,
   d: DestinoEvaluado,
@@ -43,6 +57,7 @@ function hallazgo(
 ): Hallazgo {
   const sugerencia: Sugerencia | null =
     monto === null ? null : { tipo: "mover", origen: d.par.bi, destino: "isc", monto };
+  const leeIscXml = fila.xml !== null && !fila.xml.isc.esCero();
   return crearHallazgo({
     filaId: fila.id,
     regla: "R-ISC",
@@ -51,7 +66,7 @@ function hallazgo(
     sugerencia,
     requiereConfirmacion: !(respaldaXml && sugerencia !== null),
     dato: null,
-    lecturas: { [d.par.bi]: d.bi, [d.par.igv]: d.igv },
+    lecturas: lecturas(fila, d, leeIscXml),
   });
 }
 

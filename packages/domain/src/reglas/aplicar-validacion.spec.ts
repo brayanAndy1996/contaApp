@@ -70,10 +70,11 @@ describe("aplicarSugerencia: bordes de separar y ajustar", () => {
     expect(() => aplicarSugerencia(m, h, { gravado: pen("49.99") })).toThrow(ConfirmacionInvalidaError);
   });
 
-  it("separar con gravado igual a toda la BI deja los montos iguales", () => {
+  // T13: antes se aceptaba un `max` ensanchado hasta toda la BI (montos sin cambio); desde la
+  // ronda adversarial 1 (R1b-5) el rango debe ser el que sale de las lecturas.
+  it("separar con max ensanchado hasta toda la BI: EntradaReglasInvalidaError", () => {
     const h = sugFalsa(hMix(), { max: pen("21.48") });
-    const r = aplicarSugerencia(mixta(), h, { gravado: pen("21.48") });
-    expect(JSON.stringify(r.montos)).toBe(JSON.stringify(mixta()));
+    expect(() => aplicarSugerencia(mixta(), h, { gravado: pen("21.48") })).toThrow(EntradaReglasInvalidaError);
   });
 
   it("ajustar una columna respaldada por el XML conserva el resto", () => {
