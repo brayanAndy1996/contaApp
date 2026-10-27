@@ -63,7 +63,8 @@ describe("ADV oraculos de existencia (rol contapp_backend)", () => {
       randomUUID(),
       tenantDe("A"),
     ]);
-    const msql = `insert into membresia (id, tenant_id, usuario_id, rol) values ($1, $2, $3, 'sonda')`;
+    // 005: rol 'lectura' (valido bajo el CHECK de D21) en lugar de 'sonda', que daba 23514 antes del 23505.
+    const msql = `insert into membresia (id, tenant_id, usuario_id, rol) values ($1, $2, $3, 'lectura')`;
     const mConIdDeB = await intentar(db, ctxA(), msql, [
       membresiaB(),
       tenantDe("A"),
@@ -116,7 +117,8 @@ describe("ADV oraculos de existencia (rol contapp_backend)", () => {
   it("H9 aceptado: contapp_worker (sin SELECT en usuario) distingue por FK si un usuario existe", async () => {
     const lectura = await intentar(worker, ctxA(), `select id from usuario`);
     expect(lectura.ok).toBe(false); // control: worker no tiene SELECT sobre usuario
-    const sql = `insert into membresia (tenant_id, usuario_id, rol) values ($1, $2, 'sonda')`;
+    // 005: rol 'lectura' (valido bajo el CHECK de D21) en lugar de 'sonda', que daba 23514 antes del 23503.
+    const sql = `insert into membresia (tenant_id, usuario_id, rol) values ($1, $2, 'lectura')`;
     const existente = await intentar(worker, ctxA(), sql, [
       tenantDe("A"),
       semilla().uB,

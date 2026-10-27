@@ -39,7 +39,13 @@ describe("CA-7 restricciones UNIQUE en el catalogo", () => {
         group by c.relname, i.relname`,
     );
     expect(r.rows.length).toBeGreaterThan(0);
-    const sin = r.rows.filter((x) => !(x.columnas as string[]).includes("tenant_id"));
+    // 005: excepcion explicita: invitacion_token_hash_unique es global (sin tenant_id) por diseno del plan, porque
+    // el token de 32 B es un secreto aleatorio y la aceptacion lo busca sin conocer el estudio. Cualquier otro
+    // UNIQUE sin tenant_id sigue fallando.
+    const EXCEPCIONES = ["invitacion.invitacion_token_hash_unique"];
+    const sin = r.rows.filter(
+      (x) => !(x.columnas as string[]).includes("tenant_id") && !EXCEPCIONES.includes(`${x.tabla}.${x.indice}`),
+    );
     expect(sin.map((x) => `${x.tabla}.${x.indice}`)).toEqual([]);
     const ruc = r.rows.find((x) => x.tabla === "cliente" && (x.columnas as string[]).includes("ruc"));
     expect(ruc, "cliente debe tener UNIQUE sobre (tenant_id, ruc)").toBeDefined();

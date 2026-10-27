@@ -28,7 +28,10 @@ function insercion(tabla: TablaNegocio, tenantId: string, usuarioId: string, ruc
     : [`insert into membresia (tenant_id, usuario_id, rol) values ($1, $2, 'admin')`, [tenantId, usuarioId]];
 }
 
-const asignacion = (tabla: TablaNegocio) => (tabla === "cliente" ? "razon_social = 'hackeado'" : "rol = 'hackeado'");
+// 005: membresia.rol tiene CHECK (D21) y el trigger del ultimo Dueno (D10) impide degradar al unico Dueno de
+// cada estudio; 'rol = rol' es un valor valido que no cambia el rol, y rowCount sigue midiendo cuantas filas
+// alcanza el UPDATE (solo las propias), que es lo que prueba el aislamiento.
+const asignacion = (tabla: TablaNegocio) => (tabla === "cliente" ? "razon_social = 'hackeado'" : "rol = rol");
 
 describe.each(ROLES_APP)("CA-5 rol %s", (rolApp) => {
   let db: ContappDb;
