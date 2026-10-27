@@ -1,13 +1,17 @@
 // Soporte de pruebas unitarias de `queue` (no se publica: excluido de tsconfig.build.json).
 // Doble en memoria de `@contapp/db` para el encolado y el despachador. Las pruebas lo instalan con
 //   vi.mock("@contapp/db", async () => (await import("./soporte-pruebas/bd-falsa.js")).moduloDbFalso);
-// Contrato de los repositorios de `packages/db` que `queue` usa (plan 008, "packages/db"); la
-// implementacion real (T7) debe respetar estas firmas y formas (camelCase en TS):
-//   leerConfig(tx)                              -> Map<NombreCola, ConfigCola>
-//   siguienteDisponible(tx, cola, ahora: Date)  -> TrabajoDespacho | null   (interactivo antes que
-//        programado, luego creadoEn; solo `en_cola` con disponibleDesde <= ahora, del tenant de `tx`)
-//   transicionar(tx, id, desde, hacia, campos)  -> boolean  (UPDATE ... WHERE estado = desde)
-//   revalidarEncolado(tx, trabajo)              -> "ok" | "acceso_retirado"            (D17)
+// Contrato de los repositorios de `packages/db` que `queue` usa (plan 008, "packages/db"). ALINEADO
+// (T4b) con el encabezado de `tests/aislamiento/trabajos-repos.spec.ts`, que es la version definitiva;
+// la implementacion real (T7) respeta estas firmas y formas (camelCase en TS):
+//   leerConfig(tx)                              -> Map<NombreCola, ConfigCola>          (withSistema)
+//   siguienteDisponible(tx, cola, ahora: Date)  -> TrabajoFila | null   (fila COMPLETA; interactivo antes que
+//        programado, luego creadoEn, luego id; solo `en_cola` con disponibleDesde <= ahora, del tenant de `tx`)
+//   transicionar(tx, id, desde, hacia, campos?: { motivo?, intentos?, resultado?, disponibleDesde?: Date })
+//        -> boolean  (UPDATE ... WHERE estado = desde; ella fija `iniciadoEn` al pasar a `ejecutando` y
+//        `terminadoEn` en estados terminales; quien llama NO pasa fechas de inicio/fin: se ignoran)
+//   revalidarEncolado(tx, { clienteId, creadoPor, rolesPermitidos: readonly string[] | null, ...resto })
+//        -> "ok" | "acceso_retirado"   (D17; rolesPermitidos null = sin permiso requerido)
 //   estadoCredencial(tx, clienteId, tipo)       -> "configurada" | "verificada" | "invalida" | null
 //   insertarTrabajo(tx, datos)                  -> TrabajoVista (posicion null)
 //   trabajoVivoPorClave(tx, claveDedupe)        -> TrabajoVista | null (solo en_cola / ejecutando)
@@ -46,7 +50,13 @@ export interface FilaTrabajo {
   terminadoEn: Date | null;
   claveDedupe: string;
   parametros: unknown;
+  maxIntentos?: number;
+  resultado?: unknown;
+  actualizadoEn?: Date;
 }
+
+const INICIO_BD = Date.parse("2026-10-27T15:00:00.000Z");
+const TERMINALES = new Set(["completado", "error", "cancelado"]);
 
 export class WithTenantAnidadoError extends Error {
   constructor() {
@@ -79,6 +89,22 @@ export const bd = {
   /** ids que pierden la carrera `en_cola -> *` (alguien los cancelo antes): transicionar -> false. */
   perdedores: new Set<string>(),
   fallaConfig: false,
+  /** Rol de cada usuario creador (lo que la BD real leeria de `membresia`); por defecto "dueno". */
+  roles: new Map<string, string>(),
+  /** Reloj de la BD falsa (el `now()` de transicionar); las pruebas pueden cambiarlo. */
+  ahora: (): Date => new Date(INICIO_BD),
+  /** Cada llamada a `transicionar`, tal como llego (para comprobar que no se pasan fechas). */
+  transiciones: [] as {
+    id: string;
+    desde: string;
+    hacia: string;
+    campos: Record<string, unknown> | undefined;
+  }[],
+  /** Cada llamada a `revalidarEncolado`, tal como llego. */
+  revalidaciones: [] as {
+    tenantId: string | null;
+    args: Record<string, unknown>;
+  }[],
   /** true mientras corre el callback de withTenant/withSistema. */
   dentro: false,
   /** tenantId de cada withTenant abierto, en orden. */
@@ -92,6 +118,10 @@ export const bd = {
     this.credencialInvalida.clear();
     this.perdedores.clear();
     this.fallaConfig = false;
+    this.roles.clear();
+    this.ahora = (): Date => new Date(INICIO_BD);
+    this.transiciones = [];
+    this.revalidaciones = [];
     this.dentro = false;
     this.ctxs = [];
     this.insertados = [];
@@ -152,6 +182,23 @@ const despacho = (f: FilaTrabajo) => ({
   intentos: f.intentos,
 });
 
+/** TrabajoFila completa (superconjunto de TrabajoDespacho), como la devuelve el repo real. */
+const completa = (f: FilaTrabajo) => ({
+  ...despacho(f),
+  estado: f.estado,
+  parametros: f.parametros,
+  claveDedupe: /^(?:[0-9a-f]{2})+$/.test(f.claveDedupe)
+    ? Buffer.from(f.claveDedupe, "hex")
+    : Buffer.from(f.claveDedupe),
+  maxIntentos: f.maxIntentos ?? 3,
+  motivo: f.motivo,
+  resultado: f.resultado ?? null,
+  disponibleDesde: f.disponibleDesde,
+  iniciadoEn: f.iniciadoEn,
+  terminadoEn: f.terminadoEn,
+  actualizadoEn: f.actualizadoEn ?? f.creadoEn,
+});
+
 const vista = (f: FilaTrabajo) => ({
   id: f.id,
   tipo: f.tipo,
@@ -189,7 +236,7 @@ export const moduloDbFalso = {
           a.creadoEn.getTime() - b.creadoEn.getTime() ||
           (a.id < b.id ? -1 : 1),
       );
-    return filas[0] === undefined ? null : despacho(filas[0]);
+    return filas[0] === undefined ? null : completa(filas[0]);
   },
 
   async transicionar(
@@ -197,8 +244,14 @@ export const moduloDbFalso = {
     id: string,
     desde: string,
     hacia: string,
-    campos: Partial<FilaTrabajo> = {},
+    campos?: {
+      motivo?: string | null;
+      intentos?: number;
+      resultado?: unknown;
+      disponibleDesde?: Date;
+    },
   ): Promise<boolean> {
+    bd.transiciones.push({ id, desde, hacia, campos });
     const f = bd.trabajos.get(id);
     if (f === undefined || f.tenantId !== tx.tenantId) return false;
     if (bd.perdedores.has(id) && desde === "en_cola") {
@@ -207,15 +260,36 @@ export const moduloDbFalso = {
       return false;
     }
     if (f.estado !== desde) return false;
-    Object.assign(f, campos, { estado: hacia });
+    // Como el repo real: solo estas 4 columnas vienen de quien llama; las fechas las fija la BD.
+    if (campos?.motivo !== undefined) f.motivo = campos.motivo;
+    if (campos?.intentos !== undefined) f.intentos = campos.intentos;
+    if (campos?.resultado !== undefined) f.resultado = campos.resultado;
+    if (campos?.disponibleDesde !== undefined)
+      f.disponibleDesde = campos.disponibleDesde;
+    f.estado = hacia;
+    const ahora = bd.ahora();
+    if (hacia === "ejecutando") f.iniciadoEn = ahora;
+    if (TERMINALES.has(hacia)) f.terminadoEn = ahora;
+    f.actualizadoEn = ahora;
     return true;
   },
 
   async revalidarEncolado(
-    _tx: TxFalsa,
-    trabajo: { id: string },
+    tx: TxFalsa,
+    t: {
+      id?: string;
+      clienteId: string;
+      creadoPor: string | null;
+      rolesPermitidos: readonly string[] | null;
+    },
   ): Promise<"ok" | "acceso_retirado"> {
-    return bd.retirados.has(trabajo.id) ? "acceso_retirado" : "ok";
+    bd.revalidaciones.push({ tenantId: tx.tenantId, args: { ...t } });
+    if (t.id !== undefined && bd.retirados.has(t.id)) return "acceso_retirado";
+    // creadoPor null (programado) solo exige que exista el cliente; sin permiso requerido (null)
+    // basta la membresia activa. El rol del creador lo asigna la prueba en `bd.roles`.
+    if (t.creadoPor === null || t.rolesPermitidos === null) return "ok";
+    const rol = bd.roles.get(t.creadoPor) ?? "dueno";
+    return t.rolesPermitidos.includes(rol) ? "ok" : "acceso_retirado";
   },
 
   async estadoCredencial(
