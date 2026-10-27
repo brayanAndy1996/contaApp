@@ -146,6 +146,8 @@ describe("T14b · superficie de contapp_auth y de las funciones SECURITY DEFINER
     expect(resultados).toEqual(Object.fromEntries(Object.keys(nombres).map((k) => [k, expect.stringMatching(/\/0$/)])));
   });
 
+  // T16a (reconversión, H-005-1b-1): la decisión del usuario incluye revalidar al invitador al aceptar (0015);
+  // esta prueba cubre esa parte (b) sin pasar por el backend. Aserción sin cambios.
   it("una invitación cuyo invitador ya no está activo en el estudio no crea membresía (aceptar_existente)", async () => {
     const x = await ea.estudio();
     await ea.miembro(x.id, "dueno");

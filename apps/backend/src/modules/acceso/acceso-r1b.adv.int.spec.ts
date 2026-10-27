@@ -72,6 +72,9 @@ async function retener(sqls: Array<[string, unknown[]]>): Promise<{ pid: number;
   };
 }
 
+// T16a (reconversión, H-005-1b-1): decisión del usuario "verificar la autoridad del invitador al aceptar y además
+// revocar sus invitaciones pendientes al desactivarlo o degradarlo". Por HTTP la revocación (a) ya mata el token;
+// la revalidación (b) de 0015 se prueba en BD (acceso-r1b/acceso-r2a.adv.spec.ts). Las aserciones no cambian.
 describe("T14b · invitaciones emitidas por quien ya perdió la autoridad (D8: nadie otorga lo que no tiene)", () => {
   it("la invitación de un Administrador que luego se desactiva no debe seguir otorgando el rol admin", async () => {
     const E: Estudio = await b.estudio();
