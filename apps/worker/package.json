@@ -13,12 +13,15 @@
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run --passWithNoTests",
     "test:int": "vitest run --mode int --passWithNoTests",
+    "test:cobertura:cola": "vitest run --config vitest.cobertura-cola.config.mts --coverage",
     "kek:rotar": "node --env-file-if-exists=../../.env --env-file-if-exists=.env dist/cli/kek-rotar.js"
   },
   "dependencies": {
     "@contapp/crypto": "workspace:*",
     "@contapp/db": "workspace:*",
+    "@contapp/queue": "workspace:*",
     "@contapp/shared": "workspace:*",
+    "@contapp/sunat": "workspace:*",
     "@nestjs/common": "^12.0.1",
     "@nestjs/core": "^12.0.1",
     "reflect-metadata": "^0.2.2",

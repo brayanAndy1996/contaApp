@@ -101,6 +101,12 @@ jobs:
           CORREO_PROVIDER: consola
           APP_ORIGIN: http://localhost:3000
 
+      - name: Cobertura de 008 cola (umbral 90 % por archivo)
+        run: pnpm cobertura:cola
+        env:
+          CORREO_PROVIDER: consola
+          APP_ORIGIN: http://localhost:3000
+
       - name: Cobertura de packages/db (umbral 90 %)
         run: pnpm cobertura:db
 
