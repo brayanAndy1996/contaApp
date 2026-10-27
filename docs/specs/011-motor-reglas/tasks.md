@@ -161,6 +161,13 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: igual que T14a.
 - **Hacer**: hasta **7** pruebas en `packages/domain/src/reglas/ronda2b.adv.spec.ts` contra lo que T13 introdujo. Mismas defensas.
 - **Hecho cuando**: igual que T12a. Commit `test(011): ronda adversarial 2b`.
+- **Resultado**: `reglas/ronda2b.adv.spec.ts`, 7 pruebas (16 casos), 4 verdes y 12 rojos; 5 hallazgos (anotados solo aquí, como en T12b):
+  - **[011/R2b-1] media** · `packages/domain/src/reglas/r-mix.ts:47` · R-MIX usa el exacto del XML solo con "único destino con BI ≠ 0" (lee las otras BI), pero sus lecturas son solo BI e IGV del destino: si después aparece otra BI (p. ej. biDgng 100.00) la reevaluación da `exacto: null`, pero la sugerencia vieja se aplica, y en masivo sin confirmación (`dato` null) (CA-9; mismo patrón que R1b-1, corregido solo en R-ISC). Requiere ratificación del arquitecto (lecturas de R-MIX con exacto). Pruebas R2b-1 (2).
+  - **[011/R2b-2] baja** · `packages/domain/src/reglas/entrada.ts:185` (`textoId`, antes del `SERIE` de la línea 212) · una serie del XML de más de 64 caracteres aborta el lote con `EntradaReglasInvalidaError` en vez de dar `XML_AJENO` (Cambios de T13, Serie; decisión del usuario sobre R1b-6). "F0011" y "F 01": OK. Prueba R2b-2.
+  - **[011/R2b-3] baja · decide usuario** · `packages/domain/src/reglas/entrada.ts:209-211` y `:195` · número (9 dígitos significativos, "F001-123"), tipo ("1") o RUC ("20.100.000.001") del XML fuera de gramática abortan todo el lote; CA-11 dice "otro RUC, serie o número se ignora" y la decisión del usuario solo cubrió la serie. Prueba R2b-3.
+  - **[011/R2b-4] baja** · `packages/domain/src/texto/diccionario.ts:46-53` · puntos suspensivos no se tratan como separador: "ZAPATILLAS...", "PERFUMES…" (U+2026 → "...") y "ZAPAT... DEP" no disparan R-GP (`coincide` quita un solo punto). Decisión del usuario sobre R1b-7: un punto al final de una palabra completa separa y las abreviaturas con punto valen. "ZAPATILLAS." sigue en verde. Prueba R2b-4.
+  - **[011/R2b-5] baja** · `packages/domain/src/texto/normalizar.ts:37` · el punto solo separa si le sigue una letra: "ZAPATILLAS.38" y "PERFUME.100ML" (punto al final de una palabra completa seguido de un dígito) no disparan R-GP. Para conservar "1.50" basta exigir un dígito antes del punto. Prueba R2b-5.
+  - Sin hallazgo: la validación de T13 no rechaza lo que produce `evaluarReglas` en notas de crédito (R-MIX exacto −8.94 y R-ISC con ISC del XML −70.00 en masivo); serie del XML "F0011"/"F 01" → `XML_AJENO` sin abortar. Prueba R2b-6.
 
 ## T15 · Corregir ronda 2 (backend · opus)
 - **Contexto (leer solo esto)**: igual que T13 con `ronda2*.adv.spec.ts`.
