@@ -23,7 +23,7 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T13 | Corregir hallazgos de la ronda 1 | backend | opus | T12a, T12b | — | — | [[x] |
 | T14a | Ronda 2a: regresión de correcciones | adversario | opus | T13 | — | ✓ | [ ] |
 | T14b | Ronda 2b: escenarios nuevos contra las correcciones | adversario | opus | T13 ∥ T14a | — | ✓ | [ ] |
-| T15 | Corregir hallazgos de la ronda 2 | backend | opus | T14a, T14b | — | — | [ ] |
+| T15 | Corregir hallazgos de la ronda 2 | backend | opus | T14a, T14b | — | — | [x] |
 | T16 | Verificar CA-1 a CA-13 y cobertura con evidencia | tester | sonnet | T15 | — | — | [ ] |
 | T17 | Revisión final contra la spec | arquitecto | opus | T16 | — | — | [ ] |
 | T18 | Cierre: ESTADO, tasks y commit | devops | haiku | T17 | — | — | [ ] |
@@ -180,6 +180,15 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: igual que T13 con `ronda2*.adv.spec.ts`.
 - **Hacer**: igual que T13. Si no hubo fallos, se marca hecha sin commit.
 - **Hecho cuando**: igual que T13. Commit `fix(011): hallazgos de la ronda adversarial 2`.
+- **Resultado**: `ronda2a.adv.spec.ts` y `ronda2b.adv.spec.ts` en verde sin editarlas (también r1a y r1b). Hallazgos (anotados aquí, como en T13):
+  - [011/R2a-1] · corregido (af52b87): `ajustar` de R-RED contrastado con su explicación (sin respaldo: total = Σ en el umbral y con confirmación; con XML: total = Σ o una columna del XML que cuadra; origenUsd: fila PEN cuadrada).
+  - [011/R2a-2] · corregido (af52b87): con entorno, R-ISC se re-evalúa contra el XML real; sin entorno, la explicación debe ser la del caso (un R-ISC sin XML con `isc` agregado conserva `iscSinXml`).
+  - [011/R2a-3] = [011/R2b-1] · corregido (af52b87): R-MIX con XML lee las otras BI y el exacto las exige en 0; con entorno, re-evaluación.
+  - [011/R2a-4] = [011/R2b-3] y [011/R2b-2] · corregido (af52b87): tipo, serie, número o documento del XML fuera de gramática o > 64 → `XML_AJENO` sin abortar el lote.
+  - [011/R2a-5] = [011/R2b-4] + [011/R2b-5] · corregido (af52b87): punto tras letra cierra el token (también ante dígitos); el punto entre dígitos se conserva; los demás puntos (repetidos, `…`) separan.
+  - Cambio de contrato (orden del orquestador): `aplicarSugerencia(montos, h, c?, entorno?)` y `aplicarMasivo(entradas, entorno?)` con `EntornoEvaluacion { filas, contexto }`; con entorno re-evalúan la fila y exigen el mismo hallazgo (si no, `SugerenciaObsoletaError`). Opcional para no romper las llamadas de las `*.adv.spec.ts`; sin entorno el respaldo del XML no se puede probar (límite probado en `correcciones-t15.spec.ts`). Anotado en `plan.md` como "Cambios de T15", pendiente de ratificación en T17. **Nota para 014**: pasar siempre el entorno (mismas filas, contexto y XML que en la evaluación) al aplicar. Para T16: ninguna adversarial cambia de expectativa; si T17 hace obligatorio el entorno, las llamadas de r1a/r1b/r2a/r2b deben pasarlo.
+  - Pruebas propias: `reglas/correcciones-t15.spec.ts` (31) y `texto/correcciones-t15.spec.ts` (13); ninguna prueba propia anterior cambió.
+  - Checks: `pnpm --filter @contapp/domain test` 43 archivos, 999 + 2 todo; `cobertura:dominio` 0 (All files 98.48/97.59/100/99.07; `aplicar.ts` 98.87/98.8/100/99.52, `entrada.ts` ramas 93.45); `tests-limites` 275; `typecheck` 10/10, `lint` 7/7, `build` 7/7; grep de `reglas/` vacío.
 
 ## T16 · Verificación (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (Criterios, Decisiones), `plan.md` (Contratos), hallazgos de 011 en `ESTADO.md`.
