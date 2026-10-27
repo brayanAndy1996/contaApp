@@ -12,7 +12,7 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T5 | Suite HU-40 por API con dos estudios (rojo) | tester | sonnet | T1 ∥ T4 | ✓ | — | [x] |
 | T6 | Pruebas del frontend (rojo) | tester | sonnet | — ∥ T5 | ✓ | — | [x] |
 | T7 | Migraciones 0011–0013, esquema, repos de `acceso`, `AuthRepo` y seed | backend | opus | T2 | ✓ | — | [ ] |
-| T8 | `shared/acceso`: catálogo, matriz, escalada y esquemas | backend | sonnet | T3 ∥ T7 | ✓ | — | [ ] |
+| T8 | `shared/acceso`: catálogo, matriz, escalada y esquemas | backend | sonnet | T3 ∥ T7 | ✓ | — | [x] |
 | T9 | Guards `Permiso` y `ClienteScope`, decoradores y arranque | backend | opus | T3, T7, T8 | ✓ | — | [ ] |
 | T10 | Usuarios e invitaciones (D8, aceptación, `CupoUsuarios`) | backend | opus | T4, T9 | ✓ | — | [ ] |
 | T11 | Clientes y asignaciones | backend | sonnet | T4, T9 ∥ T10 | ✓ | — | [ ] |
@@ -90,6 +90,7 @@ Reglas comunes:
 - **Fijado por las pruebas (T3)**: `./index.js` de `packages/shared/src/acceso/` exporta `PERMISOS`, `PERMISOS_POR_ROL`, `ROLES`, `tienePermiso`, `alcanceDe`, `puedeGestionar`, `puedeSerResponsable`, `type Permiso`, `type Rol` (también desde `@contapp/shared`) y los esquemas `invitarSchema`, `cambiarRolSchema`, `consultarInvitacionSchema`, `aceptarInvitacionSchema`, `aceptarConSesionSchema`, `asignarClienteSchema`, `asignarPorUsuarioSchema`, `asignarPorClienteSchema` (lotes 1..500, claves desconocidas descartadas).
 - **Hacer**: `packages/shared/src/acceso/**` y exportar. Sin IO.
 - **Hecho cuando**: `pnpm --filter @contapp/shared test` verde; build, typecheck y lint OK; esos archivos ≥ 90 % por archivo. Commit `feat(005): catálogo de permisos, roles de sistema y esquemas de acceso`.
+- **Resultado**: `packages/shared/src/acceso/{permisos,roles,esquemas,index}.ts` y export en `src/index.ts`; shared 228 pruebas en verde (5 archivos), build, typecheck y lint OK; cobertura 100 % en los 3 archivos con código. `LOTE_MAX = 500` exportado.
 
 ## T9 · Guards y arranque (backend · opus)
 - **Contexto (leer solo esto)**: `docs/specs/005-acceso/plan.md` (Contratos: Guards y decoradores, Backend; Decisiones: Orden, D3, CA-11, Clientes), pruebas de T3, `apps/backend/src/{app.ts,app.module.ts}`, `apps/backend/src/modules/auth/guards/*.ts`, `apps/backend/src/modules/auth/auth.service.ts` (lista de estudios), `apps/backend/src/modules/estudio/estudio.controller.ts`, `apps/backend/src/comun/filtro-errores.ts`, `packages/db/src/acceso/alcance.ts`.
