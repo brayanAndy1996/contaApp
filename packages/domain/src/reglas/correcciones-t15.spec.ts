@@ -1,6 +1,6 @@
 // T15 (backend): pruebas propias de las correcciones de la ronda adversarial 2 (R2a-1 a R2a-5,
 // R2b-1 a R2b-5). Con el entorno de evaluarReglas, aplicar re-evalúa la fila y solo aplica el
-// mismo hallazgo; sin él, contrasta además explicación y `ajustar`. Identidad del XML fuera de
+// mismo hallazgo (T15b-2: el entorno es obligatorio). Identidad del XML fuera de
 // gramática = XML_AJENO sin abortar el lote.
 // T15b-1: todas las llamadas pasan el entorno (el entorno pasará a ser obligatorio). Los casos que
 // antes ejercitaban las comprobaciones sin entorno (coherencia de explicación y `ajustar`) ahora
@@ -55,10 +55,22 @@ describe("T15 · con entorno: re-evaluación de la fila (R2a-1, R2a-2, R2a-3 = R
       lecturas: { ...h.lecturas, isc: pen("0.00"), biDgng: pen("0.00"), biDng: pen("0.00") },
       sugerencia: { tipo: "mover", origen: "biDg", destino: "isc", monto: pen("100.00") },
     });
-    // T15b-1: aquí había una aserción de que SIN entorno el falso se aplicaba (límite declarado de
-    // T15). Con el entorno opcional aún no se puede esperar un error por omitirlo; cuando el backend lo
-    // haga obligatorio, añadir: llamar sin entorno lanza EntradaReglasInvalidaError.
+    // T15b-2: el entorno es obligatorio; sin él el falso ya no se aplica.
     expect(() => aplicarSugerencia(sanJuan(), forjado, undefined, entorno(f))).toThrow(SugerenciaObsoletaError);
+  });
+
+  it("T15b-2 · sin entorno o con uno inválido: EntradaReglasInvalidaError en individual y masivo", () => {
+    const f = fila({ montos: sanJuan() });
+    const h = unico(evaluar([f]).hallazgos, "R-ISC");
+    const sinEntorno = undefined as unknown as EntornoEvaluacion;
+    const invalidos = [sinEntorno, null, {}, { filas: [f] }, { filas: [f], contexto: ctx(), extra: 1 }] as unknown as EntornoEvaluacion[];
+    for (const e of invalidos) {
+      expect(() => aplicarSugerencia(sanJuan(), h, undefined, e)).toThrow(EntradaReglasInvalidaError);
+      expect(() => aplicarMasivo([{ montos: sanJuan(), hallazgo: h }], e)).toThrow(EntradaReglasInvalidaError);
+    }
+    expect(() => aplicarMasivo([], sinEntorno)).toThrow(EntradaReglasInvalidaError);
+    // Con el entorno real, el mismo hallazgo se aplica (caso feliz).
+    expect(aplicarSugerencia(sanJuan(), h, undefined, entorno(f)).montos.obtener("isc").toString()).toBe("770.00");
   });
 
   it("R-MIX con exacto inventado y explicación coherente: con entorno sin XML, obsoleta", () => {

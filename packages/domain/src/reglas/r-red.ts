@@ -31,9 +31,6 @@ const GRUPOS_XML: readonly GrupoXml[] = Object.freeze([
     { xml: "icbper", columnas: ["icbper"] },
   ]);
 
-/** Columnas que el XML puede corregir (una sola por sugerencia: valoresPorXml). */
-export const COLUMNAS_RED_XML: readonly ColumnaCompra[] = Object.freeze(GRUPOS_XML.flatMap((g) => g.columnas));
-
 /** R-RED lee todas las columnas y el total (obsolescencia, CA-9). */
 function lecturasDe(m: MontosComprobante): MontosParciales {
   const l: Partial<Record<ColumnaCompra | "total", Money>> = {};
@@ -131,7 +128,7 @@ function valoresPorXml(m: MontosComprobante, xml: XmlInterno, c: ResultadoCuadre
 }
 
 /** (3) Sin respaldo: |dif| ≤ 0.01 × componentes ≠ 0 (mínimo 1) → total = Σ. */
-export function valoresPorUmbral(m: MontosComprobante, c: ResultadoCuadre): MontosParciales | null {
+function valoresPorUmbral(m: MontosComprobante, c: ResultadoCuadre): MontosParciales | null {
   const centimo = Money.desde("0.01", m.moneda);
   let umbral = Money.cero(m.moneda);
   for (const x of m.componentes()) if (!x.esCero()) umbral = umbral.sumar(centimo);
