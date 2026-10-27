@@ -99,6 +99,13 @@
       "when": 1793071719941,
       "tag": "0013_acceso_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793074083129,
+      "tag": "0014_invitacion_vigente_estudio",
+      "breakpoints": true
     }
   ]
 }

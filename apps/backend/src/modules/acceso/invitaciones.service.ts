@@ -165,7 +165,8 @@ export class InvitacionesService {
   /**
    * Plan (Aceptación): zod -> política de 004 (antes de tocar el token) -> invitación viva (si no,
    * `invitacion_invalida` sin Argon2) -> cuenta existente: 409 `requiere_sesion` sin consumir (D15) ->
-   * `fijarContrasena` -> `invitacion_aceptar_nueva` (usuario, credencial y membresía en una transacción).
+   * `fijarContrasena` -> `cupo.alAceptar` + `invitacion_aceptar_nueva` (usuario, credencial y membresía en una
+   * transacción).
    */
   async aceptar(cuerpo: unknown): Promise<void> {
     const {
@@ -185,10 +186,13 @@ export class InvitacionesService {
       hasher: this.hasher,
       comunes: this.comunes,
     });
-    // Pendiente (escalado en T10): `alAceptar(a, tenantId)` necesita el estudio de la invitación, que
-    // `invitacion_vigente` no devuelve; irá en esta misma transacción, antes de `invitacion_aceptar_nueva`.
+    // D11 (plan, ratificación 7): el cupo del estudio de la invitación se consulta en la misma transacción,
+    // antes de crear la cuenta. `tenantId` no cambia; `invitacion_aceptar_nueva` revalida el token FOR UPDATE.
     const resultado = await this.db
-      .withAuth((a) => a.invitacionAceptarNueva(hashToken(token), nombre, hash))
+      .withAuth(async (a) => {
+        await this.cupo.alAceptar(a, v.tenantId);
+        return a.invitacionAceptarNueva(hashToken(token), nombre, hash);
+      })
       .catch((e: unknown): AceptacionNueva => {
         // Dos invitaciones distintas para el mismo correo nuevo chocan en `usuario.email`: una gana (plan, Riesgos).
         if (e instanceof AuthRepoError) return "invalida";

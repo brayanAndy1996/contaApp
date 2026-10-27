@@ -43,6 +43,8 @@ export interface RecuperacionConsumida {
 
 /** Invitación viva (005, D7): lo que ve quien abre el enlace. Nunca el token ni su hash. */
 export interface InvitacionVigente {
+  /** Estudio de la invitación (0014): solo para `CupoUsuarios.alAceptar`; nunca se devuelve por HTTP. */
+  tenantId: string;
   estudioNombre: string;
   correo: string;
   rol: string;
@@ -172,6 +174,7 @@ export function crearAuthRepo(tx: TxConsulta): AuthRepo {
         f.length === 0
           ? null
           : {
+              tenantId: f[0]!.tenant_id as string,
               estudioNombre: f[0]!.estudio_nombre as string,
               correo: f[0]!.correo as string,
               rol: f[0]!.rol as string,
