@@ -4,6 +4,7 @@ import type { Estudio, SesionResuelta } from "../auth/auth.service.js";
 import { AuthError } from "../auth/errores.js";
 import { Sesion } from "../auth/guards/decoradores.js";
 import { DB } from "../auth/inyeccion.js";
+import { SoloEstudio } from "../acceso/guards/decoradores.js";
 
 /**
  * Ruta de negocio mínima (CA-9): devuelve el estudio activo de la sesión. Los guards globales ya
@@ -14,6 +15,7 @@ import { DB } from "../auth/inyeccion.js";
 export class EstudioController {
   constructor(@Inject(DB) private readonly db: Pick<ContappDb, "withTenant">) {}
 
+  @SoloEstudio()
   @Get("actual")
   async actual(@Sesion() sesion: SesionResuelta): Promise<Estudio> {
     const tenantId = sesion.tenantActivo as string;

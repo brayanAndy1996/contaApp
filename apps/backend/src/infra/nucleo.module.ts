@@ -7,6 +7,10 @@ import {
   type OnModuleDestroy,
 } from "@nestjs/common";
 import type { ContappDb } from "@contapp/db";
+import {
+  CUPO_USUARIOS,
+  type CupoUsuarios,
+} from "../modules/acceso/cupo/cupo-usuarios.js";
 import type { Hasher } from "../modules/auth/contrasena/hasher.js";
 import {
   APP_ORIGIN,
@@ -24,6 +28,8 @@ export interface DependenciasNucleo {
   cola: ColaCorreo;
   comunes: ReadonlySet<string>;
   appOrigin: string;
+  /** Límite de usuarios del plan (D11): `CupoSinLimite` en 005. */
+  cupo: CupoUsuarios;
 }
 
 /** Cierra el pool de la BD al cerrar la app (`app.close()`). */
@@ -47,6 +53,7 @@ export class NucleoModule {
       { provide: COLA_CORREO, useValue: d.cola },
       { provide: COMUNES, useValue: d.comunes },
       { provide: APP_ORIGIN, useValue: d.appOrigin },
+      { provide: CUPO_USUARIOS, useValue: d.cupo },
     ];
     return {
       module: NucleoModule,

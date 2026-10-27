@@ -41,6 +41,10 @@ export function crearEntorno(): Entorno {
     recuperacionVigente: vi.fn(async () => true),
     recuperacionConsumir: vi.fn(async () => ({ usuarioId: U, correo: CORREO })),
     contrasenaCambiar: vi.fn(async () => CORREO),
+    // 005: funciones de invitación (sin uso en las unitarias de 004).
+    invitacionVigente: vi.fn(async () => null),
+    invitacionAceptarNueva: vi.fn(async () => "invalida" as const),
+    invitacionAceptarExistente: vi.fn(async () => null),
   };
   const datos: Entorno["datos"] = {
     tenants: [{ id: T_A, nombre: "Estudio A" }],
@@ -49,7 +53,13 @@ export function crearEntorno(): Entorno {
   const tx = {
     orm: {
       select: () => ({
-        from: async (tabla: unknown) => (tabla === schema.tenant ? datos.tenants : datos.usuarios),
+        // 005: membresías activas propias, una por estudio visible (D9: `estudiosDe` descarta las desactivadas).
+        from: async (tabla: unknown) =>
+          tabla === schema.tenant
+            ? datos.tenants
+            : tabla === schema.membresia
+              ? datos.tenants.map((t) => ({ tenantId: t.id, desactivadaEn: null }))
+              : datos.usuarios,
       }),
     },
   };

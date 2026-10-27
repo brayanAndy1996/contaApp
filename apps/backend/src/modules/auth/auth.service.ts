@@ -254,12 +254,20 @@ export class AuthService {
     }
   }
 
-  /** Estudios con membresía del usuario: la RLS de `tenant` en withUsuario solo deja ver esos (P7). */
+  /**
+   * Estudios con membresía ACTIVA del usuario: la RLS de `tenant` y `membresia` en withUsuario solo deja
+   * ver los suyos (P7) y aquí se descartan las membresías desactivadas (005, D9: lista y `requiereEstudio`).
+   */
   private async estudiosDe(userId: string): Promise<Estudio[]> {
-    const filas = await this.db.withUsuario({ userId }, (tx) =>
-      tx.orm.select({ id: schema.tenant.id, nombre: schema.tenant.nombre }).from(schema.tenant),
-    );
+    const { filas, membresias } = await this.db.withUsuario({ userId }, async (tx) => ({
+      filas: await tx.orm.select({ id: schema.tenant.id, nombre: schema.tenant.nombre }).from(schema.tenant),
+      membresias: await tx.orm
+        .select({ tenantId: schema.membresia.tenantId, desactivadaEn: schema.membresia.desactivadaEn })
+        .from(schema.membresia),
+    }));
+    const activas = new Set(membresias.filter((m) => m.desactivadaEn === null).map((m) => m.tenantId));
     return filas
+      .filter((f) => activas.has(f.id))
       .map((f) => ({ id: f.id, nombre: f.nombre }))
       .sort((a, b) => a.nombre.localeCompare(b.nombre) || a.id.localeCompare(b.id));
   }
