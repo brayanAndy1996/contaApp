@@ -65,9 +65,13 @@ export function evaluarIscIgvCero(fila: FilaInterna, d: DestinoEvaluado): Hallaz
   return hallazgo(fila, d, ISC_XML_EXACTO, monto, true);
 }
 
-/** Proveedor marcado como emisor de ISC con IGV ≠ 0 que cuadra (D-2). */
+/**
+ * Proveedor marcado como emisor de ISC con IGV ≠ 0 que cuadra (D-2). Con XML válido la
+ * explicación dice el ISC del XML (también 0.00, sin sugerencia: el XML no lo respalda).
+ */
 export function evaluarIscMarcado(fila: FilaInterna, d: DestinoEvaluado): Hallazgo {
   const xml = fila.xml;
-  if (xml === null || xml.isc.esCero()) return hallazgo(fila, d, MARCA_ISC_SIN_XML, null, false);
+  if (xml === null) return hallazgo(fila, d, MARCA_ISC_SIN_XML, null, false);
+  if (xml.isc.esCero()) return hallazgo(fila, d, marcaIscConXml(xml.isc), null, true);
   return hallazgo(fila, d, marcaIscConXml(xml.isc), iscDelXml(fila, d, xml.isc), true);
 }

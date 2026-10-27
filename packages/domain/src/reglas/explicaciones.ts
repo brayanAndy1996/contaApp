@@ -22,10 +22,14 @@ export const sufijoMixGravadoFuera = (g: Money): string =>
 export const sufijoMixIgvDistinto = (igvXml: Money): string =>
   `; el IGV del XML (${t(igvXml)}) es distinto: confirma el monto`;
 export const SUFIJO_MIX_RANGO_VACIO = " y no se puede separar: revisar";
+/** T10: XML con varios destinos con BI ≠ 0 (su gravado e IGV no se asignan a un destino). */
+export const SUFIJO_MIX_VARIOS_DESTINOS = "; el XML no separa por destino: confirma el monto";
 
 // ---------------------------------------------------------------- R-RED, R-NEW, R-GP (T10)
 export const red = (suma: Money, total: Money): string =>
   `La suma de componentes (${t(suma)}) no es igual al total (${t(total)}): diferencia ${t(total.restar(suma))}`;
+/** T10: Σ o total − Σ exceden NUMERIC(14,2): no hay cifra canónica que mostrar. */
+export const RED_FUERA_DE_RANGO = "La suma de componentes no es igual al total y excede el rango de montos: revisar";
 export const SUFIJO_RED_XML = "; el XML indica el monto correcto";
 export const redUsd = (tc: string): string =>
   `Los montos en PEN no coinciden con la conversión por componente con TC ${tc}`;

@@ -6,6 +6,7 @@ import { crearHallazgo } from "./entrada";
 import type { FilaInterna, XmlInterno } from "./entrada";
 import {
   SUFIJO_MIX_RANGO_VACIO,
+  SUFIJO_MIX_VARIOS_DESTINOS,
   mix,
   sufijoMixExacto,
   sufijoMixGravadoFuera,
@@ -30,9 +31,9 @@ function conXml(
   r18: RangoGravado,
 ): { exacto: Money | null; sufijo: string } {
   if (xml === null) return { exacto: null, sufijo: "" };
+  // Con varios destinos con BI ≠ 0 el gravado y el IGV del XML (totales) no se asignan a ninguno.
+  if (!d.unicoConBi) return { exacto: null, sufijo: SUFIJO_MIX_VARIOS_DESTINOS };
   if (!xml.igv.igual(d.igv)) return { exacto: null, sufijo: sufijoMixIgvDistinto(xml.igv) };
-  // Con varios destinos con BI ≠ 0 el gravado del XML no se asigna a ninguno.
-  if (!d.unicoConBi) return { exacto: null, sufijo: "" };
   if (gravadoExacto(d, xml, r18)) return { exacto: xml.gravado, sufijo: sufijoMixExacto(xml.gravado) };
   return { exacto: null, sufijo: sufijoMixGravadoFuera(xml.gravado) };
 }

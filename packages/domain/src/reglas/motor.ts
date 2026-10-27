@@ -1,11 +1,14 @@
-// evaluarReglas (plan 011, Contratos y Decisiones). T9: entrada estricta, avisos de XML, R-ISC y
-// R-MIX por destino y orden de salida. T10 agrega R-RED, R-NEW y R-GP (por fila).
+// evaluarReglas (plan 011, Contratos y Decisiones): entrada estricta, avisos de XML, R-ISC y R-MIX
+// por destino, R-RED, R-NEW y R-GP por fila, y orden de salida.
 import { TASA_IGV_10, TASA_IGV_18, igvCuadra } from "../dinero/index";
 import { PARES_DESTINO, validarContexto, validarFilas } from "./entrada";
 import type { ContextoInterno, FilaInterna } from "./entrada";
 import { evaluarIscIgvCero, evaluarIscMarcado } from "./r-isc";
 import type { DestinoEvaluado } from "./r-isc";
+import { evaluarGastoPersonal } from "./r-gp";
 import { evaluarMix } from "./r-mix";
+import { evaluarNuevo } from "./r-new";
+import { evaluarRed } from "./r-red";
 import { ORDEN_REGLAS } from "./tipos";
 import type { Aviso, ContextoReglas, FilaEvaluable, Hallazgo, ResultadoEvaluacion } from "./tipos";
 
@@ -66,6 +69,9 @@ export function evaluarReglas(filas: readonly FilaEvaluable[], ctx: ContextoRegl
   for (const fila of internas) {
     if (fila.aviso !== null) avisos.push(fila.aviso);
     hallazgos.push(...porDestino(fila, contexto));
+    for (const h of [evaluarRed(fila), evaluarNuevo(fila, contexto), evaluarGastoPersonal(fila, contexto)]) {
+      if (h !== null) hallazgos.push(h);
+    }
   }
   hallazgos.sort(compararHallazgos);
   avisos.sort((a, b) => compararTexto(a.filaId, b.filaId));
