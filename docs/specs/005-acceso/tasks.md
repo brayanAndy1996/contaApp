@@ -21,7 +21,7 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T13 | Integración: checks completos y prueba manual | devops | haiku | T5, T10b, T11, T12 | — | — | [x] |
 | T14a | Ronda adversarial 1a: lista mínima (caja negra) | adversario | opus | T13 | — | ✓ | [ ] |
 | T14b | Ronda adversarial 1b: escenarios nuevos (caja blanca) | adversario | opus | T13 ∥ T14a | — | ✓ | [ ] |
-| T15 | Corregir hallazgos de la ronda 1 | backend (+frontend) | opus / sonnet | T14a, T14b | — | — | [ ] |
+| T15 | Corregir hallazgos de la ronda 1 | backend (+frontend) | opus / sonnet | T14a, T14b | — | — | [x] |
 | T16a | Ronda adversarial 2a: regresión y reconversión | adversario | opus | T15 | — | ✓ | [ ] |
 | T16b | Ronda adversarial 2b: ataques nuevos contra las correcciones | adversario | opus | T15 ∥ T16a | — | ✓ | [ ] |
 | T17 | Corregir hallazgos de la ronda 2 | backend (+frontend) | opus / sonnet | T16a, T16b | — | — | [ ] |
@@ -158,6 +158,14 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: hallazgos de 005 en `ESTADO.md`, los `*.adv*.spec.ts` que fallan, los archivos que señalan, `plan.md` (Decisiones).
 - **Hacer**: corregir en `src/` o con una migración nueva. Si un hallazgo pide cambiar la spec o aceptar un riesgo: `abierto · requiere usuario`, sin decidir.
 - **Hecho cuando**: `pnpm test`, `pnpm ci:db`, `pnpm cobertura:acceso` en verde salvo lo marcado para el usuario; hallazgos `corregido (<commit>)`; `plan.md` actualizado si cambió un contrato. Commit `fix(005): hallazgos de la ronda adversarial 1`.
+- **Resultado** (commit `3127e6e`; migración nueva `0015_acceso_ronda1.sql` — `drizzle-kit generate` del CHECK + SQL a mano; repetible, `db:migrate` ×2 sin cambios y `drizzle-kit generate` sin cambios; mismas firmas, `FUNCIONES_AUTH` sigue en 15; decisiones en `plan.md`, Decisiones: "Correcciones de la ronda adversarial 1"):
+  - H-005-1a-1 · corregido (3127e6e): `idDeRuta` (`acceso/entrada.ts`) devuelve el UUID en minúsculas, así el ID propio en mayúsculas da 403 en cambiar rol y desactivar; `AsignacionesService` normaliza igual al objetivo.
+  - H-005-1b-1 · corregido (3127e6e), decisión del usuario (ambas): (b) `auth.invitacion_vigente`, `invitacion_aceptar_nueva` e `invitacion_aceptar_existente` exigen invitador activo y con autoridad sobre el rol invitado (Dueño cualquiera; Administrador salvo `dueno`), si no `invitacion_invalida` sin efectos; (a) `UsuariosService.cambiarRol`/`desactivar` llaman en la misma transacción a `revocarPendientesDe(tx, objetivo, rolesQueOtorga(rolNuevo))` (nuevo repo en `packages/db/src/acceso/invitaciones.ts`; desactivar revoca todas).
+  - H-005-1b-2 · corregido (3127e6e): `FORMA_CORREO` excluye `\p{Cc}` → 400 `solicitud_invalida` antes de la transacción; `CHECK invitacion_correo_sin_control` en la BD.
+  - H-005-1b-3 · corregido (3127e6e): nombre con `\p{Cc}` → 400 `solicitud_invalida` antes del token y de Argon2; `invitacion_aceptar_nueva` devuelve `'invalida'` con nombre nulo, en blanco, > 200 caracteres o con control.
+  - H-005-1b-4 · corregido (3127e6e): `AsignacionesService` relee y bloquea al actor (`FOR UPDATE`, en orden de ID con el objetivo) en la transacción de `asignar`, `retirar`, `por-usuario` y `por-cliente`; exige activo (`estudio_requerido`) y `clientes.asignar` (`permiso_denegado`).
+  - Pruebas propias: `tests/aislamiento/acceso-correcciones-r1.spec.ts` (6: tabla D8 de 25 pares en `invitacion_vigente`, aceptar nueva/existente con invitador sin autoridad, nombres, CHECK, `revocarPendientesDe` con RLS), `packages/db/src/acceso/invitaciones-r1.spec.ts` (2), `apps/backend/src/modules/acceso/correcciones-r1.spec.ts` (14) y `correcciones-r1.int.spec.ts` (5), `apps/backend/src/modules/clientes/asignaciones-r1.spec.ts` (14). Ninguna `*.adv*` afirma algo que la decisión cambie (nada anotado para T16a).
+  - Checks: adversariales r1a/r1b 23/23 HTTP y 8/8 BD en verde; `pnpm test` 8/8 paquetes (backend 482, db 404); `ci:db` OK (aislamiento 708, worker int 37, backend int 373); `cobertura:acceso` 1331 sin fallos de umbral (mínimo `usuarios.service` 96,15 % ramas); `cobertura:auth` 1385 y `cobertura:db` 1115 en 0; typecheck 10/10 y lint 7/7 OK.
 
 ## T16a · Ronda 2a: regresión y reconversión (adversario · opus)
 - **Contexto (leer solo esto)**: igual que T14b + `git diff <commit T14b>..HEAD -- apps packages`.
