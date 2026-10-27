@@ -6,7 +6,7 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 
 | # | Tarea | Rol | Modelo | Depende de | TDD | ADV | Estado |
 |---|---|---|---|---|---|---|---|
-| T1 | Andamiaje: cobertura de `reglas/` y `texto/` | devops | haiku | — | — | — | [ ] |
+| T1 | Andamiaje: cobertura de `reglas/` y `texto/` | devops | haiku | — | — | — | [x] |
 | T2 | Pruebas del lint de dinero en `reglas/` (rojo) | tester | sonnet | — ∥ T1 | ✓ | — | [ ] |
 | T3 | Pruebas de `texto/` (rojo) | tester | sonnet | — ∥ T2 | ✓ | — | [ ] |
 | T4 | Pruebas de R-ISC, R-MIX, rango y precedencia (rojo) | tester | sonnet | — ∥ T3 | ✓ | — | [ ] |
@@ -46,6 +46,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/011-motor-reglas/plan.md` (Decisiones: Lint y cobertura), `packages/domain/vitest.cobertura.config.mts`.
 - **Hacer**: agregar `src/reglas/**/*.ts` y `src/texto/**/*.ts` al `include` de cobertura; actualizar el comentario (010 y 011). Nada más.
 - **Hecho cuando**: `pnpm cobertura:dominio` sale 0 (las carpetas aún no existen); un `src/reglas/__tmp.ts` sin pruebas hace fallar por ese archivo (borrarlo). Commit `test(011): cobertura de reglas y texto con umbral 90 % por archivo`.
+- **Resultado**: `packages/domain/vitest.cobertura.config.mts` incluye `src/reglas/**/*.ts` y `src/texto/**/*.ts` en `include` (comentario a 010 y 011). `pnpm install --frozen-lockfile` en el worktree sin cambios de lockfile. `pnpm cobertura:dominio` sale 0 sin las carpetas: 20 archivos de prueba, 505 pasan, 1 todo. Con `src/reglas/__tmp.ts` sin pruebas sale 1 por ese archivo (`Coverage for lines (0%) ... for src/reglas/__tmp.ts`); archivo y carpeta borrados. `pnpm --filter @contapp/domain lint` OK y Prettier OK. Sin BD ni migraciones.
 
 ## T2 · Pruebas del lint en reglas/, rojo (tester · sonnet) ∥ T1
 - **Contexto (leer solo esto)**: `docs/specs/011-motor-reglas/spec.md` (CA-13), `plan.md` (Decisiones: Lint y cobertura), `tests/limites/dominio.spec.ts` (patrón `lintText`, primeras 60 líneas).
