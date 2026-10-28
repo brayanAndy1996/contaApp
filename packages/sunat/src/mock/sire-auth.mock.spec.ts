@@ -42,6 +42,15 @@ describe("MockSireAuth", () => {
     expect(r.expiraEn.getTime()).toBe(AHORA.getTime() + 90_000);
   });
 
+  it("sin `ahora` usa el reloj real y la vigencia por defecto (1 h)", async () => {
+    const mock = new MockSireAuth();
+    const antes = Date.now();
+    const r = await mock.obtenerToken(cred(RUC_A));
+    const despues = Date.now();
+    expect(r.expiraEn.getTime()).toBeGreaterThanOrEqual(antes + 3_600_000);
+    expect(r.expiraEn.getTime()).toBeLessThanOrEqual(despues + 3_600_000);
+  });
+
   it("la vigencia por defecto es positiva", async () => {
     const mock = new MockSireAuth({ ahora: () => AHORA });
     const r = await mock.obtenerToken(cred(RUC_A));
