@@ -7,6 +7,9 @@
 //   leerConfig(tx)                              -> Map<NombreCola, ConfigCola>          (withSistema)
 //   siguienteDisponible(tx, cola, ahora: Date)  -> TrabajoFila | null   (fila COMPLETA; interactivo antes que
 //        programado, luego creadoEn, luego id; solo `en_cola` con disponibleDesde <= ahora, del tenant de `tx`)
+//   siguientesDisponibles(tx, cola, ahora: Date, limite: number) -> TrabajoFila[]   (T9c, D21: los primeros `limite`
+//        (entero 1..50) en_cola con disponibleDesde <= ahora, en el MISMO orden que siguienteDisponible; este equivale
+//        a limite = 1 y se conserva)
 //   transicionar(tx, id, desde, hacia, campos?: { motivo?, intentos?, resultado?, disponibleDesde?: Date })
 //        -> boolean  (UPDATE ... WHERE estado = desde; ella fija `iniciadoEn` al pasar a `ejecutando` y
 //        `terminadoEn` en estados terminales; quien llama NO pasa fechas de inicio/fin: se ignoran)
@@ -105,6 +108,8 @@ export const bd = {
     tenantId: string | null;
     args: Record<string, unknown>;
   }[],
+  /** Cada llamada a `siguientesDisponibles` (D21): estudio, cola y `limite` pedidos. */
+  ventanas: [] as { tenantId: string | null; cola: string; limite: number }[],
   /** true mientras corre el callback de withTenant/withSistema. */
   dentro: false,
   /** tenantId de cada withTenant abierto, en orden. */
@@ -122,6 +127,7 @@ export const bd = {
     this.ahora = (): Date => new Date(INICIO_BD);
     this.transiciones = [];
     this.revalidaciones = [];
+    this.ventanas = [];
     this.dentro = false;
     this.ctxs = [];
     this.insertados = [];
@@ -237,6 +243,32 @@ export const moduloDbFalso = {
           (a.id < b.id ? -1 : 1),
       );
     return filas[0] === undefined ? null : completa(filas[0]);
+  },
+
+  /** D21: la ventana de candidatos (mismo orden que `siguienteDisponible`, hasta `limite` filas). */
+  async siguientesDisponibles(
+    tx: TxFalsa,
+    cola: string,
+    ahora: Date,
+    limite: number,
+  ) {
+    bd.ventanas.push({ tenantId: tx.tenantId, cola, limite });
+    return [...bd.trabajos.values()]
+      .filter(
+        (f) =>
+          f.tenantId === tx.tenantId &&
+          f.cola === cola &&
+          f.estado === "en_cola" &&
+          f.disponibleDesde.getTime() <= ahora.getTime(),
+      )
+      .sort(
+        (a, b) =>
+          POR_PRIORIDAD[a.prioridad] - POR_PRIORIDAD[b.prioridad] ||
+          a.creadoEn.getTime() - b.creadoEn.getTime() ||
+          (a.id < b.id ? -1 : 1),
+      )
+      .slice(0, limite)
+      .map(completa);
   },
 
   async transicionar(

@@ -16,7 +16,7 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T7 | Migraciones 0017–0018, esquema y repos de `packages/db` | backend | opus | T3 | ✓ | — | [x] |
 | T8 | `packages/sunat` y `shared/trabajos` | backend | sonnet | T4 ∥ T7 | ✓ | — | [x] |
 | T9 | `packages/queue`: encolado, despachador, arriendos, reconciliador | backend | opus | T4b, T7, T8 | ✓ | — | [x] |
-| T9c | Pruebas de la ventana de candidatos (D21): despachador y `siguientesDisponibles` (rojo) | tester | sonnet | T9 | ✓ | — | [ ] |
+| T9c | Pruebas de la ventana de candidatos (D21): despachador y `siguientesDisponibles` (rojo) | tester | sonnet | T9 | ✓ | — | [x] |
 | T9d | Ventana de candidatos (D21) en `packages/db` y `packages/queue` | backend | opus | T9c | ✓ | — | [ ] |
 | T10 | Worker: ejecutor, errores y reintentos, credencial, token SIRE, `kek.rotar`, `auth.purgar` | backend | opus | T5, T9d | ✓ | — | [ ] |
 | T11 | Backend: módulo `trabajos` (lista, SSE, cancelar, `Encolador`) | backend | opus | T6, T9 ∥ T10 | ✓ | — | [ ] |
@@ -123,6 +123,7 @@ Reglas comunes:
   - con el RUC compartido entre dos estudios, el que lo tiene ocupado no frena los otros RUC del otro estudio.
   Las pruebas de T4/T4b no cambian, salvo comentario si alguna supone la cabeza de línea. (3) `tests/aislamiento/trabajos-repos.spec.ts` (o `trabajos-ventana.spec.ts`), con PostgreSQL y sin Redis: `siguientesDisponibles` respeta orden, `disponible_desde`, estudio (RLS), cola y `limite`; `limite` 0, 51 o no entero lanza antes de consultar; firma en el encabezado. (4) T5 (cuando haya Redis) agrega un caso de integración: un estudio con 30 trabajos de un RUC y 1 de otro RUC despacha el segundo sin esperar a los 30.
 - **Hecho cuando**: `pnpm --filter @contapp/queue test` y `pnpm test:aislamiento` fallan solo por falta de `siguientesDisponibles` y de la ventana; lo demás sigue verde. Commit `test(008): ventana de candidatos con RUC libre (rojo)`.
+- **Resultado** (T9c, 2026-10-27): `packages/queue/src/ventana.spec.ts` (25 pruebas, `RedisFalso`; 6 pasan hoy por coincidir con el comportamiento actual, 19 fallan: ventana de 20, RUC ocupado al frente, prioridad, limite en el puesto 21, cupos sin lectura, cancelados que no gastan el despacho, SET NX perdido, transicion perdida, un despacho por ciclo, un EXISTS por RUC, canal ninguno, RUC compartido) y `tests/aislamiento/trabajos-ventana.spec.ts` (18, PostgreSQL; firma en su encabezado; fallan por `siguientesDisponibles` no exportado). `bd-falsa.ts`: `siguientesDisponibles` y `bd.ventanas`, sin tocar `siguienteDisponible`. Pruebas de T4/T4b/T9 siguen en verde (184). Nota: `config` solo admite `concurrenciaTenant <= max(1, floor(global/2))`; las pruebas lo respetan.
 
 ## T9d · Ventana de candidatos (backend · opus)
 - **Contexto (leer solo esto)**: `docs/specs/008-cola/plan.md` (Contratos: packages/queue, packages/db; Decisiones: Ventana de candidatos (D21)), pruebas de T9c, `packages/db/src/trabajos/registro.ts`, `packages/db/src/index.ts`, `packages/queue/src/{despachador,arriendos,claves}.ts`.
