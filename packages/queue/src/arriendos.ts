@@ -15,6 +15,14 @@ export interface Arrendable {
 
 const conLock = (t: Arrendable): boolean => t.canal !== "ninguno";
 
+/** Clave del lock del RUC del trabajo en su canal, o null si su canal (`ninguno`) no usa lock (D20). */
+export function claveLockRuc(
+  k: ClavesCola,
+  t: Pick<Arrendable, "canal" | "ruc">,
+): string | null {
+  return t.canal === "ninguno" ? null : k.lockRuc(t.canal, t.ruc);
+}
+
 /** Quita los arriendos vencidos de un ZSET de cupo y devuelve cuántos siguen vivos. */
 export async function cuposVivos(
   redis: Pick<ClienteRedis, "zremrangebyscore" | "zcard">,

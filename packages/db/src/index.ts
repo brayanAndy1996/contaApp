@@ -90,6 +90,7 @@ export {
   purgarTerminados,
   revalidarEncolado,
   siguienteDisponible,
+  siguientesDisponibles,
   trabajoVivoPorClave,
   transicionar,
 } from "./trabajos/registro";

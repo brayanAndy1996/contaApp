@@ -192,8 +192,11 @@ export async function contarPendientes(
   return Number(r.rows[0]?.n ?? 0);
 }
 
+// `ahora` es un Date de JS (precisión de milisegundo) y `disponible_desde` guarda microsegundos: se compara a la
+// precisión de `ahora` (disponible_desde truncado al milisegundo <= ahora), así una fila con disponible_desde = now()
+// no queda "en el futuro" por la fracción de milisegundo que el Date de quien llama no puede expresar.
 const SQL_SIGUIENTE = `select ${COLUMNAS} from job_registro
-  where cola = $1 and estado = 'en_cola' and disponible_desde <= $2
+  where cola = $1 and estado = 'en_cola' and disponible_desde < $2::timestamptz + interval '1 millisecond'
   order by (prioridad = 'programado'), creado_en, id
   limit 1`;
 
@@ -205,6 +208,36 @@ export async function siguienteDisponible(
 ): Promise<TrabajoFila | null> {
   const r = await consultar(tx, SQL_SIGUIENTE, [cola, ahora]);
   return r.rows.length === 0 ? null : aFila(r.rows[0]!);
+}
+
+/** Tope de `siguientesDisponibles` (D21): la ventana del despachador es de 20. */
+const LIMITE_MAXIMO_VENTANA = 50;
+
+const SQL_SIGUIENTES = `select ${COLUMNAS} from job_registro
+  where cola = $1 and estado = 'en_cola' and disponible_desde < $2::timestamptz + interval '1 millisecond'
+  order by (prioridad = 'programado'), creado_en, id
+  limit $3`;
+
+/**
+ * Ventana de candidatos (D21): los primeros `limite` en_cola disponibles de la cola, en el orden de
+ * `siguienteDisponible` (que equivale a `limite = 1`). `limite` entero 1..50; si no, lanza RangeError sin consultar.
+ */
+export async function siguientesDisponibles(
+  tx: TxConsulta,
+  cola: ColaTrabajo,
+  ahora: Date,
+  limite: number,
+): Promise<TrabajoFila[]> {
+  if (
+    typeof limite !== "number" ||
+    !Number.isInteger(limite) ||
+    limite < 1 ||
+    limite > LIMITE_MAXIMO_VENTANA
+  ) {
+    throw new RangeError("limite fuera de rango (entero 1..50)");
+  }
+  const r = await consultar(tx, SQL_SIGUIENTES, [cola, ahora, limite]);
+  return r.rows.map(aFila);
 }
 
 /**

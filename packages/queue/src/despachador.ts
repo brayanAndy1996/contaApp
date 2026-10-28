@@ -1,12 +1,14 @@
-// Despachador justo (plan 008; D2, D3, D4, D5, D17, D19, D20; CA-2, CA-3, CA-4, CA-9, CA-14, CA-15).
+// Despachador justo (plan 008; D2, D3, D4, D5, D17, D19, D20, D21; CA-2, CA-3, CA-4, CA-9, CA-14, CA-15).
 // Por cada cola con configuración: liderazgo con arriendo, round-robin de estudios, cupo global, cupo
 // del estudio y lock del RUC. Cada estudio se atiende en un withTenant propio y secuencial (nunca
 // anidado); la cola externa (BullMQ) y los eventos se tocan después de que el callback termina.
+// Ventana de candidatos (D21): por estudio se miran hasta VENTANA_CANDIDATOS trabajos en orden y se
+// despacha el primero cuyo RUC esté libre; saltar un RUC ocupado no toma locks (CA-3 intacto).
 import {
   contarPendientes,
   estadoCredencial,
   revalidarEncolado,
-  siguienteDisponible,
+  siguientesDisponibles,
   transicionar,
   type ConfigCola,
   type MotivoTrabajo,
@@ -14,6 +16,7 @@ import {
 } from "@contapp/db";
 import { randomUUID } from "node:crypto";
 import {
+  claveLockRuc,
   cuposVivos,
   soltarLockRuc,
   tomarCupos,
@@ -35,6 +38,9 @@ import {
   type Reloj,
 } from "./tipos.js";
 
+/** Candidatos que el despachador mira por estudio y cola en cada ciclo (D21). */
+export const VENTANA_CANDIDATOS = 20;
+
 export interface OpcionesDespachador {
   db: DbCola;
   redis: ClienteRedis;
@@ -43,17 +49,23 @@ export interface OpcionesDespachador {
   agregarACola: AgregarACola;
 }
 
-type Resultado =
-  | { tipo: "vacio"; quedan: boolean }
-  | { tipo: "bloqueado" }
-  | { tipo: "perdido"; fila: TrabajoFila }
-  | { tipo: "despachado"; fila: TrabajoFila }
-  | {
-      tipo: "descartado";
-      fila: TrabajoFila;
-      estado: "cancelado" | "error";
-      motivo: MotivoTrabajo;
-    };
+interface Descartado {
+  fila: TrabajoFila;
+  estado: "cancelado" | "error";
+  motivo: MotivoTrabajo;
+}
+
+/** Lo que pasó dentro del withTenant de un estudio. Cupos, BullMQ y eventos van después del commit. */
+interface Atencion {
+  /** La ventana vino vacía. */
+  vacia: boolean;
+  /** Con la ventana vacía: si aún quedan en_cola (p. ej. con disponible_desde futuro). */
+  quedan: boolean;
+  despachado: TrabajoFila | null;
+  descartados: Descartado[];
+  /** Candidatos que otro actor cambió antes (transición perdida): solo se quitan de la pista. */
+  perdidos: TrabajoFila[];
+}
 
 export class Despachador {
   private readonly db: DbCola;
@@ -116,6 +128,8 @@ export class Despachador {
             ...tenants.filter((t) => t > ultimo),
             ...tenants.filter((t) => t <= ultimo),
           ];
+    // Locks de RUC vistos ocupados (o tomados) en este ciclo y cola: cada uno se consulta una sola vez.
+    const ocupados = new Set<string>();
     for (const tenantId of orden) {
       const ahora = this.reloj.ahora();
       const ms = ahora.getTime();
@@ -131,45 +145,74 @@ export class Despachador {
       ) {
         continue;
       }
-      if (await this.atenderEstudio(cola, tenantId, ahora)) {
+      if (await this.atenderEstudio(cola, tenantId, ahora, ocupados)) {
         this.ultimo.set(cola, tenantId);
       }
     }
   }
 
-  /** Intenta despachar el siguiente trabajo del estudio. true si lo despachó. */
+  /**
+   * Recorre la ventana del estudio y despacha como máximo un trabajo. true si el puntero del round-robin
+   * avanza: despachó, o la ventana tenía candidatos y se agotó sin despachar (D21, (5)).
+   */
   private async atenderEstudio(
     cola: NombreCola,
     tenantId: string,
     ahora: Date,
+    ocupados: Set<string>,
   ): Promise<boolean> {
     // Lock del RUC tomado dentro del callback (se suelta si la transacción falla o se pierde).
     const tomado: { fila: TrabajoFila | null } = { fila: null };
-    let r: Resultado;
+    let a: Atencion;
     try {
-      r = await this.db.withTenant(
-        { tenantId },
-        async (tx): Promise<Resultado> => {
-          const fila = await siguienteDisponible(tx, cola, ahora);
-          if (fila === null) {
-            return {
-              tipo: "vacio",
-              quedan: (await contarPendientes(tx, cola)) > 0,
-            };
+      a = await this.db.withTenant({ tenantId }, async (tx) => {
+        const r: Atencion = {
+          vacia: false,
+          quedan: false,
+          despachado: null,
+          descartados: [],
+          perdidos: [],
+        };
+        const ventana = await siguientesDisponibles(
+          tx,
+          cola,
+          ahora,
+          VENTANA_CANDIDATOS,
+        );
+        if (ventana.length === 0) {
+          r.vacia = true;
+          r.quedan = (await contarPendientes(tx, cola)) > 0;
+          return r;
+        }
+        const descartar = async (
+          fila: TrabajoFila,
+          estado: "cancelado" | "error",
+          motivo: MotivoTrabajo,
+        ): Promise<void> => {
+          if (await transicionar(tx, fila.id, "en_cola", estado, { motivo })) {
+            r.descartados.push({ fila, estado, motivo });
+          } else {
+            r.perdidos.push(fila);
           }
-          const descartar = async (
-            estado: "cancelado" | "error",
-            motivo: MotivoTrabajo,
-          ): Promise<Resultado> =>
-            (await transicionar(tx, fila.id, "en_cola", estado, { motivo }))
-              ? { tipo: "descartado", fila, estado, motivo }
-              : { tipo: "perdido", fila };
+        };
 
+        for (const fila of ventana) {
+          // (2) RUC ocupado: se salta sin revalidar ni tocar el trabajo.
+          const clave = claveLockRuc(this.k, fila);
+          if (clave !== null) {
+            if (ocupados.has(clave)) continue;
+            if ((await this.redis.exists(clave)) > 0) {
+              ocupados.add(clave);
+              continue;
+            }
+          }
+          // (3) RUC libre: tipo, acceso (D17) y credencial (CA-9); una cancelación no gasta el despacho.
           let def;
           try {
             def = definicionDe(fila.tipo);
           } catch {
-            return descartar("error", "error_interno");
+            await descartar(fila, "error", "error_interno");
+            continue;
           }
           const acceso = await revalidarEncolado(tx, {
             id: fila.id,
@@ -177,87 +220,92 @@ export class Despachador {
             creadoPor: fila.creadoPor,
             rolesPermitidos: rolesPermitidos(def.permiso),
           });
-          if (acceso !== "ok") return descartar("cancelado", "acceso_retirado");
+          if (acceso !== "ok") {
+            await descartar(fila, "cancelado", "acceso_retirado");
+            continue;
+          }
           if (
             def.credencial !== null &&
             (await estadoCredencial(tx, fila.clienteId, def.credencial)) ===
               "invalida"
           ) {
-            return descartar("cancelado", "credencial_invalida");
+            await descartar(fila, "cancelado", "credencial_invalida");
+            continue;
           }
-          if (!(await tomarLockRuc(this.redis, this.k, fila)))
-            return { tipo: "bloqueado" };
+          if (!(await tomarLockRuc(this.redis, this.k, fila))) {
+            if (clave !== null) ocupados.add(clave); // lo ganó otro entre EXISTS y SET NX
+            continue;
+          }
           tomado.fila = fila;
           if (!(await transicionar(tx, fila.id, "en_cola", "ejecutando"))) {
-            return { tipo: "perdido", fila };
+            tomado.fila = null;
+            await this.soltar(fila);
+            r.perdidos.push(fila);
+            continue;
           }
-          return { tipo: "despachado", fila };
-        },
-      );
+          if (clave !== null) ocupados.add(clave);
+          r.despachado = fila;
+          return r; // (4) uno por estudio y cola en cada ciclo
+        }
+        return r;
+      });
     } catch {
       registrarFallo("despachador: fallo al atender un estudio");
       if (tomado.fila !== null) await this.soltar(tomado.fila);
       return false;
     }
-    return this.despuesDelCommit(cola, tenantId, ahora, r, tomado.fila);
+    return this.despuesDelCommit(cola, tenantId, ahora, a);
   }
 
   private async despuesDelCommit(
     cola: NombreCola,
     tenantId: string,
     ahora: Date,
-    r: Resultado,
-    lock: TrabajoFila | null,
+    a: Atencion,
   ): Promise<boolean> {
-    switch (r.tipo) {
-      case "vacio":
-        if (!r.quedan) {
-          await this.redis.srem(this.k.tenants(cola), tenantId);
-          await this.redis.del(this.k.pend(cola, tenantId));
-        }
-        return false;
-      case "bloqueado":
-        return false;
-      case "perdido":
-        if (lock !== null) await this.soltar(lock);
-        await this.redis.zrem(this.k.pend(cola, tenantId), r.fila.id);
-        return false;
-      case "descartado":
-        await this.redis.zrem(this.k.pend(cola, tenantId), r.fila.id);
-        await publicarEvento(
-          this.redis,
-          tenantId,
-          vistaDeFila(r.fila, {
-            estado: r.estado,
-            motivo: r.motivo,
-            terminadoEn: ahora,
-          }),
-          { prefijo: this.prefijo },
-        );
-        return false;
-      case "despachado": {
-        const f = r.fila;
-        await tomarCupos(this.redis, this.k, f, ahora.getTime());
-        await this.redis.zrem(this.k.pend(cola, tenantId), f.id);
-        try {
-          await this.agregarACola(cola, payloadBullmq(f));
-        } catch {
-          // Queda `ejecutando` con arriendo: al vencer, el reconciliador lo resuelve (CA-10).
-          registrarFallo("despachador: no se pudo agregar a la cola externa");
-        }
-        await publicarEvento(
-          this.redis,
-          tenantId,
-          vistaDeFila(f, {
-            estado: "ejecutando",
-            motivo: null,
-            iniciadoEn: ahora,
-          }),
-          { prefijo: this.prefijo },
-        );
-        return true;
+    const pend = this.k.pend(cola, tenantId);
+    if (a.vacia) {
+      if (!a.quedan) {
+        await this.redis.srem(this.k.tenants(cola), tenantId);
+        await this.redis.del(pend);
       }
+      return false;
     }
+    for (const f of a.perdidos) await this.redis.zrem(pend, f.id);
+    for (const d of a.descartados) {
+      await this.redis.zrem(pend, d.fila.id);
+      await publicarEvento(
+        this.redis,
+        tenantId,
+        vistaDeFila(d.fila, {
+          estado: d.estado,
+          motivo: d.motivo,
+          terminadoEn: ahora,
+        }),
+        { prefijo: this.prefijo },
+      );
+    }
+    const f = a.despachado;
+    if (f === null) return true; // ventana agotada: el round-robin avanza igual (D21)
+    await tomarCupos(this.redis, this.k, f, ahora.getTime());
+    await this.redis.zrem(pend, f.id);
+    try {
+      await this.agregarACola(cola, payloadBullmq(f));
+    } catch {
+      // Queda `ejecutando` con arriendo: al vencer, el reconciliador lo resuelve (CA-10).
+      registrarFallo("despachador: no se pudo agregar a la cola externa");
+    }
+    await publicarEvento(
+      this.redis,
+      tenantId,
+      vistaDeFila(f, {
+        estado: "ejecutando",
+        motivo: null,
+        iniciadoEn: ahora,
+      }),
+      { prefijo: this.prefijo },
+    );
+    return true;
   }
 
   private async soltar(f: TrabajoFila): Promise<void> {
