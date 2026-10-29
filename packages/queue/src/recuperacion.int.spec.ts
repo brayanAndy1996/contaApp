@@ -63,7 +63,12 @@ beforeAll(async () => {
   db = crearDbRol("contapp_worker", 6);
   redis = conectarRedis();
   e = new Escenario(admin);
-  await fijarConfig(admin, "sire", { global: 4, tenant: 2, espera: 0, reintentos: 3 });
+  await fijarConfig(admin, "sire", {
+    global: 4,
+    tenant: 2,
+    espera: 0,
+    reintentos: 3,
+  });
 });
 
 afterAll(async () => {
@@ -75,7 +80,14 @@ afterAll(async () => {
 });
 
 /** Un "proceso" nuevo: otro despachador (otro id de líder); BullMQ no participa, así que nadie ejecuta lo despachado. */
-const proceso = () => new Despachador({ db, redis, reloj, prefijo, agregarACola: async () => undefined });
+const proceso = () =>
+  new Despachador({
+    db,
+    redis,
+    reloj,
+    prefijo,
+    agregarACola: async () => undefined,
+  });
 const reconciliador = () => new Reconciliador({ db, redis, reloj, prefijo });
 /**
  * El reconciliador repone `tenants:sire` con TODOS los estudios de la base que tengan `en_cola` sin cambios en ≥ 30 s (también
@@ -84,13 +96,15 @@ const reconciliador = () => new Reconciliador({ db, redis, reloj, prefijo });
  */
 async function soloMios(solo: string[] | null): Promise<void> {
   for (const t of await redis.smembers(k.tenants("sire"))) {
-    if (!e.estudios.includes(t) || (solo !== null && !solo.includes(t))) await redis.srem(k.tenants("sire"), t);
+    if (!e.estudios.includes(t) || (solo !== null && !solo.includes(t)))
+      await redis.srem(k.tenants("sire"), t);
   }
 }
 
 /** Arranca un proceso nuevo dando por muerto al anterior: su liderazgo (arriendo de 30 s) vence. */
 async function arrancar(solo: string[] | null = null): Promise<Despachador> {
-  for (const c of await redis.keys(`${prefijo}lider:*`)) await redis.pexpire(c, 1);
+  for (const c of await redis.keys(`${prefijo}lider:*`))
+    await redis.pexpire(c, 1);
   await dormir(10);
   const d = proceso();
   const ciclo = d.ciclo.bind(d);
@@ -100,10 +114,19 @@ async function arrancar(solo: string[] | null = null): Promise<Despachador> {
   };
   return d;
 }
-const estado = async (id: string) => (await e.fila(id)) as { estado: string; motivo: string | null; intentos: number };
+const estado = async (id: string) =>
+  (await e.fila(id)) as {
+    estado: string;
+    motivo: string | null;
+    intentos: number;
+  };
 
 /** Siembra un trabajo del tipo dado y lo anuncia. */
-async function sembrar(t: string, c: ClientePrueba, tipo: string): Promise<string> {
+async function sembrar(
+  t: string,
+  c: ClientePrueba,
+  tipo: string,
+): Promise<string> {
   const [id] = await e.trabajosEnMasa(t, c, 1, { tipo });
   await anunciar(redis, prefijo, t, [id!]);
   return id!;
@@ -117,8 +140,9 @@ async function sembrar(t: string, c: ClientePrueba, tipo: string): Promise<strin
  */
 async function retrasarCupos(ms: number) {
   for (const c of await redis.keys(`${prefijo}cupo:*`)) {
-    const pares = await redis.zrange(c, 0, -1, "WITHSCORES");
-    for (let i = 0; i < pares.length; i += 2) await redis.zadd(c, Number(pares[i + 1]) - ms, pares[i]!);
+    const pares = await redis.zrange(c, "0", "-1", "WITHSCORES");
+    for (let i = 0; i < pares.length; i += 2)
+      await redis.zadd(c, Number(pares[i + 1]) - ms, pares[i]!);
   }
 }
 
@@ -126,13 +150,17 @@ async function retrasarCupos(ms: number) {
 async function pasaElTiempo(ids: string[]) {
   reloj.avanzar(31_000);
   await retrasarCupos(31_000);
-  const claves = (await redis.keys(`${prefijo}ejec:*`)).concat(await redis.keys(`${prefijo}lock:ruc:*`), await redis.keys(`${prefijo}lider:*`));
+  const claves = (await redis.keys(`${prefijo}ejec:*`)).concat(
+    await redis.keys(`${prefijo}lock:ruc:*`),
+    await redis.keys(`${prefijo}lider:*`),
+  );
   for (const c of claves) await redis.pexpire(c, 1);
   await e.envejecer(ids);
   await dormir(15);
 }
 
-const clavesVivas = async (patron: string) => (await redis.keys(`${prefijo}${patron}`)).length;
+const clavesVivas = async (patron: string) =>
+  (await redis.keys(`${prefijo}${patron}`)).length;
 
 describe("CA-10: el lock del RUC y el cupo se liberan solos", () => {
   it("idempotente: queda ejecutando con cupo y lock; mientras el arriendo vive otro trabajo del mismo RUC espera; al vencer vuelve a en_cola con un intento consumido", async () => {
@@ -146,19 +174,28 @@ describe("CA-10: el lock del RUC y el cupo se liberan solos", () => {
     expect(await redis.zscore(k.cupoTenant("sire", t), j1)).not.toBeNull();
     expect(await redis.zscore(k.cupoGlobal("sire"), j1)).not.toBeNull();
     expect(await redis.pttl(k.ejec(j1))).toBeLessThanOrEqual(30_000);
-    expect(await redis.pttl(k.lockRuc("sire", c.ruc))).toBeLessThanOrEqual(30_000);
+    expect(await redis.pttl(k.lockRuc("sire", c.ruc))).toBeLessThanOrEqual(
+      30_000,
+    );
 
     // Otro trabajo del mismo RUC no puede empezar mientras el lock vive.
     const j2 = await sembrar(t, c, "prueba.eco");
     await proceso().ciclo(); // otro líder no entra: el liderazgo también vive
     await reconciliador().ciclo();
-    expect((await estado(j1)).estado, "con el arriendo vivo el reconciliador no toca el trabajo").toBe("ejecutando");
+    expect(
+      (await estado(j1)).estado,
+      "con el arriendo vivo el reconciliador no toca el trabajo",
+    ).toBe("ejecutando");
     expect((await estado(j2)).estado).toBe("en_cola");
 
     await pasaElTiempo([j1]);
     const resumen = await reconciliador().ciclo();
     expect(resumen.reencolados).toBeGreaterThanOrEqual(1);
-    expect(await estado(j1)).toMatchObject({ estado: "en_cola", intentos: 1, motivo: null });
+    expect(await estado(j1)).toMatchObject({
+      estado: "en_cola",
+      intentos: 1,
+      motivo: null,
+    });
     expect(await redis.exists(k.lockRuc("sire", c.ruc))).toBe(0);
     expect(await redis.zscore(k.cupoTenant("sire", t), j1)).toBeNull();
     expect(await redis.zscore(k.cupoGlobal("sire"), j1)).toBeNull();
@@ -181,11 +218,22 @@ describe("CA-10: el lock del RUC y el cupo se liberan solos", () => {
     await pasaElTiempo([j]);
     const resumen = await reconciliador().ciclo();
     expect(resumen.interrumpidos).toBeGreaterThanOrEqual(1);
-    expect(await estado(j)).toMatchObject({ estado: "error", motivo: "interrumpido", intentos: 0 });
+    expect(await estado(j)).toMatchObject({
+      estado: "error",
+      motivo: "interrumpido",
+      intentos: 0,
+    });
     expect(await redis.exists(k.lockRuc("sire", c.ruc))).toBe(0);
     expect(await redis.zscore(k.cupoTenant("sire", t), j)).toBeNull();
-    await esperarHasta(() => ev.de(j).some((x) => x.estado === "error"), "evento de error");
-    expect(ev.de(j).find((x) => x.estado === "error")).toMatchObject({ estado: "error", motivo: "interrumpido", id: j });
+    await esperarHasta(
+      () => ev.de(j).some((x) => x.estado === "error"),
+      "evento de error",
+    );
+    expect(ev.de(j).find((x) => x.estado === "error")).toMatchObject({
+      estado: "error",
+      motivo: "interrumpido",
+      id: j,
+    });
 
     // Ningún proceso lo vuelve a despachar.
     await (await arrancar([t])).ciclo();
@@ -200,17 +248,27 @@ describe("CA-10: el lock del RUC y el cupo se liberan solos", () => {
     const j = await sembrar(t, c, "prueba.eco");
     for (let caida = 1; caida <= 3; caida++) {
       await (await arrancar([t])).ciclo();
-      expect((await estado(j)).estado, `despacho antes de la caída ${caida}`).toBe("ejecutando");
+      expect(
+        (await estado(j)).estado,
+        `despacho antes de la caída ${caida}`,
+      ).toBe("ejecutando");
       await tomarEjecucion(redis, k, j);
       await pasaElTiempo([j]);
       await reconciliador().ciclo();
-      expect(await estado(j), `tras la caída ${caida}`).toMatchObject({ estado: "en_cola", intentos: caida });
+      expect(await estado(j), `tras la caída ${caida}`).toMatchObject({
+        estado: "en_cola",
+        intentos: caida,
+      });
     }
     await (await arrancar([t])).ciclo();
     await tomarEjecucion(redis, k, j);
     await pasaElTiempo([j]);
     await reconciliador().ciclo();
-    expect(await estado(j)).toMatchObject({ estado: "error", motivo: "interrumpido", intentos: 3 });
+    expect(await estado(j)).toMatchObject({
+      estado: "error",
+      motivo: "interrumpido",
+      intentos: 3,
+    });
   });
 
   it("10 caídas seguidas (con y sin ejecutor arrancado) no dejan contadores desfasados: cupos vacíos, sin ejec ni locks, y el cupo global sigue disponible", async () => {
@@ -220,11 +278,17 @@ describe("CA-10: el lock del RUC y el cupo se liberan solos", () => {
       const t = await e.estudio();
       tenants.push(t);
       const c = await e.cliente(t);
-      const j = await sembrar(t, c, i % 2 === 0 ? "prueba.eco" : "prueba.no_idempotente");
+      const j = await sembrar(
+        t,
+        c,
+        i % 2 === 0 ? "prueba.eco" : "prueba.no_idempotente",
+      );
       ids.push(j);
       const p = await arrancar([t]); // proceso nuevo en cada vuelta (otro id de líder) que solo atiende a este estudio
       await p.ciclo();
-      expect((await estado(j)).estado, `despachado en la vuelta ${i}`).toBe("ejecutando");
+      expect((await estado(j)).estado, `despachado en la vuelta ${i}`).toBe(
+        "ejecutando",
+      );
       if (i % 3 !== 0) await tomarEjecucion(redis, k, j); // algunas caen antes de que el ejecutor tome `ejec`
       await pasaElTiempo([j]);
       await reconciliador().ciclo();
@@ -232,11 +296,17 @@ describe("CA-10: el lock del RUC y el cupo se liberan solos", () => {
     // Pares (idempotentes) → en_cola con un intento; impares (no idempotentes) → interrumpidos.
     for (let i = 0; i < 10; i++) {
       expect(await estado(ids[i]!), `trabajo ${i}`).toMatchObject(
-        i % 2 === 0 ? { estado: "en_cola", intentos: 1 } : { estado: "error", motivo: "interrumpido", intentos: 0 },
+        i % 2 === 0
+          ? { estado: "en_cola", intentos: 1 }
+          : { estado: "error", motivo: "interrumpido", intentos: 0 },
       );
     }
     expect(await redis.zcard(k.cupoGlobal("sire")), "cupo global").toBe(0);
-    for (const t of tenants) expect(await redis.zcard(k.cupoTenant("sire", t)), `cupo del estudio ${t}`).toBe(0);
+    for (const t of tenants)
+      expect(
+        await redis.zcard(k.cupoTenant("sire", t)),
+        `cupo del estudio ${t}`,
+      ).toBe(0);
     expect(await clavesVivas("ejec:*")).toBe(0);
     expect(await clavesVivas("lock:ruc:*")).toBe(0);
 
@@ -249,6 +319,9 @@ describe("CA-10: el lock del RUC y el cupo se liberan solos", () => {
     await p.ciclo();
     await p.ciclo();
     const dos = await e.estados(nuevos);
-    expect([...dos.values()].map((x) => x.estado)).toEqual(["ejecutando", "ejecutando"]);
+    expect([...dos.values()].map((x) => x.estado)).toEqual([
+      "ejecutando",
+      "ejecutando",
+    ]);
   });
 });

@@ -10,10 +10,23 @@ import type { ContappDb, Intento, Tx } from "./soporte";
 
 export { crearDb, exportado };
 
-export const COLAS = ["sire", "sol", "xml", "archivos", "programados", "notificaciones"] as const;
+export const COLAS = [
+  "sire",
+  "sol",
+  "xml",
+  "archivos",
+  "programados",
+  "notificaciones",
+] as const;
 export const CANALES = ["sire", "sol", "ninguno"] as const;
 export const PRIORIDADES = ["interactivo", "programado"] as const;
-export const ESTADOS = ["en_cola", "ejecutando", "completado", "error", "cancelado"] as const;
+export const ESTADOS = [
+  "en_cola",
+  "ejecutando",
+  "completado",
+  "error",
+  "cancelado",
+] as const;
 export const VIVOS = ["en_cola", "ejecutando"] as const;
 export const TERMINALES = ["completado", "error", "cancelado"] as const;
 export const MOTIVOS = [
@@ -54,7 +67,8 @@ export const COLUMNAS_JOB = [
   "actualizado_en",
 ].sort();
 
-export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export const codigo = (i: Intento): string => (i.ok ? "ok" : i.code);
 
@@ -94,22 +108,37 @@ export class EscenarioTrabajos {
     return this.ea.estudio();
   }
 
-  miembro(tenantId: string, rol: RolMembresia = "contador", o: { desactivada?: boolean } = {}) {
+  miembro(
+    tenantId: string,
+    rol: RolMembresia = "contador",
+    o: { desactivada?: boolean } = {},
+  ) {
     return this.ea.miembro(tenantId, rol, o);
   }
 
-  asignar(tenantId: string, clienteId: string, usuarioId: string, tipo: "responsable" | "colaborador" = "colaborador") {
+  asignar(
+    tenantId: string,
+    clienteId: string,
+    usuarioId: string,
+    tipo: "responsable" | "colaborador" = "colaborador",
+  ) {
     return this.ea.asignar(tenantId, clienteId, usuarioId, tipo);
   }
 
   async cliente(tenantId: string): Promise<ClientePrueba> {
     const id = await this.ea.cliente(tenantId);
-    const r = await this.admin.query("select ruc from cliente where id = $1", [id]);
+    const r = await this.admin.query("select ruc from cliente where id = $1", [
+      id,
+    ]);
     return { id, ruc: String(r.rows[0].ruc) };
   }
 
   /** Inserta un trabajo directamente (superusuario, sin pasar por los repositorios). Devuelve su id. */
-  async job(tenantId: string, c: ClientePrueba, o: OpcionesJob = {}): Promise<string> {
+  async job(
+    tenantId: string,
+    c: ClientePrueba,
+    o: OpcionesJob = {},
+  ): Promise<string> {
     const estado = o.estado ?? "en_cola";
     const terminal = (TERMINALES as readonly string[]).includes(estado);
     const hace = o.hace ?? 0;
@@ -149,15 +178,29 @@ export class EscenarioTrabajos {
 
   /** Fila completa del trabajo (superusuario). */
   async fila(id: string): Promise<any | undefined> {
-    return (await this.admin.query("select * from job_registro where id = $1", [id])).rows[0];
+    return (
+      await this.admin.query("select * from job_registro where id = $1", [id])
+    ).rows[0];
   }
 
   /** Credencial sintetica (bytes aleatorios) insertada con el superusuario. Devuelve su id. */
-  async credencial(tenantId: string, clienteId: string, tipo: "sol" | "sire_api" = "sol"): Promise<string> {
+  async credencial(
+    tenantId: string,
+    clienteId: string,
+    tipo: "sol" | "sire_api" = "sol",
+  ): Promise<string> {
     const r = await this.admin.query(
       `insert into credencial (tenant_id, cliente_id, tipo, ciphertext, nonce, tag, dek_envuelta, kek_id, version)
        values ($1, $2, $3, $4, $5, $6, $7, 'k1', 1) returning id`,
-      [tenantId, clienteId, tipo, randomBytes(64), randomBytes(12), randomBytes(16), randomBytes(512)],
+      [
+        tenantId,
+        clienteId,
+        tipo,
+        randomBytes(64),
+        randomBytes(12),
+        randomBytes(16),
+        randomBytes(512),
+      ],
     );
     this.credenciales.push(r.rows[0].id);
     return r.rows[0].id as string;
@@ -165,19 +208,28 @@ export class EscenarioTrabajos {
 
   async limpiar(): Promise<void> {
     const t = this.ea.estudios;
-    await this.admin.query("delete from job_registro where tenant_id = any($1::uuid[])", [t]).catch(() => undefined);
-    await this.admin.query("delete from credencial where tenant_id = any($1::uuid[])", [t]).catch(() => undefined);
+    await this.admin
+      .query("delete from job_registro where tenant_id = any($1::uuid[])", [t])
+      .catch(() => undefined);
+    await this.admin
+      .query("delete from credencial where tenant_id = any($1::uuid[])", [t])
+      .catch(() => undefined);
     await this.ea.limpiar();
   }
 }
 
 /** Ejecuta `fn` en una conexion del pool dentro de BEGIN ... ROLLBACK; `rol` opcional con SET LOCAL ROLE. */
-export async function enTx<T>(pool: Pool, rol: string | null, fn: (c: PoolClient) => Promise<T>): Promise<T> {
+export async function enTx<T>(
+  pool: Pool,
+  rol: string | null,
+  fn: (c: PoolClient) => Promise<T>,
+): Promise<T> {
   const c = await pool.connect();
   try {
     await c.query("BEGIN");
     if (rol) {
-      if (!/^contapp_[a-z]+$/.test(rol)) throw new Error("rol invalido en la prueba");
+      if (!/^contapp_[a-z]+$/.test(rol))
+        throw new Error("rol invalido en la prueba");
       await c.query(`SET LOCAL ROLE ${rol}`);
     }
     return await fn(c);
@@ -189,7 +241,12 @@ export async function enTx<T>(pool: Pool, rol: string | null, fn: (c: PoolClient
 
 /** Sentencia dentro de un SAVEPOINT: devuelve el resultado o el error de PG sin abortar la transaccion. */
 export async function probar(
-  c: { query(t: string, v?: unknown[]): Promise<{ rows: any[]; rowCount: number | null }> },
+  c: {
+    query(
+      t: string,
+      v?: unknown[],
+    ): Promise<{ rows: any[]; rowCount: number | null }>;
+  },
   sql: string,
   valores: unknown[] = [],
 ): Promise<Intento & { rows?: any[] }> {
@@ -201,7 +258,11 @@ export async function probar(
   } catch (e) {
     await c.query("ROLLBACK TO SAVEPOINT prueba");
     const err = e as { code?: string; message?: string };
-    return { ok: false, code: String(err.code ?? ""), message: String(err.message ?? "") };
+    return {
+      ok: false,
+      code: String(err.code ?? ""),
+      message: String(err.message ?? ""),
+    };
   }
 }
 
@@ -210,12 +271,17 @@ export interface SistemaDb extends ContappDb {
 }
 
 /** Una base como `rolApp` con `withSistema` (aun no existe: el rojo debe decirlo claro). */
-export function conSistema(rolApp: "contapp_backend" | "contapp_worker", poolMax = 2): SistemaDb {
+export function conSistema(
+  rolApp: "contapp_backend" | "contapp_worker",
+  poolMax = 2,
+): SistemaDb {
   const db = crearDb(rolApp, poolMax);
   if (typeof (db as Partial<SistemaDb>).withSistema !== "function") {
     // cerramos el pool que acabamos de abrir antes de fallar
     void db.close().catch(() => undefined);
-    throw new Error("ContappDb aun no expone withSistema (implementacion pendiente, T7)");
+    throw new Error(
+      "ContappDb aun no expone withSistema (implementacion pendiente, T7)",
+    );
   }
   return db as SistemaDb;
 }

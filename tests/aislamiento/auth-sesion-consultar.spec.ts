@@ -9,7 +9,14 @@
 // Rojo: la función aún no existe (SQLSTATE 42883).
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { Escenario, abrirAdmin, abrirApp, exito, llamar, nuevoToken } from "./auth-soporte";
+import {
+  Escenario,
+  abrirAdmin,
+  abrirApp,
+  exito,
+  llamar,
+  nuevoToken,
+} from "./auth-soporte";
 import { tenantDe } from "./soporte";
 
 let app: Pool;
@@ -30,15 +37,24 @@ afterAll(async () => {
 const A = () => tenantDe("A");
 const B = () => tenantDe("B");
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const COLUMNAS = ["sesion_id", "usuario_id", "tenant_activo", "estudio_revocado", "expira_absoluta"];
+const COLUMNAS = [
+  "sesion_id",
+  "usuario_id",
+  "tenant_activo",
+  "estudio_revocado",
+  "expira_absoluta",
+];
 
-const adm = async (sql: string, v: unknown[] = []) => (await admin.query(sql, v)).rows;
+const adm = async (sql: string, v: unknown[] = []) =>
+  (await admin.query(sql, v)).rows;
 const SEL_CONSULTAR = "select * from auth.sesion_consultar($1::bytea)";
 const SEL_VALIDAR = "select * from auth.sesion_validar($1::bytea)";
 const consultar = (t: Buffer) => exito(llamar(app, SEL_CONSULTAR, [t]));
 const validar = (t: Buffer) => exito(llamar(app, SEL_VALIDAR, [t]));
-const filaSesion = async (t: Buffer) => (await adm("select * from auth.sesion where token_hash = $1", [t]))[0];
-const mover = (t: Buffer, set: string) => adm(`update auth.sesion set ${set} where token_hash = $1`, [t]);
+const filaSesion = async (t: Buffer) =>
+  (await adm("select * from auth.sesion where token_hash = $1", [t]))[0];
+const mover = (t: Buffer, set: string) =>
+  adm(`update auth.sesion set ${set} where token_hash = $1`, [t]);
 
 /** Sesión con `ultimo_uso` de hace 10 min (> 5 min: `sesion_validar` SÍ la renovaría). */
 async function sesionAntigua(estudios: string[], activo: string | null) {
@@ -54,7 +70,11 @@ describe("auth.sesion_consultar (D22): misma validación y salida que auth.sesio
     const c = await consultar(t);
     expect(c).toHaveLength(1);
     expect(Object.keys(c[0]!)).toEqual(COLUMNAS);
-    expect(c[0]).toMatchObject({ usuario_id: u.id, tenant_activo: A(), estudio_revocado: false });
+    expect(c[0]).toMatchObject({
+      usuario_id: u.id,
+      tenant_activo: A(),
+      estudio_revocado: false,
+    });
     expect(c[0].sesion_id).toMatch(UUID);
     expect(c[0].expira_absoluta).toBeInstanceOf(Date);
     expect(c).toEqual(await validar(t));
@@ -64,7 +84,10 @@ describe("auth.sesion_consultar (D22): misma validación y salida que auth.sesio
     const { t } = await sesionAntigua([A()], null);
     const c = await consultar(t);
     expect(c).toHaveLength(1);
-    expect(c[0]).toMatchObject({ tenant_activo: null, estudio_revocado: false });
+    expect(c[0]).toMatchObject({
+      tenant_activo: null,
+      estudio_revocado: false,
+    });
     expect(c).toEqual(await validar(t));
   });
 
@@ -86,7 +109,10 @@ describe("auth.sesion_consultar (D22): misma validación y salida que auth.sesio
 
   it("vencida absoluta (> 12 h): cero filas aunque haya actividad reciente (como sesion_validar)", async () => {
     const { t } = await sesionAntigua([A()], A());
-    await mover(t, "ultimo_uso = now(), expira_absoluta = now() - interval '1 second'");
+    await mover(
+      t,
+      "ultimo_uso = now(), expira_absoluta = now() - interval '1 second'",
+    );
     expect(await consultar(t)).toHaveLength(0);
     expect(await validar(t)).toHaveLength(0);
   });
@@ -98,17 +124,27 @@ describe("auth.sesion_consultar (D22): misma validación y salida que auth.sesio
   it("estudio sin membresía: devuelve tenant_activo NULL y estudio_revocado true, igual que sesion_validar", async () => {
     const u = await esc.usuario({ estudios: [A(), B()] });
     const t = await esc.sesion(u.id, B());
-    await adm("delete from membresia where tenant_id = $1 and usuario_id = $2", [B(), u.id]);
+    await adm(
+      "delete from membresia where tenant_id = $1 and usuario_id = $2",
+      [B(), u.id],
+    );
     const c = await consultar(t);
     expect(c).toHaveLength(1);
-    expect(c[0]).toMatchObject({ usuario_id: u.id, tenant_activo: null, estudio_revocado: true });
+    expect(c[0]).toMatchObject({
+      usuario_id: u.id,
+      tenant_activo: null,
+      estudio_revocado: true,
+    });
     expect(c).toEqual(await validar(t));
   });
 
   it("estudio con la membresía desactivada: estudio_revocado true", async () => {
     const u = await esc.usuario({ estudios: [A(), B()] });
     const t = await esc.sesion(u.id, B());
-    await adm("update membresia set desactivada_en = now() where tenant_id = $1 and usuario_id = $2", [B(), u.id]);
+    await adm(
+      "update membresia set desactivada_en = now() where tenant_id = $1 and usuario_id = $2",
+      [B(), u.id],
+    );
     const c = await consultar(t);
     expect(c[0]).toMatchObject({ tenant_activo: null, estudio_revocado: true });
   });
@@ -124,13 +160,18 @@ describe("auth.sesion_consultar (D22): no escribe nada", () => {
     expect(despues).toEqual(antes);
     // Control: sesion_validar sí la renueva, así la igualdad anterior no es vacía.
     await validar(t);
-    expect((await filaSesion(t)).ultimo_uso.getTime()).toBeGreaterThan(antes.ultimo_uso.getTime());
+    expect((await filaSesion(t)).ultimo_uso.getTime()).toBeGreaterThan(
+      antes.ultimo_uso.getTime(),
+    );
   });
 
   it("estudio sin membresía: informa estudio_revocado pero NO limpia tenant_activo (sesion_validar sí)", async () => {
     const u = await esc.usuario({ estudios: [A(), B()] });
     const t = await esc.sesion(u.id, B());
-    await adm("delete from membresia where tenant_id = $1 and usuario_id = $2", [B(), u.id]);
+    await adm(
+      "delete from membresia where tenant_id = $1 and usuario_id = $2",
+      [B(), u.id],
+    );
     const antes = await filaSesion(t);
     await consultar(t);
     await consultar(t);
@@ -145,11 +186,15 @@ describe("auth.sesion_consultar (D22): no escribe nada", () => {
     const { t } = await sesionAntigua([A()], A());
     await mover(t, "ultimo_uso = now() - interval '3 hours'");
     const antes = await filaSesion(t);
-    const [{ n: filasAntes }] = await adm("select count(*)::int as n from auth.sesion");
+    const [{ n: filasAntes }] = await adm(
+      "select count(*)::int as n from auth.sesion",
+    );
     await consultar(t);
     await consultar(nuevoToken());
     expect(await filaSesion(t)).toEqual(antes);
-    const [{ n: filasDespues }] = await adm("select count(*)::int as n from auth.sesion");
+    const [{ n: filasDespues }] = await adm(
+      "select count(*)::int as n from auth.sesion",
+    );
     expect(filasDespues).toBe(filasAntes);
   });
 });
@@ -170,29 +215,47 @@ describe("auth.sesion_consultar (D22): atributos y privilegios (como las demás 
 
   it("existe una sola firma (bytea), SECURITY DEFINER, STABLE, dueño contapp_auth y search_path fijo", async () => {
     const r = await catalogo();
-    expect(r, "auth.sesion_consultar no existe (0019 pendiente)").toHaveLength(1);
+    expect(r, "auth.sesion_consultar no existe (0019 pendiente)").toHaveLength(
+      1,
+    );
     expect(r[0].args).toBe("p_token_hash bytea");
     expect(r[0].prosecdef).toBe(true);
     expect(r[0].provolatile).toBe("s"); // STABLE
     expect(r[0].dueno).toBe("contapp_auth");
-    const sp = (r[0].proconfig as string[] | null)?.find((x) => x.startsWith("search_path="));
+    const sp = (r[0].proconfig as string[] | null)?.find((x) =>
+      x.startsWith("search_path="),
+    );
     expect(sp).toMatch(/^search_path=pg_catalog,\s*pg_temp$/);
   });
 
   it("EXECUTE solo para contapp_backend: ni el worker, ni platform, ni contapp_app, ni PUBLIC", async () => {
     const r = await catalogo();
     expect(r).toHaveLength(1);
-    expect(r[0]).toMatchObject({ backend: true, worker: false, platform: false, app: false, publico: false });
+    expect(r[0]).toMatchObject({
+      backend: true,
+      worker: false,
+      platform: false,
+      app: false,
+      publico: false,
+    });
   });
 
-  it.each(["contapp_worker", "contapp_platform", "contapp_app"])("%s no puede llamarla (42501)", async (rol) => {
-    const r = await llamar(admin, SEL_CONSULTAR, [nuevoToken()], rol);
-    expect(r.ok).toBe(false);
-    expect(r.ok ? "" : r.code).toBe("42501");
-  });
+  it.each(["contapp_worker", "contapp_platform", "contapp_app"])(
+    "%s no puede llamarla (42501)",
+    async (rol) => {
+      const r = await llamar(admin, SEL_CONSULTAR, [nuevoToken()], rol);
+      expect(r.ok).toBe(false);
+      expect(r.ok ? "" : r.code).toBe("42501");
+    },
+  );
 
   it("contapp_backend la ejecuta sin error", async () => {
-    const r = await llamar(app, SEL_CONSULTAR, [nuevoToken()], "contapp_backend");
+    const r = await llamar(
+      app,
+      SEL_CONSULTAR,
+      [nuevoToken()],
+      "contapp_backend",
+    );
     expect(r.ok, r.ok ? "" : `SQLSTATE ${r.code}`).toBe(true);
   });
 });

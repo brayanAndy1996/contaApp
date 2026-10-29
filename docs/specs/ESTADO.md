@@ -13,7 +13,7 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 | 005-acceso | A | hecha | — | Hecha. Rama `spec/005-acceso` sin mergear (desde `spec/004-auth`). CI verde (1216e84). |
 | 006-planes | B | pendiente | — | — |
 | 007-clientes | B | pendiente | — | — |
-| 008-cola | A | pendiente | T14 | — |
+| 008-cola | A | verificada | T18 | T17 hecha: CA-1 a CA-17 con evidencia y cobertura ≥ 90 % por archivo (`tasks.md`, Resultado de T17). Falta la revisión final (T18) y el cierre (T19). |
 | 009-adaptadores-mock | C | pendiente | — | — |
 | 010-dominio-dinero | A | hecha | — | Rama `spec/010-dominio-dinero` sin mergear (desde `spec/003-cifrado`). Caso real USD diferido, sin cifras (pendiente no bloqueante; CA-13 sintético cubre D7). Los 3 límites del lint de `packages/domain` fueron aceptados por el usuario (D10 de la spec). |
 | 011-motor-reglas | A | pendiente | — | — |

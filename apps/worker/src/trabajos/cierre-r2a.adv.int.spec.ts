@@ -29,7 +29,8 @@ const sockets = new Set<Socket>();
 let agujero: Server | null = null;
 
 afterAll(async () => {
-  for (const h of hijos) if (h.exitCode === null && h.signalCode === null) h.kill("SIGKILL");
+  for (const h of hijos)
+    if (h.exitCode === null && h.signalCode === null) h.kill("SIGKILL");
   for (const s of sockets) s.destroy();
   await new Promise<void>((r) => (agujero ? agujero.close(() => r()) : r()));
 });
@@ -49,7 +50,10 @@ async function puertoLibre(): Promise<number> {
  * Proxy TCP hacia la BD real con interruptor de partición: hasta `cortar()` reenvía en los dos sentidos; desde entonces
  * acepta conexiones y bytes pero no reenvía ni cierra nada (tampoco al recibir FIN), como una red partida.
  */
-async function proxyBd(host: string, puerto: number): Promise<{ puerto: number; cortar: () => void; conexiones: () => number }> {
+async function proxyBd(
+  host: string,
+  puerto: number,
+): Promise<{ puerto: number; cortar: () => void; conexiones: () => number }> {
   let cortado = false;
   let n = 0;
   agujero = createServer({ allowHalfOpen: true }, (cli) => {
@@ -73,7 +77,11 @@ async function proxyBd(host: string, puerto: number): Promise<{ puerto: number; 
       if (!cortado) cli.end();
     });
   });
-  const p = await new Promise<number>((ok) => agujero!.listen(0, "127.0.0.1", () => ok((agujero!.address() as { port: number }).port)));
+  const p = await new Promise<number>((ok) =>
+    agujero!.listen(0, "127.0.0.1", () =>
+      ok((agujero!.address() as { port: number }).port),
+    ),
+  );
   return { puerto: p, cortar: () => (cortado = true), conexiones: () => n };
 }
 
@@ -90,65 +98,112 @@ async function bdDespejada(admin: ContappDb): Promise<boolean> {
 }
 
 async function levantarRedis(puerto: number): Promise<ChildProcess> {
-  const r = spawn("redis-server", ["--port", String(puerto), "--bind", "127.0.0.1", "--save", "", "--appendonly", "no"], {
-    stdio: "ignore",
-  });
+  const r = spawn(
+    "redis-server",
+    [
+      "--port",
+      String(puerto),
+      "--bind",
+      "127.0.0.1",
+      "--save",
+      "",
+      "--appendonly",
+      "no",
+    ],
+    {
+      stdio: "ignore",
+    },
+  );
   hijos.add(r);
   for (let i = 0; i < 100; i++) {
-    const ping = spawnSync("redis-cli", ["-p", String(puerto), "ping"], { encoding: "utf8" });
+    const ping = spawnSync("redis-cli", ["-p", String(puerto), "ping"], {
+      encoding: "utf8",
+    });
     if (ping.stdout.trim() === "PONG") return r;
     await dormir(50);
   }
   throw new Error("redis-server propio no arrancó");
 }
 
-async function terminar(h: ChildProcess, senal: NodeJS.Signals = "SIGKILL"): Promise<void> {
+async function terminar(
+  h: ChildProcess,
+  senal: NodeJS.Signals = "SIGKILL",
+): Promise<void> {
   if (h.exitCode !== null || h.signalCode !== null) return;
   const fin = new Promise<void>((r) => h.once("exit", () => r()));
   h.kill(senal);
   await fin;
 }
 
-describe.skipIf(!hayRedisServer || !existsSync(mainJs))("H-008-1b-6 por otra vía: SIGTERM con la BD sin responder", () => {
-  it("el worker compilado termina en ≤ 35 s tras SIGTERM aunque la BD deje de responder (partición de red)", async (ctx) => {
-    const admin = crearDbAdmin();
-    const despejada = await bdDespejada(admin).finally(() => admin.close());
-    if (!despejada) ctx.skip();
-    const puertoRedis = await puertoLibre();
-    const redis = await levantarRedis(puertoRedis);
-    // La URL real solo se usa para cambiarle el host y el puerto; nunca se imprime.
-    const url = new URL(String(process.env.DATABASE_URL));
-    const bd = await proxyBd(url.hostname === "localhost" ? "127.0.0.1" : url.hostname, Number(url.port || 5432));
-    url.hostname = "127.0.0.1";
-    url.port = String(bd.puerto);
-    let texto = "";
-    const proc = spawn(process.execPath, [mainJs], {
-      cwd: dirWorker,
-      env: { ...process.env, NODE_ENV: "test", REDIS_URL: `redis://127.0.0.1:${puertoRedis}`, DATABASE_URL: url.toString() },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    hijos.add(proc);
-    proc.stdout!.on("data", (d: Buffer) => (texto += d.toString("utf8")));
-    proc.stderr!.on("data", (d: Buffer) => (texto += d.toString("utf8")));
-    const salio = new Promise<number>((r) => proc.once("exit", () => r(Date.now())));
-    try {
-      for (let i = 0; i < 300 && !texto.includes('"trabajos_iniciados"'); i++) {
-        if (proc.exitCode !== null) break;
-        await dormir(100);
+describe.skipIf(!hayRedisServer || !existsSync(mainJs))(
+  "H-008-1b-6 por otra vía: SIGTERM con la BD sin responder",
+  () => {
+    it("el worker compilado termina en ≤ 35 s tras SIGTERM aunque la BD deje de responder (partición de red)", async (ctx) => {
+      const admin = crearDbAdmin();
+      const despejada = await bdDespejada(admin).finally(() => admin.close());
+      if (!despejada) ctx.skip();
+      const puertoRedis = await puertoLibre();
+      const redis = await levantarRedis(puertoRedis);
+      // La URL real solo se usa para cambiarle el host y el puerto; nunca se imprime.
+      const url = new URL(String(process.env.DATABASE_URL));
+      const bd = await proxyBd(
+        url.hostname === "localhost" ? "127.0.0.1" : url.hostname,
+        Number(url.port || 5432),
+      );
+      url.hostname = "127.0.0.1";
+      url.port = String(bd.puerto);
+      let texto = "";
+      const proc = spawn(process.execPath, [mainJs], {
+        cwd: dirWorker,
+        env: {
+          ...process.env,
+          NODE_ENV: "test",
+          REDIS_URL: `redis://127.0.0.1:${puertoRedis}`,
+          DATABASE_URL: url.toString(),
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      hijos.add(proc);
+      proc.stdout!.on("data", (d: Buffer) => (texto += d.toString("utf8")));
+      proc.stderr!.on("data", (d: Buffer) => (texto += d.toString("utf8")));
+      const salio = new Promise<number>((r) =>
+        proc.once("exit", () => r(Date.now())),
+      );
+      try {
+        for (
+          let i = 0;
+          i < 300 && !texto.includes('"trabajos_iniciados"');
+          i++
+        ) {
+          if (proc.exitCode !== null) break;
+          await dormir(100);
+        }
+        expect(
+          texto.includes('"trabajos_iniciados"'),
+          "el worker no arrancó",
+        ).toBe(true);
+        bd.cortar(); // la red hacia la BD se parte con el worker en marcha
+        await dormir(12_000); // > 10 s: el despachador ya releyó config_sistema y espera a la BD (consulta colgada)
+        expect(
+          bd.conexiones(),
+          "control: el worker usó la BD a través del proxy",
+        ).toBeGreaterThan(0);
+        const t0 = Date.now();
+        proc.kill("SIGTERM");
+        const fin = await Promise.race([
+          salio,
+          dormir(PLAZO_CIERRE_MS + 5_000).then(() => null),
+        ]);
+        const ms = fin === null ? null : fin - t0;
+        expect(
+          ms,
+          `el worker seguía vivo ${PLAZO_CIERRE_MS + 5_000} ms después de SIGTERM; trabajos_detenidos: ${texto.includes('"trabajos_detenidos"')}`,
+        ).not.toBeNull();
+        expect(ms!).toBeLessThanOrEqual(PLAZO_CIERRE_MS);
+      } finally {
+        await terminar(proc);
+        await terminar(redis);
       }
-      expect(texto.includes('"trabajos_iniciados"'), "el worker no arrancó").toBe(true);
-      bd.cortar(); // la red hacia la BD se parte con el worker en marcha
-      await dormir(12_000); // > 10 s: el despachador ya releyó config_sistema y espera a la BD (consulta colgada)
-      expect(bd.conexiones(), "control: el worker usó la BD a través del proxy").toBeGreaterThan(0);
-      const t0 = Date.now();
-      proc.kill("SIGTERM");
-      const fin = await Promise.race([salio, dormir(PLAZO_CIERRE_MS + 5_000).then(() => null)]);
-      const ms = fin === null ? null : fin - t0;
-      expect(ms, `el worker seguía vivo ${PLAZO_CIERRE_MS + 5_000} ms después de SIGTERM; trabajos_detenidos: ${texto.includes('"trabajos_detenidos"')}`).not.toBeNull();
-      expect(ms!).toBeLessThanOrEqual(PLAZO_CIERRE_MS);
-    } finally {
-      await terminar(proc);
-      await terminar(redis);
-    }
-  });
-});
+    });
+  },
+);

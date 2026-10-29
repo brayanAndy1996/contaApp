@@ -36,7 +36,9 @@ describe("RedisTrabajos", () => {
       expect.objectContaining({ lazyConnect: true, maxRetriesPerRequest: 1 }),
     );
     // Los errores de conexión no quedan sin manejar.
-    expect(() => (pub as unknown as Conexion).emit("error", new Error("caído"))).not.toThrow();
+    expect(() =>
+      (pub as unknown as Conexion).emit("error", new Error("caído")),
+    ).not.toThrow();
   });
 
   it("cierre: QUIT a la conexión lista, corte a la que no lo está o falla al salir; después no abre otra", async () => {
@@ -63,7 +65,10 @@ describe("RedisTrabajos", () => {
   });
 
   it("sin fábrica usa ioredis con conexión perezosa: crear y cerrar no conecta ni cuelga con Redis inalcanzable", async () => {
-    const r = new RedisTrabajos({ url: "redis://127.0.0.1:1/15", prefijo: "p:" });
+    const r = new RedisTrabajos({
+      url: "redis://127.0.0.1:1/15",
+      prefijo: "p:",
+    });
     const pub = r.publicador();
     expect(pub?.status).toBe("wait");
     await r.cerrar();

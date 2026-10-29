@@ -29,7 +29,9 @@ let E: Estudio;
 const pausa = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 const abrir = (a: Pick<Actor, "cookie" | "tenantId">): Promise<ClienteSse> =>
   abrirSse(b.h, { cookie: a.cookie, estudio: a.tenantId });
-const abrirOk = async (a: Pick<Actor, "cookie" | "tenantId">): Promise<ClienteSse> => {
+const abrirOk = async (
+  a: Pick<Actor, "cookie" | "tenantId">,
+): Promise<ClienteSse> => {
   const s = await abrir(a);
   expect(s.status, JSON.stringify(s.cuerpo)).toBe(200);
   return s;
@@ -57,7 +59,10 @@ describe("D22 · el stream no renueva la sesión", () => {
     await pausa(11_500); // ≥ 2 revalidaciones de 5 s
     expect(s.cerrado, "el stream se cerró sin motivo").toBe(false);
     const durante = await usoDeSesion(b, u);
-    expect(durante.marca, `ultimo_uso renovado por el stream tras ${Date.now() - t0} ms`).toBe(antes.marca);
+    expect(
+      durante.marca,
+      `ultimo_uso renovado por el stream tras ${Date.now() - t0} ms`,
+    ).toBe(antes.marca);
     expect(durante.tenantActivo).toBe(antes.tenantActivo);
     s.cerrar();
 
@@ -75,7 +80,10 @@ describe("D22 · el stream no renueva la sesión", () => {
     await fijarUsoDeSesion(b, u, "-2 hours 4 seconds");
     const s = await abrirOk(u);
     const cerrado = await s.esperarCierre(10_500);
-    expect(cerrado, "el stream siguió abierto: renovó la sesión y nunca venció por inactividad").toBe(true);
+    expect(
+      cerrado,
+      "el stream siguió abierto: renovó la sesión y nunca venció por inactividad",
+    ).toBe(true);
 
     const de = await abrir(u);
     expect(de.status).toBe(401);
@@ -86,7 +94,10 @@ describe("D22 · el stream no renueva la sesión", () => {
     const u = await usuario();
     const s = await abrirOk(u);
     await fijarUsoDeSesion(b, u, "-121 minutes");
-    expect(await s.esperarCierre(10_500), "el stream siguió abierto con la sesión vencida").toBe(true);
+    expect(
+      await s.esperarCierre(10_500),
+      "el stream siguió abierto con la sesión vencida",
+    ).toBe(true);
     const de = await abrir(u);
     expect(de.status).toBe(401);
     expect(de.cuerpo).toEqual({ codigo: "sesion_invalida" });
@@ -99,7 +110,10 @@ describe("D22 · el stream no renueva la sesión", () => {
     const r = await b.llamar(u, "GET", "/trabajos"); // actividad real del usuario: renueva
     expect(r.status).toBe(200);
     expect((await usoDeSesion(b, u)).edadSeg).toBeLessThan(60);
-    expect(await s.esperarCierre(10_500), "el stream se cerró aunque el usuario tuvo actividad").toBe(false);
+    expect(
+      await s.esperarCierre(10_500),
+      "el stream se cerró aunque el usuario tuvo actividad",
+    ).toBe(false);
     s.cerrar();
     expect((await usoDeSesion(b, u)).edadSeg).toBeLessThan(70);
   }, 30_000);

@@ -1,6 +1,12 @@
 import type { ContappDb } from "@contapp/db";
 import { crearClaves } from "@contapp/queue";
-import { ErrorCredencial, ErrorTransitorio, type CredencialSire, type SireAuth, type TokenSire } from "@contapp/sunat";
+import {
+  ErrorCredencial,
+  ErrorTransitorio,
+  type CredencialSire,
+  type SireAuth,
+  type TokenSire,
+} from "@contapp/sunat";
 import type { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
@@ -71,7 +77,13 @@ class SireAuthEspia implements SireAuth {
 
 const SECRETO = canario("client_secret");
 const CLAVE_SOL = canario("clave_sol");
-const credencialesDe = (ruc: string): CredencialSire => ({ clientId: "client-id-prueba", clientSecret: SECRETO, usuarioSol: "USUARIOPRUEBA", claveSol: CLAVE_SOL, ruc });
+const credencialesDe = (ruc: string): CredencialSire => ({
+  clientId: "client-id-prueba",
+  clientSecret: SECRETO,
+  usuarioSol: "USUARIOPRUEBA",
+  claveSol: CLAVE_SOL,
+  ruc,
+});
 
 let admin: ContappDb;
 let backend: ContappDb;
@@ -85,38 +97,71 @@ beforeAll(async () => {
   backend = crearDbRol("contapp_backend");
   redis = conectarRedis();
   e = new Escenario(admin);
-  await fijarConfig(admin, "sire", { global: 4, tenant: 2, espera: 0, reintentos: 3, base: 100 });
+  await fijarConfig(admin, "sire", {
+    global: 4,
+    tenant: 2,
+    espera: 0,
+    reintentos: 3,
+    base: 100,
+  });
 });
 
 afterAll(async () => {
-  await Promise.all(procesos.map((p) => p.detener({ esperaMs: 1000 }).catch(() => undefined)));
+  await Promise.all(
+    procesos.map((p) => p.detener({ esperaMs: 1000 }).catch(() => undefined)),
+  );
   await restaurarConfig(admin).catch(() => undefined);
   await e?.limpiar();
-  for (const p of prefijos) await limpiarPrefijo(redis, p).catch(() => undefined);
+  for (const p of prefijos)
+    await limpiarPrefijo(redis, p).catch(() => undefined);
   redis?.disconnect();
   await Promise.all([backend?.close(), admin?.close()]);
 });
 
-function cache(o: { sireAuth: SireAuth; proceso?: string; margenMs?: number; prefijo?: string }) {
+function cache(o: {
+  sireAuth: SireAuth;
+  proceso?: string;
+  margenMs?: number;
+  prefijo?: string;
+}) {
   const prefijo = o.prefijo ?? nuevoPrefijo();
   if (!prefijos.includes(prefijo)) prefijos.push(prefijo);
-  const credenciales = vi.fn(async (c: { tenantId: string; clienteId: string; ruc: string }) => credencialesDe(c.ruc));
-  const c = new CacheTokenSire({ redis, sireAuth: o.sireAuth, credenciales, prefijo, proceso: o.proceso ?? "p1", margenMs: o.margenMs });
+  const credenciales = vi.fn(
+    async (c: { tenantId: string; clienteId: string; ruc: string }) =>
+      credencialesDe(c.ruc),
+  );
+  const c = new CacheTokenSire({
+    redis,
+    sireAuth: o.sireAuth,
+    credenciales,
+    prefijo,
+    proceso: o.proceso ?? "p1",
+    margenMs: o.margenMs,
+  });
   return { c, credenciales, prefijo, k: crearClaves(prefijo) };
 }
-const ctx = (t = "00000000-0000-4000-8000-0000000000a1", cl = "00000000-0000-4000-8000-0000000000c1", ruc = "20100070970") => ({ tenantId: t, clienteId: cl, ruc });
+const ctx = (
+  t = "00000000-0000-4000-8000-0000000000a1",
+  cl = "00000000-0000-4000-8000-0000000000c1",
+  ruc = "20100070970",
+) => ({ tenantId: t, clienteId: cl, ruc });
 
 describe("CA-11: obtención, caché y single-flight", () => {
   it("diez peticiones simultáneas del mismo cliente piden un solo token (y descifran una sola vez)", async () => {
     const auth = new SireAuthEspia("A");
     auth.retardoMs = 150;
     const { c, credenciales } = cache({ sireAuth: auth });
-    const tokens = await Promise.all(Array.from({ length: 10 }, () => c.obtener(ctx())));
+    const tokens = await Promise.all(
+      Array.from({ length: 10 }, () => c.obtener(ctx())),
+    );
     expect(auth.llamadas).toBe(1);
     expect(credenciales).toHaveBeenCalledTimes(1);
     expect(new Set(tokens)).toEqual(new Set([auth.tokens[0]]));
     // El adaptador recibió las credenciales del cliente y su RUC.
-    expect(auth.credenciales[0]).toMatchObject({ ruc: "20100070970", clientSecret: SECRETO });
+    expect(auth.credenciales[0]).toMatchObject({
+      ruc: "20100070970",
+      clientSecret: SECRETO,
+    });
   });
 
   it("con el token en caché no vuelve a llamar a SireAuth ni a descifrar", async () => {
@@ -138,18 +183,30 @@ describe("CA-11: obtención, caché y single-flight", () => {
     const clave = k.tokenSire("p1", x.tenantId, x.clienteId);
     const valor = await redis.getBuffer(clave);
     expect(valor).not.toBeNull();
-    for (const rastro of [token, Buffer.from(token).toString("hex"), Buffer.from(token).toString("base64"), Buffer.from(token).toString("base64url")]) {
-      expect(valor!.toString("latin1"), "token legible en el valor").not.toContain(rastro);
+    for (const rastro of [
+      token,
+      Buffer.from(token).toString("hex"),
+      Buffer.from(token).toString("base64"),
+      Buffer.from(token).toString("base64url"),
+    ]) {
+      expect(
+        valor!.toString("latin1"),
+        "token legible en el valor",
+      ).not.toContain(rastro);
       expect(valor!.toString("hex")).not.toContain(rastro);
       expect(valor!.toString("base64")).not.toContain(rastro);
     }
-    expect(valor!.length, "nonce (12) + texto cifrado + etiqueta (16)").toBeGreaterThanOrEqual(12 + token.length + 16);
+    expect(
+      valor!.length,
+      "nonce (12) + texto cifrado + etiqueta (16)",
+    ).toBeGreaterThanOrEqual(12 + token.length + 16);
     const ttl = await redis.pttl(clave);
     expect(ttl).toBeGreaterThan(530_000);
     expect(ttl).toBeLessThanOrEqual(540_000);
     // Ni el token ni los secretos del cliente aparecen en ninguna parte de Redis.
     const todo = await volcarPrefijo(redis, prefijo);
-    for (const secreto of [token, SECRETO, CLAVE_SOL]) expect(todo).not.toContain(secreto);
+    for (const secreto of [token, SECRETO, CLAVE_SOL])
+      expect(todo).not.toContain(secreto);
   });
 
   it("se renueva antes de vencer: con vigencia 1.5 s y margen 1 s la caché dura 0.5 s", async () => {
@@ -170,7 +227,11 @@ describe("CA-11: obtención, caché y single-flight", () => {
     const a = cache({ sireAuth: auth, proceso: "p1" });
     const b = cache({ sireAuth: auth, proceso: "p2", prefijo: a.prefijo });
     const x = ctx();
-    const y = ctx(undefined, "00000000-0000-4000-8000-0000000000c2", "20100070971");
+    const y = ctx(
+      undefined,
+      "00000000-0000-4000-8000-0000000000c2",
+      "20100070971",
+    );
     const t1 = await a.c.obtener(x);
     const t2 = await a.c.obtener(y);
     const t3 = await b.c.obtener(x);
@@ -207,7 +268,9 @@ describe("CA-11: 401, errores y valores alterados", () => {
       usos += 1;
       throw new TokenRechazadoError();
     };
-    await expect(c.conToken(ctx(), usar)).rejects.toBeInstanceOf(ErrorCredencial);
+    await expect(c.conToken(ctx(), usar)).rejects.toBeInstanceOf(
+      ErrorCredencial,
+    );
     expect(usos).toBe(2);
     expect(auth.llamadas).toBe(2);
   });
@@ -220,7 +283,9 @@ describe("CA-11: 401, errores y valores alterados", () => {
       usos += 1;
       throw new ErrorTransitorio();
     };
-    await expect(c.conToken(ctx(), usar)).rejects.toBeInstanceOf(ErrorTransitorio);
+    await expect(c.conToken(ctx(), usar)).rejects.toBeInstanceOf(
+      ErrorTransitorio,
+    );
     expect(usos).toBe(1);
     expect(auth.llamadas).toBe(1);
   });
@@ -230,11 +295,15 @@ describe("CA-11: 401, errores y valores alterados", () => {
     auth.retardoMs = 100;
     auth.falla = new ErrorCredencial(new Error(`rechazada ${CLAVE_SOL}`));
     const { c, prefijo } = cache({ sireAuth: auth });
-    const resultados = await Promise.allSettled(Array.from({ length: 5 }, () => c.obtener(ctx())));
+    const resultados = await Promise.allSettled(
+      Array.from({ length: 5 }, () => c.obtener(ctx())),
+    );
     expect(auth.llamadas).toBe(1);
     for (const r of resultados) {
       expect(r.status).toBe("rejected");
-      expect((r as PromiseRejectedResult).reason).toBeInstanceOf(ErrorCredencial);
+      expect((r as PromiseRejectedResult).reason).toBeInstanceOf(
+        ErrorCredencial,
+      );
     }
     expect(await redis.keys(`${prefijo}sire:token:*`)).toHaveLength(0);
 
@@ -248,12 +317,23 @@ describe("CA-11: 401, errores y valores alterados", () => {
     const auth = new SireAuthEspia("I");
     const { c, prefijo, k } = cache({ sireAuth: auth });
     const x = ctx();
-    const y = ctx(undefined, "00000000-0000-4000-8000-0000000000c2", "20100070971");
+    const y = ctx(
+      undefined,
+      "00000000-0000-4000-8000-0000000000c2",
+      "20100070971",
+    );
     const tokenX = await c.obtener(x);
-    const valorX = (await redis.getBuffer(k.tokenSire("p1", x.tenantId, x.clienteId)))!;
+    const valorX = (await redis.getBuffer(
+      k.tokenSire("p1", x.tenantId, x.clienteId),
+    ))!;
 
     // Alguien con acceso a Redis copia el valor del cliente X a la clave del cliente Y.
-    await redis.set(k.tokenSire("p1", y.tenantId, y.clienteId), valorX, "PX", 60_000);
+    await redis.set(
+      k.tokenSire("p1", y.tenantId, y.clienteId),
+      valorX,
+      "PX",
+      60_000,
+    );
     const tokenY = await c.obtener(y);
     expect(tokenY).not.toBe(tokenX);
     expect(auth.credenciales.at(-1)).toMatchObject({ ruc: y.ruc });
@@ -261,13 +341,23 @@ describe("CA-11: 401, errores y valores alterados", () => {
     // Un byte alterado en la clave de X: se descarta y se pide uno nuevo.
     const alterado = Buffer.from(valorX);
     alterado[alterado.length - 1] = alterado[alterado.length - 1]! ^ 0xff;
-    await redis.set(k.tokenSire("p1", x.tenantId, x.clienteId), alterado, "PX", 60_000);
+    await redis.set(
+      k.tokenSire("p1", x.tenantId, x.clienteId),
+      alterado,
+      "PX",
+      60_000,
+    );
     const llamadasAntes = auth.llamadas;
     const nuevoX = await c.obtener(x);
     expect(nuevoX).not.toBe(tokenX);
     expect(auth.llamadas).toBe(llamadasAntes + 1);
     // Un valor basura corto tampoco rompe nada.
-    await redis.set(k.tokenSire("p1", x.tenantId, x.clienteId), "basura", "PX", 60_000);
+    await redis.set(
+      k.tokenSire("p1", x.tenantId, x.clienteId),
+      "basura",
+      "PX",
+      60_000,
+    );
     await expect(c.obtener(x)).resolves.toEqual(expect.any(String));
     expect(await redis.keys(`${prefijo}sire:token:*`)).toHaveLength(2);
   });
@@ -285,15 +375,32 @@ describe("CA-11 y CA-9 con el worker completo", () => {
     const notificador = notificadorEspia();
     const p = await arrancar({
       prefijo,
-      procesadores: { "prueba.eco": prog.procesador, "prueba.credencial_sol": prog.procesador },
+      procesadores: {
+        "prueba.eco": prog.procesador,
+        "prueba.credencial_sol": prog.procesador,
+      },
       sireAuth: auth,
       credencialesSire: async (c: { ruc: string }) => credencialesDe(c.ruc),
       notificador: notificador as never,
     });
     procesos.push(p);
     const encolar = (n: number, tipo = "prueba.eco") =>
-      encolarYPublicar(backend, redis, prefijo, T, { tipo, clienteId: cliente.id, parametros: { n }, creadoPor: usuario }).then((r) => r.trabajo.id);
-    return { prefijo, T, cliente, prog, p, notificador, encolar, estado: async (id: string) => (await e.fila(id))?.estado as string };
+      encolarYPublicar(backend, redis, prefijo, T, {
+        tipo,
+        clienteId: cliente.id,
+        parametros: { n },
+        creadoPor: usuario,
+      }).then((r) => r.trabajo.id);
+    return {
+      prefijo,
+      T,
+      cliente,
+      prog,
+      p,
+      notificador,
+      encolar,
+      estado: async (id: string) => (await e.fila(id))?.estado as string,
+    };
   }
 
   it("diez trabajos del mismo cliente, uno tras otro, comparten el token: una sola llamada a SireAuth", async () => {
@@ -309,7 +416,14 @@ describe("CA-11 y CA-9 con el worker completo", () => {
       };
       const ids: string[] = [];
       for (let n = 1; n <= 10; n++) ids.push(await m.encolar(n));
-      await esperarHasta(async () => (await Promise.all(ids.map(m.estado))).every((s) => s === "completado"), "10 trabajos completados", { timeoutMs: 30_000 });
+      await esperarHasta(
+        async () =>
+          (await Promise.all(ids.map(m.estado))).every(
+            (s) => s === "completado",
+          ),
+        "10 trabajos completados",
+        { timeoutMs: 30_000 },
+      );
       expect(auth.llamadas).toBe(1);
       expect(new Set(vistos).size).toBe(1);
       expect(vistos).toHaveLength(10);
@@ -337,7 +451,10 @@ describe("CA-11 y CA-9 con el worker completo", () => {
           return { ok: true };
         });
       const id = await m.encolar(1);
-      await esperarHasta(async () => (await m.estado(id)) === "completado", "trabajo completado");
+      await esperarHasta(
+        async () => (await m.estado(id)) === "completado",
+        "trabajo completado",
+      );
       expect(auth.llamadas).toBe(2);
       expect(intentos).toBe(2);
       expect((await e.fila(id)).intentos).toBe(0);
@@ -348,14 +465,24 @@ describe("CA-11 y CA-9 con el worker completo", () => {
 
   it("si SireAuth rechaza la credencial (401 al obtener el token): error/credencial_invalida, credencial marcada y una sola notificación, sin canarios en los motivos", async () => {
     const auth = new SireAuthEspia("Y");
-    auth.falla = new ErrorCredencial(new Error(`401 con ${CLAVE_SOL} y ${SECRETO}`));
+    auth.falla = new ErrorCredencial(
+      new Error(`401 con ${CLAVE_SOL} y ${SECRETO}`),
+    );
     const m = await mundo(auth);
     try {
       await e.credencial(m.T, m.cliente.id, "sol");
-      m.prog.comportamiento = async (ctx) => ctx.conToken(async () => ({ ok: true }));
+      m.prog.comportamiento = async (ctx) =>
+        ctx.conToken(async () => ({ ok: true }));
       const id = await m.encolar(1, "prueba.credencial_sol");
-      await esperarHasta(async () => (await m.estado(id)) === "error", "trabajo en error");
-      expect(await e.fila(id)).toMatchObject({ estado: "error", motivo: "credencial_invalida", intentos: 0 });
+      await esperarHasta(
+        async () => (await m.estado(id)) === "error",
+        "trabajo en error",
+      );
+      expect(await e.fila(id)).toMatchObject({
+        estado: "error",
+        motivo: "credencial_invalida",
+        intentos: 0,
+      });
       expect((await e.credencialEstado(m.cliente.id))?.estado).toBe("invalida");
       expect(m.notificador.llamadas).toHaveLength(1);
       expect(auth.llamadas, "sin reintento").toBe(1);

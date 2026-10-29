@@ -10,24 +10,44 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- proxies de espionaje y filas de BD dinámicas en pruebas */
 import { randomBytes, randomInt, randomUUID } from "node:crypto";
 import { createDb, type ContappDb } from "@contapp/db";
-import { aPublicable, crearClaves, encolar, publicar, registrarTipo, type EntradaEncolar, type ResultadoEncolar } from "@contapp/queue";
+import {
+  aPublicable,
+  crearClaves,
+  encolar,
+  publicar,
+  registrarTipo,
+  type EntradaEncolar,
+  type ResultadoEncolar,
+} from "@contapp/queue";
 import { Redis } from "ioredis";
 import { z } from "zod";
-import { iniciarTrabajos, type DepsTrabajos, type TrabajosEnMarcha } from "../src/trabajos/iniciar.js";
-import type { ContextoProcesador, Procesador } from "../src/trabajos/ejecutor.js";
+import {
+  iniciarTrabajos,
+  type DepsTrabajos,
+  type TrabajosEnMarcha,
+} from "../src/trabajos/iniciar.js";
+import type {
+  ContextoProcesador,
+  Procesador,
+} from "../src/trabajos/ejecutor.js";
 
-export const dormir = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+export const dormir = (ms: number): Promise<void> =>
+  new Promise((r) => setTimeout(r, ms));
 
 /** Espera a que `cond` sea verdadera (sondeo corto); falla con `etiqueta` si pasa `timeoutMs`. */
 export async function esperarHasta(
   cond: () => boolean | Promise<boolean>,
   etiqueta: string,
-  { timeoutMs = 15_000, cadenciaMs = 25 }: { timeoutMs?: number; cadenciaMs?: number } = {},
+  {
+    timeoutMs = 15_000,
+    cadenciaMs = 25,
+  }: { timeoutMs?: number; cadenciaMs?: number } = {},
 ): Promise<void> {
   const limite = Date.now() + timeoutMs;
   for (;;) {
     if (await cond()) return;
-    if (Date.now() > limite) throw new Error(`tiempo agotado esperando: ${etiqueta}`);
+    if (Date.now() > limite)
+      throw new Error(`tiempo agotado esperando: ${etiqueta}`);
     await dormir(cadenciaMs);
   }
 }
@@ -44,13 +64,17 @@ export class RelojAjustable {
 }
 
 /** Texto único imposible de confundir con datos reales; se busca luego en logs, BD, Redis y eventos. */
-export const canario = (etiqueta = "x"): string => `CANARIO-${etiqueta}-${randomBytes(8).toString("hex")}`;
+export const canario = (etiqueta = "x"): string =>
+  `CANARIO-${etiqueta}-${randomBytes(8).toString("hex")}`;
 
 // ---------------------------------------------------------------------------------------------------------------
 // Tipos de trabajo propios de las pruebas (el catálogo real los registra cada spec de negocio)
 // ---------------------------------------------------------------------------------------------------------------
 
-const parametrosPrueba = z.object({ n: z.number().int().optional(), rango: z.string().max(64).optional() });
+const parametrosPrueba = z.object({
+  n: z.number().int().optional(),
+  rango: z.string().max(64).optional(),
+});
 
 /** `prueba.eco` (idempotente) ya viene del catálogo con NODE_ENV=test; aquí se agregan los otros dos. */
 export function registrarTiposDePrueba(): void {
@@ -78,14 +102,20 @@ export function registrarTiposDePrueba(): void {
 // Conexiones
 // ---------------------------------------------------------------------------------------------------------------
 
-export function crearDbRol(rolApp: "contapp_backend" | "contapp_worker", poolMax = 4): ContappDb {
+export function crearDbRol(
+  rolApp: "contapp_backend" | "contapp_worker",
+  poolMax = 4,
+): ContappDb {
   return createDb({ rolApp, poolMax });
 }
 
 /** Conexión administrativa (superusuario): solo para sembrar, limpiar y leer. */
 export function crearDbAdmin(): ContappDb {
   const url = process.env.MIGRATIONS_DATABASE_URL;
-  if (!url) throw new Error("falta MIGRATIONS_DATABASE_URL para las pruebas de integracion");
+  if (!url)
+    throw new Error(
+      "falta MIGRATIONS_DATABASE_URL para las pruebas de integracion",
+    );
   return createDb({ rolApp: "contapp_worker", url, poolMax: 2 });
 }
 
@@ -113,34 +143,66 @@ export function opcionesBull() {
   };
 }
 
-export const nuevoPrefijo = (): string => `t5w-${randomBytes(4).toString("hex")}:`;
+export const nuevoPrefijo = (): string =>
+  `t5w-${randomBytes(4).toString("hex")}:`;
 
-export async function limpiarPrefijo(redis: Redis, prefijo: string): Promise<void> {
+export async function limpiarPrefijo(
+  redis: Redis,
+  prefijo: string,
+): Promise<void> {
   let cursor = "0";
   do {
-    const [siguiente, claves] = await redis.scan(cursor, "MATCH", `${prefijo}*`, "COUNT", "500");
+    const [siguiente, claves] = await redis.scan(
+      cursor,
+      "MATCH",
+      `${prefijo}*`,
+      "COUNT",
+      "500",
+    );
     cursor = siguiente;
     if (claves.length > 0) await redis.del(...claves);
   } while (cursor !== "0");
 }
 
 /** Todo lo que hay bajo el prefijo (nombres de clave si `claves`, y valores) volcado a texto para buscar canarios. */
-export async function volcarPrefijo(redis: Redis, prefijo: string, { claves: conClaves = true }: { claves?: boolean } = {}): Promise<string> {
+export async function volcarPrefijo(
+  redis: Redis,
+  prefijo: string,
+  { claves: conClaves = true }: { claves?: boolean } = {},
+): Promise<string> {
   const salida: string[] = [];
   let cursor = "0";
   do {
-    const [siguiente, claves] = await redis.scan(cursor, "MATCH", `${prefijo}*`, "COUNT", "500");
+    const [siguiente, claves] = await redis.scan(
+      cursor,
+      "MATCH",
+      `${prefijo}*`,
+      "COUNT",
+      "500",
+    );
     cursor = siguiente;
     for (const clave of claves) {
       if (conClaves) salida.push(clave);
       const tipo = await redis.type(clave);
       if (tipo === "string") {
         const b = await redis.getBuffer(clave);
-        if (b) salida.push(b.toString("latin1"), b.toString("utf8"), b.toString("hex"), b.toString("base64"));
-      } else if (tipo === "hash") salida.push(JSON.stringify(await redis.hgetall(clave)));
-      else if (tipo === "list") salida.push(JSON.stringify(await redis.lrange(clave, 0, -1)));
-      else if (tipo === "set") salida.push(JSON.stringify(await redis.smembers(clave)));
-      else if (tipo === "zset") salida.push(JSON.stringify(await redis.zrange(clave, "0", "-1", "WITHSCORES")));
+        if (b)
+          salida.push(
+            b.toString("latin1"),
+            b.toString("utf8"),
+            b.toString("hex"),
+            b.toString("base64"),
+          );
+      } else if (tipo === "hash")
+        salida.push(JSON.stringify(await redis.hgetall(clave)));
+      else if (tipo === "list")
+        salida.push(JSON.stringify(await redis.lrange(clave, 0, -1)));
+      else if (tipo === "set")
+        salida.push(JSON.stringify(await redis.smembers(clave)));
+      else if (tipo === "zset")
+        salida.push(
+          JSON.stringify(await redis.zrange(clave, "0", "-1", "WITHSCORES")),
+        );
     }
   } while (cursor !== "0");
   return salida.join("\n");
@@ -163,8 +225,12 @@ export async function suscribirEventos(prefijo: string, tenantIds: string[]) {
   await sub.subscribe(...tenantIds.map((t) => k.eventos(t)));
   return {
     mensajes,
-    de: (jobId: string) => mensajes.filter((m) => m.evento?.id === jobId).map((m) => m.evento),
-    estadosDe: (jobId: string) => mensajes.filter((m) => m.evento?.id === jobId).map((m) => m.evento.estado as string),
+    de: (jobId: string) =>
+      mensajes.filter((m) => m.evento?.id === jobId).map((m) => m.evento),
+    estadosDe: (jobId: string) =>
+      mensajes
+        .filter((m) => m.evento?.id === jobId)
+        .map((m) => m.evento.estado as string),
     cerrar: async () => {
       sub.disconnect();
     },
@@ -184,7 +250,11 @@ export interface CambioConfig {
   maxPendientes?: number;
 }
 
-export async function fijarConfig(admin: ContappDb, cola: string, c: CambioConfig): Promise<void> {
+export async function fijarConfig(
+  admin: ContappDb,
+  cola: string,
+  c: CambioConfig,
+): Promise<void> {
   await admin.pool.query(
     `update config_sistema set
        concurrencia_global = coalesce($2, concurrencia_global),
@@ -195,7 +265,15 @@ export async function fijarConfig(admin: ContappDb, cola: string, c: CambioConfi
        max_pendientes_tenant = coalesce($7, max_pendientes_tenant),
        actualizado_en = now()
      where cola = $1`,
-    [cola, c.global ?? null, c.tenant ?? null, c.espera ?? null, c.reintentos ?? null, c.base ?? null, c.maxPendientes ?? null],
+    [
+      cola,
+      c.global ?? null,
+      c.tenant ?? null,
+      c.espera ?? null,
+      c.reintentos ?? null,
+      c.base ?? null,
+      c.maxPendientes ?? null,
+    ],
   );
 }
 
@@ -224,7 +302,8 @@ export interface ClientePrueba {
   ruc: string;
 }
 
-export const rucNuevo = (): string => `2${String(randomInt(0, 1e10)).padStart(10, "0")}`;
+export const rucNuevo = (): string =>
+  `2${String(randomInt(0, 1e10)).padStart(10, "0")}`;
 
 export class Escenario {
   readonly estudios: string[] = [];
@@ -235,7 +314,10 @@ export class Escenario {
 
   async estudio(): Promise<string> {
     const id = randomUUID();
-    await this.admin.pool.query("insert into tenant (id, nombre) values ($1, $2)", [id, `Estudio T5 ${randomBytes(3).toString("hex")}-${++this.n}`]);
+    await this.admin.pool.query(
+      "insert into tenant (id, nombre) values ($1, $2)",
+      [id, `Estudio T5 ${randomBytes(3).toString("hex")}-${++this.n}`],
+    );
     this.estudios.push(id);
     return id;
   }
@@ -247,10 +329,10 @@ export class Escenario {
   ): Promise<string> {
     const id = randomUUID();
     this.usuarios.push(id);
-    await this.admin.pool.query("insert into usuario (id, email, nombre) values ($1, $2, 'Usuario T5')", [
-      id,
-      `t5-${randomBytes(6).toString("hex")}@prueba.contapp.test`,
-    ]);
+    await this.admin.pool.query(
+      "insert into usuario (id, email, nombre) values ($1, $2, 'Usuario T5')",
+      [id, `t5-${randomBytes(6).toString("hex")}@prueba.contapp.test`],
+    );
     await this.admin.pool.query(
       "insert into membresia (tenant_id, usuario_id, rol, desactivada_en) values ($1, $2, $3, case when $4::boolean then now() else null end)",
       [tenantId, id, rol, o.desactivada ?? false],
@@ -258,44 +340,76 @@ export class Escenario {
     return id;
   }
 
-  async cliente(tenantId: string, ruc: string = rucNuevo()): Promise<ClientePrueba> {
-    const r = await this.admin.pool.query("insert into cliente (tenant_id, ruc, razon_social) values ($1, $2, $3) returning id", [
-      tenantId,
-      ruc,
-      `Cliente T5 ${randomBytes(3).toString("hex")}`,
-    ]);
+  async cliente(
+    tenantId: string,
+    ruc: string = rucNuevo(),
+  ): Promise<ClientePrueba> {
+    const r = await this.admin.pool.query(
+      "insert into cliente (tenant_id, ruc, razon_social) values ($1, $2, $3) returning id",
+      [tenantId, ruc, `Cliente T5 ${randomBytes(3).toString("hex")}`],
+    );
     return { id: r.rows[0].id as string, ruc };
   }
 
-  async asignar(tenantId: string, clienteId: string, usuarioId: string): Promise<void> {
-    await this.admin.pool.query("insert into asignacion (tenant_id, cliente_id, usuario_id, tipo) values ($1, $2, $3, 'colaborador')", [
-      tenantId,
-      clienteId,
-      usuarioId,
-    ]);
+  async asignar(
+    tenantId: string,
+    clienteId: string,
+    usuarioId: string,
+  ): Promise<void> {
+    await this.admin.pool.query(
+      "insert into asignacion (tenant_id, cliente_id, usuario_id, tipo) values ($1, $2, $3, 'colaborador')",
+      [tenantId, clienteId, usuarioId],
+    );
   }
 
   /** Credencial sintética (bytes aleatorios; nunca un secreto real). Devuelve su id. */
-  async credencial(tenantId: string, clienteId: string, tipo: "sol" | "sire_api" = "sol"): Promise<string> {
+  async credencial(
+    tenantId: string,
+    clienteId: string,
+    tipo: "sol" | "sire_api" = "sol",
+  ): Promise<string> {
     const r = await this.admin.pool.query(
       `insert into credencial (tenant_id, cliente_id, tipo, ciphertext, nonce, tag, dek_envuelta, kek_id, version)
        values ($1, $2, $3, $4, $5, $6, $7, 'k1', 1) returning id`,
-      [tenantId, clienteId, tipo, randomBytes(64), randomBytes(12), randomBytes(16), randomBytes(512)],
+      [
+        tenantId,
+        clienteId,
+        tipo,
+        randomBytes(64),
+        randomBytes(12),
+        randomBytes(16),
+        randomBytes(512),
+      ],
     );
     return r.rows[0].id as string;
   }
 
   async fila(id: string): Promise<any | undefined> {
-    return (await this.admin.pool.query("select * from job_registro where id = $1", [id])).rows[0];
+    return (
+      await this.admin.pool.query("select * from job_registro where id = $1", [
+        id,
+      ])
+    ).rows[0];
   }
 
-  async credencialEstado(clienteId: string, tipo = "sol"): Promise<{ estado: string; estado_motivo: string | null } | undefined> {
-    return (await this.admin.pool.query("select estado, estado_motivo from credencial where cliente_id = $1 and tipo = $2", [clienteId, tipo])).rows[0];
+  async credencialEstado(
+    clienteId: string,
+    tipo = "sol",
+  ): Promise<{ estado: string; estado_motivo: string | null } | undefined> {
+    return (
+      await this.admin.pool.query(
+        "select estado, estado_motivo from credencial where cliente_id = $1 and tipo = $2",
+        [clienteId, tipo],
+      )
+    ).rows[0];
   }
 
   /** Texto de todo lo que hay en job_registro de los estudios de este escenario (columnas de texto/json). */
   async volcarJobs(): Promise<string> {
-    const r = await this.admin.pool.query("select to_jsonb(j)::text as t from job_registro j where tenant_id = any($1::uuid[])", [this.estudios]);
+    const r = await this.admin.pool.query(
+      "select to_jsonb(j)::text as t from job_registro j where tenant_id = any($1::uuid[])",
+      [this.estudios],
+    );
     return (r.rows as Array<{ t: string }>).map((f) => f.t).join("\n");
   }
 
@@ -307,15 +421,22 @@ export class Escenario {
       await c.query("SET session_replication_role = replica");
       const pasos: Array<[string, unknown[]]> = [
         ["delete from job_registro where tenant_id = any($1::uuid[])", [t]],
-        ["delete from auditoria_descifrado where tenant_id = any($1::uuid[])", [t]],
+        [
+          "delete from auditoria_descifrado where tenant_id = any($1::uuid[])",
+          [t],
+        ],
         ["delete from credencial where tenant_id = any($1::uuid[])", [t]],
         ["delete from asignacion where tenant_id = any($1::uuid[])", [t]],
-        ["delete from membresia where tenant_id = any($1::uuid[]) or usuario_id = any($2::uuid[])", [t, this.usuarios]],
+        [
+          "delete from membresia where tenant_id = any($1::uuid[]) or usuario_id = any($2::uuid[])",
+          [t, this.usuarios],
+        ],
         ["delete from cliente where tenant_id = any($1::uuid[])", [t]],
         ["delete from usuario where id = any($1::uuid[])", [this.usuarios]],
         ["delete from tenant where id = any($1::uuid[])", [t]],
       ];
-      for (const [sql, v] of pasos) await c.query(sql, v).catch(() => undefined);
+      for (const [sql, v] of pasos)
+        await c.query(sql, v).catch(() => undefined);
     } finally {
       c.release(true);
     }
@@ -328,11 +449,25 @@ export async function encolarYPublicar(
   redis: Redis,
   prefijo: string,
   tenantId: string,
-  e: Omit<EntradaEncolar, "prioridad" | "creadoPor"> & { prioridad?: EntradaEncolar["prioridad"]; creadoPor?: string | null },
+  e: Omit<EntradaEncolar, "prioridad" | "creadoPor"> & {
+    prioridad?: EntradaEncolar["prioridad"];
+    creadoPor?: string | null;
+  },
 ): Promise<ResultadoEncolar> {
-  const entrada: EntradaEncolar = { prioridad: "interactivo", creadoPor: null, ...e };
-  const r = await backend.withTenant({ tenantId }, (tx) => encolar(tx, entrada));
-  if (r.nuevo) await publicar(redis, [aPublicable(tenantId, r.trabajo, entrada.prioridad)], { prefijo });
+  const entrada: EntradaEncolar = {
+    prioridad: "interactivo",
+    creadoPor: null,
+    ...e,
+  };
+  const r = await backend.withTenant({ tenantId }, (tx) =>
+    encolar(tx, entrada),
+  );
+  if (r.nuevo)
+    await publicar(
+      redis,
+      [aPublicable(tenantId, r.trabajo, entrada.prioridad)],
+      { prefijo },
+    );
   return r;
 }
 
@@ -346,7 +481,12 @@ export interface Muerte {
 
 /** BD que cuenta los callbacks de `withTenant`/`withSistema` abiertos (D6) y las aperturas tras la muerte del proceso. */
 export function dbEspiada(db: ContappDb, muerte: Muerte) {
-  const estado = { abiertas: 0, maxAbiertas: 0, aperturas: 0, aperturasTrasMuerte: 0 };
+  const estado = {
+    abiertas: 0,
+    maxAbiertas: 0,
+    aperturas: 0,
+    aperturasTrasMuerte: 0,
+  };
   const envolver =
     (original: (...a: any[]) => Promise<any>) =>
     async (...args: any[]) => {
@@ -366,7 +506,8 @@ export function dbEspiada(db: ContappDb, muerte: Muerte) {
     };
   const proxy = new Proxy(db, {
     get(target, prop, receiver) {
-      if (prop === "withTenant" || prop === "withSistema") return envolver((target as any)[prop].bind(target));
+      if (prop === "withTenant" || prop === "withSistema")
+        return envolver((target as any)[prop].bind(target));
       const v = Reflect.get(target, prop, receiver);
       return typeof v === "function" ? v.bind(target) : v;
     },
@@ -382,7 +523,14 @@ export function redisEspiado(redis: Redis, muerte: Muerte) {
       const v = Reflect.get(target, prop, receiver);
       if (typeof v !== "function") return v;
       return (...args: unknown[]) => {
-        if (prop !== "disconnect" && prop !== "quit" && prop !== "on" && prop !== "once" && prop !== "off" && prop !== "removeListener") {
+        if (
+          prop !== "disconnect" &&
+          prop !== "quit" &&
+          prop !== "on" &&
+          prop !== "once" &&
+          prop !== "off" &&
+          prop !== "removeListener"
+        ) {
           estado.comandos += 1;
           if (muerte.muerto) estado.comandosTrasMuerte += 1;
         }
@@ -408,7 +556,10 @@ export interface LlamadaProcesador {
   en: number;
 }
 
-export type Comportamiento = (ctx: ContextoProcesador, llamada: LlamadaProcesador) => Promise<unknown>;
+export type Comportamiento = (
+  ctx: ContextoProcesador,
+  llamada: LlamadaProcesador,
+) => Promise<unknown>;
 
 /** Procesador con comportamiento programable, contador de llamadas y marcas de tiempo. */
 export class ProcesadorProgramable {
@@ -458,7 +609,11 @@ export function notificadorEspia(falla = false) {
  * Mínimo de transacciones abiertas (callbacks de withTenant/withSistema) durante `ms`. Con el procesador en marcha una
  * transacción del ejecutor dejaría el mínimo en 1 o más (D6); las del despachador y de otros trabajos van y vienen.
  */
-export async function minimoTx(estado: { abiertas: number }, ms = 300, cadaMs = 5): Promise<number> {
+export async function minimoTx(
+  estado: { abiertas: number },
+  ms = 300,
+  cadaMs = 5,
+): Promise<number> {
   let min = Number.POSITIVE_INFINITY;
   const fin = Date.now() + ms;
   while (Date.now() < fin) {
@@ -475,7 +630,9 @@ export function compuerta() {
   return { esperar: () => abierta, abrir };
 }
 
-export interface OpcionesArranque extends Partial<Omit<DepsTrabajos, "db" | "redis" | "conexionBull" | "prefijo">> {
+export interface OpcionesArranque extends Partial<
+  Omit<DepsTrabajos, "db" | "redis" | "conexionBull" | "prefijo">
+> {
   prefijo: string;
   /** Si es true no se pasan al worker las intervalos rápidos por defecto (despachador 20 ms, reconciliador 500 ms, latido 200 ms). */
   intervalosPropios?: boolean;
@@ -507,7 +664,15 @@ export async function arrancar(o: OpcionesArranque): Promise<ProcesoWorker> {
     redis: r.redis,
     conexionBull: opcionesBull(),
     prefijo,
-    ...(intervalosPropios ? {} : { intervalos: { despachadorMs: 20, reconciliadorMs: 500, latidoMs: 200 } }),
+    ...(intervalosPropios
+      ? {}
+      : {
+          intervalos: {
+            despachadorMs: 20,
+            reconciliadorMs: 500,
+            latidoMs: 200,
+          },
+        }),
     ...resto,
   });
   const cerrarConexiones = async () => {

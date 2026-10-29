@@ -55,7 +55,11 @@ afterAll(async () => {
   await Promise.all([backend?.close(), admin?.close()]);
 });
 
-const silencio: LoggerTrabajos = { info: () => undefined, warn: () => undefined, error: () => undefined };
+const silencio: LoggerTrabajos = {
+  info: () => undefined,
+  warn: () => undefined,
+  error: () => undefined,
+};
 
 /** withSistema que solo devuelve los estudios de este escenario (el reconciliador no toca otras suites). */
 function soloMios(db: ContappDb): ContappDb {
@@ -63,8 +67,12 @@ function soloMios(db: ContappDb): ContappDb {
     get(t, p, rcv) {
       if (p === "withSistema")
         return async (fn: (tx: unknown) => Promise<unknown>) => {
-          const r = await (t.withSistema as (f: typeof fn) => Promise<unknown>).call(t, fn);
-          return Array.isArray(r) ? r.filter((x) => typeof x === "string" && e.estudios.includes(x)) : r;
+          const r = await (
+            t.withSistema as (f: typeof fn) => Promise<unknown>
+          ).call(t, fn);
+          return Array.isArray(r)
+            ? r.filter((x) => typeof x === "string" && e.estudios.includes(x))
+            : r;
         };
       const v = Reflect.get(t, p, rcv);
       return typeof v === "function" ? v.bind(t) : v;
@@ -105,7 +113,10 @@ describe("H-008-1b-5 por otra vía: guardado de credencial que empezó antes del
     let enCurso = true;
     try {
       await guardado.query("begin");
-      await guardado.query("update credencial set ciphertext = $2, updated_at = now() where id = $1", [credId, randomBytes(64)]);
+      await guardado.query(
+        "update credencial set ciphertext = $2, updated_at = now() where id = $1",
+        [credId, randomBytes(64)],
+      );
 
       const puerta = compuerta();
       let llamadas = 0;
@@ -131,7 +142,10 @@ describe("H-008-1b-5 por otra vía: guardado de credencial que empezó antes del
       );
       expect(tiempos.rows[0].estado).toBe("configurada");
       puerta.abrir();
-      await esperarHasta(async () => (await e.fila(r.trabajo.id))?.estado === "error", "trabajo en error");
+      await esperarHasta(
+        async () => (await e.fila(r.trabajo.id))?.estado === "error",
+        "trabajo en error",
+      );
       const fila = await e.fila(r.trabajo.id);
       const estado = await e.credencialEstado(c.id, "sol");
       await w.detener();

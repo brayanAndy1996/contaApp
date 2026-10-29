@@ -17,7 +17,12 @@ import {
   tomarCupos,
   tomarEjecucion,
 } from "./index.js";
-import { bd, dbFalsa, uuidDe, type FilaTrabajo } from "./soporte-pruebas/bd-falsa.js";
+import {
+  bd,
+  dbFalsa,
+  uuidDe,
+  type FilaTrabajo,
+} from "./soporte-pruebas/bd-falsa.js";
 import { RedisFalso } from "./soporte-pruebas/redis-falso.js";
 import { RelojFalso } from "./soporte-pruebas/reloj-falso.js";
 
@@ -25,12 +30,19 @@ import { RelojFalso } from "./soporte-pruebas/reloj-falso.js";
 const ganadosPorOtro = vi.hoisted(() => new Set<string>());
 
 vi.mock("@contapp/db", async () => {
-  const { moduloDbFalso, bd: b } = await import("./soporte-pruebas/bd-falsa.js");
+  const { moduloDbFalso, bd: b } =
+    await import("./soporte-pruebas/bd-falsa.js");
   return {
     ...moduloDbFalso,
     insertarTrabajo: vi.fn(moduloDbFalso.insertarTrabajo),
     trabajoVivoPorClave: vi.fn(moduloDbFalso.trabajoVivoPorClave),
-    async transicionar(tx: never, id: string, desde: string, hacia: string, campos?: never) {
+    async transicionar(
+      tx: never,
+      id: string,
+      desde: string,
+      hacia: string,
+      campos?: never,
+    ) {
       if (ganadosPorOtro.has(id) && desde === "en_cola") {
         const f = b.trabajos.get(id)!;
         f.estado = "ejecutando";
@@ -106,13 +118,26 @@ const despachador = (ahoraLocal: { ahora: () => Date }) =>
 
 describe("una sola fuente de tiempo: TIME de Redis", () => {
   it("tomarCupos y renovarArriendos vencen a TIME + 30 s aunque la hora local esté adelantada", async () => {
-    const t = { id: uuidDe(1), tenantId: T, cola: "sire", canal: "sire", ruc: "20100000001", ejecucion: "e" };
+    const t = {
+      id: uuidDe(1),
+      tenantId: T,
+      cola: "sire",
+      canal: "sire",
+      ruc: "20100000001",
+      ejecucion: "e",
+    };
     await tomarCupos(redis as never, k, t, reloj.ms() + 40_000);
-    expect(Number(await redis.zscore(k.cupoGlobal("sire"), t.id))).toBe(reloj.ms() + ARRIENDO_MS);
+    expect(Number(await redis.zscore(k.cupoGlobal("sire"), t.id))).toBe(
+      reloj.ms() + ARRIENDO_MS,
+    );
     await tomarEjecucion(redis as never, k, t.id, "e");
     reloj.avanzar(10_000);
-    expect(await renovarArriendos(redis as never, k, t, reloj.ms() + 40_000)).toBe(true);
-    expect(Number(await redis.zscore(k.cupoTenant("sire", T), t.id))).toBe(reloj.ms() + ARRIENDO_MS);
+    expect(
+      await renovarArriendos(redis as never, k, t, reloj.ms() + 40_000),
+    ).toBe(true);
+    expect(Number(await redis.zscore(k.cupoTenant("sire", T), t.id))).toBe(
+      reloj.ms() + ARRIENDO_MS,
+    );
   });
 
   it("un líder con el reloj 40 s atrasado poda los cupos vencidos según Redis y ve los trabajos ya disponibles", async () => {
@@ -124,7 +149,9 @@ describe("una sola fuente de tiempo: TIME de Redis", () => {
     }
     await despachador(desfasado(-40_000)).ciclo();
     expect(bd.trabajos.get(id)!.estado).toBe("ejecutando");
-    expect(Number(await redis.zscore(k.cupoGlobal("sire"), id))).toBe(reloj.ms() + ARRIENDO_MS);
+    expect(Number(await redis.zscore(k.cupoGlobal("sire"), id))).toBe(
+      reloj.ms() + ARRIENDO_MS,
+    );
   });
 
   it("error: con Redis caído el ciclo no despacha ni lanza", async () => {
@@ -170,24 +197,38 @@ describe("encolar: tope atómico y choques de dedupe", () => {
   it("pasa el tope del estudio al INSERT (rechazo atómico) y devuelve el nuevo", async () => {
     const r = await encolar(tx, entrada(1));
     expect(r.nuevo).toBe(true);
-    expect(vi.mocked(db.insertarTrabajo).mock.calls[0]![1]).toMatchObject({ maxPendientes: 2000 });
+    expect(vi.mocked(db.insertarTrabajo).mock.calls[0]![1]).toMatchObject({
+      maxPendientes: 2000,
+    });
   });
 
   it("error: si el INSERT responde 'lleno' (otro encolado ocupó el último lugar), ColaLlenaError", async () => {
     vi.mocked(db.insertarTrabajo).mockResolvedValueOnce("lleno" as never);
-    await expect(encolar(tx, entrada(2))).rejects.toBeInstanceOf(ColaLlenaError);
+    await expect(encolar(tx, entrada(2))).rejects.toBeInstanceOf(
+      ColaLlenaError,
+    );
   });
 
   it("error: 'lleno' en el reintento tras un choque con un vivo que terminó también es ColaLlenaError", async () => {
-    vi.mocked(db.insertarTrabajo).mockResolvedValueOnce(null).mockResolvedValueOnce("lleno" as never);
-    vi.mocked(db.trabajoVivoPorClave).mockResolvedValueOnce(null).mockResolvedValueOnce(null);
-    await expect(encolar(tx, entrada(3))).rejects.toBeInstanceOf(ColaLlenaError);
+    vi.mocked(db.insertarTrabajo)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce("lleno" as never);
+    vi.mocked(db.trabajoVivoPorClave)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    await expect(encolar(tx, entrada(3))).rejects.toBeInstanceOf(
+      ColaLlenaError,
+    );
   });
 
   it("un reintento que choca con otro que reintenta a la vez (null) relee y devuelve el de ese", async () => {
     const otro = await encolar(tx, entrada(4));
-    vi.mocked(db.insertarTrabajo).mockResolvedValueOnce(null).mockResolvedValueOnce(null);
-    vi.mocked(db.trabajoVivoPorClave).mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+    vi.mocked(db.insertarTrabajo)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    vi.mocked(db.trabajoVivoPorClave)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
     const r = await encolar(tx, entrada(4));
     expect(r).toEqual({ trabajo: otro.trabajo, nuevo: false });
   });
@@ -198,7 +239,9 @@ describe("encolar: tope atómico y choques de dedupe", () => {
     try {
       const e = await encolar(tx, entrada(5)).catch((x: unknown) => x);
       expect(e).toBeInstanceOf(Error);
-      expect((e as Error).message).toBe("encolar: conflicto de dedupe persistente");
+      expect((e as Error).message).toBe(
+        "encolar: conflicto de dedupe persistente",
+      );
       expect(vi.mocked(db.insertarTrabajo)).toHaveBeenCalledTimes(3);
     } finally {
       vi.mocked(db.insertarTrabajo).mockReset();

@@ -35,14 +35,30 @@ afterAll(async () => {
   await admin?.end();
 });
 
-const consulta = async (text: string, values: unknown[] = []) => (await admin.query(text, values)).rows;
-const PRIVS_TABLA = ["SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"] as const;
+const consulta = async (text: string, values: unknown[] = []) =>
+  (await admin.query(text, values)).rows;
+const PRIVS_TABLA = [
+  "SELECT",
+  "INSERT",
+  "UPDATE",
+  "DELETE",
+  "TRUNCATE",
+  "REFERENCES",
+  "TRIGGER",
+] as const;
 
 /** Columnas de `tabla` (schema.tabla) con el privilegio `priv` para `rol`, ordenadas (tabla o columna). */
 async function existe(tabla: string) {
-  expect((await consulta("select to_regclass($1) is not null as v", [tabla]))[0].v, `${tabla} existe`).toBe(true);
+  expect(
+    (await consulta("select to_regclass($1) is not null as v", [tabla]))[0].v,
+    `${tabla} existe`,
+  ).toBe(true);
 }
-async function columnasConPrivilegio(tabla: string, rol: string, priv: "SELECT" | "INSERT" | "UPDATE" | "REFERENCES") {
+async function columnasConPrivilegio(
+  tabla: string,
+  rol: string,
+  priv: "SELECT" | "INSERT" | "UPDATE" | "REFERENCES",
+) {
   await existe(tabla);
   const r = await consulta(
     `select a.attname from pg_attribute a
@@ -53,16 +69,29 @@ async function columnasConPrivilegio(tabla: string, rol: string, priv: "SELECT" 
   return r.map((x) => x.attname as string).sort();
 }
 const tienePrivTabla = async (tabla: string, rol: string, priv: string) =>
-  (await consulta("select has_table_privilege($1, to_regclass($2), $3) as v", [rol, tabla, priv]))[0].v as boolean;
+  (
+    await consulta("select has_table_privilege($1, to_regclass($2), $3) as v", [
+      rol,
+      tabla,
+      priv,
+    ])
+  )[0].v as boolean;
 const tieneAlguna = async (tabla: string, rol: string, priv: string) =>
-  (await consulta("select has_any_column_privilege($1, to_regclass($2), $3) as v", [rol, tabla, priv]))[0].v as boolean;
+  (
+    await consulta(
+      "select has_any_column_privilege($1, to_regclass($2), $3) as v",
+      [rol, tabla, priv],
+    )
+  )[0].v as boolean;
 
 /** Privilegios de tabla efectivos (tabla o columna) de `rol` sobre `tabla`, en el orden de PRIVS_TABLA. */
 async function concedidos(tabla: string, rol: string): Promise<string[]> {
   await existe(tabla);
   const out: string[] = [];
   for (const p of PRIVS_TABLA) {
-    const col = ["SELECT", "INSERT", "UPDATE", "REFERENCES"].includes(p) ? await tieneAlguna(tabla, rol, p) : false;
+    const col = ["SELECT", "INSERT", "UPDATE", "REFERENCES"].includes(p)
+      ? await tieneAlguna(tabla, rol, p)
+      : false;
     if ((await tienePrivTabla(tabla, rol, p)) || col) out.push(p);
   }
   return out;
@@ -82,7 +111,9 @@ describe("job_registro: tabla, dueño, RLS y politicas (CA-15)", () => {
       `select o.rolname as dueno, c.relrowsecurity as rls, c.relforcerowsecurity as forzada
          from pg_class c join pg_roles o on o.oid = c.relowner where c.oid = to_regclass('public.job_registro')`,
     );
-    expect(r).toEqual([{ dueno: "contapp_migrator", rls: true, forzada: true }]);
+    expect(r).toEqual([
+      { dueno: "contapp_migrator", rls: true, forzada: true },
+    ]);
   });
 
   it("tenant_id uuid NOT NULL y politica tenant_isolation FOR ALL con USING y WITH CHECK sobre app.tenant_id", async () => {
@@ -109,8 +140,10 @@ describe("job_registro: tabla, dueño, RLS y politicas (CA-15)", () => {
     expect(otras[0].cmd).toBe("DELETE");
     expect(otras[0].roles).toEqual(["contapp_worker"]);
     // La politica de DELETE solo alcanza los estados terminales (el comportamiento exacto lo prueba trabajos-funciones.spec.ts).
-    for (const e of ["completado", "error", "cancelado"]) expect(String(otras[0].qual)).toContain(e);
-    for (const e of ["en_cola", "ejecutando"]) expect(String(otras[0].qual)).not.toContain(e);
+    for (const e of ["completado", "error", "cancelado"])
+      expect(String(otras[0].qual)).toContain(e);
+    for (const e of ["en_cola", "ejecutando"])
+      expect(String(otras[0].qual)).not.toContain(e);
   });
 
   it("tipos y nulabilidad de las columnas clave (D1, D8, plan BD)", async () => {
@@ -147,7 +180,12 @@ describe("job_registro: tabla, dueño, RLS y politicas (CA-15)", () => {
     expect(String(por.id?.column_default)).toContain("uuid_v7()");
     expect(String(por.intentos?.column_default)).toBe("0");
     // El INSERT del repositorio no manda estos: deben tener valor por defecto (tenant_id lo pone el contexto).
-    for (const c of ["tenant_id", "creado_en", "actualizado_en", "disponible_desde"]) {
+    for (const c of [
+      "tenant_id",
+      "creado_en",
+      "actualizado_en",
+      "disponible_desde",
+    ]) {
       expect(por[c]?.column_default, `${c} DEFAULT`).not.toBeNull();
     }
   });
@@ -157,23 +195,44 @@ describe("job_registro: tabla, dueño, RLS y politicas (CA-15)", () => {
       `select pg_get_constraintdef(oid) as def from pg_constraint where conrelid = to_regclass('public.job_registro') and contype = 'f'`,
     );
     const defs = r.map((x) => String(x.def).replace(/\s+/g, " "));
-    expect(defs.some((d) => /FOREIGN KEY \(tenant_id, cliente_id\) REFERENCES cliente\(tenant_id, id\)/.test(d))).toBe(true);
     expect(
-      defs.some((d) => /FOREIGN KEY \(tenant_id, creado_por\) REFERENCES membresia\(tenant_id, usuario_id\)/.test(d)),
+      defs.some((d) =>
+        /FOREIGN KEY \(tenant_id, cliente_id\) REFERENCES cliente\(tenant_id, id\)/.test(
+          d,
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      defs.some((d) =>
+        /FOREIGN KEY \(tenant_id, creado_por\) REFERENCES membresia\(tenant_id, usuario_id\)/.test(
+          d,
+        ),
+      ),
     ).toBe(true);
   });
 
   it("indice unico parcial de dedupe (tenant_id, clave_dedupe) solo con estados vivos, y los dos indices de consulta", async () => {
-    const r = await consulta(`select indexdef from pg_indexes where schemaname = 'public' and tablename = 'job_registro'`);
+    const r = await consulta(
+      `select indexdef from pg_indexes where schemaname = 'public' and tablename = 'job_registro'`,
+    );
     const defs = r.map((x) => String(x.indexdef).replace(/\s+/g, " "));
-    const dedupe = defs.filter((d) => /UNIQUE/.test(d) && /\(tenant_id, clave_dedupe\)/.test(d));
+    const dedupe = defs.filter(
+      (d) => /UNIQUE/.test(d) && /\(tenant_id, clave_dedupe\)/.test(d),
+    );
     expect(dedupe, "indice unico de dedupe").toHaveLength(1);
     expect(dedupe[0]).toMatch(/WHERE/i);
     expect(dedupe[0]).toContain("en_cola");
     expect(dedupe[0]).toContain("ejecutando");
-    for (const e of ["completado", "error", "cancelado"]) expect(dedupe[0]).not.toContain(e);
-    expect(defs.some((d) => d.includes("(tenant_id, cola, estado, prioridad, creado_en)"))).toBe(true);
-    expect(defs.some((d) => d.includes("(tenant_id, cliente_id, creado_en DESC)"))).toBe(true);
+    for (const e of ["completado", "error", "cancelado"])
+      expect(dedupe[0]).not.toContain(e);
+    expect(
+      defs.some((d) =>
+        d.includes("(tenant_id, cola, estado, prioridad, creado_en)"),
+      ),
+    ).toBe(true);
+    expect(
+      defs.some((d) => d.includes("(tenant_id, cliente_id, creado_en DESC)")),
+    ).toBe(true);
   });
 
   it("PUBLIC no tiene ningun privilegio sobre job_registro ni sobre config_sistema (tabla ni columnas)", async () => {
@@ -187,7 +246,10 @@ describe("job_registro: tabla, dueño, RLS y politicas (CA-15)", () => {
         [t],
       );
       expect(r, t).toEqual([]);
-      expect((await consulta("select to_regclass($1) is not null as v", [t]))[0].v, `${t} existe`).toBe(true);
+      expect(
+        (await consulta("select to_regclass($1) is not null as v", [t]))[0].v,
+        `${t} existe`,
+      ).toBe(true);
     }
   });
 });
@@ -195,24 +257,55 @@ describe("job_registro: tabla, dueño, RLS y politicas (CA-15)", () => {
 // =================================================================================================
 describe("privilegios exactos de job_registro por rol y columna (CA-15, D2)", () => {
   it("contapp_backend: SELECT de todas las columnas, INSERT, UPDATE solo de estado, motivo, terminado_en y actualizado_en", async () => {
-    expect(await columnasConPrivilegio("public.job_registro", "contapp_backend", "SELECT")).toEqual(COLUMNAS_JOB);
-    expect(await tieneAlguna("public.job_registro", "contapp_backend", "INSERT")).toBe(true);
-    expect(await columnasConPrivilegio("public.job_registro", "contapp_backend", "UPDATE")).toEqual(
-      ["actualizado_en", "estado", "motivo", "terminado_en"].sort(),
-    );
+    expect(
+      await columnasConPrivilegio(
+        "public.job_registro",
+        "contapp_backend",
+        "SELECT",
+      ),
+    ).toEqual(COLUMNAS_JOB);
+    expect(
+      await tieneAlguna("public.job_registro", "contapp_backend", "INSERT"),
+    ).toBe(true);
+    expect(
+      await columnasConPrivilegio(
+        "public.job_registro",
+        "contapp_backend",
+        "UPDATE",
+      ),
+    ).toEqual(["actualizado_en", "estado", "motivo", "terminado_en"].sort());
   });
 
   it("contapp_backend: sin DELETE, TRUNCATE, REFERENCES ni TRIGGER", async () => {
     for (const p of ["DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"]) {
-      expect(await tienePrivTabla("public.job_registro", "contapp_backend", p), p).toBe(false);
+      expect(
+        await tienePrivTabla("public.job_registro", "contapp_backend", p),
+        p,
+      ).toBe(false);
     }
-    expect(await tieneAlguna("public.job_registro", "contapp_backend", "REFERENCES")).toBe(false);
+    expect(
+      await tieneAlguna("public.job_registro", "contapp_backend", "REFERENCES"),
+    ).toBe(false);
   });
 
   it("contapp_worker: SELECT de todo, DELETE de tabla y UPDATE solo de las 8 columnas del ejecutor (sin intentos del backend)", async () => {
-    expect(await columnasConPrivilegio("public.job_registro", "contapp_worker", "SELECT")).toEqual(COLUMNAS_JOB);
-    expect(await tienePrivTabla("public.job_registro", "contapp_worker", "DELETE")).toBe(true);
-    expect(await columnasConPrivilegio("public.job_registro", "contapp_worker", "UPDATE")).toEqual(
+    expect(
+      await columnasConPrivilegio(
+        "public.job_registro",
+        "contapp_worker",
+        "SELECT",
+      ),
+    ).toEqual(COLUMNAS_JOB);
+    expect(
+      await tienePrivTabla("public.job_registro", "contapp_worker", "DELETE"),
+    ).toBe(true);
+    expect(
+      await columnasConPrivilegio(
+        "public.job_registro",
+        "contapp_worker",
+        "UPDATE",
+      ),
+    ).toEqual(
       [
         "actualizado_en",
         "disponible_desde",
@@ -227,17 +320,30 @@ describe("privilegios exactos de job_registro por rol y columna (CA-15, D2)", ()
   });
 
   it("contapp_worker: sin INSERT (ni de tabla ni de columna), TRUNCATE, REFERENCES ni TRIGGER", async () => {
-    expect(await tieneAlguna("public.job_registro", "contapp_worker", "INSERT")).toBe(false);
+    expect(
+      await tieneAlguna("public.job_registro", "contapp_worker", "INSERT"),
+    ).toBe(false);
     for (const p of ["INSERT", "TRUNCATE", "REFERENCES", "TRIGGER"]) {
-      expect(await tienePrivTabla("public.job_registro", "contapp_worker", p), p).toBe(false);
+      expect(
+        await tienePrivTabla("public.job_registro", "contapp_worker", p),
+        p,
+      ).toBe(false);
     }
-    expect(await tieneAlguna("public.job_registro", "contapp_worker", "REFERENCES")).toBe(false);
+    expect(
+      await tieneAlguna("public.job_registro", "contapp_worker", "REFERENCES"),
+    ).toBe(false);
   });
 
-  it.each(["contapp_platform", "contapp_app"])("%s no tiene ningun privilegio sobre job_registro (tabla ni columna)", async (rol) => {
-    expect(await concedidos("public.job_registro", rol)).toEqual([]);
-    expect((await columnasConPrivilegio("public.job_registro", rol, "SELECT")).length).toBe(0);
-  });
+  it.each(["contapp_platform", "contapp_app"])(
+    "%s no tiene ningun privilegio sobre job_registro (tabla ni columna)",
+    async (rol) => {
+      expect(await concedidos("public.job_registro", rol)).toEqual([]);
+      expect(
+        (await columnasConPrivilegio("public.job_registro", rol, "SELECT"))
+          .length,
+      ).toBe(0);
+    },
+  );
 
   it("la ACL de job_registro nombra solo a contapp_backend, contapp_worker y contapp_enumerador (ni PUBLIC ni otros roles)", async () => {
     const r = await consulta(
@@ -250,7 +356,11 @@ describe("privilegios exactos de job_registro por rol y columna (CA-15, D2)", ()
         where at.attrelid = to_regclass('public.job_registro') and at.attnum > 0 and a2.grantee <> c2.relowner
         order by 1`,
     );
-    expect(r.map((x) => x.quien)).toEqual(["contapp_backend", "contapp_enumerador", "contapp_worker"]);
+    expect(r.map((x) => x.quien)).toEqual([
+      "contapp_backend",
+      "contapp_enumerador",
+      "contapp_worker",
+    ]);
   });
 });
 
@@ -272,7 +382,9 @@ describe("config_sistema: tabla de plataforma, sin escritura de la app (CA-4, CA
       `select a.attname from pg_attribute a where a.attrelid = to_regclass('public.config_sistema') and a.attnum > 0 and not a.attisdropped order by 1`,
     );
     expect(r.map((x) => x.attname)).toEqual(COLUMNAS);
-    const d = await consulta("select o.rolname from pg_class c join pg_roles o on o.oid = c.relowner where c.oid = to_regclass('public.config_sistema')");
+    const d = await consulta(
+      "select o.rolname from pg_class c join pg_roles o on o.oid = c.relowner where c.oid = to_regclass('public.config_sistema')",
+    );
     expect(d[0].rolname).toBe("contapp_migrator");
   });
 
@@ -284,15 +396,29 @@ describe("config_sistema: tabla de plataforma, sin escritura de la app (CA-4, CA
     expect(r.map((x) => x.attname)).toEqual(["cola"]);
   });
 
-  it.each(["contapp_backend", "contapp_worker"])("%s: SELECT de todas las columnas y nada mas (sin INSERT, UPDATE, DELETE, TRUNCATE)", async (rol) => {
-    expect(await columnasConPrivilegio("public.config_sistema", rol, "SELECT")).toEqual(COLUMNAS);
-    expect(await concedidos("public.config_sistema", rol)).toEqual(["SELECT"]);
-    for (const p of ["INSERT", "UPDATE", "REFERENCES"]) expect(await tieneAlguna("public.config_sistema", rol, p), `${rol} ${p}`).toBe(false);
-  });
+  it.each(["contapp_backend", "contapp_worker"])(
+    "%s: SELECT de todas las columnas y nada mas (sin INSERT, UPDATE, DELETE, TRUNCATE)",
+    async (rol) => {
+      expect(
+        await columnasConPrivilegio("public.config_sistema", rol, "SELECT"),
+      ).toEqual(COLUMNAS);
+      expect(await concedidos("public.config_sistema", rol)).toEqual([
+        "SELECT",
+      ]);
+      for (const p of ["INSERT", "UPDATE", "REFERENCES"])
+        expect(
+          await tieneAlguna("public.config_sistema", rol, p),
+          `${rol} ${p}`,
+        ).toBe(false);
+    },
+  );
 
-  it.each(["contapp_platform", "contapp_app"])("%s no tiene ningun privilegio sobre config_sistema", async (rol) => {
-    expect(await concedidos("public.config_sistema", rol)).toEqual([]);
-  });
+  it.each(["contapp_platform", "contapp_app"])(
+    "%s no tiene ningun privilegio sobre config_sistema",
+    async (rol) => {
+      expect(await concedidos("public.config_sistema", rol)).toEqual([]);
+    },
+  );
 
   it("la app no puede escribir ni leer config_sistema con el rol de login (42501)", async () => {
     const r = await intentarRaw(pool, null, "select * from config_sistema");
@@ -305,7 +431,10 @@ describe("config_sistema: tabla de plataforma, sin escritura de la app (CA-4, CA
          from pg_class c cross join lateral aclexplode(c.relacl) a
         where c.oid = to_regclass('public.config_sistema') and a.grantee <> c.relowner order by 1`,
     );
-    expect(r.map((x) => x.quien)).toEqual(["contapp_backend", "contapp_worker"]);
+    expect(r.map((x) => x.quien)).toEqual([
+      "contapp_backend",
+      "contapp_worker",
+    ]);
   });
 });
 
@@ -318,10 +447,18 @@ describe("credencial.estado (D13): columnas, grants por columna y trigger (CA-9)
     );
     expect(r).toHaveLength(3);
     const por = Object.fromEntries(r.map((x) => [x.column_name, x]));
-    expect([por.estado.udt_name, por.estado.is_nullable]).toEqual(["text", "NO"]);
+    expect([por.estado.udt_name, por.estado.is_nullable]).toEqual([
+      "text",
+      "NO",
+    ]);
     expect(String(por.estado.column_default)).toContain("configurada");
-    expect([por.estado_motivo.udt_name, por.estado_motivo.is_nullable]).toEqual(["text", "YES"]);
-    expect([por.estado_at.udt_name, por.estado_at.is_nullable]).toEqual(["timestamptz", "YES"]);
+    expect([por.estado_motivo.udt_name, por.estado_motivo.is_nullable]).toEqual(
+      ["text", "YES"],
+    );
+    expect([por.estado_at.udt_name, por.estado_at.is_nullable]).toEqual([
+      "timestamptz",
+      "YES",
+    ]);
   });
 
   it("contapp_backend LEE las 3 columnas de estado y no las escribe (ni INSERT ni UPDATE)", async () => {
@@ -337,10 +474,29 @@ describe("credencial.estado (D13): columnas, grants por columna y trigger (CA-9)
   });
 
   it("contapp_worker ESCRIBE las 3 (UPDATE) pero no las inserta; su UPDATE total son 6 columnas", async () => {
-    expect(await columnasConPrivilegio("public.credencial", "contapp_worker", "UPDATE")).toEqual(
-      ["dek_envuelta", "estado", "estado_at", "estado_motivo", "kek_id", "updated_at"].sort(),
+    expect(
+      await columnasConPrivilegio(
+        "public.credencial",
+        "contapp_worker",
+        "UPDATE",
+      ),
+    ).toEqual(
+      [
+        "dek_envuelta",
+        "estado",
+        "estado_at",
+        "estado_motivo",
+        "kek_id",
+        "updated_at",
+      ].sort(),
     );
-    expect(await columnasConPrivilegio("public.credencial", "contapp_worker", "INSERT")).toEqual([]);
+    expect(
+      await columnasConPrivilegio(
+        "public.credencial",
+        "contapp_worker",
+        "INSERT",
+      ),
+    ).toEqual([]);
   });
 
   it("trigger credencial_reinicia_estado: BEFORE UPDATE OF ciphertext, por fila, SECURITY INVOKER, search_path fijo, fuera de `auth`", async () => {
@@ -359,7 +515,9 @@ describe("credencial.estado (D13): columnas, grants por columna y trigger (CA-9)
     expect(t[0].columnas).toEqual(["ciphertext"]);
     expect(t[0].prosecdef).toBe(false);
     expect(t[0].esquema).not.toBe("auth");
-    const sp = (t[0].proconfig as string[] | null)?.find((x) => x.startsWith("search_path="));
+    const sp = (t[0].proconfig as string[] | null)?.find((x) =>
+      x.startsWith("search_path="),
+    );
     expect(sp, "search_path fijo").toBeDefined();
   });
 });
@@ -397,7 +555,9 @@ describe("rol contapp_enumerador (D18)", () => {
 
   it("contapp_app no puede asumirlo (SET ROLE -> 42501)", async () => {
     // intentarRaw lanza si el SET ROLE falla (ocurre antes de capturar la sentencia): se comprueba el SQLSTATE del rechazo.
-    await expect(intentarRaw(pool, "contapp_enumerador", "select 1")).rejects.toMatchObject({ code: "42501" });
+    await expect(
+      intentarRaw(pool, "contapp_enumerador", "select 1"),
+    ).rejects.toMatchObject({ code: "42501" });
   });
 
   it("solo tiene SELECT (id) ON tenant y SELECT (tenant_id, estado, actualizado_en) ON job_registro; nada mas en ninguna tabla", async () => {
@@ -427,27 +587,61 @@ describe("rol contapp_enumerador (D18)", () => {
   });
 
   it("no es dueño de tablas, y solo es dueño de las funciones sistema.*", async () => {
-    const tablas = await consulta("select relname from pg_class where relowner = 'contapp_enumerador'::regrole and relkind in ('r', 'p', 'v', 'm')");
+    const tablas = await consulta(
+      "select relname from pg_class where relowner = 'contapp_enumerador'::regrole and relkind in ('r', 'p', 'v', 'm')",
+    );
     expect(tablas).toEqual([]);
     const fn = await consulta(
       `select n.nspname || '.' || p.proname as f from pg_proc p join pg_namespace n on n.oid = p.pronamespace
         where p.proowner = 'contapp_enumerador'::regrole order by 1`,
     );
-    expect(fn.map((x) => x.f)).toEqual(["sistema.estudios_con_trabajos", "sistema.estudios_ids"]);
+    expect(fn.map((x) => x.f)).toEqual([
+      "sistema.estudios_con_trabajos",
+      "sistema.estudios_ids",
+    ]);
   });
 });
 
 // =================================================================================================
 describe("esquema sistema y sus funciones (D18, CA-12)", () => {
   it("el esquema sistema existe, es de contapp_migrator y solo contapp_worker tiene USAGE (nadie crea objetos)", async () => {
-    const d = await consulta("select o.rolname from pg_namespace n join pg_roles o on o.oid = n.nspowner where n.nspname = 'sistema'");
+    const d = await consulta(
+      "select o.rolname from pg_namespace n join pg_roles o on o.oid = n.nspowner where n.nspname = 'sistema'",
+    );
     expect(d).toEqual([{ rolname: "contapp_migrator" }]);
-    expect((await consulta("select has_schema_privilege('contapp_worker', 'sistema', 'USAGE') as v"))[0].v).toBe(true);
+    expect(
+      (
+        await consulta(
+          "select has_schema_privilege('contapp_worker', 'sistema', 'USAGE') as v",
+        )
+      )[0].v,
+    ).toBe(true);
     for (const rol of ["contapp_backend", "contapp_platform", "contapp_app"]) {
-      expect((await consulta("select has_schema_privilege($1, 'sistema', 'USAGE') as v", [rol]))[0].v, `${rol} USAGE`).toBe(false);
+      expect(
+        (
+          await consulta(
+            "select has_schema_privilege($1, 'sistema', 'USAGE') as v",
+            [rol],
+          )
+        )[0].v,
+        `${rol} USAGE`,
+      ).toBe(false);
     }
-    for (const rol of ["contapp_backend", "contapp_worker", "contapp_platform", "contapp_app"]) {
-      expect((await consulta("select has_schema_privilege($1, 'sistema', 'CREATE') as v", [rol]))[0].v, `${rol} CREATE`).toBe(false);
+    for (const rol of [
+      "contapp_backend",
+      "contapp_worker",
+      "contapp_platform",
+      "contapp_app",
+    ]) {
+      expect(
+        (
+          await consulta(
+            "select has_schema_privilege($1, 'sistema', 'CREATE') as v",
+            [rol],
+          )
+        )[0].v,
+        `${rol} CREATE`,
+      ).toBe(false);
     }
     const publico = await consulta(
       `select 1 from pg_namespace n cross join lateral aclexplode(coalesce(n.nspacl, acldefault('n', n.nspowner))) a
@@ -462,7 +656,10 @@ describe("esquema sistema y sus funciones (D18, CA-12)", () => {
         where p.pronamespace = to_regnamespace('sistema') order by 1`,
     );
     expect(r).toEqual([
-      { proname: "estudios_con_trabajos", args: "estados text[], antiguedad_seg integer" },
+      {
+        proname: "estudios_con_trabajos",
+        args: "estados text[], antiguedad_seg integer",
+      },
       { proname: "estudios_ids", args: "" },
     ]);
   });
@@ -479,8 +676,12 @@ describe("esquema sistema y sus funciones (D18, CA-12)", () => {
       expect(f.provolatile, `${f.proname} STABLE`).toBe("s");
       expect(f.proretset, `${f.proname} SETOF`).toBe(true);
       expect(f.retorna, `${f.proname} devuelve solo uuid`).toBe("uuid");
-      const sp = (f.proconfig as string[] | null)?.find((x) => x.startsWith("search_path="));
-      expect(sp, `${f.proname} search_path`).toMatch(/^search_path=pg_catalog,\s*pg_temp$/);
+      const sp = (f.proconfig as string[] | null)?.find((x) =>
+        x.startsWith("search_path="),
+      );
+      expect(sp, `${f.proname} search_path`).toMatch(
+        /^search_path=pg_catalog,\s*pg_temp$/,
+      );
     }
   });
 
@@ -496,7 +697,10 @@ describe("esquema sistema y sus funciones (D18, CA-12)", () => {
     );
     expect(r).toHaveLength(2);
     for (const f of r) {
-      expect([f.worker, f.backend, f.platform, f.app, f.publico], f.proname).toEqual([true, false, false, false, false]);
+      expect(
+        [f.worker, f.backend, f.platform, f.app, f.publico],
+        f.proname,
+      ).toEqual([true, false, false, false, false]);
     }
   });
 });
@@ -512,7 +716,8 @@ describe("auth.purgar (D16, CA-13): catalogo", () => {
     expect(r).toEqual([
       {
         args: "retencion_sesion interval, retencion_token interval, retencion_intento interval, retencion_limite interval",
-        retorna: "TABLE(sesiones integer, tokens integer, intentos integer, limites integer)",
+        retorna:
+          "TABLE(sesiones integer, tokens integer, intentos integer, limites integer)",
       },
     ]);
   });
@@ -524,7 +729,9 @@ describe("auth.purgar (D16, CA-13): catalogo", () => {
     expect(r).toHaveLength(1);
     expect(r[0].prosecdef).toBe(true);
     expect(r[0].dueno).toBe("contapp_auth");
-    const sp = (r[0].proconfig as string[] | null)?.find((x) => x.startsWith("search_path="));
+    const sp = (r[0].proconfig as string[] | null)?.find((x) =>
+      x.startsWith("search_path="),
+    );
     expect(sp).toMatch(/^search_path=pg_catalog,\s*pg_temp$/);
   });
 
@@ -537,17 +744,46 @@ describe("auth.purgar (D16, CA-13): catalogo", () => {
               exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a where a.grantee = 0) as publico
          from pg_proc p where ${firma}`,
     );
-    expect(r).toEqual([{ worker: true, backend: false, platform: false, app: false, publico: false }]);
+    expect(r).toEqual([
+      {
+        worker: true,
+        backend: false,
+        platform: false,
+        app: false,
+        publico: false,
+      },
+    ]);
   });
 
   it("contapp_worker tiene USAGE del esquema auth solo si lo necesita para llamar a purgar (y no puede crear objetos ahi)", async () => {
-    expect((await consulta("select has_schema_privilege('contapp_worker', 'auth', 'USAGE') as v"))[0].v).toBe(true);
-    expect((await consulta("select has_schema_privilege('contapp_worker', 'auth', 'CREATE') as v"))[0].v).toBe(false);
+    expect(
+      (
+        await consulta(
+          "select has_schema_privilege('contapp_worker', 'auth', 'USAGE') as v",
+        )
+      )[0].v,
+    ).toBe(true);
+    expect(
+      (
+        await consulta(
+          "select has_schema_privilege('contapp_worker', 'auth', 'CREATE') as v",
+        )
+      )[0].v,
+    ).toBe(false);
   });
 
   it("contapp_worker sigue sin ningun privilegio de tabla sobre las tablas de auth (solo EXECUTE de purgar)", async () => {
-    for (const t of ["usuario_contrasena", "sesion", "token_recuperacion", "intento_login", "limite_tasa"]) {
-      expect(await concedidos(`auth.${t}`, "contapp_worker"), `worker sobre auth.${t}`).toEqual([]);
+    for (const t of [
+      "usuario_contrasena",
+      "sesion",
+      "token_recuperacion",
+      "intento_login",
+      "limite_tasa",
+    ]) {
+      expect(
+        await concedidos(`auth.${t}`, "contapp_worker"),
+        `worker sobre auth.${t}`,
+      ).toEqual([]);
     }
   });
 });

@@ -44,7 +44,9 @@ describe("auth.purgar con retenciones de signo mixto (D16, CA-13)", () => {
       );
       const sesionId = s.rows[0].id as string;
       // La validación de la función (retención >= 1 día) acepta este valor:
-      const cmp = await c.query("select '-12 mon 361 days'::interval >= interval '1 day' as pasa");
+      const cmp = await c.query(
+        "select '-12 mon 361 days'::interval >= interval '1 day' as pasa",
+      );
       expect(cmp.rows[0].pasa).toBe(true);
       await c.query("SET LOCAL ROLE contapp_worker");
       let error: string | null = null;
@@ -58,11 +60,15 @@ describe("auth.purgar con retenciones de signo mixto (D16, CA-13)", () => {
         await c.query("ROLLBACK TO SAVEPOINT p");
       }
       await c.query("RESET ROLE");
-      const sigue = await c.query("select count(*)::int as n from auth.sesion where id = $1", [sesionId]);
+      const sigue = await c.query(
+        "select count(*)::int as n from auth.sesion where id = $1",
+        [sesionId],
+      );
       return { error, sigue: sigue.rows[0].n as number };
     });
     // O la función rechaza la retención (22023), o la sesión vigente sigue ahí.
-    if (r.error === null) expect(r.sigue, "auth.purgar borró una sesión vigente").toBe(1);
+    if (r.error === null)
+      expect(r.sigue, "auth.purgar borró una sesión vigente").toBe(1);
     else expect(r.error).toBe("22023");
   });
 });
@@ -116,6 +122,11 @@ describe("contapp_enumerador como atacante (D18)", () => {
     expect(r.esquemas).toEqual([]);
     expect(r.bd).toEqual({ temp: false, crear: false });
     expect(r.miembros).toBe(0);
-    expect(r.rol).toEqual({ rolcanlogin: false, rolsuper: false, rolinherit: false, rolbypassrls: true });
+    expect(r.rol).toEqual({
+      rolcanlogin: false,
+      rolsuper: false,
+      rolinherit: false,
+      rolbypassrls: true,
+    });
   });
 });

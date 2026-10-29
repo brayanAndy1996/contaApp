@@ -25,7 +25,8 @@ const nuevo: NuevoTrabajo & { maxPendientes: number } = {
   maxIntentos: 4,
   maxPendientes: 2,
 };
-const textos = (ll: Array<{ texto: string }>) => ll.map((l) => l.texto.trim().split(/\s+/).slice(0, 4).join(" "));
+const textos = (ll: Array<{ texto: string }>) =>
+  ll.map((l) => l.texto.trim().split(/\s+/).slice(0, 4).join(" "));
 
 describe("insertarTrabajo con tope de pendientes", () => {
   it("inserta, toma el candado del estudio y la cola, cuenta y confirma el savepoint", async () => {
@@ -42,7 +43,9 @@ describe("insertarTrabajo con tope de pendientes", () => {
     expect(t).toHaveLength(5);
     expect(t[0]).toBe("savepoint job_insertar");
     expect(t[1]).toMatch(/^insert into job_registro/);
-    expect(t[2]).toMatch(/pg_advisory_xact_lock\(hashtextextended\(\s*'job_registro\.pendientes:'/);
+    expect(t[2]).toMatch(
+      /pg_advisory_xact_lock\(hashtextextended\(\s*'job_registro\.pendientes:'/,
+    );
     expect(t[2]).toMatch(/current_setting\('app\.tenant_id', true\)/);
     expect(t[3]).toMatch(/^select count\(\*\)/);
     expect(t[4]).toBe("release savepoint job_insertar");
@@ -103,22 +106,49 @@ describe("credencial: versión de la fila (H-008-2a-4)", () => {
   it("versionCredencial devuelve el xmin como texto, o null sin credencial", async () => {
     const hay = txFalso({ rows: [{ version: "1234" }] });
     expect(await versionCredencial(hay.tx, CLI, "sol")).toBe("1234");
-    expect(hay.llamadas[0]!.texto).toMatch(/select xmin::text as version from credencial/);
+    expect(hay.llamadas[0]!.texto).toMatch(
+      /select xmin::text as version from credencial/,
+    );
     expect(hay.llamadas[0]!.valores).toEqual([CLI, "sol"]);
-    expect(await versionCredencial(txFalso({ rows: [] }).tx, CLI, "sol")).toBeNull();
+    expect(
+      await versionCredencial(txFalso({ rows: [] }).tx, CLI, "sol"),
+    ).toBeNull();
   });
 
   it("marcar con versión compara el xmin (parámetro) y no la fecha", async () => {
     const { tx, llamadas } = txFalso({ rowCount: 1 });
-    expect(await marcarCredencialInvalida(tx, CLI, "sol", "credencial_invalida", "j", "1234")).toBe(true);
+    expect(
+      await marcarCredencialInvalida(
+        tx,
+        CLI,
+        "sol",
+        "credencial_invalida",
+        "j",
+        "1234",
+      ),
+    ).toBe(true);
     expect(llamadas[0]!.texto).toMatch(/and xmin::text = \$4$/);
     expect(llamadas[0]!.texto).not.toContain("iniciado_en");
-    expect(llamadas[0]!.valores).toEqual([CLI, "sol", "credencial_invalida", "1234"]);
+    expect(llamadas[0]!.valores).toEqual([
+      CLI,
+      "sol",
+      "credencial_invalida",
+      "1234",
+    ]);
   });
 
   it("marcar con versión null (no había credencial al empezar) no consulta ni marca", async () => {
     const { tx, llamadas } = txFalso({ rowCount: 1 });
-    expect(await marcarCredencialInvalida(tx, CLI, "sol", "credencial_invalida", "j", null)).toBe(false);
+    expect(
+      await marcarCredencialInvalida(
+        tx,
+        CLI,
+        "sol",
+        "credencial_invalida",
+        "j",
+        null,
+      ),
+    ).toBe(false);
     expect(llamadas).toHaveLength(0);
   });
 });

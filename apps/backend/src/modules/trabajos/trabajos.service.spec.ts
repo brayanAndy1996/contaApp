@@ -22,14 +22,22 @@ const sesion = (o: Partial<SesionResuelta> = {}): SesionResuelta => ({
 /** `withTenant` cuya única consulta (la membresía) devuelve `filas`. */
 const db = (filas: object[]) => ({
   withTenant: vi.fn(async (_c: unknown, fn: (tx: never) => unknown) =>
-    fn({ query: async () => ({ rows: filas, rowCount: filas.length }) } as never),
+    fn({
+      query: async () => ({ rows: filas, rowCount: filas.length }),
+    } as never),
   ),
 });
-const redis = { prefijo: "p:", publicador: () => null } as unknown as RedisTrabajos;
+const redis = {
+  prefijo: "p:",
+  publicador: () => null,
+} as unknown as RedisTrabajos;
 
 describe("contextoSesion", () => {
   it("devuelve el estudio y el usuario de la sesión", () => {
-    expect(contextoSesion(sesion())).toEqual({ tenantId: TENANT, userId: USUARIO });
+    expect(contextoSesion(sesion())).toEqual({
+      tenantId: TENANT,
+      userId: USUARIO,
+    });
   });
 
   it("sin estudio activo o con el estudio revocado falla cerrado con estudio_requerido", () => {

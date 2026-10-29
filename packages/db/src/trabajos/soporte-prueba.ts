@@ -5,7 +5,8 @@ export interface Llamada {
   valores: unknown[];
 }
 
-export type Respuesta = { rows?: Record<string, unknown>[]; rowCount?: number | null } | Error;
+export type Respuesta =
+  { rows?: Record<string, unknown>[]; rowCount?: number | null } | Error;
 
 /** `tx` falsa: cada query consume la siguiente respuesta (la ultima se repite); un Error se lanza tal cual. */
 export function txFalso(...respuestas: Respuesta[]) {
@@ -14,7 +15,10 @@ export function txFalso(...respuestas: Respuesta[]) {
   const tx = {
     query: async (texto: string, valores: unknown[] = []) => {
       llamadas.push({ texto, valores });
-      const r = respuestas[Math.min(i++, respuestas.length - 1)] ?? { rows: [], rowCount: 0 };
+      const r = respuestas[Math.min(i++, respuestas.length - 1)] ?? {
+        rows: [],
+        rowCount: 0,
+      };
       if (r instanceof Error) throw r;
       const rows = r.rows ?? [];
       return { rows, rowCount: r.rowCount ?? rows.length };

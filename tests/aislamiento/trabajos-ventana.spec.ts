@@ -11,7 +11,12 @@ import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { abrirAdmin } from "./auth-soporte";
 import { type ContappDb } from "./soporte";
-import { crearDb, EscenarioTrabajos, exportado, type ClientePrueba } from "./trabajos-soporte";
+import {
+  crearDb,
+  EscenarioTrabajos,
+  exportado,
+  type ClientePrueba,
+} from "./trabajos-soporte";
 
 type Fn = (...a: any[]) => Promise<any>;
 const f = (nombre: string) => exportado<Fn>(nombre);
@@ -44,15 +49,26 @@ async function estudioNuevo(): Promise<{ t: string; c: ClientePrueba }> {
 }
 
 const ventana = (t: string, cola: string, ahora: Date, limite: number) =>
-  worker().withTenant({ tenantId: t }, (tx) => f("siguientesDisponibles")(tx, cola, ahora, limite));
+  worker().withTenant({ tenantId: t }, (tx) =>
+    f("siguientesDisponibles")(tx, cola, ahora, limite),
+  );
 
 describe("siguientesDisponibles: orden, limite y filtros (CA-2, D21)", () => {
   it("devuelve en el orden de siguienteDisponible: interactivo, programado; luego creado_en", async () => {
     const { t, c } = await estudioNuevo();
-    const progViejo = await et.job(t, c, { prioridad: "programado", hace: 900 });
+    const progViejo = await et.job(t, c, {
+      prioridad: "programado",
+      hace: 900,
+    });
     const progNuevo = await et.job(t, c, { prioridad: "programado", hace: 20 });
-    const interNuevo = await et.job(t, c, { prioridad: "interactivo", hace: 10 });
-    const interViejo = await et.job(t, c, { prioridad: "interactivo", hace: 100 });
+    const interNuevo = await et.job(t, c, {
+      prioridad: "interactivo",
+      hace: 10,
+    });
+    const interViejo = await et.job(t, c, {
+      prioridad: "interactivo",
+      hace: 100,
+    });
     const r = await ventana(t, "sire", new Date(), 10);
     expect(ids(r)).toEqual([interViejo, interNuevo, progViejo, progNuevo]);
   });
@@ -73,7 +89,8 @@ describe("siguientesDisponibles: orden, limite y filtros (CA-2, D21)", () => {
   it("respeta `limite` y sus filas son las primeras de una ventana mas grande", async () => {
     const { t, c } = await estudioNuevo();
     const todosIds: string[] = [];
-    for (let i = 0; i < 5; i++) todosIds.push(await et.job(t, c, { hace: 500 - i * 10 }));
+    for (let i = 0; i < 5; i++)
+      todosIds.push(await et.job(t, c, { hace: 500 - i * 10 }));
     const dos = await ventana(t, "sire", new Date(), 2);
     const todos = await ventana(t, "sire", new Date(), 50);
     expect(ids(dos)).toEqual(todosIds.slice(0, 2));
@@ -84,10 +101,13 @@ describe("siguientesDisponibles: orden, limite y filtros (CA-2, D21)", () => {
     const { t, c } = await estudioNuevo();
     await et.job(t, c, { prioridad: "programado", hace: 900 });
     const inter = await et.job(t, c, { prioridad: "interactivo", hace: 10 });
-    const [uno, cabeza] = await worker().withTenant({ tenantId: t }, async (tx) => [
-      await f("siguientesDisponibles")(tx, "sire", new Date(), 1),
-      await f("siguienteDisponible")(tx, "sire", new Date()),
-    ]);
+    const [uno, cabeza] = await worker().withTenant(
+      { tenantId: t },
+      async (tx) => [
+        await f("siguientesDisponibles")(tx, "sire", new Date(), 1),
+        await f("siguienteDisponible")(tx, "sire", new Date()),
+      ],
+    );
     expect(ids(uno)).toEqual([inter]);
     expect(cabeza.id).toBe(inter);
   });
@@ -97,11 +117,17 @@ describe("siguientesDisponibles: orden, limite y filtros (CA-2, D21)", () => {
     const ok = await et.job(t, c, { hace: 100 });
     await et.job(t, c, { hace: 100, estado: "ejecutando" });
     await et.job(t, c, { hace: 100, estado: "completado" });
-    await et.job(t, c, { hace: 100, estado: "cancelado", motivo: "cancelado_usuario" });
+    await et.job(t, c, {
+      hace: 100,
+      estado: "cancelado",
+      motivo: "cancelado_usuario",
+    });
     const sol = await et.job(t, c, { hace: 100, cola: "sol", canal: "sol" });
     const futuro = await et.job(t, c, { hace: 100, disponibleEn: 3600 });
     expect(ids(await ventana(t, "sire", new Date(), 20))).toEqual([ok]);
-    expect(ids(await ventana(t, "sire", new Date(Date.now() + 2 * 3600_000), 20))).toEqual([ok, futuro]);
+    expect(
+      ids(await ventana(t, "sire", new Date(Date.now() + 2 * 3600_000), 20)),
+    ).toEqual([ok, futuro]);
     expect(ids(await ventana(t, "sol", new Date(), 20))).toEqual([sol]);
   });
 
@@ -138,7 +164,9 @@ describe("siguientesDisponibles: orden, limite y filtros (CA-2, D21)", () => {
     expect(ids(await ventana(a.t, "sire", new Date(), 20))).toEqual([idA]);
     const deB = await ventana(b.t, "sire", new Date(), 20);
     expect(deB).toHaveLength(2);
-    expect(deB.every((x: { tenantId: string }) => x.tenantId === b.t)).toBe(true);
+    expect(deB.every((x: { tenantId: string }) => x.tenantId === b.t)).toBe(
+      true,
+    );
   });
 
   it("es solo lectura: no cambia ninguna fila", async () => {
@@ -148,7 +176,9 @@ describe("siguientesDisponibles: orden, limite y filtros (CA-2, D21)", () => {
     await ventana(t, "sire", new Date(), 20);
     const despues = await et.fila(id);
     expect(despues.estado).toBe("en_cola");
-    expect(despues.actualizado_en.getTime()).toBe(antes.actualizado_en.getTime());
+    expect(despues.actualizado_en.getTime()).toBe(
+      antes.actualizado_en.getTime(),
+    );
   });
 });
 
@@ -173,7 +203,9 @@ describe("siguientesDisponibles: `limite` invalido lanza antes de consultar (D21
           return { rows: [], rowCount: 0 };
         },
       };
-      await expect(f("siguientesDisponibles")(tx, "sire", new Date(), valor)).rejects.toThrow();
+      await expect(
+        f("siguientesDisponibles")(tx, "sire", new Date(), valor),
+      ).rejects.toThrow();
       expect(consultas).toBe(0);
     });
   }

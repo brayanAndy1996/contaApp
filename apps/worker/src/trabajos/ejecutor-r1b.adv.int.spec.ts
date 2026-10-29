@@ -28,7 +28,11 @@ import {
   Reconciliador,
   type PayloadTrabajo,
 } from "@contapp/queue";
-import { ErrorCredencial, ErrorTransitorio, type SireAuth } from "@contapp/sunat";
+import {
+  ErrorCredencial,
+  ErrorTransitorio,
+  type SireAuth,
+} from "@contapp/sunat";
 import type { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
@@ -80,7 +84,11 @@ afterAll(async () => {
   await Promise.all([worker?.close(), backend?.close(), admin?.close()]);
 });
 
-const silencio: LoggerTrabajos = { info: () => undefined, warn: () => undefined, error: () => undefined };
+const silencio: LoggerTrabajos = {
+  info: () => undefined,
+  warn: () => undefined,
+  error: () => undefined,
+};
 const dormir = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** withSistema que solo devuelve los estudios de este escenario (el reconciliador no toca otras suites). */
@@ -89,8 +97,12 @@ function soloMios(db: ContappDb): ContappDb {
     get(t, p, rcv) {
       if (p === "withSistema")
         return async (fn: (tx: unknown) => Promise<unknown>) => {
-          const r = await (t.withSistema as (f: typeof fn) => Promise<unknown>).call(t, fn);
-          return Array.isArray(r) ? r.filter((x) => typeof x === "string" && e.estudios.includes(x)) : r;
+          const r = await (
+            t.withSistema as (f: typeof fn) => Promise<unknown>
+          ).call(t, fn);
+          return Array.isArray(r)
+            ? r.filter((x) => typeof x === "string" && e.estudios.includes(x))
+            : r;
         };
       const v = Reflect.get(t, p, rcv);
       return typeof v === "function" ? v.bind(t) : v;
@@ -99,7 +111,10 @@ function soloMios(db: ContappDb): ContappDb {
 }
 
 /** Worker completo (`iniciarTrabajos`) con BullMQ real, intervalos cortos y el reconciliador acotado a lo propio. */
-async function arrancarWorker(procesadores: Record<string, Procesador>, eventos: EventoLog[] = []) {
+async function arrancarWorker(
+  procesadores: Record<string, Procesador>,
+  eventos: EventoLog[] = [],
+) {
   // El liderazgo que dejó el despachador suelto de otra prueba de este archivo no debe retrasar a este worker.
   await redis.del(k.lider("sire"), k.lider("sol"), k.lider("xml"));
   const dbReal = crearDbRol("contapp_worker", 8);
@@ -143,7 +158,11 @@ describe("arriendo vencido con el ejecutor aún vivo (event loop bloqueado más 
   it("el ejecutor viejo no escribe el resultado de la ejecución nueva ni le borra el ejec y el lock del RUC", async () => {
     const T = await e.estudio();
     const c = await e.cliente(T);
-    const r = await encolarYPublicar(backend, redis, prefijo, T, { tipo: "prueba.eco", clienteId: c.id, parametros: { n: 1 } });
+    const r = await encolarYPublicar(backend, redis, prefijo, T, {
+      tipo: "prueba.eco",
+      clienteId: c.id,
+      parametros: { n: 1 },
+    });
     const id = r.trabajo.id;
     const reloj = { ahora: () => new Date() };
     const capturados: PayloadTrabajo[] = [];
@@ -194,7 +213,13 @@ describe("arriendo vencido con el ejecutor aún vivo (event loop bloqueado más 
     await redis.zrem(k.cupoTenant("sire", T), id);
 
     // Proceso B: el reconciliador lo recupera (idempotente) y el despachador lo vuelve a lanzar.
-    const rec = new Reconciliador({ db: soloMios(worker), redis, reloj, prefijo, antiguedadSeg: 0 });
+    const rec = new Reconciliador({
+      db: soloMios(worker),
+      redis,
+      reloj,
+      prefijo,
+      antiguedadSeg: 0,
+    });
     const res = await rec.ciclo();
     expect(res.reencolados).toBe(1);
     await desp.ciclo();
@@ -215,9 +240,19 @@ describe("arriendo vencido con el ejecutor aún vivo (event loop bloqueado más 
 
     // Con la ejecución 2 aún en curso: estado sin cerrar, su arriendo ejec vivo y el lock del RUC con el arriendo largo.
     expect(
-      { estado: fila.estado, resultado: fila.resultado, ejecVivo, lockLargo: lockPttl > 5_000 },
+      {
+        estado: fila.estado,
+        resultado: fila.resultado,
+        ejecVivo,
+        lockLargo: lockPttl > 5_000,
+      },
       `la ejecución vieja cerró o soltó lo de la nueva (PTTL del lock: ${lockPttl} ms)`,
-    ).toEqual({ estado: "ejecutando", resultado: null, ejecVivo: 1, lockLargo: true });
+    ).toEqual({
+      estado: "ejecutando",
+      resultado: null,
+      ejecVivo: 1,
+      lockLargo: true,
+    });
   });
 });
 
@@ -233,9 +268,17 @@ describe("event loop bloqueado entre 10 y 30 s (lockDuration de BullMQ = 10 s)",
         return { ok: true };
       },
     });
-    const r = await encolarYPublicar(backend, redis, prefijo, T, { tipo: "prueba.eco", clienteId: c.id, parametros: { n: 2 } });
+    const r = await encolarYPublicar(backend, redis, prefijo, T, {
+      tipo: "prueba.eco",
+      clienteId: c.id,
+      parametros: { n: 2 },
+    });
     const id = r.trabajo.id;
-    await esperarHasta(async () => (await e.fila(id))?.estado === "completado", "completado", { timeoutMs: 40_000 });
+    await esperarHasta(
+      async () => (await e.fila(id))?.estado === "completado",
+      "completado",
+      { timeoutMs: 40_000 },
+    );
     // Espera por RUC (≤ 2 s por defecto) + dos chequeos de stalled de BullMQ (≤ 10 s).
     await esperarHasta(
       async () =>
@@ -257,8 +300,18 @@ describe("event loop bloqueado entre 10 y 30 s (lockDuration de BullMQ = 10 s)",
       jobBull: await redis.exists(`${prefijo}bull:sire:${id}`),
     };
     await w.detener();
-    expect({ llamadas, estado: fila.estado, intentos: fila.intentos }).toEqual({ llamadas: 1, estado: "completado", intentos: 0 });
-    expect(huerfanos).toEqual({ ejec: [], lock: [], cupoGlobal: 0, cupoEstudio: 0, jobBull: 0 });
+    expect({ llamadas, estado: fila.estado, intentos: fila.intentos }).toEqual({
+      llamadas: 1,
+      estado: "completado",
+      intentos: 0,
+    });
+    expect(huerfanos).toEqual({
+      ejec: [],
+      lock: [],
+      cupoGlobal: 0,
+      cupoEstudio: 0,
+      jobBull: 0,
+    });
   });
 
   it("bloqueo de 12 s y ErrorTransitorio: el reintento (mismo jobId) se ejecuta enseguida y no lo ignora BullMQ", async () => {
@@ -268,35 +321,54 @@ describe("event loop bloqueado entre 10 y 30 s (lockDuration de BullMQ = 10 s)",
       const c = await e.cliente(T);
       const marcas: Array<{ inicio: number; fin: number }> = [];
       const eventos: EventoLog[] = [];
-      const w = await arrancarWorker({
-        "prueba.eco": async () => {
-          const m = { inicio: Date.now(), fin: 0 };
-          marcas.push(m);
-          if (marcas.length === 1) {
-            bloquear(12_000);
+      const w = await arrancarWorker(
+        {
+          "prueba.eco": async () => {
+            const m = { inicio: Date.now(), fin: 0 };
+            marcas.push(m);
+            if (marcas.length === 1) {
+              bloquear(12_000);
+              m.fin = Date.now();
+              throw new ErrorTransitorio();
+            }
             m.fin = Date.now();
-            throw new ErrorTransitorio();
-          }
-          m.fin = Date.now();
-          return { ok: true };
+            return { ok: true };
+          },
         },
-      }, eventos);
+        eventos,
+      );
       await dormir(1200); // la config nueva (base 100 ms) ya está en la caché del worker
-      const r = await encolarYPublicar(backend, redis, prefijo, T, { tipo: "prueba.eco", clienteId: c.id, parametros: { n: 3 } });
+      const r = await encolarYPublicar(backend, redis, prefijo, T, {
+        tipo: "prueba.eco",
+        clienteId: c.id,
+        parametros: { n: 3 },
+      });
       const id = r.trabajo.id;
-      await esperarHasta(() => marcas.length >= 1 && marcas[0]!.fin > 0, "primer intento", { timeoutMs: 30_000 });
+      await esperarHasta(
+        () => marcas.length >= 1 && marcas[0]!.fin > 0,
+        "primer intento",
+        { timeoutMs: 30_000 },
+      );
       const finPrimero = marcas[0]!.fin;
       // Con backoff de ~100 ms, el segundo intento debería arrancar en pocos segundos (no a los ~30 s del reconciliador).
-      await esperarHasta(async () => (await e.fila(id))?.estado === "completado", "reintento completado", { timeoutMs: 10_000 }).catch(
-        () => undefined,
-      );
+      await esperarHasta(
+        async () => (await e.fila(id))?.estado === "completado",
+        "reintento completado",
+        { timeoutMs: 10_000 },
+      ).catch(() => undefined);
       const fila = await e.fila(id);
       const demora = marcas[1] ? marcas[1].inicio - finPrimero : null;
       const bull = await redis.hgetall(`${prefijo}bull:sire:${id}`);
-      const rastro = eventos.filter((x) => x.job_id === id).map((x) => x.evento);
+      const rastro = eventos
+        .filter((x) => x.job_id === id)
+        .map((x) => x.evento);
       await w.detener();
       expect(
-        { estado: fila.estado, intentos: fila.intentos, llamadas: marcas.length },
+        {
+          estado: fila.estado,
+          intentos: fila.intentos,
+          llamadas: marcas.length,
+        },
         `segundo intento a los ${demora ?? "∞"} ms del primero; ejecutor: ${rastro.join(",")}; job BullMQ con el mismo id: ${Object.keys(bull).length > 0 ? "sigue" : "no"}`,
       ).toEqual({ estado: "completado", intentos: 1, llamadas: 2 });
     } finally {
@@ -326,15 +398,24 @@ describe("credencial reemplazada mientras el trabajo corre (CA-9, D13)", () => {
     });
     await esperarHasta(() => llamadas === 1, "procesador en curso");
     // El contador guarda la clave nueva (UPDATE de ciphertext): el trigger la deja 'configurada'.
-    await admin.pool.query("update credencial set ciphertext = $2, updated_at = now() where id = $1", [credId, randomBytes(64)]);
+    await admin.pool.query(
+      "update credencial set ciphertext = $2, updated_at = now() where id = $1",
+      [credId, randomBytes(64)],
+    );
     expect((await e.credencialEstado(c.id, "sol"))?.estado).toBe("configurada");
     puerta.abrir();
-    await esperarHasta(async () => (await e.fila(r.trabajo.id))?.estado === "error", "trabajo en error");
+    await esperarHasta(
+      async () => (await e.fila(r.trabajo.id))?.estado === "error",
+      "trabajo en error",
+    );
     const fila = await e.fila(r.trabajo.id);
     const estado = await e.credencialEstado(c.id, "sol");
     await w.detener();
     expect(fila.motivo).toBe("credencial_invalida");
-    expect(estado?.estado, "la credencial reemplazada durante el trabajo quedó bloqueada").toBe("configurada");
+    expect(
+      estado?.estado,
+      "la credencial reemplazada durante el trabajo quedó bloqueada",
+    ).toBe("configurada");
   });
 });
 
@@ -360,13 +441,30 @@ describe("token SIRE de un proceso leído por otro (CA-11, D14)", () => {
       ruc: ctx.ruc,
     });
     const proceso = `p-${randomBytes(4).toString("hex")}`;
-    const A = new CacheTokenSire({ redis, sireAuth: auth(canario, nA), credenciales, prefijo, proceso });
-    const B = new CacheTokenSire({ redis, sireAuth: auth("token-de-B", nB), credenciales, prefijo, proceso });
+    const A = new CacheTokenSire({
+      redis,
+      sireAuth: auth(canario, nA),
+      credenciales,
+      prefijo,
+      proceso,
+    });
+    const B = new CacheTokenSire({
+      redis,
+      sireAuth: auth("token-de-B", nB),
+      credenciales,
+      prefijo,
+      proceso,
+    });
     expect(await A.obtener(ctx)).toBe(canario);
     expect(await A.obtener(ctx)).toBe(canario);
     const volcado = await volcarPrefijo(redis, prefijo);
     const tokenB = await B.obtener(ctx);
-    expect({ nA: nA.n, nB: nB.n, tokenB, enRedis: volcado.includes(canario) }).toEqual({
+    expect({
+      nA: nA.n,
+      nB: nB.n,
+      tokenB,
+      enRedis: volcado.includes(canario),
+    }).toEqual({
       nA: 1,
       nB: 1,
       tokenB: "token-de-B",

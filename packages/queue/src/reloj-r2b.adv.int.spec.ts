@@ -69,8 +69,12 @@ function soloPropios(db: ContappDb, propios: ReadonlySet<string>): ContappDb {
     get(t, p, rcv) {
       if (p === "withSistema")
         return async (fn: (tx: unknown) => Promise<unknown>) => {
-          const r = await (t.withSistema as (f: typeof fn) => Promise<unknown>).call(t, fn);
-          return Array.isArray(r) && r.every((x) => typeof x === "string") ? r.filter((x) => propios.has(x)) : r;
+          const r = await (
+            t.withSistema as (f: typeof fn) => Promise<unknown>
+          ).call(t, fn);
+          return Array.isArray(r) && r.every((x) => typeof x === "string")
+            ? r.filter((x) => propios.has(x))
+            : r;
         };
       const v = Reflect.get(t, p, rcv);
       return typeof v === "function" ? v.bind(t) : v;
@@ -98,25 +102,51 @@ async function banco(n: number, tipo = "prueba.eco"): Promise<Banco> {
   return { prefijo, k, T, clientes, ids };
 }
 
-const anotar = (lista: PayloadTrabajo[]) => async (_c: string, p: PayloadTrabajo) => {
-  lista.push(p);
-};
+const anotar =
+  (lista: PayloadTrabajo[]) => async (_c: string, p: PayloadTrabajo) => {
+    lista.push(p);
+  };
 
 function despachador(b: Banco, reloj: Reloj): Despachador {
-  return new Despachador({ db: worker, redis, reloj, prefijo: b.prefijo, agregarACola: anotar([]) });
+  return new Despachador({
+    db: worker,
+    redis,
+    reloj,
+    prefijo: b.prefijo,
+    agregarACola: anotar([]),
+  });
 }
 
 function reconciliador(b: Banco, reloj: Reloj): Reconciliador {
-  return new Reconciliador({ db: soloPropios(worker, new Set([b.T])), redis, reloj, prefijo: b.prefijo });
+  return new Reconciliador({
+    db: soloPropios(worker, new Set([b.T])),
+    redis,
+    reloj,
+    prefijo: b.prefijo,
+  });
 }
 
-async function estadosDe(T: string): Promise<Map<string, { estado: string; motivo: string | null; intentos: number }>> {
-  const r = await admin.pool.query("select id, estado, motivo, intentos from job_registro where tenant_id = $1", [T]);
-  return new Map(r.rows.map((f) => [f.id as string, { estado: f.estado, motivo: f.motivo, intentos: Number(f.intentos) }]));
+async function estadosDe(
+  T: string,
+): Promise<
+  Map<string, { estado: string; motivo: string | null; intentos: number }>
+> {
+  const r = await admin.pool.query(
+    "select id, estado, motivo, intentos from job_registro where tenant_id = $1",
+    [T],
+  );
+  return new Map(
+    r.rows.map((f) => [
+      f.id as string,
+      { estado: f.estado, motivo: f.motivo, intentos: Number(f.intentos) },
+    ]),
+  );
 }
 
 async function enEjecucion(T: string): Promise<string[]> {
-  return [...(await estadosDe(T))].filter(([, v]) => v.estado === "ejecutando").map(([id]) => id);
+  return [...(await estadosDe(T))]
+    .filter(([, v]) => v.estado === "ejecutando")
+    .map(([id]) => id);
 }
 
 /** Despacha hasta llenar el cupo del estudio (`limite`) con relojes correctos. */
@@ -130,14 +160,27 @@ async function llenarCupo(b: Banco): Promise<string[]> {
 }
 
 /** Ejecutor de otro proceso: toma `ejec:` y hace un latido con SU reloj; luego muere (deja vencer todo). */
-async function ejecutorQueMuere(b: Banco, id: string, ahoraEjecutorMs: number): Promise<void> {
-  const fila = (await admin.pool.query("select ruc from job_registro where id = $1", [id])).rows[0];
+async function ejecutorQueMuere(
+  b: Banco,
+  id: string,
+  ahoraEjecutorMs: number,
+): Promise<void> {
+  const fila = (
+    await admin.pool.query("select ruc from job_registro where id = $1", [id])
+  ).rows[0];
   const ejecucion = randomUUID();
   expect(await tomarEjecucion(redis, b.k, id, ejecucion)).toBe(true);
   await renovarArriendos(
     redis,
     b.k,
-    { id, tenantId: b.T, cola: "sire", canal: "sire", ruc: fila.ruc as string, ejecucion },
+    {
+      id,
+      tenantId: b.T,
+      cola: "sire",
+      canal: "sire",
+      ruc: fila.ruc as string,
+      ejecucion,
+    },
     ahoraEjecutorMs,
   );
 }
@@ -147,13 +190,16 @@ beforeAll(async () => {
   worker = crearDbRol("contapp_worker", 6);
   redis = conectarRedis();
   e = new Escenario(admin);
-  const r = await admin.pool.query("select concurrencia_tenant from config_sistema where cola = 'sire'");
+  const r = await admin.pool.query(
+    "select concurrencia_tenant from config_sistema where cola = 'sire'",
+  );
   limite = Number(r.rows[0].concurrencia_tenant);
 }, 30_000);
 
 afterAll(async () => {
   await e?.limpiar();
-  for (const p of prefijos) await limpiarPrefijo(redis, p).catch(() => undefined);
+  for (const p of prefijos)
+    await limpiarPrefijo(redis, p).catch(() => undefined);
   redis?.disconnect();
   await Promise.all([worker?.close(), admin?.close()]);
 });
@@ -169,7 +215,10 @@ describe("reconciliador con el reloj adelantado (sin espera)", () => {
     await e.envejecer(b.ids.filter((x) => x !== recien));
     await reconciliador(b, relojCon(DESFASE_MS)).ciclo();
     const f = (await estadosDe(b.T)).get(recien!)!;
-    expect(f, "un trabajo despachado hace milisegundos quedó resuelto como interrumpido").toEqual({
+    expect(
+      f,
+      "un trabajo despachado hace milisegundos quedó resuelto como interrumpido",
+    ).toEqual({
       estado: "ejecutando",
       motivo: null,
       intentos: 0,
@@ -193,28 +242,40 @@ describe("ejecutores que mueren con relojes desfasados (espera real del arriendo
       [control, 0],
     ] as const) {
       const vivos = await llenarCupo(b);
-      for (const id of vivos) await ejecutorQueMuere(b, id, Date.now() + desfase);
+      for (const id of vivos)
+        await ejecutorQueMuere(b, id, Date.now() + desfase);
       muertos.set(b, vivos);
     }
     // 35 s: vence el TTL de `ejec:` (30 s, reloj de Redis) y el arriendo de los cupos escritos con el reloj común.
     const mios = [adelantado.T, atrasado.T, control.T];
     const fin = Date.now() + 35_000;
     while (Date.now() < fin) {
-      await admin.pool.query("update job_registro set actualizado_en = now() where tenant_id = any($1::uuid[])", [mios]);
+      await admin.pool.query(
+        "update job_registro set actualizado_en = now() where tenant_id = any($1::uuid[])",
+        [mios],
+      );
       await dormir(2_000);
     }
-    const r = await admin.pool.query("select id from job_registro where tenant_id = any($1::uuid[])", [mios]);
+    const r = await admin.pool.query(
+      "select id from job_registro where tenant_id = any($1::uuid[])",
+      [mios],
+    );
     await e.envejecer(r.rows.map((x) => x.id as string));
     for (const b of [adelantado, atrasado, control]) {
-      for (const id of muertos.get(b)!) expect(await redis.exists(b.k.ejec(id))).toBe(0);
+      for (const id of muertos.get(b)!)
+        expect(await redis.exists(b.k.ejec(id))).toBe(0);
     }
   }, 90_000);
 
   it("control: con relojes correctos, vencido el arriendo se despacha el pendiente y se recuperan los muertos", async () => {
     await redis.del(control.k.lider("sire"));
     await despachador(control, relojCorrecto).ciclo();
-    const pendiente = control.ids.find((x) => !muertos.get(control)!.includes(x))!;
-    expect((await estadosDe(control.T)).get(pendiente)!.estado).toBe("ejecutando");
+    const pendiente = control.ids.find(
+      (x) => !muertos.get(control)!.includes(x),
+    )!;
+    expect((await estadosDe(control.T)).get(pendiente)!.estado).toBe(
+      "ejecutando",
+    );
     const r = await reconciliador(control, relojCorrecto).ciclo();
     expect(r.reencolados).toBe(limite);
   });
@@ -222,7 +283,9 @@ describe("ejecutores que mueren con relojes desfasados (espera real del arriendo
   it("ejecutor adelantado 40 s: el despachador (reloj correcto) libera su cupo al vencer el arriendo", async () => {
     await redis.del(adelantado.k.lider("sire"));
     await despachador(adelantado, relojCorrecto).ciclo();
-    const pendiente = adelantado.ids.find((x) => !muertos.get(adelantado)!.includes(x))!;
+    const pendiente = adelantado.ids.find(
+      (x) => !muertos.get(adelantado)!.includes(x),
+    )!;
     expect(
       (await estadosDe(adelantado.T)).get(pendiente)!.estado,
       "el cupo del ejecutor muerto sigue ocupado: su latido lo fechó con el reloj adelantado",
@@ -232,14 +295,21 @@ describe("ejecutores que mueren con relojes desfasados (espera real del arriendo
   it("ejecutor adelantado 40 s: el reconciliador (reloj correcto) recupera sus trabajos al vencer el arriendo", async () => {
     const r = await reconciliador(adelantado, relojCorrecto).ciclo();
     const estados = await estadosDe(adelantado.T);
-    const sinRecuperar = muertos.get(adelantado)!.filter((id) => estados.get(id)!.estado === "ejecutando");
-    expect(r.reencolados + r.interrumpidos, `sin recuperar: ${sinRecuperar.length}`).toBe(limite);
+    const sinRecuperar = muertos
+      .get(adelantado)!
+      .filter((id) => estados.get(id)!.estado === "ejecutando");
+    expect(
+      r.reencolados + r.interrumpidos,
+      `sin recuperar: ${sinRecuperar.length}`,
+    ).toBe(limite);
   });
 
   it("líder atrasado 40 s: poda el cupo de un ejecutor muerto en cuanto vence su arriendo", async () => {
     await redis.del(atrasado.k.lider("sire"));
     await despachador(atrasado, relojCon(-DESFASE_MS)).ciclo();
-    const pendiente = atrasado.ids.find((x) => !muertos.get(atrasado)!.includes(x))!;
+    const pendiente = atrasado.ids.find(
+      (x) => !muertos.get(atrasado)!.includes(x),
+    )!;
     expect(
       (await estadosDe(atrasado.T)).get(pendiente)!.estado,
       "el líder atrasado sigue contando el cupo vencido (poda con su hora local)",

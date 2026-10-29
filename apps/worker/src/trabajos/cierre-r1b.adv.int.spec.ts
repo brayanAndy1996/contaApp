@@ -31,7 +31,8 @@ beforeAll(() => {
   admin = crearDbAdmin();
 });
 afterAll(async () => {
-  for (const h of hijos) if (h.exitCode === null && h.signalCode === null) h.kill("SIGKILL");
+  for (const h of hijos)
+    if (h.exitCode === null && h.signalCode === null) h.kill("SIGKILL");
   await admin?.close();
 });
 
@@ -47,19 +48,37 @@ async function puertoLibre(): Promise<number> {
 }
 
 async function levantarRedis(puerto: number): Promise<ChildProcess> {
-  const r = spawn("redis-server", ["--port", String(puerto), "--bind", "127.0.0.1", "--save", "", "--appendonly", "no"], {
-    stdio: "ignore",
-  });
+  const r = spawn(
+    "redis-server",
+    [
+      "--port",
+      String(puerto),
+      "--bind",
+      "127.0.0.1",
+      "--save",
+      "",
+      "--appendonly",
+      "no",
+    ],
+    {
+      stdio: "ignore",
+    },
+  );
   hijos.add(r);
   for (let i = 0; i < 100; i++) {
-    const ping = spawnSync("redis-cli", ["-p", String(puerto), "ping"], { encoding: "utf8" });
+    const ping = spawnSync("redis-cli", ["-p", String(puerto), "ping"], {
+      encoding: "utf8",
+    });
     if (ping.stdout.trim() === "PONG") return r;
     await dormir(50);
   }
   throw new Error("redis-server propio no arrancó");
 }
 
-async function terminar(h: ChildProcess, senal: NodeJS.Signals = "SIGKILL"): Promise<void> {
+async function terminar(
+  h: ChildProcess,
+  senal: NodeJS.Signals = "SIGKILL",
+): Promise<void> {
   if (h.exitCode !== null || h.signalCode !== null) return;
   const fin = new Promise<void>((r) => h.once("exit", () => r()));
   h.kill(senal);
@@ -81,20 +100,32 @@ async function bdDespejada(): Promise<boolean> {
 interface Worker {
   proc: ChildProcess;
   salida: () => string;
-  salio: Promise<{ code: number | null; signal: NodeJS.Signals | null; en: number }>;
+  salio: Promise<{
+    code: number | null;
+    signal: NodeJS.Signals | null;
+    en: number;
+  }>;
 }
 
 async function lanzarWorker(puertoRedis: number): Promise<Worker> {
   let texto = "";
   const proc = spawn(process.execPath, [mainJs], {
     cwd: dirWorker,
-    env: { ...process.env, NODE_ENV: "test", REDIS_URL: `redis://127.0.0.1:${puertoRedis}` },
+    env: {
+      ...process.env,
+      NODE_ENV: "test",
+      REDIS_URL: `redis://127.0.0.1:${puertoRedis}`,
+    },
     stdio: ["ignore", "pipe", "pipe"],
   });
   hijos.add(proc);
   proc.stdout!.on("data", (d: Buffer) => (texto += d.toString("utf8")));
   proc.stderr!.on("data", (d: Buffer) => (texto += d.toString("utf8")));
-  const salio = new Promise<{ code: number | null; signal: NodeJS.Signals | null; en: number }>((r) =>
+  const salio = new Promise<{
+    code: number | null;
+    signal: NodeJS.Signals | null;
+    en: number;
+  }>((r) =>
     proc.once("exit", (code, signal) => r({ code, signal, en: Date.now() })),
   );
   for (let i = 0; i < 300 && !texto.includes('"trabajos_iniciados"'); i++) {
@@ -108,10 +139,15 @@ async function lanzarWorker(puertoRedis: number): Promise<Worker> {
   return { proc, salida: () => texto, salio };
 }
 
-async function sigtermYMedir(w: Worker): Promise<{ ms: number | null; code: number | null; signal: string | null }> {
+async function sigtermYMedir(
+  w: Worker,
+): Promise<{ ms: number | null; code: number | null; signal: string | null }> {
   const t0 = Date.now();
   w.proc.kill("SIGTERM");
-  const r = await Promise.race([w.salio, dormir(PLAZO_CIERRE_MS + 5_000).then(() => null)]);
+  const r = await Promise.race([
+    w.salio,
+    dormir(PLAZO_CIERRE_MS + 5_000).then(() => null),
+  ]);
   if (r === null) {
     await terminar(w.proc, "SIGKILL");
     return { ms: null, code: null, signal: null };
@@ -119,40 +155,49 @@ async function sigtermYMedir(w: Worker): Promise<{ ms: number | null; code: numb
   return { ms: r.en - t0, code: r.code, signal: r.signal };
 }
 
-describe.skipIf(!hayRedisServer || !existsSync(mainJs))("SIGTERM al worker compilado", () => {
-  it("con Redis arriba y sin trabajos: termina en ≤ 35 s con código 0 y registra trabajos_detenidos", async (ctx) => {
-    if (!(await bdDespejada())) ctx.skip();
-    const puerto = await puertoLibre();
-    const redis = await levantarRedis(puerto);
-    try {
-      const w = await lanzarWorker(puerto);
-      await dormir(1500);
-      const r = await sigtermYMedir(w);
-      expect(r.ms, "el worker no terminó tras SIGTERM").not.toBeNull();
-      expect(r.ms!).toBeLessThanOrEqual(PLAZO_CIERRE_MS);
-      expect({ code: r.code, signal: r.signal }).toEqual({ code: 0, signal: null });
-      expect(w.salida()).toContain('"trabajos_detenidos"');
-    } finally {
-      await terminar(redis);
-    }
-  });
+describe.skipIf(!hayRedisServer || !existsSync(mainJs))(
+  "SIGTERM al worker compilado",
+  () => {
+    it("con Redis arriba y sin trabajos: termina en ≤ 35 s con código 0 y registra trabajos_detenidos", async (ctx) => {
+      if (!(await bdDespejada())) ctx.skip();
+      const puerto = await puertoLibre();
+      const redis = await levantarRedis(puerto);
+      try {
+        const w = await lanzarWorker(puerto);
+        await dormir(1500);
+        const r = await sigtermYMedir(w);
+        expect(r.ms, "el worker no terminó tras SIGTERM").not.toBeNull();
+        expect(r.ms!).toBeLessThanOrEqual(PLAZO_CIERRE_MS);
+        expect({ code: r.code, signal: r.signal }).toEqual({
+          code: 0,
+          signal: null,
+        });
+        expect(w.salida()).toContain('"trabajos_detenidos"');
+      } finally {
+        await terminar(redis);
+      }
+    });
 
-  it("con Redis caído: SIGTERM igual termina el proceso en ≤ 35 s (cierre con tope)", async (ctx) => {
-    if (!(await bdDespejada())) ctx.skip();
-    const puerto = await puertoLibre();
-    const redis = await levantarRedis(puerto);
-    let w: Worker | null = null;
-    try {
-      w = await lanzarWorker(puerto);
-      await dormir(1500);
-      await terminar(redis); // Redis se cae con el worker en marcha
-      await dormir(2000);
-      const r = await sigtermYMedir(w);
-      expect(r.ms, `el worker seguía vivo ${PLAZO_CIERRE_MS + 5_000} ms después de SIGTERM (hubo que mandarle SIGKILL)`).not.toBeNull();
-      expect(r.ms!).toBeLessThanOrEqual(PLAZO_CIERRE_MS);
-    } finally {
-      if (w) await terminar(w.proc);
-      await terminar(redis);
-    }
-  });
-});
+    it("con Redis caído: SIGTERM igual termina el proceso en ≤ 35 s (cierre con tope)", async (ctx) => {
+      if (!(await bdDespejada())) ctx.skip();
+      const puerto = await puertoLibre();
+      const redis = await levantarRedis(puerto);
+      let w: Worker | null = null;
+      try {
+        w = await lanzarWorker(puerto);
+        await dormir(1500);
+        await terminar(redis); // Redis se cae con el worker en marcha
+        await dormir(2000);
+        const r = await sigtermYMedir(w);
+        expect(
+          r.ms,
+          `el worker seguía vivo ${PLAZO_CIERRE_MS + 5_000} ms después de SIGTERM (hubo que mandarle SIGKILL)`,
+        ).not.toBeNull();
+        expect(r.ms!).toBeLessThanOrEqual(PLAZO_CIERRE_MS);
+      } finally {
+        if (w) await terminar(w.proc);
+        await terminar(redis);
+      }
+    });
+  },
+);

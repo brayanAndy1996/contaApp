@@ -6,7 +6,11 @@ import type { EventoTrabajo } from "@contapp/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SesionResuelta } from "../auth/auth.service.js";
 import { RedisTrabajos } from "./redis.js";
-import { StreamService, TIEMPOS_POR_DEFECTO, type RespuestaSse } from "./stream.service.js";
+import {
+  StreamService,
+  TIEMPOS_POR_DEFECTO,
+  type RespuestaSse,
+} from "./stream.service.js";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const USUARIO = "22222222-2222-4222-8222-222222222222";
@@ -22,7 +26,10 @@ const sesion = (): SesionResuelta => ({
   token: "t",
 });
 
-const vista = (clienteId: string, estado: EventoTrabajo["estado"] = "ejecutando"): EventoTrabajo => ({
+const vista = (
+  clienteId: string,
+  estado: EventoTrabajo["estado"] = "ejecutando",
+): EventoTrabajo => ({
   id: "55555555-5555-4555-8555-555555555555",
   tipo: "prueba.eco",
   clienteId,
@@ -83,7 +90,10 @@ beforeEach(() => {
       return fn({
         query: async (texto: string) => {
           if (/from membresia/i.test(texto)) {
-            const rows = estado.rol === null ? [] : [{ usuario_id: USUARIO, rol: estado.rol }];
+            const rows =
+              estado.rol === null
+                ? []
+                : [{ usuario_id: USUARIO, rol: estado.rol }];
             return { rows, rowCount: rows.length };
           }
           const rows = estado.clientes.map((id) => ({ id }));
@@ -103,13 +113,15 @@ afterEach(() => {
 });
 
 const canal = `p:eventos:${TENANT}`;
-const marco = (e: EventoTrabajo) => `event: trabajo\ndata: ${JSON.stringify(e)}\n\n`;
+const marco = (e: EventoTrabajo) =>
+  `event: trabajo\ndata: ${JSON.stringify(e)}\n\n`;
 const abrir = async () => {
   const r = new RespuestaFalsa();
   await servicio.abrir(sesion(), "c=x", r);
   return r;
 };
-const emitir = (e: EventoTrabajo) => sub.emit("message", canal, JSON.stringify(e));
+const emitir = (e: EventoTrabajo) =>
+  sub.emit("message", canal, JSON.stringify(e));
 
 describe("StreamService · cliente que no estaba en la lista (H-008-2a-6)", () => {
   it("recarga la lista y entrega en orden los eventos del cliente nuevo, sin esperar la revalidación", async () => {
@@ -121,7 +133,11 @@ describe("StreamService · cliente que no estaba en la lista (H-008-2a-6)", () =
     emitir(vista(VIEJO)); // visible: sale enseguida
     expect(r.texto).toBe(marco(vista(VIEJO)));
     await vi.advanceTimersByTimeAsync(0);
-    expect(r.texto).toBe(marco(vista(VIEJO)) + marco(vista(NUEVO, "en_cola")) + marco(vista(NUEVO, "ejecutando")));
+    expect(r.texto).toBe(
+      marco(vista(VIEJO)) +
+        marco(vista(NUEVO, "en_cola")) +
+        marco(vista(NUEVO, "ejecutando")),
+    );
     expect(consultas - antes).toBe(1); // una recarga para los dos eventos
     r.end();
   });

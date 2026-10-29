@@ -2,7 +2,10 @@
 import { randomBytes } from "node:crypto";
 import { crearKeyWrapper, cifrarCredencial } from "@contapp/crypto";
 import type { Sobre, TipoCredencial } from "@contapp/crypto";
-import { crearKeyUnwrapper, crearKeyUnwrapperAnterior } from "@contapp/crypto/descifrado";
+import {
+  crearKeyUnwrapper,
+  crearKeyUnwrapperAnterior,
+} from "@contapp/crypto/descifrado";
 import type { ContappDb } from "@contapp/db";
 import type { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -75,7 +78,8 @@ const prefijos: string[] = [];
 const procesos: ProcesoWorker[] = [];
 
 const activaK2 = () => crearKeyUnwrapper(envWorker(k2));
-const anteriorK1 = () => crearKeyUnwrapperAnterior({ kekId: "k1", rutaPrivada: k1.privada });
+const anteriorK1 = () =>
+  crearKeyUnwrapperAnterior({ kekId: "k1", rutaPrivada: k1.privada });
 
 beforeAll(async () => {
   admin = crearDbAdmin();
@@ -84,15 +88,23 @@ beforeAll(async () => {
   redis = conectarRedis();
   e = new Escenario(admin);
   dir = await directorioTemporal();
-  [k1, k2] = await Promise.all([generarParLocal(dir, "k1"), generarParLocal(dir, "k2")]);
+  [k1, k2] = await Promise.all([
+    generarParLocal(dir, "k1"),
+    generarParLocal(dir, "k2"),
+  ]);
   await limpiar(admin, { kekIds: ["k1", "k2"] });
 });
 
 afterAll(async () => {
-  await Promise.all(procesos.map((p) => p.detener({ esperaMs: 1000 }).catch(() => undefined)));
-  await limpiar(admin, { kekIds: ["k1", "k2"], clientes }).catch(() => undefined);
+  await Promise.all(
+    procesos.map((p) => p.detener({ esperaMs: 1000 }).catch(() => undefined)),
+  );
+  await limpiar(admin, { kekIds: ["k1", "k2"], clientes }).catch(
+    () => undefined,
+  );
   await e?.limpiar();
-  for (const p of prefijos) await limpiarPrefijo(redis, p).catch(() => undefined);
+  for (const p of prefijos)
+    await limpiarPrefijo(redis, p).catch(() => undefined);
   redis?.disconnect();
   if (dir) await borrarDirectorio(dir);
   await Promise.all([backend?.close(), worker?.close(), admin?.close()]);
@@ -108,14 +120,21 @@ interface Sembrada {
 }
 
 /** Credenciales envueltas con la KEK k1 (guardadas con el rol backend, la única vía de escritura). */
-async function sembrarK1(tenantId: string, tipos: TipoCredencial[]): Promise<Sembrada[]> {
+async function sembrarK1(
+  tenantId: string,
+  tipos: TipoCredencial[],
+): Promise<Sembrada[]> {
   const w = crearKeyWrapper(envBackend(k1));
   const salida: Sembrada[] = [];
   for (const tipo of tipos) {
     const clienteId = uuid();
     clientes.push(clienteId);
     const valor = valorDe(tipo, uuid().slice(0, 8)) as Record<string, string>;
-    const sobre = await cifrarCredencial(w, { tenantId, clienteId, tipo }, valor as never);
+    const sobre = await cifrarCredencial(
+      w,
+      { tenantId, clienteId, tipo },
+      valor as never,
+    );
     const id = await guardar(backend, tenantId, clienteId, tipo, sobre);
     salida.push({ id, tenantId, clienteId, tipo, valor, sobre });
   }
@@ -123,56 +142,132 @@ async function sembrarK1(tenantId: string, tipos: TipoCredencial[]): Promise<Sem
 }
 
 async function secretoDe(tenantId: string, id: string) {
-  const { descifrarCredencial } = crearServicioCredenciales({ db: worker as never, unwrapper: activaK2(), logger: loggerEspia().logger as never });
-  return (await descifrarCredencial({ tenantId }, id, MOTIVO)).usar((v) => ({ ...v }));
+  const { descifrarCredencial } = crearServicioCredenciales({
+    db: worker as never,
+    unwrapper: activaK2(),
+    logger: loggerEspia().logger as never,
+  });
+  return (await descifrarCredencial({ tenantId }, id, MOTIVO)).usar((v) => ({
+    ...v,
+  }));
 }
 
-const kekDe = async (s: Sembrada) => (await instantanea(worker, s.tenantId, [s.id])).get(s.id)!.kek_id;
+const kekDe = async (s: Sembrada) =>
+  (await instantanea(worker, s.tenantId, [s.id])).get(s.id)!.kek_id;
 const sinFilasDeSistema = async () =>
-  Number((await admin.pool.query("select count(*)::int as n from job_registro where tipo ~ '^(kek|auth)[.]'")).rows[0].n);
+  Number(
+    (
+      await admin.pool.query(
+        "select count(*)::int as n from job_registro where tipo ~ '^(kek|auth)[.]'",
+      )
+    ).rows[0].n,
+  );
 
 describe("CA-12: kek.rotar rota todos los estudios, cada uno en su transacción, sin anidar", () => {
   it("rota los estudios del seed y uno nuevo con el rol del worker (sin BYPASSRLS), conserva los secretos y nunca anida withTenant", async () => {
     const T = await e.estudio();
-    const sembradas = [...(await sembrarK1(A, ["sol", "sire_api"])), ...(await sembrarK1(B, ["sol"])), ...(await sembrarK1(T, ["sol", "sire_api", "sol"]))];
+    const sembradas = [
+      ...(await sembrarK1(A, ["sol", "sire_api"])),
+      ...(await sembrarK1(B, ["sol"])),
+      ...(await sembrarK1(T, ["sol", "sire_api", "sol"])),
+    ];
     for (const s of sembradas) expect(await kekDe(s)).toBe("k1");
 
     const espia = dbEspiada(worker, { muerto: false });
-    const r = await kekRotar({ db: espia.db, anterior: anteriorK1(), activa: activaK2(), desde: "k1" });
+    const r = await kekRotar({
+      db: espia.db,
+      anterior: anteriorK1(),
+      activa: activaK2(),
+      desde: "k1",
+    });
 
-    expect(Object.keys(r).sort()).toEqual(["corruptas", "estudios", "omitidas", "reenvueltas"]);
-    expect(r.estudios, "recorre todos los estudios de la base (al menos A, B y el nuevo)").toBeGreaterThanOrEqual(3);
+    expect(Object.keys(r).sort()).toEqual([
+      "corruptas",
+      "estudios",
+      "omitidas",
+      "reenvueltas",
+    ]);
+    expect(
+      r.estudios,
+      "recorre todos los estudios de la base (al menos A, B y el nuevo)",
+    ).toBeGreaterThanOrEqual(3);
     expect(r.reenvueltas).toBeGreaterThanOrEqual(sembradas.length);
     expect(r.corruptas).toBe(0);
-    for (const s of sembradas) expect(await kekDe(s), `credencial ${s.id}`).toBe("k2");
-    for (const s of [sembradas[0]!, sembradas[2]!, sembradas[3]!]) expect(await secretoDe(s.tenantId, s.id)).toEqual(s.valor);
+    for (const s of sembradas)
+      expect(await kekDe(s), `credencial ${s.id}`).toBe("k2");
+    for (const s of [sembradas[0]!, sembradas[2]!, sembradas[3]!])
+      expect(await secretoDe(s.tenantId, s.id)).toEqual(s.valor);
 
-    expect(espia.estado.maxAbiertas, "withTenant nunca anidado (ni dentro de withSistema)").toBe(1);
-    expect(espia.estado.aperturas, "1 enumeración + al menos una transacción por estudio").toBeGreaterThanOrEqual(1 + 3);
-    expect(await sinFilasDeSistema(), "los trabajos de sistema no dejan filas en job_registro (D10)").toBe(0);
+    expect(
+      espia.estado.maxAbiertas,
+      "withTenant nunca anidado (ni dentro de withSistema)",
+    ).toBe(1);
+    expect(
+      espia.estado.aperturas,
+      "1 enumeración + al menos una transacción por estudio",
+    ).toBeGreaterThanOrEqual(1 + 3);
+    expect(
+      await sinFilasDeSistema(),
+      "los trabajos de sistema no dejan filas en job_registro (D10)",
+    ).toBe(0);
   });
 
   it("es idempotente: la segunda corrida no cambia nada", async () => {
     const T = await e.estudio();
     const sembradas = await sembrarK1(T, ["sol", "sire_api"]);
-    const a = await kekRotar({ db: worker, anterior: anteriorK1(), activa: activaK2(), desde: "k1" });
+    const a = await kekRotar({
+      db: worker,
+      anterior: anteriorK1(),
+      activa: activaK2(),
+      desde: "k1",
+    });
     expect(a.reenvueltas).toBeGreaterThanOrEqual(2);
-    const antes = await instantanea(worker, T, sembradas.map((s) => s.id));
-    const b = await kekRotar({ db: worker, anterior: anteriorK1(), activa: activaK2(), desde: "k1" });
+    const antes = await instantanea(
+      worker,
+      T,
+      sembradas.map((s) => s.id),
+    );
+    const b = await kekRotar({
+      db: worker,
+      anterior: anteriorK1(),
+      activa: activaK2(),
+      desde: "k1",
+    });
     expect(b.reenvueltas).toBe(0);
-    const despues = await instantanea(worker, T, sembradas.map((s) => s.id));
-    for (const s of sembradas) expect(Buffer.compare(despues.get(s.id)!.dek_envuelta, antes.get(s.id)!.dek_envuelta)).toBe(0);
+    const despues = await instantanea(
+      worker,
+      T,
+      sembradas.map((s) => s.id),
+    );
+    for (const s of sembradas)
+      expect(
+        Buffer.compare(
+          despues.get(s.id)!.dek_envuelta,
+          antes.get(s.id)!.dek_envuelta,
+        ),
+      ).toBe(0);
   });
 
   it("una fila corrupta no aborta la rotación: se cuenta en corruptas y las demás se rotan", async () => {
     const T = await e.estudio();
     const [buena, mala] = await sembrarK1(T, ["sol", "sire_api"]);
     // Un bit alterado en la DEK envuelta: la KEK anterior no la abre (la rotación no descifra el ciphertext).
-    await admin.pool.query("update credencial set dek_envuelta = set_byte(dek_envuelta, 100, get_byte(dek_envuelta, 100) # 1) where id = $1", [mala!.id]);
-    const r = await kekRotar({ db: worker, anterior: anteriorK1(), activa: activaK2(), desde: "k1" });
+    await admin.pool.query(
+      "update credencial set dek_envuelta = set_byte(dek_envuelta, 100, get_byte(dek_envuelta, 100) # 1) where id = $1",
+      [mala!.id],
+    );
+    const r = await kekRotar({
+      db: worker,
+      anterior: anteriorK1(),
+      activa: activaK2(),
+      desde: "k1",
+    });
     expect(r.corruptas).toBeGreaterThanOrEqual(1);
     expect(await kekDe(buena!)).toBe("k2");
-    expect(await kekDe(mala!), "la corrupta sigue en k1: la KEK anterior no se puede jubilar").toBe("k1");
+    expect(
+      await kekDe(mala!),
+      "la corrupta sigue en k1: la KEK anterior no se puede jubilar",
+    ).toBe("k1");
     await admin.pool.query("delete from credencial where id = $1", [mala!.id]);
   });
 });
@@ -180,18 +275,23 @@ describe("CA-12: kek.rotar rota todos los estudios, cada uno en su transacción,
 describe("CLI trabajos:kek-rotar (encolar-kek-rotar)", () => {
   const correr = async (argv: string[], prefijo: string) => {
     const salida: string[] = [];
-    const codigo = await encolarKekRotar(argv, { REDIS_URL: process.env.REDIS_URL }, {
-      conexionBull: opcionesBull(),
-      prefijo,
-      escribir: (l: string) => salida.push(l),
-      escribirError: (l: string) => salida.push(l),
-    });
+    const codigo = await encolarKekRotar(
+      argv,
+      { REDIS_URL: process.env.REDIS_URL },
+      {
+        conexionBull: opcionesBull(),
+        prefijo,
+        escribir: (l: string) => salida.push(l),
+        escribirError: (l: string) => salida.push(l),
+      },
+    );
     return { codigo, salida: salida.join("\n") };
   };
   const jobsDeSistema = async (prefijo: string) => {
     const claves = await redis.keys(`${prefijo}bull:programados:*`);
     const filas = [];
-    for (const c of claves) if ((await redis.type(c)) === "hash") filas.push(await redis.hgetall(c));
+    for (const c of claves)
+      if ((await redis.type(c)) === "hash") filas.push(await redis.hgetall(c));
     return filas.filter((f) => f.name === "kek.rotar");
   };
 
@@ -202,8 +302,12 @@ describe("CLI trabajos:kek-rotar (encolar-kek-rotar)", () => {
     expect(r.codigo).toBe(0);
     const jobs = await jobsDeSistema(prefijo);
     expect(jobs).toHaveLength(1);
-    expect(JSON.parse(jobs[0]!.data!)).toEqual({ tipo: "kek.rotar", desde: "k1" });
-    if (process.env.REDIS_URL) expect(r.salida).not.toContain(process.env.REDIS_URL);
+    expect(JSON.parse(jobs[0]!.data!)).toEqual({
+      tipo: "kek.rotar",
+      desde: "k1",
+    });
+    if (process.env.REDIS_URL)
+      expect(r.salida).not.toContain(process.env.REDIS_URL);
     expect(r.salida).not.toMatch(/redis:\/\//i);
     expect(await sinFilasDeSistema()).toBe(0);
   });
@@ -228,22 +332,38 @@ describe("CLI trabajos:kek-rotar (encolar-kek-rotar)", () => {
 describe("kek.rotar de punta a punta: el comando lo encola y el worker lo ejecuta", () => {
   it("el worker toma el job de la cola programados y rota todos los estudios sin crear filas en job_registro", async () => {
     const T = await e.estudio();
-    const sembradas = [...(await sembrarK1(A, ["sol"])), ...(await sembrarK1(T, ["sol", "sire_api"]))];
+    const sembradas = [
+      ...(await sembrarK1(A, ["sol"])),
+      ...(await sembrarK1(T, ["sol", "sire_api"])),
+    ];
     const prefijo = nuevoPrefijo();
     prefijos.push(prefijo);
     const salida: string[] = [];
-    const codigo = await encolarKekRotar(["--desde", "k1"], { REDIS_URL: process.env.REDIS_URL }, {
-      conexionBull: opcionesBull(),
-      prefijo,
-      escribir: (l: string) => salida.push(l),
-      escribirError: (l: string) => salida.push(l),
-    });
+    const codigo = await encolarKekRotar(
+      ["--desde", "k1"],
+      { REDIS_URL: process.env.REDIS_URL },
+      {
+        conexionBull: opcionesBull(),
+        prefijo,
+        escribir: (l: string) => salida.push(l),
+        escribirError: (l: string) => salida.push(l),
+      },
+    );
     expect(codigo).toBe(0);
 
-    const p = await arrancar({ prefijo, kek: { activa: activaK2(), anterior: () => anteriorK1() } as never });
+    const p = await arrancar({
+      prefijo,
+      kek: { activa: activaK2(), anterior: () => anteriorK1() } as never,
+    });
     procesos.push(p);
-    await esperarHasta(async () => (await Promise.all(sembradas.map(kekDe))).every((x) => x === "k2"), "todas las credenciales en k2", { timeoutMs: 40_000 });
-    for (const s of sembradas) expect(await secretoDe(s.tenantId, s.id)).toEqual(s.valor);
+    await esperarHasta(
+      async () =>
+        (await Promise.all(sembradas.map(kekDe))).every((x) => x === "k2"),
+      "todas las credenciales en k2",
+      { timeoutMs: 40_000 },
+    );
+    for (const s of sembradas)
+      expect(await secretoDe(s.tenantId, s.id)).toEqual(s.valor);
     expect(await sinFilasDeSistema()).toBe(0);
     await p.detener({ esperaMs: 2000 });
   });
@@ -253,7 +373,13 @@ describe("kek.rotar de punta a punta: el comando lo encola y el worker lo ejecut
     prefijos.push(prefijo);
     const p = await arrancar({ prefijo });
     procesos.push(p);
-    await esperarHasta(async () => /auth\.purgar/.test(await volcarPrefijo(redis, `${prefijo}bull:programados`)), "auth.purgar registrado como repetible");
+    await esperarHasta(
+      async () =>
+        /auth\.purgar/.test(
+          await volcarPrefijo(redis, `${prefijo}bull:programados`),
+        ),
+      "auth.purgar registrado como repetible",
+    );
     const volcado = await volcarPrefijo(redis, `${prefijo}bull:programados`);
     expect(volcado).toContain("30 3 * * *");
     expect(volcado).toContain("America/Lima");
@@ -264,7 +390,8 @@ describe("kek.rotar de punta a punta: el comando lo encola y el worker lo ejecut
 
 describe("CA-13: auth.purgar borra solo lo terminado y vencido (D16)", () => {
   const dias = (n: number) => `now() - interval '${n} days'`;
-  const adm = async (sql: string, v: unknown[] = []) => (await admin.pool.query(sql, v)).rows as any[];
+  const adm = async (sql: string, v: unknown[] = []) =>
+    (await admin.pool.query(sql, v)).rows as any[];
   const S = {} as Record<string, string>;
   const Tk = {} as Record<string, string>;
   const claves = {} as Record<string, Buffer>;
@@ -278,7 +405,10 @@ describe("CA-13: auth.purgar borra solo lo terminado y vencido (D16)", () => {
     usuario = await e.usuario(estudio, "contador");
     const c = await e.cliente(estudio);
 
-    const sesion = async (n: string, o: { expira: string; revocada?: string }) => {
+    const sesion = async (
+      n: string,
+      o: { expira: string; revocada?: string },
+    ) => {
       S[n] = (
         await adm(
           `insert into auth.sesion (token_hash, usuario_id, creada_en, ultimo_uso, expira_absoluta, revocada_en, motivo)
@@ -288,12 +418,22 @@ describe("CA-13: auth.purgar borra solo lo terminado y vencido (D16)", () => {
       )[0].id;
     };
     await sesion("vigente_vieja", { expira: "now() + interval '12 hours'" });
-    await sesion("revocada_31d", { expira: "now() + interval '1 day'", revocada: dias(31) });
-    await sesion("revocada_29d", { expira: "now() + interval '1 day'", revocada: dias(29) });
+    await sesion("revocada_31d", {
+      expira: "now() + interval '1 day'",
+      revocada: dias(31),
+    });
+    await sesion("revocada_29d", {
+      expira: "now() + interval '1 day'",
+      revocada: dias(29),
+    });
     await sesion("vencida_31d", { expira: dias(31) });
     await sesion("vencida_29d", { expira: dias(29) });
 
-    const token = async (n: string, col: "usado_en" | "invalidado_en" | "expira_en" | "vigente", cuando: string) => {
+    const token = async (
+      n: string,
+      col: "usado_en" | "invalidado_en" | "expira_en" | "vigente",
+      cuando: string,
+    ) => {
       Tk[n] = (
         await adm(
           `insert into auth.token_recuperacion (token_hash, usuario_id, creado_en, expira_en, usado_en, invalidado_en)
@@ -314,7 +454,14 @@ describe("CA-13: auth.purgar borra solo lo terminado y vencido (D16)", () => {
 
     const intento = async (n: string, ventana: string, bloqueo: string) => {
       claves[n] = randomBytes(32);
-      await adm("insert into auth.intento_login (clave, fallos, ventana_inicio, bloqueado_hasta) values ($1, 5, " + ventana + ", " + bloqueo + ")", [claves[n]]);
+      await adm(
+        "insert into auth.intento_login (clave, fallos, ventana_inicio, bloqueado_hasta) values ($1, 5, " +
+          ventana +
+          ", " +
+          bloqueo +
+          ")",
+        [claves[n]],
+      );
     };
     await intento("sin_bloqueo_91d", dias(91), "null");
     await intento("bloqueo_vigente_91d", dias(91), "now() + interval '1 hour'");
@@ -322,7 +469,12 @@ describe("CA-13: auth.purgar borra solo lo terminado y vencido (D16)", () => {
 
     const limite = async (n: string, ventana: string) => {
       sujetos[n] = `t5-${n}-${randomBytes(4).toString("hex")}`;
-      await adm("insert into auth.limite_tasa (tipo, sujeto, ventana_inicio, conteo) values ('login_ip', $1, " + ventana + ", 3)", [sujetos[n]]);
+      await adm(
+        "insert into auth.limite_tasa (tipo, sujeto, ventana_inicio, conteo) values ('login_ip', $1, " +
+          ventana +
+          ", 3)",
+        [sujetos[n]],
+      );
     };
     await limite("limite_3d", dias(3));
     await limite("limite_1h", "now() - interval '1 hour'");
@@ -350,38 +502,85 @@ describe("CA-13: auth.purgar borra solo lo terminado y vencido (D16)", () => {
   });
 
   afterAll(async () => {
-    await adm("delete from auth.intento_login where clave = any($1::bytea[])", [Object.values(claves)]).catch(() => undefined);
-    await adm("delete from auth.limite_tasa where sujeto = any($1::text[])", [Object.values(sujetos)]).catch(() => undefined);
-    await adm("delete from auth.token_recuperacion where usuario_id = $1", [usuario]).catch(() => undefined);
-    await adm("delete from auth.sesion where usuario_id = $1", [usuario]).catch(() => undefined);
+    await adm("delete from auth.intento_login where clave = any($1::bytea[])", [
+      Object.values(claves),
+    ]).catch(() => undefined);
+    await adm("delete from auth.limite_tasa where sujeto = any($1::text[])", [
+      Object.values(sujetos),
+    ]).catch(() => undefined);
+    await adm("delete from auth.token_recuperacion where usuario_id = $1", [
+      usuario,
+    ]).catch(() => undefined);
+    await adm("delete from auth.sesion where usuario_id = $1", [usuario]).catch(
+      () => undefined,
+    );
   });
 
   const vivos = async (tabla: string, expr: string, ids: string[]) =>
-    new Set((await adm(`select ${expr}::text as k from ${tabla} where ${expr}::text = any($1::text[])`, [ids])).map((r) => r.k as string));
+    new Set(
+      (
+        await adm(
+          `select ${expr}::text as k from ${tabla} where ${expr}::text = any($1::text[])`,
+          [ids],
+        )
+      ).map((r) => r.k as string),
+    );
 
   it("borra lo vencido según D16 y deja lo vigente; devuelve los conteos", async () => {
     const espia = dbEspiada(worker, { muerto: false });
     const r = await authPurgar({ db: espia.db });
-    expect(Object.keys(r).sort()).toEqual(["intentos", "limites", "sesiones", "tokens", "trabajos"]);
+    expect(Object.keys(r).sort()).toEqual([
+      "intentos",
+      "limites",
+      "sesiones",
+      "tokens",
+      "trabajos",
+    ]);
     expect(r.sesiones).toBeGreaterThanOrEqual(2);
     expect(r.tokens).toBeGreaterThanOrEqual(3);
     expect(r.intentos).toBeGreaterThanOrEqual(1);
     expect(r.limites).toBeGreaterThanOrEqual(1);
     expect(r.trabajos).toBeGreaterThanOrEqual(3);
 
-    expect([...(await vivos("auth.sesion", "id", Object.values(S)))].sort()).toEqual([S.vigente_vieja, S.revocada_29d, S.vencida_29d].sort());
-    expect([...(await vivos("auth.token_recuperacion", "id", Object.values(Tk)))].sort()).toEqual([Tk.usado_6d, Tk.vencido_6d, Tk.vigente].sort());
-    expect([...(await vivos("auth.intento_login", "encode(clave, 'hex')", Object.values(claves).map((b) => b.toString("hex"))))].sort()).toEqual(
-      [claves.bloqueo_vigente_91d!.toString("hex"), claves.sin_bloqueo_89d!.toString("hex")].sort(),
+    expect(
+      [...(await vivos("auth.sesion", "id", Object.values(S)))].sort(),
+    ).toEqual([S.vigente_vieja, S.revocada_29d, S.vencida_29d].sort());
+    expect(
+      [
+        ...(await vivos("auth.token_recuperacion", "id", Object.values(Tk))),
+      ].sort(),
+    ).toEqual([Tk.usado_6d, Tk.vencido_6d, Tk.vigente].sort());
+    expect(
+      [
+        ...(await vivos(
+          "auth.intento_login",
+          "encode(clave, 'hex')",
+          Object.values(claves).map((b) => b.toString("hex")),
+        )),
+      ].sort(),
+    ).toEqual(
+      [
+        claves.bloqueo_vigente_91d!.toString("hex"),
+        claves.sin_bloqueo_89d!.toString("hex"),
+      ].sort(),
     );
-    expect([...(await vivos("auth.limite_tasa", "sujeto", Object.values(sujetos)))]).toEqual([sujetos.limite_1h]);
-    expect([...(await vivos("job_registro", "id", Object.values(J)))].sort()).toEqual([J.completado_89d, J.en_cola_200d, J.ejecutando_200d].sort());
-    expect(espia.estado.maxAbiertas, "los job_registro se purgan en un withTenant por estudio, sin anidar").toBe(1);
+    expect([
+      ...(await vivos("auth.limite_tasa", "sujeto", Object.values(sujetos))),
+    ]).toEqual([sujetos.limite_1h]);
+    expect(
+      [...(await vivos("job_registro", "id", Object.values(J)))].sort(),
+    ).toEqual([J.completado_89d, J.en_cola_200d, J.ejecutando_200d].sort());
+    expect(
+      espia.estado.maxAbiertas,
+      "los job_registro se purgan en un withTenant por estudio, sin anidar",
+    ).toBe(1);
   });
 
   it("es idempotente y la segunda corrida no encuentra nada de esta prueba", async () => {
     const r = await authPurgar({ db: worker });
-    expect(r.sesiones + r.tokens + r.intentos + r.limites).toBeGreaterThanOrEqual(0);
+    expect(
+      r.sesiones + r.tokens + r.intentos + r.limites,
+    ).toBeGreaterThanOrEqual(0);
     expect((await vivos("auth.sesion", "id", Object.values(S))).size).toBe(3);
     expect((await vivos("job_registro", "id", Object.values(J))).size).toBe(3);
   });
@@ -395,7 +594,15 @@ describe("CA-13: auth.purgar borra solo lo terminado y vencido (D16)", () => {
         [randomBytes(32), usuario],
       )
     )[0].id as string;
-    const err = await authPurgar({ db: worker, retenciones: { sesionDias: 0, tokenDias: 7, intentoDias: 90, limiteDias: 1 } }).then(
+    const err = await authPurgar({
+      db: worker,
+      retenciones: {
+        sesionDias: 0,
+        tokenDias: 7,
+        intentoDias: 90,
+        limiteDias: 1,
+      },
+    }).then(
       () => null,
       (x: { codigo?: string }) => x,
     );

@@ -8,7 +8,13 @@
 //   cupos, los locks y el reconciliador se prueban aquí sin el worker. Los secretos son canarios generados al vuelo.
 /* eslint-disable @typescript-eslint/no-explicit-any -- eventos y filas de BD dinámicos en pruebas */
 import { randomBytes, randomInt, randomUUID } from "node:crypto";
-import { createDb, leerTrabajo, transicionar, type ContappDb, type TrabajoFila } from "@contapp/db";
+import {
+  createDb,
+  leerTrabajo,
+  transicionar,
+  type ContappDb,
+  type TrabajoFila,
+} from "@contapp/db";
 import { Redis } from "ioredis";
 import {
   iniciarLatido,
@@ -18,24 +24,40 @@ import {
 } from "../arriendos.js";
 import { crearClaves } from "../claves.js";
 import { Despachador } from "../despachador.js";
-import { aPublicable, encolar, publicar, type EntradaEncolar, type ResultadoEncolar } from "../encolado.js";
+import {
+  aPublicable,
+  encolar,
+  publicar,
+  type EntradaEncolar,
+  type ResultadoEncolar,
+} from "../encolado.js";
 import { publicarEvento, vistaDeFila } from "../eventos.js";
 import { Reconciliador } from "../reconciliador.js";
 import type { NombreCola, PayloadTrabajo, Reloj } from "../tipos.js";
-import { crearColas, crearWorkers, type ColasBull, type WorkersBull } from "../worker/index.js";
+import {
+  crearColas,
+  crearWorkers,
+  type ColasBull,
+  type WorkersBull,
+} from "../worker/index.js";
 
-export const dormir = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+export const dormir = (ms: number): Promise<void> =>
+  new Promise((r) => setTimeout(r, ms));
 
 /** Espera a que `cond` sea verdadera (sondeo corto); falla con `etiqueta` si pasa `timeoutMs`. */
 export async function esperarHasta(
   cond: () => boolean | Promise<boolean>,
   etiqueta: string,
-  { timeoutMs = 15_000, cadenciaMs = 25 }: { timeoutMs?: number; cadenciaMs?: number } = {},
+  {
+    timeoutMs = 15_000,
+    cadenciaMs = 25,
+  }: { timeoutMs?: number; cadenciaMs?: number } = {},
 ): Promise<void> {
   const limite = Date.now() + timeoutMs;
   for (;;) {
     if (await cond()) return;
-    if (Date.now() > limite) throw new Error(`tiempo agotado esperando: ${etiqueta}`);
+    if (Date.now() > limite)
+      throw new Error(`tiempo agotado esperando: ${etiqueta}`);
     await dormir(cadenciaMs);
   }
 }
@@ -55,14 +77,20 @@ export class RelojAjustable implements Reloj {
 // Conexiones
 // ---------------------------------------------------------------------------------------------------------------
 
-export function crearDbRol(rolApp: "contapp_backend" | "contapp_worker", poolMax = 4): ContappDb {
+export function crearDbRol(
+  rolApp: "contapp_backend" | "contapp_worker",
+  poolMax = 4,
+): ContappDb {
   return createDb({ rolApp, poolMax });
 }
 
 /** Conexión administrativa (superusuario): solo para sembrar, limpiar y leer. */
 export function crearDbAdmin(): ContappDb {
   const url = process.env.MIGRATIONS_DATABASE_URL;
-  if (!url) throw new Error("falta MIGRATIONS_DATABASE_URL para las pruebas de integracion");
+  if (!url)
+    throw new Error(
+      "falta MIGRATIONS_DATABASE_URL para las pruebas de integracion",
+    );
   return createDb({ rolApp: "contapp_worker", url, poolMax: 2 });
 }
 
@@ -90,33 +118,60 @@ export function opcionesBull() {
   };
 }
 
-export const nuevoPrefijo = (): string => `t5q-${randomBytes(4).toString("hex")}:`;
+export const nuevoPrefijo = (): string =>
+  `t5q-${randomBytes(4).toString("hex")}:`;
 
 /** Borra solo las claves del prefijo (también las de BullMQ, que cuelgan de `{prefijo}bull`). */
-export async function limpiarPrefijo(redis: Redis, prefijo: string): Promise<void> {
+export async function limpiarPrefijo(
+  redis: Redis,
+  prefijo: string,
+): Promise<void> {
   let cursor = "0";
   do {
-    const [siguiente, claves] = await redis.scan(cursor, "MATCH", `${prefijo}*`, "COUNT", "500");
+    const [siguiente, claves] = await redis.scan(
+      cursor,
+      "MATCH",
+      `${prefijo}*`,
+      "COUNT",
+      "500",
+    );
     cursor = siguiente;
     if (claves.length > 0) await redis.del(...claves);
   } while (cursor !== "0");
 }
 
 /** Todas las claves del prefijo (si `claves`) con su valor volcado a texto, para buscar canarios. */
-export async function volcarPrefijo(redis: Redis, prefijo: string, { claves: conClaves = true }: { claves?: boolean } = {}): Promise<string> {
+export async function volcarPrefijo(
+  redis: Redis,
+  prefijo: string,
+  { claves: conClaves = true }: { claves?: boolean } = {},
+): Promise<string> {
   const salida: string[] = [];
   let cursor = "0";
   do {
-    const [siguiente, claves] = await redis.scan(cursor, "MATCH", `${prefijo}*`, "COUNT", "500");
+    const [siguiente, claves] = await redis.scan(
+      cursor,
+      "MATCH",
+      `${prefijo}*`,
+      "COUNT",
+      "500",
+    );
     cursor = siguiente;
     for (const clave of claves) {
       if (conClaves) salida.push(clave);
       const tipo = await redis.type(clave);
-      if (tipo === "string") salida.push(String((await redis.getBuffer(clave))?.toString("latin1")));
-      else if (tipo === "hash") salida.push(JSON.stringify(await redis.hgetall(clave)));
-      else if (tipo === "list") salida.push(JSON.stringify(await redis.lrange(clave, 0, -1)));
-      else if (tipo === "set") salida.push(JSON.stringify(await redis.smembers(clave)));
-      else if (tipo === "zset") salida.push(JSON.stringify(await redis.zrange(clave, "0", "-1", "WITHSCORES")));
+      if (tipo === "string")
+        salida.push(String((await redis.getBuffer(clave))?.toString("latin1")));
+      else if (tipo === "hash")
+        salida.push(JSON.stringify(await redis.hgetall(clave)));
+      else if (tipo === "list")
+        salida.push(JSON.stringify(await redis.lrange(clave, 0, -1)));
+      else if (tipo === "set")
+        salida.push(JSON.stringify(await redis.smembers(clave)));
+      else if (tipo === "zset")
+        salida.push(
+          JSON.stringify(await redis.zrange(clave, "0", "-1", "WITHSCORES")),
+        );
     }
   } while (cursor !== "0");
   return salida.join("\n");
@@ -139,7 +194,8 @@ export async function suscribirEventos(prefijo: string, tenantIds: string[]) {
   await sub.subscribe(...tenantIds.map((t) => k.eventos(t)));
   return {
     mensajes,
-    de: (jobId: string) => mensajes.filter((m) => m.evento?.id === jobId).map((m) => m.evento),
+    de: (jobId: string) =>
+      mensajes.filter((m) => m.evento?.id === jobId).map((m) => m.evento),
     cerrar: async () => {
       sub.disconnect();
     },
@@ -160,7 +216,11 @@ export interface CambioConfig {
 }
 
 /** UPDATE de una fila de `config_sistema` con el rol administrativo (los CHECK se aplican igual). */
-export async function fijarConfig(admin: ContappDb, cola: NombreCola, c: CambioConfig): Promise<void> {
+export async function fijarConfig(
+  admin: ContappDb,
+  cola: NombreCola,
+  c: CambioConfig,
+): Promise<void> {
   await admin.pool.query(
     `update config_sistema set
        concurrencia_global = coalesce($2, concurrencia_global),
@@ -171,7 +231,15 @@ export async function fijarConfig(admin: ContappDb, cola: NombreCola, c: CambioC
        max_pendientes_tenant = coalesce($7, max_pendientes_tenant),
        actualizado_en = now()
      where cola = $1`,
-    [cola, c.global ?? null, c.tenant ?? null, c.espera ?? null, c.reintentos ?? null, c.base ?? null, c.maxPendientes ?? null],
+    [
+      cola,
+      c.global ?? null,
+      c.tenant ?? null,
+      c.espera ?? null,
+      c.reintentos ?? null,
+      c.base ?? null,
+      c.maxPendientes ?? null,
+    ],
   );
 }
 
@@ -201,7 +269,8 @@ export interface ClientePrueba {
   ruc: string;
 }
 
-export const rucNuevo = (): string => `2${String(randomInt(0, 1e10)).padStart(10, "0")}`;
+export const rucNuevo = (): string =>
+  `2${String(randomInt(0, 1e10)).padStart(10, "0")}`;
 
 export class Escenario {
   readonly estudios: string[] = [];
@@ -212,7 +281,10 @@ export class Escenario {
 
   async estudio(): Promise<string> {
     const id = randomUUID();
-    await this.admin.pool.query("insert into tenant (id, nombre) values ($1, $2)", [id, `Estudio T5 ${randomBytes(3).toString("hex")}-${++this.n}`]);
+    await this.admin.pool.query(
+      "insert into tenant (id, nombre) values ($1, $2)",
+      [id, `Estudio T5 ${randomBytes(3).toString("hex")}-${++this.n}`],
+    );
     this.estudios.push(id);
     return id;
   }
@@ -225,10 +297,10 @@ export class Escenario {
   ): Promise<string> {
     const id = randomUUID();
     this.usuarios.push(id);
-    await this.admin.pool.query("insert into usuario (id, email, nombre) values ($1, $2, 'Usuario T5')", [
-      id,
-      `t5-${randomBytes(6).toString("hex")}@prueba.contapp.test`,
-    ]);
+    await this.admin.pool.query(
+      "insert into usuario (id, email, nombre) values ($1, $2, 'Usuario T5')",
+      [id, `t5-${randomBytes(6).toString("hex")}@prueba.contapp.test`],
+    );
     await this.admin.pool.query(
       "insert into membresia (tenant_id, usuario_id, rol, desactivada_en) values ($1, $2, $3, case when $4::boolean then now() else null end)",
       [tenantId, id, rol, o.desactivada ?? false],
@@ -236,7 +308,10 @@ export class Escenario {
     return id;
   }
 
-  async cliente(tenantId: string, ruc: string = rucNuevo()): Promise<ClientePrueba> {
+  async cliente(
+    tenantId: string,
+    ruc: string = rucNuevo(),
+  ): Promise<ClientePrueba> {
     const r = await this.admin.pool.query(
       "insert into cliente (tenant_id, ruc, razon_social) values ($1, $2, $3) returning id",
       [tenantId, ruc, `Cliente T5 ${randomBytes(3).toString("hex")}`],
@@ -244,7 +319,11 @@ export class Escenario {
     return { id: r.rows[0].id as string, ruc };
   }
 
-  async asignar(tenantId: string, clienteId: string, usuarioId: string): Promise<void> {
+  async asignar(
+    tenantId: string,
+    clienteId: string,
+    usuarioId: string,
+  ): Promise<void> {
     await this.admin.pool.query(
       "insert into asignacion (tenant_id, cliente_id, usuario_id, tipo) values ($1, $2, $3, 'colaborador')",
       [tenantId, clienteId, usuarioId],
@@ -252,11 +331,23 @@ export class Escenario {
   }
 
   /** Credencial sintética (bytes aleatorios; nunca un secreto real). Devuelve su id. */
-  async credencial(tenantId: string, clienteId: string, tipo: "sol" | "sire_api" = "sol"): Promise<string> {
+  async credencial(
+    tenantId: string,
+    clienteId: string,
+    tipo: "sol" | "sire_api" = "sol",
+  ): Promise<string> {
     const r = await this.admin.pool.query(
       `insert into credencial (tenant_id, cliente_id, tipo, ciphertext, nonce, tag, dek_envuelta, kek_id, version)
        values ($1, $2, $3, $4, $5, $6, $7, 'k1', 1) returning id`,
-      [tenantId, clienteId, tipo, randomBytes(64), randomBytes(12), randomBytes(16), randomBytes(512)],
+      [
+        tenantId,
+        clienteId,
+        tipo,
+        randomBytes(64),
+        randomBytes(12),
+        randomBytes(16),
+        randomBytes(512),
+      ],
     );
     return r.rows[0].id as string;
   }
@@ -269,7 +360,14 @@ export class Escenario {
     tenantId: string,
     clientes: ClientePrueba | ClientePrueba[],
     cuantos: number,
-    o: { tipo?: string; cola?: string; canal?: string; prioridad?: string; creadoPor?: string | null; desplazarMs?: number } = {},
+    o: {
+      tipo?: string;
+      cola?: string;
+      canal?: string;
+      prioridad?: string;
+      creadoPor?: string | null;
+      desplazarMs?: number;
+    } = {},
   ): Promise<string[]> {
     const cs = Array.isArray(clientes) ? clientes : [clientes];
     const r = await this.admin.pool.query(
@@ -296,7 +394,10 @@ export class Escenario {
       ],
     );
     const ids = (r.rows as Array<{ id: string }>).map((f) => f.id);
-    const orden = await this.admin.pool.query("select id from job_registro where id = any($1::uuid[]) order by creado_en, id", [ids]);
+    const orden = await this.admin.pool.query(
+      "select id from job_registro where id = any($1::uuid[]) order by creado_en, id",
+      [ids],
+    );
     return (orden.rows as Array<{ id: string }>).map((f) => f.id);
   }
 
@@ -309,12 +410,28 @@ export class Escenario {
   }
 
   async fila(id: string): Promise<any | undefined> {
-    return (await this.admin.pool.query("select * from job_registro where id = $1", [id])).rows[0];
+    return (
+      await this.admin.pool.query("select * from job_registro where id = $1", [
+        id,
+      ])
+    ).rows[0];
   }
 
-  async estados(ids: string[]): Promise<Map<string, { estado: string; motivo: string | null; intentos: number }>> {
-    const r = await this.admin.pool.query("select id, estado, motivo, intentos from job_registro where id = any($1::uuid[])", [ids]);
-    return new Map((r.rows as any[]).map((f) => [f.id as string, { estado: f.estado, motivo: f.motivo, intentos: Number(f.intentos) }]));
+  async estados(
+    ids: string[],
+  ): Promise<
+    Map<string, { estado: string; motivo: string | null; intentos: number }>
+  > {
+    const r = await this.admin.pool.query(
+      "select id, estado, motivo, intentos from job_registro where id = any($1::uuid[])",
+      [ids],
+    );
+    return new Map(
+      (r.rows as any[]).map((f) => [
+        f.id as string,
+        { estado: f.estado, motivo: f.motivo, intentos: Number(f.intentos) },
+      ]),
+    );
   }
 
   async limpiar(): Promise<void> {
@@ -325,15 +442,22 @@ export class Escenario {
       await c.query("SET session_replication_role = replica");
       const pasos: Array<[string, unknown[]]> = [
         ["delete from job_registro where tenant_id = any($1::uuid[])", [t]],
-        ["delete from auditoria_descifrado where tenant_id = any($1::uuid[])", [t]],
+        [
+          "delete from auditoria_descifrado where tenant_id = any($1::uuid[])",
+          [t],
+        ],
         ["delete from credencial where tenant_id = any($1::uuid[])", [t]],
         ["delete from asignacion where tenant_id = any($1::uuid[])", [t]],
-        ["delete from membresia where tenant_id = any($1::uuid[]) or usuario_id = any($2::uuid[])", [t, this.usuarios]],
+        [
+          "delete from membresia where tenant_id = any($1::uuid[]) or usuario_id = any($2::uuid[])",
+          [t, this.usuarios],
+        ],
         ["delete from cliente where tenant_id = any($1::uuid[])", [t]],
         ["delete from usuario where id = any($1::uuid[])", [this.usuarios]],
         ["delete from tenant where id = any($1::uuid[])", [t]],
       ];
-      for (const [sql, v] of pasos) await c.query(sql, v).catch(() => undefined);
+      for (const [sql, v] of pasos)
+        await c.query(sql, v).catch(() => undefined);
     } finally {
       c.release(true); // se destruye la conexión: no vuelve al pool con session_replication_role = replica
     }
@@ -387,16 +511,30 @@ export class EjecutorMinimo {
   async ejecutar(payload: PayloadTrabajo): Promise<void> {
     const { db, redis, reloj, prefijo } = this.o;
     const k = crearClaves(prefijo);
-    const fila = await db.withTenant({ tenantId: payload.tenantId }, (tx) => leerTrabajo(tx, payload.jobId));
-    if (fila === null || fila.estado !== "ejecutando" || fila.tipo !== payload.tipo) return;
+    const fila = await db.withTenant({ tenantId: payload.tenantId }, (tx) =>
+      leerTrabajo(tx, payload.jobId),
+    );
+    if (
+      fila === null ||
+      fila.estado !== "ejecutando" ||
+      fila.tipo !== payload.tipo
+    )
+      return;
     if (!(await tomarEjecucion(redis, k, fila.id))) return;
-    const detenerLatido = iniciarLatido(() => renovarArriendos(redis, k, fila, reloj.ahora().getTime()));
+    const detenerLatido = iniciarLatido(() =>
+      renovarArriendos(redis, k, fila, reloj.ahora().getTime()),
+    );
 
     this.corriendo.set(fila.id, { tenantId: fila.tenantId });
     this.iniciados.push(fila.id);
     this.maxGlobal = Math.max(this.maxGlobal, this.corriendo.size);
-    const delTenant = [...this.corriendo.values()].filter((c) => c.tenantId === fila.tenantId).length;
-    this.maxPorTenant.set(fila.tenantId, Math.max(this.maxPorTenant.get(fila.tenantId) ?? 0, delTenant));
+    const delTenant = [...this.corriendo.values()].filter(
+      (c) => c.tenantId === fila.tenantId,
+    ).length;
+    this.maxPorTenant.set(
+      fila.tenantId,
+      Math.max(this.maxPorTenant.get(fila.tenantId) ?? 0, delTenant),
+    );
 
     const inicio = Date.now();
     try {
@@ -405,15 +543,36 @@ export class EjecutorMinimo {
       this.corriendo.delete(fila.id);
       detenerLatido();
     }
-    this.marcas.push({ id: fila.id, tenantId: fila.tenantId, ruc: fila.ruc, tipo: fila.tipo, cola: fila.cola, inicio, fin: Date.now() });
-    await db.withTenant({ tenantId: fila.tenantId }, (tx) => transicionar(tx, fila.id, "ejecutando", "completado"));
+    this.marcas.push({
+      id: fila.id,
+      tenantId: fila.tenantId,
+      ruc: fila.ruc,
+      tipo: fila.tipo,
+      cola: fila.cola,
+      inicio,
+      fin: Date.now(),
+    });
+    await db.withTenant({ tenantId: fila.tenantId }, (tx) =>
+      transicionar(tx, fila.id, "ejecutando", "completado"),
+    );
     await liberarArriendos(redis, k, fila, this.o.esperaRucMs ?? 0);
-    await publicarEvento(redis, fila.tenantId, vistaDeFila(fila, { estado: "completado", motivo: null, terminadoEn: reloj.ahora() }), { prefijo });
+    await publicarEvento(
+      redis,
+      fila.tenantId,
+      vistaDeFila(fila, {
+        estado: "completado",
+        motivo: null,
+        terminadoEn: reloj.ahora(),
+      }),
+      { prefijo },
+    );
   }
 
   /** Marcas de un RUC ordenadas por inicio. */
   deRuc(ruc: string): Marca[] {
-    return this.marcas.filter((m) => m.ruc === ruc).sort((a, b) => a.inicio - b.inicio);
+    return this.marcas
+      .filter((m) => m.ruc === ruc)
+      .sort((a, b) => a.inicio - b.inicio);
   }
 }
 
@@ -421,7 +580,10 @@ export class EjecutorMinimo {
 // Armado: despachador + reconciliador en bucle + BullMQ real + ejecutor mínimo
 // ---------------------------------------------------------------------------------------------------------------
 
-export function bucle(fn: () => Promise<unknown>, ms: number): { detener(): Promise<void> } {
+export function bucle(
+  fn: () => Promise<unknown>,
+  ms: number,
+): { detener(): Promise<void> } {
   let activo = true;
   const p = (async () => {
     while (activo) {
@@ -450,16 +612,31 @@ export async function encolarYPublicar(
   e: EntradaEncolar,
 ): Promise<ResultadoEncolar> {
   const r = await backend.withTenant({ tenantId }, (tx) => encolar(tx, e));
-  if (r.nuevo) await publicar(redis, [aPublicable(tenantId, r.trabajo, e.prioridad)], { prefijo });
+  if (r.nuevo)
+    await publicar(redis, [aPublicable(tenantId, r.trabajo, e.prioridad)], {
+      prefijo,
+    });
   return r;
 }
 
 /** Publica en Redis (después del commit, con `publicar`) trabajos ya insertados en BD. */
-export async function anunciar(redis: Redis, prefijo: string, tenantId: string, ids: string[], cola = "sire"): Promise<void> {
+export async function anunciar(
+  redis: Redis,
+  prefijo: string,
+  tenantId: string,
+  ids: string[],
+  cola = "sire",
+): Promise<void> {
   const ahora = new Date();
   await publicar(
     redis,
-    ids.map((id) => ({ id, tenantId, cola, prioridad: "interactivo", creadoEn: ahora })),
+    ids.map((id) => ({
+      id,
+      tenantId,
+      cola,
+      prioridad: "interactivo",
+      creadoEn: ahora,
+    })),
     { prefijo },
   );
 }
@@ -492,19 +669,44 @@ export async function armar(o: OpcionesArmado): Promise<Armado> {
   const db = crearDbRol("contapp_worker", 6);
   const redis = conectarRedis();
   const reloj = o.reloj ?? { ahora: () => new Date() };
-  const colas: ColasBull = crearColas({ conexion: opcionesBull(), prefijo: o.prefijo });
-  const ejecutor = new EjecutorMinimo({ db, redis, reloj, prefijo: o.prefijo, duracionMs: o.duracionMs, esperaRucMs: o.esperaRucMs });
+  const colas: ColasBull = crearColas({
+    conexion: opcionesBull(),
+    prefijo: o.prefijo,
+  });
+  const ejecutor = new EjecutorMinimo({
+    db,
+    redis,
+    reloj,
+    prefijo: o.prefijo,
+    duracionMs: o.duracionMs,
+    esperaRucMs: o.esperaRucMs,
+  });
   const workers: WorkersBull = crearWorkers({
     conexion: opcionesBull(),
     prefijo: o.prefijo,
     colas: [{ cola: "sire", concurrencia: o.concurrenciaBull ?? 8 }],
     procesar: (_cola, payload) => ejecutor.ejecutar(payload),
   });
-  const despachador = new Despachador({ db, redis, reloj, prefijo: o.prefijo, agregarACola: colas.agregarACola });
-  const reconciliador = new Reconciliador({ db, redis, reloj, prefijo: o.prefijo });
+  const despachador = new Despachador({
+    db,
+    redis,
+    reloj,
+    prefijo: o.prefijo,
+    agregarACola: colas.agregarACola,
+  });
+  const reconciliador = new Reconciliador({
+    db,
+    redis,
+    reloj,
+    prefijo: o.prefijo,
+  });
   const bucles = [
-    ...(o.automatico === false ? [] : [bucle(() => despachador.ciclo(), o.cicloMs ?? 15)]),
-    ...(o.reconciliadorMs === undefined ? [] : [bucle(() => reconciliador.ciclo(), o.reconciliadorMs)]),
+    ...(o.automatico === false
+      ? []
+      : [bucle(() => despachador.ciclo(), o.cicloMs ?? 15)]),
+    ...(o.reconciliadorMs === undefined
+      ? []
+      : [bucle(() => reconciliador.ciclo(), o.reconciliadorMs)]),
   ];
   return {
     db,

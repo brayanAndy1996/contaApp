@@ -219,7 +219,9 @@ describe("StreamService · eventos", () => {
       canal,
       JSON.stringify({ ...vista(), ruc: "20100000001" }),
     );
-    expect(r.texto).toBe(`event: trabajo\ndata: ${JSON.stringify(vista())}\n\n`);
+    expect(r.texto).toBe(
+      `event: trabajo\ndata: ${JSON.stringify(vista())}\n\n`,
+    );
     r.end();
   });
 
@@ -288,7 +290,9 @@ describe("StreamService · cierre", () => {
     r.texto = "";
     sub.emit("message", canal, JSON.stringify(vista(OTRO_CLIENTE)));
     sub.emit("message", canal, JSON.stringify(vista(CLIENTE)));
-    expect(r.texto).toBe(`event: trabajo\ndata: ${JSON.stringify(vista())}\n\n`);
+    expect(r.texto).toBe(
+      `event: trabajo\ndata: ${JSON.stringify(vista())}\n\n`,
+    );
     r.end();
   });
 

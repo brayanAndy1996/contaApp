@@ -19,7 +19,12 @@ const fila = (cola: string, o: Record<string, unknown> = {}) => ({
 
 describe("leerConfig", () => {
   it("devuelve un Map por cola con los limites en camelCase y como numeros", async () => {
-    const { tx, llamadas } = txFalso({ rows: [fila("sire"), fila("sol", { concurrencia_global: 2, concurrencia_tenant: 1 })] });
+    const { tx, llamadas } = txFalso({
+      rows: [
+        fila("sire"),
+        fila("sol", { concurrencia_global: 2, concurrencia_tenant: 1 }),
+      ],
+    });
     const m = await leerConfig(tx);
     expect(m).toBeInstanceOf(Map);
     expect([...m.keys()].sort()).toEqual(["sire", "sol"]);
@@ -31,14 +36,22 @@ describe("leerConfig", () => {
       backoffBaseMs: 5000,
       maxPendientesTenant: 2000,
     });
-    expect(m.get("sol")).toMatchObject({ concurrenciaGlobal: 2, concurrenciaTenant: 1 });
+    expect(m.get("sol")).toMatchObject({
+      concurrenciaGlobal: 2,
+      concurrenciaTenant: 1,
+    });
     expect(llamadas[0]!.texto).toMatch(/config_sistema/);
   });
 
   it("convierte a number los valores que pg entrega como string y no inventa colas", async () => {
-    const { tx } = txFalso({ rows: [fila("xml", { espera_ruc_ms: "600000", backoff_base_ms: "100" })] });
+    const { tx } = txFalso({
+      rows: [fila("xml", { espera_ruc_ms: "600000", backoff_base_ms: "100" })],
+    });
     const m = await leerConfig(tx);
-    expect(m.get("xml")).toMatchObject({ esperaRucMs: 600000, backoffBaseMs: 100 });
+    expect(m.get("xml")).toMatchObject({
+      esperaRucMs: 600000,
+      backoffBaseMs: 100,
+    });
     expect(m.get("sire")).toBeUndefined();
     expect(m.size).toBe(1);
   });
@@ -48,7 +61,9 @@ describe("leerConfig", () => {
   });
 
   it("un error de pg sale como TrabajosRepoError con el SQLSTATE (el despachador conserva la anterior)", async () => {
-    const e = await leerConfig(txFalso(errorPg("57P01")).tx).catch((x: unknown) => x);
+    const e = await leerConfig(txFalso(errorPg("57P01")).tx).catch(
+      (x: unknown) => x,
+    );
     expect(e).toBeInstanceOf(TrabajosRepoError);
     expect((e as TrabajosRepoError).codigo).toBe("57P01");
   });

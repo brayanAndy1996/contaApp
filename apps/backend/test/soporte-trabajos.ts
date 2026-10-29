@@ -523,14 +523,19 @@ export interface UsoSesion {
 }
 
 /** Valor de la cookie de sesión (`__Host-contapp_sid=<valor>`), del que la BD guarda el SHA-256. */
-const valorDeCookie = (cookie: string): string => cookie.slice(cookie.indexOf("=") + 1);
+const valorDeCookie = (cookie: string): string =>
+  cookie.slice(cookie.indexOf("=") + 1);
 
 /** `ultimo_uso` y `tenant_activo` de la sesión de `a` (conexión de migraciones). */
 export async function usoDeSesion(
   b: Pick<Banco, "sql">,
   a: { cookie: string },
 ): Promise<UsoSesion> {
-  const [f] = await b.sql<{ marca: string; edad: number; tenant_activo: string | null }>(
+  const [f] = await b.sql<{
+    marca: string;
+    edad: number;
+    tenant_activo: string | null;
+  }>(
     `select ultimo_uso::text as marca, extract(epoch from (now() - ultimo_uso))::float8 as edad, tenant_activo
        from auth.sesion where token_hash = any($1::bytea[])`,
     [hashesPosibles(valorDeCookie(a.cookie))],
@@ -545,12 +550,17 @@ export async function fijarUsoDeSesion(
   a: { cookie: string },
   desplazamiento: string,
 ): Promise<void> {
-  if (!/^-?\d+ (seconds?|minutes?|hours?)( -?\d+ (seconds?|minutes?|hours?))*$/.test(desplazamiento))
+  if (
+    !/^-?\d+ (seconds?|minutes?|hours?)( -?\d+ (seconds?|minutes?|hours?))*$/.test(
+      desplazamiento,
+    )
+  )
     throw new Error("desplazamiento inválido en la prueba");
   const r = await b.sql<{ id: string }>(
     `update auth.sesion set ultimo_uso = now() + $2::interval
       where token_hash = any($1::bytea[]) returning id`,
     [hashesPosibles(valorDeCookie(a.cookie)), desplazamiento],
   );
-  if (r.length !== 1) throw new Error("no se pudo fijar ultimo_uso de la sesión de la prueba");
+  if (r.length !== 1)
+    throw new Error("no se pudo fijar ultimo_uso de la sesión de la prueba");
 }

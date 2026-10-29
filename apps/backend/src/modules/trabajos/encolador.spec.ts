@@ -79,7 +79,9 @@ describe("Encolador", () => {
       }),
     };
     const enc = new Encolador(db as never, redisFalso(r));
-    const error = await enc.encolar({ tenantId: TENANT }, entrada).catch((e) => e);
+    const error = await enc
+      .encolar({ tenantId: TENANT }, entrada)
+      .catch((e) => e);
     expect(error).toBeInstanceOf(ColaLlenaError);
     expect(r.zadd).not.toHaveBeenCalled();
     expect(r.publish).not.toHaveBeenCalled();

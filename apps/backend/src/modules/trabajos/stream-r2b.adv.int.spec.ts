@@ -35,24 +35,44 @@ describe("SSE del Dueño y un cliente creado con el stream abierto (CA-6)", () =
     bancos.push(b);
     const E = await b.estudio();
     const [viejo] = await b.clientes(E.tenantId, 1);
-    const previo = await b.sembrar(E.tenantId, viejo!, { creadoPor: E.titular.id });
-    const s = await abrirSse(b.h, { cookie: E.titular.cookie, estudio: E.tenantId });
+    const previo = await b.sembrar(E.tenantId, viejo!, {
+      creadoPor: E.titular.id,
+    });
+    const s = await abrirSse(b.h, {
+      cookie: E.titular.cookie,
+      estudio: E.tenantId,
+    });
     expect(s.status).toBe(200);
     await esperarSuscripcion(b.redis, b.prefijo, E.tenantId);
 
     // El Dueño crea un cliente y encola en seguida (p. ej. "Verificar credencial" de 007).
     const [nuevo] = await b.clientes(E.tenantId, 1);
-    const trabajo: TrabajoVista = await b.sembrar(E.tenantId, nuevo!, { creadoPor: E.titular.id });
+    const trabajo: TrabajoVista = await b.sembrar(E.tenantId, nuevo!, {
+      creadoPor: E.titular.id,
+    });
     const tPublicado = Date.now();
     await publicarEvento(b.redis, E.tenantId, trabajo, { prefijo: b.prefijo });
-    await publicarEvento(b.redis, E.tenantId, vistaCon(trabajo, { estado: "ejecutando", intentos: 0 }), {
-      prefijo: b.prefijo,
-    });
+    await publicarEvento(
+      b.redis,
+      E.tenantId,
+      vistaCon(trabajo, { estado: "ejecutando", intentos: 0 }),
+      {
+        prefijo: b.prefijo,
+      },
+    );
     // Control: el canal funciona para un cliente que ya existía al abrir.
-    await publicarEvento(b.redis, E.tenantId, vistaCon(previo, { estado: "ejecutando", intentos: 0 }), {
-      prefijo: b.prefijo,
-    });
-    expect(await s.esperar(esEventoId(previo.id), 2_000), "control").not.toBeNull();
+    await publicarEvento(
+      b.redis,
+      E.tenantId,
+      vistaCon(previo, { estado: "ejecutando", intentos: 0 }),
+      {
+        prefijo: b.prefijo,
+      },
+    );
+    expect(
+      await s.esperar(esEventoId(previo.id), 2_000),
+      "control",
+    ).not.toBeNull();
 
     const llego = await s.esperar(esEventoId(trabajo.id), 2_000);
     s.cerrar();

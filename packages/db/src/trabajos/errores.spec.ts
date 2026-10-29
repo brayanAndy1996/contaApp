@@ -10,9 +10,12 @@ describe("TrabajosRepoError.desde", () => {
     expect(e).toBeInstanceOf(TrabajosRepoError);
     expect(e).toBeInstanceOf(Error);
     expect(e.codigo).toBe("23514");
-    for (const k of ["detail", "constraint", "table", "column", "where"]) expect(e).not.toHaveProperty(k);
+    for (const k of ["detail", "constraint", "table", "column", "where"])
+      expect(e).not.toHaveProperty(k);
     expect(e.cause).toBeUndefined();
-    expect(inspect(e) + JSON.stringify(e) + e.message + String(e.stack)).not.toContain("CANARIO-SOL-123");
+    expect(
+      inspect(e) + JSON.stringify(e) + e.message + String(e.stack),
+    ).not.toContain("CANARIO-SOL-123");
   });
 
   it("el mensaje es fijo y menciona solo el SQLSTATE", () => {

@@ -76,23 +76,32 @@ afterAll(async () => {
 });
 
 async function ejecutando(T: string): Promise<string[]> {
-  const r = await admin.pool.query("select id from job_registro where tenant_id = $1 and estado = 'ejecutando'", [T]);
+  const r = await admin.pool.query(
+    "select id from job_registro where tenant_id = $1 and estado = 'ejecutando'",
+    [T],
+  );
   return (r.rows as Array<{ id: string }>).map((f) => f.id);
 }
 
-const anotar = (lista: PayloadTrabajo[]) => async (_cola: string, p: PayloadTrabajo) => {
-  lista.push(p);
-};
+const anotar =
+  (lista: PayloadTrabajo[]) => async (_cola: string, p: PayloadTrabajo) => {
+    lista.push(p);
+  };
 
 /** Redis que se detiene (una vez) justo después de la reserva de cupos (2.º ZADD sin XX) hasta `puerta`. */
-function redisQueSeDetieneTrasReservar(puerta: Promise<void>, aviso: () => void): Redis {
+function redisQueSeDetieneTrasReservar(
+  puerta: Promise<void>,
+  aviso: () => void,
+): Redis {
   let zadds = 0;
   let detenido = false;
   return new Proxy(redis, {
     get(t, p, rcv) {
       if (p === "zadd")
         return async (...a: unknown[]) => {
-          const r = await (t.zadd as (...x: unknown[]) => Promise<unknown>).apply(t, a);
+          const r = await (
+            t.zadd as (...x: unknown[]) => Promise<unknown>
+          ).apply(t, a);
           if (!a.includes("XX") && ++zadds === 2 && !detenido) {
             detenido = true;
             aviso();
@@ -110,8 +119,12 @@ describe("H-008-1b-1 por otra vía: canal sin lock de RUC y dos despachadores", 
   it("el perdedor de la transición no borra el cupo del ganador: el estudio no pasa de su concurrencia", async () => {
     const T = await e.estudio();
     const clientes: ClientePrueba[] = [];
-    for (let i = 0; i < limiteEstudio + 3; i++) clientes.push(await e.cliente(T));
-    await e.trabajosEnMasa(T, clientes, limiteEstudio + 3, { tipo: "prueba.sin_canal", canal: "ninguno" });
+    for (let i = 0; i < limiteEstudio + 3; i++)
+      clientes.push(await e.cliente(T));
+    await e.trabajosEnMasa(T, clientes, limiteEstudio + 3, {
+      tipo: "prueba.sin_canal",
+      canal: "ninguno",
+    });
     await redis.sadd(k.tenants("sire"), T);
     await redis.del(k.lider("sire"));
 
@@ -125,11 +138,18 @@ describe("H-008-1b-1 por otra vía: canal sin lock de RUC y dos despachadores", 
       prefijo,
       agregarACola: anotar([]),
     });
-    const d2 = new Despachador({ db: worker, redis, reloj: { ahora: () => new Date() }, prefijo, agregarACola: anotar([]) });
+    const d2 = new Despachador({
+      db: worker,
+      redis,
+      reloj: { ahora: () => new Date() },
+      prefijo,
+      agregarACola: anotar([]),
+    });
 
     // D1 lee la ventana, reserva el cupo del primer candidato y se demora (BD lenta / event loop bloqueado).
     const ciclo1 = d1.ciclo();
-    for (let i = 0; i < 300 && !enPuerta; i++) await new Promise((r) => setTimeout(r, 10));
+    for (let i = 0; i < 300 && !enPuerta; i++)
+      await new Promise((r) => setTimeout(r, 10));
     expect(enPuerta).toBe(true);
     // Su liderazgo vence: D2 lo toma y despacha el MISMO candidato (sin lock de RUC nada lo impide).
     await redis.del(k.lider("sire"));
@@ -144,7 +164,10 @@ describe("H-008-1b-1 por otra vía: canal sin lock de RUC y dos despachadores", 
     const vivos = await ejecutando(T);
     const cupos = await redis.zcard(k.cupoTenant("sire", T));
     expect(
-      { ejecutando: vivos.length <= limiteEstudio, cuposCubrenLoQueCorre: cupos >= vivos.length },
+      {
+        ejecutando: vivos.length <= limiteEstudio,
+        cuposCubrenLoQueCorre: cupos >= vivos.length,
+      },
       `ejecutando=${vivos.length}, cupos del estudio=${cupos}, concurrencia del estudio=${limiteEstudio}`,
     ).toEqual({ ejecutando: true, cuposCubrenLoQueCorre: true });
   });
@@ -175,12 +198,24 @@ describe("H-008-1b-2 por otra vía: líder con el reloj atrasado", () => {
     const atrasado = new RelojAjustable();
     atrasado.avanzar(-40_000);
     const payloads: PayloadTrabajo[] = [];
-    const lider = new Despachador({ db: worker, redis, reloj: atrasado, prefijo, agregarACola: anotar(payloads) });
+    const lider = new Despachador({
+      db: worker,
+      redis,
+      reloj: atrasado,
+      prefijo,
+      agregarACola: anotar(payloads),
+    });
     await lider.ciclo();
     const conAtrasado = (await ejecutando(T)).length;
     // Control: el mismo estado con un líder de reloj correcto sí despacha (el estudio no tiene otro freno).
     await redis.del(k.lider("sire"));
-    const correcto = new Despachador({ db: worker, redis, reloj: { ahora: () => new Date() }, prefijo, agregarACola: anotar([]) });
+    const correcto = new Despachador({
+      db: worker,
+      redis,
+      reloj: { ahora: () => new Date() },
+      prefijo,
+      agregarACola: anotar([]),
+    });
     await correcto.ciclo();
     const conCorrecto = (await ejecutando(T)).length;
     expect(

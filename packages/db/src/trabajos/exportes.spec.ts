@@ -36,12 +36,23 @@ const FUNCIONES = [
 
 describe("exportes de @contapp/db (spec 008)", () => {
   it.each(FUNCIONES)("exporta %s como funcion", (nombre) => {
-    expect(typeof (db as Record<string, unknown>)[nombre], nombre).toBe("function");
+    expect(typeof (db as Record<string, unknown>)[nombre], nombre).toBe(
+      "function",
+    );
   });
 
   it("exporta TrabajosRepoError y mantiene los exportes de 002-005", () => {
-    expect(typeof (db as Record<string, unknown>).TrabajosRepoError).toBe("function");
-    for (const n of ["createDb", "guardarSobre", "reemplazarDekEnvuelta", "crearAuthRepo", "filtroAlcance", "SEED"]) {
+    expect(typeof (db as Record<string, unknown>).TrabajosRepoError).toBe(
+      "function",
+    );
+    for (const n of [
+      "createDb",
+      "guardarSobre",
+      "reemplazarDekEnvuelta",
+      "crearAuthRepo",
+      "filtroAlcance",
+      "SEED",
+    ]) {
       expect((db as Record<string, unknown>)[n], n).toBeDefined();
     }
     expect(db.WithTenantAnidadoError).toBeDefined();
@@ -51,12 +62,19 @@ describe("exportes de @contapp/db (spec 008)", () => {
 
 describe("withSistema (D18): solo con rolApp = contapp_worker", () => {
   it("ContappDb del worker expone withSistema", () => {
-    expect(typeof (crear("contapp_worker") as unknown as { withSistema?: unknown }).withSistema).toBe("function");
+    expect(
+      typeof (crear("contapp_worker") as unknown as { withSistema?: unknown })
+        .withSistema,
+    ).toBe("function");
   });
 
   it("con rolApp = contapp_backend se rechaza con ConfiguracionDbError sin abrir conexion (el backend no enumera estudios)", async () => {
-    const d = crear("contapp_backend") as unknown as { withSistema?: (fn: () => Promise<number>) => Promise<number> };
+    const d = crear("contapp_backend") as unknown as {
+      withSistema?: (fn: () => Promise<number>) => Promise<number>;
+    };
     expect(typeof d.withSistema).toBe("function");
-    await expect(d.withSistema!(async () => 1)).rejects.toBeInstanceOf(ConfiguracionDbError);
+    await expect(d.withSistema!(async () => 1)).rejects.toBeInstanceOf(
+      ConfiguracionDbError,
+    );
   });
 });

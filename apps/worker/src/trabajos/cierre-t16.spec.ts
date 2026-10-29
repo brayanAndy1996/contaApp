@@ -13,7 +13,9 @@ afterEach(() => {
 describe("cerrarConTope", () => {
   it("termina en cuanto termina el cierre", async () => {
     let listo = false;
-    const p = cerrarConTope(Promise.resolve(), ESPERA_CIERRE_BD_MS).then(() => (listo = true));
+    const p = cerrarConTope(Promise.resolve(), ESPERA_CIERRE_BD_MS).then(
+      () => (listo = true),
+    );
     await vi.advanceTimersByTimeAsync(0);
     expect(listo).toBe(true);
     await p;
@@ -21,12 +23,17 @@ describe("cerrarConTope", () => {
 
   it("error: un cierre que no termina (o que falla) no retiene más que el tope ni lanza", async () => {
     let listo = false;
-    const p = cerrarConTope(new Promise(() => undefined), ESPERA_CIERRE_BD_MS).then(() => (listo = true));
+    const p = cerrarConTope(
+      new Promise(() => undefined),
+      ESPERA_CIERRE_BD_MS,
+    ).then(() => (listo = true));
     await vi.advanceTimersByTimeAsync(ESPERA_CIERRE_BD_MS - 1);
     expect(listo).toBe(false);
     await vi.advanceTimersByTimeAsync(1);
     expect(listo).toBe(true);
     await p;
-    await expect(cerrarConTope(Promise.reject(new Error("bd")), 10)).resolves.toBeUndefined();
+    await expect(
+      cerrarConTope(Promise.reject(new Error("bd")), 10),
+    ).resolves.toBeUndefined();
   });
 });

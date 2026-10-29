@@ -18,18 +18,31 @@ process.stdout.write(r);
 function probar(nodeEnv: string | undefined): string {
   const env: Record<string, string> = { PATH: process.env.PATH ?? "" };
   if (nodeEnv !== undefined) env.NODE_ENV = nodeEnv;
-  return execFileSync(process.execPath, ["--input-type=module", "-e", sonda], { env, encoding: "utf8", timeout: 20_000 });
+  return execFileSync(process.execPath, ["--input-type=module", "-e", sonda], {
+    env,
+    encoding: "utf8",
+    timeout: 20_000,
+  });
 }
 
-describe.skipIf(!existsSync(dist))("prueba.eco solo existe con NODE_ENV=test exacto", () => {
-  it.each([[undefined], ["production"], ["development"], ["TEST"], [" test"], ["test "], ["testing"], [""]])(
-    "NODE_ENV=%j -> tipo_desconocido",
-    (valor) => {
+describe.skipIf(!existsSync(dist))(
+  "prueba.eco solo existe con NODE_ENV=test exacto",
+  () => {
+    it.each([
+      [undefined],
+      ["production"],
+      ["development"],
+      ["TEST"],
+      [" test"],
+      ["test "],
+      ["testing"],
+      [""],
+    ])("NODE_ENV=%j -> tipo_desconocido", (valor) => {
       expect(probar(valor)).toBe("tipo_desconocido");
-    },
-  );
+    });
 
-  it("control: con NODE_ENV=test sí está registrado", () => {
-    expect(probar("test")).toBe("registrado");
-  });
-});
+    it("control: con NODE_ENV=test sí está registrado", () => {
+      expect(probar("test")).toBe("registrado");
+    });
+  },
+);

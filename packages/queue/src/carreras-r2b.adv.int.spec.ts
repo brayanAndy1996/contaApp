@@ -13,7 +13,12 @@
 //     credencial). Si esa transacción empezó antes del despacho y confirma durante el trabajo, `estado_at <= iniciado_en`
 //     y el ErrorCredencial del intento viejo marca `invalida` la credencial nueva (CA-9).
 import { randomBytes, randomUUID } from "node:crypto";
-import { leerTrabajo, marcarCredencialInvalida, transicionar, type ContappDb } from "@contapp/db";
+import {
+  leerTrabajo,
+  marcarCredencialInvalida,
+  transicionar,
+  type ContappDb,
+} from "@contapp/db";
 import type { Redis } from "ioredis";
 import { z } from "zod";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -58,7 +63,9 @@ beforeAll(async () => {
   backend = crearDbRol("contapp_backend", 6);
   redis = conectarRedis();
   e = new Escenario(admin);
-  const r = await admin.pool.query("select concurrencia_tenant, concurrencia_global from config_sistema where cola = 'sire'");
+  const r = await admin.pool.query(
+    "select concurrencia_tenant, concurrencia_global from config_sistema where cola = 'sire'",
+  );
   limite = Number(r.rows[0].concurrencia_tenant);
   expect(limite).toBeLessThan(Number(r.rows[0].concurrencia_global));
 }, 30_000);
@@ -85,7 +92,10 @@ describe("dos líderes y un tipo sin lock de RUC (canal `ninguno`)", () => {
     const T = await e.estudio();
     const clientes: ClientePrueba[] = [];
     for (let i = 0; i < limite + 3; i++) clientes.push(await e.cliente(T));
-    await e.trabajosEnMasa(T, clientes, limite + 3, { tipo: TIPO_SIN_CANAL, canal: "ninguno" });
+    await e.trabajosEnMasa(T, clientes, limite + 3, {
+      tipo: TIPO_SIN_CANAL,
+      canal: "ninguno",
+    });
     await redis.sadd(k.tenants("sire"), T);
     await redis.del(k.lider("sire"));
 
@@ -107,8 +117,20 @@ describe("dos líderes y un tipo sin lock de RUC (canal `ninguno`)", () => {
       },
     }) as Redis;
     const nada = async (): Promise<undefined> => undefined;
-    const d1 = new Despachador({ db: worker, redis: redisLento, reloj: { ahora: () => new Date() }, prefijo, agregarACola: nada });
-    const d2 = new Despachador({ db: worker, redis, reloj: { ahora: () => new Date() }, prefijo, agregarACola: nada });
+    const d1 = new Despachador({
+      db: worker,
+      redis: redisLento,
+      reloj: { ahora: () => new Date() },
+      prefijo,
+      agregarACola: nada,
+    });
+    const d2 = new Despachador({
+      db: worker,
+      redis,
+      reloj: { ahora: () => new Date() },
+      prefijo,
+      agregarACola: nada,
+    });
 
     const ciclo1 = d1.ciclo();
     await esperarHasta(() => detenido, "D1 en su reserva de cupo");
@@ -119,9 +141,15 @@ describe("dos líderes y un tipo sin lock de RUC (canal `ninguno`)", () => {
     await ciclo1;
     for (let i = 0; i < limite + 2; i++) await d2.ciclo();
 
-    const r = await admin.pool.query("select id from job_registro where tenant_id = $1 and estado = 'ejecutando'", [T]);
+    const r = await admin.pool.query(
+      "select id from job_registro where tenant_id = $1 and estado = 'ejecutando'",
+      [T],
+    );
     const enCupo = await redis.zcard(k.cupoTenant("sire", T));
-    expect(r.rowCount, `ejecutando=${r.rowCount}, cupos en Redis=${enCupo}, concurrencia del estudio ${limite}`).toBeLessThanOrEqual(limite);
+    expect(
+      r.rowCount,
+      `ejecutando=${r.rowCount}, cupos en Redis=${enCupo}, concurrencia del estudio ${limite}`,
+    ).toBeLessThanOrEqual(limite);
   });
 });
 
@@ -144,33 +172,64 @@ describe("encolar concurrente cuando el vivo termina en ese instante (D8)", () =
     const conPuertas = (tx: { query: (...a: never[]) => unknown }) => ({
       query: async (...a: unknown[]) => {
         const texto = String(a[0]);
-        if (!/on conflict/i.test(texto)) return (tx.query as (...x: unknown[]) => unknown)(...a);
+        if (!/on conflict/i.test(texto))
+          return (tx.query as (...x: unknown[]) => unknown)(...a);
         enAntes++;
         await antes.esperar;
-        const r = await (tx.query as (...x: unknown[]) => Promise<unknown>)(...a);
+        const r = await (tx.query as (...x: unknown[]) => Promise<unknown>)(
+          ...a,
+        );
         enDespues++;
         await despues.esperar;
         return r;
       },
     });
     const intento = () =>
-      backend.withTenant({ tenantId: T }, (tx) => encolar(conPuertas(tx as never) as never, entrada));
+      backend.withTenant({ tenantId: T }, (tx) =>
+        encolar(conPuertas(tx as never) as never, entrada),
+      );
     const t1 = intento();
     const t2 = intento();
-    await esperarHasta(() => enAntes === 2, "las dos transacciones pasaron la primera comprobación");
+    await esperarHasta(
+      () => enAntes === 2,
+      "las dos transacciones pasaron la primera comprobación",
+    );
     // Otro encolar de lo mismo confirma primero: es el vivo con el que chocarán las dos.
-    const vivo = await backend.withTenant({ tenantId: T }, (tx) => encolar(tx, entrada));
+    const vivo = await backend.withTenant({ tenantId: T }, (tx) =>
+      encolar(tx, entrada),
+    );
     expect(vivo.nuevo).toBe(true);
     antes.abrir();
-    await esperarHasta(() => enDespues === 2, "las dos chocaron con el vivo (DO NOTHING)");
+    await esperarHasta(
+      () => enDespues === 2,
+      "las dos chocaron con el vivo (DO NOTHING)",
+    );
     // El vivo termina justo entonces (el worker lo completó).
-    await admin.pool.query("update job_registro set estado = 'completado', terminado_en = now() where id = $1", [vivo.trabajo.id]);
+    await admin.pool.query(
+      "update job_registro set estado = 'completado', terminado_en = now() where id = $1",
+      [vivo.trabajo.id],
+    );
     despues.abrir();
 
     const r = await Promise.allSettled([t1, t2]);
-    const fallos = r.filter((x) => x.status === "rejected").map((x) => (x as PromiseRejectedResult).reason?.codigo ?? String((x as PromiseRejectedResult).reason));
-    expect(fallos, "un encolar concurrente de lo mismo propagó un error de BD").toEqual([]);
-    const ids = new Set(r.map((x) => (x as PromiseFulfilledResult<{ trabajo: { id: string } }>).value.trabajo.id));
+    const fallos = r
+      .filter((x) => x.status === "rejected")
+      .map(
+        (x) =>
+          (x as PromiseRejectedResult).reason?.codigo ??
+          String((x as PromiseRejectedResult).reason),
+      );
+    expect(
+      fallos,
+      "un encolar concurrente de lo mismo propagó un error de BD",
+    ).toEqual([]);
+    const ids = new Set(
+      r.map(
+        (x) =>
+          (x as PromiseFulfilledResult<{ trabajo: { id: string } }>).value
+            .trabajo.id,
+      ),
+    );
     expect(ids.size).toBe(1);
   });
 });
@@ -189,24 +248,45 @@ describe("credencial reemplazada por una transacción que empezó antes del desp
       await guardado.query("select now()");
       await dormir(50);
       // Se despacha el trabajo (iniciado_en = now() del despacho, posterior) y lee la credencial VIEJA.
-      expect(await worker.withTenant({ tenantId: T }, (tx) => transicionar(tx, id!, "en_cola", "ejecutando"))).toBe(true);
-      const inicio = await worker.withTenant({ tenantId: T }, (tx) => leerTrabajo(tx, id!));
+      expect(
+        await worker.withTenant({ tenantId: T }, (tx) =>
+          transicionar(tx, id!, "en_cola", "ejecutando"),
+        ),
+      ).toBe(true);
+      const inicio = await worker.withTenant({ tenantId: T }, (tx) =>
+        leerTrabajo(tx, id!),
+      );
       expect(inicio?.estado).toBe("ejecutando");
       // El guardado confirma durante el trabajo: el trigger fija estado_at = now() de SU transacción.
-      await guardado.query("update credencial set ciphertext = $2 where id = $1", [credId, randomBytes(64)]);
+      await guardado.query(
+        "update credencial set ciphertext = $2 where id = $1",
+        [credId, randomBytes(64)],
+      );
       await guardado.query("commit");
     } finally {
       guardado.release();
     }
-    const f = (await admin.pool.query("select estado, estado_at from credencial where id = $1", [credId])).rows[0];
+    const f = (
+      await admin.pool.query(
+        "select estado, estado_at from credencial where id = $1",
+        [credId],
+      )
+    ).rows[0];
     expect(f.estado).toBe("configurada");
 
     // El adaptador rechaza la credencial vieja: el ejecutor marca con trabajoId (corrección de H-008-1b-5).
     const marco = await worker.withTenant({ tenantId: T }, (tx) =>
       marcarCredencialInvalida(tx, c.id, "sol", "credencial_invalida", id!),
     );
-    const despues = (await admin.pool.query("select estado from credencial where id = $1", [credId])).rows[0];
-    expect({ marco, estado: despues.estado }, "la credencial reemplazada durante el trabajo quedó invalida").toEqual({
+    const despues = (
+      await admin.pool.query("select estado from credencial where id = $1", [
+        credId,
+      ])
+    ).rows[0];
+    expect(
+      { marco, estado: despues.estado },
+      "la credencial reemplazada durante el trabajo quedó invalida",
+    ).toEqual({
       marco: false,
       estado: "configurada",
     });

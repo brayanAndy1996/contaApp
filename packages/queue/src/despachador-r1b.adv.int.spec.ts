@@ -40,7 +40,9 @@ beforeAll(async () => {
   worker = crearDbRol("contapp_worker", 6);
   redis = conectarRedis();
   e = new Escenario(admin);
-  const r = await admin.pool.query("select concurrencia_tenant, concurrencia_global from config_sistema where cola = 'sire'");
+  const r = await admin.pool.query(
+    "select concurrencia_tenant, concurrencia_global from config_sistema where cola = 'sire'",
+  );
   limiteEstudio = Number(r.rows[0].concurrencia_tenant);
   // El límite del estudio debe ser el que manda (y no el global) para que la prueba tenga sentido.
   expect(limiteEstudio).toBeLessThan(Number(r.rows[0].concurrencia_global));
@@ -54,7 +56,9 @@ afterAll(async () => {
 });
 
 /** Estudio con `n` trabajos `prueba.eco` en_cola, cada uno de un cliente (RUC) distinto, y su pista en Redis. */
-async function estudioConPendientes(n: number): Promise<{ T: string; clientes: ClientePrueba[]; ids: string[] }> {
+async function estudioConPendientes(
+  n: number,
+): Promise<{ T: string; clientes: ClientePrueba[]; ids: string[] }> {
   const T = await e.estudio();
   const clientes: ClientePrueba[] = [];
   for (let i = 0; i < n; i++) clientes.push(await e.cliente(T));
@@ -63,14 +67,20 @@ async function estudioConPendientes(n: number): Promise<{ T: string; clientes: C
   return { T, clientes, ids };
 }
 
-async function ejecutando(T: string): Promise<Array<{ id: string; ruc: string }>> {
-  const r = await admin.pool.query("select id, ruc from job_registro where tenant_id = $1 and estado = 'ejecutando'", [T]);
+async function ejecutando(
+  T: string,
+): Promise<Array<{ id: string; ruc: string }>> {
+  const r = await admin.pool.query(
+    "select id, ruc from job_registro where tenant_id = $1 and estado = 'ejecutando'",
+    [T],
+  );
   return r.rows as Array<{ id: string; ruc: string }>;
 }
 
-const anotar = (lista: PayloadTrabajo[]) => async (_cola: string, p: PayloadTrabajo) => {
-  lista.push(p);
-};
+const anotar =
+  (lista: PayloadTrabajo[]) => async (_cola: string, p: PayloadTrabajo) => {
+    lista.push(p);
+  };
 
 describe("dos despachadores que se creen líderes (arriendo vencido a mitad del ciclo)", () => {
   it("el estudio nunca pasa de su concurrencia aunque el líder anterior termine su ciclo tarde", async () => {
@@ -89,7 +99,9 @@ describe("dos despachadores que se creen líderes (arriendo vencido a mitad del 
               detenido = true;
               await puerta;
             }
-            return (t.withTenant as (...x: unknown[]) => Promise<unknown>).apply(t, a);
+            return (
+              t.withTenant as (...x: unknown[]) => Promise<unknown>
+            ).apply(t, a);
           };
         const v = Reflect.get(t, p, rcv);
         return typeof v === "function" ? v.bind(t) : v;
@@ -97,11 +109,24 @@ describe("dos despachadores que se creen líderes (arriendo vencido a mitad del 
     }) as ContappDb;
     const p1: PayloadTrabajo[] = [];
     const p2: PayloadTrabajo[] = [];
-    const d1 = new Despachador({ db: lento, redis, reloj: { ahora: () => new Date() }, prefijo, agregarACola: anotar(p1) });
-    const d2 = new Despachador({ db: worker, redis, reloj: { ahora: () => new Date() }, prefijo, agregarACola: anotar(p2) });
+    const d1 = new Despachador({
+      db: lento,
+      redis,
+      reloj: { ahora: () => new Date() },
+      prefijo,
+      agregarACola: anotar(p1),
+    });
+    const d2 = new Despachador({
+      db: worker,
+      redis,
+      reloj: { ahora: () => new Date() },
+      prefijo,
+      agregarACola: anotar(p2),
+    });
 
     const ciclo1 = d1.ciclo();
-    for (let i = 0; i < 200 && !detenido; i++) await new Promise((r) => setTimeout(r, 10));
+    for (let i = 0; i < 200 && !detenido; i++)
+      await new Promise((r) => setTimeout(r, 10));
     expect(detenido).toBe(true);
 
     // Pasan > 30 s: el arriendo de liderazgo de D1 vence y D2 lo toma y despacha hasta llenar el cupo del estudio.
@@ -113,7 +138,10 @@ describe("dos despachadores que se creen líderes (arriendo vencido a mitad del 
     liberar();
     await ciclo1;
     const vivos = await ejecutando(T);
-    expect(vivos.length, `ejecutando=${vivos.length} con concurrencia del estudio ${limiteEstudio}`).toBeLessThanOrEqual(limiteEstudio);
+    expect(
+      vivos.length,
+      `ejecutando=${vivos.length} con concurrencia del estudio ${limiteEstudio}`,
+    ).toBeLessThanOrEqual(limiteEstudio);
   });
 });
 
@@ -124,7 +152,13 @@ describe("reloj desfasado entre procesos", () => {
     const adelantado = new RelojAjustable();
     adelantado.avanzar(40_000);
     const payloads: PayloadTrabajo[] = [];
-    const lider = new Despachador({ db: worker, redis, reloj: adelantado, prefijo, agregarACola: anotar(payloads) });
+    const lider = new Despachador({
+      db: worker,
+      redis,
+      reloj: adelantado,
+      prefijo,
+      agregarACola: anotar(payloads),
+    });
 
     for (let i = 0; i < limiteEstudio + 2; i++) await lider.ciclo();
     const enCurso = await ejecutando(T);
@@ -133,10 +167,18 @@ describe("reloj desfasado entre procesos", () => {
     // El ejecutor de OTRO proceso (reloj correcto) renueva sus arriendos con el latido, como lo hace cada 10 s.
     for (const f of enCurso) {
       const c = clientes.find((x) => x.ruc === f.ruc)!;
-      await renovarArriendos(redis, k, { id: f.id, tenantId: T, cola: "sire", canal: "sire", ruc: c.ruc }, Date.now());
+      await renovarArriendos(
+        redis,
+        k,
+        { id: f.id, tenantId: T, cola: "sire", canal: "sire", ruc: c.ruc },
+        Date.now(),
+      );
     }
     await lider.ciclo();
     const vivos = await ejecutando(T);
-    expect(vivos.length, `ejecutando=${vivos.length} con concurrencia del estudio ${limiteEstudio}`).toBeLessThanOrEqual(limiteEstudio);
+    expect(
+      vivos.length,
+      `ejecutando=${vivos.length} con concurrencia del estudio ${limiteEstudio}`,
+    ).toBeLessThanOrEqual(limiteEstudio);
   });
 });
