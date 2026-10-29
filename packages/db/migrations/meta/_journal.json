@@ -134,6 +134,13 @@
       "when": 1793133784912,
       "tag": "0018_trabajos_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793246636379,
+      "tag": "0019_sesion_consultar",
+      "breakpoints": true
     }
   ]
 }

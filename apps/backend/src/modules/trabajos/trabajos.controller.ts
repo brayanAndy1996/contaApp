@@ -11,7 +11,7 @@ import {
 } from "@nestjs/common";
 import type { TrabajoVista } from "@contapp/shared";
 import type { SesionResuelta } from "../auth/auth.service.js";
-import { Sesion } from "../auth/guards/decoradores.js";
+import { Sesion, SinRenovarSesion } from "../auth/guards/decoradores.js";
 import { SoloEstudio } from "../acceso/guards/decoradores.js";
 import { StreamService, type RespuestaSse } from "./stream.service.js";
 import { TrabajosService } from "./trabajos.service.js";
@@ -36,7 +36,9 @@ export class TrabajosController {
     return this.trabajos.listar(sesion, query);
   }
 
+  /** D22: ni la apertura ni la revalidación renuevan la sesión (el stream no cuenta como actividad). */
   @SoloEstudio()
+  @SinRenovarSesion()
   @Get("stream")
   stream(
     @Sesion() sesion: SesionResuelta,

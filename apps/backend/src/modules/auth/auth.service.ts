@@ -146,11 +146,20 @@ export class AuthService {
     };
   }
 
-  /** Para `SesionGuard`: cookie -> sesión válida o null (formato inválido: sin consultar la BD). */
-  async resolverSesion(cabeceraCookie: string | undefined): Promise<SesionResuelta | null> {
+  /**
+   * Para `SesionGuard`: cookie -> sesión válida o null (formato inválido: sin consultar la BD). Con
+   * `{ renovar: false }` (008 D22, stream de trabajos) valida con `auth.sesion_consultar`: no cuenta como actividad.
+   */
+  async resolverSesion(
+    cabeceraCookie: string | undefined,
+    opciones: { renovar?: boolean } = {},
+  ): Promise<SesionResuelta | null> {
     const token = leerTokenDeCookie(cabeceraCookie);
     if (token === null) return null;
-    const valida = await this.db.withAuth((a) => a.sesionValidar(hashToken(token)));
+    const hash = hashToken(token);
+    const valida = await this.db.withAuth((a) =>
+      opciones.renovar === false ? a.sesionConsultar(hash) : a.sesionValidar(hash),
+    );
     return valida === null ? null : { ...valida, token };
   }
 

@@ -250,7 +250,7 @@ export class StreamService implements OnModuleDestroy {
     if (c.cerrada || c.revalidando) return;
     c.revalidando = true;
     try {
-      const s = await this.auth.resolverSesion(c.cookie);
+      const s = await this.auth.resolverSesion(c.cookie, { renovar: false }); // D22: no cuenta como actividad
       const vigente =
         s !== null &&
         s.sesionId === c.sesionId &&
