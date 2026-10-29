@@ -19,6 +19,7 @@
 //   insertarTrabajo(tx, datos)                  -> TrabajoVista (posicion null)
 //   trabajoVivoPorClave(tx, claveDedupe)        -> TrabajoVista | null (solo en_cola / ejecutando)
 //   contarPendientes(tx, cola)                  -> number (en_cola del tenant de `tx` en esa cola)
+//   leerTrabajo(tx, id)                         -> TrabajoFila | null (T16: relectura tras una transición perdida)
 // `db.withTenant` / `db.withSistema` abren una "transaccion" que NO se puede anidar (como la real).
 export const uuidDe = (n: number): string =>
   `0190a000-0000-7000-8000-${n.toString(16).padStart(12, "0")}`;
@@ -393,5 +394,11 @@ export const moduloDbFalso = {
 
   async posicion(): Promise<number> {
     return 1;
+  },
+
+  /** T16 (H-008-2a-1): el despachador relee el trabajo tras perder la transición. Fila completa o null (RLS). */
+  async leerTrabajo(tx: TxFalsa, id: string) {
+    const f = bd.trabajos.get(id);
+    return f === undefined || f.tenantId !== tx.tenantId ? null : completa(f);
   },
 };

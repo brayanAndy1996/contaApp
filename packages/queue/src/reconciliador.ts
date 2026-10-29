@@ -13,7 +13,11 @@ import {
   type ConfigCola,
   type TrabajoFila,
 } from "@contapp/db";
-import { liberarArriendos } from "./arriendos.js";
+import {
+  claveLockRuc,
+  horaRedisMs,
+  liberarArriendos,
+} from "./arriendos.js";
 import { definicionDe } from "./catalogo.js";
 import { crearClaves, type ClavesCola } from "./claves.js";
 import { CacheConfig } from "./config.js";
@@ -53,7 +57,6 @@ interface Recuperado {
 export class Reconciliador {
   private readonly db: DbCola;
   private readonly redis: ClienteRedis;
-  private readonly reloj: Reloj;
   private readonly prefijo: string;
   private readonly k: ClavesCola;
   private readonly antiguedadSeg: number;
@@ -62,7 +65,6 @@ export class Reconciliador {
   constructor(o: OpcionesReconciliador) {
     this.db = o.db;
     this.redis = o.redis;
-    this.reloj = o.reloj;
     this.prefijo = o.prefijo ?? PREFIJO_POR_DEFECTO;
     this.k = crearClaves(this.prefijo);
     this.antiguedadSeg = o.antiguedadSeg ?? ARRIENDO_MS / 1000;
@@ -103,7 +105,10 @@ export class Reconciliador {
     config: ReadonlyMap<NombreCola, ConfigCola>,
     resumen: ResumenReconciliacion,
   ): Promise<void> {
-    const ahora = this.reloj.ahora();
+    // "Arriendo vencido" con TIME de Redis, la misma hora con la que se escribieron los cupos (H-008-2b-1, 2b-3, 2b-5):
+    // con la hora local, un reconciliador adelantado interrumpía trabajos recién despachados y uno atrasado no
+    // recuperaba los de un ejecutor muerto.
+    const ahora = new Date(await horaRedisMs(this.redis));
     const { colas, recuperados } = await this.db.withTenant(
       { tenantId },
       async (tx) => {
@@ -191,13 +196,20 @@ export class Reconciliador {
     }
   }
 
-  /** Vencido: sin arriendo del ejecutor y sin cupo vivo (el despachador da 30 s hasta que arranca). */
+  /**
+   * Vencido: sin arriendo del ejecutor y con el arriendo del despacho vencido (el despachador da 30 s hasta que
+   * arranca). Todo con el tiempo de Redis (H-008-2b-1, 2b-3, 2b-5): el cupo vence en TIME de Redis (`ahoraMs`) y, en
+   * un canal con lock, el lock del RUC (TTL de Redis, renovado con el cupo por el latido) que ya no es de este trabajo
+   * también cuenta como vencido.
+   */
   private async arriendoVencido(
     f: TrabajoFila,
     ahoraMs: number,
   ): Promise<boolean> {
     if ((await this.redis.exists(this.k.ejec(f.id))) > 0) return false;
     const cupo = await this.redis.zscore(this.k.cupoGlobal(f.cola), f.id);
-    return cupo === null || Number(cupo) <= ahoraMs;
+    if (cupo === null || Number(cupo) <= ahoraMs) return true;
+    const lock = claveLockRuc(this.k, f);
+    return lock !== null && (await this.redis.get(lock)) !== f.id;
   }
 }

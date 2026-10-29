@@ -7,6 +7,7 @@
 import {
   contarPendientes,
   estadoCredencial,
+  leerTrabajo,
   revalidarEncolado,
   siguientesDisponibles,
   transicionar,
@@ -18,6 +19,7 @@ import { randomUUID } from "node:crypto";
 import {
   claveLockRuc,
   cuposVivos,
+  horaRedisMs,
   reservarCupos,
   soltarCupos,
   soltarLockRuc,
@@ -73,7 +75,6 @@ interface Atencion {
 export class Despachador {
   private readonly db: DbCola;
   private readonly redis: ClienteRedis;
-  private readonly reloj: Reloj;
   private readonly prefijo: string;
   private readonly k: ClavesCola;
   private readonly agregarACola: AgregarACola;
@@ -86,7 +87,6 @@ export class Despachador {
   constructor(o: OpcionesDespachador) {
     this.db = o.db;
     this.redis = o.redis;
-    this.reloj = o.reloj;
     this.prefijo = o.prefijo ?? PREFIJO_POR_DEFECTO;
     this.k = crearClaves(this.prefijo);
     this.agregarACola = o.agregarACola;
@@ -134,8 +134,10 @@ export class Despachador {
     // Locks de RUC vistos ocupados (o tomados) en este ciclo y cola: cada uno se consulta una sola vez.
     const ocupados = new Set<string>();
     for (const tenantId of orden) {
-      const ahora = this.reloj.ahora();
-      const ms = ahora.getTime();
+      // Una sola fuente de tiempo (H-008-2a-2, H-008-2b-4): la poda de cupos, la ventana (`disponible_desde`) y la
+      // reserva usan TIME de Redis, no la hora local del líder (un líder atrasado contaba cupos ya vencidos).
+      const ms = await horaRedisMs(this.redis);
+      const ahora = new Date(ms);
       if (
         (await cuposVivos(this.redis, this.k, this.k.cupoGlobal(cola), ms)) >=
         cfg.concurrenciaGlobal
@@ -265,7 +267,12 @@ export class Despachador {
           }
           if (!(await transicionar(tx, fila.id, "en_cola", "ejecutando"))) {
             tomado.fila = null;
-            await this.soltar(fila, true);
+            // Transición perdida (H-008-2a-1, H-008-2b-6). Si la ganó otro despachador (el trabajo ya está
+            // `ejecutando`), el cupo y el lock son los de SU ejecución: tienen el mismo miembro/valor (jobId) y no se
+            // tocan. Si lo cambió otro actor (p. ej. se canceló), la reserva es solo nuestra y se suelta. El UPDATE
+            // perdido esperó al commit del otro, así que la relectura ve su estado.
+            const actual = await leerTrabajo(tx, fila.id);
+            if (actual?.estado !== "ejecutando") await this.soltar(fila, true);
             r.perdidos.push(fila);
             continue;
           }

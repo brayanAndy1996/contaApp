@@ -114,6 +114,10 @@ export type { ConfigCola } from "./trabajos/config";
 export { estudiosConTrabajos, estudiosIds, purgarAuth } from "./trabajos/sistema";
 export type { ConteosPurga, RetencionesAuth } from "./trabajos/sistema";
 export { TrabajosRepoError } from "./trabajos/errores";
-export { estadoCredencial, marcarCredencialInvalida } from "./credenciales/estado";
+export {
+  estadoCredencial,
+  marcarCredencialInvalida,
+  versionCredencial,
+} from "./credenciales/estado";
 export type { EstadoDeCredencial, MotivoEstadoCredencial } from "./credenciales/estado";
 export { configSistema, jobRegistro } from "./schema/trabajos";

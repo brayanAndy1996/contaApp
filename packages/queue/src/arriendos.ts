@@ -23,8 +23,10 @@ export interface Arrendable {
 const conLock = (t: Arrendable): boolean => t.canal !== "ninguno";
 
 /**
- * Hora del servidor Redis (`TIME`) en ms (H-008-1b-2). Los vencimientos de los cupos se escriben con la mayor entre la
- * hora local y la de Redis: un proceso con el reloj atrasado no deja un cupo que los demás ya ven vencido.
+ * Hora del servidor Redis (`TIME`) en ms: la ÚNICA fuente de tiempo de los arriendos (H-008-1b-2, H-008-2b-1 a 2b-5).
+ * Los vencimientos de los cupos se escriben con ella, y despachador y reconciliador podan y deciden "vencido" con ella:
+ * un proceso con el reloj local adelantado o atrasado no alarga ni acorta un arriendo (el TTL de `ejec:` y del lock
+ * también los mide Redis).
  */
 export async function horaRedisMs(
   redis: Pick<ClienteRedis, "time">,
@@ -68,7 +70,10 @@ export function claveLockRuc(
   return t.canal === "ninguno" ? null : k.lockRuc(t.canal, t.ruc);
 }
 
-/** Quita los arriendos vencidos de un ZSET de cupo (ver `podar`) y devuelve cuántos siguen vivos. */
+/**
+ * Quita los arriendos vencidos de un ZSET de cupo (ver `podar`) y devuelve cuántos siguen vivos. `ahoraMs` debe ser la
+ * hora de Redis (`horaRedisMs`): despachador y reconciliador la toman de ahí, nunca del reloj local (H-008-2b-4).
+ */
 export async function cuposVivos(
   redis: Pick<ClienteRedis, "zrangebyscore" | "zrem" | "exists" | "zcard">,
   k: ClavesCola,
@@ -78,14 +83,18 @@ export async function cuposVivos(
   return podar(redis, k, clave, ahoraMs);
 }
 
-/** Cupo del estudio y global hasta `hora + 30 s` (la hora mayor entre la local y la de Redis). */
+/**
+ * Cupo del estudio y global hasta `TIME de Redis + 30 s`. `_ahoraMs` (hora local de quien llama) se ignora: con relojes
+ * desfasados, la mayor entre las dos alargaba el arriendo de un proceso adelantado (H-008-2b-2).
+ */
 export async function tomarCupos(
   redis: Pick<ClienteRedis, "zadd" | "time">,
   k: ClavesCola,
   t: Arrendable,
-  ahoraMs: number,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- se conserva la firma; la hora es la de Redis
+  _ahoraMs?: number,
 ): Promise<void> {
-  const vence = Math.max(ahoraMs, await horaRedisMs(redis)) + ARRIENDO_MS;
+  const vence = (await horaRedisMs(redis)) + ARRIENDO_MS;
   await redis.zadd(k.cupoTenant(t.cola, t.tenantId), vence, t.id);
   await redis.zadd(k.cupoGlobal(t.cola), vence, t.id);
 }
@@ -109,18 +118,20 @@ export async function reservarCupos(
   >,
   k: ClavesCola,
   t: Arrendable,
-  ahoraMs: number,
+  _ahoraMs: number,
   limites: LimitesCupo,
 ): Promise<true | "global" | "tenant"> {
-  const vence = Math.max(ahoraMs, await horaRedisMs(redis)) + ARRIENDO_MS;
+  // Vence y poda con TIME de Redis (no con la hora local de quien reserva, H-008-2b-2/2b-4).
+  const ahora = await horaRedisMs(redis);
+  const vence = ahora + ARRIENDO_MS;
   const enTenant = k.cupoTenant(t.cola, t.tenantId);
   const enGlobal = k.cupoGlobal(t.cola);
   await redis.zadd(enTenant, vence, t.id);
   await redis.zadd(enGlobal, vence, t.id);
   const falta =
-    (await podar(redis, k, enGlobal, ahoraMs)) > limites.global
+    (await podar(redis, k, enGlobal, ahora)) > limites.global
       ? "global"
-      : (await podar(redis, k, enTenant, ahoraMs)) > limites.tenant
+      : (await podar(redis, k, enTenant, ahora)) > limites.tenant
         ? "tenant"
         : null;
   if (falta === null) return true;
@@ -189,18 +200,20 @@ export async function tomarEjecucion(
 }
 
 /**
- * Latido: extiende ejec, cupos y lock otros 30 s. Devuelve false (sin renovar nada) si el arriendo del ejecutor ya
- * no es de esta ejecución (venció: el reconciliador pudo haber reasignado el trabajo, H-008-1b-3).
+ * Latido: extiende ejec, cupos y lock otros 30 s (cupos hasta TIME de Redis + 30 s; `_ahoraMs` se ignora, H-008-2b-2).
+ * Devuelve false (sin renovar nada) si el arriendo del ejecutor ya no es de esta ejecución (venció: el reconciliador
+ * pudo haber reasignado el trabajo, H-008-1b-3).
  */
 export async function renovarArriendos(
   redis: Pick<ClienteRedis, "pexpire" | "zadd" | "get" | "time">,
   k: ClavesCola,
   t: Arrendable,
-  ahoraMs: number,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- se conserva la firma; la hora es la de Redis
+  _ahoraMs?: number,
 ): Promise<boolean> {
   if ((await redis.get(k.ejec(t.id))) !== (t.ejecucion ?? t.id)) return false;
   const vivo = (await redis.pexpire(k.ejec(t.id), ARRIENDO_MS)) === 1;
-  const vence = Math.max(ahoraMs, await horaRedisMs(redis)) + ARRIENDO_MS;
+  const vence = (await horaRedisMs(redis)) + ARRIENDO_MS;
   await redis.zadd(k.cupoTenant(t.cola, t.tenantId), "XX", vence, t.id);
   await redis.zadd(k.cupoGlobal(t.cola), "XX", vence, t.id);
   if (conLock(t)) {

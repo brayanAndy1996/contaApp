@@ -65,6 +65,15 @@ interface Conexion {
   temporizadores: ReturnType<typeof setTimeout>[];
   revalidando: boolean;
   cerrada: boolean;
+  /**
+   * Eventos de clientes que no estaban en la lista, en orden, mientras se recarga la lista (H-008-2a-6); null si no
+   * hay nada pendiente.
+   */
+  cola: Promise<void> | null;
+  /** Clientes con eventos en `cola`: los siguientes de esos clientes también esperan (orden por trabajo). */
+  esperando: Set<string>;
+  /** Clientes ya consultados y no visibles desde la última recarga: no se vuelven a consultar hasta la siguiente. */
+  consultados: Set<string>;
 }
 
 const evento = (e: EventoTrabajo): string =>
@@ -139,6 +148,9 @@ export class StreamService implements OnModuleDestroy {
       temporizadores: [],
       revalidando: false,
       cerrada: false,
+      cola: null,
+      esperando: new Set(),
+      consultados: new Set(),
     };
     res.on("close", () => this.cerrar(c));
     // El cliente pudo irse mientras se cargaba el alcance.
@@ -230,8 +242,52 @@ export class StreamService implements OnModuleDestroy {
     const r = eventoTrabajoSchema.safeParse(crudo);
     if (!r.success) return;
     const marco = evento(r.data);
-    for (const c of conexiones) {
-      if (!c.cerrada && ve(c.visibilidad, r.data.clienteId)) c.res.write(marco);
+    for (const c of conexiones) this.entregar(c, r.data.clienteId, marco);
+  }
+
+  /**
+   * Envía el evento si el usuario ve el cliente. Un cliente que no está en la lista (p. ej. creado con el stream
+   * abierto, o recién asignado) no se descarta a ciegas hasta la revalidación de los 5 s (CA-6, H-008-2a-6): se
+   * recarga la lista una vez por cliente desconocido y revalidación. Los eventos de clientes desconocidos esperan en
+   * orden detrás de esa recarga; los de clientes visibles salen enseguida (un trabajo es de un solo cliente, así que el
+   * orden de cada trabajo se conserva: lo encolado se entrega en microtareas apenas termina la recarga, antes del
+   * siguiente mensaje de Redis).
+   */
+  private entregar(c: Conexion, clienteId: string, marco: string): void {
+    if (c.cerrada) return;
+    if (ve(c.visibilidad, clienteId) && !c.esperando.has(clienteId)) {
+      c.res.write(marco);
+      return;
+    }
+    if (c.cola === null && c.consultados.has(clienteId)) return;
+    c.esperando.add(clienteId); // los siguientes de este cliente van detrás, aunque ya sea visible
+    const turno = (c.cola ?? Promise.resolve())
+      .then(async () => {
+        if (c.cerrada) return;
+        if (!ve(c.visibilidad, clienteId) && !c.consultados.has(clienteId)) {
+          c.consultados.add(clienteId);
+          await this.recargar(c);
+        }
+        if (!c.cerrada && ve(c.visibilidad, clienteId)) c.res.write(marco);
+      })
+      .catch(() => undefined);
+    c.cola = turno;
+    void turno.then(() => {
+      if (c.cola === turno) {
+        c.cola = null;
+        c.esperando.clear();
+      }
+    });
+  }
+
+  /** Recarga la lista de clientes visibles; si ya no es miembro activo, cierra. Un fallo deja la lista anterior. */
+  private async recargar(c: Conexion): Promise<void> {
+    try {
+      const v = await this.visibilidad(c.tenantId, c.usuarioId);
+      if (v === null) this.cerrar(c);
+      else c.visibilidad = v;
+    } catch {
+      // La revalidación periódica decide (y cierra si la BD sigue fallando).
     }
   }
 
@@ -262,7 +318,10 @@ export class StreamService implements OnModuleDestroy {
         !s.estudioRevocado;
       const v = vigente ? await this.visibilidad(c.tenantId, c.usuarioId) : null;
       if (v === null) this.cerrar(c);
-      else c.visibilidad = v;
+      else {
+        c.visibilidad = v;
+        c.consultados.clear();
+      }
     } catch {
       this.cerrar(c);
     } finally {

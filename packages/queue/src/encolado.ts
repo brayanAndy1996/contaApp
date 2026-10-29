@@ -85,15 +85,30 @@ export async function encolar(
     creadoPor: e.creadoPor,
     // Ejecuciones totales = 1 + reintentos (CHECK max_intentos >= 1).
     maxIntentos: config.reintentos + 1,
+    // El conteo de arriba es un rechazo temprano; el tope atómico lo aplica el INSERT (H-008-2a-3).
+    maxPendientes: config.maxPendientesTenant,
   };
   // Encolado concurrente de lo mismo (H-008-1a-2): si otra transacción insertó antes la misma clave viva, el INSERT no
-  // lanza 23505 sino que no devuelve fila y se relee el vivo (D8). Si entretanto el vivo ya terminó, se inserta normal.
-  const trabajo = await insertarTrabajo(tx, nuevo, { sinDuplicar: true });
-  if (trabajo !== null) return { trabajo, nuevo: true };
-  const existente = await trabajoVivoPorClave(tx, clave);
-  if (existente !== null) return { trabajo: existente, nuevo: false };
-  return { trabajo: await insertarTrabajo(tx, nuevo), nuevo: true };
+  // lanza 23505 sino que no devuelve fila y se relee el vivo (D8). Si entretanto el vivo ya terminó, se reintenta sin
+  // ON CONFLICT: si otra transacción reintenta a la vez, su 23505 vuelve al savepoint del repo como null y se relee su
+  // trabajo (H-008-2b-7).
+  for (let intento = 0; intento < INTENTOS_INSERTAR; intento++) {
+    const trabajo = await insertarTrabajo(
+      tx,
+      nuevo,
+      intento === 0 ? { sinDuplicar: true } : undefined,
+    );
+    if (trabajo === "lleno") throw new ColaLlenaError();
+    if (trabajo !== null) return { trabajo, nuevo: true };
+    const existente = await trabajoVivoPorClave(tx, clave);
+    if (existente !== null) return { trabajo: existente, nuevo: false };
+  }
+  // Cada intento chocó con un vivo que terminó antes de releerlo: no se insiste (500 sin datos).
+  throw new Error("encolar: conflicto de dedupe persistente");
 }
+
+/** Intentos de INSERT ante choques de dedupe con vivos que terminan en ese instante (H-008-2b-7). */
+const INTENTOS_INSERTAR = 3;
 
 export interface TrabajoPublicable {
   id: string;

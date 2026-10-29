@@ -4,7 +4,12 @@
 // Toda transición es un UPDATE ... WHERE estado = <desde>: gana quien obtiene rowCount = 1 (D2).
 import { sql, type SQL } from "drizzle-orm";
 import { filtroAlcance, renderizar, type Alcance } from "../acceso/alcance";
-import { consultar, type Fila, type TxConsulta } from "./errores";
+import {
+  consultar,
+  TrabajosRepoError,
+  type Fila,
+  type TxConsulta,
+} from "./errores";
 
 export type EstadoTrabajo =
   "en_cola" | "ejecutando" | "completado" | "error" | "cancelado";
@@ -73,6 +78,11 @@ export interface NuevoTrabajo {
   claveDedupe: Buffer;
   creadoPor: string | null;
   maxIntentos: number;
+  /**
+   * Tope de trabajos `en_cola` del estudio en esa cola (`max_pendientes_tenant`, D8). Con él, `insertarTrabajo` cuenta
+   * DESPUÉS de insertar bajo un candado del estudio y la cola, y deshace el INSERT si lo pasó (H-008-2a-3).
+   */
+  maxPendientes?: number;
 }
 
 /** Campos que acompañan una transición. Las fechas de inicio y fin las fija `transicionar`, nunca quien llama. */
@@ -177,6 +187,11 @@ export interface OpcionesInsertar {
  */
 export async function insertarTrabajo(
   tx: TxConsulta,
+  e: NuevoTrabajo & { maxPendientes: number },
+  o?: OpcionesInsertar,
+): Promise<TrabajoVistaDb | null | "lleno">;
+export async function insertarTrabajo(
+  tx: TxConsulta,
   e: NuevoTrabajo,
 ): Promise<TrabajoVistaDb>;
 export async function insertarTrabajo(
@@ -188,24 +203,71 @@ export async function insertarTrabajo(
   tx: TxConsulta,
   e: NuevoTrabajo,
   o: OpcionesInsertar = {},
-): Promise<TrabajoVistaDb | null> {
-  const r = await consultar(
-    tx,
-    o.sinDuplicar ? SQL_INSERTAR_SIN_DUPLICAR : SQL_INSERTAR,
-    [
-      e.clienteId,
-      e.ruc,
-      e.tipo,
-      e.cola,
-      e.canal,
-      e.prioridad,
-      JSON.stringify(e.parametros),
-      e.claveDedupe,
-      e.creadoPor,
-      e.maxIntentos,
-    ],
-  );
+): Promise<TrabajoVistaDb | null | "lleno"> {
+  const texto = o.sinDuplicar ? SQL_INSERTAR_SIN_DUPLICAR : SQL_INSERTAR;
+  if (e.maxPendientes !== undefined)
+    return insertarConTope(tx, e, texto, e.maxPendientes);
+  const r = await consultar(tx, texto, valoresInsertar(e));
   return r.rows.length === 0 ? null : aVista(r.rows[0]!);
+}
+
+const valoresInsertar = (e: NuevoTrabajo): unknown[] => [
+  e.clienteId,
+  e.ruc,
+  e.tipo,
+  e.cola,
+  e.canal,
+  e.prioridad,
+  JSON.stringify(e.parametros),
+  e.claveDedupe,
+  e.creadoPor,
+  e.maxIntentos,
+];
+
+// Candado del estudio (del contexto) y la cola, hasta el fin de la transacción: serializa el CONTEO de pendientes de
+// quienes encolan a la vez. Se toma DESPUÉS del INSERT (como en todos los caminos): ningún encolado espera una fila de
+// otro mientras tiene el candado, así que no hay ciclos de espera entre encolados de un trabajo por transacción.
+const SQL_BLOQUEAR_PENDIENTES = `select pg_advisory_xact_lock(hashtextextended(
+  'job_registro.pendientes:' || coalesce(current_setting('app.tenant_id', true), '') || ':' || $1::text, 0))`;
+
+/**
+ * INSERT con tope atómico de pendientes (H-008-2a-3, D8): savepoint, INSERT, candado del estudio y la cola, y conteo
+ * (que ve lo confirmado por los demás y lo propio). Si pasa `max`, se vuelve al savepoint (no queda nada) y se
+ * responde "lleno". Un choque de dedupe (sin fila con ON CONFLICT, o 23505 sin él) vuelve al savepoint y da null: la
+ * transacción sigue sana y quien llama relee el vivo (H-008-2b-7).
+ */
+async function insertarConTope(
+  tx: TxConsulta,
+  e: NuevoTrabajo,
+  texto: string,
+  max: number,
+): Promise<TrabajoVistaDb | null | "lleno"> {
+  const volver = async (): Promise<void> => {
+    await consultar(tx, "rollback to savepoint job_insertar", []);
+    await consultar(tx, "release savepoint job_insertar", []);
+  };
+  await consultar(tx, "savepoint job_insertar", []);
+  let r: { rows: Fila[] };
+  try {
+    r = await consultar(tx, texto, valoresInsertar(e));
+  } catch (err) {
+    if (err instanceof TrabajosRepoError && err.codigo === "23505") {
+      await volver();
+      return null;
+    }
+    throw err;
+  }
+  if (r.rows.length === 0) {
+    await volver();
+    return null;
+  }
+  await consultar(tx, SQL_BLOQUEAR_PENDIENTES, [e.cola]);
+  if ((await contarPendientes(tx, e.cola)) > max) {
+    await volver();
+    return "lleno";
+  }
+  await consultar(tx, "release savepoint job_insertar", []);
+  return aVista(r.rows[0]!);
 }
 
 const SQL_VIVO_POR_CLAVE = `select ${COLUMNAS_VISTA} from job_registro

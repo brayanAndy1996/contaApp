@@ -83,9 +83,31 @@ export class TrabajosService
       await this.enMarcha?.detener({ esperaMs: 30_000 });
     } finally {
       this.redis?.disconnect();
-      await this.db?.close();
+      // Con la BD sin responder (red partida), `pool.end()` espera para siempre a las conexiones prestadas: el cierre
+      // tiene tope (H-008-2a-5) y luego el proceso sale igual (`useProcessExit`); las conexiones mueren con él.
+      if (this.db !== undefined)
+        await cerrarConTope(this.db.close(), ESPERA_CIERRE_BD_MS);
     }
   }
+}
+
+/** Tope del cierre del pool de la BD tras detener los trabajos (H-008-2a-5). */
+export const ESPERA_CIERRE_BD_MS = 2_000;
+
+/** Espera `p` hasta `ms`; nunca lanza (un fallo o el tope se ignoran: el proceso está saliendo). */
+export async function cerrarConTope(
+  p: Promise<unknown>,
+  ms: number,
+): Promise<void> {
+  let reloj: NodeJS.Timeout | undefined;
+  await Promise.race([
+    p.catch(() => undefined),
+    new Promise<void>((r) => {
+      reloj = setTimeout(r, ms);
+      reloj.unref?.();
+    }),
+  ]);
+  clearTimeout(reloj);
 }
 
 @Module({ providers: [TrabajosService] })

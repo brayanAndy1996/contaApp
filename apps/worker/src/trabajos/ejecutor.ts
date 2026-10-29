@@ -15,6 +15,7 @@ import {
   leerTrabajo,
   marcarCredencialInvalida,
   transicionar,
+  versionCredencial,
   type ConfigCola,
   type MotivoTrabajo,
   type TrabajoFila,
@@ -24,6 +25,7 @@ import {
   crearClaves,
   decidirTrasError,
   definicionDe,
+  horaRedisMs,
   iniciarLatido,
   liberarArriendos,
   publicar,
@@ -191,9 +193,13 @@ export class Ejecutor {
     payload: PayloadTrabajo,
   ): Promise<void> {
     const { db, redis, logger } = this.d;
-    // (1) Carga y validación (CA-15).
-    const fila = await db.withTenant({ tenantId: payload.tenantId }, (tx) =>
-      leerTrabajo(tx, payload.jobId),
+    // (1) Carga y validación (CA-15), y versión de la credencial que ve el trabajo al empezar (H-008-2a-4).
+    const { fila, versionCred } = await db.withTenant(
+      { tenantId: payload.tenantId },
+      async (tx) => {
+        const f = await leerTrabajo(tx, payload.jobId);
+        return { fila: f, versionCred: await this.versionAlEmpezar(tx, f) };
+      },
     );
     if (
       fila === null ||
@@ -219,9 +225,9 @@ export class Ejecutor {
       return;
     }
     // (3) Procesador sin transacción abierta (D6), con latido.
+    // Los vencimientos los fija TIME de Redis, no el reloj local (H-008-2b-2).
     const detenerLatido = iniciarLatido(
-      () =>
-        renovarArriendos(redis, this.k, propia, this.d.reloj.ahora().getTime()),
+      () => renovarArriendos(redis, this.k, propia),
       this.d.latidoMs,
     );
     this.enCurso.set(fila.id, { fila: propia, detenerLatido });
@@ -244,7 +250,7 @@ export class Ejecutor {
 
     // (4) Resultado, con la configuración vigente.
     const cfg = (await this.d.config.obtener()).get(fila.cola) ?? CONFIG_MINIMA;
-    const decidido = this.decidir(salida, fila, cfg);
+    const decidido = this.decidir(salida, fila, cfg, await this.ahora());
     // El procesador ya terminó: el lock del RUC pasa a durar solo la espera (D20) desde ya, para que nadie vea el estado
     // final con el arriendo largo. Con espera 0 se conserva hasta después del commit (lo suelta liberarArriendos): así
     // el siguiente del mismo RUC no se despacha antes de que la credencial quede marcada (CA-9).
@@ -255,7 +261,7 @@ export class Ejecutor {
     }
     let final: Final | null;
     try {
-      final = await this.cerrar(fila, decidido, def);
+      final = await this.cerrar(fila, decidido, def, versionCred);
     } catch {
       // Ni el resultado ni error_interno se pudieron escribir: se sueltan los arriendos y lo resuelve el reconciliador.
       await liberarArriendos(redis, this.k, propia, cfg.esperaRucMs);
@@ -373,11 +379,43 @@ export class Ejecutor {
     }
   }
 
+  /**
+   * Hora para el backoff (`disponible_desde`): la de Redis, la misma con la que el despachador mira la ventana
+   * (H-008-2b-2); si Redis no responde, la local (el reintento solo puede salir antes o después de su backoff).
+   */
+  private async ahora(): Promise<Date> {
+    try {
+      return new Date(await horaRedisMs(this.d.redis));
+    } catch {
+      return this.d.reloj.ahora();
+    }
+  }
+
+  /**
+   * Versión de la fila de la credencial del tipo al empezar (H-008-2a-4): null si no hay credencial; undefined si el tipo
+   * no usa credencial o no se pudo leer (entonces `marcarCredencialInvalida` compara por `iniciado_en`).
+   */
+  private async versionAlEmpezar(
+    tx: Parameters<typeof versionCredencial>[0],
+    f: TrabajoFila | null,
+  ): Promise<string | null | undefined> {
+    if (f === null) return undefined;
+    try {
+      const tipo = definicionDe(f.tipo).credencial;
+      return tipo === null
+        ? undefined
+        : await versionCredencial(tx, f.clienteId, tipo);
+    } catch {
+      return undefined;
+    }
+  }
+
   /** Aplica `decidirTrasError` a un fallo del procesador; lo demás pasa tal cual. */
   private decidir(
     s: Salida,
     fila: TrabajoFila,
     cfg: Pick<ConfigCola, "reintentos" | "backoffBaseMs">,
+    ahora: Date,
   ): Desenlace {
     if (s.hacia !== "fallo") return s;
     const r = decidirTrasError(
@@ -386,7 +424,7 @@ export class Ejecutor {
         intentos: fila.intentos,
         reintentos: cfg.reintentos,
         baseMs: cfg.backoffBaseMs,
-        ahora: this.d.reloj.ahora(),
+        ahora,
       },
     );
     return r.accion === "reintentar"
@@ -403,15 +441,17 @@ export class Ejecutor {
     fila: TrabajoFila,
     d: Desenlace,
     def: DefinicionTrabajo | null,
+    versionCred: string | null | undefined,
   ): Promise<Final | null> {
     try {
-      return await this.transicionFinal(fila, d, def);
+      return await this.transicionFinal(fila, d, def, versionCred);
     } catch (e) {
       if (d.hacia === "error" && d.motivo === "error_interno") throw e;
       return this.transicionFinal(
         fila,
         { hacia: "error", motivo: "error_interno" },
         null,
+        versionCred,
       );
     }
   }
@@ -420,6 +460,7 @@ export class Ejecutor {
     fila: TrabajoFila,
     d: Desenlace,
     def: DefinicionTrabajo | null,
+    versionCred: string | null | undefined,
   ): Promise<Final | null> {
     return this.d.db.withTenant({ tenantId: fila.tenantId }, async (tx) => {
       const campos =
@@ -441,13 +482,15 @@ export class Ejecutor {
         d.motivo === "credencial_invalida" &&
         def?.credencial
       ) {
-        // Sin marcar una credencial reemplazada mientras corría el trabajo (H-008-1b-5).
+        // Sin marcar una credencial reemplazada mientras corría el trabajo (H-008-1b-5): solo si la fila sigue siendo
+        // la versión que el trabajo vio al empezar (H-008-2a-4).
         credencialCambio = await marcarCredencialInvalida(
           tx,
           fila.clienteId,
           def.credencial,
           "credencial_invalida",
           fila.id,
+          versionCred,
         );
       }
       const actual = await leerTrabajo(tx, fila.id);
