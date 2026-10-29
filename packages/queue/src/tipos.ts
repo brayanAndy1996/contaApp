@@ -38,8 +38,10 @@ export type ClienteRedis = Pick<
   | "zrem"
   | "zcard"
   | "zscore"
+  | "zrangebyscore"
   | "zremrangebyscore"
   | "publish"
+  | "time"
 >;
 
 /** Lo que `queue` necesita de `ContappDb`. */
@@ -68,10 +70,19 @@ export interface PayloadTrabajo {
   tipo: string;
 }
 
+/**
+ * Datos del despacho que no viajan en el payload (CA-15): `intento` = `intentos` de la fila al despachar. Cada
+ * re-despacho de un trabajo consume un intento, así que (jobId, intento) identifica el despacho (H-008-1b-4).
+ */
+export interface OpcionesDespacho {
+  intento: number;
+}
+
 /** Puerto hacia BullMQ (`@contapp/queue/worker` lo implementa). */
 export type AgregarACola = (
   cola: NombreCola,
   payload: PayloadTrabajo,
+  opciones?: OpcionesDespacho,
 ) => Promise<void>;
 
 /** Arriendo de cupos, lock de RUC y liderazgo (D5): 30 s, renovado cada 10 s. */

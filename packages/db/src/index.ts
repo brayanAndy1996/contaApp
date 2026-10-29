@@ -96,6 +96,7 @@ export {
 } from "./trabajos/registro";
 export type {
   CamposTransicion,
+  GuardaTransicion,
   CanalTrabajo,
   ColaTrabajo,
   EstadoTrabajo,

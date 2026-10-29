@@ -83,6 +83,15 @@ export interface CamposTransicion {
   disponibleDesde?: Date;
 }
 
+/**
+ * Condición extra de una transición (H-008-1b-3): `intentos` = los que tenía la fila cuando esta ejecución la leyó.
+ * Cada re-despacho de un mismo trabajo consume un intento (reintento del ejecutor o recuperación del reconciliador),
+ * así que una ejecución vieja cuyo trabajo ya se volvió a lanzar no gana la transición de la nueva.
+ */
+export interface GuardaTransicion {
+  intentos?: number;
+}
+
 export interface FiltrosTrabajos {
   clienteId?: string;
   estado?: EstadoTrabajo;
@@ -243,6 +252,7 @@ export async function siguientesDisponibles(
 /**
  * `UPDATE ... WHERE id = $1 AND estado = $2`: true solo si cambió la fila (ganador único, D2). Fija iniciado_en al pasar
  * a ejecutando, terminado_en al pasar a un estado terminal y actualizado_en siempre; los campos ausentes no se tocan.
+ * Con `guarda.intentos`, además `AND intentos = <guarda>` (dueño por ejecución, H-008-1b-3).
  */
 export async function transicionar(
   tx: TxConsulta,
@@ -250,6 +260,7 @@ export async function transicionar(
   desde: EstadoTrabajo,
   hacia: EstadoTrabajo,
   campos: CamposTransicion = {},
+  guarda: GuardaTransicion = {},
 ): Promise<boolean> {
   const valores: unknown[] = [id, desde, hacia];
   const sets = ["estado = $3"];
@@ -273,7 +284,15 @@ export async function transicionar(
   if (TERMINALES.includes(hacia)) sets.push("terminado_en = now()");
   sets.push("actualizado_en = now()");
   // Las columnas salen de la lista fija de arriba; los valores, de $n.
-  const texto = `update job_registro set ${sets.join(", ")} where id = $1 and estado = $2`;
+  let donde = "id = $1 and estado = $2";
+  if (guarda.intentos !== undefined) {
+    if (!Number.isInteger(guarda.intentos)) {
+      throw new RangeError("guarda.intentos debe ser entero");
+    }
+    valores.push(guarda.intentos);
+    donde += ` and intentos = $${valores.length}`;
+  }
+  const texto = `update job_registro set ${sets.join(", ")} where ${donde}`;
   const r = await consultar(tx, texto, valores);
   return r.rowCount === 1;
 }

@@ -70,8 +70,17 @@ const vistaDe = (f: TrabajoFila): TrabajoVista =>
 const ESTADO = listarTrabajosQuery.shape.estado.unwrap();
 const CLIENTE_ID = listarTrabajosQuery.shape.clienteId.unwrap();
 
+/**
+ * ¿Trae la query la clave en forma de arreglo u objeto (`clave[]=…`, `clave[x]=…`)? El analizador de Express la deja
+ * con el nombre literal, así que sin esto el filtro se ignoraría en silencio (H-008-1a-1): cuenta como mal formada.
+ */
+const anidada = (query: Record<string, unknown>, clave: string): boolean =>
+  Object.keys(query).some((k) => k.startsWith(`${clave}[`));
+
 function leerFiltros(query: Record<string, unknown>): FiltrosTrabajos {
   const filtros: FiltrosTrabajos = {};
+  if (anidada(query, "estado")) throw new AccesoError("solicitud_invalida");
+  if (anidada(query, "clienteId")) throw new AccesoError("no_encontrado");
   if (query.estado !== undefined) {
     const e = ESTADO.safeParse(query.estado);
     if (!e.success) throw new AccesoError("solicitud_invalida");

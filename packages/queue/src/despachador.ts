@@ -18,8 +18,9 @@ import { randomUUID } from "node:crypto";
 import {
   claveLockRuc,
   cuposVivos,
+  reservarCupos,
+  soltarCupos,
   soltarLockRuc,
-  tomarCupos,
   tomarLockRuc,
 } from "./arriendos.js";
 import { definicionDe, rolesPermitidos } from "./catalogo.js";
@@ -65,6 +66,8 @@ interface Atencion {
   descartados: Descartado[];
   /** Candidatos que otro actor cambió antes (transición perdida): solo se quitan de la pista. */
   perdidos: TrabajoFila[];
+  /** La reserva atómica del cupo global falló (otro proceso lo llenó): el ciclo de esta cola termina. */
+  sinCupoGlobal: boolean;
 }
 
 export class Despachador {
@@ -134,20 +137,24 @@ export class Despachador {
       const ahora = this.reloj.ahora();
       const ms = ahora.getTime();
       if (
-        (await cuposVivos(this.redis, this.k.cupoGlobal(cola), ms)) >=
+        (await cuposVivos(this.redis, this.k, this.k.cupoGlobal(cola), ms)) >=
         cfg.concurrenciaGlobal
       ) {
         return;
       }
       if (
-        (await cuposVivos(this.redis, this.k.cupoTenant(cola, tenantId), ms)) >=
-        cfg.concurrenciaTenant
+        (await cuposVivos(
+          this.redis,
+          this.k,
+          this.k.cupoTenant(cola, tenantId),
+          ms,
+        )) >= cfg.concurrenciaTenant
       ) {
         continue;
       }
-      if (await this.atenderEstudio(cola, tenantId, ahora, ocupados)) {
-        this.ultimo.set(cola, tenantId);
-      }
+      const r = await this.atenderEstudio(cola, cfg, tenantId, ahora, ocupados);
+      if (r === "despachado") this.ultimo.set(cola, tenantId);
+      if (r === "sin_cupo_global") return;
     }
   }
 
@@ -159,11 +166,12 @@ export class Despachador {
    */
   private async atenderEstudio(
     cola: NombreCola,
+    cfg: ConfigCola,
     tenantId: string,
     ahora: Date,
     ocupados: Set<string>,
-  ): Promise<boolean> {
-    // Lock del RUC tomado dentro del callback (se suelta si la transacción falla o se pierde).
+  ): Promise<"despachado" | "nada" | "sin_cupo_global"> {
+    // Lock del RUC y cupos tomados dentro del callback (se sueltan si la transacción falla o se pierde).
     const tomado: { fila: TrabajoFila | null } = { fila: null };
     let a: Atencion;
     try {
@@ -174,6 +182,7 @@ export class Despachador {
           despachado: null,
           descartados: [],
           perdidos: [],
+          sinCupoGlobal: false,
         };
         const ventana = await siguientesDisponibles(
           tx,
@@ -239,9 +248,24 @@ export class Despachador {
             continue;
           }
           tomado.fila = fila;
-          if (!(await transicionar(tx, fila.id, "en_cola", "ejecutando"))) {
+          // Cupo reservado de forma atómica antes de la transición (H-008-1b-1): el conteo de antes del withTenant
+          // pudo quedar viejo (otro líder, o este ciclo demorado más que el arriendo de liderazgo).
+          const cupo = await reservarCupos(
+            this.redis,
+            this.k,
+            fila,
+            ahora.getTime(),
+            { global: cfg.concurrenciaGlobal, tenant: cfg.concurrenciaTenant },
+          );
+          if (cupo !== true) {
             tomado.fila = null;
             await this.soltar(fila);
+            r.sinCupoGlobal = cupo === "global";
+            return r; // sin cupo: este estudio (o la cola entera) no despacha en este ciclo
+          }
+          if (!(await transicionar(tx, fila.id, "en_cola", "ejecutando"))) {
+            tomado.fila = null;
+            await this.soltar(fila, true);
             r.perdidos.push(fila);
             continue;
           }
@@ -253,10 +277,12 @@ export class Despachador {
       });
     } catch {
       registrarFallo("despachador: fallo al atender un estudio");
-      if (tomado.fila !== null) await this.soltar(tomado.fila);
-      return false;
+      if (tomado.fila !== null) await this.soltar(tomado.fila, true);
+      return "nada";
     }
-    return this.despuesDelCommit(cola, tenantId, ahora, a);
+    if (await this.despuesDelCommit(cola, tenantId, ahora, a))
+      return "despachado";
+    return a.sinCupoGlobal ? "sin_cupo_global" : "nada";
   }
 
   private async despuesDelCommit(
@@ -289,10 +315,9 @@ export class Despachador {
     }
     const f = a.despachado;
     if (f === null) return false; // ventana agotada: el puntero no se mueve (D21 (5))
-    await tomarCupos(this.redis, this.k, f, ahora.getTime());
-    await this.redis.zrem(pend, f.id);
+    await this.redis.zrem(pend, f.id); // los cupos ya quedaron reservados antes de la transición
     try {
-      await this.agregarACola(cola, payloadBullmq(f));
+      await this.agregarACola(cola, payloadBullmq(f), { intento: f.intentos });
     } catch {
       // Queda `ejecutando` con arriendo: al vencer, el reconciliador lo resuelve (CA-10).
       registrarFallo("despachador: no se pudo agregar a la cola externa");
@@ -310,8 +335,9 @@ export class Despachador {
     return true;
   }
 
-  private async soltar(f: TrabajoFila): Promise<void> {
+  private async soltar(f: TrabajoFila, cupos = false): Promise<void> {
     try {
+      if (cupos) await soltarCupos(this.redis, this.k, f);
       await soltarLockRuc(this.redis, this.k, f);
     } catch {
       registrarFallo("despachador: no se pudo soltar el lock (vence solo)");

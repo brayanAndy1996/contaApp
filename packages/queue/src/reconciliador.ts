@@ -131,16 +131,26 @@ export class Reconciliador {
           if (idempotente && fila.intentos < reintentos) {
             const intentos = fila.intentos + 1;
             if (
-              await transicionar(tx, fila.id, "ejecutando", "en_cola", {
-                intentos,
-              })
+              await transicionar(
+                tx,
+                fila.id,
+                "ejecutando",
+                "en_cola",
+                { intentos },
+                { intentos: fila.intentos },
+              )
             ) {
               recuperados.push({ fila, hacia: "en_cola", intentos });
             }
           } else if (
-            await transicionar(tx, fila.id, "ejecutando", "error", {
-              motivo: "interrumpido",
-            })
+            await transicionar(
+              tx,
+              fila.id,
+              "ejecutando",
+              "error",
+              { motivo: "interrumpido" },
+              { intentos: fila.intentos },
+            )
           ) {
             recuperados.push({ fila, hacia: "error", intentos: fila.intentos });
           }

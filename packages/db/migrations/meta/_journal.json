@@ -141,6 +141,13 @@
       "when": 1793246636379,
       "tag": "0019_sesion_consultar",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793253051832,
+      "tag": "0020_auth_purgar_corte",
+      "breakpoints": true
     }
   ]
 }

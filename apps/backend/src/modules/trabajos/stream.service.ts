@@ -46,8 +46,12 @@ export interface RespuestaSse {
   readonly socket?: { readonly destroyed: boolean } | null;
 }
 
-/** Quién ve qué: todo el estudio, o solo los clientes asignados (D5 de 005). */
-type Visibilidad = { global: true } | { global: false; clientes: Set<string> };
+/**
+ * Clientes cuyos eventos ve el usuario: todos los del estudio (alcance global) o solo los asignados (D5 de 005). Con
+ * alcance global también es una lista: un evento del canal con un `clienteId` que no es del estudio no se reenvía
+ * (H-008-1b-8, defensa en profundidad de CA-5). Se recarga en cada revalidación (≤ 5 s).
+ */
+type Visibilidad = { clientes: Set<string> };
 
 interface Conexion {
   sesionId: string;
@@ -239,9 +243,8 @@ export class StreamService implements OnModuleDestroy {
     return this.db.withTenant({ tenantId, userId: usuarioId }, async (tx) => {
       const actor = await actorDe(tx, usuarioId);
       if (actor === null) return null;
-      if (actor.alcance.tipo === "global") return { global: true };
       const clientes = await listarClientes(tx, actor.alcance);
-      return { global: false, clientes: new Set(clientes.map((x) => x.id)) };
+      return { clientes: new Set(clientes.map((x) => x.id)) };
     });
   }
 
@@ -269,4 +272,4 @@ export class StreamService implements OnModuleDestroy {
 }
 
 const ve = (v: Visibilidad, clienteId: string): boolean =>
-  v.global || v.clientes.has(clienteId);
+  v.clientes.has(clienteId);

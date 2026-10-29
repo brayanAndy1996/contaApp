@@ -87,6 +87,12 @@ export const INTERVALOS_POR_DEFECTO: Required<IntervalosTrabajos> = {
 };
 const ESPERA_CIERRE_MS = 30_000;
 const ESPERA_ABORTO_MS = 2_000;
+/**
+ * Tope de la espera al ciclo en curso del despachador y del reconciliador, y al cierre de BullMQ sin trabajos en curso
+ * (H-008-1b-6): con Redis o la BD caídos sus comandos reintentan mucho más que el plazo de cierre. Lo que quede a
+ * medias lo resuelve el reconciliador.
+ */
+const ESPERA_BUCLES_MS = 5_000;
 
 /** Procesador de `prueba.eco` (solo NODE_ENV=test): no hace nada y termina bien. */
 const eco: Procesador = async () => ({ ok: true });
@@ -128,14 +134,18 @@ function bucle(paso: () => Promise<unknown>, ms: number): Bucle {
   };
 }
 
-/** Cierra con tope de espera; nunca lanza. */
-async function conTope(p: Promise<unknown>, ms: number): Promise<void> {
+/** Espera con tope; nunca lanza. true si `p` terminó (bien o mal) antes del tope. */
+async function conTope(p: Promise<unknown>, ms: number): Promise<boolean> {
   let reloj: NodeJS.Timeout | undefined;
-  await Promise.race([
-    p.catch(() => undefined),
-    new Promise((r) => (reloj = setTimeout(r, ms))),
+  const termino = await Promise.race([
+    p.then(
+      () => true,
+      () => true,
+    ),
+    new Promise<false>((r) => (reloj = setTimeout(() => r(false), ms))),
   ]);
   clearTimeout(reloj);
+  return termino;
 }
 
 export async function iniciarTrabajos(
@@ -222,7 +232,7 @@ export async function iniciarTrabajos(
     redis,
     reloj,
     prefijo,
-    agregarACola: (cola, p) => colas.agregarACola(cola, p),
+    agregarACola: (...a) => colas.agregarACola(...a),
   });
   const reconciliador = new Reconciliador({
     db,
@@ -293,20 +303,28 @@ export async function iniciarTrabajos(
     detener: async ({ esperaMs = ESPERA_CIERRE_MS } = {}) => {
       if (estado.cerrando || estado.muerto) return;
       estado.cerrando = true;
+      // Todo el cierre cabe en `esperaMs` (+ ≤ 2 × ESPERA_ABORTO_MS si hay que forzar), aun con Redis caído (H-008-1b-6).
+      const fin = Date.now() + esperaMs;
+      const restante = () => Math.max(0, fin - Date.now());
       // 1) No se despacha ni se reconcilia más; 2) BullMQ deja de tomar jobs; 3) se espera a los en curso.
-      await Promise.all([
-        bucleDespacho.detener(),
-        bucleReconciliacion.detener(),
-      ]);
+      await conTope(
+        Promise.all([bucleDespacho.detener(), bucleReconciliacion.detener()]),
+        Math.min(restante(), ESPERA_BUCLES_MS),
+      );
       const cierre = cerrarBull(false);
-      if (!(await ejecutor.esperar(esperaMs))) {
+      if (!(await ejecutor.esperar(restante()))) {
         // Tiempo agotado: se sueltan los arriendos de lo que sigue en curso (lo resuelve el reconciliador) y desde
         // aquí el proceso no escribe más.
-        await ejecutor.soltarEnCurso();
+        await conTope(ejecutor.soltarEnCurso(), ESPERA_ABORTO_MS);
         estado.muerto = true;
-        await cerrarBull(true);
+        await conTope(cerrarBull(true), ESPERA_ABORTO_MS);
+      } else if (
+        !(await conTope(cierre, Math.min(restante(), ESPERA_BUCLES_MS)))
+      ) {
+        // Sin trabajos en curso BullMQ cierra enseguida; si no (p. ej. Redis caído), se fuerza y el proceso no escribe más.
+        estado.muerto = true;
+        await conTope(cerrarBull(true), ESPERA_ABORTO_MS);
       }
-      await conTope(cierre, esperaMs);
       registrar(logger, "info", { evento: "trabajos_detenidos" });
     },
     abortar: async () => {

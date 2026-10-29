@@ -41,6 +41,7 @@ import {
   type Reloj,
 } from "@contapp/queue";
 import { clasificarError } from "@contapp/sunat";
+import { randomUUID } from "node:crypto";
 import {
   camposTrabajo,
   registrar,
@@ -104,8 +105,11 @@ interface Final {
   credencialCambio: boolean;
 }
 
+/** Fila con el dueño de esta ejecución (`ejec:{jobId}` = `ejecucion`, H-008-1b-3). */
+type FilaEnCurso = TrabajoFila & { ejecucion: string };
+
 interface EnCurso {
-  fila: TrabajoFila;
+  fila: FilaEnCurso;
   detenerLatido: () => void;
 }
 
@@ -207,18 +211,20 @@ export class Ejecutor {
       return;
     }
     const campos = camposTrabajo(fila);
-    // (2) Un solo ejecutor por trabajo.
-    if (!(await tomarEjecucion(redis, this.k, fila.id))) {
+    // (2) Un solo ejecutor por trabajo. El valor de `ejec` es propio de esta ejecución: si el arriendo vence y otro
+    // proceso vuelve a lanzar el trabajo, esta ejecución ya no renueva, suelta ni libera lo de la nueva (H-008-1b-3).
+    const propia: FilaEnCurso = { ...fila, ejecucion: randomUUID() };
+    if (!(await tomarEjecucion(redis, this.k, fila.id, propia.ejecucion))) {
       registrar(logger, "warn", { evento: "trabajo_ya_en_curso", ...campos });
       return;
     }
     // (3) Procesador sin transacción abierta (D6), con latido.
     const detenerLatido = iniciarLatido(
       () =>
-        renovarArriendos(redis, this.k, fila, this.d.reloj.ahora().getTime()),
+        renovarArriendos(redis, this.k, propia, this.d.reloj.ahora().getTime()),
       this.d.latidoMs,
     );
-    this.enCurso.set(fila.id, { fila, detenerLatido });
+    this.enCurso.set(fila.id, { fila: propia, detenerLatido });
     registrar(logger, "info", {
       evento: "trabajo_iniciado",
       ...campos,
@@ -243,7 +249,7 @@ export class Ejecutor {
     // final con el arriendo largo. Con espera 0 se conserva hasta después del commit (lo suelta liberarArriendos): así
     // el siguiente del mismo RUC no se despacha antes de que la credencial quede marcada (CA-9).
     if (cfg.esperaRucMs > 0) {
-      await soltarLockRuc(redis, this.k, fila, cfg.esperaRucMs).catch(
+      await soltarLockRuc(redis, this.k, propia, cfg.esperaRucMs).catch(
         () => undefined,
       );
     }
@@ -252,7 +258,7 @@ export class Ejecutor {
       final = await this.cerrar(fila, decidido, def);
     } catch {
       // Ni el resultado ni error_interno se pudieron escribir: se sueltan los arriendos y lo resuelve el reconciliador.
-      await liberarArriendos(redis, this.k, fila, cfg.esperaRucMs);
+      await liberarArriendos(redis, this.k, propia, cfg.esperaRucMs);
       throw new Error("transición final fallida");
     }
     if (final === null) {
@@ -275,7 +281,7 @@ export class Ejecutor {
         campos,
       );
     }
-    await liberarArriendos(redis, this.k, fila, cfg.esperaRucMs);
+    await liberarArriendos(redis, this.k, propia, cfg.esperaRucMs);
     if (final.fila.estado === "en_cola") {
       await publicar(
         redis,
@@ -422,7 +428,12 @@ export class Ejecutor {
           : d.hacia === "en_cola"
             ? { intentos: d.intentos, disponibleDesde: d.disponibleDesde }
             : { motivo: d.motivo };
-      if (!(await transicionar(tx, fila.id, "ejecutando", d.hacia, campos)))
+      // Solo la ejecución vigente cierra el trabajo: si ya se volvió a lanzar (intento consumido), pierde (H-008-1b-3).
+      if (
+        !(await transicionar(tx, fila.id, "ejecutando", d.hacia, campos, {
+          intentos: fila.intentos,
+        }))
+      )
         return null;
       let credencialCambio = false;
       if (
@@ -430,10 +441,13 @@ export class Ejecutor {
         d.motivo === "credencial_invalida" &&
         def?.credencial
       ) {
+        // Sin marcar una credencial reemplazada mientras corría el trabajo (H-008-1b-5).
         credencialCambio = await marcarCredencialInvalida(
           tx,
           fila.clienteId,
           def.credencial,
+          "credencial_invalida",
+          fila.id,
         );
       }
       const actual = await leerTrabajo(tx, fila.id);

@@ -39,7 +39,17 @@ export interface ColasBull {
   cerrar(): Promise<void>;
 }
 
-/** Productor: una `Queue` por cola, creada al primer uso. `jobId` de BullMQ = id del trabajo. */
+/**
+ * Id del job de BullMQ de un despacho: el id del trabajo en el primer intento y `<id>-<intento>` en los siguientes
+ * (H-008-1b-4). Con el mismo id, el `add` de un reintento se ignoraría mientras el job del intento anterior siga en
+ * BullMQ (p. ej. activo sin lock tras un event loop bloqueado, hasta que la revisión de "stalled" lo saque) y el
+ * trabajo quedaría `ejecutando` sin nadie que lo corra. El payload no cambia (CA-15); el job viejo nunca se reentrega
+ * (`maxStalledCount: 0`) y el arriendo `ejec:` con la guarda de intentos impiden dos ejecuciones a la vez.
+ */
+export const idJobBull = (jobId: string, intento = 0): string =>
+  intento > 0 ? `${jobId}-${intento}` : jobId;
+
+/** Productor: una `Queue` por cola, creada al primer uso. `jobId` de BullMQ = `idJobBull(id, intento)`. */
 export function crearColas(o: OpcionesColas): ColasBull {
   const colas = new Map<NombreCola, Queue>();
   const cola = (nombre: NombreCola): Queue => {
@@ -54,12 +64,12 @@ export function crearColas(o: OpcionesColas): ColasBull {
     return q;
   };
   return {
-    agregarACola: async (nombre, payload) => {
+    agregarACola: async (nombre, payload, opciones) => {
       await cola(nombre).add(
         payload.tipo,
         payloadTrabajoSchema.parse(payload),
         {
-          jobId: payload.jobId,
+          jobId: idJobBull(payload.jobId, opciones?.intento),
           attempts: 1,
           removeOnComplete: true,
           removeOnFail: true,

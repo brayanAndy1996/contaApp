@@ -35,6 +35,7 @@ const COMANDOS = [
   "zscore",
   "zremrangebyscore",
   "publish",
+  "time",
 ] as const;
 
 const limite = (txt: string | number): { valor: number; excl: boolean } => {
@@ -375,6 +376,15 @@ export class RedisFalso {
     > & {
       exec(): Promise<[Error | null, unknown][]>;
     };
+  }
+
+  // --- servidor ---
+  /** TIME: [segundos, microsegundos] del reloj falso (el mismo que gobierna los vencimientos). */
+  async time(): Promise<[string, string]> {
+    return this.ejecutar(() => {
+      const ms = this.reloj.ms();
+      return [String(Math.floor(ms / 1000)), String((ms % 1000) * 1000)];
+    });
   }
 
   // --- Lua y conexion ---
