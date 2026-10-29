@@ -31,7 +31,6 @@ import {
   limpiarPrefijo,
   type ClientePrueba,
 } from "./soporte-pruebas/int.js";
-import type { PayloadTrabajo } from "./tipos.js";
 
 const TIPO_SIN_CANAL = "prueba.ninguno_rdosb";
 registrarTipo({
@@ -107,7 +106,7 @@ describe("dos líderes y un tipo sin lock de RUC (canal `ninguno`)", () => {
         return typeof v === "function" ? v.bind(t) : v;
       },
     }) as Redis;
-    const nada = async (_c: string, _p: PayloadTrabajo) => undefined;
+    const nada = async (): Promise<undefined> => undefined;
     const d1 = new Despachador({ db: worker, redis: redisLento, reloj: { ahora: () => new Date() }, prefijo, agregarACola: nada });
     const d2 = new Despachador({ db: worker, redis, reloj: { ahora: () => new Date() }, prefijo, agregarACola: nada });
 
