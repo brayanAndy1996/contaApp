@@ -152,8 +152,10 @@ export class Despachador {
   }
 
   /**
-   * Recorre la ventana del estudio y despacha como máximo un trabajo. true si el puntero del round-robin
-   * avanza: despachó, o la ventana tenía candidatos y se agotó sin despachar (D21, (5)).
+   * Recorre la ventana del estudio y despacha como máximo un trabajo. true solo si despachó: el puntero
+   * del round-robin lo mueve únicamente un estudio que despacha; con la ventana agotada (todos los RUC
+   * ocupados o todos cancelados) el ciclo sigue con el siguiente sin moverlo (D21 (5), Ratificaciones de
+   * T5/T6 (7)).
    */
   private async atenderEstudio(
     cola: NombreCola,
@@ -286,7 +288,7 @@ export class Despachador {
       );
     }
     const f = a.despachado;
-    if (f === null) return true; // ventana agotada: el round-robin avanza igual (D21)
+    if (f === null) return false; // ventana agotada: el puntero no se mueve (D21 (5))
     await tomarCupos(this.redis, this.k, f, ahora.getTime());
     await this.redis.zrem(pend, f.id);
     try {

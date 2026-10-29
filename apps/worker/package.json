@@ -14,7 +14,8 @@
     "test": "vitest run --passWithNoTests",
     "test:int": "vitest run --mode int --passWithNoTests",
     "test:cobertura:cola": "vitest run --config vitest.cobertura-cola.config.mts --coverage",
-    "kek:rotar": "node --env-file-if-exists=../../.env --env-file-if-exists=.env dist/cli/kek-rotar.js"
+    "kek:rotar": "node --env-file-if-exists=../../.env --env-file-if-exists=.env dist/cli/kek-rotar.js",
+    "trabajos:kek-rotar": "node --env-file-if-exists=../../.env --env-file-if-exists=.env dist/cli/encolar-kek-rotar.js"
   },
   "dependencies": {
     "@contapp/crypto": "workspace:*",
@@ -24,6 +25,7 @@
     "@contapp/sunat": "workspace:*",
     "@nestjs/common": "^12.0.1",
     "@nestjs/core": "^12.0.1",
+    "ioredis": "6.0.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
   },
@@ -31,7 +33,6 @@
     "@nestjs/cli": "^12.0.0",
     "@nestjs/schematics": "^12.0.0",
     "@types/node": "^24.0.0",
-    "ioredis": "6.0.0",
     "source-map-support": "^0.5.21",
     "vitest": "5.0.5",
     "zod": "^4.6.7"
