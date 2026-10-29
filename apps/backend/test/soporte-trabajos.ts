@@ -28,7 +28,7 @@ import type {
   TrabajoVista,
 } from "@contapp/shared";
 import { abrirBanco, type Banco, type Estudio } from "./soporte-acceso.js";
-import { ipUnica, type Harness } from "./soporte.js";
+import { hashesPosibles, ipUnica, type Harness } from "./soporte.js";
 
 /* ---------------------------------- Redis ---------------------------------- */
 /** Cliente de `ioredis`. */
@@ -512,3 +512,45 @@ export function abrirSse(
 export const esEventoDe = (clienteId: string) => (e: EventoSse) =>
   e.json?.clienteId === clienteId;
 export const esEventoId = (id: string) => (e: EventoSse) => e.json?.id === id;
+
+/* ------------------- Sesión en BD (T11b, D22: el stream no renueva) ------------------- */
+export interface UsoSesion {
+  /** `ultimo_uso` tal cual (texto de PG, con microsegundos): la igualdad exacta prueba que nadie lo escribió. */
+  marca: string;
+  /** Segundos transcurridos desde `ultimo_uso`. */
+  edadSeg: number;
+  tenantActivo: string | null;
+}
+
+/** Valor de la cookie de sesión (`__Host-contapp_sid=<valor>`), del que la BD guarda el SHA-256. */
+const valorDeCookie = (cookie: string): string => cookie.slice(cookie.indexOf("=") + 1);
+
+/** `ultimo_uso` y `tenant_activo` de la sesión de `a` (conexión de migraciones). */
+export async function usoDeSesion(
+  b: Pick<Banco, "sql">,
+  a: { cookie: string },
+): Promise<UsoSesion> {
+  const [f] = await b.sql<{ marca: string; edad: number; tenant_activo: string | null }>(
+    `select ultimo_uso::text as marca, extract(epoch from (now() - ultimo_uso))::float8 as edad, tenant_activo
+       from auth.sesion where token_hash = any($1::bytea[])`,
+    [hashesPosibles(valorDeCookie(a.cookie))],
+  );
+  if (!f) throw new Error("la sesión de la prueba no está en auth.sesion");
+  return { marca: f.marca, edadSeg: f.edad, tenantActivo: f.tenant_activo };
+}
+
+/** Lleva `ultimo_uso` de la sesión de `a` a `now() + desplazamiento` (p. ej. `"-10 minutes"`). */
+export async function fijarUsoDeSesion(
+  b: Pick<Banco, "sql">,
+  a: { cookie: string },
+  desplazamiento: string,
+): Promise<void> {
+  if (!/^-?\d+ (seconds?|minutes?|hours?)( -?\d+ (seconds?|minutes?|hours?))*$/.test(desplazamiento))
+    throw new Error("desplazamiento inválido en la prueba");
+  const r = await b.sql<{ id: string }>(
+    `update auth.sesion set ultimo_uso = now() + $2::interval
+      where token_hash = any($1::bytea[]) returning id`,
+    [hashesPosibles(valorDeCookie(a.cookie)), desplazamiento],
+  );
+  if (r.length !== 1) throw new Error("no se pudo fijar ultimo_uso de la sesión de la prueba");
+}

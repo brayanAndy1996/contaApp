@@ -29,6 +29,9 @@ export const FUNCIONES_AUTH = [
   "recuperacion_consumir",
   "recuperacion_crear",
   "recuperacion_vigente", // 0008 (T16): consulta sin efectos antes de Argon2 en restablecer
+  // Spec 008 (T11b, D22): 17 funciones. 0019_sesion_consultar.sql agrega `sesion_consultar`: valida como `sesion_validar`
+  // pero sin escribir (no renueva ultimo_uso ni limpia tenant_activo); la usa el stream de trabajos para no contar como actividad.
+  "sesion_consultar",
   "sesion_revocar",
   "sesion_rotar",
   "sesion_validar",
