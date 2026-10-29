@@ -13,11 +13,7 @@ import {
   type ConfigCola,
   type TrabajoFila,
 } from "@contapp/db";
-import {
-  claveLockRuc,
-  horaRedisMs,
-  liberarArriendos,
-} from "./arriendos.js";
+import { claveLockRuc, horaRedisMs, liberarArriendos } from "./arriendos.js";
 import { definicionDe } from "./catalogo.js";
 import { crearClaves, type ClavesCola } from "./claves.js";
 import { CacheConfig } from "./config.js";

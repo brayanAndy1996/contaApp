@@ -95,7 +95,8 @@ export class StreamService implements OnModuleDestroy {
 
   constructor(
     @Inject(DB) private readonly db: Pick<ContappDb, "withTenant">,
-    @Inject(AuthService) private readonly auth: Pick<AuthService, "resolverSesion">,
+    @Inject(AuthService)
+    private readonly auth: Pick<AuthService, "resolverSesion">,
     @Inject(RedisTrabajos) private readonly redis: RedisTrabajos,
     @Optional() @Inject(TIEMPOS_STREAM) tiempos?: Partial<TiemposStream>,
   ) {
@@ -207,7 +208,10 @@ export class StreamService implements OnModuleDestroy {
     const set = this.porCanal.get(c.canal);
     if (set?.delete(c) === true && set.size === 0) {
       this.porCanal.delete(c.canal);
-      this.redis.suscriptor()?.unsubscribe(c.canal).catch(() => undefined);
+      this.redis
+        .suscriptor()
+        ?.unsubscribe(c.canal)
+        .catch(() => undefined);
     }
     if (!c.res.writableEnded) c.res.end();
   }
@@ -316,7 +320,9 @@ export class StreamService implements OnModuleDestroy {
         s.usuarioId === c.usuarioId &&
         s.tenantActivo === c.tenantId &&
         !s.estudioRevocado;
-      const v = vigente ? await this.visibilidad(c.tenantId, c.usuarioId) : null;
+      const v = vigente
+        ? await this.visibilidad(c.tenantId, c.usuarioId)
+        : null;
       if (v === null) this.cerrar(c);
       else {
         c.visibilidad = v;

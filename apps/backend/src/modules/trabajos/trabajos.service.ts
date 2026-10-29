@@ -34,7 +34,9 @@ export interface Actor {
 }
 
 /** Contexto de `withTenant` de una sesión con estudio (los guards ya lo exigieron; falla cerrado si no). */
-export function contextoSesion(s: Pick<SesionResuelta, "tenantActivo" | "usuarioId" | "estudioRevocado">): {
+export function contextoSesion(
+  s: Pick<SesionResuelta, "tenantActivo" | "usuarioId" | "estudioRevocado">,
+): {
   tenantId: string;
   userId: string;
 } {
@@ -45,7 +47,10 @@ export function contextoSesion(s: Pick<SesionResuelta, "tenantActivo" | "usuario
 }
 
 /** Membresía ACTIVA del usuario en el estudio del contexto, o null (desactivado o sin membresía). */
-export async function actorDe(tx: Tx, usuarioId: string): Promise<Actor | null> {
+export async function actorDe(
+  tx: Tx,
+  usuarioId: string,
+): Promise<Actor | null> {
   const m = await miembroActual(tx, usuarioId);
   if (m === null || m.usuarioId !== usuarioId) return null;
   const rol = m.rol as Rol;
