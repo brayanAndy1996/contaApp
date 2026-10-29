@@ -24,8 +24,8 @@ Nivel A. Flujo 04 §1.3: andamiaje → pruebas (rojo) → implementación (verde
 | T11b | Pruebas del stream sin renovar la sesión (D22) (rojo)                                         | tester     | sonnet | T11                     | ✓   | —   | [x]    |
 | T11c | Backend: `auth.sesion_consultar` (0019) y stream sin renovar la sesión (D22)                  | backend    | opus   | T11b                    | ✓   | —   | [x]    |
 | T12  | Integración: checks completos y prueba manual                                                 | devops     | sonnet | T9d, T10, T11c          | —   | —   | [x]    |
-| T13a | Ronda adversarial 1a: lista mínima (caja negra)                                               | adversario | opus   | T12                     | —   | ✓   | [ ]    |
-| T13b | Ronda adversarial 1b: escenarios nuevos (caja blanca)                                         | adversario | opus   | T12 ∥ T13a              | —   | ✓   | [ ]    |
+| T13a | Ronda adversarial 1a: lista mínima (caja negra)                                               | adversario | opus   | T12                     | —   | ✓   | [x]    |
+| T13b | Ronda adversarial 1b: escenarios nuevos (caja blanca)                                         | adversario | opus   | T12 ∥ T13a              | —   | ✓   | [x]    |
 | T14  | Corregir hallazgos de la ronda 1                                                              | backend    | opus   | T13a, T13b              | —   | —   | [ ]    |
 | T15a | Ronda adversarial 2a: regresión y reconversión                                                | adversario | opus   | T14                     | —   | ✓   | [ ]    |
 | T15b | Ronda adversarial 2b: ataques nuevos contra las correcciones                                  | adversario | opus   | T14 ∥ T15a              | —   | ✓   | [ ]    |
@@ -201,6 +201,7 @@ Reglas comunes:
 - **Hacer**: hasta ~8 pruebas en `apps/worker/src/trabajos/r1a.adv.int.spec.ts`, `apps/backend/src/modules/trabajos/r1a.adv.int.spec.ts` y `tests/aislamiento/trabajos-r1a.adv.spec.ts` sobre la lista mínima (1,000 contra 1, mismo RUC en uno y dos estudios, worker que muere tras tomar el lock, cancelar en carrera, 50 encolados iguales, IDOR de `jobId` en lista/SSE/cancelar, SSE durante desasignación o cambio de estudio, payload forjado, Redis caído, `config_sistema` hostil, canarios, `kek.rotar` viendo otro estudio).
 - **Instrucciones defensivas**: solo escribir `*.adv.spec.ts`/`*.adv.int.spec.ts`; no modificar producción, pruebas ajenas, migraciones ni `.env`; canarios, nunca secretos reales; cada prueba deja BD y Redis como estaban (prefijo propio); aserción concreta; un fallo del entorno (Redis caído sin que la prueba lo provoque) no es hallazgo.
 - **Hecho cuando**: pruebas commiteadas; cada fallo en "Resultado" de esta tarea y en "Hallazgos adversariales abiertos" de `ESTADO.md` (archivo:línea, severidad, una línea). Commit `test(008): ronda adversarial 1a`.
+- **Resultado** (T13a, 2026-10-29, 91a4073): `apps/worker/src/trabajos/r1a.adv.int.spec.ts` (7), `apps/backend/src/modules/trabajos/r1a.adv.int.spec.ts` (8) y `tests/aislamiento/trabajos-r1a.adv.spec.ts` (7): 22 pruebas, 21 verdes y 1 roja. Hallazgos: H-008-1a-1 (baja). Nota de entorno: el reconciliador recorre todos los estudios de la BD; un worker con otro prefijo puede tomar `en_cola` >30 s de otras pruebas.
 
 ## T13b · Ronda adversarial 1b: escenarios nuevos (adversario · opus) ∥ T13a
 
@@ -208,6 +209,7 @@ Reglas comunes:
 - **Hacer**: hasta ~7 pruebas en `*-r1b.adv*.spec.ts`, distintas de T13a: funciones `sistema.*` y `auth.purgar` con `search_path` hostil o argumentos extremos; asumir `contapp_enumerador`; trigger de `credencial` saltado por una rotación o por un `UPDATE` sin cambio real; dos despachadores que creen ser líderes (arriendo vencido en mitad del ciclo); reloj desfasado entre procesos; evento SSE con `clienteId` de otro estudio inyectado en `eventos:{tenantId}`; token SIRE de un proceso leído por otro; `prueba.eco` registrado fuera de test; riesgos del plan.
 - **Instrucciones defensivas**: las de T13a.
 - **Hecho cuando**: igual que T13a. Commit `test(008): ronda adversarial 1b`.
+- **Resultado** (T13b, 2026-10-29, 2a1b4b1): `tests/aislamiento/trabajos-r1b.adv.spec.ts`, `packages/queue/src/{despachador-r1b.adv.int,catalogo-r1b.adv}.spec.ts`, `apps/worker/src/trabajos/{ejecutor-r1b.adv.int,cierre-r1b.adv.int}.spec.ts` y `apps/backend/src/modules/trabajos/stream-r1b.adv.int.spec.ts`: 15 pruebas, 9 rojas y 6 verdes. Hallazgos: H-008-1b-1..9 (1 alta, 6 media, 2 baja).
 
 ## T14 · Corregir ronda 1 (backend · opus)
 
