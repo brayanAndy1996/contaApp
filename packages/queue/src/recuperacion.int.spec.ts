@@ -33,8 +33,9 @@ import {
 //   (nunca se reenvía); libera cupos y lock y publica el evento; el estudio vuelve a la pista de Redis;
 // - los contadores no quedan desfasados: tras N caídas seguidas, los ZSET de cupo vuelven a estar vacíos y no sobra ningún
 //   `ejec:*` ni `lock:ruc:*`.
-// El tiempo se simula SIN esperar 30 s: reloj inyectable +31 s (puntajes de cupo), PEXPIRE de 1 ms sobre las claves con TTL
-// (equivale a que Redis las venza) y `actualizado_en` envejecido con SQL. La espera real de ≤ 60 s la prueba el worker en
+// El tiempo se simula SIN esperar 30 s: PEXPIRE de 1 ms sobre las claves con TTL (equivale a que Redis las venza), los
+// puntajes de los ZSET de cupo retrasados 31 s (su vencimiento se escribió con Redis `TIME`, única fuente de tiempo desde T16,
+// así que el reloj local inyectable ya no los afecta) y `actualizado_en` envejecido con SQL. La espera real de ≤ 60 s la prueba el worker en
 // apps/worker/src/trabajos/caida.int.spec.ts.
 
 vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
@@ -108,9 +109,23 @@ async function sembrar(t: string, c: ClientePrueba, tipo: string): Promise<strin
   return id!;
 }
 
-/** El proceso muere: pasa el tiempo (+31 s, TTL vencidos) y el trabajo envejece. Deja todo listo para el reconciliador. */
+/**
+ * Retrasa 31 s los vencimientos de todos los ZSET de cupo: equivale a que pasen 31 s de reloj de Redis. Hace falta porque
+ * cupos, poda, ventana y reconciliador usan Redis `TIME` (T16), no el reloj local: sin esto, un cupo de un trabajo que quedó
+ * `ejecutando` en una prueba anterior (sin envejecer) nunca vence y el despachador no lo poda. No debilita CA-10: los cupos
+ * se siguen vaciando por la poda del despachador y la liberación del reconciliador, no por borrado directo.
+ */
+async function retrasarCupos(ms: number) {
+  for (const c of await redis.keys(`${prefijo}cupo:*`)) {
+    const pares = await redis.zrange(c, 0, -1, "WITHSCORES");
+    for (let i = 0; i < pares.length; i += 2) await redis.zadd(c, Number(pares[i + 1]) - ms, pares[i]!);
+  }
+}
+
+/** El proceso muere: pasa el tiempo (+31 s, TTL y cupos vencidos) y el trabajo envejece. Deja todo listo para el reconciliador. */
 async function pasaElTiempo(ids: string[]) {
   reloj.avanzar(31_000);
+  await retrasarCupos(31_000);
   const claves = (await redis.keys(`${prefijo}ejec:*`)).concat(await redis.keys(`${prefijo}lock:ruc:*`), await redis.keys(`${prefijo}lider:*`));
   for (const c of claves) await redis.pexpire(c, 1);
   await e.envejecer(ids);
