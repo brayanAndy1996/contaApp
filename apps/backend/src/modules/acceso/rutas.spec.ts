@@ -55,6 +55,24 @@ describe("rutas registradas en la app (CA-11)", () => {
     expect(ruta?.declaraciones).toEqual(["SoloEstudio"]);
   });
 
+  // 008 (T6): las tres rutas de trabajos declaran @SoloEstudio (la lista y el stream filtran por alcance en el
+  // servicio; cancelar decide 404/403 con el rol y el creador). El ID de la ruta es `:trabajoId`, no `:clienteId`.
+  // `crearApp({ env: ENV })` no trae REDIS_URL ni hay Redis alcanzable: el módulo de trabajos no debe conectar al
+  // arrancar (conexión perezosa) y `app.close()` debe terminar (si no, esta suite entera se cuelga).
+  it("las rutas de 008 están registradas y declaran @SoloEstudio: GET /trabajos, GET /trabajos/stream y POST /trabajos/:trabajoId/cancelar", () => {
+    const rutas = rutasRegistradas(app);
+    for (const [metodo, ruta] of [
+      ["GET", "/trabajos"],
+      ["GET", "/trabajos/stream"],
+      ["POST", "/trabajos/:trabajoId/cancelar"],
+    ] as const) {
+      const r = rutas.find((x) => x.metodo === metodo && x.ruta === ruta);
+      expect(r, `${metodo} ${ruta} no está registrada`).toBeDefined();
+      expect(r?.declaraciones, `${metodo} ${ruta}`).toEqual(["SoloEstudio"]);
+      expect(r?.usaClienteId).toBe(false);
+    }
+  });
+
   it("toda ruta con :clienteId declara @Permiso (para que el 403 llegue antes que el 404)", () => {
     const conCliente = rutasRegistradas(app).filter((r) => r.usaClienteId);
     for (const r of conCliente)
