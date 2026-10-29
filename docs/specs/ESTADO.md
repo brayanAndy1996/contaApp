@@ -13,7 +13,7 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 | 005-acceso | A | hecha | — | Hecha. Rama `spec/005-acceso` sin mergear (desde `spec/004-auth`). CI verde (1216e84). |
 | 006-planes | B | aprobada | T1 | Aprobada por el usuario (2026-10-27) con todo lo recomendado. Plan y tareas en rama `spec/006-planes` (desde `main`). Orden de implementación: 011 → 008 → 006. |
 | 007-clientes | B | pendiente | — | — |
-| 008-cola | A | hecha | — | Hecha. Rama `spec/008-cola` con main (011) integrado, lista para mergear. Revisión final (T18) aprobada; 26 hallazgos de las rondas 1 y 2 corregidos; CA-1 a CA-17 con evidencia (T17). Formato en `1daa35d`. |
+| 008-cola | A | hecha | — | Hecha. Mergeada en `main` (74d96c9). Revisión final (T18) aprobada; 26 hallazgos de las rondas 1 y 2 corregidos; CA-1 a CA-17 con evidencia (T17). Formato en `1daa35d`. |
 | 009-adaptadores-mock | C | pendiente | — | — |
 | 010-dominio-dinero | A | hecha | — | Rama `spec/010-dominio-dinero` sin mergear (desde `spec/003-cifrado`). Caso real USD diferido, sin cifras (pendiente no bloqueante; CA-13 sintético cubre D7). Los 3 límites del lint de `packages/domain` fueron aceptados por el usuario (D10 de la spec). |
 | 011-motor-reglas | A | hecha | — | Mergeada en main (11e4cb8). Aprobada por el arquitecto (T17). Caso real USD diferido, sin cifras (pendiente no bloqueante; CA-6 sintético cubre D7). |
