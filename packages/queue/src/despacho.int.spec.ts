@@ -71,20 +71,41 @@ describe("CA-2: reparto entre estudios", () => {
     const idsC = await e.trabajosEnMasa(C, await clientes(C, 20), 200);
     const [idB] = await e.trabajosEnMasa(B, await e.cliente(B), 1);
     const { a, prefijo } = await nuevo({ duracionMs: 250 });
+    // Medición sin carrera de tiempos: los 4 primeros trabajos (A y C llenan el cupo global) quedan retenidos en una compuerta hasta
+    // que B ya esté anunciado. Así "antes de B" es un conteo exacto (4) y no depende de cuánto tarde el sondeo de la prueba o de cuántos
+    // cupos se liberaron entre una lectura y otra (con CPU cargada o cobertura, el sondeo llegaba tarde y B se anunciaba tras 7 u 8
+    // inicios ya hechos, sin que el despachador hubiera fallado). Los cupos se liberan de a uno; el resto de los trabajos dura 250 ms.
+    const compuertas: Array<() => void> = [];
+    a.ejecutor.comportamiento = async () => {
+      if (compuertas.length < 4) await new Promise<void>((resolver) => compuertas.push(resolver));
+      else await dormir(250);
+    };
+    const liberarTodas = (): void => compuertas.forEach((liberar) => liberar());
 
-    await anunciar(redis, prefijo, A, idsA);
-    await anunciar(redis, prefijo, C, idsC);
-    // A (2) y C (2) llenan el cupo global de 4.
-    await esperarHasta(() => a.ejecutor.iniciados.length >= 4, "A y C ocupan los 4 cupos");
-    const antesDeB = a.ejecutor.iniciados.length;
-    await anunciar(redis, prefijo, B, [idB]);
+    try {
+      await anunciar(redis, prefijo, A, idsA);
+      await anunciar(redis, prefijo, C, idsC);
+      // A (2) y C (2) llenan el cupo global de 4 y no hay más cupos mientras las compuertas sigan cerradas.
+      await esperarHasta(() => compuertas.length >= 4, "A y C ocupan los 4 cupos");
+      await dormir(300); // con los 4 cupos llenos y retenidos nada más puede iniciar: se comprueba abajo
+      expect(a.ejecutor.iniciados).toHaveLength(4);
+      await anunciar(redis, prefijo, B, [idB]); // B ya es visible para el despachador antes de liberar el primer cupo
 
-    await esperarHasta(() => a.ejecutor.iniciados.includes(idB), "B empieza al liberarse el primer cupo", { timeoutMs: 10_000 });
-    const delosGrandes = new Set([...idsA, ...idsC]);
-    const iniciadosAntes = a.ejecutor.iniciados.slice(0, a.ejecutor.iniciados.indexOf(idB)).filter((id) => delosGrandes.has(id)).length;
-    // Sin justicia B esperaría a que terminaran los 1,200 trabajos; con round-robin entra tras, a lo sumo, un trabajo más de cada estudio.
-    expect(iniciadosAntes - antesDeB).toBeLessThanOrEqual(2);
-    expect(iniciadosAntes).toBeLessThanOrEqual(6);
+      // Se libera un cupo a la vez; en cada uno el despachador reparte un trabajo (round-robin A, B, C).
+      for (let i = 0; i < compuertas.length && !a.ejecutor.iniciados.includes(idB); i++) {
+        const antes = a.ejecutor.iniciados.length;
+        compuertas[i]!();
+        await esperarHasta(() => a.ejecutor.iniciados.length > antes, `se reparte el cupo liberado ${i + 1}`, { timeoutMs: 10_000 });
+      }
+      await esperarHasta(() => a.ejecutor.iniciados.includes(idB), "B empieza al liberarse el primer cupo", { timeoutMs: 10_000 });
+      const delosGrandes = new Set([...idsA, ...idsC]);
+      const iniciadosAntes = a.ejecutor.iniciados.slice(0, a.ejecutor.iniciados.indexOf(idB)).filter((id) => delosGrandes.has(id)).length;
+      // Sin justicia B esperaría a que terminaran los 1,200 trabajos; con round-robin entra tras, a lo sumo, un trabajo más de cada estudio.
+      expect(iniciadosAntes - 4).toBeLessThanOrEqual(2);
+      expect(iniciadosAntes).toBeLessThanOrEqual(6);
+    } finally {
+      liberarTodas();
+    }
 
     await esperarHasta(async () => (await e.fila(idB))?.estado === "completado", "B completado");
     expect(a.ejecutor.maxPorTenant.get(A)).toBeLessThanOrEqual(2);
