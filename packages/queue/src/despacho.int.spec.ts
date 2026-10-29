@@ -166,6 +166,17 @@ describe("CA-3: un mismo RUC nunca en paralelo y con la espera mínima", () => {
     }
     expect(new Set(m.map((x) => x.tenantId)).size, "se atendieron los dos estudios").toBe(2);
     expect(a.ejecutor.maxGlobal).toBe(1); // el mismo RUC nunca corre dos a la vez
+
+    // T9e (ajuste de T5, plan "Ratificaciones de T5/T6" (7)): round-robin de CA-2 con el RUC compartido. Ordenadas por inicio, ningún
+    // estudio acumula 3 marcas seguidas mientras el otro aún tiene pendientes (el puntero solo avanza con quien despacha). Rojo contra el
+    // despachador actual (BBBBBBBBBBAAAAAAAAAA); se tolera hasta 2 seguidas por los tiempos reales de liberación del lock.
+    const orden = [...m].sort((p, q) => p.inicio - q.inicio).map((x) => x.tenantId);
+    for (let i = 0; i + 2 < orden.length; i++) {
+      if (orden[i] !== orden[i + 1] || orden[i] !== orden[i + 2]) continue;
+      const otro = orden[i] === A ? B : A;
+      const pendientesDelOtro = orden.slice(i + 3).filter((t) => t === otro).length;
+      expect(pendientesDelOtro, `3 seguidas de un estudio desde la posición ${i} con el otro aún pendiente: ${orden.map((t) => (t === A ? "A" : "B")).join("")}`).toBe(0);
+    }
   });
 
   it("canal ninguno no usa lock: dos trabajos del mismo RUC pueden correr a la vez", async () => {

@@ -528,6 +528,89 @@ describe("RUC compartido entre dos estudios (D20, CA-3)", () => {
   });
 });
 
+// T9e (plan 008, "Ventana de candidatos (D21)" (5) y "Ratificaciones de T5/T6" (7)), en ROJO hasta T10.
+// El puntero del round-robin solo lo mueve un estudio que DESPACHA: los ciclos con el RUC compartido ocupado (ventanas agotadas
+// en ambos estudios) no cambian quién sale después. Cupos por defecto de sire (4 global / 2 por estudio).
+describe("round-robin con RUC compartido entre dos estudios (T9e, CA-2, CA-3, RNF-041)", () => {
+  const compartido = "20777777777";
+
+  /** Termina el trabajo despachado: estado final, cupos devueltos y lock del RUC liberado. */
+  async function terminar(id: string): Promise<void> {
+    const f = bd.trabajos.get(id)!;
+    f.estado = "completado";
+    await redis.zrem(k.cupoGlobal("sire"), id);
+    await redis.zrem(k.cupoTenant("sire", f.tenantId), id);
+    await redis.del(k.lockRuc("sire", compartido));
+  }
+
+  /** Un ciclo con el lock libre: devuelve el estudio que inició (o null) y lo termina. */
+  async function liberarYDespachar(d: Despachador): Promise<string | null> {
+    await redis.del(k.lockRuc("sire", compartido));
+    await d.ciclo();
+    const iniciados = ejecutando();
+    if (iniciados.length === 0) return null;
+    expect(iniciados, "nunca dos del mismo RUC a la vez").toHaveLength(1);
+    const f = iniciados[0]!;
+    await terminar(f.id);
+    return f.tenantId;
+  }
+
+  async function sembrarAmbos(n: number): Promise<void> {
+    for (let i = 0; i < n; i++) {
+      await sembrar({ tenantId: TA, ruc: compartido });
+      await sembrar({ tenantId: TB, ruc: compartido });
+    }
+  }
+
+  it("con 3 trabajos por estudio y ciclos con el lock ocupado entre cada inicio, los inicios alternan entre estudios", async () => {
+    await sembrarAmbos(3);
+    const d = nuevoDespachador();
+    const orden: string[] = [];
+    for (let ronda = 0; ronda < 6; ronda++) {
+      await ocupar(compartido);
+      for (let i = 0; i < 2; i++) {
+        await d.ciclo();
+        expect(ejecutando(), "con el RUC ocupado no inicia nadie").toHaveLength(
+          0,
+        );
+      }
+      const quien = await liberarYDespachar(d);
+      expect(quien, `ronda ${ronda}: debe iniciar alguien`).not.toBeNull();
+      orden.push(quien === TA ? "A" : "B");
+    }
+    expect(orden.filter((x) => x === "A")).toHaveLength(3);
+    for (let i = 1; i < orden.length; i++) {
+      expect(
+        orden[i],
+        `posición ${i} de ${orden.join("")}: no dos seguidos del mismo estudio con el otro pendiente`,
+      ).not.toBe(orden[i - 1]);
+    }
+  });
+
+  it.each([1, 2, 3])(
+    "%i ciclos con el RUC ocupado después de que sale A no cambian quién sale después: sale B",
+    async (bloqueados) => {
+      await sembrarAmbos(3);
+      const d = nuevoDespachador();
+      const primero = await liberarYDespachar(d);
+      expect(
+        primero,
+        "sin historia, el round-robin empieza por el primer estudio",
+      ).toBe(TA);
+
+      await ocupar(compartido);
+      for (let i = 0; i < bloqueados; i++) {
+        await d.ciclo(); // ambas ventanas se agotan: el puntero no se mueve
+        expect(ejecutando()).toHaveLength(0);
+      }
+      expect(await liberarYDespachar(d), "toca al otro estudio").toBe(TB);
+      expect(await liberarYDespachar(d), "y luego otra vez al primero").toBe(
+        TA,
+      );
+    },
+  );
+});
+
 function ajustarCupos(cambios: Record<string, number>): void {
   Object.assign(bd.config.get("sire")!, cambios);
 }
