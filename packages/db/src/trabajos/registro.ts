@@ -158,24 +158,54 @@ const SQL_INSERTAR = `insert into job_registro
   values ($1, $2, $3, $4, $5, $6, 'en_cola', $7::jsonb, $8, $9, $10)
   returning ${COLUMNAS_VISTA}`;
 
-/** Encola un trabajo en el estudio del contexto (nace en_cola, intentos 0). Rol: contapp_backend. */
+// H-008-1a-2: con otro trabajo vivo de la misma clave (índice único parcial job_registro_dedupe_vivo), no inserta ni
+// lanza 23505: espera a que la otra transacción termine y no devuelve fila. Sin savepoint: la transacción sigue sana.
+const SQL_INSERTAR_SIN_DUPLICAR = `insert into job_registro
+  (cliente_id, ruc, tipo, cola, canal, prioridad, estado, parametros, clave_dedupe, creado_por, max_intentos)
+  values ($1, $2, $3, $4, $5, $6, 'en_cola', $7::jsonb, $8, $9, $10)
+  on conflict (tenant_id, clave_dedupe) where estado in ('en_cola', 'ejecutando') do nothing
+  returning ${COLUMNAS_VISTA}`;
+
+export interface OpcionesInsertar {
+  /** true: si ya hay un trabajo vivo con la misma clave de dedupe (D8), devuelve null en vez de lanzar 23505. */
+  sinDuplicar?: boolean;
+}
+
+/**
+ * Encola un trabajo en el estudio del contexto (nace en_cola, intentos 0). Rol: contapp_backend. Con `sinDuplicar`,
+ * un choque con la clave de dedupe de un trabajo vivo (encolado concurrente) devuelve null (H-008-1a-2).
+ */
 export async function insertarTrabajo(
   tx: TxConsulta,
   e: NuevoTrabajo,
-): Promise<TrabajoVistaDb> {
-  const r = await consultar(tx, SQL_INSERTAR, [
-    e.clienteId,
-    e.ruc,
-    e.tipo,
-    e.cola,
-    e.canal,
-    e.prioridad,
-    JSON.stringify(e.parametros),
-    e.claveDedupe,
-    e.creadoPor,
-    e.maxIntentos,
-  ]);
-  return aVista(r.rows[0]!);
+): Promise<TrabajoVistaDb>;
+export async function insertarTrabajo(
+  tx: TxConsulta,
+  e: NuevoTrabajo,
+  o: OpcionesInsertar,
+): Promise<TrabajoVistaDb | null>;
+export async function insertarTrabajo(
+  tx: TxConsulta,
+  e: NuevoTrabajo,
+  o: OpcionesInsertar = {},
+): Promise<TrabajoVistaDb | null> {
+  const r = await consultar(
+    tx,
+    o.sinDuplicar ? SQL_INSERTAR_SIN_DUPLICAR : SQL_INSERTAR,
+    [
+      e.clienteId,
+      e.ruc,
+      e.tipo,
+      e.cola,
+      e.canal,
+      e.prioridad,
+      JSON.stringify(e.parametros),
+      e.claveDedupe,
+      e.creadoPor,
+      e.maxIntentos,
+    ],
+  );
+  return r.rows.length === 0 ? null : aVista(r.rows[0]!);
 }
 
 const SQL_VIVO_POR_CLAVE = `select ${COLUMNAS_VISTA} from job_registro

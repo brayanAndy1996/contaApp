@@ -97,6 +97,7 @@ export {
 export type {
   CamposTransicion,
   GuardaTransicion,
+  OpcionesInsertar,
   CanalTrabajo,
   ColaTrabajo,
   EstadoTrabajo,

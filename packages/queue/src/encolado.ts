@@ -73,7 +73,7 @@ export async function encolar(
   const cliente = await leerCliente(tx, e.clienteId);
   if (cliente === null) throw new ClienteDesconocidoError();
 
-  const trabajo = await insertarTrabajo(tx, {
+  const nuevo = {
     clienteId: e.clienteId,
     ruc: cliente.ruc,
     tipo: def.tipo,
@@ -85,8 +85,14 @@ export async function encolar(
     creadoPor: e.creadoPor,
     // Ejecuciones totales = 1 + reintentos (CHECK max_intentos >= 1).
     maxIntentos: config.reintentos + 1,
-  });
-  return { trabajo, nuevo: true };
+  };
+  // Encolado concurrente de lo mismo (H-008-1a-2): si otra transacción insertó antes la misma clave viva, el INSERT no
+  // lanza 23505 sino que no devuelve fila y se relee el vivo (D8). Si entretanto el vivo ya terminó, se inserta normal.
+  const trabajo = await insertarTrabajo(tx, nuevo, { sinDuplicar: true });
+  if (trabajo !== null) return { trabajo, nuevo: true };
+  const existente = await trabajoVivoPorClave(tx, clave);
+  if (existente !== null) return { trabajo: existente, nuevo: false };
+  return { trabajo: await insertarTrabajo(tx, nuevo), nuevo: true };
 }
 
 export interface TrabajoPublicable {
