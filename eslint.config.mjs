@@ -644,6 +644,10 @@ export default tseslint.config(
         "@node-rs/argon2/**",
         "@contapp/*",
         "!@contapp/shared",
+        "bullmq",
+        "bullmq/**",
+        "@contapp/queue",
+        "@contapp/queue/**",
         "**/packages/**",
         "!**/packages/shared",
         "!**/packages/shared/**",
@@ -668,6 +672,20 @@ export default tseslint.config(
               ],
               message:
                 "apps/backend no puede importar packages/sunat ni otras apps (03-arquitectura §2).",
+            },
+            {
+              group: [
+                "bullmq",
+                "bullmq/**",
+                "@contapp/queue/worker",
+                "@contapp/queue/worker/**",
+                "**/packages/queue/src/worker",
+                "**/packages/queue/src/worker/**",
+                "**/packages/queue/dist/worker",
+                "**/packages/queue/dist/worker/**",
+              ],
+              message:
+                "apps/backend no puede importar bullmq ni @contapp/queue/worker (solo el worker; spec 008).",
             },
             {
               group: [

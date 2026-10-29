@@ -4,6 +4,7 @@ import { NestFactory, Reflector } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { json } from "express";
 import type { ContappDb } from "@contapp/db";
+import { PREFIJO_POR_DEFECTO } from "@contapp/queue";
 import { AppModule } from "./app.module.js";
 import { FiltroErrores } from "./comun/filtro-errores.js";
 import { leerEntorno, type EnvCrudo } from "./config/entorno.js";
@@ -35,7 +36,14 @@ export interface OpcionesApp {
   env?: Record<string, string | undefined>;
   /** Límite de usuarios del plan (D11); por defecto `CupoSinLimite` (006 lo reemplaza). */
   cupoUsuarios?: CupoUsuarios;
+  /**
+   * Redis de trabajos (008): por defecto `REDIS_URL` del entorno y el prefijo `contapp:`. La conexión es perezosa:
+   * con Redis caído la app arranca, las lecturas responden y encolar no espera.
+   */
+  redis?: { url?: string; prefijo?: string };
 }
+
+const REDIS_POR_DEFECTO = "redis://localhost:6379";
 
 /** Límite del cuerpo JSON (plan: Decisiones, Argon2): más de 16 kB responde 413 sin procesar. */
 const LIMITE_JSON = "16kb";
@@ -72,6 +80,10 @@ export async function crearApp(o: OpcionesApp = {}): Promise<INestApplication> {
       comunes: cargarComunes(),
       appOrigin: entorno.appOrigin,
       cupo: o.cupoUsuarios ?? new CupoSinLimite(),
+      redis: {
+        url: o.redis?.url ?? env.REDIS_URL ?? REDIS_POR_DEFECTO,
+        prefijo: o.redis?.prefijo ?? PREFIJO_POR_DEFECTO,
+      },
     }),
     // El analizador de cuerpo se registra a mano: solo JSON y con límite propio.
     { bodyParser: false },

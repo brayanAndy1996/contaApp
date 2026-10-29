@@ -81,7 +81,11 @@ describe("CA-3 catalogo de RLS", () => {
   it("solo existen las politicas permitidas y membresia_por_usuario es solo SELECT en membresia", async () => {
     const pols = await politicas();
     expect(pols.length).toBeGreaterThan(0);
-    const raras = pols.filter((p) => !POLITICAS_PERMITIDAS.includes(p.policyname));
+    // Ajuste de 008 (T3, plan "BD"): job_registro admite ademas UNA politica FOR DELETE (la del worker, solo estados
+    // terminales); su nombre lo elige T7. El detalle (rol, filas que alcanza) lo comprueba trabajos.spec.ts.
+    const raras = pols.filter(
+      (p) => !POLITICAS_PERMITIDAS.includes(p.policyname) && !(p.tablename === "job_registro" && p.cmd === "DELETE"),
+    );
     expect(raras.map((p) => `${p.tablename}.${p.policyname}`)).toEqual([]);
     for (const p of pols.filter((x) => x.policyname === "membresia_por_usuario")) {
       expect(p.tablename).toBe("membresia");
@@ -133,6 +137,13 @@ describe("CA-3 catalogo de RLS", () => {
     const nombres = (await tablasConTenantId()).map((t) => t.tabla);
     expect(nombres).toContain("asignacion");
     expect(nombres).toContain("invitacion");
+  });
+
+  // Ajuste de 008 (T3, CA-15): job_registro (tabla nueva con tenant_id) entra al catalogo; config_sistema NO (sin tenant_id).
+  it("job_registro (008) esta en el catalogo de tablas con tenant_id y config_sistema no (la prueba no es vacua)", async () => {
+    const nombres = (await tablasConTenantId()).map((t) => t.tabla);
+    expect(nombres).toContain("job_registro");
+    expect(nombres).not.toContain("config_sistema");
   });
 
   it("tenant_id es uuid NOT NULL en toda tabla de negocio", async () => {

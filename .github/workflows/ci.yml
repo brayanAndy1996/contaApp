@@ -45,6 +45,7 @@ jobs:
     env:
       MIGRATIONS_DATABASE_URL: postgresql://postgres@localhost:5432/contapp
       KEY_PROVIDER: mock
+      REDIS_URL: redis://localhost:6379
     services:
       postgres:
         image: postgres:17
@@ -55,6 +56,15 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -97,6 +107,12 @@ jobs:
 
       - name: Cobertura de 005 acceso (umbral 90 % por archivo)
         run: pnpm cobertura:acceso
+        env:
+          CORREO_PROVIDER: consola
+          APP_ORIGIN: http://localhost:3000
+
+      - name: Cobertura de 008 cola (umbral 90 % por archivo)
+        run: pnpm cobertura:cola
         env:
           CORREO_PROVIDER: consola
           APP_ORIGIN: http://localhost:3000

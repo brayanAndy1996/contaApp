@@ -36,7 +36,11 @@ interface SobreFalso {
 }
 
 const SENSIBLES = ["ciphertext", "nonce", "tag", "dek_envuelta"];
+// Ajuste de 008 (T3, D13): credencial gana estado, estado_motivo y estado_at. El backend las LEE (no las escribe) y el
+// worker las ESCRIBE; los grants del sobre no cambian. El detalle (CHECK, trigger) esta en tests/aislamiento/trabajos*.spec.ts.
+const COLS_ESTADO_008 = ["estado", "estado_motivo", "estado_at"];
 const COLS_CREDENCIAL = [
+  ...COLS_ESTADO_008,
   "ciphertext",
   "created_at",
   "cliente_id",
@@ -62,6 +66,7 @@ const COLS_AUDITORIA = [
 ].sort();
 
 const ESTADO_BACKEND = [
+  ...COLS_ESTADO_008,
   "id",
   "tenant_id",
   "cliente_id",
@@ -88,7 +93,7 @@ const UPDATE_BACKEND = [
   "version",
   "updated_at",
 ].sort();
-const UPDATE_WORKER = ["dek_envuelta", "kek_id", "updated_at"].sort();
+const UPDATE_WORKER = ["dek_envuelta", "kek_id", "updated_at", ...COLS_ESTADO_008].sort();
 const INSERT_AUDITORIA_WORKER = [
   "credencial_id",
   "cliente_id",
@@ -401,7 +406,7 @@ describe("CA-4c matriz de privilegios de credencial (catalogo)", () => {
       await columnasConPrivilegio("credencial", "contapp_worker", "SELECT"),
     ).toEqual(COLS_CREDENCIAL);
   });
-  it("contapp_worker: UPDATE solo de dek_envuelta, kek_id y updated_at (ciphertext/nonce/tag los protege la BD)", async () => {
+  it("contapp_worker: UPDATE solo de dek_envuelta, kek_id, updated_at y las 3 de estado de 008 (ciphertext/nonce/tag los protege la BD)", async () => {
     expect(
       await columnasConPrivilegio("credencial", "contapp_worker", "UPDATE"),
     ).toEqual(UPDATE_WORKER);
@@ -1277,6 +1282,7 @@ describe("repositorios del worker: listarParaReenvolver y reemplazarDekEnvuelta 
         dekAnterior: sobre.dekEnvuelta,
         dekNueva: nueva,
         kekNuevo: "k2",
+        kekAnterior: "k1", // 008 (CA-12): obligatorio
       });
       return { ok, nueva, sobre, fila: await sobreEnBd(tx, id) };
     });
@@ -1304,6 +1310,7 @@ describe("repositorios del worker: listarParaReenvolver y reemplazarDekEnvuelta 
         dekAnterior: sobre.dekEnvuelta,
         dekNueva: nueva,
         kekNuevo: "k2",
+        kekAnterior: "k1", // 008 (CA-12): obligatorio
       };
       const a = await reemplazarDekEnvuelta(tx, args);
       const b = await reemplazarDekEnvuelta(tx, {
@@ -1331,6 +1338,7 @@ describe("repositorios del worker: listarParaReenvolver y reemplazarDekEnvuelta 
         dekAnterior: randomBytes(512),
         dekNueva: randomBytes(512),
         kekNuevo: "k2",
+        kekAnterior: "k1", // 008 (CA-12): obligatorio
       });
       return { ok, sobre, fila: await sobreEnBd(tx, id) };
     });
@@ -1358,6 +1366,7 @@ describe("repositorios del worker: listarParaReenvolver y reemplazarDekEnvuelta 
         dekAnterior: original.dekEnvuelta,
         dekNueva: randomBytes(512),
         kekNuevo: "k2",
+        kekAnterior: "k1", // 008 (CA-12): obligatorio
       });
       return { ok, nuevoBackend, fila: await sobreEnBd(tx, id) };
     });
@@ -1380,6 +1389,7 @@ describe("repositorios del worker: listarParaReenvolver y reemplazarDekEnvuelta 
           dekAnterior: sobre.dekEnvuelta,
           dekNueva: randomBytes(512),
           kekNuevo: "k2",
+          kekAnterior: "k1", // 008 (CA-12): obligatorio
         }),
       );
     });
@@ -1490,6 +1500,7 @@ describe.each<[Estudio, Estudio]>([
             dekAnterior: a.sobre.dekEnvuelta,
             dekNueva: randomBytes(512),
             kekNuevo: "k2",
+            kekAnterior: "k1", // 008 (CA-12): obligatorio
           });
           await enTenant(tx, tenantDe(ajeno));
           return { ok, a, fila: await sobreEnBd(tx, a.id) };
@@ -1858,5 +1869,68 @@ describe("CredencialRepoError: solo el SQLSTATE, sin detail ni valores", () => {
     expect(err).not.toHaveProperty("detail");
     expect(err.cause).toBeUndefined();
     expect(JSON.stringify(err)).not.toContain("ciphertext");
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Spec 008 (T3, CA-12, nota [008]): `kekAnterior` deja de ser opcional en reemplazarDekEnvuelta.
+// Contrato (T7): sin `kekAnterior` (ausente, undefined, null o cadena vacia) la funcion LANZA antes de ejecutar
+// ninguna consulta (falla cerrado) y el tipo lo exige (@ts-expect-error en packages/db/src/credenciales/repositorio.spec.ts).
+// ---------------------------------------------------------------------------------------------
+describe("008 · reemplazarDekEnvuelta exige kekAnterior (falla cerrado antes de consultar)", () => {
+  const SIN_KEK: [string, Record<string, unknown>][] = [
+    ["ausente", {}],
+    ["undefined", { kekAnterior: undefined }],
+    ["null", { kekAnterior: null }],
+    ["cadena vacia", { kekAnterior: "" }],
+  ];
+
+  it.each(SIN_KEK)("kekAnterior %s: rechaza, no consulta nada y no toca la fila", async (_n, extra) => {
+    const r = await enRollback(db, { tenantId: tenantDe("A") }, async (tx) => {
+      const { id, sobre } = await sembrar(tx, tenantDe("A"), clientesDe("A")[0].id, "sol");
+      await como(tx, "contapp_worker");
+      let consultas = 0;
+      const espia = {
+        ...tx,
+        query: (...a: Parameters<Tx["query"]>) => {
+          consultas += 1;
+          return tx.query(...a);
+        },
+      } as Tx;
+      const intento = await capturar(espia, () =>
+        reemplazarDekEnvuelta(espia, {
+          id,
+          dekAnterior: sobre.dekEnvuelta,
+          dekNueva: randomBytes(512),
+          kekNuevo: "k2",
+          ...extra,
+        }),
+      );
+      // `capturar` hace SAVEPOINT/RELEASE por `espia.query`: se descuentan (2 como maximo) del conteo.
+      return { intento, consultas, fila: await sobreEnBd(tx, id), sobre };
+    });
+    expect(r.intento.ok).toBe(false);
+    // capturar() usa 2 consultas propias (SAVEPOINT y ROLLBACK TO): cualquier consulta adicional es del repositorio.
+    expect(r.consultas).toBe(2);
+    expect(igual(r.fila!.dek_envuelta, r.sobre.dekEnvuelta)).toBe(true);
+    expect(r.fila!.kek_id).toBe("k1");
+  });
+
+  it("con kekAnterior distinto del kek_id actual devuelve false y no cambia la fila (CAS por kek_id)", async () => {
+    const r = await enRollback(db, { tenantId: tenantDe("A") }, async (tx) => {
+      const { id, sobre } = await sembrar(tx, tenantDe("A"), clientesDe("A")[0].id, "sol");
+      await como(tx, "contapp_worker");
+      const ok = await reemplazarDekEnvuelta(tx, {
+        id,
+        dekAnterior: sobre.dekEnvuelta,
+        dekNueva: randomBytes(512),
+        kekNuevo: "k2",
+        kekAnterior: "k9",
+      });
+      return { ok, fila: await sobreEnBd(tx, id), sobre };
+    });
+    expect(r.ok).toBe(false);
+    expect(igual(r.fila!.dek_envuelta, r.sobre.dekEnvuelta)).toBe(true);
+    expect(r.fila!.kek_id).toBe("k1");
   });
 });

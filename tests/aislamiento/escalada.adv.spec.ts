@@ -16,7 +16,7 @@ import {
   type Tx,
 } from "./soporte";
 import type { Pool } from "pg";
-import { FUNCIONES_AUTH } from "./auth-soporte";
+import { FUNCIONES_AUTH, FUNCIONES_SISTEMA } from "./auth-soporte";
 import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -277,7 +277,11 @@ describe("ADV escalada desde DATABASE_URL", () => {
          join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'uuid_v7'`,
     );
     // Spec 004 (D10) y 005 (D7): las unicas SECURITY DEFINER admitidas son las de FUNCIONES_AUTH (15) del esquema `auth`.
-    expect(defs.map((d) => d.f).sort()).toEqual(FUNCIONES_AUTH.map((n) => `auth.${n}`).sort());
+    // Ajuste de 008 (T3, D18): FUNCIONES_AUTH pasa a 16 (auth.purgar) y se admiten las dos del esquema `sistema`
+    // (devuelven solo UUID; dueño contapp_enumerador; EXECUTE solo contapp_worker).
+    expect(defs.map((d) => d.f).sort()).toEqual(
+      [...FUNCIONES_AUTH.map((n) => `auth.${n}`), ...FUNCIONES_SISTEMA.map((n) => `sistema.${n}`)].sort(),
+    );
     expect(vistas).toEqual([]);
     expect(uuid).toEqual([{ prosecdef: false, dueno: "contapp_migrator" }]);
   });

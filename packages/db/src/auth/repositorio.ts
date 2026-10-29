@@ -62,6 +62,8 @@ export interface AuthRepo {
   /** null si el estudio pedido no tiene membresía o la credencial ya no es la verificada (no se crea sesión). */
   loginExito(a: LoginExitoArgs): Promise<SesionEmitida | null>;
   sesionValidar(tokenHash: Buffer): Promise<SesionValida | null>;
+  /** 008 (D22): valida igual que `sesionValidar` pero sin escrituras (no renueva `ultimo_uso` ni limpia el estudio). */
+  sesionConsultar(tokenHash: Buffer): Promise<SesionValida | null>;
   sesionRotar(tokenHash: Buffer, tokenHashNuevo: Buffer, tenantNuevo: string | null): Promise<SesionEmitida | null>;
   sesionRevocar(tokenHash: Buffer): Promise<void>;
   sesionesCerrarTodas(tokenHash: Buffer): Promise<number>;
@@ -85,6 +87,7 @@ const SQL = {
   loginExito:
     "select * from auth.login_exito($1::bytea, $2::uuid, $3::text, $4::bytea, $5::uuid, $6::text, $7::bytea)",
   sesionValidar: "select * from auth.sesion_validar($1::bytea)",
+  sesionConsultar: "select * from auth.sesion_consultar($1::bytea)",
   sesionRotar: "select * from auth.sesion_rotar($1::bytea, $2::bytea, $3::uuid)",
   sesionRevocar: "select * from auth.sesion_revocar($1::bytea)",
   sesionesCerrarTodas: "select * from auth.sesiones_cerrar_todas($1::bytea)",
@@ -105,6 +108,17 @@ const sesionEmitida = (f: Fila): SesionEmitida => ({
   sesionId: f.sesion_id,
   expiraAbsoluta: f.expira_absoluta,
 });
+
+const sesionValida = (f: Fila[]): SesionValida | null =>
+  f.length === 0
+    ? null
+    : {
+        sesionId: f[0]!.sesion_id,
+        usuarioId: f[0]!.usuario_id,
+        tenantActivo: f[0]!.tenant_activo ?? null,
+        estudioRevocado: f[0]!.estudio_revocado === true,
+        expiraAbsoluta: f[0]!.expira_absoluta,
+      };
 
 /** Fachada sobre la transacción abierta por `withAuth`. */
 export function crearAuthRepo(tx: TxConsulta): AuthRepo {
@@ -134,18 +148,8 @@ export function crearAuthRepo(tx: TxConsulta): AuthRepo {
         [a.clave, a.usuarioId, a.hashVerificado, a.tokenHash, a.tenantActivo, a.hashNuevo, a.tokenAnteriorHash],
         (f) => (f.length === 0 ? null : sesionEmitida(f[0]!)),
       ),
-    sesionValidar: (tokenHash) =>
-      ejecutar(SQL.sesionValidar, [tokenHash], (f) =>
-        f.length === 0
-          ? null
-          : {
-              sesionId: f[0]!.sesion_id,
-              usuarioId: f[0]!.usuario_id,
-              tenantActivo: f[0]!.tenant_activo ?? null,
-              estudioRevocado: f[0]!.estudio_revocado === true,
-              expiraAbsoluta: f[0]!.expira_absoluta,
-            },
-      ),
+    sesionValidar: (tokenHash) => ejecutar(SQL.sesionValidar, [tokenHash], sesionValida),
+    sesionConsultar: (tokenHash) => ejecutar(SQL.sesionConsultar, [tokenHash], sesionValida),
     sesionRotar: (tokenHash, tokenHashNuevo, tenantNuevo) =>
       ejecutar(SQL.sesionRotar, [tokenHash, tokenHashNuevo, tenantNuevo], (f) =>
         f.length === 0 ? null : sesionEmitida(f[0]!),

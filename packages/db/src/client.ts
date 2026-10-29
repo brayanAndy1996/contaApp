@@ -32,6 +32,12 @@ export interface ContappDb {
    * `auth.*`. Solo con rolApp = contapp_backend; no se anida con withTenant/withUsuario/withAuth.
    */
   withAuth<T>(fn: (a: AuthRepo) => Promise<T>): Promise<T>;
+  /**
+   * Spec 008 (D18): una transacción como contapp_worker sin estudio (app.tenant_id vacío) para `sistema.*`,
+   * `auth.purgar` y config_sistema; la RLS deja vacías las tablas de negocio. Solo con rolApp = contapp_worker
+   * (con otro rol rechaza con ConfiguracionDbError sin abrir conexión); no se anida (WithTenantAnidadoError).
+   */
+  withSistema<T>(fn: (tx: Tx) => Promise<T>): Promise<T>;
   /** Solo para pruebas (CA-6): fuera de withTenant no tiene permisos sobre tablas. */
   pool: Pool;
   close(): Promise<void>;
@@ -64,6 +70,12 @@ export function createDb(o: OpcionesDb): ContappDb {
       // Solo el backend ejecuta auth.*: con otro rol se rechaza sin abrir conexión.
       if (rolApp !== "contapp_backend") throw new ConfiguracionDbError("rol");
       return ejecutarEnContexto(pool, rolApp, ajusteAuth, (tx) => fn(crearAuthRepo(tx)));
+    },
+    withSistema: async (fn) => {
+      // Solo el worker enumera estudios y purga: el backend nunca obtiene este contexto.
+      if (rolApp !== "contapp_worker") throw new ConfiguracionDbError("rol");
+      // Mismo contexto vacío que withAuth (app.tenant_id y app.user_id = '').
+      return ejecutarEnContexto(pool, rolApp, ajusteAuth, fn);
     },
     close: async () => {
       if (cerrada) return;

@@ -80,3 +80,44 @@ export type { MotivoRegla } from "./acceso/errores";
 export * as schema from "./schema";
 export { auditoriaDescifrado, credencial } from "./schema/credenciales";
 export { SEED } from "./seed/datos";
+// Spec 008: trabajos (job_registro con la `tx` de withTenant; sistema.*, auth.purgar y config con la de withSistema).
+export {
+  contarPendientes,
+  insertarTrabajo,
+  leerTrabajo,
+  listarTrabajos,
+  posicion,
+  purgarTerminados,
+  revalidarEncolado,
+  siguienteDisponible,
+  siguientesDisponibles,
+  trabajoVivoPorClave,
+  transicionar,
+} from "./trabajos/registro";
+export type {
+  CamposTransicion,
+  GuardaTransicion,
+  OpcionesInsertar,
+  CanalTrabajo,
+  ColaTrabajo,
+  EstadoTrabajo,
+  FiltrosTrabajos,
+  MotivoTrabajo,
+  NuevoTrabajo,
+  PrioridadTrabajo,
+  Revalidable,
+  TrabajoFila,
+  TrabajoVistaDb,
+} from "./trabajos/registro";
+export { leerConfig } from "./trabajos/config";
+export type { ConfigCola } from "./trabajos/config";
+export { estudiosConTrabajos, estudiosIds, purgarAuth } from "./trabajos/sistema";
+export type { ConteosPurga, RetencionesAuth } from "./trabajos/sistema";
+export { TrabajosRepoError } from "./trabajos/errores";
+export {
+  estadoCredencial,
+  marcarCredencialInvalida,
+  versionCredencial,
+} from "./credenciales/estado";
+export type { EstadoDeCredencial, MotivoEstadoCredencial } from "./credenciales/estado";
+export { configSistema, jobRegistro } from "./schema/trabajos";

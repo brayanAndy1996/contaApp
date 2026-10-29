@@ -6,6 +6,7 @@ import {
   type ExceptionFilter,
 } from "@nestjs/common";
 import { ContrasenaInvalidaError } from "../modules/auth/errores.js";
+import { respuestaDeErrorCola } from "../modules/trabajos/errores.js";
 
 export interface EventoError {
   clase: string;
@@ -66,6 +67,11 @@ export class FiltroErrores implements ExceptionFilter {
         estado: 400,
         cuerpo: { codigo: "contrasena_invalida", motivo: excepcion.motivo },
       };
+    }
+    // Errores tipados de la cola (008): 429 cola_llena, 404 cliente, 400 parámetros; el resto cae en el 500.
+    const deCola = respuestaDeErrorCola(excepcion);
+    if (deCola !== null) {
+      return { estado: deCola.estado, cuerpo: { codigo: deCola.codigo } };
     }
     if (excepcion instanceof HttpException) {
       const estado = excepcion.getStatus();

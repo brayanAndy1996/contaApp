@@ -32,6 +32,10 @@ function txFalso(rows: unknown[]) {
   return { repo: crearAuthRepo(tx), llamadas };
 }
 
+/** Spec 008 (D22, T11c): `sesionConsultar` aún no está en `AuthRepo`; este tipo deja compilar el rojo. */
+type ConConsultar = AuthRepo & { sesionConsultar(tokenHash: Buffer): Promise<unknown> };
+const consultar = (r: AuthRepo, t: Buffer) => (r as ConConsultar).sesionConsultar(t);
+
 interface Caso {
   metodo: string;
   funcion: string;
@@ -145,6 +149,30 @@ const casos: Caso[] = [
     metodo: "sesionValidar (cero filas)",
     funcion: "sesion_validar",
     llamar: (r) => r.sesionValidar(T1),
+    valores: [T1],
+    filas: [],
+    esperado: null,
+  },
+  {
+    metodo: "sesionConsultar (vigente)",
+    funcion: "sesion_consultar",
+    llamar: (r) => consultar(r, T1),
+    valores: [T1],
+    filas: [{ sesion_id: S, usuario_id: U, tenant_activo: T, estudio_revocado: false, expira_absoluta: F }],
+    esperado: { sesionId: S, usuarioId: U, tenantActivo: T, estudioRevocado: false, expiraAbsoluta: F },
+  },
+  {
+    metodo: "sesionConsultar (estudio revocado)",
+    funcion: "sesion_consultar",
+    llamar: (r) => consultar(r, T1),
+    valores: [T1],
+    filas: [{ sesion_id: S, usuario_id: U, tenant_activo: null, estudio_revocado: true, expira_absoluta: F }],
+    esperado: { sesionId: S, usuarioId: U, tenantActivo: null, estudioRevocado: true, expiraAbsoluta: F },
+  },
+  {
+    metodo: "sesionConsultar (cero filas)",
+    funcion: "sesion_consultar",
+    llamar: (r) => consultar(r, T1),
     valores: [T1],
     filas: [],
     esperado: null,
@@ -288,6 +316,17 @@ describe("AuthRepo: una función TS por función SQL auth.*", () => {
       if (typeof v === "string" && v.length > 0) expect(texto).not.toContain(v);
     }
     expect(texto).toMatch(/\$1/);
+  });
+});
+
+describe("AuthRepo.sesionConsultar (D22): distinta de sesionValidar", () => {
+  it("existe como método y su SQL llama a auth.sesion_consultar, nunca a auth.sesion_validar", async () => {
+    const { repo, llamadas } = txFalso([]);
+    expect(typeof (repo as unknown as Record<string, unknown>).sesionConsultar).toBe("function");
+    await consultar(repo, T1);
+    expect(llamadas).toHaveLength(1);
+    expect(llamadas[0]!.texto).toMatch(/auth\.sesion_consultar\s*\(/);
+    expect(llamadas[0]!.texto).not.toMatch(/sesion_validar/);
   });
 });
 

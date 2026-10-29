@@ -33,6 +33,8 @@ export function crearEntorno(): Entorno {
     loginPreparar: vi.fn(async () => ({ permitido: true, usuarioId: U, hash: HASH, alcanzaBloqueo: false })),
     loginExito: vi.fn(async () => ({ sesionId: "s-nueva", expiraAbsoluta: new Date(Date.now() + 12 * HORA) })),
     sesionValidar: vi.fn(async () => null),
+    // 008 (D22, T11c): sin uso en las unitarias de 004; solo para que el doble cumpla `AuthRepo`.
+    sesionConsultar: vi.fn(async () => null),
     sesionRotar: vi.fn(async () => ({ sesionId: "s-rotada", expiraAbsoluta: new Date(Date.now() + HORA) })),
     sesionRevocar: vi.fn(async () => undefined),
     sesionesCerrarTodas: vi.fn(async () => 2),
