@@ -128,10 +128,10 @@ Ley 29733 (Protección de Datos Personales): términos de servicio, consentimien
 
 | Pieza | Local |
 |---|---|
-| BD | PostgreSQL 17 (ya instalado) |
-| Cola | Redis (Docker o Memurai en Windows) |
+| BD | PostgreSQL 17 en Docker (`postgres:17`, `docker-compose.yml`; spec 019) |
+| Cola | Redis 7 en Docker (`redis:7`, `docker-compose.yml`); alternativa Memurai en Windows |
 | Llave maestra | `.env` local, fuera de git |
-| Correo (invitaciones, alertas) | Mailpit/consola |
+| Correo (invitaciones, alertas) | Mailpit en Docker (UI en `localhost:8025`) o consola |
 | Archivos (TXT/ZIP/XML) | carpeta local `storage/` (luego S3) |
 
 Ojo: aun en local se usan **claves SOL reales** de clientes reales. Se aplican las mismas reglas de cifrado desde el día 1.

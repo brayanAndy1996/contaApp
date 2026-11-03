@@ -4,6 +4,8 @@
   "scripts": {
     "test": "turbo run test",
     "dev": "turbo run dev",
+    "servicios:up": "docker compose up -d --wait",
+    "servicios:down": "docker compose down",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
