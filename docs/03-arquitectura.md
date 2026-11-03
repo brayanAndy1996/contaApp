@@ -238,11 +238,14 @@ Convenciones: PK `uuid` v7, montos `NUMERIC(14,2)`, `created_at`/`updated_at` co
 | frontend | `pnpm dev` | 3000 |
 | backend | `pnpm dev` | 4000 |
 | worker | `pnpm dev` | — |
-| PostgreSQL 17 | instalado en Windows (o Docker) | 5432 |
-| Redis | Docker (`redis:7`) | 6379 |
-| Mailpit | Docker | 1025 SMTP / 8025 UI |
+| PostgreSQL 17 | Docker (`postgres:17`, `docker-compose.yml`) | `POSTGRES_PORT` (5432) |
+| Redis | Docker (`redis:7`, `docker-compose.yml`) | `REDIS_PORT` (6379) |
+| Mailpit | Docker (`axllent/mailpit`, `docker-compose.yml`) | `MAILPIT_SMTP_PORT` (1025) SMTP / `MAILPIT_UI_PORT` (8025) UI |
 
-- `pnpm setup:local` → crea `.env` desde `.env.example`, genera el par de llaves en `./secrets/`, crea roles y BD, corre migraciones y seed.
+- Servicios de Docker con las mismas imágenes que el CI (spec 019): `pnpm servicios:up` espera a los healthchecks; `pnpm servicios:down` conserva los datos; `docker compose down -v` borra la BD y los volúmenes. Las apps no van en Docker: corren con `pnpm dev`.
+- Primera vez: copiar `.env.example` a `.env` → `pnpm install` → `pnpm servicios:up` → `pnpm build` (los comandos de BD usan `dist/`) → `pnpm db:migrate` → `pnpm db:seed` → `pnpm dev`.
+- `DATABASE_URL` debe llevar contraseña para `contapp_app`: `db:migrate` la fija en el rol desde esa URL. `POSTGRES_PASSWORD` solo se aplica al crear el volumen de PostgreSQL; para cambiarla, `docker compose down -v` y volver a migrar.
+- `pnpm setup:local` (planeado: crear `.env`, generar llaves en `./secrets/`, crear roles y BD, migrar y sembrar) todavía no existe en `package.json`; usa los pasos de arriba.
 - Seed: 1 plataforma admin, 2 tenants (para probar aislamiento), usuarios de cada rol, 10 clientes con credenciales falsas, 2 periodos con los casos reales (San Juan ISC, mixta 21.48/1.61, redondeo USD, boleta 291 faltante, compra "zapatilla").
 - Todo con adaptadores `mock` por defecto.
 
@@ -414,7 +417,6 @@ contapp/
 │   └── excel/                            # plantilla de importación de clientes
 │
 ├── infra/
-│   ├── docker-compose.yml                # redis, mailpit (y postgres opcional)
 │   └── scripts/                          # setup-local, generar-llaves, crear-roles-db
 │
 ├── tests/
@@ -428,6 +430,7 @@ contapp/
 │
 ├── secrets/                              # llaves locales (en .gitignore)
 ├── storage/                              # archivos locales (en .gitignore)
+├── docker-compose.yml                    # servicios locales: postgres 17, redis 7, mailpit (spec 019)
 ├── .env.example
 ├── package.json
 ├── pnpm-workspace.yaml

@@ -31,7 +31,7 @@
 $ pnpm install
 ```
 
-Redis 7 en local: arráncalo en `localhost:6379` (`redis-server` en Linux o WSL, o en la máquina de desarrollo en la nube); `REDIS_URL` apunta a `redis://localhost:6379` (ver `.env.example`).
+Redis 7 en local: `pnpm servicios:up` lo levanta en Docker (`redis:7`, ver `docker-compose.yml`), en el puerto `REDIS_PORT` (6379 por defecto). `REDIS_URL` apunta a `redis://localhost:6379` (ver `.env.example`); si cambias `REDIS_PORT`, cambia también la URL.
 
 ## Compile and run the project
 
