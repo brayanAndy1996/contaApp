@@ -65,6 +65,11 @@ describe("r2a · migración 0008_auth_ronda1", () => {
     try {
       await c.query("BEGIN");
       await c.query("SET LOCAL lock_timeout = '20s'");
+      // Ajuste de 006: 0024 permite los tipos registro_ip y registro_correo en limite_tasa_tipo_valido; 0008 vuelve a
+      // agregar ese CHECK con los tipos de 004 y falla (23514) si hay filas registro_* (las deja el registro publico). Se
+      // quitan dentro de esta transaccion (conexion de migraciones, sin RLS): el ROLLBACK final las restaura, asi que
+      // la prueba no altera los datos y sigue verificando lo mismo (repetibilidad y ACL de 0008).
+      await c.query("DELETE FROM auth.limite_tasa WHERE tipo IN ('registro_ip', 'registro_correo')");
       const antes = await foto(c);
       for (let vuelta = 1; vuelta <= 2; vuelta++) {
         for (const [i, s] of sentencias.entries()) {
