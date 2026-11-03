@@ -16,6 +16,8 @@ import {
   type Yo,
 } from "../../../lib/acceso";
 import { api, type RespuestaApi } from "../../../lib/api";
+import { UsoPlan } from "../../../components/uso-plan";
+import { MENSAJES_PLAN } from "../../../lib/planes";
 
 // Usuarios del estudio (spec 005, CA-15): miembros, invitaciones y sus acciones. Todo se decide en
 // el servidor; aquí solo se oculta lo que el rol no puede hacer (RNF-007).
@@ -41,6 +43,8 @@ export default function Usuarios() {
   const [correo, setCorreo] = useState("");
   const [rolNuevo, setRolNuevo] = useState<Rol>("lectura");
   const [ocupado, setOcupado] = useState(false);
+  // Un 409 cupo_usuarios añade el aviso de cómo subir de plan (D8), además del mensaje del servidor.
+  const [cupoAgotado, setCupoAgotado] = useState(false);
 
   const recargarMiembros = useCallback(async () => {
     const r = await api<Miembro[]>("/usuarios");
@@ -86,11 +90,17 @@ export default function Usuarios() {
   ): Promise<boolean> {
     setError(null);
     setAviso(null);
+    setCupoAgotado(false);
     setOcupado(true);
     try {
       const r = await accion();
       if (!r.ok) {
-        if (r.status !== 401) setError(mensajeDeError(r.status, r.datos));
+        if (r.status !== 401) {
+          setError(mensajeDeError(r.status, r.datos));
+          setCupoAgotado(
+            r.status === 409 && r.datos?.codigo === "cupo_usuarios",
+          );
+        }
         return false;
       }
       if (exito) setAviso(exito);
@@ -129,14 +139,16 @@ export default function Usuarios() {
     <main className="flex flex-col gap-6 p-6">
       <h1 className="text-2xl font-semibold">Usuarios</h1>
       {error && (
-        <p role="alert" className="text-sm text-red-600">
-          {error}
-        </p>
+        <div role="alert" className="flex flex-col gap-1 text-sm text-red-600">
+          <p>{error}</p>
+          {cupoAgotado && <p>{MENSAJES_PLAN.subirDePlan}</p>}
+        </div>
       )}
       {aviso && <p role="status">{aviso}</p>}
       {yo && !puedeVer && <p>{MENSAJES.sinPermiso}</p>}
       {yo && puedeVer && (
         <>
+          <UsoPlan />
           <section className="flex flex-col gap-2">
             <h2 className="text-lg font-medium">Miembros</h2>
             <table className="w-full text-left text-sm">

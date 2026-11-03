@@ -20,6 +20,8 @@ const nextConfig: NextConfig = {
       { source: "/login", headers: politica },
       // La invitación también viaja en el fragmento (#t=): sin Referer (spec 005, D7).
       { source: "/invitacion", headers: politica },
+      // La confirmación del registro también usa el fragmento (#t=): sin Referer (spec 006, D3).
+      { source: "/registro/confirmar", headers: politica },
     ];
   },
   // El navegador llama a /api/*; Next lo reenvía al backend (mismo origen para la cookie).
