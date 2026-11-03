@@ -7,7 +7,7 @@
 // - usuario.email: CHECK (btrim, lower, NFC) e indice unico sobre lower(email).
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { FUNCIONES_AUTH, ROLES_SIN_ACCESO, TABLAS_AUTH, abrirAdmin } from "./auth-soporte";
+import { FUNCIONES_AUTH, FUNCIONES_AUTH_SOLO_WORKER, ROLES_SIN_ACCESO, TABLAS_AUTH, abrirAdmin } from "./auth-soporte";
 import { abrirPool, intentarRaw, semilla } from "./soporte";
 
 let pool: Pool; // contapp_app (DATABASE_URL)
@@ -161,6 +161,18 @@ describe("CA-11 privilegios de tabla en auth.*", () => {
     },
   );
 
+  // Ajuste de 008 (T3, CA-13, plan "BD"): auth.purgar (SECURITY DEFINER, dueño contapp_auth) borra filas de 4 tablas.
+  // Las politicas auth_definer (FOR ALL) ya cubren DELETE y 0007 ya concede DELETE de tabla a contapp_auth: no hay politica ni
+  // GRANT nuevos que hacer (hueco del plan). Esta prueba fija que sigue siendo asi y que nadie tiene TRUNCATE.
+  it("contapp_auth conserva DELETE en sesion, token_recuperacion, intento_login y limite_tasa (lo usa auth.purgar); TRUNCATE en ninguna", async () => {
+    const tiene = async (t: string, p: string) =>
+      (await consulta("select has_table_privilege('contapp_auth', to_regclass($1), $2) as v", [`auth.${t}`, p]))[0].v;
+    for (const t of ["sesion", "token_recuperacion", "intento_login", "limite_tasa"]) {
+      expect(await tiene(t, "DELETE"), `${t} DELETE`).toBe(true);
+    }
+    for (const t of TABLAS_AUTH) expect(await tiene(t, "TRUNCATE"), `${t} TRUNCATE`).toBe(false);
+  });
+
   it("el backend puede usar el esquema (USAGE) pero ningun rol de la app puede crear objetos en el", async () => {
     const usage = await consulta("select has_schema_privilege('contapp_backend', 'auth', 'USAGE') as v");
     expect(usage[0].v).toBe(true);
@@ -234,7 +246,9 @@ describe("CA-11 funciones auth.*: solo contapp_backend ejecuta", () => {
     }
   });
 
-  it("EXECUTE solo para contapp_backend: ni PUBLIC, ni worker, ni platform, ni contapp_app", async () => {
+  // Ajuste de 008 (T3, plan "BD"): auth.purgar (D16) la ejecuta SOLO contapp_worker. Las otras 15 siguen siendo solo del
+  // backend. El resto de la matriz (platform, contapp_app y PUBLIC sin EXECUTE) no cambia.
+  it("EXECUTE solo para contapp_backend (purgar: solo contapp_worker): ni PUBLIC, ni platform, ni contapp_app", async () => {
     const r = await consulta(
       `select p.proname,
               has_function_privilege('contapp_backend', p.oid, 'EXECUTE') as backend,
@@ -246,8 +260,9 @@ describe("CA-11 funciones auth.*: solo contapp_backend ejecuta", () => {
     );
     expect(r).toHaveLength(FUNCIONES_AUTH.length);
     for (const f of r) {
-      expect(f.backend, `${f.proname} backend`).toBe(true);
-      expect(f.worker, `${f.proname} worker`).toBe(false);
+      const soloWorker = (FUNCIONES_AUTH_SOLO_WORKER as readonly string[]).includes(f.proname);
+      expect(f.backend, `${f.proname} backend`).toBe(!soloWorker);
+      expect(f.worker, `${f.proname} worker`).toBe(soloWorker);
       expect(f.platform, `${f.proname} platform`).toBe(false);
       expect(f.app, `${f.proname} contapp_app`).toBe(false);
       expect(f.publico, `${f.proname} PUBLIC`).toBe(false);

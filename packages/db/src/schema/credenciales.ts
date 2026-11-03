@@ -35,6 +35,11 @@ export const credencial = pgTable(
     kekId: text("kek_id").notNull(),
     version: smallint("version").notNull().default(1),
     ...marcasDeTiempo(),
+    // Spec 008 (D13): estado de la credencial. Sus CHECK, grants y el trigger credencial_reinicia_estado están en
+    // 0018_trabajos_rls (el inventario de CHECK de 003, schema/credenciales.spec.ts, no cambia).
+    estado: text("estado").notNull().default("configurada"),
+    estadoMotivo: text("estado_motivo"),
+    estadoAt: timestamp("estado_at", { withTimezone: true }),
   },
   (t) => [
     unique("credencial_tenant_cliente_tipo_unique").on(

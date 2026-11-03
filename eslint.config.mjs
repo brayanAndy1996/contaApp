@@ -644,6 +644,10 @@ export default tseslint.config(
         "@node-rs/argon2/**",
         "@contapp/*",
         "!@contapp/shared",
+        "bullmq",
+        "bullmq/**",
+        "@contapp/queue",
+        "@contapp/queue/**",
         "**/packages/**",
         "!**/packages/shared",
         "!**/packages/shared/**",
@@ -668,6 +672,20 @@ export default tseslint.config(
               ],
               message:
                 "apps/backend no puede importar packages/sunat ni otras apps (03-arquitectura §2).",
+            },
+            {
+              group: [
+                "bullmq",
+                "bullmq/**",
+                "@contapp/queue/worker",
+                "@contapp/queue/worker/**",
+                "**/packages/queue/src/worker",
+                "**/packages/queue/src/worker/**",
+                "**/packages/queue/dist/worker",
+                "**/packages/queue/dist/worker/**",
+              ],
+              message:
+                "apps/backend no puede importar bullmq ni @contapp/queue/worker (solo el worker; spec 008).",
             },
             {
               group: [
@@ -758,11 +776,12 @@ export default tseslint.config(
       ],
     },
   },
-  // Dinero (spec 010, CA-1): sin `number` ni Math.* en dinero/ y comprobante/ (salvo pruebas).
+  // Dinero (spec 010/011, CA-1): sin `number` ni Math.* en dinero/, comprobante/ y reglas/ (salvo pruebas).
   {
     files: [
       "packages/domain/src/dinero/**",
       "packages/domain/src/comprobante/**",
+      "packages/domain/src/reglas/**",
     ],
     ignores: ["**/*.spec.ts"],
     rules: {
@@ -770,7 +789,7 @@ export default tseslint.config(
         "error",
         ...SINTAXIS_SIN_NUMBER_DOMINIO.map(([selector, message]) => ({
           selector,
-          message: `packages/domain: ${message} (spec 010, CA-1).`,
+          message: `packages/domain: ${message} (spec 010/011, CA-1).`,
         })),
         ...[
           ...SINTAXIS_PAQUETE_DOMINIO,

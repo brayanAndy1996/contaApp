@@ -5,8 +5,28 @@
 // o listas sin datos de B, y la BD de B queda intacta. Simétrica (B contra A). La lista de rutas sale de
 // las rutas registradas en Express: una ruta nueva sin caso hace fallar la prueba "toda ruta tiene caso".
 // Rojo: las rutas, tablas y roles de 005 aún no existen (T7 a T11).
-import { createHash, randomBytes } from "node:crypto";
+//
+// 008 (T6) agrega las 3 rutas de `/trabajos` (lista, stream SSE y cancelar) con los IDs del otro estudio: cada estudio
+// tiene un trabajo en cola por cliente (sembrado con `encolar` de `@contapp/queue`); un trabajo, un cliente o un canal
+// de eventos de B desde A dan 404/409 (o 200 sin datos de B), nunca un dato ni un efecto en B. El stream se prueba con
+// `node:http` y mensajes reales en `eventos:{tenantId}` (Redis base 15, prefijo propio). Rojo hasta T11.
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { TrabajoVista } from "@contapp/shared";
+import {
+  abrirSse,
+  cerrarSseAbiertos,
+  conectarRedis,
+  emitir,
+  esEventoId,
+  esperarSuscripcion,
+  limpiarPrefijo,
+  nuevoPrefijo,
+  sembrarTrabajo,
+  urlRedisPrueba,
+  vistaCon,
+  type RedisPrueba,
+} from "../../test/soporte-trabajos.js";
 import {
   abrirHarness,
   COOKIE,
@@ -35,6 +55,8 @@ interface Recursos {
   asistente: Actor;
   /** Clientes creados por la prueba (la asistente es responsable del primero). */
   clientes: [string, string];
+  /** Un trabajo en cola por cliente, creado por el Dueño (008). */
+  trabajos: [TrabajoVista, TrabajoVista];
   /** Marcadores de datos propios de este estudio que no deben verse desde el otro. */
   ids: string[];
   correos: string[];
@@ -61,6 +83,8 @@ interface Contexto {
   yo: Actor;
   mio: Recursos;
   ajeno: Recursos;
+  /** Sesión del actor (null en rutas públicas). */
+  sesion: Sesion | null;
   pedir(p: Pet, o?: { estudio?: string | null }): Promise<Resp>;
 }
 interface Caso {
@@ -86,6 +110,9 @@ let registradas: string[] = [];
 const sufijo = randomBytes(4).toString("hex");
 /** Clientes creados, registrados al instante para limpiarlos aunque el arranque falle a mitad. */
 const clientesCreados: string[] = [];
+/** Redis de las pruebas de `/trabajos`: base 15 y prefijo propio (la app recibe la misma URL y prefijo). */
+const prefijoRedis = nuevoPrefijo();
+let redis: RedisPrueba;
 
 const todos = (...n: number[]): Esperado => ({ dueno: n, asistente: n });
 const E404: Esperado = { dueno: [404], asistente: [403, 404] };
@@ -153,6 +180,12 @@ async function prepararEstudio(
     "insert into asignacion (tenant_id, cliente_id, usuario_id, tipo) values ($1, $2, $3, 'responsable') returning id",
     [tenantId, clientes[0], asistente.id],
   );
+  const trabajos: TrabajoVista[] = [];
+  for (const cl of clientes) {
+    trabajos.push(
+      await sembrarTrabajo(h, tenantId, cl!, { creadoPor: dueno.id }),
+    );
+  }
   const tokenHash = createHash("sha256").update(randomBytes(32)).digest();
   const invitacionCorreo = `inv${hex()}@hu40-${etiqueta.toLowerCase()}.contapp.test`;
   const inv = await h.sql(
@@ -166,6 +199,7 @@ async function prepararEstudio(
     dueno,
     asistente,
     clientes: [clientes[0]!, clientes[1]!],
+    trabajos: [trabajos[0]!, trabajos[1]!],
     ids: [],
     correos: [],
     otros: [],
@@ -207,6 +241,7 @@ async function calcularMarcadores(
     de.dueno.membresiaId,
     de.asistente.membresiaId,
     de.asignacionId,
+    ...de.trabajos.map((t) => t.id),
   ]);
   const correos = new Set<string>([de.invitacionCorreo]);
   const otros = new Set<string>([de.nombre]);
@@ -253,6 +288,10 @@ async function instantanea(
         where tenant_id = $1 and (cliente_id = any($2::uuid[]) or usuario_id = any($3::uuid[])) order by id`,
       [r.tenantId, r.clientes, uids],
     ),
+    job_registro: await q(
+      "select to_jsonb(j) j from job_registro j where tenant_id = $1 and cliente_id = any($2::uuid[]) order by id",
+      [r.tenantId, r.clientes],
+    ),
   };
   if (completo) {
     s.usuario = await q(
@@ -292,7 +331,10 @@ async function abrirSesion(u: Actor, tenantId: string): Promise<Sesion> {
 
 /** Fugas de datos del otro estudio en una respuesta (ids, correos, nombres, razones sociales, RUC). */
 function fugas(r: Resp, ajeno: Recursos, caso: Caso): string[] {
-  const texto = `${r.text}\n${JSON.stringify(r.body)}`.toLowerCase();
+  return fugasTexto(`${r.text}\n${JSON.stringify(r.body)}`, ajeno, caso);
+}
+function fugasTexto(crudo: string, ajeno: Recursos, caso: Caso): string[] {
+  const texto = crudo.toLowerCase();
   const marcas = [
     ...ajeno.ids,
     ...(caso.eco ? [] : ajeno.correos),
@@ -302,6 +344,8 @@ function fugas(r: Resp, ajeno: Recursos, caso: Caso): string[] {
 }
 
 const lista = (r: Resp): any[] => (Array.isArray(r.body) ? r.body : []);
+/** Caso mínimo para buscar fugas en el texto del stream (los correos de B sí cuentan como fuga). */
+const CASO_STREAM = { ruta: "GET /trabajos/stream" } as Caso;
 
 /* ------------------------------- Casos por ruta ----------------------------- */
 const base64url = (b: Buffer) => b.toString("base64url");
@@ -702,13 +746,130 @@ const CASOS: Caso[] = [
       ];
     },
   },
+
+  /* ---------- 008 ---------- */
+  {
+    // Lista: ni `tenantId` en la query ni un `clienteId` del otro estudio abren datos de B; el filtro por un cliente de
+    // B es 404 igual que uno inexistente. Cada rol ve solo lo suyo: el Dueño sus 2 trabajos, la asistente el de su cliente.
+    ruta: "GET /trabajos",
+    esperado: { dueno: [200, 404], asistente: [200, 404] },
+    construir: (c) => [
+      { ruta: "/trabajos" },
+      {
+        ruta: `/trabajos?tenantId=${c.ajeno.tenantId}&usuarioId=${c.ajeno.dueno.id}`,
+      },
+      { ruta: `/trabajos?clienteId=${c.ajeno.clientes[0]}` },
+      { ruta: `/trabajos?clienteId=${c.ajeno.clientes[1]}&estado=en_cola` },
+    ],
+    extra: async (c, r) => {
+      expect(r.map((x) => x.status)).toEqual([200, 200, 404, 404]);
+      const propios = c.mio.trabajos.map((t) => t.id);
+      const esperados = c.yo.rol === "dueno" ? propios : [propios[0]];
+      for (const x of [r[0]!, r[1]!])
+        expect(
+          lista(x)
+            .map((t) => t.id)
+            .sort(),
+        ).toEqual([...esperados].sort());
+      expect(r[2]!.body).toEqual({ codigo: "no_encontrado" });
+      expect(r[3]!.body).toEqual({ codigo: "no_encontrado" });
+    },
+  },
+  {
+    // Stream: con el X-Estudio del otro estudio es 409 (JSON, no stream); en el propio recibe solo los eventos de su
+    // canal y de su alcance, aunque se publiquen antes los eventos de B.
+    ruta: "GET /trabajos/stream",
+    esperado: todos(200),
+    construir: () => [],
+    extra: async (c) => {
+      const desfasado = await abrirSse(h, {
+        cookie: c.sesion!.cookie,
+        estudio: c.ajeno.tenantId,
+      });
+      expect(desfasado.status).toBe(409);
+      expect(desfasado.cuerpo).toEqual({ codigo: "estudio_desfasado" });
+      expect(fugasTexto(desfasado.texto, c.ajeno, CASO_STREAM)).toEqual([]);
+
+      const s = await abrirSse(h, {
+        cookie: c.sesion!.cookie,
+        estudio: c.mio.tenantId,
+      });
+      try {
+        expect(s.status).toBe(200);
+        await esperarSuscripcion(redis, prefijoRedis, c.mio.tenantId);
+        const cambia = (t: TrabajoVista) =>
+          vistaCon(t, {
+            estado: "ejecutando",
+            intentos: 1,
+            iniciadoEn: new Date().toISOString(),
+          });
+        // Primero lo de B: en su canal, y también (forzado) con los IDs de B dentro del canal propio no hay camino: solo el canal.
+        for (const t of c.ajeno.trabajos)
+          await emitir(redis, prefijoRedis, c.ajeno.tenantId, cambia(t));
+        await emitir(
+          redis,
+          prefijoRedis,
+          c.mio.tenantId,
+          cambia(c.mio.trabajos[1]),
+        );
+        await emitir(
+          redis,
+          prefijoRedis,
+          c.mio.tenantId,
+          cambia(c.mio.trabajos[0]),
+        );
+        expect(
+          await s.esperar(esEventoId(c.mio.trabajos[0].id), 2000),
+          "no llegó el evento propio",
+        ).not.toBeNull();
+        await new Promise((r) => setTimeout(r, 200));
+        const esperados =
+          c.yo.rol === "dueno"
+            ? [c.mio.trabajos[1].id, c.mio.trabajos[0].id]
+            : [c.mio.trabajos[0].id];
+        expect(s.eventos.map((e) => e.json.id)).toEqual(esperados);
+        expect(fugasTexto(s.texto, c.ajeno, CASO_STREAM)).toEqual([]);
+      } finally {
+        s.cerrar();
+      }
+    },
+  },
+  {
+    // Cancelar: IDs de trabajo del otro estudio (y de cliente, asignación e invitación de B, o inexistentes) son 404; el
+    // trabajo de B queda en_cola (la instantánea compara job_registro, incluido `actualizado_en`).
+    ruta: "POST /trabajos/:trabajoId/cancelar",
+    esperado: todos(404),
+    construir: (c) =>
+      [
+        ...c.ajeno.trabajos.map((t) => t.id),
+        ...idsDeCliente(c.ajeno),
+        c.ajeno.dueno.membresiaId,
+        randomUUID(),
+      ].map((id) => ({
+        metodo: "POST" as const,
+        ruta: `/trabajos/${id}/cancelar`,
+        cuerpo: { tenantId: c.ajeno.tenantId, estado: "cancelado" },
+      })),
+    extra: async (c, respuestas) => {
+      for (const r of respuestas)
+        expect(r.body).toEqual({ codigo: "no_encontrado" });
+      const filas = await h.sql(
+        "select estado from job_registro where id = any($1::uuid[])",
+        [c.ajeno.trabajos.map((t) => t.id)],
+      );
+      expect(filas.map((f) => f.estado)).toEqual(["en_cola", "en_cola"]);
+    },
+  },
 ];
 
 const POR_RUTA = new Map(CASOS.map((c) => [c.ruta, c]));
 
 /* ---------------------------------- Pruebas --------------------------------- */
 beforeAll(async () => {
-  h = await abrirHarness();
+  redis = conectarRedis();
+  h = await abrirHarness({
+    redis: { url: urlRedisPrueba(), prefijo: prefijoRedis },
+  });
   const s = seedAuth();
   A = await prepararEstudio(s.tenantA, "A");
   B = await prepararEstudio(s.tenantB, "B");
@@ -734,15 +895,24 @@ async function limpiar(): Promise<void> {
       [usuarios, clientesCreados],
     )
     .catch(() => undefined);
+  // job_registro referencia cliente y membresía: sus filas van antes.
+  await h
+    .sql("delete from job_registro where cliente_id = any($1::uuid[])", [
+      clientesCreados,
+    ])
+    .catch(() => undefined);
   await h
     .sql("delete from cliente where id = any($1::uuid[])", [clientesCreados])
     .catch(() => undefined);
+  cerrarSseAbiertos();
+  await limpiarPrefijo(redis, prefijoRedis).catch(() => undefined);
 }
 
 afterAll(async () => {
   if (!h) return;
   await limpiar();
   await h.cerrar();
+  redis?.disconnect();
 });
 
 describe("HU-40 por API · cobertura de rutas (CA-12)", () => {
@@ -798,7 +968,27 @@ describe("HU-40 por API · las pruebas no son vacías (controles con datos propi
       expect(invitaciones.status).toBe(200);
       expect(lista(invitaciones).map((x) => x.id)).toContain(mio.invitacionId);
 
+      // 008: el Dueño ve sus 2 trabajos (y no los de B); la asistente solo el de su cliente.
+      const trabajos = await pedir("/trabajos");
+      expect(trabajos.status).toBe(200);
+      expect(
+        lista(trabajos)
+          .map((x) => x.id)
+          .sort(),
+      ).toEqual(mio.trabajos.map((t) => t.id).sort());
+      expect(JSON.stringify(trabajos.body)).not.toContain(ajeno.trabajos[0].id);
+
       const a = await abrirSesion(mio.asistente, mio.tenantId);
+      const suyosTrabajos = await h.pedir({
+        ruta: "/trabajos",
+        cookie: a.cookie,
+        csrf: a.csrf,
+        estudio: mio.tenantId,
+      });
+      expect(suyosTrabajos.status).toBe(200);
+      expect(lista(suyosTrabajos).map((x) => x.id)).toEqual([
+        mio.trabajos[0].id,
+      ]);
       const suyos = await h.pedir({
         ruta: "/clientes",
         cookie: a.cookie,
@@ -865,7 +1055,7 @@ for (const combo of COMBOS) {
             ...(sesion && estudio ? { estudio } : {}),
           });
         };
-        const c: Contexto = { yo, mio, ajeno, pedir };
+        const c: Contexto = { yo, mio, ajeno, sesion, pedir };
 
         const ajenoAntes = await instantanea(ajeno, true);
         const propioAntes = await instantanea(mio, false);
@@ -893,7 +1083,12 @@ for (const combo of COMBOS) {
           }
 
           // Una petición con `X-Estudio` del otro estudio nunca llega al negocio (rutas con estudio).
-          if (!caso.publica && !caso.ruta.includes(" /auth/")) {
+          // (El stream no tiene petición común: su caso abre el SSE en `extra`.)
+          if (
+            peticiones.length > 0 &&
+            !caso.publica &&
+            !caso.ruta.includes(" /auth/")
+          ) {
             const r = await pedir(peticiones[0]!, { estudio: ajeno.tenantId });
             expect(
               ESTATUS_X_ESTUDIO_AJENO,

@@ -68,9 +68,12 @@ export interface Banco {
   cerrar(): Promise<void>;
 }
 
-/** `cupo`: adaptador de `CupoUsuarios` a inyectar en `crearApp` (por defecto, el sin límite de 005). */
-export async function abrirBanco(cupo?: object): Promise<Banco> {
-  const h = await abrirHarness(cupo ? { cupoUsuarios: cupo } : {});
+/**
+ * `cupo`: adaptador de `CupoUsuarios` a inyectar en `crearApp` (por defecto, el sin límite de 005).
+ * `extra` (008, T6): opciones adicionales de `crearApp` (p. ej. `redis: { url, prefijo }`).
+ */
+export async function abrirBanco(cupo?: object, extra: Record<string, unknown> = {}): Promise<Banco> {
+  const h = await abrirHarness({ ...(cupo ? { cupoUsuarios: cupo } : {}), ...extra });
   const urlAdmin = process.env.MIGRATIONS_DATABASE_URL;
   if (!urlAdmin) throw new Error("falta MIGRATIONS_DATABASE_URL para las pruebas de acceso");
   const admin = createDb({ rolApp: "contapp_backend", url: urlAdmin, poolMax: 2 });

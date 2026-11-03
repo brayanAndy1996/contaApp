@@ -7,6 +7,7 @@ import type { SesionResuelta } from "../auth.service.js";
 export const META_PUBLICO = "auth:publico";
 export const META_SIN_ESTUDIO = "auth:sin-estudio";
 export const META_SESION_OPCIONAL = "auth:sesion-opcional";
+export const META_SIN_RENOVAR = "auth:sin-renovar-sesion";
 
 /** Sin sesión ni CSRF (login, recuperación). `OrigenGuard` sigue aplicando. */
 export const Publico = () => SetMetadata(META_PUBLICO, true);
@@ -14,6 +15,8 @@ export const Publico = () => SetMetadata(META_PUBLICO, true);
 export const SinEstudio = () => SetMetadata(META_SIN_ESTUDIO, true);
 /** Usa la sesión si es válida (con su CSRF); sin sesión válida sigue igual (logout). */
 export const SesionOpcional = () => SetMetadata(META_SESION_OPCIONAL, true);
+/** 008 D22: valida la sesión sin renovarla (no cuenta como actividad). Solo `GET /trabajos/stream`. */
+export const SinRenovarSesion = () => SetMetadata(META_SIN_RENOVAR, true);
 
 /** Contexto de la petición (03 §4.1): lo fija `SesionGuard` fuera de `withTenant`. */
 export interface ContextoPeticion {

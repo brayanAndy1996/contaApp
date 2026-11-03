@@ -17,7 +17,8 @@
     "cobertura:crypto": "pnpm --filter @contapp/db build && pnpm --filter @contapp/crypto build && pnpm --filter @contapp/crypto test:cobertura",
     "cobertura:auth": "pnpm --filter @contapp/shared build && pnpm --filter @contapp/db build && pnpm --filter @contapp/backend test:cobertura",
     "cobertura:acceso": "pnpm --filter @contapp/shared build && pnpm --filter @contapp/db build && pnpm --filter @contapp/backend test:cobertura:acceso",
-    "ci:db": "pnpm --filter @contapp/shared build && pnpm --filter @contapp/db build && pnpm --filter @contapp/crypto build && pnpm db:migrate && pnpm db:migrate && pnpm db:seed && pnpm test:aislamiento && pnpm --filter @contapp/worker test:int && pnpm --filter @contapp/backend test:int"
+    "cobertura:cola": "pnpm --filter @contapp/shared build && pnpm --filter @contapp/db build && pnpm --filter @contapp/sunat build && pnpm --filter @contapp/queue build && pnpm --filter @contapp/worker test:cobertura:cola",
+    "ci:db": "pnpm --filter @contapp/shared build && pnpm --filter @contapp/db build && pnpm --filter @contapp/crypto build && pnpm --filter @contapp/sunat build && pnpm --filter @contapp/queue build && pnpm db:migrate && pnpm db:migrate && pnpm db:seed && pnpm test:aislamiento && pnpm --filter @contapp/worker test:int && pnpm --filter @contapp/backend test:int"
   },
   "packageManager": "pnpm@10.12.1",
   "private": true,

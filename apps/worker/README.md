@@ -31,6 +31,8 @@
 $ pnpm install
 ```
 
+Redis 7 en local: arráncalo en `localhost:6379` (`redis-server` en Linux o WSL, o en la máquina de desarrollo en la nube); `REDIS_URL` apunta a `redis://localhost:6379` (ver `.env.example`).
+
 ## Compile and run the project
 
 ```bash

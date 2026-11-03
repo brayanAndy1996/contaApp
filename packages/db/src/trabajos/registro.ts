@@ -1,0 +1,487 @@
+// Repositorio de `job_registro` (spec 008). Todas las funciones reciben la `tx` de withTenant (la RLS limita al estudio
+// del contexto) y usan SQL estático y parametrizado: los datos de entrada viajan como $n, nunca en el texto. Los grants
+// por columna de 0018 deciden qué puede cada rol (el backend encola y cancela; el worker despacha, ejecuta y purga).
+// Toda transición es un UPDATE ... WHERE estado = <desde>: gana quien obtiene rowCount = 1 (D2).
+import { sql, type SQL } from "drizzle-orm";
+import { filtroAlcance, renderizar, type Alcance } from "../acceso/alcance";
+import {
+  consultar,
+  TrabajosRepoError,
+  type Fila,
+  type TxConsulta,
+} from "./errores";
+
+export type EstadoTrabajo =
+  "en_cola" | "ejecutando" | "completado" | "error" | "cancelado";
+export type ColaTrabajo =
+  "sire" | "sol" | "xml" | "archivos" | "programados" | "notificaciones";
+export type CanalTrabajo = "sire" | "sol" | "ninguno";
+export type PrioridadTrabajo = "interactivo" | "programado";
+export type MotivoTrabajo =
+  | "sunat_no_responde"
+  | "credencial_invalida"
+  | "datos_invalidos"
+  | "portal_cambio"
+  | "interrumpido"
+  | "acceso_retirado"
+  | "cancelado_usuario"
+  | "error_interno";
+
+/** Fila completa de job_registro en camelCase (Date para fechas, Buffer para bytea). */
+export interface TrabajoFila {
+  id: string;
+  tenantId: string;
+  clienteId: string;
+  ruc: string;
+  tipo: string;
+  cola: ColaTrabajo;
+  canal: CanalTrabajo;
+  prioridad: PrioridadTrabajo;
+  estado: EstadoTrabajo;
+  parametros: unknown;
+  claveDedupe: Buffer;
+  creadoPor: string | null;
+  intentos: number;
+  maxIntentos: number;
+  motivo: MotivoTrabajo | null;
+  resultado: unknown | null;
+  disponibleDesde: Date;
+  creadoEn: Date;
+  iniciadoEn: Date | null;
+  terminadoEn: Date | null;
+  actualizadoEn: Date;
+}
+
+/** Vista pública de un trabajo (forma de `TrabajoVista` de @contapp/shared): fechas ISO y `posicion` sin calcular. */
+export interface TrabajoVistaDb {
+  id: string;
+  tipo: string;
+  clienteId: string;
+  estado: EstadoTrabajo;
+  posicion: number | null;
+  intentos: number;
+  motivo: MotivoTrabajo | null;
+  creadoEn: string;
+  iniciadoEn: string | null;
+  terminadoEn: string | null;
+  creadoPor: { usuarioId: string } | null;
+}
+
+export interface NuevoTrabajo {
+  clienteId: string;
+  ruc: string;
+  tipo: string;
+  cola: ColaTrabajo;
+  canal: CanalTrabajo;
+  prioridad: PrioridadTrabajo;
+  parametros: unknown;
+  claveDedupe: Buffer;
+  creadoPor: string | null;
+  maxIntentos: number;
+  /**
+   * Tope de trabajos `en_cola` del estudio en esa cola (`max_pendientes_tenant`, D8). Con él, `insertarTrabajo` cuenta
+   * DESPUÉS de insertar bajo un candado del estudio y la cola, y deshace el INSERT si lo pasó (H-008-2a-3).
+   */
+  maxPendientes?: number;
+}
+
+/** Campos que acompañan una transición. Las fechas de inicio y fin las fija `transicionar`, nunca quien llama. */
+export interface CamposTransicion {
+  motivo?: MotivoTrabajo | null;
+  intentos?: number;
+  resultado?: unknown;
+  disponibleDesde?: Date;
+}
+
+/**
+ * Condición extra de una transición (H-008-1b-3): `intentos` = los que tenía la fila cuando esta ejecución la leyó.
+ * Cada re-despacho de un mismo trabajo consume un intento (reintento del ejecutor o recuperación del reconciliador),
+ * así que una ejecución vieja cuyo trabajo ya se volvió a lanzar no gana la transición de la nueva.
+ */
+export interface GuardaTransicion {
+  intentos?: number;
+}
+
+export interface FiltrosTrabajos {
+  clienteId?: string;
+  estado?: EstadoTrabajo;
+}
+
+const COLUMNAS = `id, tenant_id, cliente_id, ruc, tipo, cola, canal, prioridad, estado, parametros, clave_dedupe,
+  creado_por, intentos, max_intentos, motivo, resultado, disponible_desde, creado_en, iniciado_en, terminado_en,
+  actualizado_en`;
+const COLUMNAS_VISTA = `id, tipo, cliente_id, estado, intentos, motivo, creado_en, iniciado_en, terminado_en, creado_por`;
+
+const TERMINALES: readonly string[] = ["completado", "error", "cancelado"];
+
+const iso = (d: unknown): string | null =>
+  d === null || d === undefined ? null : new Date(d as Date).toISOString();
+
+const fecha = (d: unknown): Date | null =>
+  d === null || d === undefined ? null : new Date(d as Date);
+
+function aVista(f: Fila): TrabajoVistaDb {
+  return {
+    id: f.id,
+    tipo: f.tipo,
+    clienteId: f.cliente_id,
+    estado: f.estado,
+    posicion: null,
+    intentos: Number(f.intentos),
+    motivo: f.motivo ?? null,
+    creadoEn: iso(f.creado_en) as string,
+    iniciadoEn: iso(f.iniciado_en),
+    terminadoEn: iso(f.terminado_en),
+    creadoPor: f.creado_por ? { usuarioId: f.creado_por } : null,
+  };
+}
+
+function aFila(f: Fila): TrabajoFila {
+  return {
+    id: f.id,
+    tenantId: f.tenant_id,
+    clienteId: f.cliente_id,
+    ruc: f.ruc,
+    tipo: f.tipo,
+    cola: f.cola,
+    canal: f.canal,
+    prioridad: f.prioridad,
+    estado: f.estado,
+    parametros: f.parametros,
+    claveDedupe: f.clave_dedupe,
+    creadoPor: f.creado_por ?? null,
+    intentos: Number(f.intentos),
+    maxIntentos: Number(f.max_intentos),
+    motivo: f.motivo ?? null,
+    resultado: f.resultado ?? null,
+    disponibleDesde: fecha(f.disponible_desde) as Date,
+    creadoEn: fecha(f.creado_en) as Date,
+    iniciadoEn: fecha(f.iniciado_en),
+    terminadoEn: fecha(f.terminado_en),
+    actualizadoEn: fecha(f.actualizado_en) as Date,
+  };
+}
+
+// tenant_id, intentos y las fechas toman su DEFAULT (el estudio sale del contexto, nunca del llamador).
+const SQL_INSERTAR = `insert into job_registro
+  (cliente_id, ruc, tipo, cola, canal, prioridad, estado, parametros, clave_dedupe, creado_por, max_intentos)
+  values ($1, $2, $3, $4, $5, $6, 'en_cola', $7::jsonb, $8, $9, $10)
+  returning ${COLUMNAS_VISTA}`;
+
+// H-008-1a-2: con otro trabajo vivo de la misma clave (índice único parcial job_registro_dedupe_vivo), no inserta ni
+// lanza 23505: espera a que la otra transacción termine y no devuelve fila. Sin savepoint: la transacción sigue sana.
+const SQL_INSERTAR_SIN_DUPLICAR = `insert into job_registro
+  (cliente_id, ruc, tipo, cola, canal, prioridad, estado, parametros, clave_dedupe, creado_por, max_intentos)
+  values ($1, $2, $3, $4, $5, $6, 'en_cola', $7::jsonb, $8, $9, $10)
+  on conflict (tenant_id, clave_dedupe) where estado in ('en_cola', 'ejecutando') do nothing
+  returning ${COLUMNAS_VISTA}`;
+
+export interface OpcionesInsertar {
+  /** true: si ya hay un trabajo vivo con la misma clave de dedupe (D8), devuelve null en vez de lanzar 23505. */
+  sinDuplicar?: boolean;
+}
+
+/**
+ * Encola un trabajo en el estudio del contexto (nace en_cola, intentos 0). Rol: contapp_backend. Con `sinDuplicar`,
+ * un choque con la clave de dedupe de un trabajo vivo (encolado concurrente) devuelve null (H-008-1a-2).
+ */
+export async function insertarTrabajo(
+  tx: TxConsulta,
+  e: NuevoTrabajo & { maxPendientes: number },
+  o?: OpcionesInsertar,
+): Promise<TrabajoVistaDb | null | "lleno">;
+export async function insertarTrabajo(
+  tx: TxConsulta,
+  e: NuevoTrabajo,
+): Promise<TrabajoVistaDb>;
+export async function insertarTrabajo(
+  tx: TxConsulta,
+  e: NuevoTrabajo,
+  o: OpcionesInsertar,
+): Promise<TrabajoVistaDb | null>;
+export async function insertarTrabajo(
+  tx: TxConsulta,
+  e: NuevoTrabajo,
+  o: OpcionesInsertar = {},
+): Promise<TrabajoVistaDb | null | "lleno"> {
+  const texto = o.sinDuplicar ? SQL_INSERTAR_SIN_DUPLICAR : SQL_INSERTAR;
+  if (e.maxPendientes !== undefined)
+    return insertarConTope(tx, e, texto, e.maxPendientes);
+  const r = await consultar(tx, texto, valoresInsertar(e));
+  return r.rows.length === 0 ? null : aVista(r.rows[0]!);
+}
+
+const valoresInsertar = (e: NuevoTrabajo): unknown[] => [
+  e.clienteId,
+  e.ruc,
+  e.tipo,
+  e.cola,
+  e.canal,
+  e.prioridad,
+  JSON.stringify(e.parametros),
+  e.claveDedupe,
+  e.creadoPor,
+  e.maxIntentos,
+];
+
+// Candado del estudio (del contexto) y la cola, hasta el fin de la transacción: serializa el CONTEO de pendientes de
+// quienes encolan a la vez. Se toma DESPUÉS del INSERT (como en todos los caminos): ningún encolado espera una fila de
+// otro mientras tiene el candado, así que no hay ciclos de espera entre encolados de un trabajo por transacción.
+const SQL_BLOQUEAR_PENDIENTES = `select pg_advisory_xact_lock(hashtextextended(
+  'job_registro.pendientes:' || coalesce(current_setting('app.tenant_id', true), '') || ':' || $1::text, 0))`;
+
+/**
+ * INSERT con tope atómico de pendientes (H-008-2a-3, D8): savepoint, INSERT, candado del estudio y la cola, y conteo
+ * (que ve lo confirmado por los demás y lo propio). Si pasa `max`, se vuelve al savepoint (no queda nada) y se
+ * responde "lleno". Un choque de dedupe (sin fila con ON CONFLICT, o 23505 sin él) vuelve al savepoint y da null: la
+ * transacción sigue sana y quien llama relee el vivo (H-008-2b-7).
+ */
+async function insertarConTope(
+  tx: TxConsulta,
+  e: NuevoTrabajo,
+  texto: string,
+  max: number,
+): Promise<TrabajoVistaDb | null | "lleno"> {
+  const volver = async (): Promise<void> => {
+    await consultar(tx, "rollback to savepoint job_insertar", []);
+    await consultar(tx, "release savepoint job_insertar", []);
+  };
+  await consultar(tx, "savepoint job_insertar", []);
+  let r: { rows: Fila[] };
+  try {
+    r = await consultar(tx, texto, valoresInsertar(e));
+  } catch (err) {
+    if (err instanceof TrabajosRepoError && err.codigo === "23505") {
+      await volver();
+      return null;
+    }
+    throw err;
+  }
+  if (r.rows.length === 0) {
+    await volver();
+    return null;
+  }
+  await consultar(tx, SQL_BLOQUEAR_PENDIENTES, [e.cola]);
+  if ((await contarPendientes(tx, e.cola)) > max) {
+    await volver();
+    return "lleno";
+  }
+  await consultar(tx, "release savepoint job_insertar", []);
+  return aVista(r.rows[0]!);
+}
+
+const SQL_VIVO_POR_CLAVE = `select ${COLUMNAS_VISTA} from job_registro
+  where clave_dedupe = $1 and estado in ('en_cola', 'ejecutando') limit 1`;
+
+/** Trabajo vivo (en_cola o ejecutando) con esa clave de dedupe en el estudio, o null (D8). */
+export async function trabajoVivoPorClave(
+  tx: TxConsulta,
+  claveDedupe: Buffer,
+): Promise<TrabajoVistaDb | null> {
+  const r = await consultar(tx, SQL_VIVO_POR_CLAVE, [claveDedupe]);
+  return r.rows.length === 0 ? null : aVista(r.rows[0]!);
+}
+
+const SQL_CONTAR_PENDIENTES = `select count(*) as n from job_registro where cola = $1 and estado = 'en_cola'`;
+
+/** Trabajos en_cola de esa cola en el estudio (tope `max_pendientes_tenant`). */
+export async function contarPendientes(
+  tx: TxConsulta,
+  cola: ColaTrabajo,
+): Promise<number> {
+  const r = await consultar(tx, SQL_CONTAR_PENDIENTES, [cola]);
+  return Number(r.rows[0]?.n ?? 0);
+}
+
+// `ahora` es un Date de JS (precisión de milisegundo) y `disponible_desde` guarda microsegundos: se compara a la
+// precisión de `ahora` (disponible_desde truncado al milisegundo <= ahora), así una fila con disponible_desde = now()
+// no queda "en el futuro" por la fracción de milisegundo que el Date de quien llama no puede expresar.
+const SQL_SIGUIENTE = `select ${COLUMNAS} from job_registro
+  where cola = $1 and estado = 'en_cola' and disponible_desde < $2::timestamptz + interval '1 millisecond'
+  order by (prioridad = 'programado'), creado_en, id
+  limit 1`;
+
+/** Primer en_cola disponible de la cola: interactivo antes que programado, luego creado_en y id (CA-2). */
+export async function siguienteDisponible(
+  tx: TxConsulta,
+  cola: ColaTrabajo,
+  ahora: Date,
+): Promise<TrabajoFila | null> {
+  const r = await consultar(tx, SQL_SIGUIENTE, [cola, ahora]);
+  return r.rows.length === 0 ? null : aFila(r.rows[0]!);
+}
+
+/** Tope de `siguientesDisponibles` (D21): la ventana del despachador es de 20. */
+const LIMITE_MAXIMO_VENTANA = 50;
+
+const SQL_SIGUIENTES = `select ${COLUMNAS} from job_registro
+  where cola = $1 and estado = 'en_cola' and disponible_desde < $2::timestamptz + interval '1 millisecond'
+  order by (prioridad = 'programado'), creado_en, id
+  limit $3`;
+
+/**
+ * Ventana de candidatos (D21): los primeros `limite` en_cola disponibles de la cola, en el orden de
+ * `siguienteDisponible` (que equivale a `limite = 1`). `limite` entero 1..50; si no, lanza RangeError sin consultar.
+ */
+export async function siguientesDisponibles(
+  tx: TxConsulta,
+  cola: ColaTrabajo,
+  ahora: Date,
+  limite: number,
+): Promise<TrabajoFila[]> {
+  if (
+    typeof limite !== "number" ||
+    !Number.isInteger(limite) ||
+    limite < 1 ||
+    limite > LIMITE_MAXIMO_VENTANA
+  ) {
+    throw new RangeError("limite fuera de rango (entero 1..50)");
+  }
+  const r = await consultar(tx, SQL_SIGUIENTES, [cola, ahora, limite]);
+  return r.rows.map(aFila);
+}
+
+/**
+ * `UPDATE ... WHERE id = $1 AND estado = $2`: true solo si cambió la fila (ganador único, D2). Fija iniciado_en al pasar
+ * a ejecutando, terminado_en al pasar a un estado terminal y actualizado_en siempre; los campos ausentes no se tocan.
+ * Con `guarda.intentos`, además `AND intentos = <guarda>` (dueño por ejecución, H-008-1b-3).
+ */
+export async function transicionar(
+  tx: TxConsulta,
+  id: string,
+  desde: EstadoTrabajo,
+  hacia: EstadoTrabajo,
+  campos: CamposTransicion = {},
+  guarda: GuardaTransicion = {},
+): Promise<boolean> {
+  const valores: unknown[] = [id, desde, hacia];
+  const sets = ["estado = $3"];
+  const agregar = (columna: string, valor: unknown, cast = "") => {
+    valores.push(valor);
+    sets.push(`${columna} = $${valores.length}${cast}`);
+  };
+  if (campos.motivo !== undefined) agregar("motivo", campos.motivo);
+  if (campos.intentos !== undefined) agregar("intentos", campos.intentos);
+  if (campos.resultado !== undefined) {
+    agregar(
+      "resultado",
+      campos.resultado === null ? null : JSON.stringify(campos.resultado),
+      "::jsonb",
+    );
+  }
+  if (campos.disponibleDesde !== undefined) {
+    agregar("disponible_desde", campos.disponibleDesde);
+  }
+  if (hacia === "ejecutando") sets.push("iniciado_en = now()");
+  if (TERMINALES.includes(hacia)) sets.push("terminado_en = now()");
+  sets.push("actualizado_en = now()");
+  // Las columnas salen de la lista fija de arriba; los valores, de $n.
+  let donde = "id = $1 and estado = $2";
+  if (guarda.intentos !== undefined) {
+    if (!Number.isInteger(guarda.intentos)) {
+      throw new RangeError("guarda.intentos debe ser entero");
+    }
+    valores.push(guarda.intentos);
+    donde += ` and intentos = $${valores.length}`;
+  }
+  const texto = `update job_registro set ${sets.join(", ")} where ${donde}`;
+  const r = await consultar(tx, texto, valores);
+  return r.rowCount === 1;
+}
+
+const SQL_LEER = `select ${COLUMNAS} from job_registro where id = $1`;
+
+/** Fila completa del trabajo en el estudio del contexto, o null (ajeno o inexistente). */
+export async function leerTrabajo(
+  tx: TxConsulta,
+  id: string,
+): Promise<TrabajoFila | null> {
+  const r = await consultar(tx, SQL_LEER, [id]);
+  return r.rows.length === 0 ? null : aFila(r.rows[0]!);
+}
+
+/** Trabajos visibles con el alcance (filtroAlcance de 005), del más nuevo al más viejo, máximo 100. */
+export async function listarTrabajos(
+  tx: TxConsulta,
+  alcance: Alcance,
+  filtros: FiltrosTrabajos = {},
+): Promise<TrabajoVistaDb[]> {
+  const condiciones: SQL[] = [filtroAlcance(sql`j.cliente_id`, alcance)];
+  if (filtros.clienteId !== undefined) {
+    condiciones.push(sql`j.cliente_id = ${filtros.clienteId}::uuid`);
+  }
+  if (filtros.estado !== undefined) {
+    condiciones.push(sql`j.estado = ${filtros.estado}`);
+  }
+  const { texto, valores } = renderizar(
+    sql`select ${sql.raw(COLUMNAS_VISTA.replace(/(\w+)/g, "j.$1"))} from job_registro j where ${sql.join(condiciones, sql` and `)} order by j.creado_en desc, j.id desc limit 100`,
+  );
+  const r = await consultar(tx, texto, valores);
+  return r.rows.map(aVista);
+}
+
+// Posición (RF-042): 1 + los en_cola del mismo estudio (RLS) y cola que salen antes; null si no está en_cola.
+const SQL_POSICION = `select case when j.estado = 'en_cola' then 1 + (
+    select count(*) from job_registro o
+     where o.cola = j.cola and o.estado = 'en_cola' and o.id <> j.id
+       and ((o.prioridad = 'programado')::int < (j.prioridad = 'programado')::int
+         or ((o.prioridad = j.prioridad) and (o.creado_en < j.creado_en or (o.creado_en = j.creado_en and o.id < j.id))))
+  ) end as posicion
+  from job_registro j where j.id = $1`;
+
+/** Posición en la cola del estudio, o null si el trabajo no está en_cola (o es ajeno/inexistente). */
+export async function posicion(
+  tx: TxConsulta,
+  id: string,
+): Promise<number | null> {
+  const r = await consultar(tx, SQL_POSICION, [id]);
+  const p = r.rows[0]?.posicion;
+  return p === null || p === undefined ? null : Number(p);
+}
+
+const SQL_PURGAR = `delete from job_registro
+  where estado in ('completado', 'error', 'cancelado') and terminado_en < $1`;
+
+/** Borra los terminados con terminado_en anterior al corte (D16). Rol: contapp_worker. */
+export async function purgarTerminados(
+  tx: TxConsulta,
+  antesDe: Date,
+): Promise<number> {
+  const r = await consultar(tx, SQL_PURGAR, [antesDe]);
+  return r.rowCount;
+}
+
+export interface Revalidable {
+  clienteId: string;
+  creadoPor: string | null;
+  rolesPermitidos: readonly string[] | null;
+}
+
+// D17: el cliente sigue en el estudio y, si hay creador, sigue activo, con un rol permitido y con alcance sobre el
+// cliente (dueno y admin: global; los demás, con asignación). Lecturas sin FOR UPDATE (orden de bloqueo de 005).
+const SQL_REVALIDAR = `select 1 as ok from cliente c
+  where c.id = $1::uuid
+    and ($2::uuid is null or exists (
+      select 1 from membresia m
+       where m.usuario_id = $2::uuid and m.desactivada_en is null
+         and ($3::text[] is null or m.rol = any ($3::text[]))
+         and (m.rol in ('dueno', 'admin')
+              or exists (select 1 from asignacion a where a.cliente_id = c.id and a.usuario_id = $2::uuid))))`;
+
+/**
+ * 'ok' si quien encoló conserva el acceso; si no (o sin filas), 'acceso_retirado' (falla cerrado). Rol: contapp_worker.
+ * Acepta el resto del trabajo de despacho (p. ej. `id`) pero solo lee clienteId, creadoPor y rolesPermitidos.
+ */
+export async function revalidarEncolado<T extends Revalidable>(
+  tx: TxConsulta,
+  t: T,
+): Promise<"ok" | "acceso_retirado"> {
+  const r = await consultar(tx, SQL_REVALIDAR, [
+    t.clienteId,
+    t.creadoPor ?? null,
+    t.rolesPermitidos === null || t.rolesPermitidos === undefined
+      ? null
+      : [...t.rolesPermitidos],
+  ]);
+  return r.rows.length > 0 ? "ok" : "acceso_retirado";
+}
