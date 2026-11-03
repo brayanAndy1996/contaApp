@@ -10,7 +10,7 @@ Nivel B, sin ronda adversarial (spec D9). Flujo 04 §1.3: pruebas primero (rojo)
 | T2   | Pruebas unitarias: `validarRuc`, esquemas de shared y repositorios con tx falsa (rojo)     | tester     | sonnet | — ∥ T1            | ✓   | —   | [x]    |
 | T3   | Pruebas de integración HTTP: rutas de clientes, cupo, alcance y archivado (rojo)           | tester     | sonnet | T1 ∥ T2           | ✓   | —   | [ ]    |
 | T4   | Pruebas del frontend y de la regla de lint `sql` (rojo)                                    | tester     | sonnet | — ∥ T3            | ✓   | —   | [x]    |
-| T5   | Migración 0026, esquema de `cliente` y conteo de activos en `cupo`/`uso`                   | backend    | sonnet | T1                | ✓   | —   | [ ]    |
+| T5   | Migración 0026, esquema de `cliente` y conteo de activos en `cupo`/`uso`                   | backend    | sonnet | T1                | ✓   | —   | [x] |
 | T6   | `shared/clientes`: `validarRuc` y esquemas                                                 | backend    | sonnet | T2 ∥ T5           | ✓   | —   | [x]    |
 | T7   | Repositorios `packages/db/clientes`: crear, editar, archivar, reactivar, leer, filtros     | backend    | sonnet | T2, T5, T6        | ✓   | —   | [ ]    |
 | T8   | Revalidación de 008 con «no archivado» y 409 al asignar archivados                         | backend    | sonnet | T1, T5 ∥ T7       | ✓   | —   | [ ]    |
@@ -67,6 +67,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/007a-clientes/plan.md` (Archivos; Contratos: BD), `packages/db/src/schema/clientes.ts`, `packages/db/src/planes/{cupo,uso}.ts`, `packages/db/migrations/0023_planes_rls.sql` (solo el estilo), `tests/aislamiento/clientes.spec.ts`.
 - **Hacer**: ampliar `cliente` en el esquema drizzle; `drizzle-kit generate` → `0026_clientes_perfil.sql` (CHECK, defaults, índice parcial); `contarRucs` y `usoDelEstudio` cuentan `archivado_at IS NULL`.
 - **Hecho cuando**: `pnpm db:migrate` dos veces sin error; las partes de T1 sobre esquema y conteo en verde; `pnpm --filter @contapp/db test` verde. Commit `feat(007a): migración 0026 y conteo de RUCs activos`.
+- **Resultado**: `0026_clientes_perfil.sql` (drizzle-kit; columnas, 6 CHECK, índice parcial `cliente_tenant_activos_idx`) + esquema `cliente` ampliado; `contarRucs` y `usoDelEstudio` cuentan `archivado_at IS NULL`. `db:migrate` x2 OK. `test:aislamiento`: todo verde salvo 7 de `revalidarEncolado` (T8); `@contapp/db test`: quedan en rojo solo `clientes/{filtros,repositorio}.spec.ts` (stubs de T7).
 
 ## T6 · `shared/clientes` (backend · sonnet)
 

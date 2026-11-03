@@ -14,7 +14,7 @@ export interface UsoDelEstudio extends LimitesPlan {
 // Una sola sentencia (una instantánea): suscripción, columnas permitidas del plan y conteos del estudio.
 const SQL_USO = `select p.codigo, p.nombre, s.estado, s.prueba_vence_en,
        p.max_rucs, p.max_usuarios, p.max_rucs_extra, s.rucs_extra_contratados,
-       (select count(*) from cliente c where c.tenant_id = s.tenant_id)::int as rucs_usados,
+       (select count(*) from cliente c where c.tenant_id = s.tenant_id and c.archivado_at is null)::int as rucs_usados,
        (select count(*) from membresia m where m.tenant_id = s.tenant_id and m.desactivada_en is null)::int as activos,
        (select count(*) from invitacion i
          where i.tenant_id = s.tenant_id and i.aceptada_en is null and i.revocada_en is null and i.vence_en > now())::int
