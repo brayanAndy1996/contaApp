@@ -9,7 +9,7 @@ Nivel B, sin ronda adversarial (spec D9). Flujo 04 §1.3: pruebas primero (rojo)
 | T1   | Pruebas de BD: esquema de `cliente`, cupo de activos, revalidación y carreras (rojo)       | tester     | sonnet | —                 | ✓   | —   | [ ]    |
 | T2   | Pruebas unitarias: `validarRuc`, esquemas de shared y repositorios con tx falsa (rojo)     | tester     | sonnet | — ∥ T1            | ✓   | —   | [x]    |
 | T3   | Pruebas de integración HTTP: rutas de clientes, cupo, alcance y archivado (rojo)           | tester     | sonnet | T1 ∥ T2           | ✓   | —   | [ ]    |
-| T4   | Pruebas del frontend y de la regla de lint `sql` (rojo)                                    | tester     | sonnet | — ∥ T3            | ✓   | —   | [ ]    |
+| T4   | Pruebas del frontend y de la regla de lint `sql` (rojo)                                    | tester     | sonnet | — ∥ T3            | ✓   | —   | [x]    |
 | T5   | Migración 0026, esquema de `cliente` y conteo de activos en `cupo`/`uso`                   | backend    | sonnet | T1                | ✓   | —   | [ ]    |
 | T6   | `shared/clientes`: `validarRuc` y esquemas                                                 | backend    | sonnet | T2 ∥ T5           | ✓   | —   | [ ]    |
 | T7   | Repositorios `packages/db/clientes`: crear, editar, archivar, reactivar, leer, filtros     | backend    | sonnet | T2, T5, T6        | ✓   | —   | [ ]    |
@@ -59,6 +59,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/007a-clientes/spec.md` (D2, D8; CA-8, CA-9), `docs/specs/007a-clientes/plan.md` (Contratos: shared, HTTP), `apps/frontend/app/(app)/clientes/{page,[clienteId]/page}.spec.tsx` y `apps/frontend/app/(app)/usuarios/page.spec.tsx` (patrones), `tests/limites/auth-lint.spec.ts` (patrón de la regla `sql-crudo`).
 - **Hacer**: pruebas del listado (los cuatro filtros llaman a la API con los parámetros de D7; acciones según permiso), del alta (error de RUC en línea con `validarRuc`, 409 `cupo_rucs` con el uso del plan, 409 `ruc_duplicado`), del detalle (datos fiscales: carga, edición, 400 del catálogo; archivar y reactivar con confirmación; archivado en solo lectura) en `apps/frontend/app/(app)/clientes/**`; y en `tests/limites/` el caso de lint: `import * as d from "drizzle-orm"` con `d.sql(...)` falla en `apps/backend`, sin romper lo permitido en `packages/db`.
 - **Hecho cuando**: fallan solo por falta de pantallas y de regla. Commit `test(007a): pantallas de clientes y lint de sql (rojo)`.
+- **Resultado**: 52 pruebas frontend en `clientes/{listado,[clienteId]/fiscal,nuevo/page}.spec.tsx` (32 en rojo por falta de pantallas; el stub `nuevo/page.tsx` solo compila) + `apps/frontend/pruebas/clientes.ts` (contrato de textos) + 12 de lint en `tests/limites/sql-namespace-lint.spec.ts` (5 en rojo; el resto guarda lo permitido). Las dos specs previas de `/clientes` siguen verdes.
 
 ## T5 · Migración y conteo de activos (backend · sonnet)
 
