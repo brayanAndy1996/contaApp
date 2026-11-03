@@ -7,7 +7,7 @@ Nivel B, sin ronda adversarial (spec D9). Flujo 04 §1.3: pruebas primero (rojo)
 | #    | Tarea                                                                                      | Rol        | Modelo | Depende de        | TDD | ADV | Estado |
 | ---- | ------------------------------------------------------------------------------------------ | ---------- | ------ | ----------------- | --- | --- | ------ |
 | T1   | Pruebas de BD: esquema de `cliente`, cupo de activos, revalidación y carreras (rojo)       | tester     | sonnet | —                 | ✓   | —   | [ ]    |
-| T2   | Pruebas unitarias: `validarRuc`, esquemas de shared y repositorios con tx falsa (rojo)     | tester     | sonnet | — ∥ T1            | ✓   | —   | [ ]    |
+| T2   | Pruebas unitarias: `validarRuc`, esquemas de shared y repositorios con tx falsa (rojo)     | tester     | sonnet | — ∥ T1            | ✓   | —   | [x]    |
 | T3   | Pruebas de integración HTTP: rutas de clientes, cupo, alcance y archivado (rojo)           | tester     | sonnet | T1 ∥ T2           | ✓   | —   | [ ]    |
 | T4   | Pruebas del frontend y de la regla de lint `sql` (rojo)                                    | tester     | sonnet | — ∥ T3            | ✓   | —   | [ ]    |
 | T5   | Migración 0026, esquema de `cliente` y conteo de activos en `cupo`/`uso`                   | backend    | sonnet | T1                | ✓   | —   | [ ]    |
@@ -46,6 +46,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/007a-clientes/spec.md` (D1, D2, D7; CA-1, CA-4, CA-6), `docs/specs/007a-clientes/plan.md` (Contratos: shared, packages/db), `packages/shared/src/planes/{esquemas,esquemas.spec}.ts` (patrón de zod), `packages/db/src/planes/planes.spec.ts` (patrón de tx falsa).
 - **Hacer**: `packages/shared/src/clientes/{ruc,esquemas}.spec.ts` y `packages/db/src/clientes/{repositorio,filtros}.spec.ts`. Cubrir: `validarRuc` con RUC válidos de cada prefijo (10/15/16/17/20), dígito verificador errado, prefijo 11/12/30, longitud 10 y 12, letras, espacios, cadena vacía y entradas no string; esquemas (claves desconocidas descartadas, catálogos, `q` ≤ 100, `responsable=ninguno`); los filtros generan SQL con parámetros (sin el texto del usuario dentro del SQL), escapan `%`, `_` y `\`, y se combinan con `filtroAlcance`; repositorios con tx falsa (orden de llamadas, `archivar` idempotente).
 - **Hecho cuando**: las pruebas fallan solo por falta de código. Commit `test(007a): validarRuc, esquemas y repositorios de clientes (rojo)`.
+- **Resultado**: 126 pruebas en rojo (shared 92: `ruc.spec` y `esquemas.spec`; db 34: `repositorio.spec` y `filtros.spec`), todas por stubs que lanzan «no implementado» (`shared/src/clientes/{ruc,esquemas}.ts`, `db/src/clientes/{repositorio,errores}.ts`; T6/T7 los reemplazan). Contratos fijados en los comentarios de cada spec: `clienteCrearSchema`, `clienteEditarSchema`, `perfilFiscalSchema`, `filtrosClientesSchema`; `crearCliente(tx, tenantId, datos)`, `editarCliente/archivarCliente/reactivarCliente/leerClienteDto(tx, id…)`, `listarClientesFiltrado(tx, alcance, filtros)` en `repositorio.ts`. `tsc` y `eslint` limpios.
 
 ## T3 · Pruebas de integración HTTP, rojo (tester · sonnet)
 
