@@ -4,6 +4,8 @@
 // Spec 004: `contrasenaDesarrollo` es la única contraseña versionada (solo desarrollo y pruebas); las
 // credenciales son su PHC argon2id en el piso (m=19456, t=2, p=1), precalculado una vez (packages/db no
 // depende de Argon2). Cada usuario tiene su propia sal.
+// Spec 006: A y B en Corporativo activa (los planes los siembra 0022_planes) y un administrador de plataforma
+// (`uPlataforma`, alta en admin_plataforma, SIN membresía) con la misma contraseña de desarrollo.
 export interface FilaClienteSeed {
   id: string;
   ruc: string;
@@ -23,6 +25,12 @@ export interface FilaAsignacionSeed {
   tipo: "responsable" | "colaborador";
 }
 
+export interface FilaSuscripcionSeed {
+  tenantId: string;
+  planCodigo: string;
+  estado: "activa";
+}
+
 export interface FilaMembresiaSeed {
   id: string;
   tenantId: string;
@@ -36,6 +44,7 @@ const uA = "01920000-0000-7000-8000-0000000001a1";
 const uB = "01920000-0000-7000-8000-0000000001b1";
 const uAB = "01920000-0000-7000-8000-0000000001ab";
 const uSin = "01920000-0000-7000-8000-0000000001c1";
+const uPlataforma = "01920000-0000-7000-8000-0000000001d1";
 const rucRepetido = "20100070970";
 
 export const SEED = {
@@ -46,6 +55,8 @@ export const SEED = {
   uAB,
   /** Usuario sin estudios (P7). */
   uSin,
+  /** Spec 006: administrador de plataforma (sin estudios). */
+  uPlataforma,
   rucRepetido,
   contrasenaDesarrollo: "desarrollo-contapp-2026",
   tenants: [
@@ -57,13 +68,22 @@ export const SEED = {
     { id: uB, email: "ub@seed.contapp.test", nombre: "Usuario B" },
     { id: uAB, email: "uab@seed.contapp.test", nombre: "Usuario AB" },
     { id: uSin, email: "usin@seed.contapp.test", nombre: "Usuario sin estudio" },
+    { id: uPlataforma, email: "plataforma@seed.contapp.test", nombre: "Administrador de plataforma" },
   ],
   credenciales: [
     { usuarioId: uA, hash: "$argon2id$v=19$m=19456,t=2,p=1$FKjID1608QMgu8vHsmm8AA$fnG9+IMMtknbelExRCdxUhGgfw0cvQGWh6iVND07lVQ" },
     { usuarioId: uB, hash: "$argon2id$v=19$m=19456,t=2,p=1$x4yaqpEo8TfGBCGx8oU2YA$UjcniTpRPAnoo7pDtRIniO7W+KOvs7V2HC5uEHx4t4I" },
     { usuarioId: uAB, hash: "$argon2id$v=19$m=19456,t=2,p=1$acW8O/u6raLGoxyfkmDdUQ$nhiITIbNWVmWnDjzOTTEaLvW6tg6jWMFST7Nte90dNE" },
     { usuarioId: uSin, hash: "$argon2id$v=19$m=19456,t=2,p=1$jfpMaA07JoQsLT/QqGlvJA$i0uGjyp1NUR3bX4IfPNxu9fDJQamX28JWmegn07kB9U" },
+    { usuarioId: uPlataforma, hash: "$argon2id$v=19$m=19456,t=2,p=1$Rgn34Wy93cIgnAOpoyN8aA$lBRkjQO1Rj5MFAgrt3lXuB39hbXKpQ8iKEY7woxHTr8" },
   ] as FilaCredencialSeed[],
+  /** Spec 006 (D2): suscripción de cada estudio del seed (plan por código). */
+  suscripciones: [
+    { tenantId: tenantA, planCodigo: "corporativo", estado: "activa" },
+    { tenantId: tenantB, planCodigo: "corporativo", estado: "activa" },
+  ] as FilaSuscripcionSeed[],
+  /** Spec 006 (D5): administradores de plataforma (alta solo por seed o CLI). */
+  adminsPlataforma: [uPlataforma],
   membresias: [
     { id: "01920000-0000-7000-8000-0000000002a1", tenantId: tenantA, usuarioId: uA, rol: "dueno" },
     { id: "01920000-0000-7000-8000-0000000002b1", tenantId: tenantB, usuarioId: uB, rol: "dueno" },

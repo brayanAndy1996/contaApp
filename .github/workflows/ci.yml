@@ -90,8 +90,8 @@ jobs:
       - name: Instalar dependencias
         run: pnpm install --frozen-lockfile
 
-      - name: Build de @contapp/db
-        run: pnpm --filter @contapp/db build
+      - name: Build de @contapp/shared y @contapp/db
+        run: pnpm --filter @contapp/shared build && pnpm --filter @contapp/db build
 
       - name: Build de @contapp/crypto
         run: pnpm --filter @contapp/crypto build

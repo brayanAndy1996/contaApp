@@ -94,6 +94,9 @@ export default function Login() {
         <Link href="/recuperar" className="text-sm underline">
           Olvidé mi contraseña
         </Link>
+        <Link href="/registro" className="text-sm underline">
+          Crear estudio
+        </Link>
       </form>
     </main>
   );

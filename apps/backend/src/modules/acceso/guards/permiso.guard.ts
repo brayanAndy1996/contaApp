@@ -28,6 +28,7 @@ import {
   fijarAcceso,
   META_PERMISO,
   META_SOLO_ESTUDIO,
+  META_SOLO_PLATAFORMA,
   type PeticionAcceso,
 } from "./decoradores.js";
 
@@ -59,6 +60,23 @@ export class PermisoGuard implements CanActivate {
       ctx.getHandler(),
       ctx.getClass(),
     ]);
+    // 006 (D5): `@SoloPlataforma` solo vale junto a `@SinEstudio` y sin ninguna otra declaración; cualquier otra
+    // combinación falla cerrada sin consultar la BD. El alta en `admin_plataforma` la revalidan las funciones SQL.
+    if (marcada(this.reflector, ctx, META_SOLO_PLATAFORMA)) {
+      const otras = [
+        META_SOLO_ESTUDIO,
+        META_PUBLICO,
+        META_SESION_OPCIONAL,
+      ].some((meta) => marcada(this.reflector, ctx, meta));
+      if (
+        declarado !== undefined ||
+        otras ||
+        !marcada(this.reflector, ctx, META_SIN_ESTUDIO)
+      ) {
+        throw new AccesoError("permiso_denegado");
+      }
+      return true;
+    }
     // `@Permiso` manda sobre cualquier otra marca (falla cerrado si alguien combina familias).
     if (declarado === undefined) {
       for (const meta of DECLARACIONES_SIN_PERMISO) {

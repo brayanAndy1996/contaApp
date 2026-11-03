@@ -19,10 +19,14 @@ const MIGRACION = fileURLToPath(new URL("../../packages/db/migrations/0008_auth_
 
 /** Estado observable de seguridad del esquema auth: funciones, dueños, ACL explotada y CHECKs tocados. */
 async function foto(c: PoolClient) {
+  // Ajuste de 006 (T1): la migracion de auth de 006 redefine `auth.limite_consumir` (mismo cuerpo + los tipos registro_ip y
+  // registro_correo) y amplia limite_tasa_tipo_valido. Reaplicar 0008 (escenario artificial) los devolveria a su version de 004,
+  // asi que el cuerpo de limite_consumir y ese CHECK quedan fuera de esta comparacion (su existencia, dueño y ACL si cuentan); planes.spec.ts y planes-funciones.spec.ts fijan su version vigente.
   const funciones = (
     await c.query(`
       select p.oid::regprocedure::text as firma, pg_get_userbyid(p.proowner) as dueno, p.prosecdef as definer,
-             coalesce(p.proconfig::text, '') as config, p.provolatile as volatil, md5(p.prosrc) as cuerpo
+             coalesce(p.proconfig::text, '') as config, p.provolatile as volatil,
+             case when p.proname = 'limite_consumir' then '' else md5(p.prosrc) end as cuerpo
         from pg_proc p join pg_namespace n on n.oid = p.pronamespace
        where n.nspname = 'auth' order by 1`)
   ).rows;
@@ -44,7 +48,7 @@ async function foto(c: PoolClient) {
   const checks = (
     await c.query(`
       select conname, pg_get_constraintdef(oid) as def from pg_constraint
-       where conname in ('usuario_email_normalizado', 'limite_tasa_tipo_valido') order by 1`)
+       where conname in ('usuario_email_normalizado') order by 1`)
   ).rows;
   return { funciones, acl, checks };
 }
@@ -61,6 +65,14 @@ describe("r2a · migración 0008_auth_ronda1", () => {
     try {
       await c.query("BEGIN");
       await c.query("SET LOCAL lock_timeout = '20s'");
+      // Ajuste de 006: 0024 permite los tipos registro_ip y registro_correo en limite_tasa_tipo_valido; 0008 vuelve a
+      // agregar ese CHECK con los tipos de 004 y falla (23514) si hay filas registro_* (las deja el registro publico). Se
+      // quitan dentro de esta transaccion (conexion de migraciones, sin RLS): el ROLLBACK final las restaura, asi que
+      // la prueba no altera los datos y sigue verificando lo mismo (repetibilidad y ACL de 0008).
+      // Ajuste de 006 (T13a): 0025 agrega `registro_confirmar_ip` (D15) al mismo CHECK; sus filas tambien se quitan.
+      await c.query(
+        "DELETE FROM auth.limite_tasa WHERE tipo IN ('registro_ip', 'registro_correo', 'registro_confirmar_ip')",
+      );
       const antes = await foto(c);
       for (let vuelta = 1; vuelta <= 2; vuelta++) {
         for (const [i, s] of sentencias.entries()) {

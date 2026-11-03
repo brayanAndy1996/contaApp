@@ -8,6 +8,7 @@ import { DiscoveryService, ModulesContainer, Reflector } from "@nestjs/core";
 import {
   META_PERMISO,
   META_SOLO_ESTUDIO,
+  META_SOLO_PLATAFORMA,
 } from "../src/modules/acceso/guards/decoradores.js";
 import {
   META_PUBLICO,
@@ -24,7 +25,7 @@ export interface RutaDeclarada {
   ruta: string;
   controlador: string;
   handler: string;
-  /** Nombres de las declaraciones que aplican (handler sobre clase): Permiso, SoloEstudio, Publico... */
+  /** Nombres de las declaraciones que aplican (handler sobre clase): Permiso, SoloEstudio, Publico, SoloPlataforma... */
   declaraciones: string[];
   usaClienteId: boolean;
 }
@@ -70,6 +71,7 @@ export function rutasDe(
         [META_PUBLICO, "Publico"],
         [META_SIN_ESTUDIO, "SinEstudio"],
         [META_SESION_OPCIONAL, "SesionOpcional"],
+        [META_SOLO_PLATAFORMA, "SoloPlataforma"],
       ] as const) {
         if (reflector.getAllAndOverride<unknown>(clave, objetivos) === true)
           declaraciones.push(nombreDecl);
@@ -107,6 +109,8 @@ export function rutasRegistradas(app: INestApplication): RutaDeclarada[] {
  * de 004 (`@Publico`, `@SinEstudio`, `@SesionOpcional`). Las marcas de 004 se pueden combinar entre
  * si (login: `@Publico` + `@SinEstudio`; logout: `@SinEstudio` + `@SesionOpcional`), por lo que
  * cuentan como una sola familia. Toda ruta con `:clienteId` exige `@Permiso`.
+ * 006 (D5): `@SoloPlataforma` no es una familia aparte: solo es válida junto a `@SinEstudio` y nunca con
+ * `@Permiso`, `@SoloEstudio`, `@Publico` ni `@SesionOpcional`.
  */
 export function infracciones(rutas: readonly RutaDeclarada[]): string[] {
   const salida: string[] = [];
@@ -123,6 +127,16 @@ export function infracciones(rutas: readonly RutaDeclarada[]): string[] {
       salida.push(
         `${id}: ${familias} familias de declaracion [${r.declaraciones.join(",")}]`,
       );
+    }
+    if (r.declaraciones.includes("SoloPlataforma")) {
+      const otras = r.declaraciones.filter(
+        (d) => d !== "SoloPlataforma" && d !== "SinEstudio",
+      );
+      if (!r.declaraciones.includes("SinEstudio") || otras.length > 0) {
+        salida.push(
+          `${id}: @SoloPlataforma solo va junto a @SinEstudio [${r.declaraciones.join(",")}]`,
+        );
+      }
     }
     if (r.usaClienteId && !r.declaraciones.includes("Permiso")) {
       salida.push(`${id}: usa :clienteId sin @Permiso`);

@@ -83,6 +83,15 @@ export async function abrirBanco(cupo?: object, extra: Record<string, unknown> =
   const correos: string[] = [];
   const contadorRuc = new Map<string, number>();
   let hashRapido: string | null = null;
+  // Ajuste de 006 (T3, CA-9; T14): todo estudio de fixture nace con suscripción `corporativo`/`activa` (sin límite
+  // práctico), para que las suites de 004–005 corran con el adaptador real. La tabla existe desde la 0022.
+  const suscribirCorporativo = async (tenantId: string): Promise<void> => {
+    const r = await sql(
+      "insert into suscripcion (tenant_id, plan_id, estado) select $1, id, 'activa' from plan where codigo = 'corporativo' returning id",
+      [tenantId],
+    );
+    if (r.length !== 1) throw new Error("el plan corporativo del seed no existe");
+  };
 
   const sql: Banco["sql"] = async (texto, valores) => (await admin.pool.query(texto, valores)).rows;
 
@@ -165,6 +174,7 @@ export async function abrirBanco(cupo?: object, extra: Record<string, unknown> =
         await intentar("delete from membresia where usuario_id = $1", [id]);
         await intentar("delete from usuario where id = $1", [id]);
       }
+      for (const t of tenants) await intentar("delete from suscripcion where tenant_id = $1", [t]);
       for (const t of tenants) await intentar("delete from tenant where id = $1", [t]);
     } finally {
       c.release();
@@ -177,6 +187,7 @@ export async function abrirBanco(cupo?: object, extra: Record<string, unknown> =
       const id = randomUUID();
       await h.sql("insert into tenant (id, nombre) values ($1, $2)", [id, `Estudio t005 ${id.slice(0, 8)}`]);
       tenants.push(id);
+      await suscribirCorporativo(id);
       const titular = await miembro(id, "dueno");
       return { tenantId: id, titular };
     },

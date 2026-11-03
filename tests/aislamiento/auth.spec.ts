@@ -5,6 +5,8 @@
 // - privilegios de tabla solo para contapp_auth; el backend (y nadie mas) ejecuta las 11 funciones auth.*.
 // - funciones SECURITY DEFINER, dueno contapp_auth, search_path = pg_catalog, pg_temp.
 // - usuario.email: CHECK (btrim, lower, NFC) e indice unico sobre lower(email).
+// Ajuste de 006 (T1): las cifras de arriba son las de 004; hoy TABLAS_AUTH suma registro_pendiente y FUNCIONES_AUTH = las
+// vigentes + 11 (FUNCIONES_AUTH_PLANES). Las pruebas leen esas listas, no cifras fijas.
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { FUNCIONES_AUTH, FUNCIONES_AUTH_SOLO_WORKER, ROLES_SIN_ACCESO, TABLAS_AUTH, abrirAdmin } from "./auth-soporte";
@@ -29,7 +31,8 @@ async function consulta(text: string, values: unknown[] = []) {
 }
 
 describe("esquema auth: tablas, dueno y RLS", () => {
-  it("existe el esquema auth y las 5 tablas del plan", async () => {
+  // Ajuste de 006 (T1, T13b): 7 tablas (TABLAS_AUTH suma registro_pendiente y prueba_origen).
+  it("existe el esquema auth y las tablas del plan (TABLAS_AUTH)", async () => {
     const r = await consulta(
       `select c.relname from pg_class c where c.relnamespace = to_regnamespace('auth') and c.relkind = 'r' order by 1`,
     );
@@ -100,9 +103,16 @@ describe("rol contapp_auth", () => {
     for (const t of ["usuario", "membresia", "tenant", "cliente", "credencial", "asignacion"]) {
       expect(await tiene(t, "UPDATE"), `${t} UPDATE`).toBe(false);
     }
-    for (const t of ["invitacion", "tenant", "cliente", "credencial", "asignacion"]) {
+    for (const t of ["invitacion", "cliente", "credencial", "asignacion"]) {
       expect(await tiene(t, "INSERT"), `${t} INSERT`).toBe(false);
     }
+    // Ajuste de 006 (T1, plan "BD"): registro_confirmar_nueva/existente crean el estudio, asi que contapp_auth recibe
+    // INSERT en tenant, pero SOLO por columna (nombre, ruc_estudio) y nunca de tabla; planes.spec.ts fija el detalle.
+    expect(await tiene("tenant", "INSERT"), "tenant INSERT (columnas)").toBe(true);
+    expect(
+      (await consulta("select has_table_privilege('contapp_auth', 'public.tenant', 'INSERT') as v"))[0].v,
+      "tenant INSERT de tabla",
+    ).toBe(false);
     for (const t of ["cliente", "credencial", "auditoria_descifrado", "asignacion"]) {
       expect(await tiene(t, "SELECT"), `${t} SELECT`).toBe(false);
     }
@@ -114,7 +124,13 @@ describe("rol contapp_auth", () => {
         where schemaname = 'public' and policyname = 'auth_definer' order by tablename`,
     );
     // `tenant` se admite como unica tabla extra (hueco del plan: las funciones de invitacion devuelven el nombre del estudio).
-    expect(r.map((x) => x.tablename).filter((t) => t !== "tenant")).toEqual(["invitacion", "membresia", "usuario"]);
+    // Ajuste de 006 (T1, plan "BD"): `suscripcion` (con RLS) tambien lleva su auth_definer SELECT; `plan` y `admin_plataforma`
+    // no tienen RLS y por eso no tienen politicas (planes.spec.ts).
+    expect(r.map((x) => x.tablename).filter((t) => t !== "tenant" && t !== "suscripcion")).toEqual([
+      "invitacion",
+      "membresia",
+      "usuario",
+    ]);
     for (const p of r) {
       expect(p.cmd).toBe("SELECT");
       expect(p.roles).toEqual(["contapp_auth"]);
@@ -143,7 +159,9 @@ describe("CA-11 privilegios de tabla en auth.*", () => {
   it.each(TABLAS_AUTH)("%s: contapp_auth puede SELECT, INSERT y UPDATE (las funciones lo necesitan)", async (t) => {
     for (const p of ["SELECT", "INSERT", "UPDATE"]) {
       const r = await consulta("select has_table_privilege('contapp_auth', to_regclass($1), $2) as v", [`auth.${t}`, p]);
-      expect(r[0].v, `${t} ${p}`).toBe(true);
+      // Ajuste de 006 (T13b, D14): prueba_origen es de solo-agregar (INSERT … ON CONFLICT DO NOTHING); 0025 concede
+      // SELECT, INSERT y nada de UPDATE (minimo privilegio), y planes-ronda1.spec.ts fija esa ACL.
+      expect(r[0].v, `${t} ${p}`).toBe(!(t === "prueba_origen" && p === "UPDATE"));
     }
   });
 
@@ -164,10 +182,12 @@ describe("CA-11 privilegios de tabla en auth.*", () => {
   // Ajuste de 008 (T3, CA-13, plan "BD"): auth.purgar (SECURITY DEFINER, dueño contapp_auth) borra filas de 4 tablas.
   // Las politicas auth_definer (FOR ALL) ya cubren DELETE y 0007 ya concede DELETE de tabla a contapp_auth: no hay politica ni
   // GRANT nuevos que hacer (hueco del plan). Esta prueba fija que sigue siendo asi y que nadie tiene TRUNCATE.
-  it("contapp_auth conserva DELETE en sesion, token_recuperacion, intento_login y limite_tasa (lo usa auth.purgar); TRUNCATE en ninguna", async () => {
+  // Ajuste de 006 (T1): registro_crear borra los pendientes vencidos hace mas de 7 dias (D3), asi que registro_pendiente
+  // tambien conserva DELETE para contapp_auth.
+  it("contapp_auth conserva DELETE en sesion, token_recuperacion, intento_login, limite_tasa y registro_pendiente (lo usan auth.purgar y registro_crear); TRUNCATE en ninguna", async () => {
     const tiene = async (t: string, p: string) =>
       (await consulta("select has_table_privilege('contapp_auth', to_regclass($1), $2) as v", [`auth.${t}`, p]))[0].v;
-    for (const t of ["sesion", "token_recuperacion", "intento_login", "limite_tasa"]) {
+    for (const t of ["sesion", "token_recuperacion", "intento_login", "limite_tasa", "registro_pendiente"]) {
       expect(await tiene(t, "DELETE"), `${t} DELETE`).toBe(true);
     }
     for (const t of TABLAS_AUTH) expect(await tiene(t, "TRUNCATE"), `${t} TRUNCATE`).toBe(false);
@@ -189,6 +209,8 @@ const ACTUALIZAR: Record<(typeof TABLAS_AUTH)[number], string> = {
   token_recuperacion: "set usado_en = null",
   intento_login: "set fallos = 0",
   limite_tasa: "set conteo = 0",
+  registro_pendiente: "set consumida_en = null", // 006 (T1)
+  prueba_origen: "set creada_en = now()", // Ajuste de 006 (T13b, D14)
 };
 
 describe("CA-11 contapp_backend no toca las tablas de auth por ninguna via SQL (42501)", () => {

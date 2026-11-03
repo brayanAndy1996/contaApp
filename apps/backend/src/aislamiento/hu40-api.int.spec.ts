@@ -10,6 +10,9 @@
 // tiene un trabajo en cola por cliente (sembrado con `encolar` de `@contapp/queue`); un trabajo, un cliente o un canal
 // de eventos de B desde A dan 404/409 (o 200 sin datos de B), nunca un dato ni un efecto en B. El stream se prueba con
 // `node:http` y mensajes reales en `eventos:{tenantId}` (Redis base 15, prefijo propio). Rojo hasta T11.
+//
+// 006 (T3) agrega los casos de `/registro/*`, `GET /plan/uso` y las 6 rutas `/plataforma/*` (CA-8): los usuarios de A
+// (ninguno super-admin) con IDs, tokens y correos de B. Rojo hasta T7 (uso), T8 (registro) y T9 (plataforma).
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrabajoVista } from "@contapp/shared";
@@ -858,6 +861,180 @@ const CASOS: Caso[] = [
         [c.ajeno.trabajos.map((t) => t.id)],
       );
       expect(filas.map((f) => f.estado)).toEqual(["en_cola", "en_cola"]);
+    },
+  },
+  /* ---------- 006 (T3) · registro, uso del plan y plataforma (CA-8) ---------- */
+  // Los usuarios de A (Dueño y asistente, ninguno super-admin) llaman con IDs, tokens y correos de B: nunca un dato
+  // ni un efecto en B. Las rutas de plataforma dan 403 a quien no está en `admin_plataforma`; `/plan/uso` solo
+  // devuelve el plan propio. Rojo hasta T7 (uso), T8 (registro) y T9 (plataforma).
+  {
+    ruta: "POST /registro",
+    publica: true,
+    esperado: todos(202),
+    construir: (c) => [
+      {
+        ruta: "/registro",
+        cuerpo: {
+          estudio: "Estudio HU40 006",
+          nombre: "Intruso HU40",
+          correo: c.ajeno.dueno.correo,
+          tenantId: c.ajeno.tenantId,
+        },
+      },
+    ],
+    extra: async (c, [r]) => {
+      // Misma respuesta que para un correo inexistente: no revela quién es miembro de otro estudio.
+      const inexistente = await c.pedir({
+        ruta: "/registro",
+        cuerpo: { estudio: "Estudio HU40 006", nombre: "Intruso HU40", correo: h.correoInexistente() },
+      });
+      expect({ status: r!.status, body: r!.body }).toEqual({ status: inexistente.status, body: inexistente.body });
+      const n = await h.sql("select count(*)::int n from tenant where nombre = 'Estudio HU40 006'");
+      expect(n[0].n).toBe(0); // el estudio solo se crea al confirmar
+    },
+    despues: async () => {
+      await h.sql("delete from auth.registro_pendiente where nombre_estudio = 'Estudio HU40 006'");
+    },
+  },
+  {
+    ruta: "POST /registro/consultar",
+    publica: true,
+    esperado: todos(400),
+    construir: (c) =>
+      tokensDeB(c.ajeno).map((token) => ({
+        ruta: "/registro/consultar",
+        cuerpo: { token },
+      })),
+  },
+  {
+    ruta: "POST /registro/confirmar",
+    publica: true,
+    esperado: todos(400),
+    construir: (c) =>
+      tokensDeB(c.ajeno).map((token) => ({
+        ruta: "/registro/confirmar",
+        cuerpo: { token, contrasena: PWD, tenantId: c.ajeno.tenantId },
+      })),
+    extra: async () => {
+      const f = await h.sql("select count(*)::int n from tenant where nombre = 'Estudio HU40 006'");
+      expect(f[0].n).toBe(0);
+    },
+  },
+  {
+    ruta: "POST /registro/confirmar-con-sesion",
+    esperado: todos(400),
+    construir: (c) =>
+      tokensDeB(c.ajeno).map((token) => ({
+        ruta: "/registro/confirmar-con-sesion",
+        cuerpo: { token, tenantId: c.ajeno.tenantId },
+      })),
+    extra: async (c) => {
+      const f = await h.sql("select count(*)::int n from membresia where usuario_id = $1", [c.yo.id]);
+      expect(f[0].n).toBe(1); // sigue con su única membresía
+    },
+  },
+  {
+    ruta: "GET /plan/uso",
+    esperado: todos(200),
+    construir: (c) => [
+      { ruta: "/plan/uso" },
+      { ruta: `/plan/uso?tenantId=${c.ajeno.tenantId}&estudioId=${c.ajeno.tenantId}` },
+    ],
+    extra: async (c, respuestas) => {
+      for (const r of respuestas) {
+        expect(r.body.plan.codigo).toBe("corporativo"); // el seed pone a A y B en corporativo: es el propio
+        expect(r.text).not.toMatch(/precio/i);
+      }
+      const propio = await h.sql("select count(*)::int n from cliente where tenant_id = $1", [c.mio.tenantId]);
+      expect(respuestas[1]!.body.rucs.usados).toBe(propio[0].n); // el uso es el del estudio de la sesión
+    },
+  },
+  {
+    ruta: "GET /plataforma/yo",
+    esperado: todos(403),
+    construir: () => [{ ruta: "/plataforma/yo" }],
+  },
+  {
+    ruta: "GET /plataforma/planes",
+    esperado: todos(403),
+    construir: () => [{ ruta: "/plataforma/planes" }],
+  },
+  {
+    ruta: "POST /plataforma/planes",
+    esperado: todos(403),
+    construir: (c) => [
+      {
+        ruta: "/plataforma/planes",
+        cuerpo: {
+          codigo: `hu40_${sufijo}`,
+          nombre: "Plan HU40",
+          precioMensual: "1.00",
+          precioAnual: null,
+          maxRucs: 10,
+          maxUsuarios: null,
+          precioRucExtra: "0",
+          maxRucsExtra: 0,
+          frecuenciaBuzonMin: 60,
+          features: {},
+          tenantId: c.ajeno.tenantId,
+        },
+      },
+    ],
+    extra: async () => {
+      expect(await h.sql("select 1 from plan where codigo = $1", [`hu40_${sufijo}`])).toHaveLength(0);
+    },
+  },
+  {
+    ruta: "PUT /plataforma/planes/:planId",
+    esperado: todos(403),
+    construir: (c) =>
+      [c.ajeno.tenantId, ...c.ajeno.clientes].map((id) => ({
+        metodo: "PUT" as const,
+        ruta: `/plataforma/planes/${id}`,
+        cuerpo: {
+          codigo: "corporativo",
+          nombre: "Intruso",
+          precioMensual: "0",
+          precioAnual: null,
+          maxRucs: 1,
+          maxUsuarios: 1,
+          precioRucExtra: "0",
+          maxRucsExtra: 0,
+          frecuenciaBuzonMin: 1,
+          features: {},
+          activo: false,
+        },
+      })),
+    extra: async () => {
+      const f = await h.sql("select nombre, max_rucs, activo from plan where codigo = 'corporativo'");
+      expect(f[0]).toMatchObject({ max_rucs: 600, activo: true });
+    },
+  },
+  {
+    ruta: "GET /plataforma/estudios",
+    esperado: todos(403),
+    construir: (c) => [
+      { ruta: "/plataforma/estudios" },
+      { ruta: `/plataforma/estudios?tenantId=${c.ajeno.tenantId}` },
+    ],
+  },
+  {
+    ruta: "PUT /plataforma/estudios/:tenantId/suscripcion",
+    esperado: todos(403),
+    construir: (c) =>
+      [c.ajeno.tenantId, c.mio.tenantId].map((t) => ({
+        metodo: "PUT" as const,
+        ruta: `/plataforma/estudios/${t}/suscripcion`,
+        cuerpo: { planId: randomUUID(), rucsExtraContratados: 99, tenantId: c.ajeno.tenantId },
+      })),
+    extra: async (c) => {
+      for (const t of [c.ajeno.tenantId, c.mio.tenantId]) {
+        const f = await h.sql(
+          "select p.codigo, s.rucs_extra_contratados from suscripcion s join plan p on p.id = s.plan_id where s.tenant_id = $1",
+          [t],
+        );
+        expect(f).toEqual([{ codigo: "corporativo", rucs_extra_contratados: 0 }]);
+      }
     },
   },
 ];

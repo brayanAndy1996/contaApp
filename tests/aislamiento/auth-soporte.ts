@@ -12,9 +12,15 @@ export const TABLAS_AUTH = [
   "token_recuperacion",
   "intento_login",
   "limite_tasa",
+  // Spec 006 (T1, plan "BD"): 0017+ crea auth.registro_pendiente con el mismo patron que las demas (dueño
+  // contapp_migrator, RLS ENABLE+FORCE, una politica auth_definer, grants solo a contapp_auth).
+  "registro_pendiente",
+  // Ajuste de 006 (T13b, D14): auth.prueba_origen (1 prueba por cuenta) con el mismo patron: dueño contapp_migrator,
+  // RLS ENABLE+FORCE, una politica auth_definer, grants solo a contapp_auth.
+  "prueba_origen",
 ] as const;
 
-export const FUNCIONES_AUTH = [
+const FUNCIONES_AUTH_VIGENTES = [
   "contrasena_cambiar",
   // Spec 005 (T2): 15 funciones. 0013_acceso_auth.sql agrega las tres de invitacion; las demas conservan su firma.
   "invitacion_aceptar_existente",
@@ -38,6 +44,27 @@ export const FUNCIONES_AUTH = [
   "sesiones_cerrar_todas",
   "ultimo_estudio",
 ] as const;
+
+/**
+ * Spec 006 (T1, plan "BD"): las 11 funciones `auth.*` nuevas (registro publico, cupo de aceptacion y plataforma).
+ * `FUNCIONES_AUTH` = las vigentes antes de 006 (17 tras 008) + estas 11 = 28. Si otra spec agrega funciones antes,
+ * se suman a FUNCIONES_AUTH_VIGENTES: las pruebas nunca fijan la cifra, leen la longitud de la lista.
+ */
+export const FUNCIONES_AUTH_PLANES = [
+  "cupo_usuarios_aceptar",
+  "estudios_listar",
+  "plan_crear",
+  "plan_editar",
+  "plan_listar",
+  "plataforma_yo",
+  "registro_confirmar_existente",
+  "registro_confirmar_nueva",
+  "registro_crear",
+  "registro_vigente",
+  "suscripcion_asignar",
+] as const;
+
+export const FUNCIONES_AUTH = [...FUNCIONES_AUTH_VIGENTES, ...FUNCIONES_AUTH_PLANES] as const;
 
 /** Spec 008: funciones de `auth` que ejecuta contapp_worker (y no contapp_backend). */
 export const FUNCIONES_AUTH_SOLO_WORKER = ["purgar"] as const;

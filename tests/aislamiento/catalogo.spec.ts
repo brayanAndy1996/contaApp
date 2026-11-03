@@ -71,6 +71,12 @@ describe("CA-3 catalogo de RLS", () => {
     const sin: string[] = [];
     for (const t of tablas) {
       const p = pols.find((x) => x.tablename === t.tabla && x.policyname === "tenant_isolation");
+      // Ajuste de 006 (T1, plan "BD"): `suscripcion` es la unica con tenant_isolation FOR SELECT (sin WITH CHECK): el
+      // estudio la lee pero ninguna escritura pasa por RLS aunque alguien le concediera UPDATE al backend (CA-1).
+      if (t.tabla === "suscripcion") {
+        if (!p || p.cmd !== "SELECT" || !p.qual?.includes("app.tenant_id") || p.with_check !== null) sin.push(t.tabla);
+        continue;
+      }
       if (!p || p.cmd !== "ALL" || !p.qual?.includes("app.tenant_id") || !p.with_check?.includes("app.tenant_id")) {
         sin.push(t.tabla);
       }
@@ -102,7 +108,12 @@ describe("CA-3 catalogo de RLS", () => {
   // (auth_definer, SELECT, USING (true)) y se admite aqui y en auth.spec.ts; cualquier otra tabla extra falla.
   it("politicas de contapp_auth (004 + 005): auth_definer SELECT en usuario, membresia e invitacion (y, opcional, tenant), USING (true), solo para contapp_auth", async () => {
     const pols = (await politicas()).filter((p) => p.policyname === "auth_definer");
-    expect(pols.map((p) => p.tablename).filter((t) => t !== "tenant").sort()).toEqual(["invitacion", "membresia", "usuario"]);
+    // Ajuste de 006 (T1): `suscripcion` tambien lleva auth_definer SELECT (contapp_auth la lee en las funciones de cupo).
+    expect(pols.map((p) => p.tablename).filter((t) => t !== "tenant" && t !== "suscripcion").sort()).toEqual([
+      "invitacion",
+      "membresia",
+      "usuario",
+    ]);
     for (const p of pols) {
       expect(p.cmd).toBe("SELECT");
       expect(p.roles).toEqual(["contapp_auth"]);
@@ -110,9 +121,11 @@ describe("CA-3 catalogo de RLS", () => {
     }
   });
 
-  it("auth_definer_insert (005) existe solo en usuario y membresia: INSERT, WITH CHECK (true), solo para contapp_auth", async () => {
+  // Ajuste de 006 (T1, plan "BD"): registro_confirmar_* crean el estudio y su suscripcion, asi que auth_definer_insert
+  // tambien existe en `tenant` y en `suscripcion` (y solo ahi, ademas de usuario y membresia).
+  it("auth_definer_insert (005 + 006) existe solo en usuario, membresia, tenant y suscripcion: INSERT, WITH CHECK (true), solo para contapp_auth", async () => {
     const pols = (await politicas()).filter((p) => p.policyname === "auth_definer_insert");
-    expect(pols.map((p) => p.tablename).sort()).toEqual(["membresia", "usuario"]);
+    expect(pols.map((p) => p.tablename).sort()).toEqual(["membresia", "suscripcion", "tenant", "usuario"]);
     for (const p of pols) {
       expect(p.cmd).toBe("INSERT");
       expect(p.roles).toEqual(["contapp_auth"]);
@@ -120,11 +133,14 @@ describe("CA-3 catalogo de RLS", () => {
     }
   });
 
-  it("auth_definer_update (005) existe solo en invitacion: UPDATE, solo para contapp_auth", async () => {
+  // Ajuste de 006 (T1): suscripcion_asignar actualiza la suscripcion, asi que auth_definer_update tambien existe ahi.
+  it("auth_definer_update (005 + 006) existe solo en invitacion y suscripcion: UPDATE, solo para contapp_auth", async () => {
     const pols = (await politicas()).filter((p) => p.policyname === "auth_definer_update");
-    expect(pols.map((p) => p.tablename)).toEqual(["invitacion"]);
-    expect(pols[0]!.cmd).toBe("UPDATE");
-    expect(pols[0]!.roles).toEqual(["contapp_auth"]);
+    expect(pols.map((p) => p.tablename).sort()).toEqual(["invitacion", "suscripcion"]);
+    for (const p of pols) {
+      expect(p.cmd).toBe("UPDATE");
+      expect(p.roles).toEqual(["contapp_auth"]);
+    }
   });
 
   it("ninguna politica de contapp_auth cubre DELETE ni ALL, y asignacion no tiene politicas para contapp_auth", async () => {
@@ -144,6 +160,15 @@ describe("CA-3 catalogo de RLS", () => {
     const nombres = (await tablasConTenantId()).map((t) => t.tabla);
     expect(nombres).toContain("job_registro");
     expect(nombres).not.toContain("config_sistema");
+  });
+
+  // Spec 006 (T1, CA-1, CA-8, plan "BD"): suscripcion es de estudio (tenant_id, RLS); plan y admin_plataforma son de
+  // plataforma y NO tienen tenant_id (los lee el backend solo por columnas permitidas; ver planes.spec.ts).
+  it("suscripcion (006) esta en el catalogo de tablas con tenant_id; plan y admin_plataforma no (la prueba no es vacua)", async () => {
+    const nombres = (await tablasConTenantId()).map((t) => t.tabla);
+    expect(nombres).toContain("suscripcion");
+    expect(nombres).not.toContain("plan");
+    expect(nombres).not.toContain("admin_plataforma");
   });
 
   it("tenant_id es uuid NOT NULL en toda tabla de negocio", async () => {

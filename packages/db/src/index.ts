@@ -27,15 +27,24 @@ export type {
   AceptacionExistente,
   AceptacionNueva,
   AuthRepo,
+  ConfirmacionNueva,
+  DatosPlan,
+  EstudioPlataforma,
   InvitacionVigente,
   LoginExitoArgs,
   LoginPreparado,
+  PlanFila,
   RecuperacionConsumida,
+  RegistroConfirmado,
+  RegistroSolicitud,
+  RegistroVigente,
   SesionEmitida,
   SesionValida,
+  SuscripcionAsignada,
   TipoLimite,
 } from "./auth/repositorio";
-export { AuthRepoError } from "./auth/errores";
+export { AuthRepoError, PlataformaReglaError } from "./auth/errores";
+export type { MotivoPlataforma } from "./auth/errores";
 // Spec 005: repositorios de acceso (todos con la `tx` de withTenant como primer argumento).
 export { clienteVisible, filtroAlcance } from "./acceso/alcance";
 export type { Alcance } from "./acceso/alcance";
@@ -121,3 +130,10 @@ export {
 } from "./credenciales/estado";
 export type { EstadoDeCredencial, MotivoEstadoCredencial } from "./credenciales/estado";
 export { configSistema, jobRegistro } from "./schema/trabajos";
+// Spec 006: planes y cupo (todos con la `tx` de withTenant como primer argumento).
+export { bloquearCupo, contarRucs, contarUsuarios, leerLimites } from "./planes/cupo";
+export type { ConteoUsuarios, LimitesPlan } from "./planes/cupo";
+export { usoDelEstudio } from "./planes/uso";
+export type { UsoDelEstudio } from "./planes/uso";
+export { PlanesRepoError } from "./planes/errores";
+export { adminPlataforma, plan, suscripcion } from "./schema/planes";

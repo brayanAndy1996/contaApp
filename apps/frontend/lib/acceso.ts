@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { ROLES, puedeGestionar, type Rol } from "@contapp/shared";
 import { api } from "./api";
 
@@ -81,6 +82,30 @@ export async function cargarYo(): Promise<{
 }> {
   const r = await api<Yo>("/acceso/yo");
   return { yo: r.ok ? r.datos : null, status: r.status };
+}
+
+/**
+ * ¿Tiene el usuario `permiso` en el estudio activo? Solo oculta (RNF-007): el backend valida.
+ * Devuelve `undefined` mientras carga `GET /acceso/yo`, para no mostrar nada a medias.
+ */
+export function usePuede(permiso: string): boolean | undefined {
+  const [yo, setYo] = useState<Yo | null | undefined>(undefined);
+
+  useEffect(() => {
+    let vigente = true;
+    cargarYo()
+      .then(({ yo: actual }) => {
+        if (vigente) setYo(actual);
+      })
+      .catch(() => {
+        if (vigente) setYo(null);
+      });
+    return () => {
+      vigente = false;
+    };
+  }, []);
+
+  return yo === undefined ? undefined : tiene(yo, permiso);
 }
 
 export const fechaCorta = (iso: string): string =>
