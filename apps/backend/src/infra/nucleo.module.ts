@@ -11,6 +11,10 @@ import {
   CUPO_USUARIOS,
   type CupoUsuarios,
 } from "../modules/acceso/cupo/cupo-usuarios.js";
+import {
+  CUPO_RUCS,
+  type CupoRucs,
+} from "../modules/planes/cupo/cupo-rucs.js";
 import type { Hasher } from "../modules/auth/contrasena/hasher.js";
 import {
   APP_ORIGIN,
@@ -28,8 +32,10 @@ export interface DependenciasNucleo {
   cola: ColaCorreo;
   comunes: ReadonlySet<string>;
   appOrigin: string;
-  /** Límite de usuarios del plan (D11): `CupoSinLimite` en 005. */
+  /** Límite de usuarios del plan (D11): `CupoUsuariosPlanes` por defecto (006). */
   cupo: CupoUsuarios;
+  /** Límite de RUCs del plan (D4): `CupoRucsPlanes` por defecto (006). */
+  cupoRucs: CupoRucs;
 }
 
 /** Cierra el pool de la BD al cerrar la app (`app.close()`). */
@@ -54,6 +60,7 @@ export class NucleoModule {
       { provide: COMUNES, useValue: d.comunes },
       { provide: APP_ORIGIN, useValue: d.appOrigin },
       { provide: CUPO_USUARIOS, useValue: d.cupo },
+      { provide: CUPO_RUCS, useValue: d.cupoRucs },
     ];
     return {
       module: NucleoModule,

@@ -13,7 +13,6 @@ import type { Correo, MensajeCorreo } from "./infra/correo/correo.js";
 import { crearCorreo } from "./infra/correo/fabrica.js";
 import { crearDb } from "./infra/db.js";
 import type { CupoUsuarios } from "./modules/acceso/cupo/cupo-usuarios.js";
-import { CupoSinLimite } from "./modules/acceso/cupo/sin-limite.js";
 import { ClienteScopeGuard } from "./modules/acceso/guards/cliente-scope.guard.js";
 import { PermisoGuard } from "./modules/acceso/guards/permiso.guard.js";
 import { AuthService } from "./modules/auth/auth.service.js";
@@ -24,6 +23,8 @@ import { EstudioGuard } from "./modules/auth/guards/estudio.guard.js";
 import { OrigenGuard } from "./modules/auth/guards/origen.guard.js";
 import { SesionGuard } from "./modules/auth/guards/sesion.guard.js";
 import { DB } from "./modules/auth/inyeccion.js";
+import { CupoRucsPlanes, type CupoRucs } from "./modules/planes/cupo/cupo-rucs.js";
+import { CupoUsuariosPlanes } from "./modules/planes/cupo/cupo-usuarios-planes.js";
 
 // Nombres con los que las pruebas (test/soporte.ts) tipan lo que inyectan en `crearApp`.
 export type MensajeCorreoApp = MensajeCorreo;
@@ -34,8 +35,10 @@ export interface OpcionesApp {
   correo?: CorreoApp;
   hasher?: HasherApp;
   env?: Record<string, string | undefined>;
-  /** Límite de usuarios del plan (D11); por defecto `CupoSinLimite` (006 lo reemplaza). */
+  /** Límite de usuarios del plan (D11); por defecto `CupoUsuariosPlanes`. `CupoSinLimite` solo para pruebas. */
   cupoUsuarios?: CupoUsuarios;
+  /** Límite de RUCs del plan (D4); por defecto `CupoRucsPlanes`. */
+  cupoRucs?: CupoRucs;
   /**
    * Redis de trabajos (008): por defecto `REDIS_URL` del entorno y el prefijo `contapp:`. La conexión es perezosa:
    * con Redis caído la app arranca, las lecturas responden y encolar no espera.
@@ -79,7 +82,8 @@ export async function crearApp(o: OpcionesApp = {}): Promise<INestApplication> {
       cola: new ColaCorreo(correo),
       comunes: cargarComunes(),
       appOrigin: entorno.appOrigin,
-      cupo: o.cupoUsuarios ?? new CupoSinLimite(),
+      cupo: o.cupoUsuarios ?? new CupoUsuariosPlanes(),
+      cupoRucs: o.cupoRucs ?? new CupoRucsPlanes(),
       redis: {
         url: o.redis?.url ?? env.REDIS_URL ?? REDIS_POR_DEFECTO,
         prefijo: o.redis?.prefijo ?? PREFIJO_POR_DEFECTO,

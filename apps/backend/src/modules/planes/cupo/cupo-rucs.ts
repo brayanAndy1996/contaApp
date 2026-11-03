@@ -1,27 +1,51 @@
-/* eslint-disable @typescript-eslint/no-unused-vars -- stub: T7 usa los parámetros */
-import { HttpException, HttpStatus } from "@nestjs/common";
-import type { Tx } from "@contapp/db";
+import { HttpException, HttpStatus, Injectable } from "@nestjs/common";
+import { bloquearCupo, contarRucs, leerLimites, type Tx } from "@contapp/db";
+import { limiteEfectivoRucs } from "@contapp/shared";
+import { PlanNoDisponibleError } from "./errores.js";
 
-// STUB de T2 (006, pruebas primero): T7 implementa el puerto, el error y el adaptador (D4).
+/**
+ * Puerto del cupo de RUCs (D4, D6). `reservar` se llama antes de insertar o reactivar clientes (007) y conserva el
+ * bloqueo del cupo hasta el commit de la transacción del llamador; no escribe nada.
+ */
 export interface CupoRucs {
   libres(tx: Tx, tenantId: string): Promise<number>;
   reservar(tx: Tx, tenantId: string, n: number): Promise<void>;
 }
 
+/** Token de inyección de `CupoRucs` (lo aporta `crearApp`). */
 export const CUPO_RUCS = Symbol("PLANES_CUPO_RUCS");
 
-/** Sin cupo de RUCs: 409 `{ codigo: "cupo_rucs" }` (T7 corrige el stub). */
+/** Sin cupo de RUCs: 409 `cupo_rucs`, sin datos del estudio ni del plan. */
 export class CupoRucsError extends HttpException {
   constructor() {
-    super({}, HttpStatus.INTERNAL_SERVER_ERROR);
+    super({ codigo: "cupo_rucs" }, HttpStatus.CONFLICT);
+    this.name = "CupoRucsError";
   }
 }
 
+@Injectable()
 export class CupoRucsPlanes implements CupoRucs {
-  async libres(_tx: Tx, _tenantId: string): Promise<number> {
-    throw new Error("no implementado (006 T7)");
+  async libres(tx: Tx, tenantId: string): Promise<number> {
+    const { limite, usados } = await this.medir(tx, tenantId);
+    return Math.max(0, limite - usados);
   }
-  async reservar(_tx: Tx, _tenantId: string, _n: number): Promise<void> {
-    throw new Error("no implementado (006 T7)");
+
+  async reservar(tx: Tx, tenantId: string, n: number): Promise<void> {
+    const { limite, usados } = await this.medir(tx, tenantId);
+    if (usados + n > limite) throw new CupoRucsError();
+  }
+
+  /** Bloquea antes de contar y relee el plan en cada llamada (CA-2). Sin suscripción falla cerrado. */
+  private async medir(
+    tx: Tx,
+    tenantId: string,
+  ): Promise<{ limite: number; usados: number }> {
+    await bloquearCupo(tx, tenantId);
+    const l = await leerLimites(tx, tenantId);
+    if (l === null) throw new PlanNoDisponibleError();
+    return {
+      limite: limiteEfectivoRucs(l.maxRucs, l.maxRucsExtra, l.rucsExtraContratados),
+      usados: await contarRucs(tx, tenantId),
+    };
   }
 }

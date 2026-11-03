@@ -13,12 +13,10 @@ export const Permiso = (p: TipoPermiso) => SetMetadata(META_PERMISO, p);
 /** Exige sesión y estudio activo, sin permiso (p. ej. `GET /estudio/actual`, `GET /acceso/yo`). */
 export const SoloEstudio = () => SetMetadata(META_SOLO_ESTUDIO, true);
 /**
- * STUB de T2 (006, pruebas primero): T9 lo implementa. Declaración de plataforma (D5): solo junto a
- * `@SinEstudio`, nunca con `@Permiso`/`@SoloEstudio`.
+ * Declaración de plataforma (D5): solo junto a `@SinEstudio`, nunca con `@Permiso`/`@SoloEstudio`. `PermisoGuard`
+ * la reconoce (T9); sin `@SinEstudio` responde 403 sin tocar la BD.
  */
-export const SoloPlataforma = (): MethodDecorator & ClassDecorator => {
-  throw new Error("no implementado (006 T9)");
-};
+export const SoloPlataforma = () => SetMetadata(META_SOLO_PLATAFORMA, true);
 
 /** Lo que `PermisoGuard` deja en la petición (no enumerable: no se serializa). */
 export interface Acceso {
