@@ -56,6 +56,8 @@ export default function ConfirmarRegistro() {
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [creado, setCreado] = useState<EstudioCreado | null>(null);
+  // D14: la cuenta ya originó su prueba; el estudio creado no tiene plan (no se presenta como uno con prueba).
+  const [sinPlan, setSinPlan] = useState(false);
 
   useEffect(() => {
     lectura.current ??= { token: tomarTokenDelFragmento() };
@@ -119,6 +121,9 @@ export default function ConfirmarRegistro() {
         setFase("existente");
       } else if (r.status === 400) {
         setFase("invalida");
+      } else if (r.status === 429) {
+        // D15: demasiados intentos de confirmar desde esta IP; el mensaje no repite el código del servidor.
+        setError(MENSAJES_REGISTRO.demasiadosConfirmar);
       } else if (r.status === 503) {
         setError(MENSAJES_REGISTRO.registroNoDisponible);
       } else {
@@ -156,12 +161,13 @@ export default function ConfirmarRegistro() {
       }
       // Sesión nueva: la llamada siguiente toma de ella el CSRF, no el de antes del login.
       reiniciarSesion();
-      const r = await api<{ estudio?: EstudioCreado }>(
+      const r = await api<{ estudio?: EstudioCreado; sinPlan?: boolean }>(
         "/registro/confirmar-con-sesion",
         { method: "POST", body: { token } },
       );
       if (r.ok && r.datos?.estudio) {
         setCreado(r.datos.estudio);
+        setSinPlan(r.datos.sinPlan === true);
         setFase("conEstudio");
       } else if (r.status === 400) {
         setFase("invalida");
@@ -292,7 +298,9 @@ export default function ConfirmarRegistro() {
         {fase === "conEstudio" && creado && (
           <>
             <p role="status">
-              {MENSAJES_REGISTRO.estudioCreado(creado.nombre)}
+              {sinPlan
+                ? MENSAJES_REGISTRO.sinPlan
+                : MENSAJES_REGISTRO.estudioCreado(creado.nombre)}
             </p>
             {alerta}
             <button

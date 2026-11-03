@@ -18,8 +18,9 @@ import { api } from "./api";
 export interface EstudioPlataforma {
   id: string;
   nombre: string;
-  plan: { codigo: string; nombre: string };
-  estado: "prueba" | "activa";
+  // Nulos: el estudio no tiene suscripción (D14); la pantalla lo muestra como "Sin plan".
+  plan: { codigo: string; nombre: string } | null;
+  estado: "prueba" | "activa" | null;
 }
 
 export type AccesoPlataforma = "admin" | "sin_permiso" | "error";

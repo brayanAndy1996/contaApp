@@ -14,9 +14,10 @@ import {
   type EstudioPlataforma,
 } from "../../../lib/plataforma";
 
-// Estudios de la plataforma (spec 006, D5, D13, CA-10): plan y RUCs adicionales por estudio. Sin
+// Estudios de la plataforma (spec 006, D5, D13, D14, CA-10): plan y RUCs adicionales por estudio. Sin
 // acceso (403 de /plataforma/yo) solo se muestra el aviso: ni datos ni acciones. El servidor valida
-// cada asignación.
+// cada asignación. Un estudio sin suscripción (plan y estado nulos, D14) figura como "Sin plan" y admite
+// asignarle uno.
 
 export default function AdminPlataforma() {
   const acceso = useAccesoPlataforma();
@@ -123,7 +124,7 @@ export default function AdminPlataforma() {
           <tbody>
             {estudios.map((e) => (
               <FilaEstudio
-                key={`${e.id}:${e.plan.codigo}`}
+                key={`${e.id}:${e.plan?.codigo ?? ""}`}
                 estudio={e}
                 planes={planes}
                 ocupado={ocupado}
@@ -157,7 +158,7 @@ function FilaEstudio({
 }: FilaEstudioProps) {
   const activos = planes.filter((p) => p.activo);
   const actual =
-    activos.find((p) => p.codigo === estudio.plan.codigo)?.id ?? "";
+    activos.find((p) => p.codigo === estudio.plan?.codigo)?.id ?? "";
   // Lo que elige el super-admin gana al plan actual, así la fila se completa aunque los planes lleguen después.
   const [elegido, setElegido] = useState<string | null>(null);
   const [rucsExtra, setRucsExtra] = useState("0");
@@ -168,8 +169,8 @@ function FilaEstudio({
       <th scope="row" className="py-2 font-normal">
         {estudio.nombre}
       </th>
-      <td>{estudio.plan.nombre}</td>
-      <td>{estudio.estado}</td>
+      <td>{estudio.plan?.nombre ?? "Sin plan"}</td>
+      <td>{estudio.estado ?? "—"}</td>
       <td>
         <select
           aria-label="Plan"
