@@ -176,6 +176,8 @@ export class EscenarioAcceso {
         ["delete from auth.usuario_contrasena where usuario_id = any($1::uuid[])", [usuarios]],
         ["delete from membresia where tenant_id = any($1::uuid[]) or usuario_id = any($2::uuid[])", [t, usuarios]],
         ["delete from cliente where tenant_id = any($1::uuid[])", [t]],
+        // Spec 006 (T1): suscripcion referencia a tenant; sin este paso el estudio no se podria borrar (el catch lo ocultaria).
+        ["delete from suscripcion where tenant_id = any($1::uuid[])", [t]],
         ["delete from usuario where id = any($1::uuid[])", [usuarios]],
         ["delete from tenant where id = any($1::uuid[])", [t]],
       ];
