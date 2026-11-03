@@ -12,7 +12,7 @@ Nivel B, sin ronda adversarial (spec D9). Flujo 04 §1.3: pruebas primero (rojo)
 | T4   | Pruebas del frontend y de la regla de lint `sql` (rojo)                                    | tester     | sonnet | — ∥ T3            | ✓   | —   | [x]    |
 | T5   | Migración 0026, esquema de `cliente` y conteo de activos en `cupo`/`uso`                   | backend    | sonnet | T1                | ✓   | —   | [x] |
 | T6   | `shared/clientes`: `validarRuc` y esquemas                                                 | backend    | sonnet | T2 ∥ T5           | ✓   | —   | [x]    |
-| T7   | Repositorios `packages/db/clientes`: crear, editar, archivar, reactivar, leer, filtros     | backend    | sonnet | T2, T5, T6        | ✓   | —   | [ ]    |
+| T7   | Repositorios `packages/db/clientes`: crear, editar, archivar, reactivar, leer, filtros     | backend    | sonnet | T2, T5, T6        | ✓   | —   | [x]    |
 | T8   | Revalidación de 008 con «no archivado» y 409 al asignar archivados                         | backend    | sonnet | T1, T5 ∥ T7       | ✓   | —   | [ ]    |
 | T9   | Servicio y controlador de clientes: cupo, orden de bloqueo, errores y auditoría de rutas   | backend    | sonnet | T3, T6, T7, T8    | ✓   | —   | [ ]    |
 | T10  | Regla de lint: cerrar `import * as d from "drizzle-orm"`                                   | backend    | sonnet | T4 ∥ T5–T9        | ✓   | —   | [x] |
@@ -81,6 +81,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/007a-clientes/spec.md` (D1, D4, D5, D7), `docs/specs/007a-clientes/plan.md` (Contratos: packages/db; Decisiones), `packages/db/src/acceso/{clientes,alcance,errores}.ts`, `packages/db/src/index.ts`, `packages/db/src/clientes/*.spec.ts`.
 - **Hacer**: `repositorio.ts`, `filtros.ts`, `errores.ts` (`RucDuplicadoError`, `ClienteArchivadoError`); SQL estático con parámetros (`ILIKE … ESCAPE`); `listarClientesFiltrado` con `filtroAlcance`; exportar desde `src/index.ts`. Sin `sql` fuera de `packages/db`.
 - **Hecho cuando**: `pnpm --filter @contapp/db test` verde (T2) y las partes de T1 sobre listado y repos. Commit `feat(007a): repositorios de clientes con filtros`.
+- **Resultado**: `clientes/{repositorio,filtros,errores}.ts` reemplazan los stubs y se exportan desde `src/index.ts`. `crearCliente` devuelve el id; `editarCliente` devuelve false si no existe y lanza `ClienteArchivadoError` si está archivado (UPDATE con `archivado_at is null`); archivar/reactivar idempotentes. `q`: prefijo de RUC siempre; fragmento de razón social solo si `q` tiene una letra o son solo dígitos (lo exige `filtros.spec` con `50%_\`). `@contapp/db` test 623/623, tsc y eslint limpios; humo contra PG real OK (alta, duplicado, edición, filtros, archivar/reactivar, alcance).
 
 ## T8 · Revalidación de 008 y asignar archivados (backend · sonnet)
 
