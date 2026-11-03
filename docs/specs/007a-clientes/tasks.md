@@ -16,7 +16,7 @@ Nivel B, sin ronda adversarial (spec D9). Flujo 04 §1.3: pruebas primero (rojo)
 | T8   | Revalidación de 008 con «no archivado» y 409 al asignar archivados                         | backend    | sonnet | T1, T5 ∥ T7       | ✓   | —   | [ ]    |
 | T9   | Servicio y controlador de clientes: cupo, orden de bloqueo, errores y auditoría de rutas   | backend    | sonnet | T3, T6, T7, T8    | ✓   | —   | [ ]    |
 | T10  | Regla de lint: cerrar `import * as d from "drizzle-orm"`                                   | backend    | sonnet | T4 ∥ T5–T9        | ✓   | —   | [x] |
-| T11a | Frontend: cliente HTTP y listado con filtros                                               | frontend   | sonnet | T4 ∥ T5–T10       | ✓   | —   | [ ]    |
+| T11a | Frontend: cliente HTTP y listado con filtros                                               | frontend   | sonnet | T4 ∥ T5–T10       | ✓   | —   | [x]    |
 | T11b | Frontend: alta, detalle con datos fiscales y archivar/reactivar                            | frontend   | haiku  | T4, T11a          | ✓   | —   | [ ]    |
 | T12  | Verificar CA-1 a CA-9 con evidencia (suites completas)                                     | tester     | sonnet | T9, T10, T11b     | —   | —   | [ ]    |
 | T13  | Revisión contra la spec                                                                    | arquitecto | sonnet | T12               | —   | —   | [ ]    |
@@ -105,6 +105,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/007a-clientes/spec.md` (D7, D10; CA-9), `docs/specs/007a-clientes/plan.md` (Contratos: shared, HTTP), `apps/frontend/app/(app)/clientes/page.tsx` y su spec, `apps/frontend/lib/{api,acceso,planes}.ts`, `apps/frontend/components/uso-plan.tsx`.
 - **Hacer**: `lib/clientes.ts` (llamadas y tipos desde `@contapp/shared`); `components/filtros-clientes.tsx` (responsable, estado de credencial, archivados, búsqueda); listado con filtros, estado de credenciales (solo texto de estado) y acciones según permiso. Conserva la asignación masiva de 005. Solo depende de `packages/shared`.
 - **Hecho cuando**: las pruebas del listado (T4) en verde; `pnpm --filter @contapp/frontend test`, `lint` y `typecheck` verdes. Commit `feat(007a): listado de clientes con filtros`.
+- **Resultado**: `lib/clientes.ts` (listar/obtener/crear/editar/archivar/reactivar, `ETIQUETA_ESTADO`), `components/filtros-clientes.tsx` y listado con filtros, credenciales y acciones; `clientes/listado.spec.tsx` 8/8 verde, `lint` y `typecheck` limpios. Pendiente para el tester: `clientes/page.spec.tsx` (005) tiene 2 aserciones que contradicen D7 (`queryAllByRole("combobox")` y `getAllByRole("checkbox")` con 3 sin permiso de asignar: ahora hay filtros y «Mostrar archivados»); ajustarlas con comentario. Las otras 24 rojas son de T11b.
 
 ## T11b · Frontend: alta, detalle y archivado (frontend · haiku)
 
