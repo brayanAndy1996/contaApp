@@ -11,7 +11,7 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 | 003-cifrado | A | hecha | — | Sin Docker (decisión del usuario). Rama `spec/003-cifrado` sin mergear (desde `spec/002-db-rls`). F2: límite aceptado por el usuario (ver `spec.md`, Límites conocidos). |
 | 004-auth | A | hecha | — | Hecha. Rama `spec/004-auth` sin mergear (desde `spec/010-dominio-dinero`). O-2 y límites de T20a aceptados por el usuario. CI en rojo hasta 1216e84 de 005: faltaba compilar shared. |
 | 005-acceso | A | hecha | — | Hecha. Rama `spec/005-acceso` sin mergear (desde `spec/004-auth`). CI verde (1216e84). |
-| 006-planes | B | en curso | T13 | Aprobada por el usuario (2026-10-27) con todo lo recomendado. Plan y tareas en rama `spec/006-planes` (desde `main`). Orden de implementación: 011 → 008 → 006. T1–T12b hechas; ronda adversarial con 10 hallazgos (H-006-a1..a3, b1..b7); decisiones del usuario 2026-11-03 (D14 1 prueba por cuenta, D15 10/h por IP en confirmar). T13a/T13b/T13c corrigen (migración 0025). |
+| 006-planes | B | hecha | — | Hecha. Mergeada en `main` (5a9fd7a). CA-1 a CA-14 con evidencia (T14); revisión T15 aprobada con 2 defectos corregidos en T15a/T15b (cupo al aceptar con sesión, `reservar` inválido). 10 hallazgos H-006 corregidos. Decisiones del usuario 2026-11-03: D14, D15, lock en proceso, CLI de alta de super-admin (`pnpm db:plataforma-alta`) y P-T15-2 (dejar así en R1). CI verde (run 41664504503). |
 | 007-clientes | B | pendiente | — | — |
 | 008-cola | A | hecha | — | Hecha. Mergeada en `main` (74d96c9). Revisión final (T18) aprobada; 26 hallazgos de las rondas 1 y 2 corregidos; CA-1 a CA-17 con evidencia (T17). Formato en `1daa35d`. |
 | 009-adaptadores-mock | C | pendiente | — | — |
@@ -154,13 +154,19 @@ No son decisiones tomadas ni pendientes del usuario: cada spec las resuelve al p
 - [011/013] El lint contra `number` solo cubre `dinero/` y `comprobante/`, y ahí prohíbe tipos indexados, `typeof` e `infer`: si manejan montos en otra carpeta, ampliar `files` de esa regla en `eslint.config.mjs` y escribir las uniones a mano.
 - [013] Columnas de ventas: 010 no las trae (D4); 013 reutiliza `Money` y un `verificarCuadre` genérico sobre su propia lista de componentes.
 - [004] Límites conocidos de la corrección O-1 (T20a, `0010_auth_final.sql`): dos logins simultáneos del mismo usuario con re-hash pendiente → el segundo da 401 y el reintento entra; login o cambio de estudio más cambio de contraseña con la misma cookie pueden interbloquearse → 500 genérico, sin sesión indebida. Aceptados por el usuario con O-2.
-- [006] Reemplazar `CupoSinLimite` (cupo por defecto de `crearApp`) por el límite real de planes. `CupoUsuarios` ya se llama en la misma transacción al invitar, aceptar (ambas vías) y reactivar (D11).
 - [007] Toda escritura nueva sobre `membresia`, `cliente` o `asignacion` usa `filtroAlcance` y `ClienteScopeGuard` y sigue el orden global de bloqueo de 005: `bloquearMiembros` primero; después el último Dueño, los clientes por ID y, al final, asignaciones e invitaciones.
 - [despliegue] PostgreSQL de producción con colación ICU `und-x-icu`: la migración 0016 falla si falta. El CI (`postgres:17`, run 40524156972) la confirma.
 - [despliegue] Riesgo aceptado (bajo): Node 24 trae Unicode 16 y el ICU de PostgreSQL puede ser otra versión; un nombre con una letra muy reciente pasa el backend y la BD lo rechaza con `invitacion_invalida`, sin consumir el token.
 - [005] Riesgo aceptado (bajo): se rechazan ZWJ y ZWNJ (U+200D, U+200C, categoría `Cf`) en nombres de invitación; los usan algunos alfabetos (persa, índicos) y emojis compuestos. No afecta a nombres en español.
 - [005] Riesgo aceptado (bajo): `invitacion_vigente` lee la membresía del invitador sin bloqueo; la aceptación se serializa con la revocación en la fila de la invitación (plan, T15).
-- [006] Migraciones desde 0022: 008 usó 0017–0021 (0017–0018 trabajos y RLS; 0019 `auth.sesion_consultar`; 0020 `auth.purgar`; 0021 `estado_at`).
+- [siguientes] Migraciones desde 0026: 006 usó 0022–0025 (0022 planes, 0023 RLS, 0024 funciones `auth.*`, 0025 ronda adversarial).
+- [007] Llamar `CupoRucs.reservar` tras bloquear al actor y antes de tocar `cliente`, y mapear 409 `cupo_rucs`. Al agregar el archivado, `contarRucs` (`packages/db/src/planes/cupo.ts`) y la consulta de `uso.ts` cuentan solo clientes activos.
+- [RF-005/006] Asignar un plan a un estudio en Prueba lo deja en `prueba` con su `prueba_vence_en` (decisión del usuario 2026-11-03: así en R1). Resolver antes de aplicar vencimientos, o un estudio que ya subió de plan expiraría.
+- [R3] El Dueño aún no cambia de plan por su cuenta (RF-005); lo hace el super-admin.
+- [R2] El super-admin no tiene TOTP. Se da de alta con `pnpm db:plataforma-alta --correo <c>` (`MIGRATIONS_DATABASE_URL`).
+- [despliegue] `db:plataforma-alta` lee la lista de contraseñas comunes de `apps/backend` por ruta relativa: correrlo desde un checkout completo, o mover la lista a `packages/shared`.
+- [006] D4 de la spec dice `FOR UPDATE`; prevalece el bloqueo advisory `plan.cupo:<tenant>` de `plan.md` (ratificado en T15).
+- [pruebas] `packages/db/src/cli/seed-r2b.adv.spec.ts:29` falló una vez en local sin reproducirse en 19 corridas (hipótesis: timeout del `import` en frío bajo carga). Si reaparece en CI, subir su timeout.
 - [004] Precisa D3 (inactividad de 2 h): el stream de trabajos (`GET /trabajos/stream` y su revalidación) no renueva la sesión (008 D22, `auth.sesion_consultar`); las demás rutas renuevan como antes. Documentos de 004 sin cambios.
 - [007] Pantalla o panel de trabajos en el frontend: 008 no la trae. 007 es la primera spec que encola desde la UI (D15) y debe comprobar el SSE a través del proxy de Next.js (buffering).
 - [007] Cliente archivado (008 D17): al despachar, 007 agrega «no archivado» a la revalidación del cliente, con `archivado_at` (que crea 007) en el mismo punto; si falla, el trabajo queda `cancelado` con `acceso_retirado`.
