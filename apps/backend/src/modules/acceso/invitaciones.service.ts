@@ -65,9 +65,10 @@ const FORMA_CORREO = /^[^\s@\p{Cc}]+@[^\s@\p{Cc}]+$/u;
 const NOMBRE_MAX = 200;
 /**
  * Caracteres de control (C0, DEL, C1; H-005-1b-3) y de formato (ancho cero, marcas y aislamientos bidi, BOM,
- * etiquetas; H-005-2a-2): no van en el nombre. La BD (0016) rechaza los mismos por rangos de código.
+ * etiquetas; H-005-2a-2): no van en el nombre. La BD (0016) rechaza los mismos por rangos de código. Spec 006 (a3):
+ * también los separadores de línea y párrafo U+2028/U+2029 (no son Cc ni Cf); 0025 los suma a `registro_pendiente`.
  */
-const CONTROL_O_FORMATO = /[\p{Cc}\p{Cf}]/u;
+const CONTROL_O_FORMATO = /[\p{Cc}\p{Cf}\u2028\u2029]/u;
 /** Al menos una letra o un dígito decimal (como `[[:alnum:]]` bajo ICU en 0016): un nombre no es solo signos. */
 const LETRA_O_DIGITO = /[\p{L}\p{Nd}]/u;
 

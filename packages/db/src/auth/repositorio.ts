@@ -1,6 +1,6 @@
 // AuthRepo: una función TS por función SQL `auth.*` (SECURITY DEFINER, migraciones 0007_auth a 0010_auth_final,
 // 0013_acceso_auth, que agrega las tres de invitación, y 0024_planes_auth, que agrega las 11 de registro, cupo de
-// aceptación y plataforma).
+// aceptación y plataforma; 0025_planes_ronda1 cambia la salida de registro_confirmar_existente, D14).
 // SQL estático `select * from auth.<función>($1, ...)` con parámetros posicionales (nunca se interpola un
 // valor); columnas de salida = nombres OUT del plan (las escalares: columna con el nombre de la función);
 // camelCase en TS; cero filas -> null; cualquier error de `pg` -> AuthRepoError (solo SQLSTATE). Las de plataforma
@@ -15,7 +15,9 @@ export type TipoLimite =
   | "recup_ip"
   | "restab_ip"
   | "registro_ip"
-  | "registro_correo";
+  | "registro_correo"
+  /** 006 (D15): intentos de `/registro/confirmar` por IP (10 por hora, 0025). */
+  | "registro_confirmar_ip";
 
 export interface LoginPreparado {
   permitido: boolean;
@@ -82,6 +84,8 @@ export type ConfirmacionNueva = "creado" | "cuenta_existe" | "invalida" | "sin_p
 export interface RegistroConfirmado {
   tenantId: string;
   estudioNombre: string;
+  /** D14: este estudio originó la prueba de la cuenta (false = la cuenta ya la usó; el estudio nace sin suscripción). */
+  conPrueba: boolean;
 }
 /** 006: plan completo (solo plataforma). Precios como cadena decimal de `pg` (NUMERIC(14,2)), nunca `number`. */
 export interface PlanFila {
@@ -356,7 +360,11 @@ export function crearAuthRepo(tx: TxConsulta): AuthRepo {
       ejecutar(SQL.registroConfirmarExistente, [tokenHash, tokenHashSesion], (f) =>
         f.length === 0
           ? null
-          : { tenantId: f[0]!.tenant_id as string, estudioNombre: f[0]!.estudio_nombre as string },
+          : {
+              tenantId: f[0]!.tenant_id as string,
+              estudioNombre: f[0]!.estudio_nombre as string,
+              conPrueba: f[0]!.con_prueba === true,
+            },
       ),
     cupoUsuariosAceptar: (tenantId) =>
       ejecutar(SQL.cupoUsuariosAceptar, [tenantId], (f) => f[0]!.cupo_usuarios_aceptar === true),

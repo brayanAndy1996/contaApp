@@ -77,8 +77,14 @@ export const suscripcionAsignarSchema = z.object({
   rucsExtraContratados: z.int().min(0),
 });
 
+/** Largo en code points (`[...s].length`), como `char_length` de PostgreSQL (b4): un emoji cuenta 1, no 2. */
+export const largoCodePoints = (s: string): number => [...s].length;
+
 export const registroSolicitudSchema = z.object({
-  estudio: z.string().min(1).max(TEXTO_MAX),
+  estudio: z.string().refine((s) => {
+    const n = largoCodePoints(s);
+    return n >= 1 && n <= TEXTO_MAX;
+  }),
   ruc: z.string().regex(/^\d{11}$/).optional(),
   nombre: z.string().min(1).max(TEXTO_MAX),
   correo: z.string().min(1).max(CORREO_MAX),

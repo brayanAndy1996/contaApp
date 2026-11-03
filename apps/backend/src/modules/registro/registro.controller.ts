@@ -33,8 +33,8 @@ export class RegistroController {
   @Post("confirmar")
   @Publico()
   @HttpCode(204)
-  confirmar(@Body() cuerpo: unknown): Promise<void> {
-    return this.registro.confirmar(cuerpo);
+  confirmar(@Body() cuerpo: unknown, @Req() req: Request): Promise<void> {
+    return this.registro.confirmar(cuerpo, req.ip);
   }
 
   @Post("confirmar-con-sesion")

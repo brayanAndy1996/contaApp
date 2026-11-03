@@ -5,6 +5,7 @@ import {
   type RegistroVigente,
 } from "@contapp/db";
 import {
+  largoCodePoints,
   registroConfirmarConSesionSchema,
   registroConfirmarSchema,
   registroConsultarSchema,
@@ -29,7 +30,7 @@ import {
   DB,
   HASHER,
 } from "../auth/inyeccion.js";
-import { sujetoIp } from "../auth/limites/ip.js";
+import { sujetoIpValidado } from "../auth/limites/ip.js";
 import {
   generarToken,
   hashToken,
@@ -40,8 +41,11 @@ import { mensajeRegistro } from "./mensajes.js";
 
 /** Forma mínima de un correo, sin caracteres de control (como en invitaciones, H-005-1b-2). */
 const FORMA_CORREO = /^[^\s@\p{Cc}]+@[^\s@\p{Cc}]+$/u;
-/** Control y formato (ancho cero, bidi, BOM): ni en el nombre del estudio ni en el del titular. */
-const CONTROL_O_FORMATO = /[\p{Cc}\p{Cf}]/u;
+/**
+ * Control y formato (ancho cero, bidi, BOM) y separadores de línea y párrafo U+2028/U+2029 (a3: parten líneas en el
+ * correo y en las pantallas): ni en el nombre del estudio ni en el del titular (este, por `nombreValido`).
+ */
+const CONTROL_O_FORMATO = /[\p{Cc}\p{Cf}\u2028\u2029]/u;
 /** RFC 5321: la parte local de un correo tiene como máximo 64 octetos (el correo entero, 320). */
 const LOCAL_MAX = 64;
 const ESTUDIO_MIN = 2;
@@ -54,6 +58,8 @@ export interface RegistroConsultado {
 }
 export interface RegistroConfirmadoConSesion {
   estudio: { id: string; nombre: string };
+  /** D14: la cuenta ya originó su prueba; el estudio se creó sin suscripción (409 `sin_plan` hasta que tenga plan). */
+  sinPlan: boolean;
 }
 
 /** `registro_confirmar_nueva` -> error (null = creado). `cuenta_existe` no consume (D3). */
@@ -71,6 +77,13 @@ const TRAS_CONFIRMAR: Record<ConfirmacionNueva, (() => Error) | null> = {
  */
 @Injectable()
 export class RegistroService {
+  /**
+   * Single-flight de `confirmar` por hash del token (b2, D15): la segunda confirmación del mismo enlace espera a la
+   * primera y relee el enlace antes de calcular Argon2. Vive en este proceso (decisión del usuario, opción A de
+   * plan.md): con N réplicas caben hasta N hashes por enlace, acotados por el límite de 10 por hora por IP.
+   */
+  private readonly enCurso = new Map<string, Promise<void>>();
+
   constructor(
     @Inject(DB) private readonly db: DbAuth,
     @Inject(HASHER) private readonly hasher: Hasher,
@@ -86,7 +99,7 @@ export class RegistroService {
    */
   async solicitar(cuerpo: unknown, ip: string | undefined): Promise<{ ok: true }> {
     const porIp = await this.db.withAuth((a) =>
-      a.limiteConsumir("registro_ip", sujetoIp(ip ?? "")),
+      a.limiteConsumir("registro_ip", sujetoIpValidado(ip)),
     );
     if (!porIp) throw new AuthError("demasiados_intentos");
     const r = registroSolicitudSchema.safeParse(cuerpo);
@@ -98,8 +111,8 @@ export class RegistroService {
     if (
       !FORMA_CORREO.test(correo) ||
       correo.indexOf("@") > LOCAL_MAX ||
-      estudio.length < ESTUDIO_MIN ||
-      estudio.length > ESTUDIO_MAX ||
+      largoCodePoints(estudio) < ESTUDIO_MIN ||
+      largoCodePoints(estudio) > ESTUDIO_MAX ||
       CONTROL_O_FORMATO.test(estudio) ||
       !nombreValido(nombre)
     )
@@ -112,15 +125,23 @@ export class RegistroService {
     if (!porCorreo) throw new AuthError("demasiados_intentos");
 
     const token = generarToken();
-    await this.db.withAuth((a) =>
-      a.registroCrear({
-        correo,
-        estudio,
-        ruc: entrada.ruc ?? null,
-        nombre,
-        tokenHash: hashToken(token),
-      }),
-    );
+    await this.db
+      .withAuth((a) =>
+        a.registroCrear({
+          correo,
+          estudio,
+          ruc: entrada.ruc ?? null,
+          nombre,
+          tokenHash: hashToken(token),
+        }),
+      )
+      .catch((e: unknown) => {
+        // b5: un CHECK de `registro_pendiente` que Node aceptó (p. ej. una letra de Unicode más reciente que el ICU de
+        // PG). Depende solo de la entrada, no de la cuenta: misma respuesta exista o no (sin oráculo) y sin correo.
+        if (e instanceof AuthRepoError && e.codigo === "23514")
+          throw new AccesoError("solicitud_invalida");
+        throw e;
+      });
     this.cola.encolar(mensajeRegistro(correo, this.appOrigin, token));
     return { ok: true };
   }
@@ -138,16 +159,30 @@ export class RegistroService {
   }
 
   /**
-   * zod -> política de 004 (antes de tocar el token) -> enlace vivo (si no, `registro_invalido` sin Argon2)
+   * zod -> límite por IP (D15: 10 por hora, 429; cuenta todo intento con cuerpo bien formado) -> política de 004
+   * (antes de tocar el token) -> single-flight por enlace -> enlace vivo (si no, `registro_invalido` sin Argon2)
    * -> cuenta existente: 409 `requiere_sesion` sin consumir -> Argon2 -> `registro_confirmar_nueva` (todo o
    * nada en una transacción). Sin auto-login: no hay cookie.
    */
-  async confirmar(cuerpo: unknown): Promise<void> {
+  async confirmar(cuerpo: unknown, ip?: string): Promise<void> {
     const r = registroConfirmarSchema.safeParse(cuerpo);
     if (!r.success) throw new AccesoError("solicitud_invalida");
     const { token, contrasena } = r.data;
+    const porIp = await this.db.withAuth((a) =>
+      a.limiteConsumir("registro_confirmar_ip", sujetoIpValidado(ip)),
+    );
+    if (!porIp) throw new AuthError("demasiados_intentos");
     const motivo = validarContrasena(contrasena, this.comunes);
     if (motivo !== null) throw new ContrasenaInvalidaError(motivo);
+    if (!tokenConFormatoValido(token))
+      throw new RegistroError("registro_invalido");
+    await this.enSerie(hashToken(token).toString("hex"), () =>
+      this.confirmarVivo(token, contrasena),
+    );
+  }
+
+  /** Dentro del single-flight: relee el enlace (la anterior pudo consumirlo) y solo entonces calcula Argon2. */
+  private async confirmarVivo(token: string, contrasena: string): Promise<void> {
     const v = await this.vigente(token);
     if (v.cuentaExiste) throw new AccesoError("requiere_sesion");
 
@@ -184,7 +219,26 @@ export class RegistroService {
       a.registroConfirmarExistente(hashToken(token), hashToken(s.token)),
     );
     if (c === null) throw new RegistroError("registro_invalido");
-    return { estudio: { id: c.tenantId, nombre: c.estudioNombre } };
+    return {
+      estudio: { id: c.tenantId, nombre: c.estudioNombre },
+      sinPlan: !c.conPrueba,
+    };
+  }
+
+  /** Ejecuta `fn` después de las anteriores con la misma clave (en este proceso); nunca rechaza la cadena. */
+  private async enSerie(clave: string, fn: () => Promise<void>): Promise<void> {
+    const previa = this.enCurso.get(clave) ?? Promise.resolve();
+    let liberar!: () => void;
+    const propia = new Promise<void>((res) => (liberar = res));
+    const cadena = previa.then(() => propia);
+    this.enCurso.set(clave, cadena);
+    try {
+      await previa;
+      await fn();
+    } finally {
+      liberar();
+      if (this.enCurso.get(clave) === cadena) this.enCurso.delete(clave);
+    }
   }
 
   private async vigente(token: string): Promise<RegistroVigente> {

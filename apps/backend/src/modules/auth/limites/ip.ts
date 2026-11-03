@@ -1,4 +1,4 @@
-import { isIPv4, isIPv6 } from "node:net";
+import { isIP, isIPv4, isIPv6 } from "node:net";
 
 const MAPEADA = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i;
 
@@ -42,4 +42,20 @@ export function sujetoIp(ip: string): string {
     .slice(0, 4)
     .map((g) => g.toString(16));
   return `${prefijo.join(":")}::/64`;
+}
+
+/** Sujeto compartido de las IP de cliente que no son IP (a2/b6, spec 006): falla cerrado, nunca 500. */
+export const IP_INVALIDA = "ip_invalida";
+
+/**
+ * Sujeto del límite por IP validado (spec 006, a2/b6; lo usan los límites `registro_*`). La IP del cliente (de
+ * `X-Forwarded-For` tras `trust proxy`) se canonicaliza en minúsculas y se valida con `net.isIP` (la forma mapeada
+ * `::ffff:a.b.c.d` es IPv6 válida y `sujetoIp` la reduce a su IPv4). Si no es una IP (vacía, enorme o basura) el
+ * sujeto es la constante `ip_invalida`: una cubeta compartida, así que rotar basura no evade el límite y una cadena
+ * larga nunca choca con el CHECK de largo de `limite_tasa`. `sujetoIp` (004) no cambia: lo que no es IP lo usa tal cual.
+ */
+export function sujetoIpValidado(ip: string | undefined): string {
+  const v = (ip ?? "").toLowerCase();
+  if (v.length > 100 || isIP(v) === 0) return IP_INVALIDA;
+  return sujetoIp(v);
 }

@@ -176,6 +176,13 @@
       "when": 1793674908872,
       "tag": "0024_planes_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793704489609,
+      "tag": "0025_planes_ronda1",
+      "breakpoints": true
     }
   ]
 }
