@@ -83,13 +83,9 @@ export async function abrirBanco(cupo?: object, extra: Record<string, unknown> =
   const correos: string[] = [];
   const contadorRuc = new Map<string, number>();
   let hashRapido: string | null = null;
-  // Ajuste de 006 (T3, CA-9): todo estudio de fixture nace con suscripción `corporativo`/`activa` (sin límite
-  // práctico), para que las suites de 004–005 corran con el adaptador real. Mientras T5 no aplique la migración
-  // (`suscripcion` no existe) se omite, así 004–005 siguen en el mismo estado; con la tabla presente es obligatoria.
-  let hayPlanes: boolean | null = null;
+  // Ajuste de 006 (T3, CA-9; T14): todo estudio de fixture nace con suscripción `corporativo`/`activa` (sin límite
+  // práctico), para que las suites de 004–005 corran con el adaptador real. La tabla existe desde la 0022.
   const suscribirCorporativo = async (tenantId: string): Promise<void> => {
-    hayPlanes ??= (await sql("select to_regclass('public.suscripcion') as r"))[0].r !== null;
-    if (!hayPlanes) return;
     const r = await sql(
       "insert into suscripcion (tenant_id, plan_id, estado) select $1, id, 'activa' from plan where codigo = 'corporativo' returning id",
       [tenantId],
