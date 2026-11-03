@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
+import { useAccesoPlataforma } from "../../lib/plataforma";
 import { reiniciarSesion } from "../../lib/sesion";
 
 interface Estudio {
@@ -18,6 +20,8 @@ const ERROR_ELEGIR = "No se pudo cambiar de estudio. Inténtalo de nuevo.";
 
 export default function Estudios() {
   const router = useRouter();
+  // Quien es super-admin de plataforma (spec 006, D5) ve el acceso a su administración; el servidor valida.
+  const acceso = useAccesoPlataforma();
   const [estudios, setEstudios] = useState<Estudio[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,6 +84,11 @@ export default function Estudios() {
           <p role="alert" className="text-sm text-red-600">
             {error}
           </p>
+        )}
+        {acceso === "admin" && (
+          <Link href="/admin" className="text-sm underline">
+            Administración de plataforma
+          </Link>
         )}
       </div>
     </main>
