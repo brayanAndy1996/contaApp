@@ -31,7 +31,7 @@ async function consulta(text: string, values: unknown[] = []) {
 }
 
 describe("esquema auth: tablas, dueno y RLS", () => {
-  // Ajuste de 006 (T1): 6 tablas (TABLAS_AUTH suma registro_pendiente).
+  // Ajuste de 006 (T1, T13b): 7 tablas (TABLAS_AUTH suma registro_pendiente y prueba_origen).
   it("existe el esquema auth y las tablas del plan (TABLAS_AUTH)", async () => {
     const r = await consulta(
       `select c.relname from pg_class c where c.relnamespace = to_regnamespace('auth') and c.relkind = 'r' order by 1`,
@@ -159,7 +159,9 @@ describe("CA-11 privilegios de tabla en auth.*", () => {
   it.each(TABLAS_AUTH)("%s: contapp_auth puede SELECT, INSERT y UPDATE (las funciones lo necesitan)", async (t) => {
     for (const p of ["SELECT", "INSERT", "UPDATE"]) {
       const r = await consulta("select has_table_privilege('contapp_auth', to_regclass($1), $2) as v", [`auth.${t}`, p]);
-      expect(r[0].v, `${t} ${p}`).toBe(true);
+      // Ajuste de 006 (T13b, D14): prueba_origen es de solo-agregar (INSERT … ON CONFLICT DO NOTHING); 0025 concede
+      // SELECT, INSERT y nada de UPDATE (minimo privilegio), y planes-ronda1.spec.ts fija esa ACL.
+      expect(r[0].v, `${t} ${p}`).toBe(!(t === "prueba_origen" && p === "UPDATE"));
     }
   });
 
@@ -208,6 +210,7 @@ const ACTUALIZAR: Record<(typeof TABLAS_AUTH)[number], string> = {
   intento_login: "set fallos = 0",
   limite_tasa: "set conteo = 0",
   registro_pendiente: "set consumida_en = null", // 006 (T1)
+  prueba_origen: "set creada_en = now()", // Ajuste de 006 (T13b, D14)
 };
 
 describe("CA-11 contapp_backend no toca las tablas de auth por ninguna via SQL (42501)", () => {

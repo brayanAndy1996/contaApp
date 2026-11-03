@@ -127,6 +127,7 @@ describe("esquema: plan, suscripcion, admin_plataforma, registro_pendiente y ten
       "correo text NOT NULL",
       "creada_en timestamp with time zone NOT NULL",
       "id uuid NOT NULL",
+      "invalidada_en timestamp with time zone NULL", // Ajuste de 006 (T13b, b1)
       "nombre_estudio text NOT NULL",
       "nombre_usuario text NOT NULL",
       "ruc_estudio text NULL",

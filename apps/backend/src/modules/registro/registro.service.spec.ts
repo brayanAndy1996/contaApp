@@ -144,14 +144,19 @@ describe("RegistroService.confirmar", () => {
     expect((await codigoDe(c.servicio.confirmar({ token: generarToken() }))).codigo).toBe("solicitud_invalida");
   });
 
+  // Ajuste de 006 (T13b, D15): el orden es forma -> límite por IP -> política -> hash. El límite consume con `withAuth`
+  // (una sola llamada, `registro_confirmar_ip`) antes de la política; la contraseña inválida no calcula hash ni toca el enlace.
   it.each([
     ["corta", "corta", "longitud"],
     ["común", "PasswordPassword", "comun"],
-  ])("contraseña %s -> ContrasenaInvalidaError(%s) antes de tocar el token", async (_n, contrasena, motivo) => {
+  ])("contraseña %s -> ContrasenaInvalidaError(%s) tras el límite y antes de tocar el token", async (_n, contrasena, motivo) => {
     const e = await c.servicio.confirmar({ token: generarToken(), contrasena }).catch((x: unknown) => x);
     expect(e).toBeInstanceOf(ContrasenaInvalidaError);
     expect((e as ContrasenaInvalidaError).motivo).toBe(motivo);
-    expect(c.db.withAuth).not.toHaveBeenCalled();
+    expect(c.db.withAuth).toHaveBeenCalledTimes(1); // solo el límite
+    expect(c.repo.limiteConsumir).toHaveBeenCalledWith("registro_confirmar_ip", expect.any(String));
+    expect(c.repo.registroVigente).not.toHaveBeenCalled();
+    expect(c.repo.registroConfirmarNueva).not.toHaveBeenCalled();
     expect(c.hasher.calcular).not.toHaveBeenCalled();
   });
 

@@ -158,7 +158,9 @@ describe("D14 · auth.prueba_origen: una prueba por cuenta, en la BD", () => {
         const v = (await adm("select has_any_column_privilege($1, 'auth.prueba_origen', $2) as v", [rol, p]))[0].v;
         expect(v, `${rol} ${p} (columna)`).toBe(false);
       }
-      const r = await intentarRaw(app, rol, "select usuario_id from auth.prueba_origen");
+      // Ajuste de 006 (T13b): contapp_app no puede SET ROLE a contapp_platform; el rol se asume desde la conexión administrativa
+      // (como auth.spec.ts, auth.limite_consumir).
+      const r = await intentarRaw(admin, rol, "select usuario_id from auth.prueba_origen");
       expect(r.ok ? "ok" : r.code).toBe("42501");
     },
   );

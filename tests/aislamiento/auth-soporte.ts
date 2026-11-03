@@ -15,6 +15,9 @@ export const TABLAS_AUTH = [
   // Spec 006 (T1, plan "BD"): 0017+ crea auth.registro_pendiente con el mismo patron que las demas (dueño
   // contapp_migrator, RLS ENABLE+FORCE, una politica auth_definer, grants solo a contapp_auth).
   "registro_pendiente",
+  // Ajuste de 006 (T13b, D14): auth.prueba_origen (1 prueba por cuenta) con el mismo patron: dueño contapp_migrator,
+  // RLS ENABLE+FORCE, una politica auth_definer, grants solo a contapp_auth.
+  "prueba_origen",
 ] as const;
 
 const FUNCIONES_AUTH_VIGENTES = [

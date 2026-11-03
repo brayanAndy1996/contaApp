@@ -178,6 +178,9 @@ export class EscenarioAcceso {
         ["delete from cliente where tenant_id = any($1::uuid[])", [t]],
         // Spec 006 (T1): suscripcion referencia a tenant; sin este paso el estudio no se podria borrar (el catch lo ocultaria).
         ["delete from suscripcion where tenant_id = any($1::uuid[])", [t]],
+        // Ajuste de 006 (T13b, D14): con session_replication_role = replica no corren las FK (CASCADE/SET NULL):
+        // auth.prueba_origen queda huerfana si no se borra a mano, por usuario y por estudio.
+        ["delete from auth.prueba_origen where usuario_id = any($1::uuid[]) or tenant_id = any($2::uuid[])", [usuarios, t]],
         ["delete from usuario where id = any($1::uuid[])", [usuarios]],
         ["delete from tenant where id = any($1::uuid[])", [t]],
       ];

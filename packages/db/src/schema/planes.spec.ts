@@ -34,6 +34,8 @@ describe("plan", () => {
     expect(c.find((x) => x.name === "precio_anual")?.notNull).toBe(false);
   });
 
+  // Ajuste de 006 (T13b, b7): esta prueba fija solo los CHECK declarados en drizzle (sin BD). Los `plan_precio_*_finito`
+  // (NaN) viven solo en SQL (0025) y los prueba tests/aislamiento/planes-ronda1.spec.ts contra la BD real.
   it("los CHECK fijan montos, límites, tope de RUC adicionales (20 %) y features como objeto", () => {
     const k = checks(plan);
     expect(Object.keys(k).sort()).toEqual([

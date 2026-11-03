@@ -555,7 +555,8 @@ describe("CA-3 · cuenta existente: requiere sesión (D3, como D15 de 005)", () 
     const s = await h().entrar(u);
     const r = await p.como(s, "POST", "/registro/confirmar-con-sesion", { token });
     expect(r.status).toBe(200);
-    expect(r.body).toEqual({ estudio: { id: expect.any(String), nombre: estudio } });
+    // Ajuste de 006 (T13b, D14): la primera Prueba de la cuenta existente también la origina; `sinPlan` es false.
+    expect(r.body).toEqual({ estudio: { id: expect.any(String), nombre: estudio }, sinPlan: false });
     const t = r.body.estudio.id;
     expect(await p.sql("select rol from membresia where tenant_id = $1 and usuario_id = $2", [t, u.id])).toEqual([{ rol: "dueno" }]);
     const sus = (
