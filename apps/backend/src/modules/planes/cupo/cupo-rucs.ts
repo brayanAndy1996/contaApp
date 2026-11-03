@@ -31,6 +31,8 @@ export class CupoRucsPlanes implements CupoRucs {
   }
 
   async reservar(tx: Tx, tenantId: string, n: number): Promise<void> {
+    // Falla cerrado antes de tocar la BD: un `n` negativo o no entero (NaN, 1.5, Infinity) abriría el cupo.
+    if (!Number.isInteger(n) || n < 0) throw new RangeError("reservar: n debe ser un entero >= 0");
     const { limite, usados } = await this.medir(tx, tenantId);
     if (usados + n > limite) throw new CupoRucsError();
   }

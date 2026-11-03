@@ -238,13 +238,13 @@ export class InvitacionesService {
     const { token } = parsearCuerpo(aceptarConSesionSchema, cuerpo);
     if (!tokenConFormatoValido(token))
       throw new AccesoError("invitacion_invalida");
+    // Orden de bloqueo (T15): invitación vigente -> cupo del estudio -> membresía, todo en el mismo `withAuth`.
+    // El cupo se consulta antes de crear la membresía; si no hay cupo (409) o la invitación no procede, no queda nada.
     const r = await this.db.withAuth(async (a) => {
-      const aceptada = await a.invitacionAceptarExistente(
-        hashToken(token),
-        hashToken(s.token),
-      );
-      if (aceptada !== null) await this.cupo.alAceptar(a, aceptada.tenantId);
-      return aceptada;
+      const v = await a.invitacionVigente(hashToken(token));
+      if (v === null) return null;
+      await this.cupo.alAceptar(a, v.tenantId);
+      return a.invitacionAceptarExistente(hashToken(token), hashToken(s.token));
     });
     if (r === null) throw new AccesoError("invitacion_invalida");
     return { estudio: { id: r.tenantId, nombre: r.estudioNombre } };

@@ -10,18 +10,14 @@
 //  - Idempotente: repetirlo no duplica nada, no cambia el hash y dice "sin cambios".
 //  - Funciona con NODE_ENV=production (a diferencia de db:seed).
 //  - Nunca imprime la contraseña, el hash ni la URL de conexión.
-import { createRequire } from "node:module";
-import { resolve } from "node:path";
+import { verify } from "@node-rs/argon2";
 import { Client } from "pg";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { SEED } from "../seed/datos";
 import { ErrorCli } from "./comun";
 import { main } from "./plataforma-alta";
 
-// db no depende de argon2: se verifica el hash con la copia del backend (solo en pruebas).
-const argon2 = createRequire(
-  resolve(__dirname, "../../../../apps/backend/package.json"),
-)("@node-rs/argon2") as { verify(phc: string, plano: string): Promise<boolean> };
+const argon2 = { verify };
 
 const SUFIJO = "@plataforma-alta.test";
 const PWD = "Canario-T15a-ñ-91827"; // canario: 20 puntos de código, fuera de la lista de comunes

@@ -209,6 +209,12 @@ importers:
 
   packages/db:
     dependencies:
+      '@contapp/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@node-rs/argon2':
+        specifier: 2.0.2
+        version: 2.0.2
       drizzle-orm:
         specifier: 0.45.4
         version: 0.45.4(@types/pg@8.23.1)(pg@8.23.1)

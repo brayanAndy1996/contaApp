@@ -175,12 +175,23 @@ describe("aceptarConSesion: ramas defensivas", () => {
     expect(db.withAuth).not.toHaveBeenCalled();
   });
 
-  it("la BD no acepta (null: otro correo, ya miembro, vencida) -> invitacion_invalida y no se consulta el cupo", async () => {
+  it("sin invitación vigente -> invitacion_invalida sin consultar el cupo ni intentar aceptar (T15b: el orden es vigente -> cupo -> aceptar)", async () => {
+    const { svc, a, cupo } = armar({ vigente: null });
+    await expect(
+      svc.aceptarConSesion(sesion, { token: generarToken() }),
+    ).rejects.toMatchObject({ codigo: "invitacion_invalida" });
+    expect(cupo.alAceptar).not.toHaveBeenCalled();
+    expect(a.invitacionAceptarExistente).not.toHaveBeenCalled();
+  });
+
+  it("vigente pero la BD no acepta (null: otro correo, ya miembro) -> invitacion_invalida; el cupo se consultó antes, en la misma transacción", async () => {
     const { svc, a, cupo } = armar();
     await expect(
       svc.aceptarConSesion(sesion, { token: generarToken() }),
     ).rejects.toMatchObject({ codigo: "invitacion_invalida" });
-    expect(a.invitacionAceptarExistente).toHaveBeenCalledTimes(1);
-    expect(cupo.alAceptar).not.toHaveBeenCalled();
+    expect(cupo.alAceptar).toHaveBeenCalledTimes(1);
+    expect(cupo.alAceptar.mock.invocationCallOrder[0]!).toBeLessThan(
+      a.invitacionAceptarExistente.mock.invocationCallOrder[0]!,
+    );
   });
 });

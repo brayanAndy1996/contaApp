@@ -26,7 +26,7 @@ Nivel B. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → atac
 | T14  | Verificar CA-1 a CA-14 con evidencia                                                    | tester     | sonnet | T13b, T13c          | —   | —   | [x]    |
 | T15  | Revisión contra la spec                                                                 | arquitecto | sonnet | T14                 | —   | —   | [x]    |
 | T15a | Pruebas en rojo: cupo justo con sesión, `reservar` inválido y CLI de super-admin       | tester     | sonnet | T15                 | ✓   | —   | [x]    |
-| T15b | Corregir T15-1 y T15-2 y crear el CLI de alta de super-admin                            | backend    | sonnet | T15a                | ✓   | —   | [ ]    |
+| T15b | Corregir T15-1 y T15-2 y crear el CLI de alta de super-admin                            | backend    | sonnet | T15a                | ✓   | —   | [x]    |
 | T16  | Cierre: tasks y commit (el orquestador actualiza ESTADO)                                | devops     | haiku  | T15b                | —   | —   | [ ]    |
 
 Escalamientos: T5 nace en `opus` (funciones `SECURITY DEFINER` que crean estudios y escriben planes; precedente 005 T7, 04 §3.3). T13b nace en `opus` porque toca funciones `auth.*` y una migración (04 §3.3); T13a y T13c no lo necesitan.
@@ -222,6 +222,8 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: "Resultado" de T15 y T15a, los archivos que tocan sus pruebas.
 - **Hacer**: en `aceptarConSesion`, dentro del mismo `withAuth`, leer la invitación vigente, llamar `cupo.alAceptar` y recién entonces `invitacionAceptarExistente` (misma respuesta `invitacion_invalida` si no hay); `reservar` exige entero ≥ 0; crear el CLI de T15a y su script `db:plataforma-alta` en `packages/db/package.json`; documentarlo con un comentario de uso en el propio CLI (y una línea en el README de despliegue si existe).
 - **Hecho cuando**: pruebas de T15a en verde, `test:int` de `modules/planes` y `modules/acceso`, `@contapp/db` test, coberturas `auth`/`acceso`/`db` en 0, lint y typecheck. Commit `fix(006): cupo al aceptar con sesión, reservar inválido y CLI de super-admin`.
+- **Resultado**: `aceptarConSesion` lee la invitación vigente, llama `cupo.alAceptar` y recién después `invitacionAceptarExistente`, todo en un `withAuth` (el último cupo ya acepta; sin cupo 409 sin membresía); `reservar` lanza `RangeError` si `n` no es entero >= 0 antes de tocar la BD. CLI `db:plataforma-alta` (`packages/db/src/cli/plataforma-alta.ts`, script en `packages/db/package.json` y atajo `pnpm db:plataforma-alta` en la raíz, uso documentado en el propio CLI; no hay README de despliegue): argon2id con `@node-rs/argon2` 2.0.2 (m=19456, t=2, p=1, como el backend), `@contapp/shared` como dependencia nueva de `@contapp/db` (normalización de correo y longitud) y `cobertura:db` ahora compila `shared` primero. Nota: la lista de contraseñas comunes vive en el backend (`comunes.txt`), no en shared; el CLI la lee por ruta relativa al repo y falla cerrado si no está (hay que correrlo desde un checkout; si el despliegue no lo incluye, mover la lista a shared). La prueba unitaria de `aceptarConSesion` que exigía "sin cupo si la BD no acepta" se ajustó al nuevo orden (vigente nula = sin cupo; vigente pero no aceptada = cupo antes, transacción revertida) y la int de T15a usa la dependencia de db en vez de `createRequire`. Pruebas: backend `test:int` `modules/planes`+`modules/acceso` 153/153, `@contapp/db` 589 unit, `cobertura:db`/`auth`/`acceso` en 0, lint y typecheck de todo en verde.
+
 
 ## T16 · Cierre (devops · haiku)
 
