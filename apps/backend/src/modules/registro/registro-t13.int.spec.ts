@@ -19,11 +19,16 @@
 //   `solicitud_invalida`, igual exista o no la cuenta.
 // Todo lo que crea (pendientes, cuentas, estudios, filas de límite de sus IP) lo limpia `abrirBancoPlanes().cerrar()` y `afterAll`.
 import { randomBytes } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import "reflect-metadata";
+import { AuthRepoError } from "@contapp/db";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { claveCorreo, ipUnica, sha256, type Resp } from "../../../test/soporte.js";
 import { abrirBancoPlanes, type BancoPlanes } from "../../../test/soporte-planes.js";
+import { letraQueNodeAceptaYPgRechaza } from "../../../test/soporte-unicode.js";
 import { CupoRucsPlanes } from "../planes/cupo/cupo-rucs.js";
+import { AccesoError } from "../acceso/errores.js";
 import { PlanNoDisponibleError } from "../planes/cupo/errores.js";
+import { RegistroService } from "./registro.service.js";
 
 const CONTRASENA = "Canario-t13a-registro-Qx73-ñ";
 let p: BancoPlanes;
@@ -429,10 +434,13 @@ describe("b4/a3/b5 / CA-14 · nombres que Node y PostgreSQL clasifican distinto"
     }
   });
 
-  it("b5 · un nombre que PG rechaza y Node acepta (U+10D50) da 400 solicitud_invalida, igual exista o no la cuenta", async () => {
+  it("b5 · un nombre que PG rechaza y Node acepta da 400 solicitud_invalida, igual exista o no la cuenta", async () => {
+    // La letra se elige con el PG del entorno (su ICU puede conocer más o menos Unicode que otro). Si este PG conoce
+    // todas las que conoce Node no hay tal nombre: el mapeo 23514 -> 400 se verifica entonces con un doble (nunca vacío).
+    const malo = await letraQueNodeAceptaYPgRechaza(p.sql);
+    if (malo === null) return mapeo23514ADoble();
     const u = await cuentaExistente();
     const nuevo = p.correoRegistro();
-    const malo = "\u{10D50}";
     const antes = h().correo.para(u.correo).length;
     const a = await solicitar({ estudio: "Estudio Adv T13a", nombre: malo, correo: nuevo });
     const b = await solicitar({ estudio: "Estudio Adv T13a", nombre: malo, correo: u.correo });
@@ -446,3 +454,24 @@ describe("b4/a3/b5 / CA-14 · nombres que Node y PostgreSQL clasifican distinto"
     expect(h().correo.para(nuevo)).toHaveLength(0);
   });
 });
+
+/** Camino determinista del mapeo b5: la BD responde 23514 al crear el pendiente -> 400 solicitud_invalida, sin correo. */
+async function mapeo23514ADoble(): Promise<void> {
+  const repo = {
+    limiteConsumir: vi.fn(async () => true),
+    registroCrear: vi.fn(async () => {
+      throw new AuthRepoError("23514");
+    }),
+  };
+  const db = { withAuth: vi.fn(async (fn: (a: unknown) => unknown) => fn(repo)) };
+  const cola = { encolar: vi.fn() };
+  const servicio = new RegistroService(db as never, {} as never, cola, new Set<string>(), "https://app.ejemplo.test");
+  const cuerpo = { estudio: "Estudio Adv T13a", nombre: "Titular T13a", correo: p.correoRegistro() };
+  for (const c of [cuerpo.correo, "otro-" + cuerpo.correo]) {
+    const e = (await servicio.solicitar({ ...cuerpo, correo: c }, "203.0.113.7").catch((x: unknown) => x)) as { codigo?: string };
+    expect(e).toBeInstanceOf(AccesoError);
+    expect(e.codigo).toBe("solicitud_invalida");
+  }
+  expect(repo.registroCrear).toHaveBeenCalledTimes(2);
+  expect(cola.encolar).not.toHaveBeenCalled();
+}

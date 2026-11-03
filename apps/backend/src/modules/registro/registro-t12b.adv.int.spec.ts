@@ -16,6 +16,7 @@ import {
   abrirBancoPlanes,
   type BancoPlanes,
 } from "../../../test/soporte-planes.js";
+import { letraQueNodeAceptaYPgRechaza } from "../../../test/soporte-unicode.js";
 
 const CONTRASENA = "Canario-t12b-registro-Zq9-ñ";
 const NOMBRE = "Titular T12b";
@@ -358,7 +359,9 @@ describe("T12b · POST /registro con entradas que pasan la app y violan un CHECK
 
   it("nombre del titular con una letra de Unicode 16 (válida para Node, no asignada en el ICU de PG): no 500", async () => {
     const correo = p.correoRegistro();
-    const r = await solicitar({ correo, nombre: "\u{10D50}" });
+    // La letra la elige el PG del entorno (cambia con su versión de Unicode); sin ninguna, queda la de Unicode 16.
+    const letra = (await letraQueNodeAceptaYPgRechaza(p.sql)) ?? "\u{10D50}";
+    const r = await solicitar({ correo, nombre: letra });
     expect(r.status).not.toBe(500);
     expect([202, 400]).toContain(r.status);
   });

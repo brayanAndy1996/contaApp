@@ -61,6 +61,18 @@ describe("RegistroService.solicitar", () => {
     expect(repo.limiteConsumir).toHaveBeenCalledWith("registro_ip", expect.any(String));
   });
 
+  it("b5 · un CHECK de registro_pendiente (23514) -> solicitud_invalida, sin encolar correo; otro SQLSTATE sigue siendo error", async () => {
+    const { servicio, repo, cola } = armar();
+    repo.registroCrear.mockRejectedValueOnce(new AuthRepoError("23514"));
+    const e = await servicio.solicitar(SOLICITUD, "203.0.113.7").catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(AccesoError);
+    expect((e as AccesoError).codigo).toBe("solicitud_invalida");
+    expect(cola.encolar).not.toHaveBeenCalled();
+    const otro = new AuthRepoError("40001");
+    repo.registroCrear.mockRejectedValueOnce(otro);
+    expect(await servicio.solicitar(SOLICITUD, "203.0.113.7").catch((x: unknown) => x)).toBe(otro);
+  });
+
   it("límite por IP agotado -> demasiados_intentos, sin tocar nada más", async () => {
     const { servicio, repo, cola } = armar();
     repo.limiteConsumir.mockResolvedValueOnce(false);

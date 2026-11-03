@@ -420,12 +420,12 @@ describe("b1 · invalidada_en: un pendiente invalidado no se confirma", () => {
     ).toBeNull();
   });
 
-  it("b5 · registro_crear con un dato que viola un CHECK (U+10D50 en el nombre) falla con 23514, exista o no la cuenta, y no invalida el enlace previo", async () => {
+  it("b5 · registro_crear con un dato que viola un CHECK (carácter de control en el nombre) falla con 23514, exista o no la cuenta, y no invalida el enlace previo", async () => {
     const cuenta = await ep.cuentaRegistro();
     const sin = ep.correoRegistro();
     const previo = tokenHashNuevo();
     exitosa(await llamar(app, SQL.crear, [cuenta.correo, ep.nombreEstudio(), null, "Dueña de Prueba", previo]));
-    const malo = "\u{10D50}"; // Node lo acepta como letra; el ICU de PG 17 no
+    const malo = "Titular\u0007Prueba"; // BEL: el CHECK lo rechaza por rango de código, sin depender de la versión de Unicode de PG
     const a = await llamar(app, SQL.crear, [cuenta.correo, ep.nombreEstudio(), null, malo, tokenHashNuevo()]);
     const b = await llamar(app, SQL.crear, [sin, ep.nombreEstudio(), null, malo, tokenHashNuevo()]);
     expect(a.ok ? "ok" : a.code).toBe("23514");
