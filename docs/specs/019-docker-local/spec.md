@@ -1,6 +1,6 @@
 # Spec 019 · Entorno local con Docker (PostgreSQL 17, Redis 7, Mailpit)
 
-Estado: aprobada (usuario, 2026-11-03: "si, usemos docker haz lo necesario")
+Estado: verificada (usuario, 2026-11-03: "si, usemos docker haz lo necesario"; prueba real de T3 el mismo día, ver `tasks.md`)
 Nivel de riesgo: D — tooling local (compose, variables y docs); no toca esquema, lógica de negocio ni datos de producción
 Cubre: RNF-081 (revierte para estos servicios la desviación "sin Docker" de 001) · sin RF/HU (andamiaje técnico)
 
@@ -22,13 +22,13 @@ El entorno local usa las mismas imágenes que el job de aislamiento del CI (`pos
 - Autenticación de Redis y `CORREO_PROVIDER=smtp` por defecto (sigue en `consola`).
 
 ## Criterios de aceptación
-- [ ] CA-1: Dado `docker compose up -d --wait`, cuando termina, entonces `postgres`, `redis` y `mailpit` están en ejecución y PostgreSQL y Redis pasan su healthcheck.
-- [ ] CA-2: Con los servicios arriba, `pnpm db:migrate` (dos veces), `pnpm db:seed` y `pnpm ci:db` pasan.
-- [ ] CA-3: Los datos persisten en volúmenes con nombre tras `docker compose down`; `docker compose down -v` deja la BD vacía.
-- [ ] CA-4: Los puertos se configuran por variables: `POSTGRES_PORT` (5432), `REDIS_PORT` (6379), `MAILPIT_SMTP_PORT` (1025), `MAILPIT_UI_PORT` (8025).
-- [ ] CA-5: `.env.example` y los docs explican el flujo de arranque y cómo se fija la contraseña de `contapp_app`.
-- [ ] CA-6: No hay secretos reales versionados: las contraseñas del compose y de `.env.example` son solo de desarrollo, y los puertos se publican en `127.0.0.1`.
-- [ ] Casos reales aplicables: ninguno
+- [x] CA-1: Dado `docker compose up -d --wait`, cuando termina, entonces `postgres`, `redis` y `mailpit` están en ejecución y PostgreSQL y Redis pasan su healthcheck.
+- [x] CA-2: Con los servicios arriba, `pnpm db:migrate` (dos veces), `pnpm db:seed` y `pnpm ci:db` pasan.
+- [x] CA-3: Los datos persisten en volúmenes con nombre tras `docker compose down`; `docker compose down -v` deja la BD vacía.
+- [x] CA-4: Los puertos se configuran por variables: `POSTGRES_PORT` (5432), `REDIS_PORT` (6379), `MAILPIT_SMTP_PORT` (1025), `MAILPIT_UI_PORT` (8025).
+- [x] CA-5: `.env.example` y los docs explican el flujo de arranque y cómo se fija la contraseña de `contapp_app`.
+- [x] CA-6: No hay secretos reales versionados: las contraseñas del compose y de `.env.example` son solo de desarrollo, y los puertos se publican en `127.0.0.1`.
+- [x] Casos reales aplicables: ninguno
 
 ## Dependencias
 - Specs: 001 (decisión "sin Docker", reemplazada solo para los servicios locales), 002 (roles `contapp_*` y migraciones), 008 (Redis).
