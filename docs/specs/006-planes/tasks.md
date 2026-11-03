@@ -219,7 +219,7 @@ Reglas comunes:
 ## T15b · Correcciones de T15 y CLI de super-admin (backend · sonnet)
 
 - **Contexto (leer solo esto)**: "Resultado" de T15 y T15a, los archivos que tocan sus pruebas.
-- **Hacer**: en `aceptarConSesion`, dentro del mismo `withAuth`, leer la invitación vigente, llamar `cupo.alAceptar` y recién entonces `invitacionAceptarExistente` (misma respuesta `invitacion_invalida` si no hay); `reservar` exige entero ≥ 0; crear el CLI de T15a y su script `db:plataforma-alta` en `packages/db/package.json`; documentarlo en una línea del README o del README de despliegue si existe (si no, en `docs/01-definiciones-base.md` junto a D5 no: solo en un comentario de uso del propio CLI).
+- **Hacer**: en `aceptarConSesion`, dentro del mismo `withAuth`, leer la invitación vigente, llamar `cupo.alAceptar` y recién entonces `invitacionAceptarExistente` (misma respuesta `invitacion_invalida` si no hay); `reservar` exige entero ≥ 0; crear el CLI de T15a y su script `db:plataforma-alta` en `packages/db/package.json`; documentarlo con un comentario de uso en el propio CLI (y una línea en el README de despliegue si existe).
 - **Hecho cuando**: pruebas de T15a en verde, `test:int` de `modules/planes` y `modules/acceso`, `@contapp/db` test, coberturas `auth`/`acceso`/`db` en 0, lint y typecheck. Commit `fix(006): cupo al aceptar con sesión, reservar inválido y CLI de super-admin`.
 
 ## T16 · Cierre (devops · haiku)
