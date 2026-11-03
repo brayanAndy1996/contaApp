@@ -8,6 +8,7 @@ dist/
 .next/
 .turbo/
 coverage/
+.vitest/
 *.log
 .claude/settings.local.json
 *.tsbuildinfo
