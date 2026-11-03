@@ -47,6 +47,24 @@ export function crearEntorno(): Entorno {
     invitacionVigente: vi.fn(async () => null),
     invitacionAceptarNueva: vi.fn(async () => "invalida" as const),
     invitacionAceptarExistente: vi.fn(async () => null),
+    // 006: registro, cupo de aceptación y plataforma (sin uso en las unitarias de 004; solo para cumplir `AuthRepo`).
+    registroCrear: vi.fn(async () => undefined),
+    registroVigente: vi.fn(async () => null),
+    registroConfirmarNueva: vi.fn(async () => "invalida" as const),
+    registroConfirmarExistente: vi.fn(async () => null),
+    cupoUsuariosAceptar: vi.fn(async () => true),
+    plataformaYo: vi.fn(async () => null),
+    planListar: vi.fn(async () => []),
+    planCrear: vi.fn(async () => {
+      throw new Error("no usado en 004");
+    }),
+    planEditar: vi.fn(async () => {
+      throw new Error("no usado en 004");
+    }),
+    estudiosListar: vi.fn(async () => []),
+    suscripcionAsignar: vi.fn(async () => {
+      throw new Error("no usado en 004");
+    }),
   };
   const datos: Entorno["datos"] = {
     tenants: [{ id: T_A, nombre: "Estudio A" }],

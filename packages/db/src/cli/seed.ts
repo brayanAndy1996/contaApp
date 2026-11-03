@@ -41,6 +41,19 @@ export async function sembrar(client: Pick<Client, "query">): Promise<void> {
             values (${c.usuarioId}, ${c.hash}, now()) on conflict (usuario_id) do nothing`,
       );
     }
+    // Spec 006: suscripción de A y B (los planes los siembra la migración 0022_planes) y el admin de plataforma.
+    for (const s of SEED.suscripciones) {
+      await tx.execute(
+        sql`insert into suscripcion (tenant_id, plan_id, estado)
+            select ${s.tenantId}::uuid, p.id, ${s.estado} from plan p where p.codigo = ${s.planCodigo}
+            on conflict (tenant_id) do nothing`,
+      );
+    }
+    for (const usuarioId of SEED.adminsPlataforma) {
+      await tx.execute(
+        sql`insert into admin_plataforma (usuario_id) values (${usuarioId}) on conflict (usuario_id) do nothing`,
+      );
+    }
   });
 }
 
