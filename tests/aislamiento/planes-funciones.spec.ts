@@ -1517,6 +1517,26 @@ describe("estudios_listar y suscripcion_asignar (D5, D6, D13, CA-1, CA-7)", () =
     ).toHaveLength(0);
   });
 
+  // Ajuste de 006 (T3): ratificacion del arquitecto (plan.md, "Ratificaciones", T1 suscripcion_asignar). Un estudio
+  // existente SIN suscripcion no la recibe por asignacion (solo el registro y el backfill la crean) y no rompe el listado.
+  it("estudio existente sin suscripcion: asignar se rechaza y no crea fila; estudios_listar no falla con el", async () => {
+    const q = await ep.plan();
+    const sin = await ep.ea.estudio(); // tenant sin suscripcion
+    const antes = await adm("select count(*)::int n from suscripcion");
+    expect(rechazada(await asignar(sin.id, q.id, 0))).toBe(true);
+    expect(
+      await adm("select 1 from suscripcion where tenant_id = $1", [sin.id]),
+    ).toHaveLength(0);
+    expect(await adm("select count(*)::int n from suscripcion")).toEqual(
+      antes,
+    );
+    const filas = exitosa(
+      await llamar(app, SQL.estudios, [(await comoAdmin()).sesion]),
+    );
+    const f = filas.find((x) => x.id === sin.id);
+    if (f) expect(f.plan_codigo ?? null).toBeNull(); // se lista sin plan, o no se lista; nunca falla
+  });
+
   it("solo cambia la suscripcion del estudio indicado: la de otro estudio con el mismo plan no se toca", async () => {
     const p = await ep.plan();
     const q = await ep.plan({ maxRucsExtra: 2 });
