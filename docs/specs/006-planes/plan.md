@@ -87,6 +87,50 @@ Decisiones del usuario D14 y D15 (`spec.md`); el resto lo decide el arquitecto s
 
 **Decidido por el usuario (2026-11-03), sobre D15 con varias réplicas: "Lock en proceso (Recom.)"** = opción A: lock en memoria por proceso más el límite de 10/h por IP (implementado en T13b). Antes figuraba como "requiere usuario": el single-flight de b2 vive en el proceso del backend. Opciones: **A (recomendada)** lock en proceso más el límite de 10/h por IP: con N réplicas del backend caben hasta N hashes simultáneos por enlace, acotados por D15; **B** lock distribuido en Redis (`SET NX PX`, falla cerrado si Redis cae): un hash por enlace en todo el clúster, más una dependencia nueva en `confirmar`. Hoy hay un solo proceso de backend.
 
+## Ratificaciones de T15
+Revisión del arquitecto (sonnet) contra `spec.md` con el código de la rama y una prueba descartable contra la BD local. Veredicto: **aprobada con un defecto técnico** (T15-1, abajo) y dos puntos que decide el usuario. Cada línea ratifica (R) o rechaza (X) lo que dejaron "por ratificar" T3, T5, T7, T8, T9, T10a, T10b y T14.
+| Origen | Punto | Dec. | Justificación |
+|---|---|---|---|
+| T3 | `soporte-acceso.ts` crea la suscripción solo si existe la tabla | R (ya resuelto) | T14 quitó la tolerancia; `ci:db` verde sin ella |
+| T3 | Correo sin arroba y nombre de estudio con control dan 400 | R | `solicitud_invalida` sin eco, igual exista o no la cuenta (CA-4) |
+| T3 | "No borra nada" al bajar de plan, con 4 miembros y 6 clientes | R | evidencia suficiente de CA-7 |
+| T3 | Estudio sin suscripción sale en `/plataforma/estudios` con plan nulo | R | D13 más D14 |
+| T3 | Regresión CA-9 con el adaptador real y fixtures `corporativo` | R | suites de 004/005 verdes con `CupoUsuariosPlanes` |
+| T5 a | No-admin en funciones de plataforma: 42501 `permiso_denegado`; `plataforma_yo` 0 filas | R | error genérico indistinguible (D5) |
+| T5 b | `PlataformaReglaError`, CHECK 23514, repetido 23505 | R | mapeo completo en `plataforma.service.ts` |
+| T5 c | Precios con más de 2 decimales: 23514, no redondea | R | un monto no se altera en silencio |
+| T5 d | `registro_crear` invalida sin borrar y serializa por correo | R, superado por 0025 | hoy usa `invalidada_en` con `clock_timestamp()` (b1) |
+| T5 e | Forma de `usoDelEstudio` | R | una sentencia, sin precios, sin `number` para dinero |
+| T5 f | `uPlataforma` en el seed | R con reserva | el seed se niega con `NODE_ENV=production`; ver pregunta P-T15-1 (alta en producción) |
+| T5 g | `estudios_listar` incluye estudios sin suscripción | R | D14 |
+| T7 | `@SoloPlataforma` en `PermisoGuard` quedó para T9 | R | hecho en T9 |
+| T7 | `rucs.extra = min(contratados, maxRucsExtra)` | R | D10 |
+| T7 | `reservar(0)` no rechaza (si no excede) | R con ajuste | `reservar` acepta `NaN` o negativos sin rechazar (T15-2, baja) |
+| T7 | No hizo falta mover el cupo en 005 | **X en parte** | cierto para invitar, reactivar y aceptar con cuenta nueva; en `aceptarConSesion` el cupo va después de crear la membresía (T15-1) |
+| T8 | Parte local del correo > 64: 400 | R | RFC 5321; el comentario de la prueba "321" (319 reales) es del tester |
+| T8 | `confirmar-con-sesion` compara `X-Estudio` con la sesión | R | mismo patrón que `aceptar-con-sesion` (HU-40) |
+| T8 | 23505 al confirmar: `registro_invalido` | R | gana una; sin oráculo |
+| T8 | Estudio 2..200 sin control; titular con `nombreValido` | R | alineado con los CHECK (0025) |
+| T8 | `/registro/confirmar` sin límite por IP | R, cerrado | D15, `registro_confirmar_ip` 10/h |
+| T9 | Un `withAuth` por operación con `plataformaYo` antes de validar cuerpo e ids | R | el no-admin recibe el mismo 403 con cualquier entrada |
+| T9 | 42501→403, 23514→400, 23505→409, `PlataformaReglaError`→404/409/400, id no UUID→404 | R | coincide con "Contratos: HTTP" |
+| T10a | `usePuede()` hace un `GET /acceso/yo` por permiso | R, mejora opcional | `PrimerosPasos` hace 2; compartir una sola carga cuando 007 toque el menú (sin riesgo, solo eficiencia) |
+| T10b | Pantalla y enlace de plataforma | R | visible solo con `GET /plataforma/yo` 200; el backend es la barrera |
+| T14 / CA-10 | CA-10 dice "archivar o subir de plan"; la UI dice "Contacta a ContApp para subir de plan" | R (prevalece D8) | no existe archivar clientes hasta 007 (RF-030–039) y el Dueño no cambia de plan hasta R3; 007 agrega "o archiva clientes" al aviso de RUCs. Se lee CA-10 como "avisa con la acción disponible hoy" |
+| T14 | `seed-r2b.adv.spec.ts:29` intermitente bajo carga | R, ajeno a 006 | hipótesis de importación en frío, no reproducida |
+
+**Notas de la revisión (sin cambio de spec):**
+- D4 de `spec.md` dice `FOR UPDATE` sobre `suscripcion`; este plan lo cambió a bloqueo advisory (el backend no tiene `UPDATE`). Vale lo del plan; el comportamiento (serializar invitar/importar) es el que pide la spec.
+- Orden de bloqueo: se respeta en invitar (actor, cupo, invitación), reactivar (actor y objetivo, cupo, membresía) y aceptar con cuenta nueva (cupo, invitación, membresía), con cero `40P01` en 20 corridas (T14). **No** se respeta en aceptar con sesión (T15-1).
+- CupoRucs para 007: contrato en "Puertos de cupo" y D4; 007 llama `reservar` tras bloquear al actor y antes de tocar `cliente`, cuenta solo activos al agregar archivado y mapea 409 `cupo_rucs`. Hoy `contarRucs` cuenta todas las filas de `cliente` (`packages/db/src/planes/cupo.ts` y `uso.ts`): 007 debe cambiar las dos consultas.
+- Reglas de CLAUDE.md: sin `number` para dinero (precios `string`, `numeric(14,2)`; `Number()` solo en enteros de cupo); `GET /plan/uso` y cupos dentro de `withTenant`; las funciones de plataforma y registro corren en `withAuth` (SECURITY DEFINER, sin datos de negocio); el backend no importa descifrado; ni el token ni la contraseña salen en logs ni respuestas (canarios en `registro.int`); RLS `ENABLE`+`FORCE` en `suscripcion`, `registro_pendiente` y `prueba_origen`; `contapp_backend` sin `precio_*`, sin escritura en `plan`/`suscripcion` y sin acceso a `admin_plataforma`; EXECUTE de las 12 funciones solo para `contapp_backend`, `search_path` fijo.
+
+**Defectos técnicos (no se implementan en T15):**
+- **T15-1 (media, CA-6/D7, orden de bloqueo)**: `apps/backend/src/modules/acceso/invitaciones.service.ts:241-247` (`aceptarConSesion`) llama a `invitacionAceptarExistente` (que crea la membresía) y después a `cupo.alAceptar`; `cupo_usuarios_aceptar` ya cuenta la membresía nueva y exige `activos + 1 <= max`, así que el último cupo no se puede usar: con `max_usuarios = 2`, Dueño y una invitación pendiente, la aceptación con sesión da 409 `cupo_usuarios` (reproducido con una prueba descartable; con cuenta nueva da 204). Además toma el bloqueo de cupo (2′) después de bloquear la invitación (4), al revés del orden del plan. Ninguna prueba lo cubre (T3 solo prueba `aceptar` con cuenta nueva). Corrección: en el mismo `withAuth`, leer `a.invitacionVigente(hashToken(token))`, devolver `null` si no hay (misma respuesta `invitacion_invalida`), llamar `cupo.alAceptar(a, v.tenantId)` y recién entonces `invitacionAceptarExistente`. Prueba primero (tester): `aceptar-con-sesion` en el cupo justo da 200; con el plan bajado da 409 y la invitación sigue viva.
+- **T15-2 (baja)**: `apps/backend/src/modules/planes/cupo/cupo-rucs.ts:33` (`reservar`) deja pasar `n` negativo o `NaN` (`usados + NaN > limite` es falso): falla abierto si 007 calcula mal el conteo. Corrección: `if (!Number.isInteger(n) || n < 0) throw new RangeError(...)` (con prueba unitaria de `n = -1`, `NaN` y `1.5`).
+
+**Decisiones de producto pendientes (las toma el usuario):** P-T15-1 alta del super-admin en producción (el seed se niega con `NODE_ENV=production` y no hay CLI, aunque D5 dice "seed/CLI"); P-T15-2 qué estado queda al asignar plan a una suscripción en `prueba` (hoy sigue `prueba` con su fecha). Las opciones están en el informe del arquitecto al orquestador.
+
 ## Riesgos
 - Las pruebas de 005 crean estudios por fixtures sin suscripción: con el adaptador real fallan con `sin_plan`. Se detecta en T1/T3 (regresión CA-9) y se corrige en `soporte-acceso.ts`; nunca con un cupo "sin límite" por defecto en producción.
 - Una sola BD de pruebas con 008 aplicado antes: números de migración y `FUNCIONES_AUTH` cambian. T1 lee el estado real y no fija cifras; T5 verifica el último número aplicado.

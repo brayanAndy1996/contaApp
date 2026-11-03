@@ -24,7 +24,7 @@ Nivel B. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → atac
 | T13b | Corregir los hallazgos del backend y la BD (migración 0025)                             | backend    | opus   | T13a                | ✓   | —   | [x]    |
 | T13c | Frontend: mensaje de estudio sin plan y 429 al confirmar                                | frontend   | haiku  | T13a ∥ T13b         | ✓   | —   | [x]    |
 | T14  | Verificar CA-1 a CA-14 con evidencia                                                    | tester     | sonnet | T13b, T13c          | —   | —   | [x]    |
-| T15  | Revisión contra la spec                                                                 | arquitecto | sonnet | T14                 | —   | —   | [ ]    |
+| T15  | Revisión contra la spec                                                                 | arquitecto | sonnet | T14                 | —   | —   | [x]    |
 | T16  | Cierre: tasks y commit (el orquestador actualiza ESTADO)                                | devops     | haiku  | T15                 | —   | —   | [ ]    |
 
 Escalamientos: T5 nace en `opus` (funciones `SECURITY DEFINER` que crean estudios y escriben planes; precedente 005 T7, 04 §3.3). T13b nace en `opus` porque toca funciones `auth.*` y una migración (04 §3.3); T13a y T13c no lo necesitan.
@@ -204,6 +204,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/006-planes/{spec,plan}.md`, "Resultado" de T14, las tres migraciones de 006, `apps/backend/src/modules/{planes,registro,plataforma}/*.ts`.
 - **Hacer**: contrastar cada CA y D1–D13 con su evidencia y el DoD B (04 §5); comprobar que el orden de bloqueo de `plan.md` se respeta y que `CupoRucs` queda documentado para 007; listar faltantes y riesgos aceptados.
 - **Hecho cuando**: veredicto "aprobada" o lista de faltantes con tarea asignada. Sin commit si no cambia archivos.
+- **Resultado**: CA-1 a CA-14 y D1–D15 contrastados con el código, las migraciones 0022–0025 y las pruebas; ratificaciones en `plan.md` ("Ratificaciones de T15"). **Veredicto: aprobada con un defecto técnico y dos decisiones del usuario**. Defecto T15-1 (media): `aceptarConSesion` crea la membresía antes de llamar al cupo, así que el último cupo de usuarios da 409 y el orden de bloqueo queda invertido (`invitaciones.service.ts:241-247`; reproducido). Defecto T15-2 (baja): `CupoRucs.reservar` acepta `n` negativo o `NaN`. Faltantes propuestos: **T15a** tester (`sonnet`): prueba roja de `aceptar-con-sesion` en el cupo justo y de `reservar(-1|NaN|1.5)`; **T15b** backend (`sonnet`): corregir el orden en `aceptarConSesion` y validar `n`; después repetir `test:int` de `modules/planes` y `modules/acceso`. Preguntas al usuario: P-T15-1 (alta del super-admin en producción) y P-T15-2 (estado al asignar plan sobre una prueba). Observación de T14 sobre CA-10 ratificada (D8). DoD B: pruebas verdes, revisión hecha; criterios con evidencia en T14.
 
 ## T16 · Cierre (devops · haiku)
 
