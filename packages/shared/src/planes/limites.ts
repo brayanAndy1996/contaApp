@@ -1,9 +1,12 @@
-/* eslint-disable @typescript-eslint/no-unused-vars -- stub: T6 usa los parámetros */
-// STUB de T2 (006, pruebas primero): T6 implementa la función (D6, D10).
+/**
+ * Límite efectivo de RUCs (D6, D10): `maxRucs + min(contratados, maxRucsExtra)`.
+ * Función pura con enteros; si el super-admin baja el tope del plan, los contratados
+ * por encima del tope no suman cupo.
+ */
 export function limiteEfectivoRucs(
-  _maxRucs: number,
-  _maxRucsExtra: number,
-  _contratados: number,
+  maxRucs: number,
+  maxRucsExtra: number,
+  contratados: number,
 ): number {
-  throw new Error("no implementado (006 T6)");
+  return maxRucs + Math.min(contratados, maxRucsExtra);
 }
