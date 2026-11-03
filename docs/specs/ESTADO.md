@@ -6,13 +6,13 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 
 | Spec | Nivel | Estado | Tarea actual | Bloqueo / nota |
 |---|---|---|---|---|
-| 001-fundaciones | D | hecha | — | Sin Docker (decisión del usuario). TypeScript 6.0.3. CI de GitHub sin ejecutar: el repo no tiene remoto. |
+| 001-fundaciones | D | hecha | — | Sin Docker (decisión del usuario; desde 019, Docker para los servicios locales). TypeScript 6.0.3. CI de GitHub sin ejecutar: el repo no tiene remoto. |
 | 002-db-rls | A | hecha | — | Spec aprobada por el usuario (D1–D3, D5–D7). P7 resuelta en el plan. Rama `spec/002-db-rls` desde `spec/001-fundaciones`. |
 | 003-cifrado | A | hecha | — | Sin Docker (decisión del usuario). Rama `spec/003-cifrado` sin mergear (desde `spec/002-db-rls`). F2: límite aceptado por el usuario (ver `spec.md`, Límites conocidos). |
 | 004-auth | A | hecha | — | Hecha. Rama `spec/004-auth` sin mergear (desde `spec/010-dominio-dinero`). O-2 y límites de T20a aceptados por el usuario. CI en rojo hasta 1216e84 de 005: faltaba compilar shared. |
 | 005-acceso | A | hecha | — | Hecha. Rama `spec/005-acceso` sin mergear (desde `spec/004-auth`). CI verde (1216e84). |
 | 006-planes | B | hecha | — | Hecha. Mergeada en `main` (5a9fd7a). CA-1 a CA-14 con evidencia (T14); revisión T15 aprobada con 2 defectos corregidos en T15a/T15b (cupo al aceptar con sesión, `reservar` inválido). 10 hallazgos H-006 corregidos. Decisiones del usuario 2026-11-03: D14, D15, lock en proceso, CLI de alta de super-admin (`pnpm db:plataforma-alta`) y P-T15-2 (dejar así en R1). CI verde (run 41664504503). |
-| 007-clientes | B | pendiente | — | — |
+| 007-clientes | B | borrador | — | Borrador de spec en `spec/007-clientes` (0bbddf6); espera la aprobación del usuario (P1–P7). |
 | 008-cola | A | hecha | — | Hecha. Mergeada en `main` (74d96c9). Revisión final (T18) aprobada; 26 hallazgos de las rondas 1 y 2 corregidos; CA-1 a CA-17 con evidencia (T17). Formato en `1daa35d`. |
 | 009-adaptadores-mock | C | pendiente | — | — |
 | 010-dominio-dinero | A | hecha | — | Rama `spec/010-dominio-dinero` sin mergear (desde `spec/003-cifrado`). Caso real USD diferido, sin cifras (pendiente no bloqueante; CA-13 sintético cubre D7). Los 3 límites del lint de `packages/domain` fueron aceptados por el usuario (D10 de la spec). |
@@ -24,6 +24,7 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 | 016-lupa-xml | B | pendiente | — | — |
 | 017-auditoria-notif | B | pendiente | — | — |
 | 018-e2e-r1 | C | pendiente | — | — |
+| 019-docker-local | D | hecha | — | Pedida por el usuario (2026-11-03). Mergeada en `main`. `docker-compose.yml` con `postgres:17`, `redis:7` y Mailpit; `pnpm servicios:up`/`servicios:down`. Prueba real: migrate ×2, seed y ci:db (2237) en verde. Sin Dockerfiles de apps (spec futura de despliegue). |
 
 ## Hallazgos adversariales abiertos
 | Spec | Prueba | Hallazgo | Estado |
