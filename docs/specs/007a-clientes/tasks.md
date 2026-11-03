@@ -17,7 +17,7 @@ Nivel B, sin ronda adversarial (spec D9). Flujo 04 §1.3: pruebas primero (rojo)
 | T9   | Servicio y controlador de clientes: cupo, orden de bloqueo, errores y auditoría de rutas   | backend    | sonnet | T3, T6, T7, T8    | ✓   | —   | [ ]    |
 | T10  | Regla de lint: cerrar `import * as d from "drizzle-orm"`                                   | backend    | sonnet | T4 ∥ T5–T9        | ✓   | —   | [x] |
 | T11a | Frontend: cliente HTTP y listado con filtros                                               | frontend   | sonnet | T4 ∥ T5–T10       | ✓   | —   | [x]    |
-| T11b | Frontend: alta, detalle con datos fiscales y archivar/reactivar                            | frontend   | haiku  | T4, T11a          | ✓   | —   | [ ]    |
+| T11b | Frontend: alta, detalle con datos fiscales y archivar/reactivar                            | frontend   | haiku  | T4, T11a          | ✓   | —   | [x]    |
 | T12  | Verificar CA-1 a CA-9 con evidencia (suites completas)                                     | tester     | sonnet | T9, T10, T11b     | —   | —   | [ ]    |
 | T13  | Revisión contra la spec                                                                    | arquitecto | sonnet | T12               | —   | —   | [ ]    |
 | T14  | Cierre: tasks y commit (el orquestador actualiza ESTADO)                                   | devops     | haiku  | T13               | —   | —   | [ ]    |
@@ -117,6 +117,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/007a-clientes/spec.md` (D1, D2; CA-1, CA-4, CA-9), `docs/specs/007a-clientes/plan.md` (Contratos: shared, HTTP), `apps/frontend/app/(app)/clientes/[clienteId]/page.tsx` y su spec, `apps/frontend/lib/clientes.ts`, `apps/frontend/components/uso-plan.tsx`.
 - **Hacer**: `clientes/nuevo/page.tsx` (RUC con error en línea por `validarRuc`, razón social opcional, responsable, datos fiscales); `components/datos-fiscales.tsx`; detalle con datos fiscales editables, archivar/reactivar con confirmación, solo lectura si está archivado, mensajes de 409 (`cupo_rucs` con el uso del plan, `ruc_duplicado`).
 - **Hecho cuando**: pruebas de T4 en verde; `pnpm --filter @contapp/frontend test`, `lint` y `typecheck` verdes. Commit `feat(007a): alta, datos fiscales y archivado de clientes`.
+- **Resultado**: [x] `components/datos-fiscales.tsx` (controles y lectura del perfil con el catálogo de `@contapp/shared`); `clientes/nuevo/page.tsx` (RUC en línea con `validarRuc`, `clienteCrearSchema` antes de enviar, datos fiscales opcionales, 409 `cupo_rucs` con `<UsoPlan />`); `clientes/[clienteId]/page.tsx` (datos fiscales con PATCH, archivar/reactivar con diálogo, modo archivado, 409 `cliente_archivado`). `clientes/nuevo/page.spec.tsx` y `[clienteId]/fiscal.spec.tsx` 24/24; `pnpm --filter @contapp/frontend` test 247/247 (30 archivos), `lint` y `typecheck` limpios. Sin shadcn (no está configurado en el repo; 001 §5). Decisión a confirmar: el select de responsable exige `clientes.asignar` (D3 no lo fija).
 
 ## T12 · Verificar CA-1 a CA-9 (tester · sonnet)
 
