@@ -25,7 +25,9 @@ Nivel B. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → atac
 | T13c | Frontend: mensaje de estudio sin plan y 429 al confirmar                                | frontend   | haiku  | T13a ∥ T13b         | ✓   | —   | [x]    |
 | T14  | Verificar CA-1 a CA-14 con evidencia                                                    | tester     | sonnet | T13b, T13c          | —   | —   | [x]    |
 | T15  | Revisión contra la spec                                                                 | arquitecto | sonnet | T14                 | —   | —   | [x]    |
-| T16  | Cierre: tasks y commit (el orquestador actualiza ESTADO)                                | devops     | haiku  | T15                 | —   | —   | [ ]    |
+| T15a | Pruebas en rojo: cupo justo con sesión, `reservar` inválido y CLI de super-admin       | tester     | sonnet | T15                 | ✓   | —   | [ ]    |
+| T15b | Corregir T15-1 y T15-2 y crear el CLI de alta de super-admin                            | backend    | sonnet | T15a                | ✓   | —   | [ ]    |
+| T16  | Cierre: tasks y commit (el orquestador actualiza ESTADO)                                | devops     | haiku  | T15b                | —   | —   | [ ]    |
 
 Escalamientos: T5 nace en `opus` (funciones `SECURITY DEFINER` que crean estudios y escriben planes; precedente 005 T7, 04 §3.3). T13b nace en `opus` porque toca funciones `auth.*` y una migración (04 §3.3); T13a y T13c no lo necesitan.
 
@@ -34,6 +36,8 @@ T11 nace en `haiku` pero la ejecutó `sonnet` por el precedente de 008 T12, dond
 Corrección de pruebas (2d401d6): 3 pruebas defectuosas corregidas por el tester (orden de cupo, '321' intermitente, limpieza de LIKE).
 
 Decisiones del usuario: 2026-11-03, tras la ronda adversarial: D14 "1 prueba por cuenta" (H-006-a1) y D15 "10 por hora por IP" (H-006-b3), ambas la opción recomendada. 2026-10-27, "Apruebo las specs 006, 008 y 011 con todo lo recomendado por el arquitecto en cada P. Continúa con plan y tareas." (P1 super-admin con tabla y endpoints; P2 registro por enlace de correo; P3 usuarios = activos + pendientes; P4 Prueba con 1 usuario; P5 adicionales fijados por el super-admin y plan editado en sitio; P6 adversario solo en el registro.)
+
+Decisiones del usuario sobre T15 (2026-11-03): P-T15-1 "CLI de alta (Recom.)": en 006 se agrega un CLI que da de alta un usuario existente o nuevo en `admin_plataforma`, usable en producción. P-T15-2 "Dejar así en R1 (Recom.)": asignar plan sobre una prueba la deja en `prueba` con su vencimiento; se anota en ESTADO para RF-005/006.
 
 Reglas comunes:
 
@@ -205,6 +209,18 @@ Reglas comunes:
 - **Hacer**: contrastar cada CA y D1–D13 con su evidencia y el DoD B (04 §5); comprobar que el orden de bloqueo de `plan.md` se respeta y que `CupoRucs` queda documentado para 007; listar faltantes y riesgos aceptados.
 - **Hecho cuando**: veredicto "aprobada" o lista de faltantes con tarea asignada. Sin commit si no cambia archivos.
 - **Resultado**: CA-1 a CA-14 y D1–D15 contrastados con el código, las migraciones 0022–0025 y las pruebas; ratificaciones en `plan.md` ("Ratificaciones de T15"). **Veredicto: aprobada con un defecto técnico y dos decisiones del usuario**. Defecto T15-1 (media): `aceptarConSesion` crea la membresía antes de llamar al cupo, así que el último cupo de usuarios da 409 y el orden de bloqueo queda invertido (`invitaciones.service.ts:241-247`; reproducido). Defecto T15-2 (baja): `CupoRucs.reservar` acepta `n` negativo o `NaN`. Faltantes propuestos: **T15a** tester (`sonnet`): prueba roja de `aceptar-con-sesion` en el cupo justo y de `reservar(-1|NaN|1.5)`; **T15b** backend (`sonnet`): corregir el orden en `aceptarConSesion` y validar `n`; después repetir `test:int` de `modules/planes` y `modules/acceso`. Preguntas al usuario: P-T15-1 (alta del super-admin en producción) y P-T15-2 (estado al asignar plan sobre una prueba). Observación de T14 sobre CA-10 ratificada (D8). DoD B: pruebas verdes, revisión hecha; criterios con evidencia en T14.
+
+## T15a · Pruebas en rojo de T15 (tester · sonnet)
+
+- **Contexto (leer solo esto)**: "Resultado" de T15, `apps/backend/src/modules/acceso/invitaciones.service.ts`, `apps/backend/src/modules/planes/cupo-rucs.ts`, `packages/db/src/cli/{seed,comun,reparar-rol}.ts` y sus pruebas, `packages/db/src/schema/plataforma.ts`.
+- **Hacer**: (1) int: con `max_usuarios=2`, Dueño y una invitación pendiente, `POST /invitaciones/aceptar-con-sesion` da 204 y crea la membresía; con el cupo ya lleno da 409 `cupo_usuarios` sin crear nada. (2) unit: `CupoRucs.reservar` con `-1`, `NaN`, `1.5` e `Infinity` lanza error (falla cerrado) y no consulta la BD. (3) CLI `db:plataforma-alta` (contrato: `node dist/cli/plataforma-alta.js --correo <c>` con `MIGRATIONS_DATABASE_URL`; si el usuario existe lo agrega a `admin_plataforma` sin membresía; si no existe lo crea pidiendo la contraseña por stdin o `CONTAPP_PLATAFORMA_CONTRASENA` validada con la política de contraseñas; idempotente; funciona con `NODE_ENV=production`; nunca imprime la contraseña ni el hash; código de salida ≠ 0 y mensaje claro en correo inválido o falta de contraseña).
+- **Hecho cuando**: las pruebas fallan solo por falta de la implementación. Commit `test(006): cupo con sesión, reservar inválido y CLI de super-admin (rojo)`.
+
+## T15b · Correcciones de T15 y CLI de super-admin (backend · sonnet)
+
+- **Contexto (leer solo esto)**: "Resultado" de T15 y T15a, los archivos que tocan sus pruebas.
+- **Hacer**: en `aceptarConSesion`, dentro del mismo `withAuth`, leer la invitación vigente, llamar `cupo.alAceptar` y recién entonces `invitacionAceptarExistente` (misma respuesta `invitacion_invalida` si no hay); `reservar` exige entero ≥ 0; crear el CLI de T15a y su script `db:plataforma-alta` en `packages/db/package.json`; documentarlo en una línea del README o del README de despliegue si existe (si no, en `docs/01-definiciones-base.md` junto a D5 no: solo en un comentario de uso del propio CLI).
+- **Hecho cuando**: pruebas de T15a en verde, `test:int` de `modules/planes` y `modules/acceso`, `@contapp/db` test, coberturas `auth`/`acceso`/`db` en 0, lint y typecheck. Commit `fix(006): cupo al aceptar con sesión, reservar inválido y CLI de super-admin`.
 
 ## T16 · Cierre (devops · haiku)
 
