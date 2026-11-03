@@ -13,7 +13,7 @@ import {
   type PeticionAuth,
 } from "../../auth/guards/decoradores.js";
 import { generarToken } from "../../auth/sesion/token.js";
-import { Permiso, SoloEstudio } from "./decoradores.js";
+import { Permiso, SoloEstudio, SoloPlataforma } from "./decoradores.js";
 import { PermisoGuard } from "./permiso.guard.js";
 
 // Unitarias de PermisoGuard con dobles (T3 de 005). Contrato (plan: Guards y decoradores):
@@ -297,5 +297,95 @@ describe("PermisoGuard: req.acceso", () => {
       ),
     );
     expect(req.acceso).toBeUndefined();
+  });
+});
+
+// 006 T2 (rojo), D5: `@SoloPlataforma()` es una declaracion valida SOLO junto a `@SinEstudio` (rutas de
+// `/plataforma/*`: sesion viva sin estudio; el alta en `admin_plataforma` la revalidan las funciones SQL).
+// Nunca con `@Permiso`/`@SoloEstudio`; sola o mal combinada falla cerrada con 403 permiso_denegado y sin
+// consultar la BD de estudio.
+describe("PermisoGuard: @SoloPlataforma (006, D5)", () => {
+  const plataforma = (fn: () => void) => {
+    SinEstudio()(fn);
+    SoloPlataforma()(fn);
+  };
+  const denegada = async (decorar: (fn: () => void) => void) => {
+    conRol("dueno");
+    const r = await rechazo(
+      Promise.resolve().then(() =>
+        guard().canActivate(ctx(peticion(sesion({ tenantActivo: null })), decorar)),
+      ),
+    );
+    expect(r).toEqual({ estado: 403, cuerpo: { codigo: "permiso_denegado" } });
+    expect(withTenant).not.toHaveBeenCalled();
+    expect(miembroActual).not.toHaveBeenCalled();
+  };
+
+  it("@SinEstudio + @SoloPlataforma pasa sin consultar la BD (sesion sin estudio)", async () => {
+    expect(
+      await guard().canActivate(
+        ctx(peticion(sesion({ tenantActivo: null })), plataforma),
+      ),
+    ).toBe(true);
+    expect(withTenant).not.toHaveBeenCalled();
+    expect(miembroActual).not.toHaveBeenCalled();
+  });
+
+  it("@SinEstudio + @SoloPlataforma tampoco deja req.acceso (no es una ruta de estudio)", async () => {
+    const req = peticion(sesion({ tenantActivo: null }));
+    await guard().canActivate(ctx(req, plataforma));
+    expect(req.acceso).toBeUndefined();
+  });
+
+  it("@SoloPlataforma sola (sin @SinEstudio) no es una declaracion valida: 403 permiso_denegado", async () => {
+    await denegada((fn) => SoloPlataforma()(fn));
+  });
+
+  it("@SoloPlataforma + @Permiso: 403 permiso_denegado aunque el rol tenga el permiso", async () => {
+    await denegada((fn) => {
+      SoloPlataforma()(fn);
+      Permiso("plan.gestionar")(fn);
+    });
+  });
+
+  it("@SoloPlataforma + @SoloEstudio: 403 permiso_denegado", async () => {
+    await denegada((fn) => {
+      SoloPlataforma()(fn);
+      SoloEstudio()(fn);
+    });
+  });
+
+  it("@SinEstudio + @SoloPlataforma + @Permiso: 403 permiso_denegado (la mezcla no abre la ruta)", async () => {
+    await denegada((fn) => {
+      SinEstudio()(fn);
+      SoloPlataforma()(fn);
+      Permiso("plan.gestionar")(fn);
+    });
+  });
+
+  it("@SinEstudio + @SoloPlataforma + @SoloEstudio: 403 permiso_denegado", async () => {
+    await denegada((fn) => {
+      SinEstudio()(fn);
+      SoloPlataforma()(fn);
+      SoloEstudio()(fn);
+    });
+  });
+
+  it("sin declaracion sigue siendo 403 permiso_denegado (denegacion por defecto)", async () => {
+    await denegada(() => undefined);
+  });
+
+  it("@SoloPlataforma a nivel de clase junto a @SinEstudio en el handler tambien vale", async () => {
+    class DePlataforma {}
+    SoloPlataforma()(DePlataforma);
+    expect(
+      await guard().canActivate(
+        ctx(
+          peticion(sesion({ tenantActivo: null })),
+          (fn) => SinEstudio()(fn),
+          DePlataforma,
+        ),
+      ),
+    ).toBe(true);
   });
 });
