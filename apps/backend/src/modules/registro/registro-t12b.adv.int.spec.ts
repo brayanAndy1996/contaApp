@@ -37,13 +37,15 @@ beforeAll(async () => {
   p = await abrirBancoPlanes();
 });
 afterAll(async () => {
+  // Ajuste de 006 (T13a): D15 agrega `registro_confirmar_ip`; `ip_invalida` es la cubeta de las IP que no lo son (b6).
   const sujetos = [
     ...ips,
     ...correosLimite.map((c) => claveCorreo(c).toString("hex")),
+    "ip_invalida",
   ];
   await p
     ?.sql(
-      "delete from auth.limite_tasa where tipo in ('registro_ip','registro_correo','login_ip') and sujeto = any($1)",
+      "delete from auth.limite_tasa where tipo in ('registro_ip','registro_correo','registro_confirmar_ip','login_ip') and sujeto = any($1)",
       [sujetos],
     )
     .catch(() => undefined);

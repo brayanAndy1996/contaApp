@@ -7,8 +7,14 @@ import {
   asentar,
   celdas,
   esperarFila,
+  fila,
 } from "../../../pruebas/acceso";
-import { ESTUDIOS, MENSAJES_PLANES, PLANES } from "../../../pruebas/planes";
+import {
+  ESTUDIO_SIN_PLAN,
+  ESTUDIOS,
+  MENSAJES_PLANES,
+  PLANES,
+} from "../../../pruebas/planes";
 import {
   crearRouterFalso,
   instalarFetchFalso,
@@ -45,6 +51,8 @@ import AdminEstudios from "./page";
 //   number } con CSRF de la sesión. 200 → MENSAJES_PLANES.suscripcionGuardada y recarga estudios.
 //   Errores (role=alert): 409 plan_inactivo → planInactivo; 400 → extraInvalido; 404 → noEncontrado;
 //   403 → sinPermiso.
+// - D14 (T13a): un estudio sin suscripción llega con `plan: null` y `estado: null`. Su fila muestra "Sin plan" (no
+//   rompe la tabla ni muestra "null") y permite asignarle uno con el mismo "Asignar plan" (PUT /suscripcion).
 
 const sesion: Record<string, Manejador> = {
   "GET /api/auth/sesion": { status: 200, cuerpo: sesionDe(null, "csrf-admin") },
@@ -188,4 +196,68 @@ describe("/admin", () => {
       );
     },
   );
+
+  it("D14 · un estudio con plan nulo se muestra como 'Sin plan' y la tabla sigue mostrando los demás", async () => {
+    instalarFetchFalso(
+      rutas({
+        "GET /api/plataforma/estudios": {
+          status: 200,
+          cuerpo: [...ESTUDIOS, ESTUDIO_SIN_PLAN],
+        },
+      }),
+    );
+    const { container } = render(<AdminEstudios />);
+    const gamma = celdas(await esperarFila("Estudio Gamma"));
+    expect(gamma).toContain("Sin plan");
+    expect(container.textContent).not.toMatch(/null|undefined/);
+    expect(celdas(await esperarFila("Estudio Alfa"))).toContain("activa");
+  });
+
+  it("D14 · asignar un plan a un estudio sin plan: PUT /suscripcion { planId, rucsExtraContratados } con CSRF", async () => {
+    const f = instalarFetchFalso(
+      rutas({
+        "GET /api/plataforma/estudios": (_l, vez) => ({
+          status: 200,
+          cuerpo:
+            vez === 1
+              ? [ESTUDIO_SIN_PLAN]
+              : [
+                  {
+                    ...ESTUDIO_SIN_PLAN,
+                    plan: { codigo: "estudio", nombre: "Estudio" },
+                    estado: "activa",
+                  },
+                ],
+        }),
+        "PUT /api/plataforma/estudios/t-gamma/suscripcion": {
+          status: 200,
+          cuerpo: {
+            estudioId: "t-gamma",
+            plan: { codigo: "estudio", nombre: "Estudio" },
+            estado: "activa",
+            rucsExtraContratados: 0,
+          },
+        },
+      }),
+    );
+    render(<AdminEstudios />);
+    const user = userEvent.setup();
+    const gamma = await esperarFila("Estudio Gamma");
+    await user.selectOptions(within(gamma).getByLabelText("Plan"), "p-estudio");
+    await user.click(
+      within(gamma).getByRole("button", { name: "Asignar plan" }),
+    );
+    expect(
+      await screen.findByText(MENSAJES_PLANES.suscripcionGuardada),
+    ).toBeTruthy();
+    const [llamada] = f.de("PUT /api/plataforma/estudios/t-gamma/suscripcion");
+    expect(llamada?.body).toEqual({
+      planId: "p-estudio",
+      rucsExtraContratados: 0,
+    });
+    expect(llamada?.headers["x-csrf-token"]).toBe("csrf-admin");
+    await vi.waitFor(() =>
+      expect(celdas(fila("Estudio Gamma"))).toContain("activa"),
+    );
+  });
 });

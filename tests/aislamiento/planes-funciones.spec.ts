@@ -28,7 +28,10 @@
 //   auth.suscripcion_asignar(token, tenant_id uuid, plan_id uuid, rucs_extra int) -> (tenant_id, plan_id, plan_codigo, plan_nombre,
 //       estado, rucs_extra_contratados). Rechaza plan inactivo, plan o estudio inexistente y extra negativo o sobre el max_rucs_extra
 //       del plan nuevo. Las que escriben solo tocan `plan` y `suscripcion`.
-//   auth.limite_consumir('registro_ip' | 'registro_correo', sujeto) -> boolean: 5 y 3 por hora.
+//   auth.limite_consumir('registro_ip' | 'registro_correo' | 'registro_confirmar_ip', sujeto) -> boolean: 5, 3 y 10 por hora.
+//   Ajuste de 006 (T13a, D14/D15): `suscripcion_asignar` sobre un estudio SIN suscripcion ya no se rechaza, la crea (`activa`);
+//   `registro_confirmar_existente` agrega `con_prueba`; `limite_consumir` admite `registro_confirmar_ip` (10 por hora). Lo nuevo
+//   de D14, D15 y de la ronda adversarial esta en `planes-ronda1.spec.ts`.
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -1522,24 +1525,37 @@ describe("estudios_listar y suscripcion_asignar (D5, D6, D13, CA-1, CA-7)", () =
     ).toHaveLength(0);
   });
 
-  // Ajuste de 006 (T3): ratificacion del arquitecto (plan.md, "Ratificaciones", T1 suscripcion_asignar). Un estudio
-  // existente SIN suscripcion no la recibe por asignacion (solo el registro y el backfill la crean) y no rompe el listado.
-  it("estudio existente sin suscripcion: asignar se rechaza y no crea fila; estudios_listar no falla con el", async () => {
+  // Ajuste de 006 (T13a): D14 REVIERTE la ratificacion de T1/T3 (antes: un estudio existente SIN suscripcion no la recibia por
+  // asignacion). Ahora un estudio sin plan (la cuenta ya uso su prueba) recibe su suscripcion `activa` del super-admin.
+  // Mas casos (carrera, validaciones, no-admin) en planes-ronda1.spec.ts.
+  it("D14 · estudio existente sin suscripcion: asignar la crea `activa`; estudios_listar lo mostraba sin plan y no falla", async () => {
     const q = await ep.plan();
     const sin = await ep.ea.estudio(); // tenant sin suscripcion
     const antes = await adm("select count(*)::int n from suscripcion");
-    expect(rechazada(await asignar(sin.id, q.id, 0))).toBe(true);
-    expect(
-      await adm("select 1 from suscripcion where tenant_id = $1", [sin.id]),
-    ).toHaveLength(0);
-    expect(await adm("select count(*)::int n from suscripcion")).toEqual(
-      antes,
-    );
-    const filas = exitosa(
+    const filas0 = exitosa(
       await llamar(app, SQL.estudios, [(await comoAdmin()).sesion]),
     );
-    const f = filas.find((x) => x.id === sin.id);
-    if (f) expect(f.plan_codigo ?? null).toBeNull(); // se lista sin plan, o no se lista; nunca falla
+    const f0 = filas0.find((x) => x.id === sin.id);
+    expect(f0, "el estudio sin suscripcion se lista").toBeDefined();
+    expect(f0.plan_codigo ?? null).toBeNull();
+    expect(f0.estado ?? null).toBeNull();
+    const r = exitosa(await asignar(sin.id, q.id, 0));
+    expect(r).toHaveLength(1);
+    expect(r[0]).toMatchObject({
+      tenant_id: sin.id,
+      plan_id: q.id,
+      estado: "activa",
+      rucs_extra_contratados: 0,
+    });
+    expect(
+      await adm(
+        "select estado, prueba_vence_en from suscripcion where tenant_id = $1",
+        [sin.id],
+      ),
+    ).toEqual([{ estado: "activa", prueba_vence_en: null }]);
+    expect(await adm("select count(*)::int n from suscripcion")).toEqual([
+      { n: antes[0].n + 1 },
+    ]);
   });
 
   it("solo cambia la suscripcion del estudio indicado: la de otro estudio con el mismo plan no se toca", async () => {
@@ -1594,6 +1610,8 @@ describe("auth.limite_consumir con los tipos de registro (CA-4: limite por IP y 
   it.each([
     ["registro_ip", 5],
     ["registro_correo", 3],
+    // Ajuste de 006 (T13a, D15): 0025 redefine limite_consumir con el tipo del limite al confirmar.
+    ["registro_confirmar_ip", 10],
   ])(
     "%s admite %i consumos por hora y rechaza el siguiente",
     async (tipo, max) => {

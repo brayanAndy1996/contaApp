@@ -16,6 +16,12 @@ export const MENSAJES_PLANES = {
     "El registro no está disponible por ahora. Inténtalo más tarde.",
   registroCreado: "Tu estudio fue creado. Ya puedes iniciar sesión.",
   estudioCreado: (estudio: string) => `Tu estudio ${estudio} fue creado.`,
+  // D14 (T13a): la cuenta ya originó su prueba gratis; el estudio se crea pero no opera hasta que ContApp asigne un plan.
+  // Lo muestran /registro/confirmar (confirmar-con-sesion con `sinPlan: true`) y <UsoPlan /> ante el 409 `sin_plan`.
+  sinPlan:
+    "Tu estudio se creó, pero no tiene plan: la prueba gratis ya se usó con tu cuenta. Contacta a ContApp para activar uno.",
+  // D15 (T13a): 429 `demasiados_intentos` de POST /registro/confirmar.
+  demasiadosConfirmar: "Demasiados intentos. Prueba de nuevo en una hora.",
   // Indicador de uso: elementos de texto propios (no se mezclan con otro texto).
   limiteRucs: "Llegaste al límite de RUCs de tu plan.",
   limiteUsuarios: "Llegaste al límite de usuarios de tu plan.",
@@ -149,3 +155,11 @@ export const ESTUDIOS = [
     estado: "prueba",
   },
 ];
+
+/** D14 (T13a): estudio sin suscripción en `GET /plataforma/estudios` (`plan` y `estado` nulos). */
+export const ESTUDIO_SIN_PLAN = {
+  id: "t-gamma",
+  nombre: "Estudio Gamma",
+  plan: null,
+  estado: null,
+} as const;

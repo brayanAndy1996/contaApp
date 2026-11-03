@@ -10,7 +10,7 @@
 // - contapp_auth: SELECT/INSERT/UPDATE en plan y suscripcion (sin DELETE ni TRUNCATE); SOLO SELECT en admin_plataforma;
 //   SELECT/INSERT/UPDATE/DELETE en auth.registro_pendiente; INSERT en tenant solo por columna (nombre, ruc_estudio).
 // - CHECK/UNIQUE/FK de plan.md; seed de los 5 planes de 01 §3 y backfill (estudios existentes -> corporativo/activa).
-// - auth.limite_tasa.tipo admite 'registro_ip' y 'registro_correo'.
+// - auth.limite_tasa.tipo admite 'registro_ip', 'registro_correo' y (0025, D15) 'registro_confirmar_ip'.
 // Los nombres de las politicas y de las restricciones no se fijan; si, el SQLSTATE (23514 CHECK, 23505 UNIQUE, 23503 FK,
 // 23502 NOT NULL, 42501 privilegios).
 import { randomBytes } from "node:crypto";
@@ -948,7 +948,8 @@ describe("CHECK de auth.registro_pendiente (D3) y de auth.limite_tasa (registro_
     }
   });
 
-  it.each(["registro_ip", "registro_correo"])(
+  // Ajuste de 006 (T13a, D15): 0025 amplia limite_tasa_tipo_valido con `registro_confirmar_ip`.
+  it.each(["registro_ip", "registro_correo", "registro_confirmar_ip"])(
     "auth.limite_tasa admite el tipo %s (23514 solo para tipos desconocidos)",
     async (tipo) => {
       const sql =

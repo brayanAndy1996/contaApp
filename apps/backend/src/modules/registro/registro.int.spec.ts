@@ -31,7 +31,9 @@ afterAll(async () => {
   await limpiarLimites().catch(() => undefined);
   await p?.cerrar();
 });
-const limpiarLimites = () => p.sql("delete from auth.limite_tasa where tipo in ('registro_ip', 'registro_correo')");
+// Ajuste de 006 (T13a): D15 agrega el tipo `registro_confirmar_ip` (10 por hora por IP) al limite de /registro/confirmar.
+const limpiarLimites = () =>
+  p.sql("delete from auth.limite_tasa where tipo in ('registro_ip', 'registro_correo', 'registro_confirmar_ip')");
 
 /* ---------------------------------- utilidades ---------------------------------- */
 const solicitar = (o: { correo: string; estudio?: string; ruc?: string | null; nombre?: string }, extra = {}) =>

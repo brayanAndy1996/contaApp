@@ -2,7 +2,7 @@
 // T3 (006) · CA-1 (planes y suscripción por el super-admin, D5, D13), CA-7 (bajar de plan por la API), CA-2 (el
 // cambio vale sin reiniciar) y CA-8 (aislamiento). Contrato de errores de plan.md ("Ratificaciones"): 409
 // `plan_inactivo`, 409 `codigo_existente`, 400 por extra sobre el tope, 404 `no_encontrado` (estudio o plan
-// inexistente, o estudio sin suscripción: no se crea). Rojo: rutas /plataforma/*, `admin_plataforma` y las funciones
+// inexistente; D14, T13a: un estudio sin suscripción la recibe `activa`). Rojo: rutas /plataforma/*, `admin_plataforma` y las funciones
 // `auth.plan_*`/`auth.suscripcion_asignar` aún no existen (T5, T9).
 import { randomBytes, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -321,9 +321,13 @@ describe("D13 · GET /plataforma/estudios", () => {
     });
     for (const x of r.body) expect(Object.keys(x).sort()).toEqual(["estado", "id", "nombre", "plan"]);
     expect(r.text).not.toMatch(/precio|email|correo|argon|token/i);
-    // un estudio existente sin suscripción no rompe el listado
-    const f = r.body.find((x: any) => x.id === sinSus.tenantId);
-    if (f) expect(f.plan === null || f.plan?.codigo == null).toBe(true);
+    // un estudio existente sin suscripción no rompe el listado: D14 (T13a) lo muestra con plan y estado nulos
+    expect(r.body.find((x: any) => x.id === sinSus.tenantId)).toEqual({
+      id: sinSus.tenantId,
+      nombre: expect.any(String),
+      plan: null,
+      estado: null,
+    });
   });
 });
 
@@ -395,13 +399,23 @@ describe("CA-1 · PUT /plataforma/estudios/:tenantId/suscripcion", () => {
     expect([400, 404]).toContain((await plat("PUT", "/plataforma/estudios/no-es-uuid/suscripcion", { planId: plan.id, rucsExtraContratados: 0 })).status);
   });
 
-  it("estudio existente SIN suscripción: 404 y no se crea la fila (solo el registro y el backfill la crean)", async () => {
-    const plan = await p.plan();
+  // Ajuste de 006 (T13a): D14 REVIERTE esta prueba (antes: 404 y no se creaba la fila; "solo el registro y el backfill la crean").
+  // Un estudio sin plan (su cuenta ya usó la prueba) recibe del super-admin su suscripción `activa`. Más casos (no-admin 403, el
+  // estudio opera tras asignarlo) en registro/registro-t13.int.spec.ts.
+  it("D14 · estudio existente SIN suscripción: 200, se crea la fila `activa` sin vencimiento de prueba y GET /plan/uso opera", async () => {
+    const plan = await p.plan({ maxRucsExtra: 2 });
     const E = await p.estudio(null);
-    const r = await asignar(E.tenantId, plan.id, 0);
-    expect(r.status).toBe(404);
-    expect(r.body).toEqual({ codigo: "no_encontrado" });
     expect(await p.sql("select 1 from suscripcion where tenant_id = $1", [E.tenantId])).toHaveLength(0);
+    const r = await asignar(E.tenantId, plan.id, 1);
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    expect(r.body).toMatchObject({
+      estudioId: E.tenantId,
+      plan: { codigo: plan.codigo },
+      estado: "activa",
+      rucsExtraContratados: 1,
+    });
+    expect(await sus(E.tenantId)).toMatchObject({ plan_id: plan.id, estado: "activa", prueba_vence_en: null, rucs_extra_contratados: 1 });
+    expect((await p.b.llamar(E.titular, "GET", "/plan/uso")).status).toBe(200);
   });
 
   it("solo cambia el estudio de la ruta: un `tenantId` en el cuerpo y las suscripciones de otros no se tocan", async () => {

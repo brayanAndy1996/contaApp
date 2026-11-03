@@ -41,7 +41,11 @@ afterAll(async () => {
       sujetos.add(claveCorreo(v).toString("base64"));
     }
     await p
-      .sql("delete from auth.limite_tasa where tipo in ('registro_ip', 'registro_correo') and sujeto = any($1)", [[...sujetos]])
+      // Ajuste de 006 (T13a): D15 agrega `registro_confirmar_ip`; `ip_invalida` es la cubeta de las IP que no lo son (b6).
+      .sql(
+        "delete from auth.limite_tasa where tipo in ('registro_ip', 'registro_correo', 'registro_confirmar_ip') and sujeto = any($1)",
+        [[...sujetos, "ip_invalida"]],
+      )
       .catch(() => undefined);
     await p.cerrar();
   }
@@ -62,8 +66,9 @@ const solicitar = (cuerpo: Record<string, unknown>, extra: Record<string, unknow
   h().pedir({ ruta: "/registro", cuerpo, ip: ip(), ...extra });
 const cuerpoBase = (correo: string, o: Record<string, unknown> = {}) => ({ estudio: ESTUDIO, nombre: NOMBRE, correo, ...o });
 const consultar = (token: string) => h().pedir({ ruta: "/registro/consultar", cuerpo: { token } });
+// Ajuste de 006 (T13a, D15): cada confirmacion sale de una IP propia y rastreada (limite de 10 por hora por IP, y limpieza).
 const confirmar = (token: string, extra: Record<string, unknown> = {}) =>
-  h().pedir({ ruta: "/registro/confirmar", cuerpo: { token, contrasena: CONTRASENA, ...extra } });
+  h().pedir({ ruta: "/registro/confirmar", cuerpo: { token, contrasena: CONTRASENA, ...extra }, ip: ip() });
 const tokensDe = (correo: string): string[] =>
   h()
     .correo.para(correo)

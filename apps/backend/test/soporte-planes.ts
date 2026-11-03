@@ -158,9 +158,12 @@ export async function abrirBancoPlanes(cupo?: object, extra: Record<string, unkn
         /* mejor esfuerzo */
       }
     };
+    // Ajuste de 006 (T13a): un correo con NUL (T12a lo rastrea para probar que se rechaza) hace fallar `= any($1)` con 22021 y
+    // abortaba TODA la limpieza; PG no puede guardar un NUL en `text`, asi que esos correos no tienen filas que borrar.
+    const limpios = correos.filter((c) => !c.includes("\u0000"));
     try {
-      await intentar("delete from auth.registro_pendiente where correo = any($1)", [correos]);
-      const us = (await q("select id from usuario where email = any($1)", [correos])).rows.map((f: any) => f.id);
+      await intentar("delete from auth.registro_pendiente where correo = any($1)", [limpios]);
+      const us = (await q("select id from usuario where email = any($1)", [limpios])).rows.map((f: any) => f.id);
       if (us.length === 0) return;
       const ts = (await q("select distinct tenant_id from membresia where usuario_id = any($1)", [us])).rows.map(
         (f: any) => f.tenant_id,

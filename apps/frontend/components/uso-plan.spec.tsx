@@ -15,7 +15,9 @@ import { UsoPlan } from "./uso-plan";
 //   MENSAJES_PLANES.limiteRucs; de usuarios (limite no nulo y usados + pendientes >= limite) otro con
 //   MENSAJES_PLANES.limiteUsuarios; ambos junto a un texto /contacta a ContApp para subir de plan/i
 //   (D8, el Dueño aún no cambia de plan). Por debajo del máximo no hay alertas.
-// - 409 sin_plan, 403 o error de red: no pinta la región ni alertas, y no rompe la pantalla.
+// - 403 o error de red: no pinta la región ni alertas, y no rompe la pantalla.
+// - 409 sin_plan (D14, T13a): no pinta la región de uso, pero muestra MENSAJES_PLANES.sinPlan (estudio sin
+//   plan: la prueba gratis ya se usó con la cuenta) y no rompe la pantalla.
 
 const region = () => screen.findByRole("region", { name: "Uso del plan" });
 
@@ -136,7 +138,6 @@ describe("<UsoPlan />", () => {
   });
 
   it.each([
-    ["409 sin_plan", { status: 409, cuerpo: { codigo: "sin_plan" } }],
     ["403", { status: 403, cuerpo: { codigo: "permiso_denegado" } }],
     ["500", { status: 500, cuerpo: {} }],
   ])("%s → no pinta la región ni alertas", async (_n, respuesta) => {
@@ -152,5 +153,24 @@ describe("<UsoPlan />", () => {
     expect(() => render(<UsoPlan />)).not.toThrow();
     await asentar();
     expect(screen.queryByRole("region", { name: "Uso del plan" })).toBeNull();
+  });
+
+  it("D14 · 409 sin_plan → muestra el aviso de estudio sin plan, sin región de uso y sin avisos de límite", async () => {
+    const f = montar({ status: 409, cuerpo: { codigo: "sin_plan" } });
+    expect(await screen.findByText(MENSAJES_PLANES.sinPlan)).toBeTruthy();
+    expect(f.de("GET /api/plan/uso")).toHaveLength(1);
+    expect(screen.queryByRole("region", { name: "Uso del plan" })).toBeNull();
+    expect(screen.queryByText(MENSAJES_PLANES.limiteRucs)).toBeNull();
+    expect(screen.queryByText(MENSAJES_PLANES.limiteUsuarios)).toBeNull();
+  });
+
+  it.each([
+    ["403", { status: 403, cuerpo: { codigo: "permiso_denegado" } }],
+    ["500", { status: 500, cuerpo: {} }],
+  ])("D14 · %s no muestra el aviso de estudio sin plan", async (_n, respuesta) => {
+    const f = montar(respuesta);
+    await vi.waitFor(() => expect(f.de("GET /api/plan/uso")).toHaveLength(1));
+    await asentar();
+    expect(screen.queryByText(MENSAJES_PLANES.sinPlan)).toBeNull();
   });
 });

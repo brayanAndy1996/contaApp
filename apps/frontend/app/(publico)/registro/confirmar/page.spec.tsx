@@ -497,4 +497,82 @@ describe("/registro/confirmar", () => {
     expect(visto).not.toContain(TOKEN);
     expect(visto).not.toContain(CONTRASENA);
   });
+
+  // D14 (T13a, CA-12): la cuenta ya originó su prueba. `confirmar-con-sesion` responde 200
+  // { estudio, sinPlan: true }: el estudio existe pero no opera. La pantalla muestra MENSAJES_PLANES.sinPlan y NO
+  // el aviso de estudio creado con prueba ni entra sola al estudio.
+  it("D14 · confirmar-con-sesion con sinPlan: true → aviso de estudio sin plan, no el de estudio creado", async () => {
+    const f = instalarFetchFalso(
+      rutas(
+        { status: 200, cuerpo: EXISTENTE },
+        {
+          "POST /api/auth/login": LOGIN_OK,
+          "POST /api/registro/confirmar-con-sesion": {
+            status: 200,
+            cuerpo: {
+              estudio: { id: "e-sin-plan", nombre: "Estudio Gamma" },
+              sinPlan: true,
+            },
+          },
+        },
+      ),
+    );
+    const { container } = render(<ConfirmarRegistro />);
+    await iniciarSesion();
+    expect(await screen.findByText(MENSAJES_PLANES.sinPlan)).toBeTruthy();
+    expect(
+      screen.queryByText(MENSAJES_PLANES.estudioCreado("Estudio Gamma")),
+    ).toBeNull();
+    expect(container.textContent).not.toContain(TOKEN);
+    expect(destinos(router)).toEqual([]);
+    expect(f.de("POST /api/registro/confirmar-con-sesion")).toHaveLength(1);
+  });
+
+  it("D14 · sinPlan: false (o ausente) conserva el aviso de estudio creado con prueba", async () => {
+    instalarFetchFalso(
+      rutas(
+        { status: 200, cuerpo: EXISTENTE },
+        {
+          "POST /api/auth/login": LOGIN_OK,
+          "POST /api/registro/confirmar-con-sesion": {
+            status: 200,
+            cuerpo: {
+              estudio: { id: "e-nuevo", nombre: "Estudio Gamma" },
+              sinPlan: false,
+            },
+          },
+        },
+      ),
+    );
+    render(<ConfirmarRegistro />);
+    await iniciarSesion();
+    expect(
+      await screen.findByText(MENSAJES_PLANES.estudioCreado("Estudio Gamma")),
+    ).toBeTruthy();
+    expect(screen.queryByText(MENSAJES_PLANES.sinPlan)).toBeNull();
+  });
+
+  // D15 (T13a, CA-13): 429 demasiados_intentos al confirmar una cuenta nueva.
+  it("D15 · 429 demasiados_intentos al confirmar → 'Prueba de nuevo en una hora', sin éxito ni eco del servidor", async () => {
+    instalarFetchFalso(
+      rutas(
+        { status: 200, cuerpo: NUEVA },
+        {
+          "POST /api/registro/confirmar": {
+            status: 429,
+            cuerpo: { codigo: "demasiados_intentos" },
+          },
+        },
+      ),
+    );
+    const { container } = render(<ConfirmarRegistro />);
+    await confirmar();
+    expect(
+      await screen.findByText(MENSAJES_PLANES.demasiadosConfirmar),
+    ).toBeTruthy();
+    expect(screen.queryByText(MENSAJES_PLANES.registroCreado)).toBeNull();
+    expect(container.textContent).not.toContain("demasiados_intentos");
+    expect(container.innerHTML).not.toContain(TOKEN);
+    expect(container.innerHTML).not.toContain(CONTRASENA);
+  });
 });

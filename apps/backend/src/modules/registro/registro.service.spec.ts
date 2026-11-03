@@ -26,7 +26,10 @@ function armar() {
       cuentaExiste: false,
     })),
     registroConfirmarNueva: vi.fn(async () => "creado" as string),
-    registroConfirmarExistente: vi.fn(async () => ({ tenantId: TENANT, estudioNombre: "Estudio Uno" }) as unknown),
+    // Ajuste de 006 (T13a, D14): el repo informa si este estudio originó la prueba de la cuenta (`conPrueba`).
+    registroConfirmarExistente: vi.fn(
+      async () => ({ tenantId: TENANT, estudioNombre: "Estudio Uno", conPrueba: true }) as unknown,
+    ),
   };
   const db = { withAuth: vi.fn(async (fn: (a: unknown) => unknown) => fn(repo)) };
   const hasher = { calcular: vi.fn(async () => PHC) };
@@ -195,13 +198,24 @@ describe("RegistroService.confirmar", () => {
 });
 
 describe("RegistroService.confirmarConSesion", () => {
-  it("crea el estudio con la sesión del titular y devuelve su id y nombre", async () => {
+  it("crea el estudio con la sesión del titular y devuelve su id, nombre y sinPlan: false si originó la prueba", async () => {
     const c = armar();
     const token = generarToken();
     expect(await c.servicio.confirmarConSesion(sesion, { token }, TENANT)).toEqual({
       estudio: { id: TENANT, nombre: "Estudio Uno" },
+      sinPlan: false,
     });
     expect(c.repo.registroConfirmarExistente).toHaveBeenCalledWith(hashToken(token), hashToken(sesion.token));
+  });
+
+  // D14 (T13a): la cuenta ya originó su prueba → el estudio nace sin suscripción y la respuesta lo dice.
+  it("sinPlan: true cuando la cuenta ya usó su prueba (conPrueba false)", async () => {
+    const c = armar();
+    c.repo.registroConfirmarExistente.mockResolvedValueOnce({ tenantId: TENANT, estudioNombre: "Estudio Dos", conPrueba: false });
+    expect(await c.servicio.confirmarConSesion(sesion, { token: generarToken() }, TENANT)).toEqual({
+      estudio: { id: TENANT, nombre: "Estudio Dos" },
+      sinPlan: true,
+    });
   });
 
   it("sin cabecera X-Estudio también procede", async () => {

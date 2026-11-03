@@ -69,7 +69,10 @@ describe("r2a · migración 0008_auth_ronda1", () => {
       // agregar ese CHECK con los tipos de 004 y falla (23514) si hay filas registro_* (las deja el registro publico). Se
       // quitan dentro de esta transaccion (conexion de migraciones, sin RLS): el ROLLBACK final las restaura, asi que
       // la prueba no altera los datos y sigue verificando lo mismo (repetibilidad y ACL de 0008).
-      await c.query("DELETE FROM auth.limite_tasa WHERE tipo IN ('registro_ip', 'registro_correo')");
+      // Ajuste de 006 (T13a): 0025 agrega `registro_confirmar_ip` (D15) al mismo CHECK; sus filas tambien se quitan.
+      await c.query(
+        "DELETE FROM auth.limite_tasa WHERE tipo IN ('registro_ip', 'registro_correo', 'registro_confirmar_ip')",
+      );
       const antes = await foto(c);
       for (let vuelta = 1; vuelta <= 2; vuelta++) {
         for (const [i, s] of sentencias.entries()) {

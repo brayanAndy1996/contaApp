@@ -105,9 +105,14 @@ describe("AuthRepo de 006: registro", () => {
     },
   );
 
-  it("registroConfirmarExistente mapea tenantId y estudioNombre; cero filas -> null", async () => {
-    const { repo, llamadas } = txFalso([{ tenant_id: T, estudio_nombre: "E" }]);
-    expect(await repo.registroConfirmarExistente(TOKEN, SESION)).toEqual({ tenantId: T, estudioNombre: "E" });
+  // Ajuste de 006 (T13a, D14): la función devuelve también `con_prueba` (la cuenta originó su prueba con este estudio) y el repo
+  // lo expone como `conPrueba` (el servicio lo traduce a `sinPlan = !conPrueba`).
+  it("registroConfirmarExistente mapea tenantId, estudioNombre y conPrueba; cero filas -> null", async () => {
+    const { repo, llamadas } = txFalso([{ tenant_id: T, estudio_nombre: "E", con_prueba: true }]);
+    expect(await repo.registroConfirmarExistente(TOKEN, SESION)).toEqual({ tenantId: T, estudioNombre: "E", conPrueba: true });
+    expect(
+      await txFalso([{ tenant_id: T, estudio_nombre: "E", con_prueba: false }]).repo.registroConfirmarExistente(TOKEN, SESION),
+    ).toEqual({ tenantId: T, estudioNombre: "E", conPrueba: false });
     expect(llamadas[0]!.valores).toEqual([TOKEN, SESION]);
     expect(await txFalso([]).repo.registroConfirmarExistente(TOKEN, SESION)).toBeNull();
   });
