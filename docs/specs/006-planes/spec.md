@@ -1,6 +1,6 @@
 # Spec 006 · Planes, registro de estudio y límites
 
-Estado: aprobada (2026-10-27: el usuario aprueba la spec con todo lo recomendado en P1–P6, ahora D5, D3, D7, D10, D11 y D12)
+Estado: aprobada (2026-10-27: el usuario aprueba la spec con todo lo recomendado en P1–P6, ahora D5, D3, D7, D10, D11 y D12). Ampliada el 2026-11-03 con D14 y D15, decisiones del usuario tras la ronda adversarial (T12a/T12b).
 Nivel de riesgo: B — sí a (3): un límite que no se aplica (o se aplica de menos) no lo nota el contador y se traduce en cobro perdido; sí a (4): carreras entre invitaciones, importaciones y reactivaciones simultáneas contra un cupo compartido. No a (1): no calcula montos tributarios. No a (2) directo: el registro público y el panel de plataforma son superficies nuevas, pero no leen datos de otro estudio (el adversario se pide solo en ese punto, D12).
 Cubre: RF-001, RF-002, RF-003, RF-004 · HU-01, HU-02 · HU-03 criterio 2 (límite de usuarios, que 005 dejó aquí)
 
@@ -32,6 +32,9 @@ Que los límites comerciales vivan en la base de datos y se apliquen en el backe
 - [ ] CA-9 (regresión): las suites de 004 y 005 siguen verdes con el adaptador real (el seed asigna un plan sin límite práctico a los estudios de prueba de 005).
 - [ ] CA-10 (frontend): el registro y la confirmación funcionan; un banner o indicador muestra "usados de límite" de RUCs y usuarios y avisa al llegar al máximo con acción "archivar o subir de plan"; el super-admin gestiona planes en una pantalla. El backend sigue siendo la barrera (RNF-007).
 - [ ] CA-11 (adversario, D12): una ronda sobre el registro público y su enlace (enumeración por respuesta o tiempo, reuso, carrera de confirmación, abuso para crear estudios basura, token en logs); todo hallazgo queda corregido o aceptado por el usuario y los `*.adv.spec.ts` quedan como regresión.
+- [ ] CA-12 (1 prueba por cuenta, D14): una cuenta origina como máximo una suscripción de prueba en toda su vida. Con cinco `confirmar-con-sesion` simultáneos de la misma cuenta, solo uno de los estudios queda con plan Prueba y los demás se crean sin suscripción; ese estudio no opera (cupos 409 `sin_plan`, `GET /plan/uso` 409 `sin_plan`) hasta que el super-admin le asigna un plan. La respuesta de `confirmar-con-sesion` indica si el estudio quedó sin plan. El listado de estudios del super-admin los muestra sin plan y asignarles uno crea su suscripción.
+- [ ] CA-13 (límite al confirmar, D15): `POST /registro/confirmar` responde 429 `demasiados_intentos` al intento 11 en una hora desde la misma IP. Las confirmaciones simultáneas del mismo enlace calculan el hash de la contraseña una sola vez a la vez.
+- [ ] CA-14 (robustez de la entrada, ronda adversarial): un enlace invalidado por un registro posterior nunca confirma, ni con la confirmación en vuelo; nombres con emoji, U+2028/U+2029 o caracteres que Node y PostgreSQL clasifican distinto, y una IP de cliente inválida o enorme, nunca dan 500 (400 o límite aplicado); los 500 de la ronda quedan como regresión.
 - [ ] Casos reales aplicables: ninguno.
 
 ## Dependencias
@@ -53,6 +56,8 @@ Que los límites comerciales vivan en la base de datos y se apliquen en el backe
 - D11 Edición de plan (P5b aprobada): se edita en sitio y vale para todos sus estudios al instante; quien excede queda bloqueado sin borrar (CA-7).
 - D12 Adversario puntual (P6 aprobada): una ronda, en dos piezas (caja negra y caja blanca), solo sobre el registro público y su enlace (CA-11). Las carreras de cupo las cubre TDD.
 - D13 El super-admin necesita ubicar estudios para asignarles plan: `GET /plataforma/estudios` mínimo (id, nombre, plan, estado). El listado completo con RUCs y uso de RF-008 sigue en R2.
+- D14 1 prueba por cuenta (decisión del usuario, 2026-11-03, H-006-a1; opción "1 prueba por cuenta (Recom.)"): cada usuario solo puede originar una prueba gratis en toda su vida; los siguientes estudios que cree quedan sin plan (no operan) hasta que ContApp les asigne uno. Precisa D3 y CA-3 para la cuenta que ya originó su prueba: se crean estudio y membresía de Dueño, sin suscripción. Sin suscripción los cupos fallan cerrado (D1). Asignar plan a un estudio sin suscripción (D5) la crea.
+- D15 Límite al confirmar (decisión del usuario, 2026-11-03, H-006-b3; opción "10 por hora por IP (Recom.)"): `POST /registro/confirmar` tiene límite de 10 intentos por hora por IP (tipo `registro_confirmar_ip`, además de los de D3/CA-4); el hash de la contraseña se calcula solo una vez por enlace a la vez (cubre H-006-b2).
 
 ## Preguntas abiertas
 - Ninguna. Aprobada por el usuario (2026-10-27), textual: "Apruebo las specs 006, 008 y 011 con todo lo recomendado por el arquitecto en cada P. Continúa con plan y tareas."
