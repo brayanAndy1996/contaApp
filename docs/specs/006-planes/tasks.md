@@ -27,7 +27,7 @@ Nivel B. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → atac
 | T15  | Revisión contra la spec                                                                 | arquitecto | sonnet | T14                 | —   | —   | [x]    |
 | T15a | Pruebas en rojo: cupo justo con sesión, `reservar` inválido y CLI de super-admin       | tester     | sonnet | T15                 | ✓   | —   | [x]    |
 | T15b | Corregir T15-1 y T15-2 y crear el CLI de alta de super-admin                            | backend    | sonnet | T15a                | ✓   | —   | [x]    |
-| T16  | Cierre: tasks y commit (el orquestador actualiza ESTADO)                                | devops     | haiku  | T15b                | —   | —   | [ ]    |
+| T16  | Cierre: tasks y commit (el orquestador actualiza ESTADO)                                | devops     | haiku  | T15b                | —   | —   | [x]    |
 
 Escalamientos: T5 nace en `opus` (funciones `SECURITY DEFINER` que crean estudios y escriben planes; precedente 005 T7, 04 §3.3). T13b nace en `opus` porque toca funciones `auth.*` y una migración (04 §3.3); T13a y T13c no lo necesitan.
 
@@ -230,3 +230,12 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/006-planes/tasks.md`, observaciones de T15.
 - **Hacer**: marcar `[x]` las tareas hechas y las casillas CA de `spec.md`; dejar en "Resultado" las notas para el orquestador (el orquestador actualiza `docs/specs/ESTADO.md` en `main`): 007 llama `CupoRucs.reservar` tras bloquear al actor y antes de tocar `cliente`, cuenta solo clientes activos al agregar el archivado y mapea 409 `cupo_rucs`; el Dueño aún no cambia de plan (RF-005, R3); el super-admin no tiene TOTP hasta R2.
 - **Hecho cuando**: `git status` limpio salvo `docs/explorador/`, `.codex/`, `AGENTS.md`. Commit `chore(006): cierra spec 006`.
+- **Resultado**: cierre sobre `spec/006-planes`. Filas T1 a T15b todas `[x]`; CA-1 a CA-14 de `spec.md` ya estaban `[x]` y T14 los respalda con evidencia. T15 dio veredicto "aprobada" y sus defectos T15-1 y T15-2 se corrigieron en T15b (`a2c1812`). `spec.md` no cambió: su línea 38 "Casos reales aplicables: ninguno." sigue `[ ]` (no es CA; 001–005 la dejaron igual). Notas para el orquestador (`docs/specs/ESTADO.md`):
+  - (1) **007**: al agregar el archivado de clientes, `contarRucs` (`packages/db/src/planes/cupo.ts`) y la consulta de `uso.ts` pasan a contar solo clientes activos (D4). 007 llama `CupoRucs.reservar` en crear, importar y reactivar, después de bloquear al actor y antes de tocar `cliente`, y mapea `CupoRucsError` a 409 `cupo_rucs`.
+  - (2) **Dueño**: aún no cambia de plan (RF-005 es R3; D8).
+  - (3) **Super-admin**: sin TOTP hasta R2 (RF-012; riesgo aceptado en D5).
+  - (4) **P-T15-2**: asignar plan a un estudio en `prueba` lo deja en `prueba` con su `prueba_vence_en`; 006 solo guarda esa fecha. Resolver con RF-005/006 (R2/R3) antes de aplicar vencimientos.
+  - (5) **CLI `db:plataforma-alta`** (T15b): lee `comunes.txt` del backend por ruta relativa y falla cerrado si no la encuentra. Correrlo desde un checkout completo, o mover la lista a `shared` si el despliegue no incluye `apps/backend`.
+  - (6) **D4 de `spec.md`** dice `FOR UPDATE` sobre `suscripcion`; prevalece el bloqueo advisory `plan.cupo:<tenant>` (`bloquearCupo`) de `plan.md`, que es lo implementado. No se cambió D4: corregirlo es decisión del orquestador o del usuario.
+  - (7) **`packages/db/src/cli/seed-r2b.adv.spec.ts:29`** (R2b-05) falló una vez en `pnpm test` sin reproducirse (19 corridas: 10 aisladas y 9 bajo carga, todas verdes). Hipótesis: el import en frío bajo carga supera el timeout de 5 s. Si reaparece, subir ese timeout o importar en `beforeAll`.
+  - Fuera de la tabla: `5625bfe` (`ci(006)`) hace que el job de aislamiento compile `shared` antes que `db`.
