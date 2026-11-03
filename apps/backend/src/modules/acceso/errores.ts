@@ -13,7 +13,9 @@ export type CodigoAcceso =
   | "invitacion_existente"
   | "cupo_usuarios"
   | "requiere_sesion"
-  | "miembro_no_asignable";
+  | "miembro_no_asignable"
+  | "plan_inactivo"
+  | "codigo_existente";
 
 const ESTADO: Record<CodigoAcceso, number> = {
   permiso_denegado: HttpStatus.FORBIDDEN,
@@ -28,6 +30,8 @@ const ESTADO: Record<CodigoAcceso, number> = {
   cupo_usuarios: HttpStatus.CONFLICT,
   requiere_sesion: HttpStatus.CONFLICT,
   miembro_no_asignable: HttpStatus.CONFLICT,
+  plan_inactivo: HttpStatus.CONFLICT,
+  codigo_existente: HttpStatus.CONFLICT,
 };
 
 /**
