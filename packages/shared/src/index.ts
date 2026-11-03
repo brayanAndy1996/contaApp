@@ -8,3 +8,4 @@ export * from "./auth/index.js";
 export * from "./acceso/index.js";
 export * from "./trabajos/index.js";
 export * from "./planes/index.js";
+export * from "./clientes/index.js";

@@ -11,11 +11,11 @@ Nivel B, sin ronda adversarial (spec D9). Flujo 04 §1.3: pruebas primero (rojo)
 | T3   | Pruebas de integración HTTP: rutas de clientes, cupo, alcance y archivado (rojo)           | tester     | sonnet | T1 ∥ T2           | ✓   | —   | [ ]    |
 | T4   | Pruebas del frontend y de la regla de lint `sql` (rojo)                                    | tester     | sonnet | — ∥ T3            | ✓   | —   | [x]    |
 | T5   | Migración 0026, esquema de `cliente` y conteo de activos en `cupo`/`uso`                   | backend    | sonnet | T1                | ✓   | —   | [ ]    |
-| T6   | `shared/clientes`: `validarRuc` y esquemas                                                 | backend    | sonnet | T2 ∥ T5           | ✓   | —   | [ ]    |
+| T6   | `shared/clientes`: `validarRuc` y esquemas                                                 | backend    | sonnet | T2 ∥ T5           | ✓   | —   | [x]    |
 | T7   | Repositorios `packages/db/clientes`: crear, editar, archivar, reactivar, leer, filtros     | backend    | sonnet | T2, T5, T6        | ✓   | —   | [ ]    |
 | T8   | Revalidación de 008 con «no archivado» y 409 al asignar archivados                         | backend    | sonnet | T1, T5 ∥ T7       | ✓   | —   | [ ]    |
 | T9   | Servicio y controlador de clientes: cupo, orden de bloqueo, errores y auditoría de rutas   | backend    | sonnet | T3, T6, T7, T8    | ✓   | —   | [ ]    |
-| T10  | Regla de lint: cerrar `import * as d from "drizzle-orm"`                                   | backend    | sonnet | T4 ∥ T5–T9        | ✓   | —   | [ ]    |
+| T10  | Regla de lint: cerrar `import * as d from "drizzle-orm"`                                   | backend    | sonnet | T4 ∥ T5–T9        | ✓   | —   | [x] |
 | T11a | Frontend: cliente HTTP y listado con filtros                                               | frontend   | sonnet | T4 ∥ T5–T10       | ✓   | —   | [ ]    |
 | T11b | Frontend: alta, detalle con datos fiscales y archivar/reactivar                            | frontend   | haiku  | T4, T11a          | ✓   | —   | [ ]    |
 | T12  | Verificar CA-1 a CA-9 con evidencia (suites completas)                                     | tester     | sonnet | T9, T10, T11b     | —   | —   | [ ]    |
@@ -72,6 +72,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/007a-clientes/plan.md` (Contratos: shared), `packages/shared/src/planes/{esquemas,index}.ts` (patrón), `packages/shared/src/index.ts`, `packages/shared/src/clientes/*.spec.ts`.
 - **Hacer**: `ruc.ts` (`validarRuc`), `esquemas.ts` (zod y tipos de D1/D7), `index.ts`; exportar desde `packages/shared`.
 - **Hecho cuando**: `pnpm --filter @contapp/shared test` y `build` verdes. Commit `feat(007a): validarRuc y esquemas de clientes en shared`.
+- **Resultado**: `shared/src/clientes/{ruc,esquemas,index}.ts` reemplazan los stubs; exportado desde `shared/src/index.ts` (incluye `EstadoCredencial`, `PerfilFiscal`, `ClienteDto`, etc.). `pnpm --filter @contapp/shared test` 554/554 y `build` OK, eslint limpio.
 
 ## T7 · Repositorios de clientes (backend · sonnet)
 
@@ -96,6 +97,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/007a-clientes/spec.md` (D8; CA-8), `eslint.config.mjs` (regla `sql-crudo/sin-sql-crudo`, modo «fuera»), `tests/limites/auth-lint.spec.ts`.
 - **Hacer**: rechazar fuera de `packages/db` el `import * as d from "drizzle-orm"` y el uso de `d.sql` (reportar el especificador de espacio de nombres o el acceso `.sql`); mantener `.raw`, `.unsafe` y `set_config` prohibidos y el permiso dentro de `packages/db`.
 - **Hecho cuando**: la prueba de T4 en verde; `pnpm lint` sin hallazgos nuevos en el repo. Commit `feat(007a): lint rechaza import * de drizzle-orm con sql`.
+- **Resultado**: [x] `eslint.config.mjs` (`reglaSqlCrudo`, modo «fuera»): reporta `d.sql`, `d["sql"]` y `const { sql } = d` cuando `d` es `import * as` de `drizzle-orm*`. `sql-namespace-lint.spec.ts` 12/12, `tests/limites` 287/287, `pnpm lint` 9/9 verde.
 
 ## T11a · Frontend: listado con filtros (frontend · sonnet)
 
