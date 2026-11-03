@@ -13,7 +13,7 @@ Nivel B, sin ronda adversarial (spec D9). Flujo 04 §1.3: pruebas primero (rojo)
 | T5   | Migración 0026, esquema de `cliente` y conteo de activos en `cupo`/`uso`                   | backend    | sonnet | T1                | ✓   | —   | [x] |
 | T6   | `shared/clientes`: `validarRuc` y esquemas                                                 | backend    | sonnet | T2 ∥ T5           | ✓   | —   | [x]    |
 | T7   | Repositorios `packages/db/clientes`: crear, editar, archivar, reactivar, leer, filtros     | backend    | sonnet | T2, T5, T6        | ✓   | —   | [x]    |
-| T8   | Revalidación de 008 con «no archivado» y 409 al asignar archivados                         | backend    | sonnet | T1, T5 ∥ T7       | ✓   | —   | [ ]    |
+| T8   | Revalidación de 008 con «no archivado» y 409 al asignar archivados                         | backend    | sonnet | T1, T5 ∥ T7       | ✓   | —   | [x]    |
 | T9   | Servicio y controlador de clientes: cupo, orden de bloqueo, errores y auditoría de rutas   | backend    | sonnet | T3, T6, T7, T8    | ✓   | —   | [ ]    |
 | T10  | Regla de lint: cerrar `import * as d from "drizzle-orm"`                                   | backend    | sonnet | T4 ∥ T5–T9        | ✓   | —   | [x] |
 | T11a | Frontend: cliente HTTP y listado con filtros                                               | frontend   | sonnet | T4 ∥ T5–T10       | ✓   | —   | [x]    |
@@ -89,6 +89,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/007a-clientes/spec.md` (D5; CA-5), `packages/db/src/trabajos/registro.ts` (`SQL_REVALIDAR`, `revalidarEncolado`), `packages/queue/src/despachador.ts` (líneas del descarte `acceso_retirado`), `packages/queue/src/soporte-pruebas/bd-falsa.ts`, `packages/db/src/acceso/asignaciones.ts`, `apps/backend/src/modules/clientes/asignaciones.service.ts`.
 - **Hacer**: agregar `c.archivado_at is null` a `SQL_REVALIDAR`; ajustar `bd-falsa` si imita la revalidación; asignar sobre un archivado → `ClienteArchivadoError` (409 `cliente_archivado`) después de bloquear miembros.
 - **Hecho cuando**: las partes de T1 sobre revalidación en verde; `pnpm --filter @contapp/queue test` y `@contapp/db test` verdes; las pruebas de 008 y 005 de asignación siguen verdes. Commit `feat(007a): el despacho y la asignación excluyen clientes archivados`.
+- **Resultado**: `SQL_REVALIDAR` con `c.archivado_at is null` (también el `programado`); `asignaciones.ts` bloquea clientes con `archivado` y lanza `ClienteArchivadoError` tras bloquear miembros y comprobar existencia (todo el lote, 404 antes que 409); el servicio lo traduce a 409 `cliente_archivado` (nuevo código en `acceso/errores.ts`). `bd-falsa` sin cambios (no imita archivados). `test:aislamiento` 1488/1488, `worker test:int` 102/102, `queue` 242, `db` 623, `backend` unit 696, asignaciones int 18/18.
 
 ## T9 · Servicio y controlador de clientes (backend · sonnet)
 

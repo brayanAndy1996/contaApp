@@ -5,6 +5,7 @@ import {
   asignarPorCliente,
   asignarPorUsuario,
   bloquearMiembros,
+  ClienteArchivadoError,
   listarAsignaciones,
   retirar,
   type AsignacionListada,
@@ -36,12 +37,13 @@ function parsear<T>(esquema: Esquema<T>, cuerpo: unknown): T {
   return r.data as T;
 }
 
-/** Rechazos de regla de los repositorios -> códigos del plan (409 / 400); nunca con datos de entrada. */
+/** Rechazos de regla de los repositorios (y cliente archivado, 007a D5) -> códigos del plan (409 / 400); nunca con datos de entrada. */
 async function traducir<T>(accion: () => Promise<T>): Promise<T> {
   try {
     return await accion();
   } catch (e) {
     if (e instanceof AccesoReglaError) throw new AccesoError(e.motivo);
+    if (e instanceof ClienteArchivadoError) throw new AccesoError("cliente_archivado");
     throw e;
   }
 }

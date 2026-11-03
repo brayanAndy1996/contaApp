@@ -457,10 +457,11 @@ export interface Revalidable {
   rolesPermitidos: readonly string[] | null;
 }
 
-// D17: el cliente sigue en el estudio y, si hay creador, sigue activo, con un rol permitido y con alcance sobre el
+// D17 + 007a D5: el cliente sigue en el estudio, no está archivado (también el trabajo `programado`, sin creador) y, si hay creador, sigue activo, con un rol permitido y con alcance sobre el
 // cliente (dueno y admin: global; los demás, con asignación). Lecturas sin FOR UPDATE (orden de bloqueo de 005).
 const SQL_REVALIDAR = `select 1 as ok from cliente c
   where c.id = $1::uuid
+    and c.archivado_at is null
     and ($2::uuid is null or exists (
       select 1 from membresia m
        where m.usuario_id = $2::uuid and m.desactivada_en is null
