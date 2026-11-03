@@ -257,3 +257,37 @@ describe("CupoRucsPlanes.reservar (CA-5)", () => {
     await expect(reservar(1)).rejects.toThrow("falla de bloqueo");
   });
 });
+
+// T15a · defecto T15-2: `reservar` falla cerrado ante un `n` que no sea entero >= 0. Contrato: rechaza con
+// `RangeError` (error de programación, no un 409 `cupo_rucs`) ANTES de tocar la BD: sin bloqueo, sin lectura de
+// límites, sin conteo y sin SQL. Hoy `-1` y `NaN` conceden el cupo y `Infinity` da un 409 engañoso.
+describe("CupoRucsPlanes.reservar · n inválido (T15-2)", () => {
+  const reservar = (n: number) => new CupoRucsPlanes().reservar(tx, T_A, n);
+
+  it.each([
+    ["negativo", -1],
+    ["NaN", Number.NaN],
+    ["fraccionario", 1.5],
+    ["infinito", Number.POSITIVE_INFINITY],
+    ["menos infinito", Number.NEGATIVE_INFINITY],
+  ] as const)(
+    "%s (%s): lanza RangeError y no consulta la BD",
+    async (_nombre, n) => {
+      plan(30, 6, 0);
+      usados(0);
+      expect(await error(reservar(n))).toBeInstanceOf(RangeError);
+      expect(bloquearCupo).not.toHaveBeenCalled();
+      expect(leerLimites).not.toHaveBeenCalled();
+      expect(contarRucs).not.toHaveBeenCalled();
+      expect(query).not.toHaveBeenCalled();
+    },
+  );
+
+  it("los bordes válidos siguen funcionando: 0 y 1 con cupo libre se conceden", async () => {
+    plan(30, 6, 0);
+    usados(29);
+    await expect(reservar(0)).resolves.toBeUndefined();
+    await expect(reservar(1)).resolves.toBeUndefined();
+    expect(await error(reservar(2))).toBeInstanceOf(CupoRucsError);
+  });
+});
