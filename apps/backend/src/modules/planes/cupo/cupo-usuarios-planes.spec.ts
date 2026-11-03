@@ -50,8 +50,16 @@ const limites = (maxUsuarios: number | null) => ({
   rucsExtraContratados: 0,
 });
 const hay = (max: number | null, activos: number, pendientes: number) => {
-  leerLimites.mockResolvedValue(limites(max));
-  contarUsuarios.mockResolvedValue({ activos, pendientes });
+  // Ajuste de 006: mockResolvedValue reemplazaba la implementacion que anota en `orden`, y la prueba de orden
+  // (bloquear antes de contar) nunca veia "contar". Se conserva el registro y se devuelve el valor fijado.
+  leerLimites.mockImplementation(async () => {
+    orden.push("limites");
+    return limites(max);
+  });
+  contarUsuarios.mockImplementation(async () => {
+    orden.push("contar");
+    return { activos, pendientes };
+  });
 };
 
 async function error(p: Promise<unknown>): Promise<unknown> {

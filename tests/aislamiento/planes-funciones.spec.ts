@@ -669,8 +669,13 @@ describe("auth.registro_confirmar_existente (D3: crea el estudio para la cuenta 
     const sesion = await ep.ea.esc.sesion(u.id, null);
     const comodin = `${u.correo.slice(0, 3)}%${u.correo.slice(u.correo.indexOf("@"))}`;
     const s = await pedir({ correo: comodin });
-    expect(rechazada(await confirmarExistente(s.hash, sesion))).toBe(true);
-    expect(await ep.estudiosPorNombre(s.estudio)).toHaveLength(0);
+    try {
+      expect(rechazada(await confirmarExistente(s.hash, sesion))).toBe(true);
+      expect(await ep.estudiosPorNombre(s.estudio)).toHaveLength(0);
+    } finally {
+      // Ajuste de 006: el correo comodin no pasa por ep.correoRegistro(), asi que limpiar() no borraba su pendiente.
+      await adm("delete from auth.registro_pendiente where correo = $1", [comodin]);
+    }
   });
 
   it.each([

@@ -36,7 +36,11 @@ describe("GET /plan/uso · contenido (D8)", () => {
     // usados = membresías activas (el Dueño cuenta); pendientes = invitaciones vigentes (D7)
     expect(r.body.usuarios).toEqual({ usados: 2, pendientes: 1, limite: 4 });
     sinPrecios(r.text);
-    expect(r.text).not.toContain("321");
+    // Ajuste de 006: el codigo aleatorio del plan (p. ej. t3_321ac5d5_1) puede contener "321" y volvia intermitente la
+    // prueba. Se quita el codigo del texto antes de buscar el precio, y se busca el precio completo, no un fragmento.
+    const sinCodigo = r.text.split(plan.codigo).join("");
+    expect(sinCodigo).not.toContain("321");
+    expect(r.text).not.toContain("321.00");
     expect(r.text).not.toMatch(/"(id|planId|tenantId|estudioId)"/);
   });
 
