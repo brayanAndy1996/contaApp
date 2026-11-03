@@ -53,7 +53,7 @@ const CLIENTES = [
     id: "c-1",
     ruc: "20100000001",
     razonSocial: "Alfa SAC",
-    responsable: { usuarioId: "u-con", nombre: "Carlos Contador" },
+    responsable: { id: "u-con", nombre: "Carlos Contador" },
   },
   { id: "c-2", ruc: "20100000002", razonSocial: "Beta SRL", responsable: null },
   {
@@ -150,8 +150,15 @@ describe("/clientes", () => {
     render(<Clientes />);
     await esperarFila("Alfa SAC");
     await asentar();
-    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
-    expect(screen.queryAllByRole("combobox")).toHaveLength(0);
+    // 007a D7: la página ahora tiene filtros (selects y «Mostrar archivados»), así que ya no se
+    // cuenta en toda la página: la asignación vive en la tabla (casillas) y en los selects
+    // "Usuario", "Tipo" y "Responsable anterior".
+    expect(
+      within(screen.getByRole("table")).queryAllByRole("checkbox"),
+    ).toHaveLength(0);
+    expect(screen.queryByLabelText("Usuario")).toBeNull();
+    expect(screen.queryByLabelText("Tipo")).toBeNull();
+    expect(screen.queryByLabelText("Responsable anterior")).toBeNull();
     expect(
       screen.queryByRole("button", { name: "Asignar seleccionados" }),
     ).toBeNull();
@@ -162,7 +169,10 @@ describe("/clientes", () => {
     const f = instalarFetchFalso(rutas("admin"));
     render(<Clientes />);
     await esperarFila("Alfa SAC");
-    expect(screen.getAllByRole("checkbox")).toHaveLength(3);
+    // 007a D7: solo las casillas de la tabla; «Mostrar archivados» (filtro) no cuenta.
+    expect(
+      within(screen.getByRole("table")).getAllByRole("checkbox"),
+    ).toHaveLength(3);
     const usuario = (await screen.findByLabelText(
       "Usuario",
     )) as HTMLSelectElement;

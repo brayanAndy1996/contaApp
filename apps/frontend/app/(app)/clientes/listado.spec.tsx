@@ -56,7 +56,7 @@ const ESTADOS: Record<string, unknown> = {
     id: "c-1",
     ruc: "20100000009",
     razonSocial: "Alfa SAC",
-    responsable: { usuarioId: "u-con", nombre: "Carlos Contador" },
+    responsable: { id: "u-con", nombre: "Carlos Contador" },
     credenciales: { sol: "verificada", sire_api: "no_configurada" },
   }),
   "c-2": clienteDe({

@@ -45,7 +45,7 @@ export function clienteDe(
     razonSocial: string;
     archivado: boolean;
     perfil: Record<string, unknown>;
-    responsable: { usuarioId: string; nombre: string } | null;
+    responsable: { id: string; nombre: string | null } | null;
     credenciales: {
       sol: EstadoCredencialPrueba;
       sire_api: EstadoCredencialPrueba;
