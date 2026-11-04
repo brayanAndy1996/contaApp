@@ -20,7 +20,9 @@ Nivel B, sin ronda adversarial (spec D9). Flujo 04 §1.3: pruebas primero (rojo)
 | T11b | Frontend: alta, detalle con datos fiscales y archivar/reactivar                            | frontend   | haiku  | T4, T11a          | ✓   | —   | [x]    |
 | T12  | Verificar CA-1 a CA-9 con evidencia (suites completas)                                     | tester     | sonnet | T9, T10, T11b     | —   | —   | [x]    |
 | T13  | Revisión contra la spec                                                                    | arquitecto | sonnet | T12               | —   | —   | [x]    |
-| T14  | Cierre: tasks y commit (el orquestador actualiza ESTADO)                                   | devops     | haiku  | T13               | —   | —   | [ ]    |
+| T13a | Pruebas en rojo de los defectos D1–D3 de T13 (frontend)                                   | tester     | sonnet | T13               | ✓   | —   | [ ]    |
+| T13b | Corregir D1–D3 de T13 (frontend)                                                         | frontend   | sonnet | T13a              | ✓   | —   | [ ]    |
+| T14  | Cierre: tasks y commit (el orquestador actualiza ESTADO)                                   | devops     | haiku  | T13b              | —   | —   | [ ]    |
 
 Escalamientos: ninguno previsto. T9 concentra el orden de bloqueo y las carreras de CA-7: si falla 2 veces nace de nuevo en `opus` (04 §3.3) y se anota aquí. T11b puede escalar a `sonnet` si `haiku` falla una vez.
 
@@ -148,6 +150,18 @@ Reglas comunes:
 - **Hacer**: verificar cada CA con la evidencia (prueba o comando), que se respeta el orden de bloqueo, que ninguna ruta devuelve secretos ni filtra existencia, y que lo de 007b no se coló. Listar lo que falte; las ambigüedades de producto se devuelven como pregunta al orquestador.
 - **Hecho cuando**: dictamen «aprobada» o lista de defectos; si hay defectos, el orquestador añade tareas T13a (pruebas en rojo) y T13b (corrección) con el precedente de 006 T15a/T15b. Commit `docs(007a): revisión contra la spec`.
 - **Resultado**: [x] Dictamen: **aprobada, con 3 defectos menores de frontend** (ninguno rompe un CA; D1 conviene corregir antes de cerrar). CA-1 a CA-9 cumplidos con la evidencia de T12; además se re-corrieron `@contapp/db` `src/clientes` (34/34), frontend `clientes` (52/52) y `test:int` de backend contra PG real (49 archivos, 898/898). Orden de bloqueo correcto (`clientes.service.ts`: `bloquearMiembros` → `CupoRucs.reservar` → `crearCliente` → `asignar`; archivar solo toca `cliente`). Sin secretos (los repos solo leen `credencial.estado`), sin fuga de existencia (guard 404 uniforme; `ruc_duplicado` es por estudio) y nada de 007b en el código (`docs/specs/007b-credenciales/spec.md` es solo documentación). Ratificaciones de producto/diseño en `plan.md` (Revisión T13). Defectos: **D1** `apps/frontend/app/(app)/clientes/page.tsx:217` deja seleccionar clientes archivados para la asignación masiva; el backend rechaza todo el lote con 409 `cliente_archivado` (`packages/db/src/acceso/asignaciones.ts:44`) y `lib/acceso.ts:46-52` (`POR_CODIGO_409`) no tiene ese código: se ve el error genérico. Corrección: `disabled` en el checkbox si `c.archivado` y agregar `cliente_archivado` al mapa. **D2** `[clienteId]/page.tsx:308`: un 409 `sin_plan` al reactivar muestra el error genérico; mapear a `MENSAJES_REGISTRO.sinPlan` como hace el alta. **D3** `nuevo/page.tsx:206` ofrece como responsable a todo miembro activo (incluido `lectura`): el servidor responde 409 `miembro_no_asignable` y la pantalla lo muestra bien, pero conviene filtrar con `puedeSerResponsable(m.rol)` de shared. Menor sin ticket: el error de carga del listado (`page.tsx:82`) no se limpia al siguiente éxito. Nota documental: el Resultado de T7 describe la heurística «letras o solo dígitos» para `q`, ya sustituida en T9 (`filtros.ts` busca siempre RUC por prefijo y razón social por fragmento, con comodines literales). Frontend↔backend: rutas, métodos, cuerpos (`CrearClienteInput`/`EditarClienteInput` completos), query (`responsable`, `credencial`, `archivados=1`, `q`), `ClienteDto` y códigos mostrados (`cupo_rucs`, `ruc_duplicado`, `sin_plan`, `cliente_archivado`, `miembro_no_asignable`, 400/403/404) coinciden con controlador, servicio y `shared`; sin desajuste de contrato. La prueba manual con `servicios:up` sigue sin hacerse (la cubren los 898 de integración contra PG y Redis reales; ninguna prueba cruza el rewrite de Next).
+
+## T13a · Pruebas en rojo de D1–D3 (tester · sonnet)
+
+- **Contexto (leer solo esto)**: Resultado de T13 (defectos D1, D2 y D3), los archivos que cita y sus `*.spec.tsx`.
+- **Hacer**: D1, el checkbox de un cliente archivado está deshabilitado en la asignación masiva y el 409 `cliente_archivado` muestra un mensaje propio; D2, el 409 `sin_plan` al reactivar muestra `MENSAJES_REGISTRO.sinPlan`; D3, el select de responsable del alta solo ofrece miembros con `puedeSerResponsable(rol)`.
+- **Hecho cuando**: las pruebas nuevas fallan solo por falta de la corrección. Commit `test(007a): defectos de frontend de la revisión (rojo)`.
+
+## T13b · Corregir D1–D3 (frontend · sonnet)
+
+- **Contexto (leer solo esto)**: Resultados de T13 y T13a y los archivos que tocan sus pruebas.
+- **Hacer**: las correcciones propuestas en el Resultado de T13.
+- **Hecho cuando**: test, tsc y lint del frontend en verde. Commit `fix(007a): archivados en asignación masiva, sin plan al reactivar y responsables del alta`.
 
 ## T14 · Cierre (devops · haiku)
 
