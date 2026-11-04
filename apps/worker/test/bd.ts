@@ -57,6 +57,39 @@ export async function limpiar(
     clientes,
     keks,
   ]);
+  // 007b (D2): solo los clientes que creó `guardar` (nunca los del seed, que también pueden venir en `clientes`).
+  const propios = clientes.filter((c) => clientesCreados.has(c));
+  if (propios.length > 0) {
+    await admin.pool.query("delete from cliente where id = any($1::uuid[])", [propios]);
+    for (const c of propios) clientesCreados.delete(c);
+  }
+}
+
+// 007b (D2): credencial.cliente_id tiene FK a cliente. Las pruebas de 003/008 inventan un UUID por credencial; `guardar`
+// crea antes ese cliente (con el rol administrativo, RUC aleatorio) y `limpiar` lo borra.
+const clientesCreados = new Set<string>();
+
+async function asegurarCliente(tenantId: string, clienteId: string): Promise<void> {
+  const admin = crearDbAdmin();
+  try {
+    for (let intento = 0; intento < 5; intento++) {
+      const ruc = String(20_000_000_000 + Math.floor(Math.random() * 9_999_999_999));
+      const r = await admin.pool.query(
+        `insert into cliente (id, tenant_id, ruc, razon_social) values ($1, $2, $3, $4)
+         on conflict do nothing returning id`,
+        [clienteId, tenantId, ruc, `Cliente de prueba ${ruc}`],
+      );
+      if (r.rowCount === 1) {
+        clientesCreados.add(clienteId);
+        return;
+      }
+      const ya = await admin.pool.query("select 1 from cliente where id = $1", [clienteId]);
+      if (ya.rowCount === 1) return; // ya existía (cliente del seed o creado antes): se usa tal cual
+    }
+    throw new Error("no se pudo crear el cliente de prueba");
+  } finally {
+    await admin.close();
+  }
 }
 
 /** Guarda el sobre con `contapp_backend` (la unica via de escritura de la app) y devuelve el id. */
@@ -67,6 +100,7 @@ export async function guardar(
   tipo: TipoCredencial,
   sobre: Sobre,
 ): Promise<string> {
+  await asegurarCliente(tenantId, clienteId);
   const r = await backend.withTenant({ tenantId }, (tx) => guardarSobre(tx as never, { clienteId, tipo, sobre }));
   return r.id;
 }

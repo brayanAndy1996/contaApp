@@ -5,6 +5,7 @@ import {
   PRIORIDADES,
   eventoTrabajoSchema,
   listarTrabajosQuery,
+  resumenTrabajosSchema,
   trabajoVistaSchema,
 } from "./index.js";
 
@@ -227,5 +228,28 @@ describe("listarTrabajosQuery", () => {
     expect(listarTrabajosQuery.safeParse({ estado: "pendiente" }).success).toBe(
       false,
     );
+  });
+});
+
+// 007b T18a (D-1): `GET /trabajos/resumen` cuenta todos los trabajos visibles por tipo y estado (el listado solo trae 100).
+describe("resumenTrabajosSchema", () => {
+  it("acepta filas {tipo, estado, total} y descarta claves desconocidas", () => {
+    const r = resumenTrabajosSchema.parse([
+      { tipo: "cliente.consultar_ruc", estado: "completado", total: 600, ruc: "x" },
+    ]);
+    expect(r).toEqual([
+      { tipo: "cliente.consultar_ruc", estado: "completado", total: 600 },
+    ]);
+  });
+
+  it("rechaza un estado fuera del catalogo, un total negativo o no entero", () => {
+    for (const mala of [
+      { tipo: "t", estado: "raro", total: 1 },
+      { tipo: "t", estado: "error", total: -1 },
+      { tipo: "t", estado: "error", total: 1.5 },
+      { tipo: "", estado: "error", total: 1 },
+    ]) {
+      expect(resumenTrabajosSchema.safeParse([mala]).success).toBe(false);
+    }
   });
 });

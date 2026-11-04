@@ -179,12 +179,20 @@ export default function Clientes() {
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Clientes</h1>
         {crea && (
-          <Link
-            href="/clientes/nuevo"
-            className="rounded bg-black px-4 py-2 text-sm text-white"
-          >
-            Nuevo cliente
-          </Link>
+          <div className="flex gap-2">
+            <Link
+              href="/clientes/importar"
+              className="rounded border px-4 py-2 text-sm"
+            >
+              Importar clientes
+            </Link>
+            <Link
+              href="/clientes/nuevo"
+              className="rounded bg-black px-4 py-2 text-sm text-white"
+            >
+              Nuevo cliente
+            </Link>
+          </div>
         )}
       </div>
       {error && (

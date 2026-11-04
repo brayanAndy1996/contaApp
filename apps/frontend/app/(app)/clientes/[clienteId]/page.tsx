@@ -13,6 +13,7 @@ import {
   DatosFiscales,
   DatosFiscalesLectura,
 } from "../../../../components/datos-fiscales";
+import { CredencialesCliente } from "../../../../components/credenciales-cliente";
 import { UsoPlan } from "../../../../components/uso-plan";
 import { api } from "../../../../lib/api";
 import {
@@ -174,6 +175,7 @@ function DetalleCliente() {
   const { clienteId } = useParams<{ clienteId: string }>();
   const puedeEditar = usePuede("clientes.editar");
   const puedeArchivar = usePuede("clientes.archivar");
+  const puedeCredenciales = usePuede("credenciales.editar");
   const [cliente, setCliente] = useState<ClienteDto | null>(null);
   const [cargado, setCargado] = useState(false);
   const [asigna, setAsigna] = useState(false);
@@ -375,6 +377,12 @@ function DetalleCliente() {
             <DatosFiscalesLectura perfil={cliente.perfil} />
           )}
         </section>
+      )}
+      {cliente && (
+        <CredencialesCliente
+          clienteId={cliente.id}
+          editable={!archivado && puedeCredenciales === true}
+        />
       )}
       {cliente && asigna && (
         <section className="flex flex-col gap-4">

@@ -13,7 +13,14 @@ import {
   crearKeyUnwrapperAnterior,
 } from "@contapp/crypto/descifrado";
 import { createDb, type ContappDb } from "@contapp/db";
-import { MockSireAuth, type SireAuth } from "@contapp/sunat";
+import {
+  MockConsultaRuc,
+  MockSireAuth,
+  MockSolAuth,
+  type ConsultaRuc,
+  type SireAuth,
+  type SolAuth,
+} from "@contapp/sunat";
 import { Redis } from "ioredis";
 import { conexionDesdeUrl } from "./conexion.js";
 import {
@@ -33,6 +40,24 @@ export function sireAuthDesdeEntorno(
   if ((env.SIRE_CLIENT ?? "mock") !== "mock")
     throw new ConfiguracionTrabajosError("SIRE_CLIENT no soportado");
   return new MockSireAuth();
+}
+
+/** Solo existe el adaptador `mock` (RUC_CLIENT=mock, 007b). */
+export function consultaRucDesdeEntorno(
+  env: Record<string, string | undefined>,
+): ConsultaRuc {
+  if ((env.RUC_CLIENT ?? "mock") !== "mock")
+    throw new ConfiguracionTrabajosError("RUC_CLIENT no soportado");
+  return new MockConsultaRuc();
+}
+
+/** Solo existe el adaptador `mock` (SOL_PORTAL=mock, 007b). */
+export function solAuthDesdeEntorno(
+  env: Record<string, string | undefined>,
+): SolAuth {
+  if ((env.SOL_PORTAL ?? "mock") !== "mock")
+    throw new ConfiguracionTrabajosError("SOL_PORTAL no soportado");
+  return new MockSolAuth();
 }
 
 /**
@@ -74,6 +99,8 @@ export class TrabajosService
       redis: this.redis,
       conexionBull,
       sireAuth: sireAuthDesdeEntorno(env),
+      consultaRuc: consultaRucDesdeEntorno(env),
+      solAuth: solAuthDesdeEntorno(env),
       kek: llavesDesdeEntorno(env),
     });
   }

@@ -302,8 +302,9 @@ export interface ClientePrueba {
   ruc: string;
 }
 
+// Nunca termina en 7 ni en 8: son las centinelas de fallo de `MockConsultaRuc` (007b) y volverían intermitentes las pruebas.
 export const rucNuevo = (): string =>
-  `2${String(randomInt(0, 1e10)).padStart(10, "0")}`;
+  `2${String(randomInt(0, 1e9)).padStart(9, "0")}${randomInt(0, 7)}`;
 
 export class Escenario {
   readonly estudios: string[] = [];

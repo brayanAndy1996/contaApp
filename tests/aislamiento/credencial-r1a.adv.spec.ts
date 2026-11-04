@@ -1,7 +1,7 @@
 // Spec 003 · T14a · Ronda adversarial 1a (caja negra), parte BD: contapp_backend leyendo el sobre por vías
 // SQL no cubiertas por credencial.spec.ts (objetos del catálogo, MERGE, EXPLAIN, TABLE, estadísticas).
 // Sobres sintéticos (bytes aleatorios); todo ocurre en transacciones que se revierten.
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { abrirPool, semilla } from "./soporte";
@@ -40,7 +40,9 @@ async function sembrar(c: PoolClient, n = 1) {
   const filas: { id: string; hex: string[] }[] = [];
   for (let i = 0; i < n; i++) {
     const s = [randomBytes(64), randomBytes(12), randomBytes(16), randomBytes(512)];
-    const r = await c.query(INSERT_SQL, [randomUUID(), i % 2 ? "sire_api" : "sol", ...s]);
+    // 007b (D2): credencial.cliente_id tiene FK a cliente; se siembra sobre los clientes reales del seed (3 por estudio),
+    // no con un UUID inventado. Las 6 combinaciones (i % 3, i % 2) son distintas, así que no chocan en la unicidad.
+    const r = await c.query(INSERT_SQL, [semilla().clientesA[i % 3].id, i % 2 ? "sire_api" : "sol", ...s]);
     filas.push({ id: r.rows[0].id, hex: s.map((b) => b.toString("hex")) });
   }
   return filas;

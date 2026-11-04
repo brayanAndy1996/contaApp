@@ -25,9 +25,21 @@ describe("esquema 003: credencial", () => {
     expect(
       c.uniqueConstraints.map((u) => u.columns.map((x) => x.name)),
     ).toEqual([["tenant_id", "cliente_id", "tipo"]]);
-    const fk = c.foreignKeys[0].reference();
-    expect(getTableName(fk.foreignTable)).toBe("tenant");
+    // 007b: la tabla gana una segunda FK (a cliente), así que se busca por tabla destino y no por posición.
+    const fk = c.foreignKeys
+      .map((f) => f.reference())
+      .find((r) => getTableName(r.foreignTable) === "tenant")!;
     expect(fk.columns.map((x) => x.name)).toEqual(["tenant_id"]);
+  });
+
+  // 007b (D2, rojo hasta T7): FK compuesta al cliente del mismo estudio; la BD la crea la migración 0027.
+  it("FK compuesta (tenant_id, cliente_id) -> cliente(tenant_id, id)", () => {
+    const fks = c.foreignKeys.map((f) => f.reference());
+    const fk = fks.find((r) => getTableName(r.foreignTable) === "cliente");
+    expect(fk, "falta la FK de credencial a cliente").toBeDefined();
+    expect(fk!.columns.map((x) => x.name)).toEqual(["tenant_id", "cliente_id"]);
+    expect(fk!.foreignColumns.map((x) => x.name)).toEqual(["tenant_id", "id"]);
+    expect(fks).toHaveLength(2);
   });
 
   it("CHECK de tipo, tamaños del sobre, kek_id y version", () => {

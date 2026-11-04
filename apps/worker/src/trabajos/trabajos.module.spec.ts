@@ -29,10 +29,12 @@ vi.mock("@contapp/crypto/descifrado", () => ({
   crearKeyUnwrapperAnterior: h.anterior,
 }));
 
-import { MockSireAuth } from "@contapp/sunat";
+import { MockConsultaRuc, MockSireAuth, MockSolAuth } from "@contapp/sunat";
 import {
   ConfiguracionTrabajosError,
+  consultaRucDesdeEntorno,
   llavesDesdeEntorno,
+  solAuthDesdeEntorno,
   sireAuthDesdeEntorno,
   TrabajosModule,
   TrabajosService,
@@ -45,6 +47,23 @@ describe("TrabajosModule", () => {
       MockSireAuth,
     );
     expect(() => sireAuthDesdeEntorno({ SIRE_CLIENT: "real" })).toThrow(
+      ConfiguracionTrabajosError,
+    );
+  });
+
+  it("RUC_CLIENT y SOL_PORTAL: mock (o ausente) usa el mock; otro valor falla al arrancar", () => {
+    expect(consultaRucDesdeEntorno({})).toBeInstanceOf(MockConsultaRuc);
+    expect(consultaRucDesdeEntorno({ RUC_CLIENT: "mock" })).toBeInstanceOf(
+      MockConsultaRuc,
+    );
+    expect(() => consultaRucDesdeEntorno({ RUC_CLIENT: "real" })).toThrow(
+      ConfiguracionTrabajosError,
+    );
+    expect(solAuthDesdeEntorno({})).toBeInstanceOf(MockSolAuth);
+    expect(solAuthDesdeEntorno({ SOL_PORTAL: "mock" })).toBeInstanceOf(
+      MockSolAuth,
+    );
+    expect(() => solAuthDesdeEntorno({ SOL_PORTAL: "real" })).toThrow(
       ConfiguracionTrabajosError,
     );
   });

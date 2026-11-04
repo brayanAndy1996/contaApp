@@ -44,6 +44,18 @@ export const trabajoVistaSchema = z.object({
   creadoPor: z.object({ usuarioId: z.uuid() }).nullable(),
 });
 
+/**
+ * 007b D10 (T18a, D-1): `GET /trabajos` trae solo los 100 más recientes; `GET /trabajos/resumen` cuenta TODOS los
+ * trabajos visibles por tipo y estado para que el panel no pierda el total con más de 100.
+ */
+export const resumenTrabajosSchema = z.array(
+  z.object({
+    tipo: z.string().min(1),
+    estado: estadoSchema,
+    total: z.number().int().min(0),
+  }),
+);
+
 /** Un evento SSE `trabajo` por cambio de estado. */
 export const eventoTrabajoSchema = trabajoVistaSchema;
 
@@ -53,5 +65,6 @@ export const listarTrabajosQuery = z.object({
 });
 
 export type TrabajoVista = z.infer<typeof trabajoVistaSchema>;
+export type ResumenTrabajos = z.infer<typeof resumenTrabajosSchema>;
 export type EventoTrabajo = z.infer<typeof eventoTrabajoSchema>;
 export type ListarTrabajosQuery = z.infer<typeof listarTrabajosQuery>;

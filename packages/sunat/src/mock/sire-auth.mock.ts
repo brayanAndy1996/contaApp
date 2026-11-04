@@ -11,7 +11,13 @@ export interface OpcionesMockSireAuth {
 
 const VIGENCIA_POR_DEFECTO_MS = 3_600_000;
 
-/** Adaptador en memoria de `SireAuth` (`SIRE_CLIENT=mock`): tokens deterministas por RUC y llamada. */
+/**
+ * Adaptador en memoria de `SireAuth` (`SIRE_CLIENT=mock`): tokens deterministas por RUC y llamada.
+ *
+ * Centinela: `clientSecret === "clave-errada"` (exacto) -> `ErrorCredencial`, para simular «clave errada»
+ * sin programar `fallar()`. La llamada cuenta en `llamadas` pero no consume número de token ni el
+ * contador de `fallar({veces})`.
+ */
 export class MockSireAuth implements SireAuth {
   private readonly ahora: () => Date;
   private readonly vigenciaMs: number;
@@ -43,6 +49,10 @@ export class MockSireAuth implements SireAuth {
   obtenerToken(credencial: CredencialSire): Promise<TokenSire> {
     this.total += 1;
     this.porRuc.set(credencial.ruc, this.llamadasDe(credencial.ruc) + 1);
+
+    if (credencial.clientSecret === "clave-errada") {
+      return Promise.reject(new ErrorCredencial());
+    }
 
     if (this.modo !== null) {
       const modo = this.modo;

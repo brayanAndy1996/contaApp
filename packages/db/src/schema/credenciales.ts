@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   check,
   customType,
+  foreignKey,
   pgTable,
   smallint,
   text,
@@ -10,6 +11,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { id, marcasDeTiempo, tenantIdPorDefecto } from "./comun";
+import { cliente } from "./clientes";
 import { tenant } from "./plataforma";
 
 // bytea <-> Buffer (pg ya devuelve Buffer para bytea; sin conversión adicional).
@@ -17,7 +19,7 @@ const bytea = customType<{ data: Buffer; driverData: Buffer }>({
   dataType: () => "bytea",
 });
 
-// Spec 003: sobre cifrado de una credencial (D2: cliente_id sin FK). RLS y grants por columna en 0006.
+// Spec 003: sobre cifrado de una credencial. RLS y grants por columna en 0006. Spec 007b (D2): FK compuesta a cliente (0027).
 export const credencial = pgTable(
   "credencial",
   {
@@ -63,6 +65,12 @@ export const credencial = pgTable(
       sql`${t.kekId} ~ '^[a-z0-9][a-z0-9-]{0,62}$'`,
     ),
     check("credencial_version_1", sql`${t.version} = 1`),
+    // Spec 007b (D2): sin ON DELETE (como asignacion_cliente_fk): borrar un cliente con credenciales se rechaza.
+    foreignKey({
+      name: "credencial_cliente_fk",
+      columns: [t.tenantId, t.clienteId],
+      foreignColumns: [cliente.tenantId, cliente.id],
+    }),
   ],
 );
 

@@ -16,6 +16,8 @@ export class TrabajosModule {
   static registrar(redis: OpcionesRedisTrabajos): DynamicModule {
     return {
       module: TrabajosModule,
+      // Global: 007b (credenciales, importación, clientes) inyecta el `Encolador` sin conocer la config de Redis.
+      global: true,
       imports: [AuthModule],
       controllers: [TrabajosController],
       providers: [

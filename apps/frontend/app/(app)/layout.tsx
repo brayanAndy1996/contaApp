@@ -113,6 +113,7 @@ export default function LayoutApp({ children }: { children: ReactNode }) {
           </select>
         </label>
         {tiene(yo, "clientes.ver") && <Link href="/clientes">Clientes</Link>}
+        {tiene(yo, "clientes.ver") && <Link href="/trabajos">Trabajos</Link>}
         {tiene(yo, "usuarios.ver") && <Link href="/usuarios">Usuarios</Link>}
         {aviso && <p role="status">{aviso}</p>}
         {error && (

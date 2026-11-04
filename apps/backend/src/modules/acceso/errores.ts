@@ -17,7 +17,8 @@ export type CodigoAcceso =
   | "plan_inactivo"
   | "codigo_existente"
   | "cliente_archivado"
-  | "ruc_duplicado";
+  | "ruc_duplicado"
+  | "credencial_no_configurada";
 
 const ESTADO: Record<CodigoAcceso, number> = {
   permiso_denegado: HttpStatus.FORBIDDEN,
@@ -36,6 +37,7 @@ const ESTADO: Record<CodigoAcceso, number> = {
   codigo_existente: HttpStatus.CONFLICT,
   cliente_archivado: HttpStatus.CONFLICT,
   ruc_duplicado: HttpStatus.CONFLICT,
+  credencial_no_configurada: HttpStatus.CONFLICT,
 };
 
 /**

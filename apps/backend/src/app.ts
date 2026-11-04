@@ -2,7 +2,7 @@ import "reflect-metadata";
 import type { INestApplication } from "@nestjs/common";
 import { NestFactory, Reflector } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
-import { json } from "express";
+import { json, raw } from "express";
 import type { ContappDb } from "@contapp/db";
 import { PREFIJO_POR_DEFECTO } from "@contapp/queue";
 import { AppModule } from "./app.module.js";
@@ -58,6 +58,13 @@ const LIMITE_JSON = "16kb";
 export const LIMITE_JSON_LOTES = "32kb";
 const RUTAS_LOTES = ["/asignaciones/por-usuario", "/asignaciones/por-cliente"];
 
+/**
+ * Importación de clientes (007b): el cuerpo es el archivo crudo, `application/octet-stream` de hasta 2 MB. Con más, el
+ * analizador responde 413 por `Content-Length` sin leer el cuerpo.
+ */
+export const LIMITE_ARCHIVO_IMPORTACION = "2mb";
+const RUTAS_IMPORTACION = ["/clientes/importacion/vista-previa", "/clientes/importacion/confirmar"];
+
 /** `TRUST_PROXY`: un entero es el número de saltos de confianza; si no, la lista o alias de Express. */
 export function confianzaProxy(valor: string): string | number {
   return /^\d{1,3}$/.test(valor) ? Number(valor) : valor;
@@ -102,6 +109,7 @@ export async function crearApp(o: OpcionesApp = {}): Promise<INestApplication> {
   });
   // El analizador de lotes va primero y solo en esas dos rutas; el global omite lo ya analizado.
   app.use(RUTAS_LOTES, json({ limit: LIMITE_JSON_LOTES }));
+  app.use(RUTAS_IMPORTACION, raw({ type: "application/octet-stream", limit: LIMITE_ARCHIVO_IMPORTACION }));
   app.useBodyParser("json", { limit: LIMITE_JSON });
 
   const reflector = app.get(Reflector);

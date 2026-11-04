@@ -30,6 +30,7 @@ import {
   vistaCon,
   type RedisPrueba,
 } from "../../test/soporte-trabajos.js";
+import { rucConPrefijo, xlsxConDatos } from "../../test/soporte-importacion.js";
 import {
   abrirHarness,
   COOKIE,
@@ -77,6 +78,8 @@ interface Pet {
   metodo?: Peticion["metodo"];
   ruta: string;
   cuerpo?: unknown;
+  /** Cuerpo binario crudo (importación de 007b). */
+  binario?: Uint8Array;
 }
 interface Esperado {
   dueno: number[];
@@ -369,6 +372,9 @@ const tokensDeB = (a: Recursos) => [
   a.invitacionId,
 ];
 const contrasenaMala = "incorrecta-HU40-aaaaaaaa";
+
+/** RUC del último archivo de `POST /clientes/importacion/confirmar` (para comprobar que no se creó). */
+let rucImportado = "";
 
 const CASOS: Caso[] = [
   /* ---------- 004 ---------- */
@@ -690,6 +696,100 @@ const CASOS: Caso[] = [
       idsDeCliente(c.ajeno).map((id) => ({ metodo: "POST" as const, ruta: `/clientes/${id}/reactivar` })),
   },
   {
+    // 007b (T4): credenciales. El estudio sale de la sesión; un cliente de B (o un id de otra cosa de B) desde A da 404
+    // antes de leer, escribir o encolar: ni sobre en B, ni estado visible, ni trabajo en B.
+    ruta: "PUT /clientes/:clienteId/credenciales/:tipo",
+    esperado: E404,
+    construir: (c) =>
+      idsDeCliente(c.ajeno).flatMap((id) => [
+        {
+          metodo: "PUT" as const,
+          ruta: `/clientes/${id}/credenciales/sol`,
+          cuerpo: { usuario: "intruso-hu40", clave: "clave-hu40", tenantId: c.ajeno.tenantId },
+        },
+        {
+          metodo: "PUT" as const,
+          ruta: `/clientes/${id}/credenciales/sire_api`,
+          cuerpo: { clientId: "intruso-hu40", clientSecret: "secreto-hu40", tenantId: c.ajeno.tenantId },
+        },
+      ]),
+    extra: async (c) => {
+      const f = await h.sql("select count(*)::int n from credencial where cliente_id = any($1::uuid[])", [c.ajeno.clientes]);
+      expect(f[0].n).toBe(0);
+    },
+  },
+  {
+    ruta: "GET /clientes/:clienteId/credenciales",
+    esperado: E404,
+    construir: (c) => idsDeCliente(c.ajeno).map((id) => ({ ruta: `/clientes/${id}/credenciales` })),
+  },
+  {
+    ruta: "POST /clientes/:clienteId/credenciales/:tipo/verificar",
+    esperado: E404,
+    construir: (c) =>
+      idsDeCliente(c.ajeno).flatMap((id) => [
+        { metodo: "POST" as const, ruta: `/clientes/${id}/credenciales/sol/verificar` },
+        { metodo: "POST" as const, ruta: `/clientes/${id}/credenciales/sire_api/verificar` },
+      ]),
+    extra: async (c) => {
+      const f = await h.sql(
+        "select count(*)::int n from job_registro where cliente_id = any($1::uuid[]) and tipo like 'credencial.%'",
+        [c.ajeno.clientes],
+      );
+      expect(f[0].n).toBe(0);
+    },
+  },
+  {
+    // 007b (T4): importación. La plantilla no lleva datos de nadie; la vista previa y la confirmación toman el estudio de la
+    // sesión: un responsable de B en el archivo no existe para A y no se crea nada.
+    ruta: "GET /clientes/importacion/plantilla",
+    esperado: { dueno: [200], asistente: [403] },
+    construir: () => [{ ruta: "/clientes/importacion/plantilla" }],
+  },
+  {
+    ruta: "POST /clientes/importacion/vista-previa",
+    esperado: { dueno: [200], asistente: [403] },
+    eco: true,
+    construir: (c) => [
+      {
+        metodo: "POST" as const,
+        ruta: "/clientes/importacion/vista-previa",
+        binario: xlsxConDatos([
+          { ruc: rucConPrefijo("20", 7_000_000 + Math.floor(Math.random() * 900_000)), responsable: c.ajeno.dueno.correo },
+        ]),
+      },
+    ],
+    extra: async (c, respuestas) => {
+      if (c.yo.rol !== "dueno") return;
+      const r = respuestas[0]!;
+      expect(r.body.filas?.[0]?.motivos).toEqual(["responsable_inexistente"]);
+      expect(r.body).toMatchObject({ validas: 0, conError: 1 });
+    },
+  },
+  {
+    ruta: "POST /clientes/importacion/confirmar",
+    esperado: { dueno: [200], asistente: [403] },
+    eco: true,
+    construir: (c) => {
+      rucImportado = rucConPrefijo("20", 7_000_000 + Math.floor(Math.random() * 900_000));
+      return [
+        {
+          metodo: "POST" as const,
+          ruta: "/clientes/importacion/confirmar",
+          binario: xlsxConDatos([{ ruc: rucImportado, responsable: c.ajeno.dueno.correo }]),
+        },
+      ];
+    },
+    extra: async (c, respuestas) => {
+      if (c.yo.rol !== "dueno") return;
+      expect(respuestas[0]!.body.creadas).toBe(0);
+      expect(respuestas[0]!.body.noImportadas?.[0]?.motivo).toBe("responsable_inexistente");
+      // Ni un cliente nuevo, en ninguno de los dos estudios, por esta ruta.
+      const f = await h.sql("select count(*)::int n from cliente where ruc = $1", [rucImportado]);
+      expect(f[0].n).toBe(0);
+    },
+  },
+  {
     ruta: "GET /clientes/:clienteId/asignaciones",
     esperado: E404,
     construir: (c) =>
@@ -812,6 +912,33 @@ const CASOS: Caso[] = [
         ).toEqual([...esperados].sort());
       expect(r[2]!.body).toEqual({ codigo: "no_encontrado" });
       expect(r[3]!.body).toEqual({ codigo: "no_encontrado" });
+    },
+  },
+  {
+    // 007b (T18a, D-1) · Resumen: cuenta TODOS los trabajos visibles por tipo y estado, con el mismo alcance que la lista.
+    // Ni `tenantId`/`usuarioId`/`clienteId` en la query abren datos de B: el Dueño cuenta solo sus 2 trabajos en cola
+    // y la asistente el de su cliente (los de B nunca suman); solo trae `{tipo, estado, total}`, sin IDs.
+    ruta: "GET /trabajos/resumen",
+    esperado: { dueno: [200, 404], asistente: [200, 404] },
+    construir: (c) => [
+      { ruta: "/trabajos/resumen" },
+      {
+        ruta: `/trabajos/resumen?tenantId=${c.ajeno.tenantId}&usuarioId=${c.ajeno.dueno.id}`,
+      },
+      { ruta: `/trabajos/resumen?clienteId=${c.ajeno.clientes[0]}` },
+    ],
+    extra: async (c, r) => {
+      expect(r.map((x) => x.status)).toEqual([200, 200, 200]);
+      const total = c.yo.rol === "dueno" ? 2 : 1;
+      for (const x of r) {
+        expect(x.body).toEqual([
+          { tipo: "prueba.eco", estado: "en_cola", total },
+        ]);
+        const crudo = JSON.stringify(x.body);
+        for (const t of [...c.ajeno.trabajos, ...c.mio.trabajos])
+          expect(crudo).not.toContain(t.id);
+        expect(crudo).not.toContain(c.ajeno.tenantId);
+      }
     },
   },
   {
@@ -1191,6 +1318,13 @@ describe("HU-40 por API · las pruebas no son vacías (controles con datos propi
       ).toEqual(mio.trabajos.map((t) => t.id).sort());
       expect(JSON.stringify(trabajos.body)).not.toContain(ajeno.trabajos[0].id);
 
+      // 007b T18a: el resumen del Dueño cuenta sus 2 trabajos y no los de B.
+      const resumen = await pedir("/trabajos/resumen");
+      expect(resumen.status).toBe(200);
+      expect(resumen.body).toEqual([
+        { tipo: "prueba.eco", estado: "en_cola", total: mio.trabajos.length },
+      ]);
+
       const a = await abrirSesion(mio.asistente, mio.tenantId);
       const suyosTrabajos = await h.pedir({
         ruta: "/trabajos",
@@ -1201,6 +1335,16 @@ describe("HU-40 por API · las pruebas no son vacías (controles con datos propi
       expect(suyosTrabajos.status).toBe(200);
       expect(lista(suyosTrabajos).map((x) => x.id)).toEqual([
         mio.trabajos[0].id,
+      ]);
+      const suyoResumen = await h.pedir({
+        ruta: "/trabajos/resumen",
+        cookie: a.cookie,
+        csrf: a.csrf,
+        estudio: mio.tenantId,
+      });
+      expect(suyoResumen.status).toBe(200);
+      expect(suyoResumen.body).toEqual([
+        { tipo: "prueba.eco", estado: "en_cola", total: 1 },
       ]);
       const suyos = await h.pedir({
         ruta: "/clientes",
@@ -1264,6 +1408,7 @@ for (const combo of COMBOS) {
             metodo: p.metodo,
             ruta: p.ruta,
             cuerpo: p.cuerpo,
+            ...(p.binario ? { binario: p.binario } : {}),
             ...(sesion ? { cookie: sesion.cookie, csrf: sesion.csrf } : {}),
             ...(sesion && estudio ? { estudio } : {}),
           });

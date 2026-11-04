@@ -420,6 +420,31 @@ export async function listarTrabajos(
   return r.rows.map(aVista);
 }
 
+export interface ResumenTrabajoDb {
+  tipo: string;
+  estado: EstadoTrabajo;
+  total: number;
+}
+
+/**
+ * Conteo por tipo y estado de TODOS los trabajos visibles con el alcance (007b D-1): `listarTrabajos` se limita a 100 y
+ * el panel necesita el total real. Misma `filtroAlcance` y RLS (la tx es de `withTenant`); sin `limit`.
+ */
+export async function resumenTrabajos(
+  tx: TxConsulta,
+  alcance: Alcance,
+): Promise<ResumenTrabajoDb[]> {
+  const { texto, valores } = renderizar(
+    sql`select j.tipo, j.estado, count(*)::int as total from job_registro j where ${filtroAlcance(sql`j.cliente_id`, alcance)} group by j.tipo, j.estado order by j.tipo, j.estado`,
+  );
+  const r = await consultar(tx, texto, valores);
+  return r.rows.map((f) => ({
+    tipo: String(f.tipo),
+    estado: f.estado as EstadoTrabajo,
+    total: Number(f.total),
+  }));
+}
+
 // Posición (RF-042): 1 + los en_cola del mismo estudio (RLS) y cola que salen antes; null si no está en_cola.
 const SQL_POSICION = `select case when j.estado = 'en_cola' then 1 + (
     select count(*) from job_registro o

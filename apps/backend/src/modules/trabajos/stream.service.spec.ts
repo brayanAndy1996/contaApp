@@ -73,8 +73,21 @@ class RespuestaFalsa extends EventEmitter implements RespuestaSse {
     this.cabeceras[n.toLowerCase()] = v;
     return this;
   }
-  flushHeaders() {}
+  // 007b T18a (D-2): el primer comentario `: conectado` fuerza el primer byte (Next no entrega las cabeceras antes).
+  // No se acumula en `texto` para que las aserciones sobre el cuerpo de eventos y latidos sigan siendo exactas;
+  // se verifica aparte que salió una vez y después de `flushHeaders()`.
+  cabecerasEnviadas = false;
+  saludos = 0;
+  saludoTrasCabeceras = false;
+  flushHeaders() {
+    this.cabecerasEnviadas = true;
+  }
   write(t: string) {
+    if (t === ": conectado\n\n" && this.saludos === 0) {
+      this.saludos = 1;
+      this.saludoTrasCabeceras = this.cabecerasEnviadas;
+      return true;
+    }
     this.texto += t;
     return true;
   }
@@ -146,7 +159,10 @@ describe("StreamService · apertura y límites", () => {
     const b = await abrir();
     expect(a.estado).toBe(200);
     expect(a.cabeceras["content-type"]).toMatch(/^text\/event-stream/);
-    expect(a.cabeceras["cache-control"]).toBe("no-store");
+    // 007b D10 (T6): `no-cache, no-transform` en lugar del `no-store` de 008 (el proxy de Next no debe
+    // transformar ni comprimir el flujo).
+    expect(a.cabeceras["cache-control"]).toBe("no-cache, no-transform");
+    expect(a.cabeceras["x-accel-buffering"]).toBe("no");
     expect(a.texto).toBe("");
     expect(sub.subscribe).toHaveBeenCalledTimes(1);
     expect(sub.canales.has(canal)).toBe(true);
@@ -278,6 +294,16 @@ describe("StreamService · cierre", () => {
       await vi.advanceTimersByTimeAsync(TIEMPOS_POR_DEFECTO.revalidacionMs);
       expect(r.writableEnded).toBe(true);
     }
+  });
+
+  it("D-2: envía un solo comentario `: conectado` justo después de flushHeaders, antes de cualquier latido", async () => {
+    const r = await abrir();
+    expect(r.saludos).toBe(1);
+    expect(r.saludoTrasCabeceras).toBe(true);
+    await vi.advanceTimersByTimeAsync(TIEMPOS_POR_DEFECTO.latidoMs);
+    expect(r.saludos).toBe(1);
+    expect(r.texto).toBe(": latido\n\n");
+    r.end();
   });
 
   it("revalidar con la sesión vigente actualiza el alcance (bajado a contador: solo sus asignados)", async () => {

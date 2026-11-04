@@ -17,6 +17,7 @@
     "test:cobertura:acceso": "vitest run --config vitest.cobertura-acceso.config.mts --coverage"
   },
   "dependencies": {
+    "@contapp/crypto": "workspace:*",
     "@contapp/db": "workspace:*",
     "@contapp/queue": "workspace:*",
     "@contapp/shared": "workspace:*",
@@ -25,6 +26,8 @@
     "@nestjs/platform-express": "^12.0.1",
     "@node-rs/argon2": "2.0.2",
     "express": "5.3.0",
+    "fast-xml-parser": "5.11.2",
+    "fflate": "0.8.2",
     "ioredis": "6.0.0",
     "nodemailer": "10.1.0",
     "reflect-metadata": "^0.2.2",

@@ -128,7 +128,10 @@ describe("CA-6 · el stream exige sesión y estudio activo", () => {
     expect(s.status).toBe(200);
     expect(Date.now() - t0).toBeLessThan(2000);
     expect(s.headers["content-type"]).toMatch(/^text\/event-stream/);
-    expect(String(s.headers["cache-control"])).toMatch(/no-(store|cache)/);
+    // 007b D10 (T6): el stream lleva `no-cache, no-transform` (sin `no-store`): `no-transform` impide que
+    // un proxy (el rewrite de Next) recomprima o reordene el flujo. Ajusta el `no-store` de 008.
+    expect(String(s.headers["cache-control"])).toBe("no-cache, no-transform");
+    expect(s.headers["x-accel-buffering"]).toBe("no");
     await pausa(400);
     expect(s.eventos).toEqual([]);
     expect(s.cerrado).toBe(false);

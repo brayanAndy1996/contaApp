@@ -23,14 +23,26 @@ import {
   type ConexionBull,
   type PayloadSistema,
 } from "@contapp/queue/worker";
-import { MockSireAuth, type SireAuth } from "@contapp/sunat";
+import {
+  MockConsultaRuc,
+  MockSireAuth,
+  MockSolAuth,
+  type ConsultaRuc,
+  type SireAuth,
+  type SolAuth,
+} from "@contapp/sunat";
 import { randomUUID } from "node:crypto";
 import type { Redis } from "ioredis";
 import { crearServicioCredenciales } from "../credenciales/descifrar-credencial.js";
 import { Ejecutor, type Procesador } from "./ejecutor.js";
 import { dbGuardada, redisGuardado } from "./guardia.js";
 import { authPurgar } from "./procesadores/auth-purgar.js";
+import { consultarRuc } from "./procesadores/consultar-ruc.js";
 import { kekRotar } from "./procesadores/kek-rotar.js";
+import {
+  verificarSire,
+  verificarSol,
+} from "./procesadores/verificar-credencial.js";
 import {
   loggerConsola,
   NotificadorLog,
@@ -65,7 +77,12 @@ export interface DepsTrabajos {
   /** Se suman a los por defecto (solo `prueba.eco` con NODE_ENV=test). */
   procesadores?: Record<string, Procesador>;
   notificador?: Notificador;
+  /** Puerto de `credencial.verificar_sire` (directo, sin la caché de token) y del token SIRE; por defecto el mock. */
   sireAuth?: SireAuth;
+  /** Puerto de `cliente.consultar_ruc`; por defecto el mock. */
+  consultaRuc?: ConsultaRuc;
+  /** Puerto de `credencial.verificar_sol`; por defecto el mock. */
+  solAuth?: SolAuth;
   credencialesSire?: CredencialesSire;
   kek?: LlavesKek;
   logger?: LoggerTrabajos;
@@ -164,37 +181,39 @@ export async function iniciarTrabajos(
   // Las colas que existen son las de config_sistema (si no se puede leer, el worker no arranca).
   const inicial = await db.withSistema((tx) => leerConfig(tx));
 
+  // Servicio auditado de descifrado (003): solo existe si el worker tiene la KEK.
+  const servicio = deps.kek
+    ? crearServicioCredenciales({
+        db,
+        unwrapper: deps.kek.activa,
+        logger: {
+          log: (e) =>
+            registrar(logger, "debug", {
+              evento: "credencial_descifrada",
+              credencial_id: e.credencialId,
+              resultado: e.resultado,
+            }),
+          warn: (e) =>
+            registrar(logger, "warn", {
+              evento: "credencial_no_descifrada",
+              credencial_id: e.credencialId,
+              resultado: e.resultado,
+              codigo: e.codigo,
+            }),
+        },
+      })
+    : undefined;
   const credenciales: CredencialesSire =
     deps.credencialesSire ??
-    (deps.kek
-      ? crearCredencialesSire({
-          db,
-          servicio: crearServicioCredenciales({
-            db,
-            unwrapper: deps.kek.activa,
-            logger: {
-              log: (e) =>
-                registrar(logger, "debug", {
-                  evento: "credencial_descifrada",
-                  credencial_id: e.credencialId,
-                  resultado: e.resultado,
-                }),
-              warn: (e) =>
-                registrar(logger, "warn", {
-                  evento: "credencial_no_descifrada",
-                  credencial_id: e.credencialId,
-                  resultado: e.resultado,
-                  codigo: e.codigo,
-                }),
-            },
-          }),
-        })
+    (servicio
+      ? crearCredencialesSire({ db, servicio })
       : async () => {
           throw new SinCredencialesSireError();
         });
+  const sireAuth = deps.sireAuth ?? new MockSireAuth();
   const tokens = new CacheTokenSire({
     redis,
-    sireAuth: deps.sireAuth ?? new MockSireAuth(),
+    sireAuth,
     credenciales,
     reloj,
     prefijo,
@@ -208,6 +227,24 @@ export async function iniciarTrabajos(
     prefijo,
     procesadores: {
       ...(process.env.NODE_ENV === "test" ? { "prueba.eco": eco } : {}),
+      "cliente.consultar_ruc": consultarRuc({
+        db,
+        consultaRuc: deps.consultaRuc ?? new MockConsultaRuc(),
+      }),
+      ...(servicio
+        ? {
+            "credencial.verificar_sol": verificarSol({
+              db,
+              servicio,
+              solAuth: deps.solAuth ?? new MockSolAuth(),
+            }),
+            "credencial.verificar_sire": verificarSire({
+              db,
+              servicio,
+              sireAuth,
+            }),
+          }
+        : {}),
       ...deps.procesadores,
     },
     config,

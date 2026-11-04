@@ -43,7 +43,8 @@ const cupo = { libres: vi.fn(), reservar: vi.fn() };
 
 function armar() {
   const withTenant = vi.fn((_ctx: unknown, fn: (tx: unknown) => unknown) => Promise.resolve(fn(TX)));
-  return { withTenant, servicio: new ClientesService({ withTenant } as never, cupo as never) };
+  const encolador = { encolarLote: vi.fn(async () => ({ encoladas: 1, omitidas: 0 })) };
+  return { withTenant, encolador, servicio: new ClientesService({ withTenant } as never, cupo as never, encolador as never) };
 }
 
 beforeEach(() => {
@@ -77,6 +78,28 @@ describe("crear", () => {
     await armar().servicio.crear(sesion, { ruc: "20100070970", razonSocial: "Acme", perfil });
     expect(orden).toEqual(["miembros", "cupo", "cliente"]);
     expect(crearCliente).toHaveBeenCalledWith(TX, TENANT, { ruc: "20100070970", razonSocial: "Acme", perfil });
+  });
+
+  it("tras el commit encola una consulta de RUC (programado, con la reserva del 50 %) y devuelve el mismo cliente", async () => {
+    const { servicio, encolador } = armar();
+    const r = await servicio.crear(sesion, { ruc: "20100070970" });
+    expect(r).toEqual(dto(false));
+    expect(encolador.encolarLote).toHaveBeenCalledTimes(1);
+    expect(encolador.encolarLote).toHaveBeenCalledWith(
+      { tenantId: TENANT, userId: ACTOR },
+      [{ tipo: "cliente.consultar_ruc", clienteId: CLIENTE, parametros: {}, prioridad: "programado", creadoPor: ACTOR }],
+      { reserva: 0.5 },
+    );
+  });
+
+  it("si encolar falla, el alta no falla; si el alta falla, no se encola nada", async () => {
+    const { servicio, encolador } = armar();
+    encolador.encolarLote.mockRejectedValueOnce(new Error("redis caído"));
+    await expect(servicio.crear(sesion, { ruc: "20100070970" })).resolves.toEqual(dto(false));
+    const otro = armar();
+    vi.mocked(crearCliente).mockRejectedValueOnce(new RucDuplicadoError());
+    await expect(otro.servicio.crear(sesion, { ruc: "20100070970" })).rejects.toMatchObject({ codigo: "ruc_duplicado" });
+    expect(otro.encolador.encolarLote).not.toHaveBeenCalled();
   });
 
   it("RUC inválido: 400 sin abrir transacción", async () => {

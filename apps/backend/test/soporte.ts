@@ -220,6 +220,8 @@ export interface Peticion {
   cuerpo?: unknown;
   /** Cuerpo JSON ya serializado (para probar tamaños o JSON roto). */
   crudo?: string;
+  /** Cuerpo binario crudo (`application/octet-stream`), como la importación de 007b. Excluyente con `cuerpo` y `crudo`. */
+  binario?: Uint8Array;
   /** Valor de la cabecera `Cookie` completa (p. ej. `__Host-contapp_sid=abc`). */
   cookie?: string | null;
   csrf?: string | null;
@@ -285,7 +287,7 @@ export async function abrirHarness(opciones: OpcionesHarness = {}): Promise<Harn
   const sql: Harness["sql"] = async (texto, valores) => (await admin.pool.query(texto, valores)).rows;
 
   const pedir: Harness["pedir"] = async (p) => {
-    const metodo = p.metodo ?? (p.cuerpo !== undefined || p.crudo !== undefined ? "POST" : "GET");
+    const metodo = p.metodo ?? (p.cuerpo !== undefined || p.crudo !== undefined || p.binario !== undefined ? "POST" : "GET");
     const cliente = request(base);
     const t =
       metodo === "GET"
@@ -307,7 +309,8 @@ export async function abrirHarness(opciones: OpcionesHarness = {}): Promise<Harn
     if (p.csrf) t.set("X-CSRF-Token", p.csrf);
     if (p.estudio) t.set("X-Estudio", p.estudio);
     for (const [k, v] of Object.entries(p.cabeceras ?? {})) t.set(k, v);
-    if (p.crudo !== undefined) t.set("Content-Type", "application/json").send(p.crudo);
+    if (p.binario !== undefined) t.set("Content-Type", "application/octet-stream").send(Buffer.from(p.binario));
+    else if (p.crudo !== undefined) t.set("Content-Type", "application/json").send(p.crudo);
     else if (typeof p.cuerpo === "number" || typeof p.cuerpo === "boolean")
       // superagent no serializa primitivos no-string: se envía el JSON crudo (cuerpo "no objeto", 007a T3).
       t.set("Content-Type", "application/json").send(JSON.stringify(p.cuerpo));

@@ -161,10 +161,14 @@ export class StreamService implements OnModuleDestroy {
     }
     res.status(200);
     res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
-    res.setHeader("Cache-Control", "no-store");
+    // 007b D10: `no-transform` impide que un proxy (el rewrite de Next) recomprima o reordene el flujo.
+    res.setHeader("Cache-Control", "no-cache, no-transform");
     res.setHeader("Connection", "keep-alive");
     res.setHeader("X-Accel-Buffering", "no");
     res.flushHeaders();
+    // 007b D-2: el rewrite de Next no entrega las cabeceras hasta el primer byte del cuerpo; sin esto el cliente
+    // esperaba al primer latido (~15 s). Es un comentario SSE: el lector del panel lo ignora.
+    res.write(": conectado\n\n");
 
     this.registrar(c);
     c.temporizadores.push(
