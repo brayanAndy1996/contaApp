@@ -29,7 +29,9 @@ import type { SesionResuelta } from "../auth/auth.service.js";
 import { DB } from "../auth/inyeccion.js";
 import { AccesoError } from "../acceso/errores.js";
 import { CUPO_RUCS, type CupoRucs } from "../planes/cupo/cupo-rucs.js";
+import { Encolador } from "../trabajos/encolador.js";
 import { contextoDe } from "./contexto.js";
+import { encolarConsultasRuc } from "./consulta-ruc.js";
 
 interface Esquema<T> {
   safeParse(valor: unknown): { success: boolean; data?: T };
@@ -71,7 +73,7 @@ function exigirActor(actor: MiembroEstado | null, permiso: Permiso): void {
 /**
  * Clientes (RF-030 parcial, RF-036, RF-037, RF-039; spec 007a). Permiso y alcance los exigen los guards. Crear y
  * reactivar siguen el orden global de bloqueo (D4, plan 005/006): `bloquearMiembros` -> `CupoRucs.reservar` ->
- * `cliente` -> `asignacion`, todo en un solo `withTenant` (todo o nada). Archivar solo libera: no toma el bloqueo
+ * `cliente` -> `asignacion`, todo en un solo `withTenant` (todo o nada); el alta encola la consulta de RUC después del commit. Archivar solo libera: no toma el bloqueo
  * de cupo ni toca miembros.
  */
 @Injectable()
@@ -79,6 +81,7 @@ export class ClientesService {
   constructor(
     @Inject(DB) private readonly db: Pick<ContappDb, "withTenant">,
     @Inject(CUPO_RUCS) private readonly cupo: CupoRucs,
+    @Inject(Encolador) private readonly encolador: Pick<Encolador, "encolarLote">,
   ) {}
 
   listar(sesion: SesionResuelta, alcance: Alcance, query: unknown): Promise<ClienteDto[]> {
@@ -102,7 +105,7 @@ export class ClientesService {
   async crear(sesion: SesionResuelta, cuerpo: unknown): Promise<ClienteDto> {
     const datos = parsear(clienteCrearSchema, cuerpo);
     const ctx = contextoDe(sesion);
-    return traducir(() =>
+    const dto = await traducir(() =>
       this.db.withTenant(ctx, async (tx) => {
         const bloqueados = await bloquearMiembros(tx, [
           sesion.usuarioId,
@@ -125,6 +128,9 @@ export class ClientesService {
         return noNulo(await leerClienteDto(tx, id));
       }),
     );
+    // Tras el commit y sin propagar su fallo (D1): si no se encola, el cliente queda con la razón social provisional.
+    await encolarConsultasRuc(this.encolador, ctx, [dto.id]);
+    return dto;
   }
 
   async editar(sesion: SesionResuelta, clienteId: string, cuerpo: unknown): Promise<ClienteDto> {

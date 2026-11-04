@@ -7,6 +7,6 @@ import { KEY_WRAPPER, keyWrapperPerezoso } from "./key-wrapper.js";
 @Module({
   controllers: [CredencialesController],
   providers: [{ provide: KEY_WRAPPER, useFactory: () => keyWrapperPerezoso(process.env) }, CredencialesService],
-  exports: [CredencialesService],
+  exports: [CredencialesService, KEY_WRAPPER],
 })
 export class CredencialesModule {}

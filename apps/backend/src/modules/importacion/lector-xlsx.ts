@@ -62,10 +62,9 @@ const atributo = (n: unknown, nombre: string): string | undefined => {
   return typeof v === "string" ? v : undefined;
 };
 
-/** Texto de un nodo hoja (`<t>`, `<v>`): con o sin atributos. */
+/** Texto de un nodo hoja (`<t>`, `<v>`): con o sin atributos (el analizador no convierte tipos: todo es cadena). */
 function texto(n: unknown): string {
   if (typeof n === "string") return n;
-  if (typeof n === "number" || typeof n === "boolean") return String(n);
   if (n !== null && typeof n === "object") return texto((n as Nodo)["#text"]);
   return "";
 }

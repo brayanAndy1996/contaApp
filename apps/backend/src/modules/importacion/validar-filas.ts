@@ -59,10 +59,10 @@ export interface VistaPrevia {
 }
 
 /**
- * Texto que una hoja de cálculo podría interpretar (CSV/fórmula injection): empieza, tras espacios opcionales,
- * con `= + - @` o con un carácter de control (tabulador, retorno, NUL…).
+ * Texto que una hoja de cálculo podría interpretar (CSV/fórmula injection): empieza, tras espacios opcionales, con
+ * `= + - @`, o lleva en cualquier posición un carácter de control (tabulador, retorno, NUL…; D7, T4).
  */
-const PELIGROSA = /^[ ]*[=+\-@\u0000-\u001f\u007f]/;
+const PELIGROSA = /^[ ]*[=+\-@]|[\u0000-\u001f\u007f]/;
 
 /** Celdas de texto visibles que se rechazan si son peligrosas; las claves aceptan cualquier carácter. */
 const CAMPOS_TEXTO = [
@@ -76,6 +76,9 @@ const CAMPOS_TEXTO = [
 const MAX_RUC_VISIBLE = 32;
 
 const lleno = (s: string) => s !== "";
+
+/** El RUC tal como se devuelve al cliente: lo que no es un RUC no se refleja más allá de este largo. */
+export const rucVisible = (ruc: string): string => ruc.slice(0, MAX_RUC_VISIBLE);
 
 /** Pura, sin IO. Conserva el orden y el número de fila; la primera aparición de un RUC es la que vale. */
 export function validarFilas(
@@ -160,7 +163,7 @@ export function aVistaPrevia(
   return {
     filas: filas.map((f) => ({
       n: f.n,
-      ruc: f.ruc.slice(0, MAX_RUC_VISIBLE),
+      ruc: rucVisible(f.ruc),
       estado: f.estado,
       motivos: f.motivos.map((m) => ({ ...m })),
       tieneSol: f.tieneSol,
