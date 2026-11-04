@@ -12,7 +12,8 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 | 004-auth | A | hecha | — | Hecha. Rama `spec/004-auth` sin mergear (desde `spec/010-dominio-dinero`). O-2 y límites de T20a aceptados por el usuario. CI en rojo hasta 1216e84 de 005: faltaba compilar shared. |
 | 005-acceso | A | hecha | — | Hecha. Rama `spec/005-acceso` sin mergear (desde `spec/004-auth`). CI verde (1216e84). |
 | 006-planes | B | hecha | — | Hecha. Mergeada en `main` (5a9fd7a). CA-1 a CA-14 con evidencia (T14); revisión T15 aprobada con 2 defectos corregidos en T15a/T15b (cupo al aceptar con sesión, `reservar` inválido). 10 hallazgos H-006 corregidos. Decisiones del usuario 2026-11-03: D14, D15, lock en proceso, CLI de alta de super-admin (`pnpm db:plataforma-alta`) y P-T15-2 (dejar así en R1). CI verde (run 41664504503). |
-| 007-clientes | B | borrador | — | Borrador de spec en `spec/007-clientes` (0bbddf6); espera la aprobación del usuario (P1–P7). |
+| 007a-clientes | B | hecha | — | Mergeada en `main` (5a61f83). Parte 1 de la antigua 007 (decisiones del usuario 2026-11-03: P1–P7 y razón social provisional; 2026-11-04: responsable al crear sin `clientes.asignar` y sin shadcn). CA-1 a CA-9 con evidencia (T12); revisión T13 aprobada con 3 defectos de frontend corregidos (T13a/T13b). CI verde (run 41822187470). |
+| 007b-credenciales | B | borrador | — | Spec en `docs/specs/007b-credenciales/spec.md` (decisiones del usuario incluidas); falta plan y tareas. Ronda adversarial acotada a credenciales e importación. |
 | 008-cola | A | hecha | — | Hecha. Mergeada en `main` (74d96c9). Revisión final (T18) aprobada; 26 hallazgos de las rondas 1 y 2 corregidos; CA-1 a CA-17 con evidencia (T17). Formato en `1daa35d`. |
 | 009-adaptadores-mock | C | pendiente | — | — |
 | 010-dominio-dinero | A | hecha | — | Rama `spec/010-dominio-dinero` sin mergear (desde `spec/003-cifrado`). Caso real USD diferido, sin cifras (pendiente no bloqueante; CA-13 sintético cubre D7). Los 3 límites del lint de `packages/domain` fueron aceptados por el usuario (D10 de la spec). |
@@ -146,22 +147,24 @@ Ninguna.
 
 No son decisiones tomadas ni pendientes del usuario: cada spec las resuelve al planificarse.
 
-- [007] Decidir si la regla de lint relaja el veto a la plantilla `sql` de drizzle (manteniendo prohibidos `.raw` y `set_config`) o si se usan ayudantes/repositorios en `packages/db`. El veto actual solo mira `ImportSpecifier`, así que `import * as d` lo evita (O4 de T13).
+- [lint] Resuelto en 007a (T10): las consultas van en repositorios de `packages/db`; el lint también veta `sql` a través de `import * as` de `drizzle-orm`.
 - [infra] Restringir con `pg_hba` que `contapp_app` no entre a otras bases del clúster (hoy `postgres` conserva `CONNECT` y `TEMP` para PUBLIC).
 - [003] Heredar el permiso por columnas de `credencial` (D3).
-- [007] Agregar la FK `credencial(tenant_id, cliente_id) → cliente(tenant_id, id)`; el backend guarda con el repositorio de 003 (`ON CONFLICT … DO UPDATE` con parámetros, nunca con `EXCLUDED`). Las columnas de estado de `credencial` (RF-034/035) ya las crea 008 (0017 y 0018: columnas, CHECK, trigger y grants).
+- [007b] Agregar la FK `credencial(tenant_id, cliente_id) → cliente(tenant_id, id)`; el backend guarda con el repositorio de 003 (`ON CONFLICT … DO UPDATE` con parámetros, nunca con `EXCLUDED`). Las columnas de estado de `credencial` (RF-034/035) ya las crea 008 (0017 y 0018: columnas, CHECK, trigger y grants).
 - [004/005] El backend nunca importa `@contapp/crypto/descifrado`. El lint lo vigila de forma heurística; la barrera real es la migración `0006`.
 - [despliegue] `huellaPublica` es opcional: si un adaptador KMS/Vault no la trae, la rotación no comprueba que anterior y activa sean distintas, así que debe implementarla o fallar cerrado en producción. Fuera del monorepo, las rutas de llaves deben ser absolutas.
 - [011/013] El lint contra `number` solo cubre `dinero/` y `comprobante/`, y ahí prohíbe tipos indexados, `typeof` e `infer`: si manejan montos en otra carpeta, ampliar `files` de esa regla en `eslint.config.mjs` y escribir las uniones a mano.
 - [013] Columnas de ventas: 010 no las trae (D4); 013 reutiliza `Money` y un `verificarCuadre` genérico sobre su propia lista de componentes.
 - [004] Límites conocidos de la corrección O-1 (T20a, `0010_auth_final.sql`): dos logins simultáneos del mismo usuario con re-hash pendiente → el segundo da 401 y el reintento entra; login o cambio de estudio más cambio de contraseña con la misma cookie pueden interbloquearse → 500 genérico, sin sesión indebida. Aceptados por el usuario con O-2.
-- [007] Toda escritura nueva sobre `membresia`, `cliente` o `asignacion` usa `filtroAlcance` y `ClienteScopeGuard` y sigue el orden global de bloqueo de 005: `bloquearMiembros` primero; después el último Dueño, los clientes por ID y, al final, asignaciones e invitaciones.
+- [007b y siguientes] Toda escritura nueva sobre `membresia`, `cliente` o `asignacion` usa `filtroAlcance` y `ClienteScopeGuard` y sigue el orden global de bloqueo de 005: `bloquearMiembros` primero; después el último Dueño, los clientes por ID y, al final, asignaciones e invitaciones.
 - [despliegue] PostgreSQL de producción con colación ICU `und-x-icu`: la migración 0016 falla si falta. El CI (`postgres:17`, run 40524156972) la confirma.
 - [despliegue] Riesgo aceptado (bajo): Node 24 trae Unicode 16 y el ICU de PostgreSQL puede ser otra versión; un nombre con una letra muy reciente pasa el backend y la BD lo rechaza con `invitacion_invalida`, sin consumir el token.
 - [005] Riesgo aceptado (bajo): se rechazan ZWJ y ZWNJ (U+200D, U+200C, categoría `Cf`) en nombres de invitación; los usan algunos alfabetos (persa, índicos) y emojis compuestos. No afecta a nombres en español.
 - [005] Riesgo aceptado (bajo): `invitacion_vigente` lee la membresía del invitador sin bloqueo; la aceptación se serializa con la revocación en la fila de la invitación (plan, T15).
-- [siguientes] Migraciones desde 0026: 006 usó 0022–0025 (0022 planes, 0023 RLS, 0024 funciones `auth.*`, 0025 ronda adversarial).
-- [007] Llamar `CupoRucs.reservar` tras bloquear al actor y antes de tocar `cliente`, y mapear 409 `cupo_rucs`. Al agregar el archivado, `contarRucs` (`packages/db/src/planes/cupo.ts`) y la consulta de `uso.ts` cuentan solo clientes activos.
+- [siguientes] Migraciones desde 0027: 006 usó 0022–0025; 007a usó 0026 (perfil fiscal y `archivado_at` de `cliente`).
+- [007b] Panel de trabajos y SSE a través del proxy de Next.js (buffering): 007a no lo trae. Falta también una prueba manual de frontend contra backend real con `pnpm servicios:up` (007a T12 no la hizo; ninguna prueba cruza el rewrite de Next).
+- [007b] Plan: carga de la cola con ~1.000 trabajos `cliente.consultar_ruc` frente a los límites por estudio de 008. `cliente.consultar_ruc` solo reemplaza la razón social si sigue siendo «RUC <número>».
+- [permisos] Si algún día se separan `clientes.crear` y `clientes.asignar`, revisar `POST /clientes` con `responsableId` (hoy no exige `clientes.asignar`; decisión del usuario 2026-11-04) y el select de responsable (pediría también `usuarios.ver`).
 - [RF-005/006] Asignar un plan a un estudio en Prueba lo deja en `prueba` con su `prueba_vence_en` (decisión del usuario 2026-11-03: así en R1). Resolver antes de aplicar vencimientos, o un estudio que ya subió de plan expiraría.
 - [R3] El Dueño aún no cambia de plan por su cuenta (RF-005); lo hace el super-admin.
 - [R2] El super-admin no tiene TOTP. Se da de alta con `pnpm db:plataforma-alta --correo <c>` (`MIGRATIONS_DATABASE_URL`).
@@ -169,9 +172,7 @@ No son decisiones tomadas ni pendientes del usuario: cada spec las resuelve al p
 - [006] D4 de la spec dice `FOR UPDATE`; prevalece el bloqueo advisory `plan.cupo:<tenant>` de `plan.md` (ratificado en T15).
 - [pruebas] `packages/db/src/cli/seed-r2b.adv.spec.ts:29` falló una vez en local sin reproducirse en 19 corridas (hipótesis: timeout del `import` en frío bajo carga). Si reaparece en CI, subir su timeout.
 - [004] Precisa D3 (inactividad de 2 h): el stream de trabajos (`GET /trabajos/stream` y su revalidación) no renueva la sesión (008 D22, `auth.sesion_consultar`); las demás rutas renuevan como antes. Documentos de 004 sin cambios.
-- [007] Pantalla o panel de trabajos en el frontend: 008 no la trae. 007 es la primera spec que encola desde la UI (D15) y debe comprobar el SSE a través del proxy de Next.js (buffering).
-- [007] Cliente archivado (008 D17): al despachar, 007 agrega «no archivado» a la revalidación del cliente, con `archivado_at` (que crea 007) en el mismo punto; si falla, el trabajo queda `cancelado` con `acceso_retirado`.
-- [007] Cambio de la clave SOL (008 D23, limitación aceptada): el aviso «si cambió la clave SOL, guarde o verifique de nuevo la credencial SIRE» y la verificación (HU-09) devuelven `sire_api` a `verificada`; hasta entonces los trabajos SIRE se cancelan con `credencial_invalida`.
+- [007b] Cambio de la clave SOL (008 D23, limitación aceptada): el aviso «si cambió la clave SOL, guarde o verifique de nuevo la credencial SIRE» y la verificación (HU-09) devuelven `sire_api` a `verificada`; hasta entonces los trabajos SIRE se cancelan con `credencial_invalida`.
 - [009] Adaptador real de `SireAuth` detrás del puerto de `packages/sunat/src/puertos.ts` (008 deja el mock). Si con los errores reales de SUNAT distingue la causa (`invalid_client` → `sire_api`; usuario o clave → `sol`), `ErrorCredencial` indica la credencial que falló (008 D23, opción a) en vez de marcar siempre `sire_api`.
 - [017] Reemplazar `NotificadorLog` por el notificador real (la notificación en la app es de 017, HU-10). Hasta entonces el `Notificador` de 008 entrega «como máximo una vez».
 - [despliegue] NTP en los hosts de PostgreSQL y Redis. Cupos, locks y reconciliador usan solo `TIME` de Redis; el desfase PG–Redis retrasa hasta Δ el primer despacho de un trabajo nuevo (riesgo bajo).
