@@ -1,4 +1,9 @@
-import { trabajoVistaSchema, type TrabajoVista } from "@contapp/shared";
+import {
+  resumenTrabajosSchema,
+  trabajoVistaSchema,
+  type ResumenTrabajos,
+  type TrabajoVista,
+} from "@contapp/shared";
 import { api, type RespuestaApi } from "./api";
 import { obtenerSesion } from "./sesion";
 
@@ -6,7 +11,7 @@ import { obtenerSesion } from "./sesion";
 // `/api/trabajos/stream`. Se usa `fetch` con lector de flujo (no `EventSource`) porque el stream
 // necesita `X-Estudio`. Todo lo que llega se valida con el esquema de `shared`; no calcula negocio.
 
-export type { TrabajoVista };
+export type { ResumenTrabajos, TrabajoVista };
 
 /** Espera inicial antes de reconectar; se duplica hasta `ESPERA_MAXIMA_MS` (que también acota el sondeo). */
 export const ESPERA_INICIAL_MS = 1_000;
@@ -29,6 +34,21 @@ export async function listarTrabajos(): Promise<
     if (p.success) datos.push(p.data);
   }
   return { ok: true, status: r.status, datos };
+}
+
+/**
+ * Conteo por tipo y estado de TODOS los trabajos del estudio (`GET /trabajos` trae solo los 100 más recientes), o
+ * `null` si la ruta falla o responde algo inválido: el panel cuenta entonces con lo que trae el listado.
+ */
+export async function obtenerResumenTrabajos(): Promise<ResumenTrabajos | null> {
+  try {
+    const r = await api<unknown>("/trabajos/resumen");
+    if (!r.ok) return null;
+    const p = resumenTrabajosSchema.safeParse(r.datos);
+    return p.success ? p.data : null;
+  } catch {
+    return null;
+  }
 }
 
 export const cancelarTrabajo = (
@@ -111,6 +131,8 @@ const dormir = (ms: number, senal: AbortSignal): Promise<void> =>
 export interface OpcionesSeguimiento {
   /** Estado completo traído por `GET /trabajos` (al abrir y tras cada reconexión; el stream no trae estado inicial). */
   alListar: (trabajos: TrabajoVista[]) => void;
+  /** Conteo total por tipo y estado, traído junto con cada listado (los 100 del listado no bastan). */
+  alResumen?: (resumen: ResumenTrabajos) => void;
   /** Un cambio de estado llegado por el stream. */
   alEvento: (trabajo: TrabajoVista) => void;
   /** `status` del último listado fallido, o `null` cuando volvió a funcionar. */
@@ -133,13 +155,15 @@ export async function seguirTrabajos(o: OpcionesSeguimiento): Promise<void> {
     try {
       const sesion = await obtenerSesion();
       if (senal.aborted) return;
+      let abierto: Promise<Response | null> = Promise.resolve(null);
       if (sesion) {
         const headers: Record<string, string> = {
           Accept: "text/event-stream",
         };
         if (sesion.estudioActivo) headers["X-Estudio"] = sesion.estudioActivo.id;
-        // Se abre antes de listar: lo que ocurra durante el listado queda en el flujo y se lee después.
-        respuesta = await fetch("/api/trabajos/stream", {
+        // Se abre antes de listar: lo que ocurra durante el listado queda en el flujo y se lee después. No se
+        // espera aquí (D-2): Next no entrega las cabeceras hasta el primer byte y la lista no debe esperarlas.
+        abierto = fetch("/api/trabajos/stream", {
           method: "GET",
           credentials: "same-origin",
           cache: "no-store",
@@ -147,21 +171,26 @@ export async function seguirTrabajos(o: OpcionesSeguimiento): Promise<void> {
           signal: senal,
         }).catch(() => null);
       }
-      const lista = await listarTrabajos();
+      const [lista, resumen] = await Promise.all([
+        listarTrabajos(),
+        obtenerResumenTrabajos(),
+      ]);
       if (senal.aborted) {
-        void respuesta?.body?.cancel().catch(() => undefined);
+        void abierto.then((r) => r?.body?.cancel().catch(() => undefined));
         return;
       }
       if (lista.ok && lista.datos) {
         o.alError(null);
         o.alListar(lista.datos);
+        if (resumen) o.alResumen?.(resumen);
       } else {
         o.alError(lista.status);
         if (lista.status === 401 || lista.status === 403) {
-          void respuesta?.body?.cancel().catch(() => undefined);
+          void abierto.then((r) => r?.body?.cancel().catch(() => undefined));
           return;
         }
       }
+      respuesta = await abierto;
       if (respuesta?.ok && respuesta.body) {
         await leerEventos(respuesta.body, o.alEvento);
       } else {

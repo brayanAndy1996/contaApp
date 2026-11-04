@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MENSAJES, mensajeDeError } from "../../../lib/acceso";
 import {
   cancelarTrabajo,
+  obtenerResumenTrabajos,
   seguirTrabajos,
+  type ResumenTrabajos,
   type TrabajoVista,
 } from "../../../lib/trabajos";
 
@@ -50,6 +52,9 @@ const MAX_FILAS_POR_TIPO = 10;
 /** 250 ms entre repintados = como mucho 4 por segundo. */
 const LOTE_MS = 250;
 
+/** Un evento refresca el conteo total, como mucho una vez cada 500 ms. */
+const REFRESCO_RESUMEN_MS = 500;
+
 const TERMINALES: ReadonlySet<TrabajoVista["estado"]> = new Set([
   "completado",
   "error",
@@ -74,10 +79,38 @@ function agrupar(trabajos: Map<string, TrabajoVista>) {
   return [...porTipo.entries()];
 }
 
+interface Conteo {
+  total: number;
+  terminados: number;
+  conError: number;
+}
+
+/** Conteo por tipo de TODOS los trabajos (el listado trae solo los 100 más recientes, D-1). */
+function conteos(resumen: ResumenTrabajos): Map<string, Conteo> {
+  const r = new Map<string, Conteo>();
+  for (const f of resumen) {
+    const c = r.get(f.tipo) ?? { total: 0, terminados: 0, conError: 0 };
+    c.total += f.total;
+    if (TERMINALES.has(f.estado)) c.terminados += f.total;
+    if (f.estado === "error") c.conError += f.total;
+    r.set(f.tipo, c);
+  }
+  return r;
+}
+
+function conteoDeLista(lista: TrabajoVista[]): Conteo {
+  return {
+    total: lista.length,
+    terminados: lista.filter((t) => TERMINALES.has(t.estado)).length,
+    conError: lista.filter((t) => t.estado === "error").length,
+  };
+}
+
 export default function Trabajos() {
   const [trabajos, setTrabajos] = useState<Map<string, TrabajoVista>>(
     new Map(),
   );
+  const [resumen, setResumen] = useState<ResumenTrabajos | null>(null);
   const [cargado, setCargado] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorCancelar, setErrorCancelar] = useState<string | null>(null);
@@ -86,6 +119,8 @@ export default function Trabajos() {
   );
   const pendientes = useRef<TrabajoVista[]>([]);
   const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refresco = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const montado = useRef(true);
 
   const aplicarLote = useCallback(() => {
     temporizador.current = null;
@@ -99,7 +134,15 @@ export default function Trabajos() {
     });
   }, []);
 
+  const refrescarResumen = useCallback(() => {
+    refresco.current = null;
+    void obtenerResumenTrabajos().then((r) => {
+      if (r && montado.current) setResumen(r);
+    });
+  }, []);
+
   useEffect(() => {
+    montado.current = true;
     const control = new AbortController();
     void seguirTrabajos({
       senal: control.signal,
@@ -109,9 +152,11 @@ export default function Trabajos() {
         setTrabajos(new Map(lista.map((t) => [t.id, t])));
         setCargado(true);
       },
+      alResumen: setResumen,
       alEvento: (t) => {
         pendientes.current.push(t);
         temporizador.current ??= setTimeout(aplicarLote, LOTE_MS);
+        refresco.current ??= setTimeout(refrescarResumen, REFRESCO_RESUMEN_MS);
       },
       alError: (status) => {
         setError(status === null ? null : mensajeDeError(status, null));
@@ -121,12 +166,15 @@ export default function Trabajos() {
       if (!control.signal.aborted) setError(MENSAJES.errorGeneral);
     });
     return () => {
+      montado.current = false;
       control.abort();
+      if (refresco.current) clearTimeout(refresco.current);
+      refresco.current = null;
       if (temporizador.current) clearTimeout(temporizador.current);
       temporizador.current = null;
       pendientes.current = [];
     };
-  }, [aplicarLote]);
+  }, [aplicarLote, refrescarResumen]);
 
   async function cancelar(id: string) {
     setErrorCancelar(null);
@@ -148,6 +196,7 @@ export default function Trabajos() {
 
   // Cancelar no se oculta por permiso: lo decide el servidor (creador o rol, D9) y su 403/409 se muestra.
   const grupos = agrupar(trabajos);
+  const totales = resumen ? conteos(resumen) : null;
 
   return (
     <main className="mx-auto max-w-4xl space-y-4 p-6">
@@ -166,16 +215,17 @@ export default function Trabajos() {
         <p>{MENSAJES_PANEL.vacio}</p>
       )}
       {grupos.map(([tipo, lista]) => {
-        const resumido = lista.length > MAX_FILAS_POR_TIPO;
+        // Con el resumen del servidor el total cubre más de los 100 que trae el listado; si falló, cuenta la lista.
+        const { total, terminados, conError } =
+          totales?.get(tipo) ?? conteoDeLista(lista);
+        const resumido = total > MAX_FILAS_POR_TIPO;
         const abierto = !resumido || desplegados.has(tipo);
-        const terminados = lista.filter((t) => TERMINALES.has(t.estado)).length;
-        const conError = lista.filter((t) => t.estado === "error").length;
         return (
           <section key={tipo} className="space-y-2">
             {resumido && (
               <div className="flex flex-wrap items-center gap-3">
                 <p>
-                  {`${nombreDeTipo(tipo)}: ${conMiles(terminados)} de ${conMiles(lista.length)}`}
+                  {`${nombreDeTipo(tipo)}: ${conMiles(terminados)} de ${conMiles(total)}`}
                 </p>
                 {conError > 0 && (
                   <span className="text-red-600">{`${conMiles(conError)} con error`}</span>

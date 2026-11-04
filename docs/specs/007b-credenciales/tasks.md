@@ -23,9 +23,9 @@ Nivel B con una ronda adversarial acotada (spec D11). Flujo 04 §1.3: pruebas pr
 | T14  | Frontend: asistente de importación                                                                 | frontend   | sonnet | T6, T13 (`lib`)     | ✓   | —   | [x]    |
 | T15  | Frontend: panel de trabajos con SSE, cabecera `no-transform` y `next.config`                       | frontend   | sonnet | T6 ∥ T14            | ✓   | —   | [x]    |
 | T16  | Ronda adversarial: credenciales e importación (caja negra, luego blanca; ≤ 15 pruebas)             | adversario | opus   | T9, T10, T12, T12b, T13, T14 | — | ✓ | [x]    |
-| T17  | Corregir hallazgos de la ronda                                                                     | backend    | sonnet | T16                 | —   | —   | [ ]    |
+| T17  | Corregir hallazgos de la ronda                                                                     | backend    | sonnet | T16                 | —   | —   | [x]    |
 | T18  | Prueba manual del frontend contra el backend real (`pnpm servicios:up`, rewrite de Next y SSE)     | tester     | sonnet | T15, T17            | —   | —   | [x]    |
-| T18a | Corregir los defectos de T18 (solo si los hay)                                                     | backend / frontend | sonnet | T18         | ✓   | —   | [ ]    |
+| T18a | Corregir los defectos de T18 (solo si los hay)                                                     | backend / frontend | sonnet | T18         | ✓   | —   | [x]    |
 | T19  | Verificar CA-1 a CA-10 con evidencia (suites completas)                                            | tester     | sonnet | T17, T18a           | —   | —   | [ ]    |
 | T20  | Revisión contra la spec                                                                            | arquitecto | sonnet | T19                 | —   | —   | [ ]    |
 | T21  | Cierre: tasks y commit (el orquestador actualiza ESTADO)                                           | devops     | haiku  | T20                 | —   | —   | [ ]    |
@@ -175,6 +175,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: el Resultado de T16 y los archivos que cita (y sus `*.adv.spec.ts`).
 - **Hacer**: corregir cada hallazgo sin tocar las pruebas; si un hallazgo exige cambiar la spec, `requiere usuario`. Si es del parser, relanzar en `opus`.
 - **Hecho cuando**: todas las pruebas adversariales en verde y las suites de los paquetes tocados sin regresiones. Commit `fix(007b): hallazgos de la ronda adversarial`.
+- **Resultado**: RESULTADO_T17
 
 ## T18 · Prueba manual contra el stack real (tester · sonnet)
 
@@ -203,6 +204,7 @@ Defectos (no corregidos; para T18a):
 - **Contexto (leer solo esto)**: el Resultado de T18 y los archivos que cita.
 - **Hacer**: pruebas automáticas en rojo para lo que se pueda reproducir sin el stack (la regresión mínima) y su corrección; si T18 no encuentra defectos, se marca `[x]` sin cambios. Si hay que cambiar `next.config.ts` (`compress`, tiempo de proxy), también su prueba.
 - **Hecho cuando**: cada `D-n` cerrado con prueba y se repite el punto correspondiente de T18. Commit `fix(007b): defectos de la prueba manual`.
+- **Resultado**: D-1 y D-2 cerrados con prueba en rojo primero; D-3 aceptado por el usuario (sin código). **D-1**: `GET /trabajos` no cambia de forma (sigue siendo `TrabajoVista[]`, 100 más recientes); se añade `GET /trabajos/resumen` (`@SoloEstudio`, mismo `filtroAlcance`, `withTenant`) que devuelve `[{tipo, estado, total}]` de TODOS los trabajos visibles (`resumenTrabajosSchema` en shared, `resumenTrabajos` en `packages/db/src/trabajos/registro.ts`, `TrabajosService.resumen`). El panel pide listado y resumen en paralelo en cada sincronía (abrir y reconectar) y refresca el resumen como mucho cada 500 ms tras un evento; el total, «N de M» y «N con error» salen del resumen y, si la ruta falla, de la lista (degradación). Pruebas: `resumen.int.spec.ts` (105 completados con listado de 100, alcance del asistente, otro estudio, 401), `registro.spec.ts` (SQL con group by, sin limit), `esquemas.spec.ts`, y 4 del panel (total 1.000 con listado de 100, tras reconectar, tras un evento, resumen caído). **D-2**: `stream.service.ts` escribe `: conectado` justo después de `flushHeaders()` (una vez, antes de cualquier latido) y `seguirTrabajos` ya no espera el `fetch` del stream para listar (lo abre antes, lista en paralelo y lo lee después). Pruebas: `stream.service.spec.ts` (un solo saludo tras las cabeceras) y 1 del panel (la lista aparece con las cabeceras del stream retenidas). Las dobles `RespuestaFalsa` de `stream.service.spec.ts` y `stream-t16.spec.ts` no acumulan el saludo en `texto` (comentario justificado) para que sus aserciones exactas del cuerpo sigan valiendo. D-3: `plan.md` («Carga de la cola → Drenaje») ahora dice ~2 trabajos/s por estudio, ~8,5 min por 1.000, aceptado y a revisar en 009. Sin cambios en `next.config.ts`. No se repitió la prueba manual con el stack real (los puntos 3 y 5 de T18 quedan para T19 si se quiere evidencia en vivo).
 
 ## T19 · Verificar criterios (tester · sonnet)
 

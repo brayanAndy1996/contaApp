@@ -5,6 +5,7 @@ import {
   listarTrabajos,
   miembroActual,
   posicion,
+  resumenTrabajos,
   transicionar,
   type Alcance,
   type ContappDb,
@@ -16,6 +17,7 @@ import { publicarEvento, vistaDeFila } from "@contapp/queue";
 import {
   alcanceDe,
   listarTrabajosQuery,
+  type ResumenTrabajos,
   type Rol,
   type TrabajoVista,
 } from "@contapp/shared";
@@ -127,6 +129,15 @@ export class TrabajosService {
         if (t.estado === "en_cola") t.posicion = await posicion(tx, t.id);
       }
       return lista;
+    });
+  }
+
+  /** Conteo por tipo y estado de todos los trabajos visibles (D-1 de T18a: el listado se limita a 100). */
+  resumen(sesion: SesionResuelta): Promise<ResumenTrabajos> {
+    return this.db.withTenant(contextoSesion(sesion), async (tx) => {
+      const actor = await actorDe(tx, sesion.usuarioId);
+      if (actor === null) throw new AccesoError("estudio_requerido");
+      return resumenTrabajos(tx, actor.alcance);
     });
   }
 

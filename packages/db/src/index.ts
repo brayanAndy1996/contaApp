@@ -97,6 +97,7 @@ export {
   listarTrabajos,
   posicion,
   purgarTerminados,
+  resumenTrabajos,
   revalidarEncolado,
   siguienteDisponible,
   siguientesDisponibles,
@@ -115,6 +116,7 @@ export type {
   NuevoTrabajo,
   PrioridadTrabajo,
   Revalidable,
+  ResumenTrabajoDb,
   TrabajoFila,
   TrabajoVistaDb,
 } from "./trabajos/registro";

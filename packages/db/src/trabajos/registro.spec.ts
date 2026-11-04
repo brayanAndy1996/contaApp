@@ -12,6 +12,7 @@ import {
   listarTrabajos,
   posicion,
   purgarTerminados,
+  resumenTrabajos,
   revalidarEncolado,
   siguienteDisponible,
   trabajoVivoPorClave,
@@ -418,5 +419,36 @@ describe("purgarTerminados y revalidarEncolado", () => {
       rolesPermitidos: null,
     });
     expect(r).toBe("acceso_retirado");
+  });
+});
+
+// 007b T18a (D-1): conteo por tipo y estado de TODOS los trabajos visibles (el listado se limita a 100).
+describe("resumenTrabajos", () => {
+  it("agrupa por tipo y estado, devuelve enteros y no limita a 100", async () => {
+    const { tx, llamadas } = txFalso({
+      rows: [
+        { tipo: "cliente.consultar_ruc", estado: "completado", total: "600" },
+        { tipo: "cliente.consultar_ruc", estado: "en_cola", total: 400 },
+      ],
+    });
+    const r = await resumenTrabajos(tx, { tipo: "global" });
+    expect(r).toEqual([
+      { tipo: "cliente.consultar_ruc", estado: "completado", total: 600 },
+      { tipo: "cliente.consultar_ruc", estado: "en_cola", total: 400 },
+    ]);
+    const { texto } = llamadas[0]!;
+    expect(texto).toMatch(/group by/i);
+    expect(texto).toMatch(/count\(/i);
+    expect(texto).not.toMatch(/limit/i);
+    expect(texto).not.toMatch(/asignacion/);
+  });
+
+  it("alcance asignado: el usuario viaja como parametro y la consulta usa asignacion", async () => {
+    const { tx, llamadas } = txFalso({ rows: [] });
+    const usuarioId = "00000000-0000-4000-8000-0000000000e1";
+    expect(await resumenTrabajos(tx, { tipo: "asignado", usuarioId })).toEqual([]);
+    expect(llamadas[0]!.texto).toMatch(/asignacion/);
+    expect(llamadas[0]!.valores).toContain(usuarioId);
+    expect(llamadas[0]!.texto).not.toContain(usuarioId);
   });
 });

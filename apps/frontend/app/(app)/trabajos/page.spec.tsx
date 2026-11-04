@@ -207,6 +207,121 @@ describe("/trabajos · panel con SSE (007b)", () => {
     });
   });
 
+  // 007b T18a. D-1: `GET /trabajos` trae solo los 100 más recientes; el total y el resumen salen de
+  // `GET /trabajos/resumen` (conteo por tipo y estado de todos), también tras reconectar y al llegar eventos.
+  describe("más de 100 trabajos (D-1)", () => {
+    const filaResumen = (estado: string, total: number, tipo = RUC) => ({
+      tipo,
+      estado,
+      total,
+    });
+    /** 1.000 consultas: 600 completadas, 40 con error, 360 en cola; el listado solo trae 100 en cola. */
+    const MIL = [
+      filaResumen("completado", 600),
+      filaResumen("error", 40),
+      filaResumen("en_cola", 360),
+    ];
+    const cien = () => varios(901, 100, RUC, "en_cola");
+
+    it("el resumen cuenta los 1.000 aunque el listado traiga 100", async () => {
+      montar({
+        listado: lista(cien()),
+        resumen: () => ({ status: 200, cuerpo: MIL }),
+      });
+      expect(
+        await screen.findByText(
+          M.resumen(M.tipos[RUC], "640", "1.000"),
+          {},
+          { timeout: 5000 },
+        ),
+      ).toBeTruthy();
+      expect(screen.getByText(M.conError("40"))).toBeTruthy();
+      expect(screen.queryAllByRole("row").length).toBeLessThan(20);
+    });
+
+    it("tras reconectar (el listado vuelve con 100) el total sigue en 1.000", async () => {
+      const { panel } = montar({
+        listado: lista(cien()),
+        resumen: () => ({ status: 200, cuerpo: MIL }),
+      });
+      await screen.findByText(
+        M.resumen(M.tipos[RUC], "640", "1.000"),
+        {},
+        { timeout: 5000 },
+      );
+      const c = await conectado(panel);
+      act(() => c.cerrar());
+      await vi.waitFor(() => expect(panel.listados()).toBeGreaterThanOrEqual(2), {
+        timeout: 5000,
+      });
+      await vi.waitFor(() => expect(panel.resumenes()).toBeGreaterThanOrEqual(2), {
+        timeout: 5000,
+      });
+      expect(screen.getByText(M.resumen(M.tipos[RUC], "640", "1.000"))).toBeTruthy();
+      expect(screen.queryByText(/ de 100$/)).toBeNull();
+    });
+
+    it("un evento refresca el resumen y el panel muestra 641 de 1.000", async () => {
+      const { panel } = montar({
+        listado: lista(cien()),
+        resumen: (vez) => ({
+          status: 200,
+          cuerpo:
+            vez === 1
+              ? MIL
+              : [
+                  filaResumen("completado", 601),
+                  filaResumen("error", 40),
+                  filaResumen("en_cola", 359),
+                ],
+        }),
+      });
+      await screen.findByText(
+        M.resumen(M.tipos[RUC], "640", "1.000"),
+        {},
+        { timeout: 5000 },
+      );
+      const c = await conectado(panel);
+      c.evento(trabajoN(901, RUC, "completado"));
+      expect(
+        await screen.findByText(
+          M.resumen(M.tipos[RUC], "641", "1.000"),
+          {},
+          { timeout: 3000 },
+        ),
+      ).toBeTruthy();
+    });
+
+    it("si el resumen falla, cuenta con lo que trae el listado", async () => {
+      montar({
+        listado: lista(varios(1, 12, RUC, "completado")),
+        resumen: () => ({ status: 500, cuerpo: { codigo: "x" } }),
+      });
+      expect(
+        await screen.findByText(M.resumen(M.tipos[RUC], "12", "12")),
+      ).toBeTruthy();
+    });
+  });
+
+  // D-2: Next no entrega las cabeceras del stream hasta su primer byte (~15 s con el flujo ocioso); la lista no
+  // puede esperar a ese `fetch`.
+  describe("lista sin esperar las cabeceras del stream (D-2)", () => {
+    it("muestra la lista aunque el stream aún no haya respondido y luego lo lee", async () => {
+      const { panel } = montar({
+        listado: lista([trabajoN(1, SOL, "en_cola")]),
+        cabecerasStreamTarde: true,
+      });
+      await vi.waitFor(() => fila(M.tipos[SOL]), { timeout: 1000 });
+      expect(panel.conexiones).toHaveLength(1);
+      act(() => panel.liberarCabeceras());
+      panel.conexiones[0]!.evento(trabajoN(1, SOL, "completado"));
+      await vi.waitFor(
+        () => expect(fila(M.tipos[SOL]).textContent).toContain(M.estados.completado),
+        { timeout: 2000 },
+      );
+    });
+  });
+
   describe("eventos del stream (D10, CA-7)", () => {
     it("abre el stream con fetch, X-Estudio y Accept de event-stream (no EventSource)", async () => {
       const { panel } = montar({ listado: lista([trabajoN(1, SOL, "en_cola")]) });

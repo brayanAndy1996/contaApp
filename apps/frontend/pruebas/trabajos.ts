@@ -86,6 +86,10 @@ export interface PanelFalso {
   conexiones: ConexionStream[];
   /** Cuántas veces se pidió `GET /api/trabajos`. */
   listados(): number;
+  /** Cuántas veces se pidió `GET /api/trabajos/resumen` (007b T18a, D-1). */
+  resumenes(): number;
+  /** Entrega las cabeceras del stream retenidas por `cabecerasStreamTarde` (D-2). */
+  liberarCabeceras(): void;
 }
 
 export interface OpcionesPanel {
@@ -94,13 +98,25 @@ export interface OpcionesPanel {
   /** `true` → la apertura del stream falla (red caída / 503); por defecto abre normal. */
   rechazarStream?: (vez: number) => boolean;
   permisos?: string[];
+  /**
+   * Respuesta de `GET /api/trabajos/resumen` (la `vez`-ésima llamada, desde 1): conteo por tipo y estado de TODOS
+   * los trabajos. Sin esta opción la ruta responde 404 y el panel cuenta con lo que trae el listado.
+   */
+  resumen?: (vez: number) => { status: number; cuerpo?: unknown };
+  /** `true` → el `fetch` del stream no resuelve hasta `liberarCabeceras()` (Next sin primer byte, D-2). */
+  cabecerasStreamTarde?: boolean;
 }
 
 /** `fetch` simulado del panel: sesión, permisos, listado y un stream SSE por conexión. */
 export function instalarFetchPanel(opciones: OpcionesPanel): PanelFalso {
   const conexiones: ConexionStream[] = [];
   let listados = 0;
+  let resumenes = 0;
   let intentosStream = 0;
+  let liberar: () => void = () => undefined;
+  const retenidas = new Promise<void>((r) => {
+    liberar = r;
+  });
   const codificador = new TextEncoder();
 
   const json = (status: number, cuerpo: unknown = {}) =>
@@ -131,6 +147,12 @@ export function instalarFetchPanel(opciones: OpcionesPanel): PanelFalso {
       if (method === "GET" && ruta === "/api/trabajos") {
         listados += 1;
         const r = opciones.listado(listados);
+        return json(r.status, r.cuerpo);
+      }
+      if (method === "GET" && ruta === "/api/trabajos/resumen") {
+        resumenes += 1;
+        if (!opciones.resumen) return json(404, { codigo: "no_encontrado" });
+        const r = opciones.resumen(resumenes);
         return json(r.status, r.cuerpo);
       }
       if (method === "GET" && ruta === "/api/trabajos/stream") {
@@ -174,6 +196,7 @@ export function instalarFetchPanel(opciones: OpcionesPanel): PanelFalso {
           fallar: () =>
             terminar(() => controlador.error(new TypeError("network error"))),
         });
+        if (opciones.cabecerasStreamTarde) await retenidas;
         return new Response(cuerpo, {
           status: 200,
           headers: { "content-type": "text/event-stream; charset=utf-8" },
@@ -183,5 +206,10 @@ export function instalarFetchPanel(opciones: OpcionesPanel): PanelFalso {
     },
   );
   vi.stubGlobal("fetch", falso);
-  return { conexiones, listados: () => listados };
+  return {
+    conexiones,
+    listados: () => listados,
+    resumenes: () => resumenes,
+    liberarCabeceras: () => liberar(),
+  };
 }

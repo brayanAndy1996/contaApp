@@ -61,8 +61,21 @@ class RespuestaFalsa extends EventEmitter implements RespuestaSse {
   setHeader() {
     return this;
   }
-  flushHeaders() {}
+  // 007b T18a (D-2): el primer comentario `: conectado` fuerza el primer byte (Next no entrega las cabeceras antes).
+  // No se acumula en `texto` para que las aserciones sobre el cuerpo de eventos y latidos sigan siendo exactas;
+  // se verifica aparte que salió una vez y después de `flushHeaders()`.
+  cabecerasEnviadas = false;
+  saludos = 0;
+  saludoTrasCabeceras = false;
+  flushHeaders() {
+    this.cabecerasEnviadas = true;
+  }
   write(t: string) {
+    if (t === ": conectado\n\n" && this.saludos === 0) {
+      this.saludos = 1;
+      this.saludoTrasCabeceras = this.cabecerasEnviadas;
+      return true;
+    }
     this.texto += t;
     return true;
   }
