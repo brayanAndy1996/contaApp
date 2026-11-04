@@ -58,6 +58,8 @@ La asignación (005) pasa a responder 409 `cliente_archivado` sobre archivados. 
 - **UI en HTML + Tailwind sin shadcn**: ratificada por precedente (005, 006; 001 §5 difiere shadcn hasta que una spec lo necesite). `docs/03-arquitectura.md` («Tailwind + shadcn/ui») queda sin cumplir: pregunta abierta.
 - **Contrato frontend↔backend**: revisado archivo por archivo, sin desajustes. Defectos menores de frontend D1 a D3 en `tasks.md` (T13).
 
-Preguntas abiertas para el usuario (no bloquean el cierre de 007a):
+Respuestas del usuario (2026-11-04): P1 «Dejar y anotar (Recom.)»: `POST /clientes` con `responsableId` no exige `clientes.asignar`; revisar si alguna vez se separan los permisos de crear y asignar. P2 «Corregir el doc (Recom.)»: 03 §UI ahora dice HTML + Tailwind, sin shadcn hasta que una spec lo necesite.
+
+Preguntas que se hicieron al usuario:
 1. `POST /clientes` con `responsableId`: (a) dejarlo como está y anotarlo en D3 (recomendada: sin efecto con los roles actuales); (b) exigir además `clientes.asignar` en el servidor.
 2. shadcn/ui: (a) seguir sin él hasta que una spec lo exija y corregir 03 §UI para decirlo (recomendada); (b) introducirlo en una spec propia antes de la siguiente de UI.
