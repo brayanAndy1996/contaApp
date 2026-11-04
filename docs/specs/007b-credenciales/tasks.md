@@ -32,6 +32,8 @@ Nivel B con una ronda adversarial acotada (spec D11). Flujo 04 §1.3: pruebas pr
 
 Escalamientos: ninguno previsto. T11 es `opus` por ser el parser de archivos del usuario (04 §3.2); T12 concentra el orden de bloqueo y las carreras de CA-3: si falla 2 veces nace de nuevo en `opus` (04 §3.3). T12b puede escalar a `sonnet` si `haiku` falla una vez. T18 es `tester` y no `devops`: debe leer el comportamiento del stream y decidir; si no consigue un navegador, mide con `curl -N` a través del puerto de Next y lo anota. Si T20 encuentra defectos se añaden T20a (pruebas en rojo) y T20b (corrección) con el precedente de 007a T13a/T13b.
 
+Decisiones del usuario tras T16 y T18 (2026-11-04): H-007b-4 «Exigir permiso vigente (Recom.)»: quien encoló solo cancela si todavía tiene el permiso del tipo de trabajo (precisa 008 D9). D-3 de T18 «Aceptar en R1 (Recom.)»: la cola `xml` despacha ~2 trabajos/s por estudio (~8,5 min por 1.000 consultas); se corrige el texto del plan y se revisa en 009 con la consulta real. H-007b-1, H-007b-2 y H-007b-3 se corrigen en T17; D-1 y D-2 de T18 en T18a.
+
 Reglas comunes:
 
 - Un commit por tarea (Conventional Commits `test(007b): …`, `feat(007b): …`, `fix(007b): …`) con el trailer `Co-Authored-By` del modelo que la ejecutó. Las tareas ∥ hacen commit una tras otra. Sin push del subagente: el orquestador lo hace tras cada tarea.
