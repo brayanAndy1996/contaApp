@@ -18,7 +18,7 @@ Nivel B con una ronda adversarial acotada (spec D11). Flujo 04 §1.3: pruebas pr
 | T10  | Módulo `credenciales` del backend: cifrado, estado y verificar                                     | backend    | sonnet | T4, T7, T8 ∥ T9     | ✓   | —   | [ ]    |
 | T11  | Lector `.xlsx`/`.csv` y validación de filas                                                        | backend    | opus   | T3, T8 ∥ T9, T10    | ✓   | —   | | [x]    |
 | T12  | Importación: vista previa, confirmar (cupo, bloqueos), `encolarLote` y alta que encola la consulta | backend    | sonnet | T4, T10, T11        | ✓   | —   | [ ]    |
-| T12b | Plantilla `.xlsx` en memoria y ruta de descarga                                                    | backend    | haiku  | T11 ∥ T12           | ✓   | —   | [ ]    |
+| T12b | Plantilla `.xlsx` en memoria y ruta de descarga                                                    | backend    | haiku  | T11 ∥ T12           | ✓   | —   | [x]    |
 | T13  | Frontend: cliente HTTP y sección de credenciales del detalle                                       | frontend   | sonnet | T6 ∥ T7–T12b        | ✓   | —   | [x]    |
 | T14  | Frontend: asistente de importación                                                                 | frontend   | sonnet | T6, T13 (`lib`)     | ✓   | —   | [x]    |
 | T15  | Frontend: panel de trabajos con SSE, cabecera `no-transform` y `next.config`                       | frontend   | sonnet | T6 ∥ T14            | ✓   | —   | [x]    |
@@ -126,6 +126,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: HTTP, plantilla), `apps/backend/src/modules/importacion/{plantilla.spec.ts,importacion.controller.ts}`, `apps/backend/test/soporte-importacion.ts`.
 - **Hacer**: `plantilla.ts` (genera el `.xlsx` en memoria con `fflate`: hoja de datos con la cabecera y hoja «Instrucciones»; sin datos de ningún estudio) y la ruta `GET /clientes/importacion/plantilla` (`clientes.crear`, `Content-Disposition`, `no-store`).
 - **Hecho cuando**: las pruebas de plantilla de T3 y T4 en verde. Commit `feat(007b): plantilla de importación`.
+- **Resultado**: verde (`plantilla.spec.ts` 5/5; `importacion/`, `acceso/rutas.spec` y `planes/rutas.spec`, 108 OK; `tsc` y `eslint` limpios). `plantilla.ts` genera el `.xlsx` con `fflate`: hoja «Clientes» (cabecera en negrita, columnas de credencial en texto) e «Instrucciones»; sin filas ni fórmulas, y la salida es idéntica entre llamadas. Nuevos `importacion.controller.ts` (`GET /clientes/importacion/plantilla`, `clientes.crear`, `Content-Disposition`, `no-store`) e `importacion.module.ts`, registrado en `app.module.ts`: T12 añade ahí su servicio y sus rutas (leer antes de editar). T4 no cubre la ruta todavía; se comprobó con una prueba HTTP temporal, ya borrada.
 
 ## T13 · Frontend: cliente HTTP y credenciales (frontend · sonnet)
 
