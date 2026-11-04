@@ -172,3 +172,51 @@ describe("MockSireAuth", () => {
     });
   });
 });
+
+// Spec 007b (D6; plan: Riesgos): centinela de «clave errada». `clientSecret === "clave-errada"` -> ErrorCredencial
+// sin tocar `fallar()`; la llamada cuenta en `llamadas` y no consume número de token. El comportamiento por
+// defecto (cualquier otro secreto) no cambia.
+describe("MockSireAuth: centinela de clave errada (007b)", () => {
+  const errada = { ...cred(RUC_A), clientSecret: "clave-errada" };
+
+  it("clientSecret «clave-errada» -> ErrorCredencial", async () => {
+    const mock = new MockSireAuth({ ahora: () => AHORA });
+    await expect(mock.obtenerToken(errada)).rejects.toBeInstanceOf(
+      ErrorCredencial,
+    );
+    await expect(
+      mock.obtenerToken({ ...errada, ruc: RUC_B, claveSol: "otra" }),
+    ).rejects.toBeInstanceOf(ErrorCredencial);
+  });
+
+  it("cuenta la llamada pero no consume número de token, y no envenena el mock", async () => {
+    const mock = new MockSireAuth({ ahora: () => AHORA });
+    const esperado = (
+      await new MockSireAuth({ ahora: () => AHORA }).obtenerToken(cred(RUC_A))
+    ).token;
+    await expect(mock.obtenerToken(errada)).rejects.toBeInstanceOf(
+      ErrorCredencial,
+    );
+    expect(mock.llamadas).toBe(1);
+    expect((await mock.obtenerToken(cred(RUC_A))).token).toBe(esperado);
+  });
+
+  it("cualquier otro secreto sigue funcionando (incluida otra capitalización)", async () => {
+    const mock = new MockSireAuth({ ahora: () => AHORA });
+    for (const clientSecret of ["CLAVE-ERRADA", "clave-errada ", "x", "-=@+"]) {
+      await expect(
+        mock.obtenerToken({ ...cred(RUC_A), clientSecret }),
+      ).resolves.toHaveProperty("token");
+    }
+  });
+
+  it("el error de la centinela no lleva datos de entrada", async () => {
+    const mock = new MockSireAuth({ ahora: () => AHORA });
+    const e: unknown = await mock.obtenerToken(errada).catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(Error);
+    const texto = `${String((e as Error).message)} ${String(e)} ${JSON.stringify(e)} ${String((e as Error).stack)}`;
+    expect(texto).not.toContain("CANARIO");
+    expect(texto).not.toContain("clave-errada");
+    expect(texto).not.toContain(RUC_A);
+  });
+});
