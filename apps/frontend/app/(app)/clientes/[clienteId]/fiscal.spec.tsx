@@ -338,6 +338,31 @@ describe("/clientes/:id · datos fiscales y archivado (007a)", () => {
     expect(screen.getByText(MENSAJES_CLIENTES.clienteArchivado)).toBeTruthy();
   });
 
+  // D2 (T13): el 409 sin_plan al reactivar se muestra como en el alta (MENSAJES_PLANES.sinPlan), no como error genérico.
+  it("D2 · reactivar con 409 sin_plan: aviso de estudio sin plan; sigue archivado", async () => {
+    instalarFetchFalso(
+      rutas(ARCHIVADO, ARCHIVAR, {
+        "POST /api/clientes/c-1/reactivar": {
+          status: 409,
+          cuerpo: { codigo: "sin_plan" },
+        },
+      }),
+    );
+    const { container } = render(<Cliente />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Reactivar" }));
+    await user.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "Confirmar",
+      }),
+    );
+    expect(
+      (await screen.findAllByText(MENSAJES_PLANES.sinPlan)).length,
+    ).toBeGreaterThan(0);
+    expect(container.textContent).not.toContain(MENSAJES_ACCESO.errorGeneral);
+    expect(screen.getByText(MENSAJES_CLIENTES.clienteArchivado)).toBeTruthy();
+  });
+
   it("sin clientes.archivar: ni Archivar ni Reactivar", async () => {
     instalarFetchFalso(rutas(ACTIVO, EDITAR));
     render(<Cliente />);

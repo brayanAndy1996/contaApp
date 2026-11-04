@@ -11,6 +11,7 @@ import {
   yoDe,
   type RolPrueba,
 } from "../../../pruebas/acceso";
+import { clienteDe } from "../../../pruebas/clientes";
 import {
   crearRouterFalso,
   instalarFetchFalso,
@@ -347,5 +348,63 @@ describe("/clientes", () => {
     render(<Clientes />);
     expect(await screen.findByText(MENSAJES_ACCESO.sinPermiso)).toBeTruthy();
     expect(screen.queryAllByRole("row").length).toBeLessThanOrEqual(1);
+  });
+
+  // D1 (T13): un cliente archivado es de solo lectura (D5) y el backend rechaza todo el lote con
+  // 409 cliente_archivado, así que la casilla de su fila no se puede marcar.
+  it("D1 · la casilla de un cliente archivado está deshabilitada y la de uno activo no", async () => {
+    instalarFetchFalso(
+      rutas("dueno", {
+        "GET /api/clientes": {
+          status: 200,
+          cuerpo: [
+            ...CLIENTES,
+            clienteDe({
+              id: "c-9",
+              ruc: "10123456781",
+              razonSocial: "Zeta EIRL",
+              archivado: true,
+            }),
+          ],
+        },
+      }),
+    );
+    render(<Clientes />);
+    await esperarFila("Zeta EIRL");
+    const zeta = screen.getByLabelText(
+      "Seleccionar Zeta EIRL",
+    ) as HTMLInputElement;
+    const alfa = screen.getByLabelText(
+      "Seleccionar Alfa SAC",
+    ) as HTMLInputElement;
+    expect(zeta.disabled).toBe(true);
+    expect(alfa.disabled).toBe(false);
+  });
+
+  it("D1 · 409 cliente_archivado en la asignación masiva muestra un mensaje propio, no el genérico", async () => {
+    instalarFetchFalso(
+      rutas("dueno", {
+        "POST /api/asignaciones/por-usuario": {
+          status: 409,
+          cuerpo: { codigo: "cliente_archivado" },
+        },
+      }),
+    );
+    const { container } = render(<Clientes />);
+    await esperarFila("Alfa SAC");
+    await vi.waitFor(() =>
+      expect(
+        (screen.getByLabelText("Usuario") as HTMLSelectElement).options.length,
+      ).toBeGreaterThan(1),
+    );
+    const user = await seleccionar("Beta SRL");
+    await user.selectOptions(screen.getByLabelText("Usuario"), "u-bet");
+    await user.click(
+      screen.getByRole("button", { name: "Asignar seleccionados" }),
+    );
+    const alerta = await screen.findByRole("alert");
+    expect(alerta.textContent).toMatch(/archivad/i);
+    expect(container.textContent).not.toContain(MENSAJES_ACCESO.errorGeneral);
+    expect(container.textContent).not.toContain("cliente_archivado");
   });
 });

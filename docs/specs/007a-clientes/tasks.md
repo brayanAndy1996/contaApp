@@ -20,7 +20,7 @@ Nivel B, sin ronda adversarial (spec D9). Flujo 04 §1.3: pruebas primero (rojo)
 | T11b | Frontend: alta, detalle con datos fiscales y archivar/reactivar                            | frontend   | haiku  | T4, T11a          | ✓   | —   | [x]    |
 | T12  | Verificar CA-1 a CA-9 con evidencia (suites completas)                                     | tester     | sonnet | T9, T10, T11b     | —   | —   | [x]    |
 | T13  | Revisión contra la spec                                                                    | arquitecto | sonnet | T12               | —   | —   | [x]    |
-| T13a | Pruebas en rojo de los defectos D1–D3 de T13 (frontend)                                   | tester     | sonnet | T13               | ✓   | —   | [ ]    |
+| T13a | Pruebas en rojo de los defectos D1–D3 de T13 (frontend)                                   | tester     | sonnet | T13               | ✓   | —   | [x]    |
 | T13b | Corregir D1–D3 de T13 (frontend)                                                         | frontend   | sonnet | T13a              | ✓   | —   | [ ]    |
 | T14  | Cierre: tasks y commit (el orquestador actualiza ESTADO)                                   | devops     | haiku  | T13b              | —   | —   | [ ]    |
 
@@ -156,6 +156,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: Resultado de T13 (defectos D1, D2 y D3), los archivos que cita y sus `*.spec.tsx`.
 - **Hacer**: D1, el checkbox de un cliente archivado está deshabilitado en la asignación masiva y el 409 `cliente_archivado` muestra un mensaje propio; D2, el 409 `sin_plan` al reactivar muestra `MENSAJES_REGISTRO.sinPlan`; D3, el select de responsable del alta solo ofrece miembros con `puedeSerResponsable(rol)`.
 - **Hecho cuando**: las pruebas nuevas fallan solo por falta de la corrección. Commit `test(007a): defectos de frontend de la revisión (rojo)`.
+- **Resultado**: [x] 4 pruebas nuevas en rojo (frontend `clientes`: 52 previas en verde, 4 fallan). D1 en `page.spec.tsx`: casilla de archivado deshabilitada (esperado `disabled`, hoy habilitada) y 409 `cliente_archivado` con alerta propia (hoy sale `errorGeneral`; el texto exacto lo elige T13b, la prueba exige `/archivad/i`). D2 en `[clienteId]/fiscal.spec.tsx`: reactivar con 409 `sin_plan` muestra `MENSAJES_PLANES.sinPlan` (mismo texto que `MENSAJES_REGISTRO.sinPlan`). D3 en `nuevo/page.spec.tsx`: el select «Responsable» ofrece solo activos con `puedeSerResponsable` (hoy incluye a `lectura`). Sin código de producción; tsc y lint limpios.
 
 ## T13b · Corregir D1–D3 (frontend · sonnet)
 

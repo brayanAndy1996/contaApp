@@ -219,4 +219,44 @@ describe("/clientes/nuevo", () => {
       expect(router.push).not.toHaveBeenCalled();
     },
   );
+
+  // D3 (T13): el select "Responsable" solo ofrece miembros activos con puedeSerResponsable(rol) (D18):
+  // un rol `lectura` no puede ser responsable y el servidor lo rechazaría con 409 miembro_no_asignable.
+  it("D3 · el select Responsable ofrece solo miembros activos que pueden ser responsables", async () => {
+    const miembro = (usuarioId: string, rol: string, activo = true) => ({
+      usuarioId,
+      nombre: `Nombre ${usuarioId}`,
+      correo: `${usuarioId}@e.test`,
+      rol,
+      activo,
+      esYo: false,
+    });
+    instalarFetchFalso(
+      rutas([...PUEDE, "clientes.asignar"], {
+        "GET /api/usuarios": {
+          status: 200,
+          cuerpo: [
+            miembro("u-dueno", "dueno"),
+            miembro("u-admin", "admin"),
+            miembro("u-con", "contador"),
+            miembro("u-asi", "asistente"),
+            miembro("u-lec", "lectura"),
+            miembro("u-off", "contador", false),
+          ],
+        },
+      }),
+    );
+    render(<NuevoCliente />);
+    const select = (await screen.findByLabelText(
+      "Responsable",
+    )) as HTMLSelectElement;
+    await vi.waitFor(() => expect(select.options.length).toBeGreaterThan(1));
+    expect([...select.options].map((o) => o.value)).toEqual([
+      "",
+      "u-dueno",
+      "u-admin",
+      "u-con",
+      "u-asi",
+    ]);
+  });
 });
