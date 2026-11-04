@@ -88,7 +88,14 @@ export default function Clientes() {
     return () => {
       vigente = false;
     };
-  }, [puedeVerClientes, responsable, credencial, archivados, qEnviada, version]);
+  }, [
+    puedeVerClientes,
+    responsable,
+    credencial,
+    archivados,
+    qEnviada,
+    version,
+  ]);
 
   useEffect(() => {
     let vigente = true;
@@ -216,6 +223,7 @@ export default function Clientes() {
                         type="checkbox"
                         aria-label={`Seleccionar ${c.razonSocial}`}
                         checked={seleccion.has(c.id)}
+                        disabled={c.archivado}
                         onChange={() => alternar(c.id)}
                       />
                     </td>

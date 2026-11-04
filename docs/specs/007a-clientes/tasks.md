@@ -21,7 +21,7 @@ Nivel B, sin ronda adversarial (spec D9). Flujo 04 §1.3: pruebas primero (rojo)
 | T12  | Verificar CA-1 a CA-9 con evidencia (suites completas)                                     | tester     | sonnet | T9, T10, T11b     | —   | —   | [x]    |
 | T13  | Revisión contra la spec                                                                    | arquitecto | sonnet | T12               | —   | —   | [x]    |
 | T13a | Pruebas en rojo de los defectos D1–D3 de T13 (frontend)                                   | tester     | sonnet | T13               | ✓   | —   | [x]    |
-| T13b | Corregir D1–D3 de T13 (frontend)                                                         | frontend   | sonnet | T13a              | ✓   | —   | [ ]    |
+| T13b | Corregir D1–D3 de T13 (frontend)                                                         | frontend   | sonnet | T13a              | ✓   | —   | [x]    |
 | T14  | Cierre: tasks y commit (el orquestador actualiza ESTADO)                                   | devops     | haiku  | T13b              | —   | —   | [ ]    |
 
 Escalamientos: ninguno previsto. T9 concentra el orden de bloqueo y las carreras de CA-7: si falla 2 veces nace de nuevo en `opus` (04 §3.3) y se anota aquí. T11b puede escalar a `sonnet` si `haiku` falla una vez.
@@ -163,6 +163,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: Resultados de T13 y T13a y los archivos que tocan sus pruebas.
 - **Hacer**: las correcciones propuestas en el Resultado de T13.
 - **Hecho cuando**: test, tsc y lint del frontend en verde. Commit `fix(007a): archivados en asignación masiva, sin plan al reactivar y responsables del alta`.
+- **Resultado**: [x] D1: casilla `disabled` si `c.archivado` en `clientes/page.tsx` y `cliente_archivado` en `POR_CODIGO_409` de `lib/acceso.ts` con mensaje propio. D2: `[clienteId]/page.tsx` mapea 409 `sin_plan` al reactivar a `MENSAJES_REGISTRO.sinPlan`. D3: `nuevo/page.tsx` filtra responsables con `activo && puedeSerResponsable(rol)`. Sin tocar aserciones. Frontend: vitest 251/251, tsc y eslint limpios.
 
 ## T14 · Cierre (devops · haiku)
 

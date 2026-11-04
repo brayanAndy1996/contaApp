@@ -30,6 +30,7 @@ import {
   type ClienteDto,
 } from "../../../../lib/clientes";
 import { MENSAJES_PLAN } from "../../../../lib/planes";
+import { MENSAJES_REGISTRO } from "../../../../lib/registro";
 
 // Detalle de un cliente (spec 005, CA-5, CA-7, CA-15, D18; spec 007a, D1, D3, D5; CA-4, CA-5, CA-9).
 // El 404 es el mismo para cliente inexistente, ajeno o no asignado: no se distingue en pantalla.
@@ -109,7 +110,10 @@ function FormularioFiscal({
         setPerfil(r.datos.perfil);
         setGuardado(true);
         onCambio(r.datos);
-      } else if (r.status === 409 && codigoDe(r.datos) === "cliente_archivado") {
+      } else if (
+        r.status === 409 &&
+        codigoDe(r.datos) === "cliente_archivado"
+      ) {
         onCambio({ ...cliente, archivado: true });
       } else if (r.status !== 401) {
         setError(
@@ -305,6 +309,8 @@ function DetalleCliente() {
       } else if (r.status === 409 && codigoDe(r.datos) === "cupo_rucs") {
         setErrorAccion(MENSAJES_PLAN.limiteRucs);
         setMostrarUso(true);
+      } else if (r.status === 409 && codigoDe(r.datos) === "sin_plan") {
+        setErrorAccion(MENSAJES_REGISTRO.sinPlan);
       } else if (r.status !== 401) {
         setErrorAccion(mensajeDeError(r.status, r.datos));
       }

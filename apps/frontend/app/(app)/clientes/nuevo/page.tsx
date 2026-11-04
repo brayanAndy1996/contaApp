@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import {
   clienteCrearSchema,
+  puedeSerResponsable,
   validarRuc,
   type PerfilFiscal,
 } from "@contapp/shared";
@@ -188,7 +189,9 @@ export default function NuevoCliente() {
             />
           </label>
           <p id="ayuda-razon" className="text-xs text-neutral-600">
-            {"Opcional. Si la dejas vacía, se guarda «RUC <número>» hasta completarla."}
+            {
+              "Opcional. Si la dejas vacía, se guarda «RUC <número>» hasta completarla."
+            }
           </p>
         </div>
 
@@ -203,7 +206,7 @@ export default function NuevoCliente() {
             >
               <option value="">{MENSAJES.sinResponsable}</option>
               {miembros
-                .filter((m) => m.activo)
+                .filter((m) => m.activo && puedeSerResponsable(m.rol))
                 .map((m) => (
                   <option key={m.usuarioId} value={m.usuarioId}>
                     {m.nombre}
