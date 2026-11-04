@@ -146,7 +146,10 @@ describe("StreamService · apertura y límites", () => {
     const b = await abrir();
     expect(a.estado).toBe(200);
     expect(a.cabeceras["content-type"]).toMatch(/^text\/event-stream/);
-    expect(a.cabeceras["cache-control"]).toBe("no-store");
+    // 007b D10 (T6): `no-cache, no-transform` en lugar del `no-store` de 008 (el proxy de Next no debe
+    // transformar ni comprimir el flujo).
+    expect(a.cabeceras["cache-control"]).toBe("no-cache, no-transform");
+    expect(a.cabeceras["x-accel-buffering"]).toBe("no");
     expect(a.texto).toBe("");
     expect(sub.subscribe).toHaveBeenCalledTimes(1);
     expect(sub.canales.has(canal)).toBe(true);
