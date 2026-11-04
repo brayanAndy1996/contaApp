@@ -22,7 +22,7 @@ Nivel B, sin ronda adversarial (spec D9). Flujo 04 §1.3: pruebas primero (rojo)
 | T13  | Revisión contra la spec                                                                    | arquitecto | sonnet | T12               | —   | —   | [x]    |
 | T13a | Pruebas en rojo de los defectos D1–D3 de T13 (frontend)                                   | tester     | sonnet | T13               | ✓   | —   | [x]    |
 | T13b | Corregir D1–D3 de T13 (frontend)                                                         | frontend   | sonnet | T13a              | ✓   | —   | [x]    |
-| T14  | Cierre: tasks y commit (el orquestador actualiza ESTADO)                                   | devops     | haiku  | T13b              | —   | —   | [ ]    |
+| T14  | Cierre: tasks y commit (el orquestador actualiza ESTADO)                                   | devops     | haiku  | T13b              | —   | —   | [x]    |
 
 Escalamientos: ninguno previsto. T9 concentra el orden de bloqueo y las carreras de CA-7: si falla 2 veces nace de nuevo en `opus` (04 §3.3) y se anota aquí. T11b puede escalar a `sonnet` si `haiku` falla una vez.
 
@@ -84,7 +84,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/007a-clientes/spec.md` (D1, D4, D5, D7), `docs/specs/007a-clientes/plan.md` (Contratos: packages/db; Decisiones), `packages/db/src/acceso/{clientes,alcance,errores}.ts`, `packages/db/src/index.ts`, `packages/db/src/clientes/*.spec.ts`.
 - **Hacer**: `repositorio.ts`, `filtros.ts`, `errores.ts` (`RucDuplicadoError`, `ClienteArchivadoError`); SQL estático con parámetros (`ILIKE … ESCAPE`); `listarClientesFiltrado` con `filtroAlcance`; exportar desde `src/index.ts`. Sin `sql` fuera de `packages/db`.
 - **Hecho cuando**: `pnpm --filter @contapp/db test` verde (T2) y las partes de T1 sobre listado y repos. Commit `feat(007a): repositorios de clientes con filtros`.
-- **Resultado**: `clientes/{repositorio,filtros,errores}.ts` reemplazan los stubs y se exportan desde `src/index.ts`. `crearCliente` devuelve el id; `editarCliente` devuelve false si no existe y lanza `ClienteArchivadoError` si está archivado (UPDATE con `archivado_at is null`); archivar/reactivar idempotentes. `q`: prefijo de RUC siempre; fragmento de razón social solo si `q` tiene una letra o son solo dígitos (lo exige `filtros.spec` con `50%_\`). `@contapp/db` test 623/623, tsc y eslint limpios; humo contra PG real OK (alta, duplicado, edición, filtros, archivar/reactivar, alcance).
+- **Resultado**: `clientes/{repositorio,filtros,errores}.ts` reemplazan los stubs y se exportan desde `src/index.ts`. `crearCliente` devuelve el id; `editarCliente` devuelve false si no existe y lanza `ClienteArchivadoError` si está archivado (UPDATE con `archivado_at is null`); archivar/reactivar idempotentes. `q` (corregido en T9, ratificado en T13): siempre busca prefijo de RUC y fragmento de razón social, con `%`, `_` y `\` literales; la heurística «letras o solo dígitos» que aquí se describía ya no existe. `@contapp/db` test 623/623, tsc y eslint limpios; humo contra PG real OK (alta, duplicado, edición, filtros, archivar/reactivar, alcance).
 
 ## T8 · Revalidación de 008 y asignar archivados (backend · sonnet)
 
@@ -170,3 +170,4 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/007a-clientes/tasks.md`, `git status`.
 - **Hacer**: marcar `[x]` en esta tabla, poner `Estado: hecha` en `spec.md`, commit final y avisar al orquestador, que actualiza `ESTADO.md` (007a hecha; 007b pasa a planificar). Sin `git add -A`.
 - **Hecho cuando**: árbol limpio salvo cambios ajenos y `tasks.md` al día. Commit `docs(007a): tareas hechas y spec cerrada`.
+- **Resultado**: [x] Cierre. T1 a T13b [x]; CA-1 a CA-9 marcados en `spec.md`, con evidencia en T12 y dictamen de T13. Commit real: `chore(007a): cierra spec 007a`, por orden del orquestador. Pendiente del usuario: `spec.md` línea 3 sigue en `Estado: borrador (… pendiente de aprobación del usuario)`; no se cambió. Línea 50 «Casos reales aplicables» sin marcar, como en 004, 005 y 006 (ninguno aplica). Notas para el orquestador: (1) 007b retoma `ConsultaRuc`, credenciales, importación y panel SSE según su `spec.md`; falta su `plan.md`. (2) La prueba manual con `servicios:up` (frontend contra backend real) no se hizo (T12); ninguna prueba cruza el rewrite de Next. (3) Si se separan los permisos `clientes.crear` y `clientes.asignar`, revisar `POST /clientes` con `responsableId` y el select de responsable (que pediría también `usuarios.ver`). (4) Migraciones siguientes desde 0027 (007a usó 0026).
