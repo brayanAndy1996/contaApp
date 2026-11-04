@@ -915,6 +915,33 @@ const CASOS: Caso[] = [
     },
   },
   {
+    // 007b (T18a, D-1) · Resumen: cuenta TODOS los trabajos visibles por tipo y estado, con el mismo alcance que la lista.
+    // Ni `tenantId`/`usuarioId`/`clienteId` en la query abren datos de B: el Dueño cuenta solo sus 2 trabajos en cola
+    // y la asistente el de su cliente (los de B nunca suman); solo trae `{tipo, estado, total}`, sin IDs.
+    ruta: "GET /trabajos/resumen",
+    esperado: { dueno: [200, 404], asistente: [200, 404] },
+    construir: (c) => [
+      { ruta: "/trabajos/resumen" },
+      {
+        ruta: `/trabajos/resumen?tenantId=${c.ajeno.tenantId}&usuarioId=${c.ajeno.dueno.id}`,
+      },
+      { ruta: `/trabajos/resumen?clienteId=${c.ajeno.clientes[0]}` },
+    ],
+    extra: async (c, r) => {
+      expect(r.map((x) => x.status)).toEqual([200, 200, 200]);
+      const total = c.yo.rol === "dueno" ? 2 : 1;
+      for (const x of r) {
+        expect(x.body).toEqual([
+          { tipo: "prueba.eco", estado: "en_cola", total },
+        ]);
+        const crudo = JSON.stringify(x.body);
+        for (const t of [...c.ajeno.trabajos, ...c.mio.trabajos])
+          expect(crudo).not.toContain(t.id);
+        expect(crudo).not.toContain(c.ajeno.tenantId);
+      }
+    },
+  },
+  {
     // Stream: con el X-Estudio del otro estudio es 409 (JSON, no stream); en el propio recibe solo los eventos de su
     // canal y de su alcance, aunque se publiquen antes los eventos de B.
     ruta: "GET /trabajos/stream",
@@ -1291,6 +1318,13 @@ describe("HU-40 por API · las pruebas no son vacías (controles con datos propi
       ).toEqual(mio.trabajos.map((t) => t.id).sort());
       expect(JSON.stringify(trabajos.body)).not.toContain(ajeno.trabajos[0].id);
 
+      // 007b T18a: el resumen del Dueño cuenta sus 2 trabajos y no los de B.
+      const resumen = await pedir("/trabajos/resumen");
+      expect(resumen.status).toBe(200);
+      expect(resumen.body).toEqual([
+        { tipo: "prueba.eco", estado: "en_cola", total: mio.trabajos.length },
+      ]);
+
       const a = await abrirSesion(mio.asistente, mio.tenantId);
       const suyosTrabajos = await h.pedir({
         ruta: "/trabajos",
@@ -1301,6 +1335,16 @@ describe("HU-40 por API · las pruebas no son vacías (controles con datos propi
       expect(suyosTrabajos.status).toBe(200);
       expect(lista(suyosTrabajos).map((x) => x.id)).toEqual([
         mio.trabajos[0].id,
+      ]);
+      const suyoResumen = await h.pedir({
+        ruta: "/trabajos/resumen",
+        cookie: a.cookie,
+        csrf: a.csrf,
+        estudio: mio.tenantId,
+      });
+      expect(suyoResumen.status).toBe(200);
+      expect(suyoResumen.body).toEqual([
+        { tipo: "prueba.eco", estado: "en_cola", total: 1 },
       ]);
       const suyos = await h.pedir({
         ruta: "/clientes",

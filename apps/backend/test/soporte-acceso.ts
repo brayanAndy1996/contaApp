@@ -159,6 +159,11 @@ export async function abrirBanco(cupo?: object, extra: Record<string, unknown> =
       await intentar("alter table membresia disable trigger user");
       for (const t of tenants) {
         await intentar("delete from auth.sesion where tenant_activo = $1", [t]);
+        // 007b: crear un cliente encola `cliente.consultar_ruc` (job_registro referencia cliente y membresía) y puede
+        // dejar credenciales; sin borrarlos antes, `delete from cliente`/`membresia`/`tenant` fallan (FK) y el estudio
+        // queda huérfano sin suscripción, lo que rompe `planes.spec.ts` de aislamiento.
+        await intentar("delete from job_registro where tenant_id = $1", [t]);
+        await intentar("delete from credencial where tenant_id = $1", [t]);
         await intentar("delete from asignacion where tenant_id = $1", [t]);
         await intentar("delete from invitacion where tenant_id = $1", [t]);
         await intentar("delete from membresia where tenant_id = $1", [t]);
