@@ -47,9 +47,10 @@ describe("CA-5 · lo que ve cada rol (HU-08)", () => {
     expect(ids(r).sort()).toEqual([...propios].sort());
     const nombres = r.body.map((x: any) => x.razonSocial);
     expect(nombres).toEqual([...nombres].sort());
-    expect(Object.keys(r.body[0]).sort()).toEqual(["id", "razonSocial", "responsable", "ruc"]);
+    // 007a: el listado devuelve el ClienteDto completo (responsable = {id, nombre}).
+    expect(Object.keys(r.body[0]).sort()).toEqual(["archivado", "condicionContribuyente", "credenciales", "estadoContribuyente", "id", "perfil", "razonSocial", "responsable", "ruc"]);
     expect(r.body.find((x: any) => x.id === clientes[1])!.responsable).toEqual({
-      usuarioId: asistente.id,
+      id: asistente.id,
       nombre: expect.any(String),
     });
   });
@@ -63,10 +64,10 @@ describe("CA-5 · lo que ve cada rol (HU-08)", () => {
     expect(vacia.body).toEqual([]);
   });
 
-  it("GET /clientes/:id devuelve el cliente asignado (id, ruc, razonSocial) y 404 si no lo está", async () => {
+  it("GET /clientes/:id devuelve el ClienteDto del cliente asignado y 404 si no lo está", async () => {
     const r = await b.llamar(asistente, "GET", `/clientes/${propios[0]}`);
     expect(r.status).toBe(200);
-    expect(Object.keys(r.body).sort()).toEqual(["id", "razonSocial", "ruc"]);
+    expect(Object.keys(r.body).sort()).toEqual(["archivado", "condicionContribuyente", "credenciales", "estadoContribuyente", "id", "perfil", "razonSocial", "responsable", "ruc"]); // 007a: ClienteDto
     const noAsignado = await b.llamar(asistente, "GET", `/clientes/${clientes[100]}`);
     expect(noAsignado.status).toBe(404);
     expect(noAsignado.body).toEqual({ codigo: "no_encontrado" });

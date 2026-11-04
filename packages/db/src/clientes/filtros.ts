@@ -37,15 +37,15 @@ export function condicionesFiltros(f: FiltrosListado): SQL[] {
     );
   }
   if (f.q !== undefined && f.q !== "") {
-    // Prefijo de RUC siempre; fragmento de razón social solo si q parece un nombre (tiene una letra) o son solo
-    // dígitos. Un q sin letras con comodines (p. ej. «50%_\») es un RUC mal escrito, no un nombre.
+    // Prefijo de RUC o fragmento de razón social. Sin comodines del usuario el patrón viaja entero como parámetro
+    // («%sac%»); con ellos (%, _ o \) viaja solo el término escapado y los «%» se concatenan en SQL: así ningún
+    // patrón lleva un comodín propio pegado al texto del usuario.
     const esc = escaparLike(f.q);
-    const buscaNombre = /\p{L}/u.test(f.q) || /^\d+$/.test(f.q);
-    c.push(
-      buscaNombre
-        ? sql`(${cliente.ruc}::text ilike ${`${esc}%`} escape '\\' or ${cliente.razonSocial} ilike ${`%${esc}%`} escape '\\')`
-        : sql`${cliente.ruc}::text ilike ${`${esc}%`} escape '\\'`,
-    );
+    const fragmento =
+      esc === f.q
+        ? sql`${cliente.razonSocial} ilike ${`%${f.q}%`} escape '\\'`
+        : sql`${cliente.razonSocial} ilike ('%' || ${esc}::text || '%') escape '\\'`;
+    c.push(sql`(${cliente.ruc}::text ilike ${`${esc}%`} escape '\\' or ${fragmento})`);
   }
   return c;
 }
