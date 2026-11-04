@@ -2,3 +2,7 @@ packages:
   - "apps/*"
   - "packages/*"
   - "tests/*"
+
+# 007b T11: fija la transitiva de fast-xml-parser en una versión publicada hace >= 2 semanas (2.0.3 es de 2026-11-03).
+overrides:
+  is-unsafe: 2.0.2

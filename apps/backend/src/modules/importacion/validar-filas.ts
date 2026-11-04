@@ -1,5 +1,12 @@
-/* eslint-disable @typescript-eslint/no-unused-vars -- stub de T3: la lógica la escribe T11 */
-import type { Rol } from "@contapp/shared";
+// Validación por fila de la importación (spec 007b, D7–D9; plan: Contratos "motivos", Decisiones "Columnas" y
+// "Celdas peligrosas"). Pura: sin IO ni logs. Nunca copia una clave a un motivo ni a la vista previa.
+import {
+  guardarCredencialSireSchema,
+  guardarCredencialSolSchema,
+  puedeSerResponsable,
+  validarRuc,
+  type Rol,
+} from "@contapp/shared";
 import type { FilaLeida } from "./tipos.js";
 
 export type CodigoMotivo =
@@ -51,18 +58,117 @@ export interface VistaPrevia {
   excedentes: number;
 }
 
-/** Stub de T3 (la implementa T11). Pura, sin IO. */
+/**
+ * Texto que una hoja de cálculo podría interpretar (CSV/fórmula injection): empieza, tras espacios opcionales,
+ * con `= + - @` o con un carácter de control (tabulador, retorno, NUL…).
+ */
+const PELIGROSA = /^[ ]*[=+\-@\u0000-\u001f\u007f]/;
+
+/** Celdas de texto visibles que se rechazan si son peligrosas; las claves aceptan cualquier carácter. */
+const CAMPOS_TEXTO = [
+  "razonSocial",
+  "usuarioSol",
+  "clientId",
+  "responsable",
+] as const;
+
+/** Largo máximo con que se devuelve el RUC de una fila (si no es un RUC, no se refleja más que esto). */
+const MAX_RUC_VISIBLE = 32;
+
+const lleno = (s: string) => s !== "";
+
+/** Pura, sin IO. Conserva el orden y el número de fila; la primera aparición de un RUC es la que vale. */
 export function validarFilas(
-  _filas: FilaLeida[],
-  _ctx: ContextoValidacion,
+  filas: FilaLeida[],
+  ctx: ContextoValidacion,
 ): FilaValidada[] {
-  throw new Error("no implementado (T11)");
+  const vistos = new Set<string>();
+  return filas.map((fila) => {
+    const motivos: Motivo[] = [];
+    const agregar = (m: Motivo) => {
+      if (!motivos.some((x) => x.codigo === m.codigo)) motivos.push(m);
+    };
+
+    if (!validarRuc(fila.ruc)) agregar({ codigo: "ruc_invalido" });
+    else if (vistos.has(fila.ruc)) agregar({ codigo: "duplicado_en_archivo" });
+    else {
+      vistos.add(fila.ruc);
+      const existente = ctx.existentes.get(fila.ruc);
+      if (existente !== undefined)
+        agregar(
+          existente.archivado
+            ? { codigo: "duplicado", archivado: true }
+            : { codigo: "duplicado" },
+        );
+    }
+
+    if (fila.formulas.length > 0) agregar({ codigo: "celda_peligrosa" });
+    for (const campo of CAMPOS_TEXTO)
+      if (PELIGROSA.test(fila[campo])) agregar({ codigo: "celda_peligrosa" });
+
+    // Un par a medias, o un valor que el guardado de D4 no aceptaría (> 256 B), no es una credencial utilizable.
+    const tieneSol = lleno(fila.usuarioSol) && lleno(fila.claveSol);
+    const tieneSire = lleno(fila.clientId) && lleno(fila.clientSecret);
+    const solIncompleta =
+      lleno(fila.usuarioSol) !== lleno(fila.claveSol) ||
+      (tieneSol &&
+        !guardarCredencialSolSchema.safeParse({
+          usuario: fila.usuarioSol,
+          clave: fila.claveSol,
+        }).success);
+    const sireIncompleta =
+      lleno(fila.clientId) !== lleno(fila.clientSecret) ||
+      (tieneSire &&
+        !guardarCredencialSireSchema.safeParse({
+          clientId: fila.clientId,
+          clientSecret: fila.clientSecret,
+        }).success);
+    if (solIncompleta || sireIncompleta)
+      agregar({ codigo: "credencial_incompleta" });
+
+    // P1 (a): el responsable se identifica por el correo de un miembro activo.
+    let responsableId: string | null = null;
+    const correo = fila.responsable.trim().toLowerCase();
+    if (correo !== "" && !PELIGROSA.test(fila.responsable)) {
+      const miembro = ctx.miembros.get(correo);
+      if (miembro === undefined) agregar({ codigo: "responsable_inexistente" });
+      else if (!puedeSerResponsable(miembro.rol))
+        agregar({ codigo: "responsable_no_asignable" });
+      else responsableId = miembro.usuarioId;
+    }
+
+    const valida = motivos.length === 0;
+    return {
+      n: fila.n,
+      ruc: fila.ruc,
+      estado: valida ? "valida" : "error",
+      motivos,
+      tieneSol,
+      tieneSire,
+      responsableId: valida ? responsableId : null,
+      fila,
+    };
+  });
 }
 
-/** Stub de T3 (la implementa T11). Proyección sin claves ni usuarios: solo `tieneSol`/`tieneSire`. */
+/** Proyección sin claves ni usuarios: solo `tieneSol`/`tieneSire`. */
 export function aVistaPrevia(
-  _filas: FilaValidada[],
-  _cupoLibre: number,
+  filas: FilaValidada[],
+  cupoLibre: number,
 ): VistaPrevia {
-  throw new Error("no implementado (T11)");
+  const validas = filas.filter((f) => f.estado === "valida").length;
+  return {
+    filas: filas.map((f) => ({
+      n: f.n,
+      ruc: f.ruc.slice(0, MAX_RUC_VISIBLE),
+      estado: f.estado,
+      motivos: f.motivos.map((m) => ({ ...m })),
+      tieneSol: f.tieneSol,
+      tieneSire: f.tieneSire,
+    })),
+    validas,
+    conError: filas.length - validas,
+    cupoLibre,
+    excedentes: Math.max(0, validas - cupoLibre),
+  };
 }
