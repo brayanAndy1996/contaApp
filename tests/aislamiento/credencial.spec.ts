@@ -1560,11 +1560,14 @@ describe("CA-5 aislamiento: casos adicionales", () => {
   });
 
   it("el mismo (cliente, tipo) puede existir en dos estudios sin conflicto ni oraculo", async () => {
-    const cli = randomUUID();
+    // 007b (D2): con la FK (tenant_id, cliente_id) -> cliente, un mismo cliente_id ya no puede estar en dos estudios;
+    // lo que sigue valiendo es que el par (cliente, tipo) de un estudio no choca con el de otro ni deja oráculo.
+    const cliA = clientesDe("A")[0].id;
+    const cliB = clientesDe("B")[0].id;
     const r = await enRollback(db, { tenantId: tenantDe("A") }, async (tx) => {
-      await sembrar(tx, tenantDe("A"), cli, "sol");
+      await sembrar(tx, tenantDe("A"), cliA, "sol");
       await enTenant(tx, tenantDe("B"));
-      return intento(tx, INSERT_SQL, argsInsert(cli, "sol", sobreFalso()));
+      return intento(tx, INSERT_SQL, argsInsert(cliB, "sol", sobreFalso()));
     });
     expect(r).toEqual({ ok: true, rowCount: 1 });
   });

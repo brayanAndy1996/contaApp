@@ -52,6 +52,8 @@ describe("T16b · sobre copiado por el backend a otra fila (AAD)", () => {
   it("copiado a otro cliente, a otro tipo o a otro estudio no descifra; cada intento queda auditado en su estudio", async () => {
     const c1 = nuevoCliente();
     const c2 = nuevoCliente();
+    // 007b (D2): con la FK, el cliente de otro estudio es uno propio de B (c1 pertenece a A y no admite credencial en B).
+    const c3 = nuevoCliente();
     const valor = { usuario: canario("u"), clave: canario("k") };
     const sobre: Sobre = await cifrarCredencial(crearKeyWrapper(ENV_MOCK), { tenantId: A, clienteId: c1, tipo: "sol" }, valor);
     const original = await guardar(backend, A, c1, "sol", sobre);
@@ -59,7 +61,7 @@ describe("T16b · sobre copiado por el backend a otra fila (AAD)", () => {
     const copias = [
       { nombre: "otro cliente", tenant: A, cliente: c2, tipo: "sol" as const },
       { nombre: "otro tipo", tenant: A, cliente: c1, tipo: "sire_api" as const },
-      { nombre: "otro estudio", tenant: B, cliente: c1, tipo: "sol" as const },
+      { nombre: "otro estudio", tenant: B, cliente: c3, tipo: "sol" as const },
     ];
     const svc = servicio();
     for (const c of copias) {
