@@ -53,6 +53,6 @@ Entre paréntesis, el CA del borrador de 007 (commit 0bbddf6). Las partes de imp
 - Externas: ninguna. Adaptadores en `mock`.
 
 ## Preguntas abiertas
-- P1 (nueva, plan): ¿cómo identifica la columna «responsable» del Excel a un miembro? (a) correo del miembro activo del estudio (recomendada: es único y se ve en `/usuarios`); (b) nombre completo (ambiguo si hay homónimos); (c) correo o, si no hay, nombre. El plan y las pruebas parten de (a); cambiarlo solo toca el lector de filas y la plantilla.
-- P2 (nueva, plan; no bloquea): si `cliente.consultar_ruc` falla o se omite por la reserva de la cola, ¿hay forma de repetirlo? (a) no en R1; se edita la razón social a mano con 007a (recomendada: D1 ya dice «queda como está»); (b) botón «Consultar RUC de nuevo» en el detalle (una ruta `POST /clientes/:id/consultar-ruc` con `clientes.editar`).
+- P1 (nueva, plan; **decisión del usuario, 2026-11-04: «Por correo (Recom.)», opción (a)**): ¿cómo identifica la columna «responsable» del Excel a un miembro? (a) correo del miembro activo del estudio (recomendada: es único y se ve en `/usuarios`); (b) nombre completo (ambiguo si hay homónimos); (c) correo o, si no hay, nombre. El plan y las pruebas parten de (a); cambiarlo solo toca el lector de filas y la plantilla.
+- P2 (nueva, plan; **decisión del usuario, 2026-11-04: «No en R1 (Recom.)», opción (a)**): si `cliente.consultar_ruc` falla o se omite por la reserva de la cola, ¿hay forma de repetirlo? (a) no en R1; se edita la razón social a mano con 007a (recomendada: D1 ya dice «queda como está»); (b) botón «Consultar RUC de nuevo» en el detalle (una ruta `POST /clientes/:id/consultar-ruc` con `clientes.editar`).
 - Resuelta en el plan: carga de la cola al importar 1.000 filas (`plan.md`, «Carga de la cola»).
