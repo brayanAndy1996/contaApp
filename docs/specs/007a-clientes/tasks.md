@@ -18,7 +18,7 @@ Nivel B, sin ronda adversarial (spec D9). Flujo 04 §1.3: pruebas primero (rojo)
 | T10  | Regla de lint: cerrar `import * as d from "drizzle-orm"`                                   | backend    | sonnet | T4 ∥ T5–T9        | ✓   | —   | [x] |
 | T11a | Frontend: cliente HTTP y listado con filtros                                               | frontend   | sonnet | T4 ∥ T5–T10       | ✓   | —   | [x]    |
 | T11b | Frontend: alta, detalle con datos fiscales y archivar/reactivar                            | frontend   | haiku  | T4, T11a          | ✓   | —   | [x]    |
-| T12  | Verificar CA-1 a CA-9 con evidencia (suites completas)                                     | tester     | sonnet | T9, T10, T11b     | —   | —   | [ ]    |
+| T12  | Verificar CA-1 a CA-9 con evidencia (suites completas)                                     | tester     | sonnet | T9, T10, T11b     | —   | —   | [x]    |
 | T13  | Revisión contra la spec                                                                    | arquitecto | sonnet | T12               | —   | —   | [ ]    |
 | T14  | Cierre: tasks y commit (el orquestador actualiza ESTADO)                                   | devops     | haiku  | T13               | —   | —   | [ ]    |
 
@@ -97,6 +97,7 @@ Reglas comunes:
 - **Hacer**: `clientes.service.ts` (crear con `bloquearMiembros` → `reservar` → insertar → asignar responsable; reactivar igual; editar, archivar), rutas de `plan.md` con `@Permiso` y `ClienteScopeGuard` en las de `:clienteId`; mapeo de errores a 409 `cupo_rucs`, `ruc_duplicado`, `cliente_archivado`, `sin_plan`; el listado y el detalle usan los repos de T7; registrar las rutas en la auditoría.
 - **Hecho cuando**: `pnpm --filter @contapp/backend test` y `test:int` de clientes y planes verdes (T3, CA-1 a CA-7); la auditoría de rutas verde; sin 500 en las carreras. Commit `feat(007a): API de clientes con cupo, alcance y archivado`.
 - **Resultado**: [x] `clientes.service.ts` (crear: `bloquearMiembros` → `CupoRucs.reservar` → `crearCliente` → `asignar` responsable; reactivar igual y sin cupo si ya está activo; editar, archivar, listar con filtros) + `ClientesController` con las 6 rutas de D3 + código `ruc_duplicado` en `acceso/errores.ts`; `q` con NUL = 400. Ajustes fuera del servicio: `filtros.ts` de T7 arma el fragmento de razón social con `'%' || $n || '%'` cuando `q` lleva `%`, `_` o `\` (T2 y T3 se contradecían con la heurística de letras); `hu40-api.int.spec.ts` con los casos de las 4 rutas nuevas; `clientes.int.spec.ts` (005) y `clientes.controller.spec.ts` al `ClienteDto`; `test/soporte.ts` serializa cuerpos numéricos/booleanos; `clientes.service.spec.ts` nuevo. Unit backend 711, `test:aislamiento` 1488, db 623, lint y typecheck limpios, `cobertura:acceso` y `cobertura:auth` en 0 (99 %). **Pendiente (defecto de T3, no tocado)**: `clientes-archivado.int.spec.ts:~367` (`permitido = new Set([200, 204, 409])`) no admite el 201 de `POST /clientes` que incluye la carrera; con `201` agregado todo `test:int` (898) y las cobertura pasan.
+- **Corrección posterior (orquestador, 4d2644d)**: la carrera de `clientes-archivado.int.spec.ts` (T3) no admitía el 201 de crear entre los desenlaces válidos; era un defecto de la prueba, no del servicio. Corregida; la suite de T12 la corre en verde.
 
 ## T10 · Regla de lint (backend · sonnet)
 
@@ -125,6 +126,21 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/007a-clientes/spec.md` (CA-1 a CA-9), `docs/specs/007a-clientes/tasks.md` (esta lista), `package.json` (scripts `ci:db`, `test`, `lint`).
 - **Hacer**: correr `pnpm ci:db`, `pnpm lint`, `pnpm typecheck` y las pruebas del frontend; por cada CA anotar en esta tarea el comando o la prueba que lo demuestra y su resultado; probar a mano contra servicios locales (`pnpm servicios:up`, `db:migrate`, `db:seed`): alta con RUC válido e inválido, cupo lleno, archivar/reactivar, asistente con alcance parcial. No tocar código de producción: un fallo se informa con `archivo:línea`.
 - **Hecho cuando**: tabla CA → evidencia completa y todo en verde, o la lista de lo que falta. Commit `test(007a): verificación de CA-1 a CA-9` (solo si se agregan pruebas).
+- **Resultado**: [x] Todo verde, sin tocar producción ni umbrales. Checks (Node 22 local): `pnpm build` 9/9, `typecheck` 14/14, `lint` 9/9, `pnpm test` 10/10 (shared 554, db 623, backend 711, worker 143, queue 242, sunat 37, crypto 291, domain 1000, tests-limites 287, frontend 247). `pnpm ci:db` OK: aislamiento 1488 (41 archivos), worker int 102, backend int 898 (49 archivos), migración 2 veces + seed. Coberturas (todas con EXIT 0, umbrales vigentes): dominio 1000 · crypto 724 · db 2125 (ramas 93,53%) · cola 1001 · auth 2544 · acceso 2126.
+
+  | CA | Evidencia (archivo · prueba) | Resultado |
+  |---|---|---|
+  | CA-1 | `apps/backend/src/modules/clientes/clientes-crud.int.spec.ts` · «CA-1 · RUC inválido: 400…», «alta correcta, razón social provisional…», «responsableId»; `packages/shared/src/clientes/ruc.spec.ts` | cumplido |
+  | CA-2 | `clientes-crud.int.spec.ts` · «CA-2 · cupo de RUCs al crear», «ruc_duplicado (también contra un archivado)»; `clientes-archivado.int.spec.ts` · «CA-2 · reactivar respeta el cupo»; `tests/aislamiento/clientes-funciones.spec.ts` · «conteo de activos…», «cupo con archivados» | cumplido |
+  | CA-3 | `clientes-archivado.int.spec.ts` · «CA-3 · asistente con 15 de 120 clientes…» (GET, PATCH, archivar, reactivar, listado, búsqueda) | cumplido |
+  | CA-4 | `clientes-crud.int.spec.ts` · «CA-4 · datos fiscales: catálogo y lectura al recargar»; `tests/aislamiento/clientes.spec.ts` (CHECK de D1) | cumplido |
+  | CA-5 | `clientes-archivado.int.spec.ts` · «CA-5 · archivar: solo lectura, fuera del listado, credenciales intactas»; `tests/aislamiento/clientes-funciones.spec.ts` · «revalidarEncolado con clientes archivados» (`acceso_retirado`, también `programado`; `ok` al reactivar). | cumplido |
+  | CA-6 | `clientes-filtros.int.spec.ts` · «CA-6 · cada filtro», «combinaciones (AND)», «q con comodines, comillas y barras», «con el alcance del usuario»; `packages/db/src/clientes/filtros.spec.ts` | cumplido |
+  | CA-7 | `clientes-archivado.int.spec.ts` · «CA-7 · carreras HTTP…» (con la corrección 4d2644d); `tests/aislamiento/clientes-funciones.spec.ts` · «carreras con dos o más conexiones…», «RUC repetido en carrera» | cumplido |
+  | CA-8 | `tests/limites/sql-namespace-lint.spec.ts` · «CA-8: import * de drizzle-orm con sql…» (12/12); `pnpm lint` 9/9 | cumplido |
+  | CA-9 | `apps/frontend/app/(app)/clientes/{listado.spec.tsx,nuevo/page.spec.tsx,[clienteId]/fiscal.spec.tsx}` (filtros, error de RUC en línea, datos fiscales, confirmación de archivar/reactivar, 409 `cupo_rucs` con `<UsoPlan />`, acciones según permiso); frontend 247/247 | cumplido |
+
+  No se hizo la prueba manual contra servicios locales (`servicios:up`): sus escenarios (alta válida e inválida, cupo lleno, archivar/reactivar, asistente con alcance parcial) los cubren las pruebas HTTP de integración contra PG y Redis reales. Se borró `dump.rdb` de Redis del repo.
 
 ## T13 · Revisión contra la spec (arquitecto · sonnet)
 

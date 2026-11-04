@@ -38,15 +38,15 @@ Que el administrador dé de alta clientes con RUC válido, registre su perfil fi
 
 ## Criterios de aceptación
 Entre paréntesis, el CA del borrador de 007 (commit 0bbddf6).
-- [ ] CA-1 (borrador CA-1): Dado un RUC con dígito verificador inválido o prefijo no permitido, cuando se crea, entonces 400; con RUC válido se crea, aparece en el listado y, sin razón social, queda como «RUC <número>». Con `responsableId` válido queda asignado como responsable.
-- [ ] CA-2 (CA-2): Dado un estudio con el cupo lleno, cuando se crea o reactiva, entonces 409 `cupo_rucs` y no se escribe nada; archivar uno libera el cupo (`/plan/uso` cuenta solo activos); un RUC repetido da 409 `ruc_duplicado`.
-- [ ] CA-3 (CA-4): Dado un asistente con 15 de 120 clientes, cuando lista, busca o abre por URL un cliente ajeno, entonces ve solo 15 y el ajeno da el mismo 404 que uno inexistente (también al editar, archivar y reactivar).
-- [ ] CA-4 (CA-11): Dados datos fiscales (régimen, zona, exoneradas/mixtas, moneda), cuando se guardan con valores fuera del catálogo, entonces 400; los válidos se leen igual al recargar.
-- [ ] CA-5 (CA-10): Dado un cliente archivado, entonces es de solo lectura (409 `cliente_archivado` al editar o asignar), no cuenta para el cupo, sus credenciales siguen cifradas, y un trabajo encolado o `programado` suyo queda `cancelado` con `acceso_retirado` al despachar; al reactivar (con cupo) vuelve a despacharse.
-- [ ] CA-6 (nuevo, D7 y D11): Dados clientes con distinto responsable, estado de credencial y archivado, cuando se filtra por cada criterio y por sus combinaciones, entonces solo salen los que cumplen todos, dentro del alcance del usuario; `q` con `%`, `_` o comillas no altera la consulta.
-- [ ] CA-7 (CA-13): Dadas operaciones concurrentes de crear, archivar, reactivar y asignar sobre los mismos clientes, entonces no hay interbloqueos (sin 500 por 40P01), se respeta el orden de bloqueo de 005 y la suma de activos nunca excede el límite.
-- [ ] CA-8 (CA-14): Dada la regla de lint, entonces `import * as d from "drizzle-orm"` con `d.sql` también se rechaza en `apps/backend`.
-- [ ] CA-9 (nuevo): Dado el frontend, entonces el listado aplica los filtros, el alta muestra el error de RUC en línea (con `validarRuc`), el detalle edita los datos fiscales, archivar/reactivar piden confirmación y el 409 `cupo_rucs` se muestra con el uso del plan; quien no tiene `clientes.crear`/`editar`/`archivar` no ve esas acciones.
+- [x] CA-1 (borrador CA-1): Dado un RUC con dígito verificador inválido o prefijo no permitido, cuando se crea, entonces 400; con RUC válido se crea, aparece en el listado y, sin razón social, queda como «RUC <número>». Con `responsableId` válido queda asignado como responsable.
+- [x] CA-2 (CA-2): Dado un estudio con el cupo lleno, cuando se crea o reactiva, entonces 409 `cupo_rucs` y no se escribe nada; archivar uno libera el cupo (`/plan/uso` cuenta solo activos); un RUC repetido da 409 `ruc_duplicado`.
+- [x] CA-3 (CA-4): Dado un asistente con 15 de 120 clientes, cuando lista, busca o abre por URL un cliente ajeno, entonces ve solo 15 y el ajeno da el mismo 404 que uno inexistente (también al editar, archivar y reactivar).
+- [x] CA-4 (CA-11): Dados datos fiscales (régimen, zona, exoneradas/mixtas, moneda), cuando se guardan con valores fuera del catálogo, entonces 400; los válidos se leen igual al recargar.
+- [x] CA-5 (CA-10): Dado un cliente archivado, entonces es de solo lectura (409 `cliente_archivado` al editar o asignar), no cuenta para el cupo, sus credenciales siguen cifradas, y un trabajo encolado o `programado` suyo queda `cancelado` con `acceso_retirado` al despachar; al reactivar (con cupo) vuelve a despacharse.
+- [x] CA-6 (nuevo, D7 y D11): Dados clientes con distinto responsable, estado de credencial y archivado, cuando se filtra por cada criterio y por sus combinaciones, entonces solo salen los que cumplen todos, dentro del alcance del usuario; `q` con `%`, `_` o comillas no altera la consulta.
+- [x] CA-7 (CA-13): Dadas operaciones concurrentes de crear, archivar, reactivar y asignar sobre los mismos clientes, entonces no hay interbloqueos (sin 500 por 40P01), se respeta el orden de bloqueo de 005 y la suma de activos nunca excede el límite.
+- [x] CA-8 (CA-14): Dada la regla de lint, entonces `import * as d from "drizzle-orm"` con `d.sql` también se rechaza en `apps/backend`.
+- [x] CA-9 (nuevo): Dado el frontend, entonces el listado aplica los filtros, el alta muestra el error de RUC en línea (con `validarRuc`), el detalle edita los datos fiscales, archivar/reactivar piden confirmación y el 409 `cupo_rucs` se muestra con el uso del plan; quien no tiene `clientes.crear`/`editar`/`archivar` no ve esas acciones.
 - [ ] Casos reales aplicables: ninguno.
 
 ## Dependencias
