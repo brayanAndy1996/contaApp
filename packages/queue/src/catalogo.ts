@@ -84,6 +84,52 @@ export function rolesPermitidos(permiso: Permiso | null): string[] | null {
     : ROLES.filter((r) => PERMISOS_POR_ROL[r].has(permiso));
 }
 
+const parametrosVacios = z.object({}).strict();
+
+/** Spec 007b: consulta de datos del RUC tras el alta o la importación (cola `xml`, sin lock por RUC). */
+export const CLIENTE_CONSULTAR_RUC: DefinicionTrabajo<Record<string, never>> = {
+  tipo: "cliente.consultar_ruc",
+  cola: "xml",
+  canal: "ninguno",
+  credencial: null,
+  permiso: "clientes.crear",
+  idempotente: true,
+  parametros: parametrosVacios as ZodType<Record<string, never>>,
+};
+
+/**
+ * Spec 007b: verificar la clave SOL / la credencial SIRE. `credencial: null` es deliberado: el despachador
+ * cancela con `credencial_invalida` todo tipo cuyo sobre esté inválido, y verificar debe poder correr
+ * justo en ese estado. El procesador lee el sobre por su cuenta.
+ */
+export const CREDENCIAL_VERIFICAR_SOL: DefinicionTrabajo<
+  Record<string, never>
+> = {
+  tipo: "credencial.verificar_sol",
+  cola: "sol",
+  canal: "sol",
+  credencial: null,
+  permiso: "credenciales.editar",
+  idempotente: true,
+  parametros: parametrosVacios as ZodType<Record<string, never>>,
+};
+
+export const CREDENCIAL_VERIFICAR_SIRE: DefinicionTrabajo<
+  Record<string, never>
+> = {
+  tipo: "credencial.verificar_sire",
+  cola: "sire",
+  canal: "sire",
+  credencial: null,
+  permiso: "credenciales.editar",
+  idempotente: true,
+  parametros: parametrosVacios as ZodType<Record<string, never>>,
+};
+
+registrarTipo(CLIENTE_CONSULTAR_RUC);
+registrarTipo(CREDENCIAL_VERIFICAR_SOL);
+registrarTipo(CREDENCIAL_VERIFICAR_SIRE);
+
 /** Tipo de pruebas: solo existe con NODE_ENV=test (el worker le programa el comportamiento). */
 export const PRUEBA_ECO: DefinicionTrabajo<{ n?: number; rango?: string }> = {
   tipo: "prueba.eco",

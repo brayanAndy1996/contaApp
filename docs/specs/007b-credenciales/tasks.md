@@ -13,7 +13,7 @@ Nivel B con una ronda adversarial acotada (spec D11). Flujo 04 §1.3: pruebas pr
 | T5   | Pruebas de integración del worker: consultar RUC y verificar credenciales (rojo)                   | tester     | sonnet | T1, T2 ∥ T4         | ✓   | —   | [ ]    |
 | T6   | Pruebas del frontend: credenciales, asistente de importación, panel y `next.config` (rojo)        | tester     | sonnet | contrato del plan ∥ T4 | ✓ | —   | [ ]    |
 | T7   | Migración 0027, esquema y repositorios de `packages/db`                                            | backend    | sonnet | T1                  | ✓   | —   | [ ]    |
-| T8   | Puertos y mocks de sunat, esquemas de shared y tipos del catálogo de queue                         | backend    | sonnet | T2 ∥ T7             | ✓   | —   | [ ]    |
+| T8   | Puertos y mocks de sunat, esquemas de shared y tipos del catálogo de queue                         | backend    | sonnet | T2 ∥ T7             | ✓   | —   | [x]    |
 | T9   | Procesadores del worker y cableado de puertos                                                      | backend    | sonnet | T5, T7, T8          | ✓   | —   | [ ]    |
 | T10  | Módulo `credenciales` del backend: cifrado, estado y verificar                                     | backend    | sonnet | T4, T7, T8 ∥ T9     | ✓   | —   | [ ]    |
 | T11  | Lector `.xlsx`/`.csv` y validación de filas                                                        | backend    | opus   | T3, T8 ∥ T9, T10    | ✓   | —   | [ ]    |
@@ -93,6 +93,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: Puertos, Catálogo), `packages/sunat/src/{puertos,index}.ts` y `mock/sire-auth.mock.ts`, `packages/queue/src/catalogo.ts`, `packages/shared/src/clientes/{esquemas,index}.ts`, las pruebas de T2.
 - **Hacer**: puertos y mocks (centinelas documentadas en el JSDoc; añadir la de «clave errada» a `MockSireAuth` sin cambiar su comportamiento por defecto), esquemas de `shared`, registro de los tres tipos en `queue`, `RUC_CLIENT=mock` en `.env.example`.
 - **Hecho cuando**: las pruebas de T2 en verde; `tsc` y `eslint` de los cuatro paquetes limpios. Commit `feat(007b): puertos ConsultaRuc y SolAuth, esquemas y tipos de trabajo`.
+- **Resultado**: verde (shared 649, sunat 63, queue 282; tsc y eslint limpios). Nuevos: `sunat/{puertos(ConsultaRuc,SolAuth,DatosRuc,CredencialSol),mock/{consulta-ruc,sol-auth}.mock}`, centinela en `MockSireAuth`, `shared/{credenciales,importacion}/esquemas`, tres tipos en `queue/catalogo.ts`, `RUC_CLIENT=mock`. `shared` gana `@types/node` (dev, `^24.0.0` como el resto) y `types:["node"]` solo en `tsconfig.json` (el spec de T2 usa `Buffer`; `tsconfig.build.json` lo deja en `[]`).
 
 ## T9 · Procesadores del worker (backend · sonnet)
 
