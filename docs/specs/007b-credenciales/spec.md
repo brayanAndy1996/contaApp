@@ -1,6 +1,6 @@
 # Spec 007b · Credenciales, importación Excel y panel de trabajos
 
-Estado: aprobada (parte 2 de 2 de la antigua 007; el usuario aprobó continuar el 2026-11-04: «sí, sigue con la 007b»; 007a está en `main`). Plan y tareas: `plan.md`, `tasks.md`
+Estado: hecha (parte 2 de 2 de la antigua 007; el usuario aprobó continuar el 2026-11-04: «sí, sigue con la 007b»; 007a está en `main`). Plan y tareas: `plan.md`, `tasks.md`
 Nivel de riesgo: B — (2) sí: guarda y administra claves SOL/API SIRE y recibe archivos del usuario; (4) sí: importación masiva y cupo concurrente; (1) no; (3) parcial. Por §2.1 literal saldría A: el usuario decidió B con una ronda adversarial acotada (D11).
 Cubre: RF-030 (autocompletado), RF-031, RF-032, RF-033, RF-034, RF-035 · HU-06, HU-09, HU-10 (parcial: estado visible; la notificación en la app es de 017).
 Parte 1: `docs/specs/007a-clientes/spec.md` (clientes, perfil fiscal, cupo, archivado, alcance, listado).
@@ -36,16 +36,16 @@ Que el contador cargue a sus clientes desde Excel, registre claves que solo se e
 
 ## Criterios de aceptación
 Entre paréntesis, el CA del borrador de 007 (commit 0bbddf6). Las partes de importación de los CA-1, CA-2 y CA-13 del borrador se verifican aquí en CA-1, CA-3 y CA-9; las de alta, en 007a.
-- [ ] CA-1 (CA-5): Dado el Excel de la plantilla, cuando se sube, entonces la vista previa muestra errores por fila (RUC inválido o de prefijo no permitido, duplicado, columna faltante, responsable inválido), cupo restante y excedentes, sin ninguna clave (••••); al confirmar se crean los clientes, las credenciales quedan cifradas (AAD con tenant, cliente y tipo) y el archivo no queda en disco ni en logs.
-- [ ] CA-2 (CA-6): Dado un archivo con fórmulas, filas repetidas, más de 1.000 filas, o que excede el tamaño permitido, entonces se rechaza o se marca por fila, sin error 500 ni consumo desmedido.
-- [ ] CA-3 (CA-3): Dadas dos importaciones simultáneas que juntas superan el cupo, entonces la suma de clientes activos no excede el límite y cada una informa como «no importadas» (`cupo_rucs`) las filas que ya no caben, sin 500 por 40P01.
-- [ ] CA-4 (CA-7): Dado que se guardan credenciales, entonces la respuesta, los logs y los errores no contienen el secreto, ninguna ruta lo devuelve, el estado pasa a «Configurada» y el formulario queda vacío.
-- [ ] CA-5 (CA-8): Dado «Verificar», entonces se encola un trabajo visible en el panel; con mock exitoso el estado pasa a «Verificada (fecha)» y con mock de clave errada a «Inválida (motivo)» sin reintentos.
-- [ ] CA-6 (CA-9): Dado un cliente con credencial inválida y otra con SIRE cancelada por D23, cuando se guarda o verifica de nuevo, entonces los trabajos SIRE vuelven a despacharse; la UI muestra el aviso de cambio de clave SOL.
-- [ ] CA-7 (CA-12): Dado el panel de trabajos abierto en el navegador con el stack real, cuando un trabajo cambia de estado, entonces el evento llega antes de que cierre la conexión (sin buffering del proxy de Next).
-- [ ] CA-8 (nuevo, D8 y D9): Dado un archivo con filas válidas, un RUC existente (activo o archivado) y más filas válidas que el cupo, cuando se confirma, entonces se crean las válidas en orden de archivo hasta el cupo, el existente sale como «duplicado» (con la sugerencia de reactivar si está archivado) y el resto como «no importadas» con su motivo.
-- [ ] CA-9 (nuevo, D1): Dado un cliente creado (formulario o importación), cuando corre `cliente.consultar_ruc` con el mock, entonces se completan estado, condición y la razón social provisional; con el mock en error el cliente queda intacto y el trabajo figura fallido en el panel.
-- [ ] CA-10 (nuevo, D3): Dado un cliente archivado o ajeno, cuando se guardan o verifican credenciales, entonces 409 `cliente_archivado` o el mismo 404 que uno inexistente.
+- [x] CA-1 (CA-5): Dado el Excel de la plantilla, cuando se sube, entonces la vista previa muestra errores por fila (RUC inválido o de prefijo no permitido, duplicado, columna faltante, responsable inválido), cupo restante y excedentes, sin ninguna clave (••••); al confirmar se crean los clientes, las credenciales quedan cifradas (AAD con tenant, cliente y tipo) y el archivo no queda en disco ni en logs.
+- [x] CA-2 (CA-6): Dado un archivo con fórmulas, filas repetidas, más de 1.000 filas, o que excede el tamaño permitido, entonces se rechaza o se marca por fila, sin error 500 ni consumo desmedido.
+- [x] CA-3 (CA-3): Dadas dos importaciones simultáneas que juntas superan el cupo, entonces la suma de clientes activos no excede el límite y cada una informa como «no importadas» (`cupo_rucs`) las filas que ya no caben, sin 500 por 40P01.
+- [x] CA-4 (CA-7): Dado que se guardan credenciales, entonces la respuesta, los logs y los errores no contienen el secreto, ninguna ruta lo devuelve, el estado pasa a «Configurada» y el formulario queda vacío.
+- [x] CA-5 (CA-8): Dado «Verificar», entonces se encola un trabajo visible en el panel; con mock exitoso el estado pasa a «Verificada (fecha)» y con mock de clave errada a «Inválida (motivo)» sin reintentos.
+- [x] CA-6 (CA-9): Dado un cliente con credencial inválida y otra con SIRE cancelada por D23, cuando se guarda o verifica de nuevo, entonces los trabajos SIRE vuelven a despacharse; la UI muestra el aviso de cambio de clave SOL.
+- [x] CA-7 (CA-12): Dado el panel de trabajos abierto en el navegador con el stack real, cuando un trabajo cambia de estado, entonces el evento llega antes de que cierre la conexión (sin buffering del proxy de Next).
+- [x] CA-8 (nuevo, D8 y D9): Dado un archivo con filas válidas, un RUC existente (activo o archivado) y más filas válidas que el cupo, cuando se confirma, entonces se crean las válidas en orden de archivo hasta el cupo, el existente sale como «duplicado» (con la sugerencia de reactivar si está archivado) y el resto como «no importadas» con su motivo.
+- [x] CA-9 (nuevo, D1): Dado un cliente creado (formulario o importación), cuando corre `cliente.consultar_ruc` con el mock, entonces se completan estado, condición y la razón social provisional; con el mock en error el cliente queda intacto y el trabajo figura fallido en el panel.
+- [x] CA-10 (nuevo, D3): Dado un cliente archivado o ajeno, cuando se guardan o verifican credenciales, entonces 409 `cliente_archivado` o el mismo 404 que uno inexistente.
 - [ ] Casos reales aplicables: ninguno.
 
 ## Dependencias

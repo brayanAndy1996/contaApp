@@ -16,7 +16,7 @@ Nivel B con una ronda adversarial acotada (spec D11). Flujo 04 §1.3: pruebas pr
 | T8   | Puertos y mocks de sunat, esquemas de shared y tipos del catálogo de queue                         | backend    | sonnet | T2 ∥ T7             | ✓   | —   | [x]    |
 | T9   | Procesadores del worker y cableado de puertos                                                      | backend    | sonnet | T5, T7, T8          | ✓   | —   | [x]    |
 | T10  | Módulo `credenciales` del backend: cifrado, estado y verificar                                     | backend    | sonnet | T4, T7, T8 ∥ T9     | ✓   | —   | [x]    |
-| T11  | Lector `.xlsx`/`.csv` y validación de filas                                                        | backend    | opus   | T3, T8 ∥ T9, T10    | ✓   | —   | | [x]    |
+| T11  | Lector `.xlsx`/`.csv` y validación de filas                                                        | backend    | opus   | T3, T8 ∥ T9, T10    | ✓   | —   | [x]    |
 | T12  | Importación: vista previa, confirmar (cupo, bloqueos), `encolarLote` y alta que encola la consulta | backend    | sonnet | T4, T10, T11        | ✓   | —   | [x]    |
 | T12b | Plantilla `.xlsx` en memoria y ruta de descarga                                                    | backend    | haiku  | T11 ∥ T12           | ✓   | —   | [x]    |
 | T13  | Frontend: cliente HTTP y sección de credenciales del detalle                                       | frontend   | sonnet | T6 ∥ T7–T12b        | ✓   | —   | [x]    |
@@ -28,7 +28,7 @@ Nivel B con una ronda adversarial acotada (spec D11). Flujo 04 §1.3: pruebas pr
 | T18a | Corregir los defectos de T18 (solo si los hay)                                                     | backend / frontend | sonnet | T18         | ✓   | —   | [x]    |
 | T19  | Verificar CA-1 a CA-10 con evidencia (suites completas)                                            | tester     | sonnet | T17, T18a           | —   | —   | [x]    |
 | T20  | Revisión contra la spec                                                                            | arquitecto | sonnet | T19                 | —   | —   | [x]    |
-| T21  | Cierre: tasks y commit (el orquestador actualiza ESTADO)                                           | devops     | haiku  | T20                 | —   | —   | [ ]    |
+| T21  | Cierre: tasks y commit (el orquestador actualiza ESTADO)                                           | devops     | haiku  | T20                 | —   | —   | [x]    |
 
 Escalamientos: ninguno previsto. T11 es `opus` por ser el parser de archivos del usuario (04 §3.2); T12 concentra el orden de bloqueo y las carreras de CA-3: si falla 2 veces nace de nuevo en `opus` (04 §3.3). T12b puede escalar a `sonnet` si `haiku` falla una vez. T18 es `tester` y no `devops`: debe leer el comportamiento del stream y decidir; si no consigue un navegador, mide con `curl -N` a través del puerto de Next y lo anota. Si T20 encuentra defectos se añaden T20a (pruebas en rojo) y T20b (corrección) con el precedente de 007a T13a/T13b.
 
@@ -246,3 +246,4 @@ Defectos (no corregidos; para T18a):
 - **Contexto (leer solo esto)**: `docs/specs/007b-credenciales/tasks.md`, `git status`.
 - **Hacer**: marcar `[x]` en esta tabla, poner `Estado: hecha` en `spec.md` y marcar CA-1 a CA-10, commit final y avisar al orquestador, que actualiza `ESTADO.md` (007b hecha; siguiente 009). Sin `git add -A`.
 - **Hecho cuando**: árbol limpio salvo cambios ajenos y `tasks.md` al día. Commit `docs(007b): tareas hechas y spec cerrada`.
+- **Resultado**: hecha. `pnpm install --frozen-lockfile` sin cambios en el lockfile (solo aviso de motor: el proyecto pide Node `>=24.1 <25`; el entorno tiene v22.22.0). `pnpm lint` 9/9 y `pnpm typecheck` 14/14, sin caché de turbo y sin fallos. Árbol limpio: sin `dump.rdb`; los `coverage/` están en `.gitignore`. CA-1 a CA-10 marcados en `spec.md` con la evidencia de T19 y la revisión de T20, sin repetir pruebas; `spec.md` pasa a `Estado: hecha`. «Casos reales aplicables» de `spec.md` queda sin marcar: T21 pide solo CA-1 a CA-10 (decide el orquestador). Fila de T11 corregida (tenía un `|` de más; sin cambio de estado). `docs/specs/ESTADO.md` sin tocar: lo actualiza el orquestador (007b hecha; siguiente 009).
