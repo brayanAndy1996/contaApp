@@ -19,7 +19,7 @@ Nivel B con una ronda adversarial acotada (spec D11). Flujo 04 §1.3: pruebas pr
 | T11  | Lector `.xlsx`/`.csv` y validación de filas                                                        | backend    | opus   | T3, T8 ∥ T9, T10    | ✓   | —   | | [x]    |
 | T12  | Importación: vista previa, confirmar (cupo, bloqueos), `encolarLote` y alta que encola la consulta | backend    | sonnet | T4, T10, T11        | ✓   | —   | [ ]    |
 | T12b | Plantilla `.xlsx` en memoria y ruta de descarga                                                    | backend    | haiku  | T11 ∥ T12           | ✓   | —   | [ ]    |
-| T13  | Frontend: cliente HTTP y sección de credenciales del detalle                                       | frontend   | sonnet | T6 ∥ T7–T12b        | ✓   | —   | [ ]    |
+| T13  | Frontend: cliente HTTP y sección de credenciales del detalle                                       | frontend   | sonnet | T6 ∥ T7–T12b        | ✓   | —   | [x]    |
 | T14  | Frontend: asistente de importación                                                                 | frontend   | sonnet | T6, T13 (`lib`)     | ✓   | —   | [ ]    |
 | T15  | Frontend: panel de trabajos con SSE, cabecera `no-transform` y `next.config`                       | frontend   | sonnet | T6 ∥ T14            | ✓   | —   | [x]    |
 | T16  | Ronda adversarial: credenciales e importación (caja negra, luego blanca; ≤ 15 pruebas)             | adversario | opus   | T9, T10, T12, T12b, T13, T14 | — | ✓ | [ ]    |
@@ -132,6 +132,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `spec.md` (D4–D6; CA-4 a CA-6, CA-10), `plan.md` (Contratos: HTTP), `apps/frontend/AGENTS.md`, `apps/frontend/lib/{api,clientes}.ts`, `apps/frontend/app/(app)/clientes/[clienteId]/page.tsx`, las pruebas de T6.
 - **Hacer**: `lib/credenciales.ts` y la sección «Credenciales» del detalle (estado, formulario de solo escritura que se vacía siempre —también tras un error—, «Verificar», aviso de clave SOL, solo lectura si está archivado). Sin guardar el secreto en estado más tiempo del que dura el envío, ni en `localStorage`, ni en mensajes de error.
 - **Hecho cuando**: las pruebas de credenciales de T6 en verde; `vitest`, `tsc` y `eslint` del frontend limpios. Commit `feat(007b): credenciales en el detalle del cliente`.
+- **Resultado**: `lib/credenciales.ts` (listar, guardar, verificar; `MENSAJES_CREDENCIALES`) y `components/credenciales-cliente.tsx` montado en el detalle. Campos no controlados: el secreto se lee al enviar y el formulario se vacía antes de la llamada (éxito o error); nunca va a estado, storage ni mensajes. `credenciales.spec.tsx` 19/19 en verde sin tocar aserciones; resto de 007a/005 intacto; `tsc` y `eslint` limpios. Pendientes de otras tareas: panel, asistente y enlaces (T14/T15). Si el GET de estados falla, cada grupo dice «Estado no disponible» (sin alerta global).
 
 ## T14 · Frontend: asistente de importación (frontend · sonnet)
 
