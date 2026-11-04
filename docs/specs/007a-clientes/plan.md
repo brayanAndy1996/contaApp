@@ -48,3 +48,16 @@ La asignación (005) pasa a responder 409 `cliente_archivado` sobre archivados. 
 - Fuga de existencia por 404 distinto entre ajeno e inexistente: CA-3 compara cuerpo y código en todas las rutas con `:clienteId`.
 - Listado sin paginación con muchos archivados: solo se incluyen con `archivados=1`; revisar si el uso real lo exige en una spec posterior.
 - `contarRucs` cambia el conteo de 006: sus pruebas de cupo deben seguir verdes (T10 las corre).
+
+## Revisión T13 (ratificaciones)
+- **`q` (D7)**: ratificada. `filtros.ts` busca siempre prefijo de RUC y fragmento de razón social (así lo dice D7); `%`, `_` y `\` se escapan y se buscan como literales (`escape '\'`). La heurística «letras o solo dígitos» de T7 ya no existe (cambio de T9, probado por `clientes-filtros.int.spec.ts`: `q=%` solo encuentra «100%…»). Las dos ramas de `filtros.ts` son equivalentes; no se unifican porque `filtros.spec.ts` fija el patrón `%sac%`.
+- **`archivados=1` suma archivados a activos**: ratificada. Coincide con D5 («lo oculta salvo `archivados=1`») y con la casilla «Mostrar archivados». «Solo archivados» sería otra decisión de producto: no se pide.
+- **`responsableId` no asignable = 409 `miembro_no_asignable`; ajeno o inexistente = 404 `no_encontrado`**: ratificada (igual que la asignación de 005). El 404 no revela nada fuera del estudio.
+- **403 antes que 404 en PATCH, archivar y reactivar**: ratificada. Es el orden `PermisoGuard` → `ClienteScopeGuard` de 005 (D5). Hoy solo Dueño y Administrador tienen esos permisos y son de alcance global, así que el 404 uniforme de esas rutas se prueba con ellos.
+- **Select de responsable con `clientes.asignar`**: ratificada en el frontend (`nuevo/page.tsx`). Hoy `clientes.crear`, `clientes.asignar` y `usuarios.ver` los tienen los mismos roles (Dueño y Administrador); si se separan, el select necesitaría también `usuarios.ver` (lee `/usuarios`). El backend no exige `clientes.asignar` para `responsableId` en `POST /clientes` (D3 solo dice «acepta un `responsableId` opcional»); sin efecto con la matriz actual. Ver pregunta abierta.
+- **UI en HTML + Tailwind sin shadcn**: ratificada por precedente (005, 006; 001 §5 difiere shadcn hasta que una spec lo necesite). `docs/03-arquitectura.md` («Tailwind + shadcn/ui») queda sin cumplir: pregunta abierta.
+- **Contrato frontend↔backend**: revisado archivo por archivo, sin desajustes. Defectos menores de frontend D1 a D3 en `tasks.md` (T13).
+
+Preguntas abiertas para el usuario (no bloquean el cierre de 007a):
+1. `POST /clientes` con `responsableId`: (a) dejarlo como está y anotarlo en D3 (recomendada: sin efecto con los roles actuales); (b) exigir además `clientes.asignar` en el servidor.
+2. shadcn/ui: (a) seguir sin él hasta que una spec lo exija y corregir 03 §UI para decirlo (recomendada); (b) introducirlo en una spec propia antes de la siguiente de UI.
