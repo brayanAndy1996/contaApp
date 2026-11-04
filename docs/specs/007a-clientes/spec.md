@@ -1,6 +1,6 @@
 # Spec 007a · Clientes, perfil fiscal, archivado y listado
 
-Estado: borrador (parte 1 de 2 de la antigua 007; pendiente de aprobación del usuario)
+Estado: hecha. Aprobada por el usuario el 2026-11-03 (respuestas a P1–P7 y razón social provisional; «sigue con la 007»).
 Nivel de riesgo: B — (2) sí: lista y abre clientes por alcance; (4) sí: cupo de RUCs con concurrencia; (1) no; (3) parcial. Por §2.1 literal ((2) y otra) saldría A, pero esta parte no maneja secretos: las credenciales y la importación van en 007b. Decisión del usuario (D9): B, sin ronda adversarial aquí.
 Cubre: RF-030 (parcial: alta y validación del RUC; el autocompletado llega con 007b), RF-036, RF-037, RF-039 (parcial: cuatro filtros, D11). Sigue en R2: RF-038.
 Parte 2: `docs/specs/007b-credenciales/spec.md` (RF-030 autocompletado, RF-031 a 035, HU-06, HU-09, HU-10).
