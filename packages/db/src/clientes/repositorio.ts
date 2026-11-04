@@ -12,6 +12,8 @@ import { condicionesFiltros, type FiltrosListado } from "./filtros";
 export type { FiltrosListado } from "./filtros";
 
 export interface DatosCliente {
+  /** Id explícito (007b D7): permite cifrar la credencial con el AAD final antes de abrir la transacción. */
+  id?: string;
   ruc: string;
   razonSocial?: string;
   perfil?: PerfilFiscal;
@@ -39,8 +41,8 @@ const PERFIL_DEFECTO: PerfilFiscal = {
   monedaHabitual: "PEN",
 };
 
-const SQL_CREAR = `insert into cliente (tenant_id, ruc, razon_social, regimen, zona, ventas_exoneradas, ventas_mixtas, moneda_habitual)
-  values ($1::uuid, $2, $3, $4, $5, $6, $7, $8) returning id`;
+const SQL_CREAR = `insert into cliente (id, tenant_id, ruc, razon_social, regimen, zona, ventas_exoneradas, ventas_mixtas, moneda_habitual)
+  values (coalesce($9::uuid, gen_random_uuid()), $1::uuid, $2, $3, $4, $5, $6, $7, $8) returning id`;
 
 /** Crea el cliente y devuelve su id. Sin razón social guarda «RUC <número>» (D1). RUC repetido -> RucDuplicadoError. */
 export async function crearCliente(
@@ -60,6 +62,7 @@ export async function crearCliente(
       p.ventasExoneradas,
       p.ventasMixtas,
       p.monedaHabitual,
+      d.id ?? null,
     ]);
     return r.rows[0]?.id as string;
   } catch (e) {
@@ -67,6 +70,40 @@ export async function crearCliente(
       throw new RucDuplicadoError();
     throw AccesoRepoError.desde(e);
   }
+}
+
+// Datos de la consulta de RUC (007b D1, rol worker). La razón social solo se reemplaza si sigue siendo la provisional
+// «RUC <ruc>»; la comparación va en el mismo UPDATE, así una edición manual concurrente no se pisa.
+const SQL_COMPLETAR_RUC = `update cliente
+  set razon_social = case when razon_social = 'RUC ' || ruc then $2 else razon_social end,
+      estado_contribuyente = $3, condicion_contribuyente = $4, updated_at = now()
+  where id = $1::uuid`;
+
+/** Completa razón social (si es la provisional), estado y condición del cliente. No lanza si el cliente no existe. */
+export async function completarDatosRuc(
+  tx: TxConsulta,
+  clienteId: string,
+  d: { razonSocial: string; estado: string; condicion: string },
+): Promise<void> {
+  await ejecutar(tx, SQL_COMPLETAR_RUC, [
+    clienteId,
+    d.razonSocial,
+    d.estado,
+    d.condicion,
+  ]);
+}
+
+const SQL_RUCS_EXISTENTES = `select ruc, archivado_at is not null as archivado from cliente
+  where ruc = any($1::text[])`;
+
+/** RUC (de la lista) que ya existen en el estudio, activos o archivados. Los que no existen se omiten. */
+export async function rucsExistentes(
+  tx: TxConsulta,
+  rucs: string[],
+): Promise<Array<{ ruc: string; archivado: boolean }>> {
+  if (rucs.length === 0) return [];
+  const r = await ejecutar(tx, SQL_RUCS_EXISTENTES, [rucs]);
+  return r.rows.map((f) => ({ ruc: f.ruc as string, archivado: f.archivado as boolean }));
 }
 
 const SQL_ARCHIVADO = "select archivado_at from cliente where id = $1::uuid";

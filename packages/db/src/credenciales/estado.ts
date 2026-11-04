@@ -100,3 +100,65 @@ export async function estadoCredencial(
   const r = await consultar(tx, SQL_ESTADO, [clienteId, tipo]);
   return r.rows[0]?.estado ?? null;
 }
+
+// Spec 007b (D6): la verificación terminó bien. Mismo candado de versión que la marca de inválida: un guardado que
+// confirmó mientras el trabajo verificaba es otra versión (otro xmin) y gana. No toca el sobre.
+const SQL_MARCAR_VERIFICADA = `update credencial set estado = 'verificada', estado_motivo = null, estado_at = clock_timestamp()
+  where cliente_id = $1 and tipo = $2 and xmin::text = $3`;
+
+/**
+ * true solo si la credencial (cliente, tipo) sigue siendo la `version` que dio `versionCredencial` al empezar el
+ * trabajo. `version` null (no había credencial) no marca nada. Rol: contapp_worker (solo las 3 columnas de estado).
+ */
+export async function marcarCredencialVerificada(
+  tx: TxConsulta,
+  clienteId: string,
+  tipo: TipoCredencial,
+  version: string | null,
+): Promise<boolean> {
+  if (version === null) return false;
+  const r = await consultar(tx, SQL_MARCAR_VERIFICADA, [
+    clienteId,
+    tipo,
+    version,
+  ]);
+  return r.rowCount === 1;
+}
+
+export interface EstadoCredencialLeido {
+  tipo: TipoCredencial;
+  estado: EstadoDeCredencial;
+  fecha: Date | null;
+  motivo: string | null;
+}
+
+const SQL_ESTADOS =
+  "select tipo, estado, estado_at, estado_motivo from credencial where cliente_id = $1 order by tipo";
+
+/**
+ * Estado, fecha y motivo de cada credencial existente del cliente (los tipos sin fila los completa el servicio como
+ * no_configurada). Solo columnas de estado, nunca del sobre. Lo leen backend y worker.
+ */
+export async function leerEstadoCredenciales(
+  tx: TxConsulta,
+  clienteId: string,
+): Promise<EstadoCredencialLeido[]> {
+  try {
+    const r = await tx.query(SQL_ESTADOS, [clienteId]);
+    return (
+      r.rows as Array<{
+        tipo: TipoCredencial;
+        estado: EstadoDeCredencial;
+        estado_at: Date | null;
+        estado_motivo: string | null;
+      }>
+    ).map((f) => ({
+      tipo: f.tipo,
+      estado: f.estado,
+      fecha: f.estado_at ?? null,
+      motivo: f.estado_motivo ?? null,
+    }));
+  } catch (e) {
+    throw CredencialRepoError.desde(e);
+  }
+}

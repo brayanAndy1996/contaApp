@@ -125,10 +125,16 @@ export type { ConteosPurga, RetencionesAuth } from "./trabajos/sistema";
 export { TrabajosRepoError } from "./trabajos/errores";
 export {
   estadoCredencial,
+  leerEstadoCredenciales,
   marcarCredencialInvalida,
+  marcarCredencialVerificada,
   versionCredencial,
 } from "./credenciales/estado";
-export type { EstadoDeCredencial, MotivoEstadoCredencial } from "./credenciales/estado";
+export type {
+  EstadoCredencialLeido,
+  EstadoDeCredencial,
+  MotivoEstadoCredencial,
+} from "./credenciales/estado";
 export { configSistema, jobRegistro } from "./schema/trabajos";
 // Spec 006: planes y cupo (todos con la `tx` de withTenant como primer argumento).
 export { bloquearCupo, contarRucs, contarUsuarios, leerLimites } from "./planes/cupo";
@@ -140,11 +146,13 @@ export { adminPlataforma, plan, suscripcion } from "./schema/planes";
 // Spec 007a: repositorios de clientes (todos con la `tx` de withTenant como primer argumento).
 export {
   archivarCliente,
+  completarDatosRuc,
   crearCliente,
   editarCliente,
   leerClienteDto,
   listarClientesFiltrado,
   reactivarCliente,
+  rucsExistentes,
 } from "./clientes/repositorio";
 export type { DatosCliente, FiltrosListado } from "./clientes/repositorio";
 export { ClienteArchivadoError, RucDuplicadoError } from "./clientes/errores";

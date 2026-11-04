@@ -12,7 +12,7 @@ Nivel B con una ronda adversarial acotada (spec D11). Flujo 04 §1.3: pruebas pr
 | T4   | Pruebas de integración HTTP: credenciales, importación, carreras de cupo y alta con consulta (rojo)| tester     | sonnet | T1, T2, T3          | ✓   | —   | [ ]    |
 | T5   | Pruebas de integración del worker: consultar RUC y verificar credenciales (rojo)                   | tester     | sonnet | T1, T2 ∥ T4         | ✓   | —   | [ ]    |
 | T6   | Pruebas del frontend: credenciales, asistente de importación, panel y `next.config` (rojo)        | tester     | sonnet | contrato del plan ∥ T4 | ✓ | —   | [x]    |
-| T7   | Migración 0027, esquema y repositorios de `packages/db`                                            | backend    | sonnet | T1                  | ✓   | —   | [ ]    |
+| T7   | Migración 0027, esquema y repositorios de `packages/db`                                            | backend    | sonnet | T1                  | ✓   | —   | [x]    |
 | T8   | Puertos y mocks de sunat, esquemas de shared y tipos del catálogo de queue                         | backend    | sonnet | T2 ∥ T7             | ✓   | —   | [x]    |
 | T9   | Procesadores del worker y cableado de puertos                                                      | backend    | sonnet | T5, T7, T8          | ✓   | —   | [ ]    |
 | T10  | Módulo `credenciales` del backend: cifrado, estado y verificar                                     | backend    | sonnet | T4, T7, T8 ∥ T9     | ✓   | —   | [ ]    |
@@ -89,6 +89,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `plan.md` (Archivos; Contratos: packages/db), `packages/db/src/schema/credenciales.ts`, `packages/db/src/credenciales/{estado,repositorio}.ts`, `packages/db/src/clientes/repositorio.ts`, `packages/db/migrations/0026_clientes_perfil.sql` (solo el estilo), `tests/aislamiento/credencial-fk.spec.ts`, `credencial-estado.spec.ts`.
 - **Hacer**: FK en el esquema drizzle; `drizzle-kit generate` → `0027_credencial_fk_cliente.sql` (idempotente como las anteriores); las funciones del plan con SQL estático parametrizado; exportarlas en `packages/db/src/index.ts`.
 - **Hecho cuando**: `pnpm db:migrate` dos veces sin error; lo de T1 en verde; `pnpm --filter @contapp/db test` verde. Commit `feat(007b): migración 0027 y repositorios de credencial y RUC`.
+- **Resultado**: verde. `0027_credencial_fk_cliente.sql` (FK `credencial_cliente_fk`, `DO $$` idempotente; `db:migrate` dos veces OK) + snapshot; FK en `schema/credenciales.ts`. Nuevos en `packages/db`: `marcarCredencialVerificada`, `leerEstadoCredenciales`, `completarDatosRuc`, `rucsExistentes`, `crearCliente` con `id?` (todos exportados). `test:aislamiento` 1537/1537, `@contapp/db` test 624/624, lint y tsc limpios.
 
 ## T8 · Puertos, mocks, esquemas y catálogo (backend · sonnet)
 
