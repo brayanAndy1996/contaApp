@@ -17,6 +17,7 @@
     "test:cobertura:acceso": "vitest run --config vitest.cobertura-acceso.config.mts --coverage"
   },
   "dependencies": {
+    "@contapp/crypto": "workspace:*",
     "@contapp/db": "workspace:*",
     "@contapp/queue": "workspace:*",
     "@contapp/shared": "workspace:*",

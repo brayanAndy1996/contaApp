@@ -32,6 +32,9 @@ importers:
 
   apps/backend:
     dependencies:
+      '@contapp/crypto':
+        specifier: workspace:*
+        version: link:../../packages/crypto
       '@contapp/db':
         specifier: workspace:*
         version: link:../../packages/db
