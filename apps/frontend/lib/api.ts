@@ -13,6 +13,11 @@ export interface RespuestaApi<T = unknown> {
 export interface OpcionesApi {
   method?: string;
   body?: unknown;
+  /**
+   * Cuerpo crudo (p. ej. el archivo de la importación): se envía tal cual, sin `JSON.stringify` y como
+   * `application/octet-stream`. Excluyente con `body`.
+   */
+  cuerpoCrudo?: Blob | ArrayBuffer | Uint8Array;
   /** Login y recuperación: sin consultar la sesión ni añadir cabeceras de sesión. */
   sinSesion?: boolean;
   /**
@@ -47,7 +52,10 @@ async function ejecutar<T>(
 ): Promise<RespuestaApi<T>> {
   const metodo = (opciones.method ?? "GET").toUpperCase();
   const headers: Record<string, string> = {};
-  if (opciones.body !== undefined) headers["Content-Type"] = "application/json";
+  if (opciones.cuerpoCrudo !== undefined)
+    headers["Content-Type"] = "application/octet-stream";
+  else if (opciones.body !== undefined)
+    headers["Content-Type"] = "application/json";
 
   if (!opciones.sinSesion) {
     const sesion = await obtenerSesion();
@@ -64,7 +72,11 @@ async function ejecutar<T>(
     credentials: "same-origin",
     headers,
     body:
-      opciones.body === undefined ? undefined : JSON.stringify(opciones.body),
+      opciones.cuerpoCrudo !== undefined
+        ? (opciones.cuerpoCrudo as BodyInit)
+        : opciones.body === undefined
+          ? undefined
+          : JSON.stringify(opciones.body),
   });
   const datos = await leerCuerpo(respuesta);
 

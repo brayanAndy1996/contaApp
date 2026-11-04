@@ -20,7 +20,7 @@ Nivel B con una ronda adversarial acotada (spec D11). Flujo 04 §1.3: pruebas pr
 | T12  | Importación: vista previa, confirmar (cupo, bloqueos), `encolarLote` y alta que encola la consulta | backend    | sonnet | T4, T10, T11        | ✓   | —   | [ ]    |
 | T12b | Plantilla `.xlsx` en memoria y ruta de descarga                                                    | backend    | haiku  | T11 ∥ T12           | ✓   | —   | [ ]    |
 | T13  | Frontend: cliente HTTP y sección de credenciales del detalle                                       | frontend   | sonnet | T6 ∥ T7–T12b        | ✓   | —   | [x]    |
-| T14  | Frontend: asistente de importación                                                                 | frontend   | sonnet | T6, T13 (`lib`)     | ✓   | —   | [ ]    |
+| T14  | Frontend: asistente de importación                                                                 | frontend   | sonnet | T6, T13 (`lib`)     | ✓   | —   | [x]    |
 | T15  | Frontend: panel de trabajos con SSE, cabecera `no-transform` y `next.config`                       | frontend   | sonnet | T6 ∥ T14            | ✓   | —   | [x]    |
 | T16  | Ronda adversarial: credenciales e importación (caja negra, luego blanca; ≤ 15 pruebas)             | adversario | opus   | T9, T10, T12, T12b, T13, T14 | — | ✓ | [ ]    |
 | T17  | Corregir hallazgos de la ronda                                                                     | backend    | sonnet | T16                 | —   | —   | [ ]    |
@@ -139,6 +139,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `spec.md` (D7–D9; CA-1, CA-8), `plan.md` (Contratos: HTTP), `apps/frontend/lib/{api,clientes}.ts`, `apps/frontend/app/(app)/clientes/page.tsx` (enlace de entrada), las pruebas de T6.
 - **Hacer**: extender `api` con cuerpo crudo (sin `JSON.stringify`, con CSRF y `X-Estudio`), `lib/importacion.ts` y `clientes/importar/page.tsx` en tres pasos (subir, vista previa con •••• y motivos, informe), descarga de la plantilla; el archivo se conserva solo en memoria del paso y se descarta al confirmar o cancelar.
 - **Hecho cuando**: las pruebas del asistente en verde; `vitest`, `tsc` y `eslint` limpios. Commit `feat(007b): asistente de importación de clientes`.
+- **Resultado**: verde (`importar/page.spec.tsx` 18, enlace «Importar clientes» de `enlaces-007b.spec.tsx`; frontend 314/314, `tsc` y `eslint` limpios). `api` gana `cuerpoCrudo` (Blob/ArrayBuffer/vista, `application/octet-stream`, con CSRF y `X-Estudio`). `lib/importacion.ts` (revisar/confirmar validados con `vistaPreviaSchema`/`informeImportacionSchema`, textos y motivos, errores 400/403/413). `clientes/importar/page.tsx`: el `File` vive solo en un `ref` (se descarta al confirmar, cancelar o cambiar de archivo); las claves se muestran como «••••» según `tieneSol`/`tieneSire`; plantilla por enlace directo a `/api/clientes/importacion/plantilla`. Enlace «Importar clientes» en `/clientes` con `clientes.crear`. T12 aún no existe: solo contratos de `shared`.
 
 ## T15 · Frontend: panel de trabajos y SSE (frontend · sonnet)
 
