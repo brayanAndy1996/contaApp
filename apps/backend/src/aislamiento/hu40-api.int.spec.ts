@@ -30,6 +30,7 @@ import {
   vistaCon,
   type RedisPrueba,
 } from "../../test/soporte-trabajos.js";
+import { rucConPrefijo, xlsxConDatos } from "../../test/soporte-importacion.js";
 import {
   abrirHarness,
   COOKIE,
@@ -77,6 +78,8 @@ interface Pet {
   metodo?: Peticion["metodo"];
   ruta: string;
   cuerpo?: unknown;
+  /** Cuerpo binario crudo (importación de 007b). */
+  binario?: Uint8Array;
 }
 interface Esperado {
   dueno: number[];
@@ -369,6 +372,9 @@ const tokensDeB = (a: Recursos) => [
   a.invitacionId,
 ];
 const contrasenaMala = "incorrecta-HU40-aaaaaaaa";
+
+/** RUC del último archivo de `POST /clientes/importacion/confirmar` (para comprobar que no se creó). */
+let rucImportado = "";
 
 const CASOS: Caso[] = [
   /* ---------- 004 ---------- */
@@ -688,6 +694,100 @@ const CASOS: Caso[] = [
     esperado: E404,
     construir: (c) =>
       idsDeCliente(c.ajeno).map((id) => ({ metodo: "POST" as const, ruta: `/clientes/${id}/reactivar` })),
+  },
+  {
+    // 007b (T4): credenciales. El estudio sale de la sesión; un cliente de B (o un id de otra cosa de B) desde A da 404
+    // antes de leer, escribir o encolar: ni sobre en B, ni estado visible, ni trabajo en B.
+    ruta: "PUT /clientes/:clienteId/credenciales/:tipo",
+    esperado: E404,
+    construir: (c) =>
+      idsDeCliente(c.ajeno).flatMap((id) => [
+        {
+          metodo: "PUT" as const,
+          ruta: `/clientes/${id}/credenciales/sol`,
+          cuerpo: { usuario: "intruso-hu40", clave: "clave-hu40", tenantId: c.ajeno.tenantId },
+        },
+        {
+          metodo: "PUT" as const,
+          ruta: `/clientes/${id}/credenciales/sire_api`,
+          cuerpo: { clientId: "intruso-hu40", clientSecret: "secreto-hu40", tenantId: c.ajeno.tenantId },
+        },
+      ]),
+    extra: async (c) => {
+      const f = await h.sql("select count(*)::int n from credencial where cliente_id = any($1::uuid[])", [c.ajeno.clientes]);
+      expect(f[0].n).toBe(0);
+    },
+  },
+  {
+    ruta: "GET /clientes/:clienteId/credenciales",
+    esperado: E404,
+    construir: (c) => idsDeCliente(c.ajeno).map((id) => ({ ruta: `/clientes/${id}/credenciales` })),
+  },
+  {
+    ruta: "POST /clientes/:clienteId/credenciales/:tipo/verificar",
+    esperado: E404,
+    construir: (c) =>
+      idsDeCliente(c.ajeno).flatMap((id) => [
+        { metodo: "POST" as const, ruta: `/clientes/${id}/credenciales/sol/verificar` },
+        { metodo: "POST" as const, ruta: `/clientes/${id}/credenciales/sire_api/verificar` },
+      ]),
+    extra: async (c) => {
+      const f = await h.sql(
+        "select count(*)::int n from job_registro where cliente_id = any($1::uuid[]) and tipo like 'credencial.%'",
+        [c.ajeno.clientes],
+      );
+      expect(f[0].n).toBe(0);
+    },
+  },
+  {
+    // 007b (T4): importación. La plantilla no lleva datos de nadie; la vista previa y la confirmación toman el estudio de la
+    // sesión: un responsable de B en el archivo no existe para A y no se crea nada.
+    ruta: "GET /clientes/importacion/plantilla",
+    esperado: { dueno: [200], asistente: [403] },
+    construir: () => [{ ruta: "/clientes/importacion/plantilla" }],
+  },
+  {
+    ruta: "POST /clientes/importacion/vista-previa",
+    esperado: { dueno: [200], asistente: [403] },
+    eco: true,
+    construir: (c) => [
+      {
+        metodo: "POST" as const,
+        ruta: "/clientes/importacion/vista-previa",
+        binario: xlsxConDatos([
+          { ruc: rucConPrefijo("20", 7_000_000 + Math.floor(Math.random() * 900_000)), responsable: c.ajeno.dueno.correo },
+        ]),
+      },
+    ],
+    extra: async (c, respuestas) => {
+      if (c.yo.rol !== "dueno") return;
+      const r = respuestas[0]!;
+      expect(r.body.filas?.[0]?.motivos).toEqual(["responsable_inexistente"]);
+      expect(r.body).toMatchObject({ validas: 0, conError: 1 });
+    },
+  },
+  {
+    ruta: "POST /clientes/importacion/confirmar",
+    esperado: { dueno: [200], asistente: [403] },
+    eco: true,
+    construir: (c) => {
+      rucImportado = rucConPrefijo("20", 7_000_000 + Math.floor(Math.random() * 900_000));
+      return [
+        {
+          metodo: "POST" as const,
+          ruta: "/clientes/importacion/confirmar",
+          binario: xlsxConDatos([{ ruc: rucImportado, responsable: c.ajeno.dueno.correo }]),
+        },
+      ];
+    },
+    extra: async (c, respuestas) => {
+      if (c.yo.rol !== "dueno") return;
+      expect(respuestas[0]!.body.creadas).toBe(0);
+      expect(respuestas[0]!.body.noImportadas?.[0]?.motivo).toBe("responsable_inexistente");
+      // Ni un cliente nuevo, en ninguno de los dos estudios, por esta ruta.
+      const f = await h.sql("select count(*)::int n from cliente where ruc = $1", [rucImportado]);
+      expect(f[0].n).toBe(0);
+    },
   },
   {
     ruta: "GET /clientes/:clienteId/asignaciones",
@@ -1264,6 +1364,7 @@ for (const combo of COMBOS) {
             metodo: p.metodo,
             ruta: p.ruta,
             cuerpo: p.cuerpo,
+            ...(p.binario ? { binario: p.binario } : {}),
             ...(sesion ? { cookie: sesion.cookie, csrf: sesion.csrf } : {}),
             ...(sesion && estudio ? { estudio } : {}),
           });

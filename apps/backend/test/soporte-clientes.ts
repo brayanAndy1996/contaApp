@@ -69,8 +69,9 @@ export interface BancoClientes {
   cerrar(): Promise<void>;
 }
 
-export async function abrirBancoClientes(): Promise<BancoClientes> {
-  const p = await abrirBancoPlanes();
+/** `extra`: opciones adicionales de `crearApp` (007b: `redis`). */
+export async function abrirBancoClientes(extra: Record<string, unknown> = {}): Promise<BancoClientes> {
+  const p = await abrirBancoPlanes(undefined, extra);
   const tenants = new Set<string>();
   const sql = p.sql;
 
