@@ -135,6 +135,8 @@ function* registrosHoja(hoja: Nodo, cadenas: string[]): Generator<Registro> {
     for (const c of lista(fila, "c")) {
       const i = columnaDe(atributo(c, "r"), siguiente);
       siguiente = i + 1;
+      // Más allá de las columnas que se leen, la celda se ignora: no se rellena hasta ella (H-007b-1).
+      if (i >= LIMITES.maxColumnas) continue;
       if ("f" in c) formulas.add(i);
       const tipo = atributo(c, "t") ?? "n";
       let valor: string;

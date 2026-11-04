@@ -13,10 +13,16 @@ import {
   type TrabajoFila,
   type Tx,
 } from "@contapp/db";
-import { publicarEvento, vistaDeFila } from "@contapp/queue";
+import {
+  definicionDe,
+  publicarEvento,
+  TipoDesconocidoError,
+  vistaDeFila,
+} from "@contapp/queue";
 import {
   alcanceDe,
   listarTrabajosQuery,
+  tienePermiso,
   type ResumenTrabajos,
   type Rol,
   type TrabajoVista,
@@ -66,9 +72,25 @@ export async function actorDe(
   };
 }
 
-/** D9: cancelan quien encoló, el Dueño y el Administrador. */
-const puedeCancelar = (a: Actor, f: Pick<TrabajoFila, "creadoPor">): boolean =>
-  a.rol === "dueno" || a.rol === "admin" || f.creadoPor === a.usuarioId;
+/**
+ * D9 (precisado en 007b, H-007b-4): cancelan el Dueño y el Administrador, y quien encoló solo si todavía tiene el
+ * permiso que el catálogo exige para encolar ese tipo (un rol degradado con la sesión viva ya no cancela). Un tipo
+ * que el catálogo no conoce falla cerrado para el creador.
+ */
+function puedeCancelar(
+  a: Actor,
+  f: Pick<TrabajoFila, "creadoPor" | "tipo">,
+): boolean {
+  if (a.rol === "dueno" || a.rol === "admin") return true;
+  if (f.creadoPor !== a.usuarioId) return false;
+  try {
+    const permiso = definicionDe(f.tipo).permiso;
+    return permiso === null || tienePermiso(a.rol, permiso);
+  } catch (e) {
+    if (e instanceof TipoDesconocidoError) return false;
+    throw e;
+  }
+}
 
 const vistaDe = (f: TrabajoFila): TrabajoVista =>
   vistaDeFila(f, { estado: f.estado, motivo: f.motivo });

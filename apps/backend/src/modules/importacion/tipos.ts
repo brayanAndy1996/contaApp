@@ -3,6 +3,8 @@
 
 export const LIMITES = {
   maxFilas: 1000,
+  /** Columnas que se leen: la plantilla tiene 7; lo que pase de aquí se ignora (no cuesta trabajo). */
+  maxColumnas: 32,
   maxBytes: 2 * 1024 * 1024,
   maxDescomprimido: 20 * 1024 * 1024,
 } as const;

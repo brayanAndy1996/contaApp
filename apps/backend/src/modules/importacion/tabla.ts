@@ -57,7 +57,12 @@ const vacio = (r: Registro) =>
 export function construirFilas(registros: Iterable<Registro>): ArchivoLeido {
   let indices: Map<Columna, number> | null = null;
   const filas: FilaLeida[] = [];
+  // La cabecera y las filas vacías también cuentan contra el tope (cabecera + maxFilas): así no hay más de maxFilas
+  // filas de datos y un archivo de millones de filas vacías no cuesta trabajo proporcional (H-007b-1).
+  let vistos = 0;
   for (const r of registros) {
+    if (++vistos > LIMITES.maxFilas + 1)
+      throw new ErrorArchivo("demasiadas_filas");
     if (vacio(r)) continue;
     if (indices === null) {
       indices = new Map();
@@ -71,8 +76,6 @@ export function construirFilas(registros: Iterable<Registro>): ArchivoLeido {
         throw new ErrorArchivo("columnas_faltantes");
       continue;
     }
-    if (filas.length >= LIMITES.maxFilas)
-      throw new ErrorArchivo("demasiadas_filas");
     const valor = (col: Columna) => {
       const i = indices!.get(col);
       return i === undefined ? "" : (r.celdas[i] ?? "");

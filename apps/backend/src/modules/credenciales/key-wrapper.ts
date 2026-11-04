@@ -9,13 +9,16 @@ export type ObtenerKeyWrapper = () => KeyWrapper;
 const VARIABLES = ["KEY_PROVIDER", "KEK_ID", "KEK_PUBLIC_KEY_PATH", "NODE_ENV"] as const;
 
 /**
- * En producción pasa el entorno entero: si trae `KEK_PRIVATE_KEY_PATH` el proveedor no arranca (el backend no puede
- * tener la llave privada). En desarrollo el `.env` raíz lo comparten backend y worker, así que se le entregan solo
- * las variables que el backend necesita; el backend nunca lee ni usa esa ruta.
+ * Falla cerrado (H-007b-3): solo con `NODE_ENV` exactamente `development` o `test` se filtra el entorno, porque el
+ * `.env` raíz lo comparten backend y worker y el backend no necesita (ni lee) `KEK_PRIVATE_KEY_PATH`. Con cualquier
+ * otro valor, o sin `NODE_ENV`, pasa el entorno entero: si trae `KEK_PRIVATE_KEY_PATH` el proveedor no arranca (el
+ * backend no puede tener la llave privada).
  */
 function entornoDeCifrado(env: Record<string, string | undefined>): Record<string, string | undefined> {
-  if (env.NODE_ENV?.trim().toLowerCase() === "production") return env;
-  return Object.fromEntries(VARIABLES.map((v) => [v, env[v]]));
+  if (env.NODE_ENV === "development" || env.NODE_ENV === "test") {
+    return Object.fromEntries(VARIABLES.map((v) => [v, env[v]]));
+  }
+  return env;
 }
 
 /**

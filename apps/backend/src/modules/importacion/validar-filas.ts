@@ -59,10 +59,11 @@ export interface VistaPrevia {
 }
 
 /**
- * Texto que una hoja de cálculo podría interpretar (CSV/fórmula injection): empieza, tras espacios opcionales, con
- * `= + - @`, o lleva en cualquier posición un carácter de control (tabulador, retorno, NUL…; D7, T4).
+ * Texto que una hoja de cálculo podría interpretar (CSV/fórmula injection): empieza, tras espacios Unicode opcionales
+ * (los que recorta `trim()`: NBSP, BOM, U+3000…), con `= + - @`, o lleva en cualquier posición un carácter de control
+ * (tabulador, retorno, NUL…; D7, T4; H-007b-2).
  */
-const PELIGROSA = /^[ ]*[=+\-@]|[\u0000-\u001f\u007f]/;
+const PELIGROSA = /^[\s\ufeff]*[=+\-@]|[\u0000-\u001f\u007f]/u;
 
 /** Celdas de texto visibles que se rechazan si son peligrosas; las claves aceptan cualquier carácter. */
 const CAMPOS_TEXTO = [
