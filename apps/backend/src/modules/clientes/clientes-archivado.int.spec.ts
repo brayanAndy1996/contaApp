@@ -363,7 +363,7 @@ describe("CA-7 · carreras HTTP: sin 500, sin interbloqueos y el cupo nunca se e
     const a = await c.sembrar(F.tenantId, { razonSocial: "Carrera A" });
     const b = await c.sembrar(F.tenantId, { razonSocial: "Carrera B", archivado: true });
     const cc = await c.sembrar(F.tenantId, { razonSocial: "Carrera C" });
-    const permitido = new Set([200, 204, 409]);
+    const permitido = new Set([200, 201, 204, 409]); // 201: c.crear (CA-1)
     for (let ronda = 0; ronda < 12; ronda++) {
       const rs = await Promise.all([
         archivar(F.titular, a.id),
