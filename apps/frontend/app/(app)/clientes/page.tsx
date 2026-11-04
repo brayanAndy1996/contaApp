@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
   MENSAJES,
   cargarYo,
@@ -11,16 +11,24 @@ import {
   type Yo,
 } from "../../../lib/acceso";
 import { api } from "../../../lib/api";
+import { ETIQUETA_ESTADO, listarClientes } from "../../../lib/clientes";
+import {
+  FILTROS_VACIOS,
+  FiltrosClientes,
+  filtrosDeEstado,
+  type EstadoFiltros,
+} from "../../../components/filtros-clientes";
+import type { ClienteDto } from "@contapp/shared";
 
-// Clientes visibles para el usuario (el backend ya filtra por alcance) y asignación masiva
-// (spec 005, CA-5, CA-8, CA-15, D20). Sin cálculos: solo muestra y envía lo elegido.
+// Clientes visibles para el usuario (el backend ya filtra por alcance), filtros (spec 007a, D7, CA-9) y
+// asignación masiva (spec 005, CA-5, CA-8, CA-15, D20). Sin cálculos: solo muestra y envía lo elegido.
 
-interface ClienteFila {
-  id: string;
-  ruc: string;
-  razonSocial: string;
-  responsable: { usuarioId: string; nombre: string } | null;
-}
+const ESPERA_BUSQUEDA_MS = 400;
+
+// Fila del listado: `ClienteDto`; credenciales y archivado se leen con tolerancia (las pruebas de 005
+// responden filas mínimas sin ellos).
+type Fila = Omit<ClienteDto, "credenciales" | "archivado"> &
+  Partial<Pick<ClienteDto, "credenciales" | "archivado">>;
 
 type Tipo = "colaborador" | "responsable";
 type Anterior = "colaborador" | "retirar";
@@ -28,7 +36,7 @@ type Anterior = "colaborador" | "retirar";
 export default function Clientes() {
   const [yo, setYo] = useState<Yo | null>(null);
   const [cargado, setCargado] = useState(false);
-  const [clientes, setClientes] = useState<ClienteFila[]>([]);
+  const [clientes, setClientes] = useState<Fila[]>([]);
   const [miembros, setMiembros] = useState<Miembro[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -38,11 +46,56 @@ export default function Clientes() {
   const [anterior, setAnterior] = useState<Anterior>("colaborador");
   const [enviando, setEnviando] = useState(false);
 
-  const recargar = useCallback(async () => {
-    const r = await api<ClienteFila[]>("/clientes");
-    if (r.ok && r.datos) setClientes(r.datos);
-    else if (r.status !== 401) setError(mensajeDeError(r.status, r.datos));
-  }, []);
+  const [filtros, setFiltros] = useState<EstadoFiltros>(FILTROS_VACIOS);
+  const [qEnviada, setQEnviada] = useState("");
+  const [version, setVersion] = useState(0);
+
+  const puedeVerClientes = tiene(yo, "clientes.ver");
+  const { responsable, credencial, archivados } = filtros;
+
+  // La búsqueda por texto se envía un momento después de dejar de escribir.
+  useEffect(() => {
+    const t = setTimeout(
+      () => setQEnviada(filtros.q.trim()),
+      ESPERA_BUSQUEDA_MS,
+    );
+    return () => clearTimeout(t);
+  }, [filtros.q]);
+
+  // Pide el listado con los filtros activos; una respuesta tardía de una consulta anterior se descarta.
+  useEffect(() => {
+    if (!puedeVerClientes) return;
+    let vigente = true;
+    listarClientes(
+      filtrosDeEstado({ responsable, credencial, archivados, q: qEnviada }),
+    )
+      .then((r) => {
+        if (!vigente) return;
+        if (r.ok && r.datos) {
+          const lista = r.datos;
+          setClientes(lista);
+          setSeleccion((previa) => {
+            const visibles = new Set(lista.map((c) => c.id));
+            return new Set([...previa].filter((id) => visibles.has(id)));
+          });
+        } else if (r.status !== 401) {
+          setError(mensajeDeError(r.status, r.datos));
+        }
+      })
+      .catch(() => {
+        if (vigente) setError(MENSAJES.errorGeneral);
+      });
+    return () => {
+      vigente = false;
+    };
+  }, [
+    puedeVerClientes,
+    responsable,
+    credencial,
+    archivados,
+    qEnviada,
+    version,
+  ]);
 
   useEffect(() => {
     let vigente = true;
@@ -56,15 +109,10 @@ export default function Clientes() {
         return;
       }
       if (!tiene(actual, "clientes.ver")) return;
-      const pedidos: Promise<void>[] = [recargar()];
-      if (tiene(actual, "clientes.asignar")) {
-        pedidos.push(
-          api<Miembro[]>("/usuarios").then((r) => {
-            if (vigente && r.ok && r.datos) setMiembros(r.datos);
-          }),
-        );
+      if (tiene(actual, "clientes.asignar") || tiene(actual, "usuarios.ver")) {
+        const r = await api<Miembro[]>("/usuarios");
+        if (vigente && r.ok && r.datos) setMiembros(r.datos);
       }
-      await Promise.all(pedidos);
     })().catch(() => {
       if (vigente) {
         setCargado(true);
@@ -74,7 +122,7 @@ export default function Clientes() {
     return () => {
       vigente = false;
     };
-  }, [recargar]);
+  }, []);
 
   function alternar(id: string) {
     setSeleccion((previa) => {
@@ -110,7 +158,7 @@ export default function Clientes() {
       }
       setAviso(`Clientes asignados: ${r.datos?.asignados ?? seleccion.size}`);
       setSeleccion(new Set());
-      await recargar();
+      setVersion((v) => v + 1);
     } catch {
       setError(MENSAJES.errorGeneral);
     } finally {
@@ -120,12 +168,25 @@ export default function Clientes() {
 
   if (!cargado) return <main className="p-6">Cargando…</main>;
 
-  const puedeVer = tiene(yo, "clientes.ver");
+  const puedeVer = puedeVerClientes;
   const asigna = tiene(yo, "clientes.asignar");
+  const crea = tiene(yo, "clientes.crear");
+  const archiva = tiene(yo, "clientes.archivar");
+  const activos = miembros.filter((m) => m.activo);
 
   return (
     <main className="flex flex-col gap-6 p-6">
-      <h1 className="text-2xl font-semibold">Clientes</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold">Clientes</h1>
+        {crea && (
+          <Link
+            href="/clientes/nuevo"
+            className="rounded bg-black px-4 py-2 text-sm text-white"
+          >
+            Nuevo cliente
+          </Link>
+        )}
+      </div>
       {error && (
         <p role="alert" className="text-sm text-red-600">
           {error}
@@ -133,6 +194,13 @@ export default function Clientes() {
       )}
       {aviso && <p role="status">{aviso}</p>}
       {yo && !puedeVer && <p>{MENSAJES.sinPermiso}</p>}
+      {yo && puedeVer && (
+        <FiltrosClientes
+          valor={filtros}
+          onCambio={setFiltros}
+          responsables={activos}
+        />
+      )}
       {yo && puedeVer && (
         <form onSubmit={asignar} className="flex flex-col gap-4">
           <table className="w-full text-left text-sm">
@@ -142,6 +210,8 @@ export default function Clientes() {
                 <th>RUC</th>
                 <th>Razón social</th>
                 <th>Responsable</th>
+                <th>Credenciales</th>
+                {archiva && <th>Acciones</th>}
               </tr>
             </thead>
             <tbody>
@@ -153,6 +223,7 @@ export default function Clientes() {
                         type="checkbox"
                         aria-label={`Seleccionar ${c.razonSocial}`}
                         checked={seleccion.has(c.id)}
+                        disabled={c.archivado}
                         onChange={() => alternar(c.id)}
                       />
                     </td>
@@ -164,6 +235,24 @@ export default function Clientes() {
                     </Link>
                   </td>
                   <td>{c.responsable?.nombre ?? MENSAJES.sinResponsable}</td>
+                  <td>
+                    {c.archivado && <p>Archivado</p>}
+                    {c.credenciales && (
+                      <>
+                        <p>SOL: {ETIQUETA_ESTADO[c.credenciales.sol]}</p>
+                        <p>
+                          SIRE API: {ETIQUETA_ESTADO[c.credenciales.sire_api]}
+                        </p>
+                      </>
+                    )}
+                  </td>
+                  {archiva && (
+                    <td>
+                      <Link href={`/clientes/${c.id}`} className="underline">
+                        {c.archivado ? "Reactivar" : "Archivar"}
+                      </Link>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -179,13 +268,11 @@ export default function Clientes() {
                   className="rounded border px-3 py-2"
                 >
                   <option value="">Elige un usuario</option>
-                  {miembros
-                    .filter((m) => m.activo)
-                    .map((m) => (
-                      <option key={m.usuarioId} value={m.usuarioId}>
-                        {m.nombre}
-                      </option>
-                    ))}
+                  {activos.map((m) => (
+                    <option key={m.usuarioId} value={m.usuarioId}>
+                      {m.nombre}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label className="flex flex-col gap-1 text-sm">

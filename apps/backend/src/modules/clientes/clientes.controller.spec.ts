@@ -1,24 +1,13 @@
 import "reflect-metadata";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-vi.mock("@contapp/db", async (original) => ({
-  ...(await original<typeof import("@contapp/db")>()),
-  listarClientes: vi.fn(),
-  leerCliente: vi.fn(),
-}));
-
-import { leerCliente, listarClientes } from "@contapp/db";
+import { describe, expect, it, vi } from "vitest";
 import type { SesionResuelta } from "../auth/auth.service.js";
 import type { PeticionAcceso } from "../acceso/guards/decoradores.js";
 import { ClientesController } from "./clientes.controller.js";
 
-const TENANT = "0190a000-0000-7000-8000-0000000000a1";
+// 007a T9: el controlador solo reparte la petición al servicio (la lectura mínima de 005 pasó al servicio).
 const USUARIO = "0190a000-0000-7000-8000-0000000000b1";
 const CLIENTE = "0190a000-0000-7000-8000-0000000000c1";
-const TX = { tx: true };
-
-const sesion = (tenantActivo: string | null) =>
-  ({ tenantActivo, usuarioId: USUARIO }) as SesionResuelta;
+const sesion = { tenantActivo: "t", usuarioId: USUARIO } as SesionResuelta;
 const peticion = (alcance: "global" | "asignado" | null) =>
   ({
     acceso:
@@ -28,76 +17,49 @@ const peticion = (alcance: "global" | "asignado" | null) =>
   }) as unknown as PeticionAcceso;
 
 function armar() {
-  const withTenant = vi.fn((_ctx: unknown, fn: (tx: unknown) => unknown) =>
-    Promise.resolve(fn(TX)),
-  );
-  return { withTenant, ctl: new ClientesController({ withTenant } as never) };
+  const servicio = {
+    crear: vi.fn().mockResolvedValue("creado"),
+    listar: vi.fn().mockResolvedValue(["lista"]),
+    leer: vi.fn().mockResolvedValue("leido"),
+    editar: vi.fn().mockResolvedValue("editado"),
+    archivar: vi.fn().mockResolvedValue("archivado"),
+    reactivar: vi.fn().mockResolvedValue("reactivado"),
+  };
+  return { servicio, ctl: new ClientesController(servicio as never) };
 }
 
-beforeEach(() => {
-  vi.mocked(listarClientes).mockReset();
-  vi.mocked(leerCliente).mockReset();
-});
-
-describe("GET /clientes", () => {
-  it("alcance global: listarClientes con alcance global dentro de withTenant", async () => {
-    vi.mocked(listarClientes).mockResolvedValue([{ id: CLIENTE }] as never);
-    const { ctl, withTenant } = armar();
-    const r = await ctl.listar(sesion(TENANT), peticion("global"));
-    expect(withTenant).toHaveBeenCalledWith(
-      { tenantId: TENANT, userId: USUARIO },
-      expect.any(Function),
-    );
-    expect(listarClientes).toHaveBeenCalledWith(TX, { tipo: "global" });
-    expect(r).toEqual([{ id: CLIENTE }]);
+describe("ClientesController", () => {
+  it("POST /clientes pasa el cuerpo crudo al servicio", async () => {
+    const { ctl, servicio } = armar();
+    expect(await ctl.crear(sesion, { ruc: "x" })).toBe("creado");
+    expect(servicio.crear).toHaveBeenCalledWith(sesion, { ruc: "x" });
   });
 
-  it("alcance asignado: filtra por el usuario del actor", async () => {
-    vi.mocked(listarClientes).mockResolvedValue([]);
-    await armar().ctl.listar(sesion(TENANT), peticion("asignado"));
-    expect(listarClientes).toHaveBeenCalledWith(TX, {
-      tipo: "asignado",
-      usuarioId: USUARIO,
-    });
+  it("GET /clientes: alcance global y asignado según el acceso, con la query cruda", async () => {
+    const { ctl, servicio } = armar();
+    await ctl.listar(sesion, peticion("global"), { q: "a" });
+    expect(servicio.listar).toHaveBeenLastCalledWith(sesion, { tipo: "global" }, { q: "a" });
+    await ctl.listar(sesion, peticion("asignado"), {});
+    expect(servicio.listar).toHaveBeenLastCalledWith(sesion, { tipo: "asignado", usuarioId: USUARIO }, {});
   });
 
-  it("sin acceso en la petición falla cerrado (permiso_denegado) sin consultar la BD", () => {
-    const { ctl, withTenant } = armar();
-    expect(() => ctl.listar(sesion(TENANT), peticion(null))).toThrowError(
+  it("GET /clientes sin acceso en la petición falla cerrado sin llamar al servicio", () => {
+    const { ctl, servicio } = armar();
+    expect(() => ctl.listar(sesion, peticion(null), {})).toThrowError(
       expect.objectContaining({ codigo: "permiso_denegado" }),
     );
-    expect(withTenant).not.toHaveBeenCalled();
+    expect(servicio.listar).not.toHaveBeenCalled();
   });
 
-  it("sin estudio activo falla con estudio_requerido sin consultar la BD", () => {
-    const { ctl, withTenant } = armar();
-    expect(() => ctl.listar(sesion(null), peticion("global"))).toThrowError(
-      expect.objectContaining({ codigo: "estudio_requerido" }),
-    );
-    expect(withTenant).not.toHaveBeenCalled();
-  });
-});
-
-describe("GET /clientes/:clienteId", () => {
-  it("cliente visible: lo devuelve", async () => {
-    vi.mocked(leerCliente).mockResolvedValue({ id: CLIENTE } as never);
-    const r = await armar().ctl.leer(sesion(TENANT), CLIENTE);
-    expect(leerCliente).toHaveBeenCalledWith(TX, CLIENTE);
-    expect(r).toEqual({ id: CLIENTE });
-  });
-
-  it("inexistente o ajeno (null) -> 404 no_encontrado", async () => {
-    vi.mocked(leerCliente).mockResolvedValue(null);
-    await expect(
-      armar().ctl.leer(sesion(TENANT), CLIENTE),
-    ).rejects.toMatchObject({ codigo: "no_encontrado" });
-  });
-
-  it("sin estudio activo rechaza antes de abrir transacción", async () => {
-    const { ctl, withTenant } = armar();
-    await expect(ctl.leer(sesion(null), CLIENTE)).rejects.toMatchObject({
-      codigo: "estudio_requerido",
-    });
-    expect(withTenant).not.toHaveBeenCalled();
+  it("leer, editar, archivar y reactivar delegan con el clienteId", async () => {
+    const { ctl, servicio } = armar();
+    expect(await ctl.leer(sesion, CLIENTE)).toBe("leido");
+    expect(await ctl.editar(sesion, CLIENTE, { razonSocial: "x" })).toBe("editado");
+    expect(await ctl.archivar(sesion, CLIENTE)).toBe("archivado");
+    expect(await ctl.reactivar(sesion, CLIENTE)).toBe("reactivado");
+    expect(servicio.leer).toHaveBeenCalledWith(sesion, CLIENTE);
+    expect(servicio.editar).toHaveBeenCalledWith(sesion, CLIENTE, { razonSocial: "x" });
+    expect(servicio.archivar).toHaveBeenCalledWith(sesion, CLIENTE);
+    expect(servicio.reactivar).toHaveBeenCalledWith(sesion, CLIENTE);
   });
 });

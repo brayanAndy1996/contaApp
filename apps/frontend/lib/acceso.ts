@@ -40,6 +40,8 @@ export const MENSAJES = {
   invitacionExistente: "Ya hay una invitación pendiente para ese correo.",
   cupoUsuarios: "Alcanzaste el límite de usuarios de tu plan.",
   miembroNoAsignable: "Ese usuario no puede ser asignado a este cliente.",
+  clienteArchivado:
+    "Hay clientes archivados en la selección. Reactívalos o quítalos para asignar.",
   sinResponsable: "Sin responsable",
 } as const;
 
@@ -49,6 +51,7 @@ const POR_CODIGO_409: Record<string, string> = {
   invitacion_existente: MENSAJES.invitacionExistente,
   cupo_usuarios: MENSAJES.cupoUsuarios,
   miembro_no_asignable: MENSAJES.miembroNoAsignable,
+  cliente_archivado: MENSAJES.clienteArchivado,
 };
 
 /** Mensaje genérico para un error del backend; nunca muestra el `codigo` ni detalles internos. */

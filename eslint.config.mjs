@@ -278,7 +278,7 @@ const reglaImportsRelativos = {
 // SQL crudo (spec 002, riesgo H3 aceptado: un set_config a mitad de transacción cambia de estudio;
 // se compensa con consultas siempre parametrizadas y esta regla). Regla local `sql-crudo/sin-sql-crudo`:
 //  - modo "fuera" (apps/** y packages/* salvo db): sin imports de pg/postgres ni de sus adaptadores
-//    drizzle, sin `sql` de drizzle-orm ni `.raw(`/`.unsafe(`, sin `set_config`, y `.query(`/`.execute(`
+//    drizzle, sin `sql` de drizzle-orm (también `import * as d` + `d.sql`, 007a D8) ni `.raw(`/`.unsafe(`, sin `set_config`, y `.query(`/`.execute(`
 //    solo con texto estático (ni plantillas con interpolación ni concatenación).
 //  - modo "dentro" (packages/db): SQL permitido, pero `.query(` solo con texto estático
 //    (parámetros $1; sin interpolación en plantillas ni concatenación).
@@ -411,7 +411,49 @@ const reglaSqlCrudo = {
         );
     };
 
+    // `import * as d from "drizzle-orm"` y luego `d.sql` / `d["sql"]` / `const { sql } = d` (spec 007a, D8).
+    const esEspacioDrizzle = (id) => {
+      if (!id || id.type !== "Identifier") return false;
+      for (let s = sourceCode.getScope(id); s; s = s.upper) {
+        const v = s.set.get(id.name);
+        if (v) {
+          const def = v.defs[0];
+          return (
+            def?.node.type === "ImportNamespaceSpecifier" &&
+            String(def.parent.source.value).startsWith("drizzle-orm")
+          );
+        }
+      }
+      return false;
+    };
+    const claveSql = (p) =>
+      p.type === "Property" &&
+      (p.computed
+        ? p.key.type === "Literal" && p.key.value === "sql"
+        : p.key.type === "Identifier" && p.key.name === "sql");
+    const MSG_SQL =
+      "`sql` de drizzle-orm (SQL crudo) solo se usa dentro de packages/db (spec 002 y 007a, D8).";
+
     const reglas = {
+      MemberExpression(n) {
+        if (
+          fuera &&
+          esEspacioDrizzle(n.object) &&
+          (n.computed
+            ? n.property.type === "Literal" && n.property.value === "sql"
+            : n.property.name === "sql")
+        )
+          reportar(n, MSG_SQL);
+      },
+      VariableDeclarator(n) {
+        if (
+          fuera &&
+          n.id.type === "ObjectPattern" &&
+          esEspacioDrizzle(n.init) &&
+          n.id.properties.some(claveSql)
+        )
+          reportar(n, MSG_SQL);
+      },
       ImportDeclaration(n) {
         revisarModulo(n, n.source.value);
         if (fuera && String(n.source.value).startsWith("drizzle-orm"))

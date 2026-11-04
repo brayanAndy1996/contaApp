@@ -227,7 +227,7 @@ Convenciones: PK `uuid` v7, montos `NUMERIC(14,2)`, `created_at`/`updated_at` co
 - **Datos**: TanStack Query contra la API vía `/api/*` (proxy por `rewrites` de Next en local → mismo origen, la cookie de sesión es de primera parte).
 - **Grilla**: TanStack Table + virtualización (TanStack Virtual) para 5,000 filas, edición por celda y teclado.
 - **Formularios**: React Hook Form + resolvers zod con los esquemas de `packages/shared`.
-- **UI**: Tailwind + shadcn/ui.
+- **UI**: HTML semántico + Tailwind. shadcn/ui no está configurado: se introduce cuando una spec lo necesite (decisión del usuario, 2026-11-04).
 - **Permisos en UI**: hook `usePuede('sire.aprobar_generar')` que solo oculta; el backend vuelve a validar.
 - **Organización por feature** (no por tipo de archivo): cada carpeta de `features/` tiene sus componentes, hooks y llamadas al backend.
 
@@ -296,7 +296,7 @@ contapp/
 │   │   │   │   ├── jobs/                 # useJobStream (SSE), ColaTrabajos
 │   │   │   │   ├── acceso/               # usePuede, roles, asignación
 │   │   │   │   └── plan/
-│   │   │   ├── components/ui/            # shadcn/ui
+│   │   │   ├── components/               # componentes compartidos (HTML + Tailwind)
 │   │   │   ├── lib/                      # api-client, query-client, formato de montos
 │   │   │   └── styles/
 │   │   ├── next.config.ts                # rewrites /api → API_URL

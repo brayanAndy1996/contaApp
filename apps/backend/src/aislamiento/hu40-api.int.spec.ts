@@ -654,6 +654,42 @@ const CASOS: Caso[] = [
       idsDeCliente(c.ajeno).map((id) => ({ ruta: `/clientes/${id}` })),
   },
   {
+    // 007a: el estudio sale de la sesión y el responsable debe ser de ese estudio. Todas dan 404 antes de escribir
+    // (la instantánea del estudio propio no cambia).
+    ruta: "POST /clientes",
+    esperado: E404,
+    construir: (c) =>
+      [c.ajeno.asistente.id, c.ajeno.dueno.id, c.ajeno.asistente.membresiaId, c.ajeno.asignacionId].map(
+        (responsableId) => ({
+          metodo: "POST" as const,
+          ruta: "/clientes",
+          cuerpo: { ruc: "20100070970", razonSocial: "Intruso HU40", responsableId, tenantId: c.ajeno.tenantId },
+        }),
+      ),
+  },
+  {
+    ruta: "PATCH /clientes/:clienteId",
+    esperado: E404,
+    construir: (c) =>
+      idsDeCliente(c.ajeno).map((id) => ({
+        metodo: "PATCH" as const,
+        ruta: `/clientes/${id}`,
+        cuerpo: { razonSocial: "Intruso HU40", tenantId: c.ajeno.tenantId },
+      })),
+  },
+  {
+    ruta: "POST /clientes/:clienteId/archivar",
+    esperado: E404,
+    construir: (c) =>
+      idsDeCliente(c.ajeno).map((id) => ({ metodo: "POST" as const, ruta: `/clientes/${id}/archivar` })),
+  },
+  {
+    ruta: "POST /clientes/:clienteId/reactivar",
+    esperado: E404,
+    construir: (c) =>
+      idsDeCliente(c.ajeno).map((id) => ({ metodo: "POST" as const, ruta: `/clientes/${id}/reactivar` })),
+  },
+  {
     ruta: "GET /clientes/:clienteId/asignaciones",
     esperado: E404,
     construir: (c) =>

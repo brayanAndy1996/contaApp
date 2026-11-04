@@ -7,6 +7,7 @@
 // Rechazos: null = algún cliente o usuario no existe o no es del estudio (-> 404); AccesoReglaError =
 // miembro desactivado ('miembro_no_asignable') o falta `anterior` habiendo otro responsable ('anterior_requerido').
 // La regla D18 (puede ser responsable) la aplica el servicio sobre el rol de bloquearMiembro.
+import { ClienteArchivadoError } from "../clientes/errores";
 import { AccesoReglaError, consultar, type TxConsulta } from "./errores";
 
 export type TipoAsignacion = "responsable" | "colaborador";
@@ -40,7 +41,7 @@ export interface AsignacionListada {
 }
 
 const SQL_BLOQUEAR_CLIENTES =
-  "select id from cliente where id = any($1::uuid[]) order by id for no key update";
+  "select id, archivado_at is not null as archivado from cliente where id = any($1::uuid[]) order by id for no key update";
 
 const SQL_BLOQUEAR_MIEMBROS = `select usuario_id, desactivada_en is null as activo
   from membresia where usuario_id = any($1::uuid[]) order by usuario_id for share`;
@@ -73,20 +74,23 @@ const SQL_RETIRAR =
 /** Mismo UUID en otra grafía = mismo ID (H-005-2b-3). */
 const unicos = (xs: string[]): string[] => [...new Set(xs.map((x) => x.toLowerCase()))];
 
-/** Bloquea todos los clientes; false si alguno no existe o no es del estudio. */
+/**
+ * Bloquea todos los clientes; null si alguno no existe o no es del estudio, si no, si alguno está archivado
+ * (007a D5: solo lectura; la comprobación va con la fila ya bloqueada, así no se cuela un archivado en carrera).
+ */
 async function bloquearClientes(
   tx: TxConsulta,
   clienteIds: string[],
-): Promise<boolean> {
-  return (
-    (await consultar(tx, SQL_BLOQUEAR_CLIENTES, [clienteIds])).length ===
-    clienteIds.length
-  );
+): Promise<{ hayArchivado: boolean } | null> {
+  const filas = await consultar(tx, SQL_BLOQUEAR_CLIENTES, [clienteIds]);
+  if (filas.length !== clienteIds.length) return null;
+  return { hayArchivado: filas.some((f) => f.archivado === true) };
 }
 
 /**
  * Bloquea las membresías y después los clientes (orden global); evalúa como antes: null si algún cliente o
- * miembro no es del estudio; AccesoReglaError si algún miembro está desactivado.
+ * miembro no es del estudio; ClienteArchivadoError si algún cliente está archivado (007a D5); AccesoReglaError si
+ * algún miembro está desactivado.
  */
 async function bloquearLote(
   tx: TxConsulta,
@@ -94,8 +98,10 @@ async function bloquearLote(
   clienteIds: string[],
 ): Promise<true | null> {
   const miembros = await consultar(tx, SQL_BLOQUEAR_MIEMBROS, [usuarioIds]);
-  if (!(await bloquearClientes(tx, clienteIds))) return null;
+  const clientes = await bloquearClientes(tx, clienteIds);
+  if (clientes === null) return null;
   if (miembros.length !== usuarioIds.length) return null;
+  if (clientes.hayArchivado) throw new ClienteArchivadoError();
   if (miembros.some((f) => f.activo !== true))
     throw new AccesoReglaError("miembro_no_asignable");
   return true;

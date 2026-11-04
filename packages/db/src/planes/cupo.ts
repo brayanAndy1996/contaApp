@@ -36,8 +36,8 @@ const SQL_USUARIOS = `select
     where i.tenant_id = $1::uuid and i.aceptada_en is null and i.revocada_en is null and i.vence_en > now())::int
     as pendientes`;
 
-// Hoy todas las filas de `cliente` del estudio; 007 pasa a contar solo los activos.
-const SQL_RUCS = "select count(*)::int as n from cliente where tenant_id = $1::uuid";
+// Solo RUCs activos (007a D2): los archivados no consumen cupo.
+const SQL_RUCS = "select count(*)::int as n from cliente where tenant_id = $1::uuid and archivado_at is null";
 
 /** Toma el bloqueo de cupo del estudio hasta el fin de la transacción. Llamarlo antes de contar. */
 export async function bloquearCupo(tx: TxConsulta, tenantId: string): Promise<void> {

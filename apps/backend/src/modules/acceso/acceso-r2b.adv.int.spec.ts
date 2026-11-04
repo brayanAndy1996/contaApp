@@ -84,12 +84,22 @@ const retenerCliente = (tenantId: string, clienteId: string) =>
   retenerR2b([["select 1 from cliente where tenant_id = $1 and id = $2 for update", [tenantId, clienteId]]]);
 
 /** Miembro sin sesión cuyo ID ordena ANTES que `ref` (los bloqueos de miembros van en orden de ID). */
+// Con `ref` en la mitad alta de los UUID (ver `adminAlto`), cada intento acierta con p ≥ 1/2: 64 intentos fallan con p ≤ 2^-64.
 async function miembroMenorQue(tenantId: string, ref: string): Promise<string> {
-  for (let i = 0; i < 24; i++) {
+  for (let i = 0; i < 64; i++) {
     const m = await b.miembro(tenantId, "contador", { sesion: false });
     if (m.id < ref) return m.id;
   }
   throw new Error("no se obtuvo un ID menor (entorno)");
+}
+
+/** Administrador con ID en la mitad alta (≥ '8'), para que `miembroMenorQue` no dependa del azar del primer UUID. */
+async function adminAlto(tenantId: string) {
+  for (let i = 0; i < 64; i++) {
+    const a = await b.miembro(tenantId, "admin");
+    if (a.id >= "8") return a;
+  }
+  throw new Error("no se obtuvo un ID alto (entorno)");
 }
 
 describe("T16b · lote por-cliente en carrera con otras escrituras (orden de bloqueos miembros/clientes)", () => {
@@ -120,7 +130,7 @@ describe("T16b · lote por-cliente en carrera con otras escrituras (orden de blo
 
   it("H-005-1b-4: por-cliente de un Administrador en carrera con su propio desactivar del miembro: sin 5xx", async () => {
     const E = await b.estudio();
-    const admin = await b.miembro(E.tenantId, "admin");
+    const admin = await adminAlto(E.tenantId);
     const u = await miembroMenorQue(E.tenantId, admin.id);
     const [c] = await b.clientes(E.tenantId, 1);
     const h = await retenerCliente(E.tenantId, c!);

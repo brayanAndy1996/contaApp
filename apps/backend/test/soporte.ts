@@ -308,6 +308,9 @@ export async function abrirHarness(opciones: OpcionesHarness = {}): Promise<Harn
     if (p.estudio) t.set("X-Estudio", p.estudio);
     for (const [k, v] of Object.entries(p.cabeceras ?? {})) t.set(k, v);
     if (p.crudo !== undefined) t.set("Content-Type", "application/json").send(p.crudo);
+    else if (typeof p.cuerpo === "number" || typeof p.cuerpo === "boolean")
+      // superagent no serializa primitivos no-string: se envía el JSON crudo (cuerpo "no objeto", 007a T3).
+      t.set("Content-Type", "application/json").send(JSON.stringify(p.cuerpo));
     else if (p.cuerpo !== undefined) t.send(p.cuerpo as object);
     const t0 = performance.now();
     const res = await t;

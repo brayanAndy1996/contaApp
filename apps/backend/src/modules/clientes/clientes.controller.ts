@@ -1,32 +1,63 @@
-import { Controller, Get, Inject, Param, Req } from "@nestjs/common";
-import { leerCliente, listarClientes, type ClienteLeido, type ClienteListado, type ContappDb } from "@contapp/db";
+import { Body, Controller, Get, HttpCode, Inject, Param, Patch, Post, Query, Req } from "@nestjs/common";
+import type { ClienteDto } from "@contapp/shared";
 import type { SesionResuelta } from "../auth/auth.service.js";
 import { Sesion } from "../auth/guards/decoradores.js";
-import { DB } from "../auth/inyeccion.js";
-import { AccesoError } from "../acceso/errores.js";
 import { Permiso, type PeticionAcceso } from "../acceso/guards/decoradores.js";
-import { alcanceDe, contextoDe } from "./contexto.js";
+import { ClientesService } from "./clientes.service.js";
+import { alcanceDe } from "./contexto.js";
 
 /**
- * Lectura mínima de clientes (D20): el listado se filtra con `filtroAlcance` y el detalle lo protege
- * `ClienteScopeGuard` (inexistente, ajeno y no asignado dan el mismo 404).
+ * Clientes (spec 007a, D3). El permiso lo exige `PermisoGuard`; las rutas con `:clienteId` pasan además por
+ * `ClienteScopeGuard` (inexistente, ajeno y no asignado dan el mismo 404) y el listado por `filtroAlcance`.
+ * El cuerpo y la query llegan crudos al servicio, que los valida (400 `solicitud_invalida`).
  */
 @Controller("clientes")
 export class ClientesController {
-  constructor(@Inject(DB) private readonly db: Pick<ContappDb, "withTenant">) {}
+  constructor(@Inject(ClientesService) private readonly servicio: ClientesService) {}
+
+  @Permiso("clientes.crear")
+  @Post()
+  crear(@Sesion() sesion: SesionResuelta, @Body() cuerpo: unknown): Promise<ClienteDto> {
+    return this.servicio.crear(sesion, cuerpo);
+  }
 
   @Permiso("clientes.ver")
   @Get()
-  listar(@Sesion() sesion: SesionResuelta, @Req() req: PeticionAcceso): Promise<ClienteListado[]> {
-    const alcance = alcanceDe(req.acceso);
-    return this.db.withTenant(contextoDe(sesion), (tx) => listarClientes(tx, alcance));
+  listar(
+    @Sesion() sesion: SesionResuelta,
+    @Req() req: PeticionAcceso,
+    @Query() query: unknown,
+  ): Promise<ClienteDto[]> {
+    return this.servicio.listar(sesion, alcanceDe(req.acceso), query);
   }
 
   @Permiso("clientes.ver")
   @Get(":clienteId")
-  async leer(@Sesion() sesion: SesionResuelta, @Param("clienteId") clienteId: string): Promise<ClienteLeido> {
-    const c = await this.db.withTenant(contextoDe(sesion), (tx) => leerCliente(tx, clienteId));
-    if (c === null) throw new AccesoError("no_encontrado");
-    return c;
+  leer(@Sesion() sesion: SesionResuelta, @Param("clienteId") clienteId: string): Promise<ClienteDto> {
+    return this.servicio.leer(sesion, clienteId);
+  }
+
+  @Permiso("clientes.editar")
+  @Patch(":clienteId")
+  editar(
+    @Sesion() sesion: SesionResuelta,
+    @Param("clienteId") clienteId: string,
+    @Body() cuerpo: unknown,
+  ): Promise<ClienteDto> {
+    return this.servicio.editar(sesion, clienteId, cuerpo);
+  }
+
+  @Permiso("clientes.archivar")
+  @Post(":clienteId/archivar")
+  @HttpCode(200)
+  archivar(@Sesion() sesion: SesionResuelta, @Param("clienteId") clienteId: string): Promise<ClienteDto> {
+    return this.servicio.archivar(sesion, clienteId);
+  }
+
+  @Permiso("clientes.archivar")
+  @Post(":clienteId/reactivar")
+  @HttpCode(200)
+  reactivar(@Sesion() sesion: SesionResuelta, @Param("clienteId") clienteId: string): Promise<ClienteDto> {
+    return this.servicio.reactivar(sesion, clienteId);
   }
 }

@@ -137,3 +137,14 @@ export { usoDelEstudio } from "./planes/uso";
 export type { UsoDelEstudio } from "./planes/uso";
 export { PlanesRepoError } from "./planes/errores";
 export { adminPlataforma, plan, suscripcion } from "./schema/planes";
+// Spec 007a: repositorios de clientes (todos con la `tx` de withTenant como primer argumento).
+export {
+  archivarCliente,
+  crearCliente,
+  editarCliente,
+  leerClienteDto,
+  listarClientesFiltrado,
+  reactivarCliente,
+} from "./clientes/repositorio";
+export type { DatosCliente, FiltrosListado } from "./clientes/repositorio";
+export { ClienteArchivadoError, RucDuplicadoError } from "./clientes/errores";

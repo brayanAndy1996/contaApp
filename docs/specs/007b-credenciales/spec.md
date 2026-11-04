@@ -1,0 +1,56 @@
+# Spec 007b · Credenciales, importación Excel y panel de trabajos
+
+Estado: borrador (parte 2 de 2 de la antigua 007; pendiente de aprobación del usuario; se planifica cuando 007a esté hecha)
+Nivel de riesgo: B — (2) sí: guarda y administra claves SOL/API SIRE y recibe archivos del usuario; (4) sí: importación masiva y cupo concurrente; (1) no; (3) parcial. Por §2.1 literal saldría A: el usuario decidió B con una ronda adversarial acotada (D11).
+Cubre: RF-030 (autocompletado), RF-031, RF-032, RF-033, RF-034, RF-035 · HU-06, HU-09, HU-10 (parcial: estado visible; la notificación en la app es de 017).
+Parte 1: `docs/specs/007a-clientes/spec.md` (clientes, perfil fiscal, cupo, archivado, alcance, listado).
+
+## Objetivo
+Que el contador cargue a sus clientes desde Excel, registre claves que solo se escriben (nunca se leen), compruebe que funcionan y vea el estado de cada credencial y de los trabajos que encola. Es la primera spec con UI que encola trabajos (008 D15).
+
+## Alcance
+- Migración (desde la siguiente a la última de 007a): FK `credencial(tenant_id, cliente_id) → cliente(tenant_id, id)`.
+- Puerto `ConsultaRuc` con mock y trabajo `cliente.consultar_ruc` (completa razón social, estado y condición).
+- Credenciales: guardar (solo escritura), estado por tipo, «Verificar» (trabajo en cola con `SolAuth` y `SireAuth` mock).
+- Importación Excel/CSV con plantilla, vista previa y confirmación.
+- Frontend: sección de credenciales del detalle, asistente de importación y panel de trabajos con SSE.
+
+## Fuera de alcance
+- Clientes, perfil fiscal, cupo, archivado y listado: 007a. Notificación por credencial inválida (RF-160) y auditoría: 017.
+- Adaptadores reales de SUNAT (consulta de RUC, login SOL, token SIRE): 009. Aquí solo puertos y mock.
+- Eliminación definitiva de un cliente (RF-038, R2).
+
+## Decisiones
+- D1 Consulta de RUC (era P1; decisión del usuario, 2026-11-03: «P1 = puerto `ConsultaRuc` con mock y trabajo en la cola»): puerto `ConsultaRuc` en `packages/sunat/src/puertos.ts` con mock, y tipo `cliente.consultar_ruc` en el catálogo de 008 que ejecuta el worker (el backend no llama a SUNAT, RF-040). Crear un cliente (007a) o importarlo lo encola; el resultado llena `estado_contribuyente` y `condicion_contribuyente`, y la razón social solo si sigue siendo la provisional «RUC <número>». Si la consulta falla, el cliente queda como está. No cambia al llegar el adaptador real de 009.
+- D2 Esquema: una migración con la FK de `credencial` a `cliente` (en 003 D2 se dejó sin FK hasta que existiera 007). 007a no la necesita porque no escribe credenciales.
+- D3 Permisos y alcance: guardar y verificar credenciales `credenciales.editar`; importar exige `clientes.crear` y, si el archivo trae claves, también `credenciales.editar`. Toda ruta con `:clienteId` usa `ClienteScopeGuard`. Un cliente archivado da 409 `cliente_archivado` al guardar o verificar (extiende 007a D5).
+- D4 Guardar: `PUT /clientes/:id/credenciales/:tipo` (`sol` = usuario + clave; `sire_api` = client_id + secret). Cifra el backend con el repositorio de 003 (`ON CONFLICT … DO UPDATE` con parámetros, sin `EXCLUDED`); responde solo el estado, `Cache-Control: no-store`. Ninguna ruta, log, error, exportación ni estado de UI devuelve o conserva el secreto; el formulario se vacía al guardar. Guardar reinicia el estado a `configurada` (trigger de 008).
+- D5 Estado: `GET /clientes/:id/credenciales` da, por tipo, `no_configurada|configurada|verificada(fecha)|invalida(motivo)`. «Inválida» ya impide reintentos (008, RF-044); aquí solo se muestra.
+- D6 Verificar: dos tipos en el catálogo de 008, `credencial.verificar_sol` y `credencial.verificar_sire`, con permiso `credenciales.editar`, prioridad de usuario y procesador en el worker, que es quien descifra. Puerto nuevo `SolAuth` (más `SireAuth` existente), ambos con mock; el resultado se escribe en el estado de la credencial. Tras verificar `sire_api` el trabajo SIRE deja de cancelarse (008 D23); la UI muestra el aviso «si cambió la clave SOL, guarde o verifique de nuevo la credencial SIRE».
+- D7 Importación: `.xlsx` o `.csv`, hasta 1.000 filas y 2 MB (y tope de tamaño descomprimido). Dos fases sin estado en el servidor: `vista-previa` y `confirmar` reciben el archivo (memoria, nunca a disco ni a logs) y `confirmar` revalida todo dentro de la transacción de cupo. Columnas: RUC, usuario SOL, clave SOL, client_id, client_secret, responsable (y razón social opcional). La vista previa muestra por fila válida/error y motivos (RUC inválido, duplicado en archivo o en el estudio, columna faltante, responsable inexistente o que no puede serlo) y claves como ••••; resumen con filas válidas, con error y cupo restante/excedente. Fórmulas y celdas peligrosas se rechazan por fila. La plantilla se genera en memoria sin datos de ningún estudio.
+- D8 Importación parcial (era P4; decisión del usuario, 2026-11-03: «importación parcial: crea las filas válidas hasta el cupo y reporta el resto con su motivo»): `confirmar` crea las filas válidas en orden de archivo hasta el cupo libre y reporta el resto como «no importadas» con su motivo (`cupo_rucs` entre ellos). Responde 200 con el informe; no hay 409 global por cupo. Sigue el orden de bloqueo de 005: `bloquearMiembros`, `CupoRucs.reservar(tx, tenantId, n)` con `n` ya acotado al cupo libre, luego `cliente`, credenciales y asignaciones.
+- D9 RUC existente (era P5; decisión del usuario, 2026-11-03: «un RUC existente da error de fila "duplicado"»): no actualiza nada; si el existente está archivado, el mensaje indica reactivarlo (007a). Las claves se actualizan por el formulario de D4.
+- D10 Panel de trabajos: lista (`GET /trabajos`) y SSE (`/trabajos/stream`) de 008 consumidos desde el navegador por el rewrite `/api/*` de Next. Debe comprobarse con Next y backend reales que los eventos llegan sin buffering ni compresión (`Cache-Control: no-cache, no-transform`, `X-Accel-Buffering: no`, `compress` desactivado si hace falta), con reconexión y respaldo por sondeo. El stream no renueva la sesión (004, 008 D22).
+- D11 Nivel y ronda (eran P2 y P3; decisión del usuario, 2026-11-03: «P2 = nivel B con una ronda adversarial acotada a credenciales e importación» y «P3 = partir en 007a y 007b», ambas la opción recomendada): B con TDD y una ronda adversarial, caja negra y luego caja blanca, de hasta 15 pruebas, solo sobre: secreto en respuestas, logs, errores y estado de UI; AAD cruzada entre filas; alcance en credenciales y verificar; parsers de `.xlsx`/`.csv` (bomba de descompresión, XXE, fórmulas, CSV injection, filas repetidas); y dos importaciones concurrentes contra el cupo.
+- D12 Fronteras: `apps/frontend` solo depende de `packages/shared`; `apps/backend` nunca descifra ni llama a SUNAT. Las decisiones P6 y P7 del 2026-11-03 están en 007a (D6, D11).
+
+## Criterios de aceptación
+Entre paréntesis, el CA del borrador de 007 (commit 0bbddf6). Las partes de importación de los CA-1, CA-2 y CA-13 del borrador se verifican aquí en CA-1, CA-3 y CA-9; las de alta, en 007a.
+- [ ] CA-1 (CA-5): Dado el Excel de la plantilla, cuando se sube, entonces la vista previa muestra errores por fila (RUC inválido o de prefijo no permitido, duplicado, columna faltante, responsable inválido), cupo restante y excedentes, sin ninguna clave (••••); al confirmar se crean los clientes, las credenciales quedan cifradas (AAD con tenant, cliente y tipo) y el archivo no queda en disco ni en logs.
+- [ ] CA-2 (CA-6): Dado un archivo con fórmulas, filas repetidas, más de 1.000 filas, o que excede el tamaño permitido, entonces se rechaza o se marca por fila, sin error 500 ni consumo desmedido.
+- [ ] CA-3 (CA-3): Dadas dos importaciones simultáneas que juntas superan el cupo, entonces la suma de clientes activos no excede el límite y cada una informa como «no importadas» (`cupo_rucs`) las filas que ya no caben, sin 500 por 40P01.
+- [ ] CA-4 (CA-7): Dado que se guardan credenciales, entonces la respuesta, los logs y los errores no contienen el secreto, ninguna ruta lo devuelve, el estado pasa a «Configurada» y el formulario queda vacío.
+- [ ] CA-5 (CA-8): Dado «Verificar», entonces se encola un trabajo visible en el panel; con mock exitoso el estado pasa a «Verificada (fecha)» y con mock de clave errada a «Inválida (motivo)» sin reintentos.
+- [ ] CA-6 (CA-9): Dado un cliente con credencial inválida y otra con SIRE cancelada por D23, cuando se guarda o verifica de nuevo, entonces los trabajos SIRE vuelven a despacharse; la UI muestra el aviso de cambio de clave SOL.
+- [ ] CA-7 (CA-12): Dado el panel de trabajos abierto en el navegador con el stack real, cuando un trabajo cambia de estado, entonces el evento llega antes de que cierre la conexión (sin buffering del proxy de Next).
+- [ ] CA-8 (nuevo, D8 y D9): Dado un archivo con filas válidas, un RUC existente (activo o archivado) y más filas válidas que el cupo, cuando se confirma, entonces se crean las válidas en orden de archivo hasta el cupo, el existente sale como «duplicado» (con la sugerencia de reactivar si está archivado) y el resto como «no importadas» con su motivo.
+- [ ] CA-9 (nuevo, D1): Dado un cliente creado (formulario o importación), cuando corre `cliente.consultar_ruc` con el mock, entonces se completan estado, condición y la razón social provisional; con el mock en error el cliente queda intacto y el trabajo figura fallido en el panel.
+- [ ] CA-10 (nuevo, D3): Dado un cliente archivado o ajeno, cuando se guardan o verifican credenciales, entonces 409 `cliente_archivado` o el mismo 404 que uno inexistente.
+- [ ] Casos reales aplicables: ninguno.
+
+## Dependencias
+- Specs: 003 (repositorio de cifrado), 004, 005, 006 (cupo), 007a (clientes, `CupoRucs`, `validarRuc`, archivado), 008 (cola, SSE, estado de credencial, D23), 009 (solo después, adaptadores reales).
+- Externas: ninguna. Adaptadores en `mock`.
+
+## Preguntas abiertas
+- Ninguna de producto. Para el plan: carga de la cola al importar 1.000 filas (un `cliente.consultar_ruc` por fila) frente a los límites por tenant de 008; se resuelve al planificar.
