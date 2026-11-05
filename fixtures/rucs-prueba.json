@@ -1,0 +1,44 @@
+[
+  {
+    "ruc": "20700000002",
+    "rol": "contribuyente de prueba (titular de las propuestas)",
+    "razonSocial": "PRUEBA CONTRIBUYENTE S.A.C.",
+    "direccion": "AV. DE PRUEBA 100 (PRUEBA), LIMA"
+  },
+  {
+    "ruc": "20700000011",
+    "rol": "proveedor del caso San Juan (ISC)",
+    "razonSocial": "PRUEBA PROVEEDOR ISC S.A.C.",
+    "direccion": "JR. DE PRUEBA 201 (PRUEBA), LIMA"
+  },
+  {
+    "ruc": "20700000045",
+    "rol": "proveedor del caso mixta",
+    "razonSocial": "PRUEBA PROVEEDOR MIXTO S.A.C.",
+    "direccion": "JR. DE PRUEBA 202 (PRUEBA), LIMA"
+  },
+  {
+    "ruc": "20700000053",
+    "rol": "proveedor del caso ICBPER",
+    "razonSocial": "PRUEBA PROVEEDOR BOLSAS S.A.C.",
+    "direccion": "JR. DE PRUEBA 203 (PRUEBA), LIMA"
+  },
+  {
+    "ruc": "20700000061",
+    "rol": "proveedor del caso redondeo USD",
+    "razonSocial": "PRUEBA PROVEEDOR USD S.A.C.",
+    "direccion": "JR. DE PRUEBA 204 (PRUEBA), LIMA"
+  },
+  {
+    "ruc": "20700000070",
+    "rol": "proveedor del caso zapatilla (gasto personal)",
+    "razonSocial": "PRUEBA PROVEEDOR CALZADO S.A.C.",
+    "direccion": "JR. DE PRUEBA 205 (PRUEBA), LIMA"
+  },
+  {
+    "ruc": "20700000096",
+    "rol": "proveedor de los conjuntos genéricos",
+    "razonSocial": "PRUEBA PROVEEDOR GENERICO S.A.C.",
+    "direccion": "JR. DE PRUEBA 206 (PRUEBA), LIMA"
+  }
+]
