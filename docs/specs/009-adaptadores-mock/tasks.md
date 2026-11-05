@@ -12,7 +12,7 @@ Nivel C (spec): sin TDD ni ronda adversarial. Flujo 04 §1.3: implementar con pr
 | T4  | `MockSireApiClient` y sus pruebas                                                                  | backend  | sonnet | T1 ∥ T3        | —   | —   | [ ]    |
 | T5  | `adaptadores.module.ts`: 5 puertos por entorno, guarda de producción y pruebas                     | backend  | sonnet | T3, T4         | —   | —   | [ ]    |
 | T6  | **[nivel A]** `KeyWrapper` del backend creado al arrancar fuera de `development` y `test`          | backend  | sonnet | — ∥ T1–T5      | —   | —   | [ ]    |
-| T7  | **[nivel A]** Pruebas de cierre de 008: fallar con `CI=true` en vez de omitir                      | tester   | sonnet | — ∥ T1–T6      | —   | —   | [ ]    |
+| T7  | **[nivel A]** Pruebas de cierre de 008: fallar con `CI=true` en vez de omitir                      | tester   | sonnet | — ∥ T1–T6      | —   | —   | [x]    |
 | T8  | `ci:db` y CI: paso aparte, al final y en serie, con la BD despejada                                | devops   | haiku  | T7             | —   | —   | [ ]    |
 | T9  | Prueba de humo fila SIRE ↔ XML, RUC de prueba y canario en los mocks                               | backend  | sonnet | T2, T3, T4     | —   | —   | [ ]    |
 | T10 | `docs/03-arquitectura.md` §3 con los nombres reales de los puertos                                 | devops   | haiku  | T1 ∥ T3–T9     | —   | —   | [ ]    |
@@ -78,6 +78,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `spec.md` (D11, D18; CA-8), `apps/worker/src/trabajos/cierre-r1b.adv.int.spec.ts` (líneas 85-100 y 155-190), `apps/worker/src/trabajos/cierre-r2a.adv.int.spec.ts` (líneas 85-100 y 136-150), `apps/worker/vitest.config.mts`.
 - **Hacer**: donde hoy hay `ctx.skip()` por `bdDespejada()` falso, con `CI=true` lanzar un error cuyo mensaje nombre la causa (trabajos vivos de otras suites con más de 20 s sin cambios); sin `CI` omitir como hoy. Cambio solo en esa condición: ninguna aserción se borra ni se debilita. Una prueba mínima del helper (`CI` y BD no despejada → falla; sin `CI` → omite), con la lógica de decisión extraída a una función pura si hace falta para probarla sin Redis.
 - **Hecho cuando**: CA-8 con prueba; las 3 pruebas siguen en verde con la BD despejada; `git diff` de los dos archivos muestra solo la condición de omisión. Commit `test(009): las pruebas de cierre de 008 fallan en CI en vez de omitirse`.
+- **Resultado (2026-11-05)**: la decisión sale a `apps/worker/test/bd-despejada.ts` (`accionBdNoDespejada`, `exigirBdDespejada`, `MENSAJE_BD_NO_DESPEJADA`); con `CI=true` y BD no despejada lanza el error con la causa, sin `CI` omite como antes. Los 3 `ctx.skip()` pasan a `exigirBdDespejada(...)` (r1b ×2, r2a ×1) más el `import`; ninguna aserción tocada. Prueba CA-8: `src/trabajos/cierre-bd-despejada.spec.ts` (6, sin Redis ni BD). Worker: unitarias 161 OK con `CI=true`, las 3 de cierre en verde en serie con BD despejada, `tsc` y `eslint` limpios.
 
 ## T8 · Paso aparte en `ci:db` y CI (devops · haiku)
 

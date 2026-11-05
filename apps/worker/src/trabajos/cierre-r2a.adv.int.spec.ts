@@ -15,6 +15,7 @@ import { connect, createServer, type Server, type Socket } from "node:net";
 import type { ContappDb } from "@contapp/db";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it, vi } from "vitest";
+import { exigirBdDespejada } from "../../test/bd-despejada.js";
 import { crearDbAdmin, dormir } from "../../test/trabajos.js";
 
 vi.setConfig({ testTimeout: 120_000, hookTimeout: 60_000 });
@@ -141,7 +142,7 @@ describe.skipIf(!hayRedisServer || !existsSync(mainJs))(
     it("el worker compilado termina en ≤ 35 s tras SIGTERM aunque la BD deje de responder (partición de red)", async (ctx) => {
       const admin = crearDbAdmin();
       const despejada = await bdDespejada(admin).finally(() => admin.close());
-      if (!despejada) ctx.skip();
+      exigirBdDespejada(despejada, ctx);
       const puertoRedis = await puertoLibre();
       const redis = await levantarRedis(puertoRedis);
       // La URL real solo se usa para cambiarle el host y el puerto; nunca se imprime.

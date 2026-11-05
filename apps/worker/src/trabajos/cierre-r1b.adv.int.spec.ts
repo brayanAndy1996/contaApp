@@ -15,6 +15,7 @@ import { createServer } from "node:net";
 import { fileURLToPath } from "node:url";
 import type { ContappDb } from "@contapp/db";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { exigirBdDespejada } from "../../test/bd-despejada.js";
 import { crearDbAdmin, dormir } from "../../test/trabajos.js";
 
 vi.setConfig({ testTimeout: 150_000, hookTimeout: 60_000 });
@@ -159,7 +160,7 @@ describe.skipIf(!hayRedisServer || !existsSync(mainJs))(
   "SIGTERM al worker compilado",
   () => {
     it("con Redis arriba y sin trabajos: termina en ≤ 35 s con código 0 y registra trabajos_detenidos", async (ctx) => {
-      if (!(await bdDespejada())) ctx.skip();
+      exigirBdDespejada(await bdDespejada(), ctx);
       const puerto = await puertoLibre();
       const redis = await levantarRedis(puerto);
       try {
@@ -179,7 +180,7 @@ describe.skipIf(!hayRedisServer || !existsSync(mainJs))(
     });
 
     it("con Redis caído: SIGTERM igual termina el proceso en ≤ 35 s (cierre con tope)", async (ctx) => {
-      if (!(await bdDespejada())) ctx.skip();
+      exigirBdDespejada(await bdDespejada(), ctx);
       const puerto = await puertoLibre();
       const redis = await levantarRedis(puerto);
       let w: Worker | null = null;
