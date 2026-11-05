@@ -6,7 +6,7 @@ Nivel C (spec): sin TDD ni ronda adversarial. Flujo 04 §1.3: implementar con pr
 
 | #   | Tarea                                                                                              | Rol      | Modelo | Depende de     | TDD | ADV | Estado |
 | --- | -------------------------------------------------------------------------------------------------- | -------- | ------ | -------------- | --- | --- | ------ |
-| T1  | Puertos `XmlProvider` y `SireApiClient`, tipos, `OrigenXml` y dependencia de `domain`              | backend  | sonnet | —              | —   | —   | [ ]    |
+| T1  | Puertos `XmlProvider` y `SireApiClient`, tipos, `OrigenXml` y dependencia de `domain`              | backend  | sonnet | —              | —   | —   | [x]    |
 | T2  | Fixtures sintéticos XML y SIRE, lista de RUC de prueba y `LEEME.md`                                | devops   | haiku  | — ∥ T1         | —   | —   | [ ]    |
 | T3  | `MockXmlProvider` (fixture, UBL sintético, inyección, errores, latencia, ruta segura) y sus pruebas | backend  | sonnet | T1             | —   | —   | [ ]    |
 | T4  | `MockSireApiClient` y sus pruebas                                                                  | backend  | sonnet | T1 ∥ T3        | —   | —   | [ ]    |
@@ -41,6 +41,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `spec.md` (D1, D3, D7), `plan.md` (Contratos), `packages/sunat/src/{puertos,errores,index}.ts`, `packages/sunat/package.json`, `packages/shared/src/index.ts`, `packages/shared/src/trabajos/index.ts` (patrón de submódulo), `packages/domain/src/index.ts` (que `Money` se exporte).
 - **Hacer**: agregar `XmlProvider`, `SireApiClient`, `SolicitudXml`, `ReferenciaXml`, `RespuestaXml`, `SolicitudPropuesta`, `PropuestaSire`, `FilaPropuestaSire` a `puertos.ts` con JSDoc (qué errores lanza cada uno; el proveedor real ignora `referencia`); `packages/shared/src/xml/{origen,index}.ts` con `OrigenXml` y `origenXmlSchema` (zod) y su prueba mínima (valor válido, valor inválido); `@contapp/domain` en `dependencies` de `packages/sunat` (y referencia de `tsconfig` si el patrón del repo la pide).
 - **Hecho cuando**: `pnpm --filter @contapp/shared test` y `pnpm --filter @contapp/sunat typecheck` OK; `eslint` limpio en ambos; `OrigenXml` se importa desde `@contapp/shared` (parte de CA-10). Commit `feat(009): puertos XmlProvider y SireApiClient, OrigenXml`.
+- **Resultado (2026-11-05)**: `puertos.ts` con `XmlProvider`, `SireApiClient`, `SolicitudXml`, `ReferenciaXml`, `RespuestaXml`, `SolicitudPropuesta`, `PropuestaSire`, `FilaPropuestaSire` y `LibroSire`; `packages/shared/src/xml/{origen,index,origen.spec}.ts` (`OrigenXml`, `origenXmlSchema`) exportado desde `@contapp/shared`. `packages/sunat` depende ahora de `@contapp/domain` y de `@contapp/shared` (`workspace:*`; `shared` hace falta porque `RespuestaXml.origen` usa `OrigenXml`). `pnpm install --frozen-lockfile` OK; `shared` test 658, `sunat` test 63, typecheck y eslint limpios en ambos. Sin referencia de `tsconfig` (el repo no las usa).
 
 ## T2 · Fixtures sintéticos (devops · haiku)
 
