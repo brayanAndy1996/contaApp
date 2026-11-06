@@ -26,7 +26,7 @@ Nivel A. Flujo de 04 §1.3: andamiaje, pruebas (rojo), ratificación, implementa
 | T15b | Ronda 2b: escenarios nuevos contra las correcciones | adversario | opus | T14 ∥ T15a | — | ✓ | [x] |
 | T16 | Corregir hallazgos de la ronda 2 | backend | opus | T15a, T15b | — | — | [x] |
 | T16a | Tipo de cambio obligatorio solo en filas USD (P-12, D23) | backend | opus | T16 | — | — | [x] |
-| T17 | Verificar CA-1 a CA-11 y cobertura con evidencia | tester | sonnet | T16a | — | — | [ ] |
+| T17 | Verificar CA-1 a CA-11 y cobertura con evidencia | tester | sonnet | T16a | — | — | [x] |
 | T18 | Revisión final contra la spec | arquitecto | opus | T17 | — | — | [ ] |
 | T19 | Cierre: tasks y commit (el orquestador actualiza ESTADO) | devops | haiku | T18 | — | — | [ ] |
 
@@ -324,13 +324,31 @@ Reglas comunes:
   - Pruebas nuevas: `prevalidacion/correcciones-t16a.spec.ts` (2): el caso feliz (PEN sin TC apta y con el TC vacío en la línea; USD con TC válido sin errores) y el de error (USD sin TC → `USD_SIN_TC`; PEN con TC → `TC_INVALIDO`; nunca `CAMPO_OBLIGATORIO`).
   - Checks, en serie: domain 65/65 archivos, 1 614 OK y 3 todo, sin fallos. sunat 17/17 y 219/219, tras compilar domain. `pnpm cobertura:dominio` sale 0 (`estructura.ts`: 100 % de líneas y 97.95 % de ramas). `pnpm cobertura:sunat` sale 0. tests-limites 13/13 y 329/329. `pnpm typecheck --force` 15/15 y `pnpm lint --force` 9/9.
 
-## T17 · Verificar los CA (tester · sonnet)
+## T17 · [x] Verificar los CA (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (CA-1 a CA-11 y Casos reales), `tasks.md` (resultados de T8 a T16a).
 - **Hacer**:
   - Correr las suites completas de domain, sunat y límites, `pnpm cobertura:dominio` y `pnpm cobertura:sunat`.
   - Para cada CA, anotar la prueba (`archivo › nombre`) o el comando que lo demuestra.
   - Para CA-11, además `grep` de `node:` y `@contapp/sunat` en `packages/domain/src` y de `@contapp/sunat` en `apps/backend/src`.
 - **Hecho cuando**: hay evidencia de los 11 CA y de los casos reales, o la lista de lo que falta. Commit `test(012): verificación de criterios` si se agregan resultados a `tasks.md`.
+- **Resultado**: los 11 CA y los casos reales tienen evidencia y no hay fallos. Rama `spec/012-prevalidacion-archivos`, HEAD `d219f16`, todo en serie y sin cambiar código. Comandos (todos salen 0): `pnpm build --force` 9/9, `pnpm lint --force` 9/9, `pnpm typecheck --force` 15/15; `pnpm cobertura:dominio` (65 archivos, 1614 pruebas y 3 `todo`) y `pnpm cobertura:sunat` (17 archivos, 219 pruebas), con umbral 90 % por archivo; `@contapp/tests-limites` 13/13 archivos, 329/329. Pruebas unitarias: domain 65 archivos y 1614 (+3 `todo`: redondeo USD diferido), sunat 17 y 219, shared 13 y 658, backend 67 y 852, worker 20 y 174, frontend 35 y 319. Sin integraciones con BD (012 no toca la BD). Backend y worker no importan `@contapp/domain` (no hay coincidencias en `apps/*/src` ni en sus `package.json`): no hay import roto posible, y su build y typecheck pasan. Cobertura más baja en las carpetas de 012: ramas de `prevalidar.ts` 91,89 % y de `registro.ts` 96,25 %; `empaquetar.ts` 100 %.
+
+  | CA | Evidencia (`archivo:línea › prueba`) |
+  |---|---|
+  | CA-1 | `packages/domain/tests/casos-reales/prevalidacion.spec.ts:39` (describe), `:42` no apta y único error IGV de F001-2056, `:48` «1.61 no es 18 % ni 10 % de 21.48», `:59` San Juan solo aviso R-ISC, `:69` 3064, 4062 y 5070 sin errores ni avisos; mismo caso sobre el JSON real en `packages/sunat/src/formatos/fixture-012.spec.ts:64`/`:67`/`:74` |
+  | CA-2 | `…/casos-reales/prevalidacion.spec.ts:96` (sugerencias reales de 011), `:120` apto sin errores, `:128` 5 líneas exactas; `packages/domain/src/formatos/generar.spec.ts:203`/`:204` (una línea por fila no excluida); `fixture-012.spec.ts:82`/`:95`/`:102` |
+  | CA-3 | `packages/domain/src/prevalidacion/aritmetica.spec.ts:24` (describe), `:27` diferencia 0.00 sin error, `:31` +0.01 con diferencia exacta, `:40` −0.01, `:71` sugerencia R-RED con reglas |
+  | CA-4 | `…/aritmetica.spec.ts:205` (describe), `:209` USD sin TC (nombra `tipoCambio`), `:219` TC con más de 3 decimales, cero y negativo, `:238` PEN con TC, `:250`/`:259` `origenUsd` descuadrado (conversión por componente), `:270` sugerencia R-RED; D23 en `correcciones-t16a.spec.ts:16` y `:26` |
+  | CA-5 | `packages/domain/src/prevalidacion/estructura.spec.ts:27` (obligatorio), `:54` (longitud en el borde), `:89` (RUC), `:119`/`:137` (separador, CR/LF, control, fuera de la codificación, con código U+XXXX), `:160` (no recorta); `packages/domain/src/formatos/campos.spec.ts:39` |
+  | CA-6 | `packages/domain/src/prevalidacion/duplicados.spec.ts:15`/`:16` error en ambas copias, `:59` lo que no es duplicado, `:81` excluidas |
+  | CA-7 | `packages/domain/src/formatos/generar.spec.ts:48`/`:49` (`ArchivoNoPrevalidadoError` sin bytes), `:74` cada tipo de error, `:85` excluidas no bloquean, `:94` fila mutada, `:101` getter; `…/casos-reales/prevalidacion.spec.ts:90`; `prevalidacion/prevalidar.spec.ts:92` |
+  | CA-8 | `packages/domain/src/prevalidacion/resumen.spec.ts:33`/`:53` (N, M, K e impacto exacto por destino), `:121`/`:125` (vuelta a los montos originales no cuenta), `:187` USD, `:270` entradas inválidas, `:309` propiedad con oráculo en centavos |
+  | CA-9 | `packages/domain/src/formatos/generar.spec.ts:235`/`:277` (permutación, mismos bytes), `:145` `FormatoNoVigenteError`, `:116`/`:117`/`:130`/`:139` (provisional sin y con `permitirProvisional`), `:149` y `registro.spec.ts:161` (elección por `vigenteDesde`); `fixture-012.spec.ts:102` (mismos bytes con filas invertidas); SHA-256 y ZIP deterministas en `packages/sunat/src/formatos/empaquetar.spec.ts:72`/`:89`/`:90` |
+  | CA-10 | `packages/sunat/src/formatos/empaquetar.spec.ts:29`/`:30` (una entrada `nombreTxt`, idéntica byte por byte), `:38` (1 MiB), `:71`/`:72` (SHA-256 aparte), `:157`/`:164`/`:180`/`:190` (nombres: RUC y periodo mal formados, `../`, control), `:119` huso horario; `packages/domain/src/formatos/nombres.spec.ts:14`/`:27`/`:67` (gramática) |
+  | CA-11 | Cobertura: `pnpm cobertura:dominio` y `pnpm cobertura:sunat` salen 0 con `perFile` ≥ 90 % (`packages/domain/vitest.cobertura.config.mts:25`, `packages/sunat/vitest.cobertura.config.mts:19`). Lint de dinero e IO en `prevalidacion/` y `formatos/`: `tests/limites/dominio-prevalidacion.spec.ts:66`; fronteras (backend sin `@contapp/sunat`, sunat con `node:crypto`): `:91`. `grep` de `node:` y `@contapp/sunat` en `packages/domain/src` (sin specs): 0 coincidencias; `grep` de `@contapp/sunat` en `apps/backend/src` y en `package.json` de backend y domain: 0 |
+  | Casos reales | Mixta 21.48/1.61: CA-1 y CA-2 (arriba) y `tests/casos-reales/reglas.spec.ts:127`; San Juan: `…/prevalidacion.spec.ts:59` (aviso) y `:176`/`:177` (sola, apta); zapatilla: `…/prevalidacion.spec.ts:145`/`:158`/`:167` (R-GP avisa y nunca bloquea) y `prevalidacion/prevalidar.spec.ts:289`; redondeo USD: diferido (`it.todo` en `…/prevalidacion.spec.ts:189`), con CA-4 sintético; boleta 291: no aplica (013) |
+
+  Desajustes spec ↔ implementación (anotados, sin corregir; los decide T18): (1) las casillas de CA-1 a CA-11 y del renglón de casos reales en `spec.md` siguen `[ ]`; (2) CA-9 pide «mismo SHA-256» en una sola llamada, pero `generarTxt` (domain) solo devuelve bytes (D2): el hash vive en `empaquetar` (sunat), así que la igualdad de bytes se prueba en domain y el SHA-256 determinista, en sunat con la misma fecha; no hay una prueba única de punta a punta `generarTxt` en permutación → `empaquetar` → hash; (3) D11 dice que bloquea «el IGV que no cuadra con 18 % ni con 10 % en cualquier destino», pero D18 excluye el IGV 0.00 con base distinta de cero (San Juan); es coherente con CA-1 y está aceptado, y solo conviene que el texto de D11 lo remita a D18; (4) el redondeo USD sigue como `it.todo` (3 `todo` en domain) por falta de cifras reales, según la spec; (5) `PrevalidacionError` sigue exportada en `prevalidacion/index.ts:14` (la nota de T12 la daba por sobrante), y `ronda2b.adv.spec.ts` pasa entero: no es un fallo, pero el arquitecto puede decidir si va al plan.
 
 ## T18 · Revisión final (arquitecto · opus)
 - **Contexto (leer solo esto)**: `spec.md`, `plan.md`, `tasks.md` (resultados), el diff de la rama contra `main` en `packages/{domain,sunat}/src`.
