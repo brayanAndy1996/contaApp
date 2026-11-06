@@ -15,7 +15,7 @@ Nivel A. Flujo de 04 §1.3: andamiaje, pruebas (rojo), ratificación, implementa
 | T7 | Lint de dinero en `prevalidacion/` y `formatos/` | devops | haiku | T2, T6 ∥ T8 | ✓ | — | [x] |
 | T8 | Implementar `texto/codificar`, `texto/entero` y `formatos/` (sin `generarTxt`) | backend | opus | T1, T3, T6 | ✓ | — | [x] |
 | T9 | Implementar `prevalidar` y `generarTxt` | backend | opus | T4, T8 | ✓ | — | [x] |
-| T10 | Implementar `resumirCambios` | backend | opus | T5, T9 | ✓ | — | [ ] |
+| T10 | Implementar `resumirCambios` | backend | opus | T5, T9 | ✓ | — | [x] |
 | T11 | Implementar `empaquetar` en sunat | backend | opus | T1, T5, T8 ∥ T9, T10 | ✓ | — | [x] |
 | T12 | Integración: checks completos | devops | haiku | T7, T10, T11 | — | — | [ ] |
 | T13a | Ronda 1a: ataques de la spec (caja negra) | adversario | opus | T12 | — | ✓ | [ ] |
@@ -176,10 +176,16 @@ Reglas comunes:
     - (f) Una suma fuera de NUMERIC(14,2) da `CUADRE` con `diferencia: null`, y una conversión de `origenUsd` fuera de rango da `CONVERSION_USD`.
     - (g) `DUPLICADO` lleva `campo: null`.
 
-## T10 · Implementar resumirCambios (backend · opus)
+## T10 · [x] Implementar resumirCambios (backend · opus)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: `ResumenCambios`; Decisiones: resumirCambios, Ratificación de contratos 13), `spec.md` (D12, D14; CA-8), `packages/domain/src/prevalidacion/{tipos,entrada}.ts`, `packages/domain/src/prevalidacion/resumen.spec.ts`.
 - **Hacer**: `prevalidacion/resumen.ts` y su export.
 - **Hecho cuando**: `resumen.spec.ts` pasa, la cobertura es ≥ 90 % y lint y typecheck quedan limpios. Commit `feat(012): resumen de cambios con impacto en IGV por destino`.
+- **Resultado**: `prevalidacion/resumen.ts` (`resumirCambios`), `ResumenCambios` en `tipos.ts` y ambos exportados desde `prevalidacion/index.ts`; `tipoCambioDe` de `aritmetica.ts` pasa a exportarse para reusarlo. `resumen.spec.ts`: 43 de 43 en verde (incluidas las «T6»). Domain: 56 suites en verde; solo falla `ronda2b.adv.spec.ts` (R2b-1, lista de exports, T12). Cobertura de `resumen.ts`: 98,6 % sentencias, 97,8 % ramas, 100 % funciones y líneas. Typecheck completo de domain, `tsc -p tsconfig.build.json` y lint OK.
+  - **Desvíos**:
+    - (a) El TC se compara por valor completando con ceros a 3 decimales como texto (la gramática de `TipoCambio` no admite ceros a la izquierda), sin `number` ni `decimal.js`.
+    - (b) Una USD cuya conversión sale de NUMERIC(14,2) también va a `filasSinConvertir`, igual que la descuadrada.
+    - (c) El impacto se suma con un solo `Money.suma` por destino y otro para el total, con las originales negadas: el rango solo se comprueba en el resultado; si este sale de NUMERIC(14,2), `MontoFueraDeRangoError` de 010 se propaga.
+    - (d) Commit `feat(012): resumen de cambios`, como pidió el orquestador.
 
 ## T11 · [x] Implementar empaquetar (backend · opus) ∥ T9, T10
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: `@contapp/sunat`; Decisiones: empaquetar, Ratificación de contratos 14), `spec.md` (D6, D7; CA-10), `packages/sunat/src/index.ts`, `packages/sunat/src/errores.ts` (patrón), `packages/sunat/src/formatos/empaquetar.spec.ts`.

@@ -4,6 +4,7 @@ import type { Destino, MontosComprobante } from "../comprobante/index";
 import type { Money } from "../dinero/index";
 import type { CabeceraTxt } from "../formatos/tipos";
 import type { RegistroFormatos } from "../formatos/registro";
+import type { Entero } from "../texto/entero";
 import type { ContextoReglas, DocProveedor, Hallazgo, IdComprobante, ResumenXml } from "../reglas/index";
 
 export type EstadoFila = "original" | "modificada" | "agregada" | "excluida";
@@ -73,4 +74,15 @@ export interface ContextoPrevalidacion {
   readonly cabecera: CabeceraTxt;
   readonly reglas?: ContextoReglas;
   readonly registro?: RegistroFormatos;
+}
+
+/** Resumen de cambios entre el original y el vigente (D12, CA-8). Montos en PEN. */
+export interface ResumenCambios {
+  readonly modificadas: Entero;
+  readonly excluidas: Entero;
+  readonly agregadas: Entero;
+  /** Σ IGV de las vigentes no excluidas − Σ IGV de las originales, por destino; total = DG + DGNG + DNG. */
+  readonly impactoIgv: { readonly DG: Money; readonly DGNG: Money; readonly DNG: Money; readonly total: Money };
+  /** Ids de las filas USD que no se pudieron convertir a PEN (sin repetir, por unidades de código). */
+  readonly filasSinConvertir: readonly string[];
 }

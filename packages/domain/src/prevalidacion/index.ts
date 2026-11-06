@@ -1,5 +1,5 @@
 // API pública de prevalidacion/ (plan 012, Contratos). entrada, estructura, aritmetica,
-// duplicados y explicaciones son internos. resumirCambios llega con T10.
+// duplicados y explicaciones son internos.
 export type {
   EstadoFila,
   FilaReemplazo,
@@ -9,6 +9,8 @@ export type {
   AvisoPrevalidacion,
   ResultadoPrevalidacion,
   ContextoPrevalidacion,
+  ResumenCambios,
 } from "./tipos";
 export { PrevalidacionError, EntradaPrevalidacionInvalidaError } from "./errores";
 export { prevalidar } from "./prevalidar";
+export { resumirCambios } from "./resumen";

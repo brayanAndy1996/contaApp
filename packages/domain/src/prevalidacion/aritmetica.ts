@@ -38,7 +38,7 @@ export interface Aritmetica {
 }
 
 /** TipoCambio de 010 o `null` si `desde` lo rechaza (incluido ""). */
-function tipoCambioDe(tc: string): TipoCambio | null {
+export function tipoCambioDe(tc: string): TipoCambio | null {
   try {
     return TipoCambio.desde(tc);
   } catch {
