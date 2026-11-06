@@ -83,6 +83,9 @@ describe("T13b · ronda adversarial 2b", () => {
       "EntradaPrevalidacionInvalidaError", "FormatoNoVigenteError", "FormatoProvisionalError", "FormatosError",
       "NombreArchivoInvalidoError", "PrevalidacionError", "REGISTRO_FORMATOS", "RegistroFormatos", "generarTxt", "prevalidar",
       "resumirCambios", "seleccionarFormato", "validarCampo", "validarNombreArchivo",
+      // 013 (T3): clave-comprobante/, correlatividad/, complemento/ y ventas/ (plan, Contratos: Dominio).
+      "LAYOUT_VENTAS_PROVISIONAL", "analizarCorrelatividad", "claveNormalizada", "planificarComplemento",
+      "resumirVentas", "validarFilaVenta",
     ].sort();
     expect(Object.keys(Publico).sort()).toEqual(esperados);
 
