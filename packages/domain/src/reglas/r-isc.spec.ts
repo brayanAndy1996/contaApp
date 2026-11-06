@@ -212,3 +212,22 @@ describe("R-ISC: signos y moneda (CA-10)", () => {
     expect(h.requiereConfirmacion).toBe(false);
   });
 });
+
+describe("R-ISC con xml.isc − isc fuera de NUMERIC(14,2) (spec 012, H-012-20)", () => {
+  it("no lanza MontoFueraDeRangoError: el monto no cabe, hallazgo sin sugerencia con la explicación de «no cabe»", () => {
+    const f = fila({ biDg: "100.00", isc: "-999999999999.99" }, { xml: xmlDe({ gravado: "100.00", isc: "999999999999.99", total: "100.00" }) });
+    const h = unico(evaluar([f]).hallazgos, "R-ISC");
+    expect(h.sugerencia).toBeNull();
+    expect(h.requiereConfirmacion).toBe(true);
+    expect(h.explicacion).toContain("999999999999.99");
+  });
+
+  it("proveedor marcado con IGV que cuadra y xml.isc − isc fuera de rango: hallazgo sin sugerencia", () => {
+    const f = fila(
+      { biDg: "100.00", igvDg: "18.00", isc: "-999999999999.99" },
+      { xml: xmlDe({ gravado: "100.00", igv: "18.00", isc: "999999999999.99", total: "118.00" }) },
+    );
+    const h = unico(evaluar([f], ctxBase({ proveedoresIsc: [{ ...PROV }] })).hallazgos, "R-ISC");
+    expect(h.sugerencia).toBeNull();
+  });
+});

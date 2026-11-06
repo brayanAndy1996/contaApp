@@ -39,6 +39,9 @@ jobs:
       - name: Cobertura de @contapp/domain (90 % por archivo)
         run: pnpm cobertura:dominio
 
+      - name: Cobertura de @contapp/sunat (90 % por archivo)
+        run: pnpm cobertura:sunat
+
   aislamiento:
     name: Aislamiento entre estudios (PostgreSQL 17)
     runs-on: ubuntu-latest

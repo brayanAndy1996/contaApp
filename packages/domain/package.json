@@ -18,6 +18,7 @@
     "test:cobertura": "vitest run --config vitest.cobertura.config.mts --coverage --passWithNoTests"
   },
   "dependencies": {
+    "@contapp/shared": "workspace:*",
     "decimal.js": "10.6.0"
   },
   "devDependencies": {
