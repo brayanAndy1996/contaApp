@@ -1,9 +1,11 @@
 // Módulo Nest del worker de trabajos (spec 008). Arranca `iniciarTrabajos` con la BD (rol contapp_worker), Redis
 // (REDIS_URL) y la KEK activa del entorno, y al cerrar el proceso hace el cierre ordenado: deja de tomar trabajos,
-// espera a los en curso hasta 30 s y libera sus arriendos. Sin variables de entorno nuevas (plan 008).
+// espera a los en curso hasta 30 s y libera sus arriendos. Los adaptadores (SIRE, SOL, RUC, XML) los crea `adaptadores.module.ts` (009).
 import {
+  Inject,
   Injectable,
   Module,
+  Optional,
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
 } from "@nestjs/common";
@@ -14,13 +16,10 @@ import {
 } from "@contapp/crypto/descifrado";
 import { createDb, type ContappDb } from "@contapp/db";
 import {
-  MockConsultaRuc,
-  MockSireAuth,
-  MockSolAuth,
-  type ConsultaRuc,
-  type SireAuth,
-  type SolAuth,
-} from "@contapp/sunat";
+  ADAPTADORES,
+  crearAdaptadores,
+  type Adaptadores,
+} from "../adaptadores/adaptadores.module.js";
 import { Redis } from "ioredis";
 import { conexionDesdeUrl } from "./conexion.js";
 import {
@@ -29,36 +28,13 @@ import {
   type TrabajosEnMarcha,
 } from "./iniciar.js";
 
-export class ConfiguracionTrabajosError extends Error {
-  readonly codigo = "configuracion_trabajos";
-}
-
-/** Solo existe el adaptador `mock` hasta 009 (SIRE_CLIENT=mock, 001 CA-8). */
-export function sireAuthDesdeEntorno(
-  env: Record<string, string | undefined>,
-): SireAuth {
-  if ((env.SIRE_CLIENT ?? "mock") !== "mock")
-    throw new ConfiguracionTrabajosError("SIRE_CLIENT no soportado");
-  return new MockSireAuth();
-}
-
-/** Solo existe el adaptador `mock` (RUC_CLIENT=mock, 007b). */
-export function consultaRucDesdeEntorno(
-  env: Record<string, string | undefined>,
-): ConsultaRuc {
-  if ((env.RUC_CLIENT ?? "mock") !== "mock")
-    throw new ConfiguracionTrabajosError("RUC_CLIENT no soportado");
-  return new MockConsultaRuc();
-}
-
-/** Solo existe el adaptador `mock` (SOL_PORTAL=mock, 007b). */
-export function solAuthDesdeEntorno(
-  env: Record<string, string | undefined>,
-): SolAuth {
-  if ((env.SOL_PORTAL ?? "mock") !== "mock")
-    throw new ConfiguracionTrabajosError("SOL_PORTAL no soportado");
-  return new MockSolAuth();
-}
+// Se movieron a `adaptadores.module.ts` (009, D8); se reexportan con el mismo nombre.
+export {
+  ConfiguracionTrabajosError,
+  consultaRucDesdeEntorno,
+  sireAuthDesdeEntorno,
+  solAuthDesdeEntorno,
+} from "../adaptadores/adaptadores.module.js";
 
 /**
  * Llaves para `kek.rotar`: la activa del entorno (KEY_PROVIDER, KEK_ID, KEK_PRIVATE_KEY_PATH) y la anterior `desde`,
@@ -89,18 +65,24 @@ export class TrabajosService
   private redis?: Redis;
   private enMarcha?: TrabajosEnMarcha;
 
+  /** Los adaptadores los entrega `AdaptadoresModule`; sin él (pruebas unitarias) se crean del entorno. */
+  constructor(
+    @Optional() @Inject(ADAPTADORES) private readonly adaptadores?: Adaptadores,
+  ) {}
+
   async onApplicationBootstrap(): Promise<void> {
     const env = process.env;
     const conexionBull = conexionDesdeUrl(env.REDIS_URL);
     this.db = createDb({ rolApp: "contapp_worker" });
     this.redis = new Redis(String(env.REDIS_URL));
+    const adaptadores = this.adaptadores ?? crearAdaptadores(env);
     this.enMarcha = await iniciarTrabajos({
       db: this.db,
       redis: this.redis,
       conexionBull,
-      sireAuth: sireAuthDesdeEntorno(env),
-      consultaRuc: consultaRucDesdeEntorno(env),
-      solAuth: solAuthDesdeEntorno(env),
+      sireAuth: adaptadores.sireAuth,
+      consultaRuc: adaptadores.consultaRuc,
+      solAuth: adaptadores.solAuth,
       kek: llavesDesdeEntorno(env),
     });
   }
