@@ -18,7 +18,7 @@ Nivel A. Flujo de 04 §1.3: andamiaje, pruebas (rojo), ratificación, implementa
 | T10 | Implementar `resumirCambios` | backend | opus | T5, T9 | ✓ | — | [x] |
 | T11 | Implementar `empaquetar` en sunat | backend | opus | T1, T5, T8 ∥ T9, T10 | ✓ | — | [x] |
 | T12 | Integración: checks completos | devops | haiku | T7, T10, T11 | — | — | [x] |
-| T13a | Ronda 1a: ataques de la spec (caja negra) | adversario | opus | T12 | — | ✓ | [ ] |
+| T13a | Ronda 1a: ataques de la spec (caja negra) | adversario | opus | T12 | — | ✓ | [x] |
 | T13b | Ronda 1b: escenarios nuevos (caja blanca) | adversario | opus | T12 ∥ T13a | — | ✓ | [x] |
 | T14 | Corregir hallazgos de la ronda 1 | backend | opus | T13a, T13b | — | — | [ ] |
 | T15a | Ronda 2a: regresión de las correcciones | adversario | opus | T14 | — | ✓ | [ ] |
@@ -216,6 +216,12 @@ Reglas comunes:
   
   Anotar los hallazgos en `ESTADO.md`.
 - **Hecho cuando**: hay commit `test(012): ronda adversarial 1a` y una lista de hallazgos (`H-012-n`, con prueba, esperado y obtenido) para el orquestador.
+- **Resultado**: 65 pruebas (60 en `packages/domain/src/prevalidacion/ronda1a.adv.spec.ts`, 5 en `packages/sunat/src/formatos/ronda1a.adv.spec.ts`); 5 fallan en domain (4 hallazgos), sunat en verde. Mensaje de commit pedido por el orquestador: `test(012): ronda adversarial 1, caja negra`.
+  - H-012-1 (media) · `ronda1a.adv.spec.ts:64` y `:89` · IGV ±0.01 con base 0.00 o signo contrario. Esperado: error `IGV` (plan T6.1). Obtenido: sin error en BI 0.00/IGV ±0.01, BI 0.01/IGV −0.01, BI −0.01/IGV 0.01 y BI 0.03/IGV −0.01. Impacto: TXT con IGV de signo opuesto o sin base.
+  - H-012-2 (media) · `:492` · 600 copias del mismo comprobante con ids de 64 caracteres. Esperado: explicación `DUPLICADO` acotada (≤ 2 000 caracteres). Obtenido: 39 570 por error (crece con n²; 6 000 copias = 245 M caracteres). Impacto: memoria y 422 enorme en 012b.
+  - H-012-3 (baja) · `:437` · fecha `0000-01-01`. Esperado: `FECHA_INVALIDA`. Obtenido: válida («01/01/0000» en el TXT).
+  - H-012-4 (baja) · `:518` · razón social ausente → «» en una modificada. Esperado: no cuenta (la línea del TXT es idéntica, plan T6.13). Obtenido: cuenta como modificada.
+  - Sin fallo (quedan como regresión): oráculo del cuadre con medio centavo, NC con las 10 columnas, 1 000 filas USD con TC 3.759 y permutación, redondeo acumulado en `resumirCambios` (200.00), `origenUsd` con medio centavo, 19 TC mal formados, excluidas que intentan colarse, estados parecidos a «excluida», mutación tras prevalidar, 17 caracteres prohibidos con posición, formato ascii, explicaciones sin texto crudo, bordes de longitud y de NUMERIC(14,2), fechas y periodos de otro año, orden cronológico, duplicados por mayúsculas y ceros, `codificar`, `validarCampo` con valores raros y `/g`, `validarNombreArchivo`, `permitirProvisional` no booleano, registros falsos, versiones, `nombre()` inseguro, y en sunat: entrada `.zip`, 1 000 filas de punta a punta, estructura del ZIP, `subarray` y bordes DOS.
 
 ## T13b · [x] Ronda 1b, caja blanca (adversario · opus) ∥ T13a
 - **Contexto (leer solo esto)**: lo de T13a más `packages/domain/src/{prevalidacion,formatos}/*.ts`, `packages/domain/src/texto/{codificar,entero}.ts` y `packages/sunat/src/formatos/*.ts`.
