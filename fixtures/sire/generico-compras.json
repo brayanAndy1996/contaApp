@@ -1,0 +1,44 @@
+{
+  "libro": "compras",
+  "periodo": "202610",
+  "filas": [
+    {
+      "tipo": "01",
+      "serie": "F001",
+      "numero": "6010",
+      "rucContraparte": "20700000096",
+      "fechaEmision": "2026-10-04",
+      "moneda": "PEN",
+      "biDg": "200.00",
+      "igvDg": "36.00",
+      "biDgng": "0.00",
+      "igvDgng": "0.00",
+      "biDng": "0.00",
+      "igvDng": "0.00",
+      "noGravado": "0.00",
+      "isc": "0.00",
+      "icbper": "0.00",
+      "otros": "0.00",
+      "total": "236.00"
+    },
+    {
+      "tipo": "01",
+      "serie": "F001",
+      "numero": "6012",
+      "rucContraparte": "20700000096",
+      "fechaEmision": "2026-10-09",
+      "moneda": "PEN",
+      "biDg": "80.00",
+      "igvDg": "14.40",
+      "biDgng": "0.00",
+      "igvDgng": "0.00",
+      "biDng": "0.00",
+      "igvDng": "0.00",
+      "noGravado": "0.00",
+      "isc": "0.00",
+      "icbper": "0.00",
+      "otros": "0.00",
+      "total": "94.40"
+    }
+  ]
+}

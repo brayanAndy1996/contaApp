@@ -11,3 +11,4 @@ export * from "./planes/index.js";
 export * from "./clientes/index.js";
 export * from "./credenciales/index.js";
 export * from "./importacion/index.js";
+export * from "./xml/index.js";

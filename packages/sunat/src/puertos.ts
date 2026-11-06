@@ -1,3 +1,5 @@
+import type { OrigenXml } from "@contapp/shared";
+
 export interface CredencialSire {
   clientId: string;
   clientSecret: string;
@@ -42,4 +44,97 @@ export interface CredencialSol {
  */
 export interface SolAuth {
   verificar(credencial: CredencialSol): Promise<void>;
+}
+
+export type LibroSire = "compras" | "ventas";
+
+/**
+ * Datos de la fila del SIRE que el mock usa para fabricar un XML coherente cuando no hay fixture.
+ * Montos como cadenas decimales (nunca `number`). El proveedor real ignora `referencia`.
+ */
+export interface ReferenciaXml {
+  /** AAAA-MM-DD */
+  fechaEmision: string;
+  moneda: "PEN" | "USD";
+  tipoCambio?: string;
+  baseGravada: string;
+  igv: string;
+  noGravado: string;
+  isc: string;
+  icbper: string;
+  otros: string;
+  total: string;
+}
+
+export interface SolicitudXml {
+  rucEmisor: string;
+  /** Tipo de comprobante (catálogo 01 de SUNAT, p. ej. "01" factura, "03" boleta). */
+  tipo: string;
+  serie: string;
+  numero: string;
+  /** Solo la usa el mock; el proveedor real la ignora. */
+  referencia?: ReferenciaXml;
+}
+
+export interface RespuestaXml {
+  xml: string;
+  origen: OrigenXml;
+  fuente: "fixture" | "sintetico" | "inyectado";
+}
+
+/**
+ * Puerto de obtención del XML de un comprobante. Solo el worker lo usa. Lanza `ErrorTransitorio`
+ * (red/5xx), `ErrorCredencial` (acceso rechazado) o `ErrorDatos` (comprobante inexistente o solicitud
+ * fuera de contrato). El proveedor real ignora `referencia`.
+ */
+export interface XmlProvider {
+  obtener(solicitud: SolicitudXml): Promise<RespuestaXml>;
+}
+
+export interface SolicitudPropuesta {
+  ruc: string;
+  /** AAAAMM */
+  periodo: string;
+  libro: LibroSire;
+}
+
+/**
+ * Fila de la propuesta del SIRE. Montos como cadenas decimales. En ventas solo se usan `biDg`, `igvDg`,
+ * `noGravado`, `isc`, `icbper`, `otros` y `total`.
+ */
+export interface FilaPropuestaSire {
+  tipo: string;
+  serie: string;
+  numero: string;
+  rucContraparte: string;
+  /** AAAA-MM-DD */
+  fechaEmision: string;
+  moneda: "PEN" | "USD";
+  tipoCambio?: string;
+  biDg: string;
+  igvDg: string;
+  biDgng: string;
+  igvDgng: string;
+  biDng: string;
+  igvDng: string;
+  noGravado: string;
+  isc: string;
+  icbper: string;
+  otros: string;
+  total: string;
+}
+
+export interface PropuestaSire {
+  libro: LibroSire;
+  periodo: string;
+  filas: FilaPropuestaSire[];
+}
+
+/**
+ * Puerto de descarga de la propuesta mensual del SIRE. Solo el worker lo usa (el backend nunca llama a
+ * SUNAT). Lanza `ErrorCredencial` si el token no sirve, `ErrorTransitorio` si SUNAT no responde y
+ * `ErrorDatos` si el RUC o el periodo no son válidos. No conserva el token.
+ */
+export interface SireApiClient {
+  descargarPropuesta(token: TokenSire, solicitud: SolicitudPropuesta): Promise<PropuestaSire>;
 }

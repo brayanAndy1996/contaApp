@@ -1,0 +1,44 @@
+{
+  "libro": "ventas",
+  "periodo": "202610",
+  "filas": [
+    {
+      "tipo": "03",
+      "serie": "B001",
+      "numero": "290",
+      "rucContraparte": "-",
+      "fechaEmision": "2026-10-03",
+      "moneda": "PEN",
+      "biDg": "100.00",
+      "igvDg": "18.00",
+      "biDgng": "0.00",
+      "igvDgng": "0.00",
+      "biDng": "0.00",
+      "igvDng": "0.00",
+      "noGravado": "0.00",
+      "isc": "0.00",
+      "icbper": "0.00",
+      "otros": "0.00",
+      "total": "118.00"
+    },
+    {
+      "tipo": "03",
+      "serie": "B001",
+      "numero": "292",
+      "rucContraparte": "-",
+      "fechaEmision": "2026-10-06",
+      "moneda": "PEN",
+      "biDg": "50.00",
+      "igvDg": "9.00",
+      "biDgng": "0.00",
+      "igvDgng": "0.00",
+      "biDng": "0.00",
+      "igvDng": "0.00",
+      "noGravado": "0.00",
+      "isc": "0.00",
+      "icbper": "0.00",
+      "otros": "0.00",
+      "total": "59.00"
+    }
+  ]
+}

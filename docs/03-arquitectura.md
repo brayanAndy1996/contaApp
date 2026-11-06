@@ -68,15 +68,17 @@ Ninguna app importa código de otra app (ni por nombre `@contapp/<app>` ni por r
 
 | Puerto (interfaz) | Adaptador local / pruebas | Adaptador real | Usado por |
 |---|---|---|---|
-| `SireApiClient` | `MockSireApiClient` (propuestas desde fixtures) | `HttpSireApiClient` | worker |
-| `SolPortal` | `MockSolPortal` | `PlaywrightSolPortal` (buzones, declaraciones PDT 621, validación de login) | worker |
-| `XmlProvider` | **`MockXmlProvider`** (fixtures o UBL sintético, errores y latencia configurables) | `RealXmlProvider` (fuente/API que entregará el equipo) | worker |
+| `SireAuth` (variable `SIRE_CLIENT`) | `MockSireAuth` | OAuth real de SUNAT (spec propia) | worker |
+| `SireApiClient` (variable `SIRE_CLIENT`) | `MockSireApiClient` (propuestas desde fixtures) | `HttpSireApiClient` | worker |
+| `SolAuth` (variable `SOL_PORTAL`; verificar la clave SOL, R1) | `MockSolAuth` | Playwright en SOL, validación de login (spec propia) | worker |
+| `SolPortal` | «R2, pendiente» (sin mock en 009) | «R2, pendiente» (`PlaywrightSolPortal`: buzones, declaraciones PDT 621) | worker |
+| `ConsultaRuc` (variable `RUC_CLIENT`) | `MockConsultaRuc` | consulta RUC real (razón social, estado, condición; spec propia) | worker |
+| `XmlProvider` (variable `XML_PROVIDER`) | **`MockXmlProvider`** (fixtures o UBL sintético, errores y latencia configurables) | `RealXmlProvider` (fuente/API que entregará el equipo) | worker |
 | `KeyProvider` | `LocalKeyProvider` (par de llaves en archivos fuera del repo) | `AwsKmsKeyProvider` / `VaultKeyProvider` | backend (solo cifrar), worker (descifrar) |
 | `StorageProvider` | `LocalFsStorage` (`./storage`) | `S3Storage` | backend, worker |
 | `Mailer` | `SmtpMailer` → Mailpit | `SmtpMailer` / SES | worker |
-| `RucDirectory` | `MockRucDirectory` | consulta RUC (razón social, estado, CIIU) | worker |
 
-Selección por variables de entorno: `SIRE_CLIENT=mock|http`, `SOL_PORTAL=mock|playwright`, `XML_PROVIDER=mock|real`, `KEY_PROVIDER=mock|local|aws|vault`, `STORAGE=mock|local|s3` (por defecto `mock`, ver spec 001).
+Selección por variables de entorno: `SIRE_CLIENT=mock|http`, `SOL_PORTAL=mock|playwright`, `RUC_CLIENT=mock|http`, `XML_PROVIDER=mock|real`, `KEY_PROVIDER=mock|local|aws|vault`, `STORAGE=mock|local|s3` (por defecto `mock`, ver spec 001).
 Con todo en `mock` el sistema funciona de punta a punta **sin conectarse a SUNAT**, lo que permite desarrollar y demostrar sin claves reales.
 
 ## 4. Multitenancy
@@ -384,17 +386,19 @@ contapp/
 │   │
 │   ├── sunat/                            # adaptadores externos
 │   │   └── src/
-│   │       ├── puertos.ts                # SireApiClient, SolPortal, XmlProvider, RucDirectory
-│   │       ├── sire/                     # http + mock
-│   │       ├── sol/                      # playwright + mock; selectores en un solo archivo
+│   │       ├── puertos.ts                # SireAuth, SireApiClient, SolAuth, ConsultaRuc, XmlProvider
+│   │       ├── errores.ts                # ErrorTransitorio, ErrorCredencial, ErrorDatos, ErrorPortal
+│   │       ├── mock/                     # hoy (009): todos los mocks, uno por puerto (*.mock.ts) + ruta-fixture.ts y ubl-sintetico.ts
+│   │       │                             # (los adaptadores reales de abajo se agregan con la spec de cada uno, junto a su mock)
+│   │       ├── sire/                     # (futuro) http
+│   │       ├── sol/                      # (futuro) playwright; selectores en un solo archivo
 │   │       ├── xml/
-│   │       │   ├── mock-xml-provider.ts  # fixtures o UBL sintético, errores y latencia
-│   │       │   ├── real-xml-provider.ts  # pendiente de la fuente del equipo
-│   │       │   └── ubl/                  # parser UBL 2.1 → modelo legible (ítems, tributos)
-│   │       ├── formatos/                 # estructuras TXT versionadas (RVIE, RCE, ajustes)
+│   │       │   ├── real-xml-provider.ts  # (futuro) pendiente de la fuente del equipo
+│   │       │   └── ubl/                  # (futuro, 016) parser UBL 2.1 → modelo legible (ítems, tributos)
+│   │       ├── formatos/                 # (futuro) estructuras TXT versionadas (RVIE, RCE, ajustes)
 │   │       │   ├── v1/
 │   │       │   └── index.ts
-│   │       └── ruc/                      # validación dígito verificador, consulta RUC
+│   │       └── ruc/                      # (futuro) consulta RUC real; el dígito verificador ya está en packages/shared
 │   │
 │   ├── crypto/                           # cifrado híbrido de credenciales
 │   │   └── src/ (envelope.ts, key-providers/local.ts, key-providers/aws-kms.ts)
@@ -412,7 +416,7 @@ contapp/
 │   └── config/                           # tsconfig base, eslint (con reglas de límites), prettier
 │
 ├── fixtures/
-│   ├── xml/                              # XML reales/anónimos para MockXmlProvider
+│   ├── xml/                              # XML sintéticos (UBL 2.1) para MockXmlProvider
 │   ├── sire/                             # propuestas de ejemplo para MockSireApiClient
 │   └── excel/                            # plantilla de importación de clientes
 │

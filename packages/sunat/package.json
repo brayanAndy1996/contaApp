@@ -11,6 +11,10 @@
     "test": "vitest run --passWithNoTests",
     "test:int": "vitest run --mode int --passWithNoTests"
   },
+  "dependencies": {
+    "@contapp/domain": "workspace:*",
+    "@contapp/shared": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "vitest": "5.0.5"

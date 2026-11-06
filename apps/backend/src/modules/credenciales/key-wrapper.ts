@@ -29,3 +29,15 @@ export function keyWrapperPerezoso(env: Record<string, string | undefined>): Obt
   let wrapper: KeyWrapper | undefined;
   return () => (wrapper ??= crearKeyWrapper(entornoDeCifrado(env)));
 }
+
+/**
+ * `KeyWrapper` del backend (spec 009, D10). Con `NODE_ENV` distinto de `development` y `test` (incluido sin
+ * definir) se crea ya al instanciar el módulo: un `KEK_PRIVATE_KEY_PATH` presente o un `KEY_PROVIDER` inválido
+ * es un error de arranque y no un 500 al guardar la primera credencial. En `development` y `test` sigue perezoso.
+ * El error es el de `crearKeyWrapper`, que nunca incluye valores de variables.
+ */
+export function keyWrapperDelBackend(env: Record<string, string | undefined>): ObtenerKeyWrapper {
+  const obtener = keyWrapperPerezoso(env);
+  if (env.NODE_ENV !== "development" && env.NODE_ENV !== "test") obtener();
+  return obtener;
+}
