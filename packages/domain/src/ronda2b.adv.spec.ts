@@ -83,6 +83,9 @@ describe("T13b · ronda adversarial 2b", () => {
       "EntradaPrevalidacionInvalidaError", "FormatoNoVigenteError", "FormatoProvisionalError", "FormatosError",
       "NombreArchivoInvalidoError", "PrevalidacionError", "REGISTRO_FORMATOS", "RegistroFormatos", "generarTxt", "prevalidar",
       "resumirCambios", "seleccionarFormato", "validarCampo", "validarNombreArchivo",
+      // 014 (plan, Contratos: Dominio): compras/ con su error de estado desconocido.
+      "EstadoPeriodoInvalidoError", "aFilaReemplazo", "aplicarEdicion", "claveComprobante", "puedeEscribir",
+      "resumirCompras", "sugerenciaEsMasiva",
     ].sort();
     expect(Object.keys(Publico).sort()).toEqual(esperados);
 

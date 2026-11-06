@@ -4,3 +4,4 @@ export * from "./texto/index";
 export * from "./reglas/index";
 export * from "./formatos/index";
 export * from "./prevalidacion/index";
+export * from "./compras/index";

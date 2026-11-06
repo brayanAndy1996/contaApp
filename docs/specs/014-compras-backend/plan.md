@@ -51,7 +51,7 @@ Toda escritura: 403 `periodo_revisado` (sin `sire.aprobar_generar`), 409 `period
 - `compra_periodo(cliente_id, periodo, estado, marcado_por, marcado_at)`, PK `(tenant_id, cliente_id, periodo)`; `fijarEstadoPeriodo(tx, clienteId, periodo, desde, hacia)` con compare-and-set.
 - Orden de bloqueo obligatorio: `compra_periodo` (`FOR SHARE` en acciones; `FOR UPDATE` al cambiar estado) → `compra_operacion` → `compra` por id ascendente.
 
-**Dominio** (`packages/domain/src/compras/`, sin IO): `claveComprobante`, `aplicarEdicion(montos, cambios) → {montos, total, cuadre}`, `resumirCompras(filas, tiposCambio)`, `aFilaReemplazo`, `puedeEscribir(estado, permisos) → ok | {codigo}`, `sugerenciaEsMasiva`.
+**Dominio** (`packages/domain/src/compras/`, sin IO): `claveComprobante`, `aplicarEdicion(montos, cambios) → {montos, total, cuadre}`, `resumirCompras(filas, tiposCambio)` (`tiposCambio` = mapa id de la compra → tipo de cambio como cadena; solo se consulta para filas USD), `aFilaReemplazo`, `puedeEscribir(estado, permisos) → ok | {codigo}`, `sugerenciaEsMasiva`.
 
 **packages/db**: `persistirDescarga` (el persistidor), `aplicarAccion`, `aplicarMasiva`, `deshacer`, `rehacer`, `leerFilasReemplazo(tx, clienteId, periodo) → {original, vigente}`, `fijarEstadoPeriodo`, `agregarCompra`.
 

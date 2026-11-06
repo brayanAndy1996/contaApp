@@ -99,7 +99,7 @@ function cuadreFila(f: FilaCopia): ErrorPrevalidacion[] {
  * que la base y a 18 % o 10 % según igvCuadra (±0.01). La tolerancia de igvCuadra no salva un IGV
  * sin base ni uno de signo contrario (Ratificación 1, H-012-1).
  */
-function igvAceptable(bi: Money, igv: Money): boolean {
+export function igvAceptable(bi: Money, igv: Money): boolean {
   if (igv.esCero()) return true;
   if (bi.esCero() || bi.esNegativo() !== igv.esNegativo()) return false;
   return igvCuadra(bi, igv, TASA_IGV_18) || igvCuadra(bi, igv, TASA_IGV_10);

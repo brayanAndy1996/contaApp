@@ -821,8 +821,8 @@ export default tseslint.config(
       ],
     },
   },
-  // Dinero (spec 010/011/012, CA-1): sin `number` ni Math.* en dinero/, comprobante/, reglas/,
-  // prevalidacion/ y formatos/ (salvo pruebas).
+  // Dinero (spec 010/011/012/014, CA-1, CA-16): sin `number` ni Math.* en dinero/, comprobante/, reglas/,
+  // prevalidacion/, formatos/ y compras/ (salvo pruebas). Los conteos usan `Entero` (texto/entero.ts).
   {
     files: [
       "packages/domain/src/dinero/**",
@@ -830,6 +830,7 @@ export default tseslint.config(
       "packages/domain/src/reglas/**",
       "packages/domain/src/prevalidacion/**",
       "packages/domain/src/formatos/**",
+      "packages/domain/src/compras/**",
     ],
     ignores: ["**/*.spec.ts"],
     rules: {

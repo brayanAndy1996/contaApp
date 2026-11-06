@@ -16,16 +16,26 @@ function mayusculasAscii(s: string): string {
   return s.replace(MINUSCULA_ASCII, (c) => c.toUpperCase());
 }
 
-/** El número del documento va en mayúsculas ASCII, como lo normaliza 011 (D20, H-012-26). */
-function clave(f: FilaCopia): string {
-  const { tipo, serie, numero } = f.comprobante;
+/**
+ * Clave de duplicado: tipo de comprobante, serie y número normalizados, y documento del proveedor. La
+ * usan 012 (DUPLICADO) y 014 (`claveComprobante`), así que ambas deciden lo mismo. El número del
+ * documento va en mayúsculas ASCII, como lo normaliza 011 (D20, H-012-26).
+ */
+export function claveDuplicado(
+  comprobante: { readonly tipo: string; readonly serie: string; readonly numero: string },
+  proveedor: { readonly tipo: string; readonly numero: string },
+): string {
   return JSON.stringify([
-    tipo,
-    mayusculasAscii(serie),
-    numero.replace(CEROS_IZQUIERDA, ""),
-    f.proveedor.tipo,
-    mayusculasAscii(f.proveedor.numero),
+    comprobante.tipo,
+    mayusculasAscii(comprobante.serie),
+    comprobante.numero.replace(CEROS_IZQUIERDA, ""),
+    proveedor.tipo,
+    mayusculasAscii(proveedor.numero),
   ]);
+}
+
+function clave(f: FilaCopia): string {
+  return claveDuplicado(f.comprobante, f.proveedor);
 }
 
 /** Un error DUPLICADO por copia; su explicación da los ids de las otras copias. */

@@ -9,7 +9,7 @@
 //   R-RED respaldada por el XML (o por origenUsd) → sí.
 //   R-NEW → no (pide el dato «destino»);  R-GP → no (pide confirmación).
 // Los hallazgos se obtienen con evaluarReglas de 011, no se arman a mano. No muta el hallazgo.
-// Fuera de estas pruebas queda una ambigüedad de la spec (ver it.todo de R-RED sin respaldo).
+// R-RED por umbral sin XML pide confirmación y no es masiva (DU-15: solo `requiereConfirmacion = false`).
 import { describe, expect, it } from "vitest";
 import { MontosComprobante } from "../comprobante/index";
 import { evaluarReglas } from "../reglas/index";
@@ -72,7 +72,13 @@ describe("sugerenciaEsMasiva: R-RED, R-NEW y R-GP", () => {
     expect(sugerenciaEsMasiva(h)).toBe(false);
   });
 
-  it.todo("R-RED sin respaldo (diferencia 0.01, requiereConfirmacion = true): ¿masiva? La spec D-15 dice «R-RED» y a la vez «requiereConfirmacion = false»; requiere decisión del usuario");
+  it("R-RED por umbral sin XML (diferencia 0.01): no, pide confirmación y va una por una (DU-15)", () => {
+    const descuadrada = MontosComprobante.desde("PEN", { biDg: "100.00", igvDg: "18.00", total: "118.01" });
+    const h = una(fila({}, { montos: descuadrada }), "R-RED");
+    expect(h.sugerencia).not.toBeNull();
+    expect(h.requiereConfirmacion).toBe(true);
+    expect(sugerenciaEsMasiva(h)).toBe(false);
+  });
 });
 
 describe("sugerenciaEsMasiva: robustez", () => {
