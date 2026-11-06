@@ -200,7 +200,7 @@ sequenceDiagram
 
 ### 7.3 Generar archivo de reemplazo
 1. `POST /…/archivos` → el backend corre la **prevalidación** (`domain.prevalidar`) en línea; si hay errores, responde 422 con la lista de filas.
-2. Si pasa, encola `archivo.generar` → el worker arma el TXT con el formato versionado de `packages/sunat/formatos`, lo comprime en ZIP, calcula el hash y lo guarda en storage con su versión.
+2. Si pasa, encola `archivo.generar` → el worker arma el TXT con `domain.generarTxt` (formatos versionados en `packages/domain/src/formatos`, que repite la prevalidación), lo comprime en ZIP y calcula el hash con `packages/sunat/src/formatos`, y lo guarda en storage con su versión. Los formatos viven en `domain` porque el backend los necesita para prevalidar y no puede importar `sunat` (spec 012, D2).
 3. (R2) `sire.reemplazo.enviar` → ticket → `sire.ticket.consultar` cada N minutos hasta el estado final.
 
 ## 8. Modelo de datos (resumen)
@@ -378,7 +378,8 @@ contapp/
 │   │       │   ├── r-his.ts
 │   │       │   └── r-gasto-personal.ts   # puntaje de sospecha sin IA
 │   │       ├── correlatividad/           # saltos de numeración
-│   │       ├── prevalidacion/            # reglas de estructura y cuadre SUNAT
+│   │       ├── prevalidacion/            # reglas de estructura y cuadre SUNAT, resumen de cambios
+│   │       ├── formatos/                 # estructuras TXT versionadas (RCE; RVIE en 013) y serialización del TXT (012)
 │   │       ├── prorrata/                 # coeficiente 12 meses, IGV estimado
 │   │       ├── aprendizaje/              # derivar reglas desde historial
 │   │       └── texto/                    # normalización de glosas
@@ -395,9 +396,7 @@ contapp/
 │   │       ├── xml/
 │   │       │   ├── real-xml-provider.ts  # (futuro) pendiente de la fuente del equipo
 │   │       │   └── ubl/                  # (futuro, 016) parser UBL 2.1 → modelo legible (ítems, tributos)
-│   │       ├── formatos/                 # (futuro) estructuras TXT versionadas (RVIE, RCE, ajustes)
-│   │       │   ├── v1/
-│   │       │   └── index.ts
+│   │       ├── formatos/                 # ZIP y SHA-256 del TXT (empaquetar.ts, 012); las estructuras TXT viven en domain/formatos
 │   │       └── ruc/                      # (futuro) consulta RUC real; el dígito verificador ya está en packages/shared
 │   │
 │   ├── crypto/                           # cifrado híbrido de credenciales
