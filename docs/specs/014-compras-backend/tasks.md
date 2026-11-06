@@ -1,0 +1,164 @@
+# Tareas 014 · Compras (backend)
+
+Leyenda: rol `arquitecto` · `backend` · `frontend` · `tester` · `adversario` · `devops` | modelo `opus` · `sonnet` · `haiku` | `TDD` pruebas primero | `ADV` ronda adversarial | `∥` puede ir en paralelo con la anterior (no comparten archivos) | **013** = la tarea espera el merge de 013 a `main` (necesita `propuesta`, el tipo `sire.propuesta.descargar`, su procesador o el diario de migraciones) | estado `[ ]` pendiente · `[~]` en curso · `[x]` hecha
+
+Nivel B con una ronda adversarial acotada (spec DU-12). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → atacar → corregir (con pruebas del tester) → verificar → revisión → cerrar. Rama `spec/014-compras-backend`. CA, D y DU = `spec.md`; contratos y decisiones = `plan.md`. No hay frontend en esta spec (015); no hay tareas de rol `frontend`.
+
+**Compuerta 013**: T1 a T4 (dominio puro y `shared`) corren ya, en paralelo con 013. Desde T5 se necesita que 013 esté mergeada en `main`: la primera tarea de cada fase hace `git merge main` en la rama y confirma con `git log` que 013 está. Si no lo está, la tarea queda `bloqueada` y se informa al orquestador; no se inventa el contrato de 013.
+
+| #   | Tarea                                                                                             | Rol        | Modelo | Depende de          | 013 | TDD | ADV | Estado |
+| --- | ------------------------------------------------------------------------------------------------- | ---------- | ------ | ------------------- | --- | --- | --- | ------ |
+| T1  | Pruebas del dominio `compras/`: clave, edición, resumen, mapeo, bloqueo y masivas (rojo)          | tester     | sonnet | —                   | no  | ✓   | —   | [ ]    |
+| T2  | Pruebas de los esquemas zod y DTOs de `shared` (rojo)                                             | tester     | sonnet | — ∥ T1              | no  | ✓   | —   | [ ]    |
+| T3  | Dominio `packages/domain/src/compras/` y ampliación del lint (CA-16)                              | backend    | sonnet | T1                  | no  | ✓   | —   | [ ]    |
+| T4  | Esquemas y DTOs en `packages/shared/src/compras/`                                                 | backend    | sonnet | T2 ∥ T3             | no  | ✓   | —   | [ ]    |
+| T5  | Reconciliar el plan con lo mergeado de 013 (contrato, migraciones, ruta del registro)             | arquitecto | sonnet | merge de 013        | sí  | —   | —   | [ ]    |
+| T6  | Pruebas de BD: tablas, RLS, grants, trigger, CAS, concurrencia, deshacer, estado (rojo)           | tester     | sonnet | T5                  | sí  | ✓   | —   | [ ]    |
+| T7  | `FilaPropuestaSire` ampliada, mock y fixtures sintéticos (F001-4062, volumen 5.000)               | devops     | haiku  | T5 ∥ T6             | sí  | —   | —   | [ ]    |
+| T8  | Pruebas del persistidor y la descarga: CA-1, 10, 15, 17 (rojo)                                    | tester     | sonnet | T5, T7 ∥ T6         | sí  | ✓   | —   | [ ]    |
+| T9  | Pruebas HTTP de acciones: CA-3 a 8, 11, 12, 18, 19 y p95 de CA-15 (rojo)                          | tester     | sonnet | T4, T5, T7 ∥ T6, T8 | sí  | ✓   | —   | [ ]    |
+| T10 | Pruebas HTTP de lectura, resumen, descarga, 012 y Excel: CA-9, 13, 14, 15, 20 (rojo)              | tester     | sonnet | T4, T5, T7 ∥ T9     | sí  | ✓   | —   | [ ]    |
+| T11 | Migraciones 0032–0033, esquema drizzle, RLS, grants y trigger                                     | backend    | sonnet | T6                  | sí  | ✓   | —   | [ ]    |
+| T12 | Repositorios de versiones, operaciones, estado y evaluación (`crearVersion`, masiva, deshacer)    | backend    | sonnet | T3, T6, T11         | sí  | ✓   | —   | [ ]    |
+| T13 | Persistidor de compras y registro en el procesador de 013                                         | backend    | sonnet | T3, T8, T12         | sí  | ✓   | —   | [ ]    |
+| T14 | `leerFilasReemplazo` y `fijarEstadoPeriodo` (entrega a 012b)                                      | backend    | sonnet | T3, T11 ∥ T13       | sí  | ✓   | —   | [ ]    |
+| T15 | Módulo `compras`: descargar, listar, detalle y resumen                                            | backend    | sonnet | T4, T10, T12        | sí  | ✓   | —   | [ ]    |
+| T16 | Acciones, agregar, calcular, masivas, deshacer, rehacer y estado                                  | backend    | sonnet | T4, T9, T12, T15    | sí  | ✓   | —   | [ ]    |
+| T17 | Exportar a Excel con neutralización de fórmulas                                                   | backend    | sonnet | T10, T15 ∥ T16      | sí  | ✓   | —   | [ ]    |
+| T18 | Ronda adversarial: inmutabilidad, concurrencia y alcance (caja negra, luego blanca; ≤ 15 pruebas) | adversario | opus   | T13, T14, T16, T17  | sí  | —   | ✓   | [ ]    |
+| T19 | Pruebas de las correcciones de la ronda (rojo)                                                    | tester     | sonnet | T18                 | sí  | ✓   | —   | [ ]    |
+| T20 | Corregir los hallazgos de la ronda                                                                | backend    | sonnet | T19                 | sí  | —   | —   | [ ]    |
+| T21 | Verificar CA-1 a CA-20 con evidencia (suites completas, `servicios:up`)                           | tester     | sonnet | T20                 | sí  | —   | —   | [ ]    |
+| T22 | Revisión contra la spec                                                                           | arquitecto | sonnet | T21                 | sí  | —   | —   | [ ]    |
+| T23 | Cierre: tasks y commit (el orquestador actualiza ESTADO)                                          | devops     | haiku  | T22                 | sí  | —   | —   | [ ]    |
+
+Paralelismo: T1 ∥ T2, T3 ∥ T4 (los dos sobre pruebas ya en rojo); T6 ∥ T7 ∥ T8 y T9 ∥ T10 (archivos distintos; T8, T9 y T10 esperan los fixtures de T7 solo donde los usan); T13 ∥ T14; T16 ∥ T17 (T17 no toca los archivos de T16: `exportar.service.ts` y su ruta van en un controlador propio). Los pares que comparten `compras.module.ts` (T15, T16) van en serie.
+
+Escalamientos: ninguno previsto. T12 concentra el orden de bloqueo, el CAS y deshacer/rehacer: si falla 2 veces nace de nuevo en `opus` (04 §3.3). T11 (RLS, grants, trigger de inmutabilidad) pasa a `opus` si T6 sigue en rojo tras 2 intentos. T7 pasa a `sonnet` si `haiku` falla una vez. T18 es `opus` por regla (04 §3.2). Si T22 encuentra defectos se añaden T22a (pruebas en rojo) y T22b (corrección) con el precedente de 007a T13a/T13b.
+
+Reglas comunes:
+
+- Un commit por tarea (Conventional Commits `test(014): …`, `feat(014): …`, `fix(014): …`) con el trailer `Co-Authored-By` del modelo que la ejecutó. Las tareas ∥ hacen commit una tras otra. Sin push del subagente: el orquestador lo hace tras cada tarea.
+- **Nunca** agregar al índice `docs/explorador/`, `.codex/` ni `AGENTS.md` (cambios ajenos): `git add <rutas>` explícitas, nunca `git add -A`/`.`.
+- **Nunca** imprimir ni commitear secretos reales ni el contenido de `.env`. Las pruebas usan canarios (cadenas únicas que se buscan en respuestas, logs y errores). Ningún `console.log` ni mensaje de error con montos, claves de comprobante o razones sociales.
+- Checks: responder solo fallos (`archivo:línea · mensaje`) o «OK» + conteo. Correr solo las pruebas del paquete afectado; las suites completas en T21.
+- El tester no toca código de producción; backend no edita `*.spec.ts`; solo T18 escribe `*.adv.spec.ts`. Las pruebas de las correcciones (T19) las escribe el tester, no quien corrige.
+- Migraciones: 013 usa 0028–0031; 014 usa **0032** y **0033**. Confirmar con `ls packages/db/migrations` y con el diario de drizzle antes de crear; nunca editar una aplicada. Las pruebas de 002–013 siguen en verde.
+- Montos: cadenas decimales / `Money`; ningún `number` para dinero en dominio, repositorios, DTOs ni Excel. Toda consulta de negocio dentro de `withTenant()`; nunca desactivar RLS. `apps/backend` nunca importa `@contapp/sunat` ni descifra credenciales.
+- Toda dependencia nueva con versión exacta (sin `^`) y publicada hace ≥ 2 semanas; en esta spec solo T17 podría sumar una, y solo si el escritor de 007b no alcanza.
+- Una ambigüedad que cambie la spec no se decide: `requiere usuario` y se informa al orquestador. Q-1 (lista completa de `difieren`) sigue abierta: se asume el tope de 40 claves.
+
+## T1 · Pruebas del dominio `compras/`, rojo (tester · sonnet)
+- **Contexto (leer solo esto)**: `docs/specs/014-compras-backend/spec.md` (D-1, D-5, D-8, D-9, D-10, D-14, D-15; CA-4, CA-5, CA-9, CA-10, CA-12, CA-14, CA-18), `plan.md` (Contratos: Dominio), `packages/domain/src/{comprobante,dinero}/index.ts`, `packages/domain/src/prevalidacion/{entrada,tipos}.ts` (forma de `FilaReemplazo`), `packages/domain/src/reglas/{entrada,aplicar}.ts` (campo `requiereConfirmacion`; solo lectura), `fixtures/sire/20700000002-compras-202610.json`.
+- **Hacer**: crear `packages/domain/src/compras/*.spec.ts` (aún sin implementación). Casos: `claveComprobante` (serie en mayúsculas, número sin ceros a la izquierda, documento en mayúsculas ASCII; igual que los duplicados de 012); `aplicarEdicion` (total = Σ componentes, cuadre por celda con explicación, IGV descuadrado se devuelve sin lanzar, negativos admitidos, 3 decimales y fuera de NUMERIC(14,2) lanzan); `resumirCompras` (original frente a vigente sin excluidas ni descartadas, San Juan −770.00 / +770.00, con y sin IGV por separado con cantidad, USD convertida, `filasSinConvertir`, redondeo F001-4062 sintético); `aFilaReemplazo` (`tipoCambio: null` en PEN, USD sin `origenUsd`, estado `excluida` | `agregada` | `modificada` | `original`); `puedeEscribir` (matriz estado × permiso de D-9: `abierto`, `revisado`, `generado`; códigos `periodo_revisado` y `periodo_generado`); `sugerenciaEsMasiva` (R-RED y las respaldadas por XML sí; R-ISC sin XML, R-MIX sin monto exacto y R-NEW no); montos como cadenas, nunca `number`.
+- **Hecho cuando**: las pruebas existen, compilan contra las firmas del plan y fallan por «no implementado» (no por error de sintaxis); `pnpm --filter @contapp/domain test` lista los fallos esperados.
+
+## T2 · Pruebas de `shared`, rojo (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (D-5, D-13, D-15, D-16; CA-5, CA-18), `plan.md` (Contratos: HTTP), `packages/shared/src/credenciales/*` e `importacion/*` (patrón de zod y de cadenas decimales), `packages/shared/src/index.ts`.
+- **Hacer**: crear `packages/shared/src/compras/*.spec.ts`: cadena decimal con ≤ 2 decimales y rango NUMERIC(14,2) (0.005 y 0.015 rechazados, negativos aceptados, 999999999999.99 aceptado, 1000000000000.00 rechazado), `versionBase` entero positivo, destino válido, motivo ≤ 200, masiva ≤ 5.000 items (5.001 rechazado, ids duplicados rechazados), filtros de listado (`vista`, `limite`, `cursor` opaco), `periodo` AAAAMM, cuerpo de agregar, esquema de estado; ningún campo de monto es `number`.
+- **Hecho cuando**: las pruebas existen y fallan por «no implementado»; no tocan otros paquetes.
+
+## T3 · Dominio `compras/` y lint (backend · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (D-1, D-5, D-8, D-9, D-10, D-15), `plan.md` (Contratos: Dominio), las pruebas de T1, `packages/domain/src/{comprobante,dinero,reglas,prevalidacion}/index.ts`, `eslint.config.mjs` (bloques de `packages/domain`: regla contra `number` y «sin IO»).
+- **Hacer**: implementar `packages/domain/src/compras/*` hasta pasar T1, reutilizando `cambiarDestino`, `verificarCuadre`, `igvCuadra`, `convertirAPen` y `Money` de 010 sin copiar su lógica; exportar desde `packages/domain/src/index.ts`. Ampliar en `eslint.config.mjs` la regla contra `number` y la de «sin IO» a `compras/` (nota [011/013]); confirmar que el lint falla con un `number` plantado y volver a quitarlo.
+- **Hecho cuando**: `pnpm --filter @contapp/domain test` en verde para `compras/` con cobertura ≥ 80 % por archivo; typecheck y lint de `packages/domain` limpios (CA-16); sin imports de IO ni de `packages/db`.
+
+## T4 · Esquemas y DTOs de `shared` (backend · sonnet)
+- **Contexto (leer solo esto)**: `plan.md` (Contratos: HTTP), las pruebas de T2, `packages/shared/src/{credenciales,importacion}/*` (patrón), `packages/shared/src/index.ts`.
+- **Hacer**: crear `packages/shared/src/compras/*` (zod y tipos: acciones, masivas, filtros, cursor, `FilaCompraVista`, cuadre por celda, informe de rechazadas, resumen, estado, informe de descarga) y exportarlos. `shared` no depende de `domain` ni de `db`.
+- **Hecho cuando**: las pruebas de T2 pasan; typecheck de `shared` y de `apps/frontend` limpios (el frontend aún no lo usa); ningún monto es `number`.
+
+## T5 · Reconciliar con 013 (arquitecto · sonnet)
+- **Contexto (leer solo esto)**: `docs/specs/014-compras-backend/plan.md` (Contrato exigido a 013), `docs/specs/013-ventas/{spec,plan,tasks}.md` tal como quedaron en `main`, `packages/db/migrations/` (listado) y `packages/db/migrations/meta/_journal.json`, la ruta del registro de persistidores y el schema de `propuesta` que 013 dejó, `packages/queue/src/catalogo.ts` (tipo `sire.propuesta.descargar`).
+- **Hacer**: `git merge main`; comprobar uno por uno los cinco puntos del contrato; fijar en `plan.md` los nombres reales (tabla `propuesta`, firma de `persistir`, ruta del registro, forma del `resultado`) y confirmar los números 0032 y 0033. Si 013 no cumple un punto (por ejemplo, el tipo se registró solo con `ventas`, o su regla de descarga repetida no es la complementaria), no lo parcha: lo anota como `requiere usuario` o lo devuelve al orquestador.
+- **Hecho cuando**: `plan.md` cita las rutas y firmas reales de 013; las tareas T6 a T17 no requieren suposiciones; cualquier desvío está en una lista corta al orquestador.
+
+## T6 · Pruebas de BD, rojo (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (D-1, D-2, D-9, D-14; CA-2, CA-3, CA-12, CA-13), `plan.md` (Contratos: BD, Decisiones), `tests/aislamiento/{soporte,trabajos-soporte,catalogo,credencial.spec}.ts` (patrones y siembras), `packages/db/src/schema/credenciales.spec.ts`, `packages/db/src/clientes/repositorio.ts` (solo lectura).
+- **Hacer**: crear `tests/aislamiento/compras-*.spec.ts` y `packages/db/src/compras/*.spec.ts`: RLS forzada y 0 filas sin `app.tenant_id` o con otro estudio; prueba de catálogo de 002 para las 5 tablas; con los roles de la app, UPDATE y DELETE sobre `compra_version` y `propuesta` fallan, y también el UPDATE de la identidad de `compra` (solo `version_vigente` y `descartada_at` cambian); clave única entre filas vivas y liberada al descartar; CAS del puntero con dos transacciones simultáneas (gana una); masivas contendidas con filas en orden distinto sin `40P01`; deshacer/rehacer persistentes por usuario con `fila_cambiada` y sin escritura parcial; operación nueva caduca las `deshecha`; estado del periodo con CAS y `FOR SHARE` frente a `FOR UPDATE`; hallazgos solo-inserción.
+- **Hecho cuando**: las pruebas existen y fallan por tabla o función inexistente (no por sintaxis); están separadas las que requieren Postgres real (`pnpm servicios:up`) de las unitarias.
+
+## T7 · Puerto, mock y fixtures (devops · haiku)
+- **Contexto (leer solo esto)**: `spec.md` (Frontera con 013, fila `FilaPropuestaSire`; CA-1, CA-15, CA-9), `packages/sunat/src/puertos.ts` (`FilaPropuestaSire`), `packages/sunat/src/mock/sire-api-client.mock.ts`, `fixtures/LEEME.md`, `fixtures/sire/20700000002-compras-202610.json`.
+- **Hacer**: agregar `tipoDocContraparte?` (por defecto «6») y `razonSocialContraparte?` a `FilaPropuestaSire`, sin quitar ni renombrar nada de 009 ni de 013; que el mock los entregue; completar el fixture de las 5 compras con esos campos; crear un fixture sintético con la fila USD F001-4062 (redondeo) y un generador determinista de 5.000 filas para CA-15 (sin RUC reales; ningún número termina en 7, 8 o 9, centinelas de los mocks).
+- **Hecho cuando**: typecheck y pruebas de `packages/sunat` en verde (incluida `fixtures.humo.spec.ts`); el diff de `puertos.ts` solo añade campos opcionales.
+
+## T8 · Pruebas del persistidor y la descarga, rojo (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (D-3, D-4, D-18; CA-1, CA-6 parte hallazgos, CA-10, CA-15 parte persistir, CA-17), `plan.md` (Contrato exigido a 013), `docs/specs/013-ventas/plan.md` (procesador y registro), `apps/worker/src/trabajos/procesadores/verificar-credencial.int.spec.ts` y `consultar-ruc.int.spec.ts` (patrón), `tests/aislamiento/trabajos-soporte.ts`, el fixture de T7.
+- **Hacer**: crear `apps/worker/.../persistidor-compras.int.spec.ts`: 5 compras con versión 1 idéntica a la fila y hallazgos R-ISC (F001-1040) y R-MIX (F001-2056); una fila inválida (monto fuera de NUMERIC(14,2), moneda o tipo de cambio inválidos, clave repetida) deja la base sin cambios y el trabajo en error sin reintento; reintento tras caída sin duplicar; una regla que falla con una fila no tumba la descarga; proveedor nuevo con y sin historial (otro periodo sí, otro cliente o estudio no, primer periodo todos nuevos); descarga repetida (CA-17: agrega solo lo nuevo, no toca la corregida ni la agregada, informa `agregadas`, `existentes` y `difieren`, segunda repetición agrega 0, `revisado` sin permiso y `generado` rechazados, dos descargas simultáneas sin duplicar); 5.000 filas sintéticas persistidas y evaluadas sin error.
+- **Hecho cuando**: las pruebas existen y fallan por falta del persistidor; las que dependen de Postgres real están marcadas como tales.
+
+## T9 · Pruebas HTTP de acciones, rojo (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (D-2, D-4 a D-9, D-11, D-14 a D-16; CA-3 a CA-8, CA-11, CA-12, CA-13, CA-18, CA-19), `plan.md` (Contratos: HTTP), `apps/backend/src/modules/credenciales/*.int.spec.ts` (patrón de integración y siembras), `apps/backend/src/modules/clientes/clientes-archivado.int.spec.ts`, `packages/shared/src/compras/*` (T4).
+- **Hacer**: crear `apps/backend/src/modules/compras/acciones.int.spec.ts` y `masivas.int.spec.ts`: clasificar F001-3064 a DNG (CA-4) y 12 filas como una operación; editar con cuadre por celda, 400 por decimales y rango (CA-5); aceptar R-ISC con confirmación, R-MIX con 422 y luego 8.97, sugerencia vieja 409 (CA-6); excluir y restaurar (`periodo_generado` después, CA-7); agregar, `duplicado` con id, descartar sin contar como excluida (CA-8); `version_obsoleta` en dos acciones simultáneas (CA-3); masiva de 12 con 2 obsoletas, 1 excluida y 1 R-ISC sin XML → 8 aplicadas, 4 rechazadas con código; R-RED en masa sí; id ajeno igual a inexistente; 5.001 → 400; deshacer una masiva revierte las 8 (CA-18); deshacer/rehacer por usuario, `fila_cambiada` (CA-11); matriz de estado y permisos incluido asistente en `revisado` y todos en `generado` (CA-12); `calcular` sin escribir y con el mismo resultado que editar (CA-19); asistente no asignado, sin permiso, sin sesión y cliente archivado (CA-13); p95 < 300 ms de una acción con 5.000 filas (CA-15).
+- **Hecho cuando**: las pruebas existen y fallan porque las rutas no existen (404), no por sintaxis.
+
+## T10 · Pruebas HTTP de lectura, resumen, 012 y Excel, rojo (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (D-8, D-10, D-13, D-17; CA-1 parte HTTP, CA-9, CA-10 listado, CA-13 lecturas, CA-14, CA-15 listado, CA-20), `plan.md` (Contratos: HTTP), `apps/backend/src/modules/importacion/{importacion.int.spec,plantilla.spec}.ts` (patrón de xlsx), `packages/domain/src/prevalidacion/{prevalidar,resumen}.ts` (firmas de `prevalidar` y `resumirCambios`), el fixture de T7.
+- **Hacer**: crear `apps/backend/src/modules/compras/{lectura,resumen,exportar,integracion-012}.int.spec.ts`: `POST /descargar` responde 202 y encola con `libro: "compras"`, 409 de archivado y de credencial no configurada, 403 en `revisado` sin `sire.aprobar_generar`; `apps/backend` no importa `@contapp/sunat` (regla de lint existente); listado con cursor, filtros `vista`, `alertas`, `proveedorNuevo` y `q` con `%`, `_` y comillas sin alterar la consulta, orden por fecha, serie y número, y menos de 2 s con 5.000 filas; detalle con original y vigente por separado y versiones; resumen de CA-9 con USD y `filasSinConvertir`; `leerFilasReemplazo` + `prevalidar` + `resumirCambios` de CA-14 (apto falso con el IGV de F001-2056, luego verdadero, 2 modificadas y 0 excluidas, `tipoCambio: null` en PEN); Excel de CA-20 abriendo el `.xlsx` con el lector de 007b: razón social con fórmula neutralizada, montos numéricos exactos (también negativos), excluidas en otra hoja, descartadas fuera.
+- **Hecho cuando**: las pruebas existen y fallan por rutas o funciones inexistentes.
+
+## T11 · Migraciones y esquema (backend · sonnet)
+- **Contexto (leer solo esto)**: `plan.md` (Contratos: BD), las pruebas de T6, `packages/db/migrations/0027_credencial_fk_cliente.sql` y la última de 013 (patrón de RLS y grants), `packages/db/src/schema/{credenciales,comun}.ts`, `packages/db/src/index.ts`.
+- **Hacer**: `packages/db/src/schema/compras.ts` y las migraciones 0032 (`compra`, `compra_version`, `compra_operacion`, con trigger de identidad, índice único parcial, grants mínimos) y 0033 (`compra_hallazgo`, `compra_periodo`) con `drizzle-kit generate` y ajuste manual de RLS `ENABLE`/`FORCE`, políticas por `app.tenant_id` y grants (sin UPDATE/DELETE donde dice el plan). Confirmar la numeración antes de crear.
+- **Hecho cuando**: `pnpm db:migrate` dos veces seguidas sin error; las pruebas de catálogo, RLS, grants y trigger de T6 pasan (el CAS y las masivas esperan T12); typecheck de `packages/db` limpio.
+
+## T12 · Repositorios de versiones, operaciones, estado y evaluación (backend · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (D-2, D-4, D-6, D-7, D-9, D-14, D-15), `plan.md` (Contratos: BD, packages/db, Decisiones), las pruebas de T6, `packages/db/src/clientes/repositorio.ts` y `packages/db/src/trabajos/registro.ts` (patrón de repositorio y CAS), `packages/domain/src/{compras,reglas}/index.ts`.
+- **Hacer**: `packages/db/src/compras/{repositorio,versiones,operaciones,periodo,evaluacion}.ts`: `crearVersion` único (comprueba `versionBase`, inserta, mueve el puntero con CAS, re-evalúa la fila con el mismo entorno y guarda hallazgos, todo en la transacción), `aplicarAccion`, `aplicarMasiva` (parcial, filas en orden de id, informe de rechazadas), `agregarCompra`, `descartar`, `deshacer`, `rehacer` (operación nueva caduca las `deshecha`), estado del periodo con CAS y el orden de bloqueo del plan. Leer los `NUMERIC` como cadenas.
+- **Hecho cuando**: todas las pruebas de T6 pasan contra Postgres real; cobertura ≥ 80 % por archivo de `packages/db/src/compras/`; ningún `number` para dinero.
+
+## T13 · Persistidor de compras y registro (backend · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (D-3, D-4, D-18), `plan.md` (Contrato exigido a 013, con los nombres reales de T5), las pruebas de T8, el procesador y el registro de persistidores de 013 (rutas en `plan.md`), `packages/db/src/compras/{versiones,evaluacion}.ts`.
+- **Hacer**: `persistirDescarga` en `packages/db/src/compras/persistidor.ts` y su registro para `libro = "compras"`: valida cada fila (`Money`, moneda, tipo de cambio, clave repetida), inserta el encabezado, agrega solo los comprobantes nuevos con versión 1, cuenta `existentes`, compara con la versión 1 para `difieren` (montos, moneda, tipo de cambio y fecha por igualdad exacta de cadenas), re-comprueba el estado del periodo dentro de la transacción, evalúa las reglas con un único entorno y guarda hallazgos; devuelve el informe que el procesador de 013 pone en el `resultado` (≤ 40 claves). Crea `compra_periodo` en la primera descarga. Sin tocar el procesador salvo el registro.
+- **Hecho cuando**: las pruebas de T8 pasan (incluida la de 5.000 filas); el procesador de 013 sigue en verde; el backend no importa `@contapp/sunat`.
+
+## T14 · Entrega a 012b (backend · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (D-9, D-10; CA-14), `plan.md` (packages/db), la prueba de integración de CA-14 de T10, `packages/domain/src/compras/fila-reemplazo.ts` y `packages/domain/src/prevalidacion/{entrada,tipos}.ts`.
+- **Hacer**: `leerFilasReemplazo(tx, clienteId, periodo) → { original, vigente }` en `packages/db/src/compras/filas-reemplazo.ts` usando `aFilaReemplazo`, y exportar `fijarEstadoPeriodo`; documentar en el JSDoc que 012b debe pasar siempre `reglas` a `prevalidar` y nunca tomar `registro` de la petición (nota [012b]).
+- **Hecho cuando**: la parte de BD de T10 (CA-14) pasa; las filas PEN llevan `tipoCambio: null`; typecheck limpio.
+
+## T15 · Módulo `compras`: descargar, listar, detalle y resumen (backend · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (D-8, D-11, D-13; CA-1, CA-9, CA-10, CA-13), `plan.md` (Contratos: HTTP), las pruebas de T10, `apps/backend/src/modules/credenciales/{credenciales.controller,credenciales.module}.ts` (guards y permisos), `apps/backend/src/modules/trabajos/encolador.ts`, `apps/backend/src/modules/clientes/contexto.ts`, `packages/db/src/acceso/alcance.ts`, `apps/backend/src/app.module.ts`.
+- **Hacer**: `compras.module`, `compras.controller` y servicios de lectura: `POST /descargar` (comprueba estado, permisos, archivado y credencial; encola con `libro: "compras"`), listado con cursor y filtros (comodines de `q` escapados), detalle con original/vigente/versiones/hallazgos y resumen con `resumirCompras`. Todo con `ClienteScopeGuard` y `filtroAlcance`.
+- **Hecho cuando**: las pruebas de T10 de descargar, listado, detalle y resumen pasan; listado de 5.000 filas < 2 s en el servidor; el backend no importa `@contapp/sunat` (lint); typecheck y lint limpios.
+
+## T16 · Acciones, masivas, deshacer y estado (backend · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (D-2, D-4 a D-7, D-9, D-11, D-14 a D-16), `plan.md` (Contratos: HTTP, Decisiones), las pruebas de T9, `apps/backend/src/modules/compras/compras.module.ts` (de T15), `packages/db/src/compras/{versiones,operaciones,periodo}.ts`, `packages/domain/src/compras/{bloqueo,masivas,edicion}.ts`.
+- **Hacer**: `compras-acciones.controller` y servicios: clasificar, editar (con cuadre por celda), calcular (sin escribir), aceptar sugerencia (409 `revisar_de_nuevo`, 422 `requiere_dato`), excluir, restaurar, descartar, agregar, masivas parciales, deshacer, rehacer, revisar y reabrir. Todas aplican `puedeEscribir` con el permiso del usuario y mapean los errores a los códigos del plan, sin mensajes crudos.
+- **Hecho cuando**: las pruebas de T9 pasan (CA-3 a CA-8, CA-11, CA-12, CA-13, CA-18, CA-19 y el p95 de CA-15); cobertura ≥ 80 % por archivo de `modules/compras/`; typecheck y lint limpios.
+
+## T17 · Exportar a Excel (backend · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (D-17; CA-20), `plan.md` (Decisiones: Excel), las pruebas de T10 de exportar, `apps/backend/src/modules/importacion/{plantilla,lector-xlsx}.ts`, `apps/backend/package.json`.
+- **Hacer**: `exportar.service.ts` y su ruta `GET /exportar.xlsx` (controlador propio, registrada antes de `:compraId`): generalizar el escritor xlsx de la plantilla de 007b si hace falta, escribir los montos como celdas numéricas a partir de la cadena exacta, neutralizar con comilla inicial todo texto que empiece por `=`, `+`, `-`, `@`, tabulación o retorno, hoja aparte para excluidas, sin descartadas, tope de 5.000 filas, nombre de archivo sin datos del cliente. Sumar una dependencia solo si el escritor existente no alcanza (versión exacta, ≥ 2 semanas).
+- **Hecho cuando**: las pruebas de T10 de CA-20 pasan; el `.xlsx` se abre con el lector de 007b; sin `number` para dinero; si se sumó una dependencia, está justificada en el commit.
+
+## T18 · Ronda adversarial (adversario · opus)
+- **Contexto (leer solo esto)**: `spec.md` (D-1, D-2, D-9, D-11, D-14, D-15, D-17; «Ataques del adversario»), `plan.md` (Contratos), `tests/aislamiento/compras-*.spec.ts`, `apps/backend/src/modules/compras/*.int.spec.ts` (para no repetir), el código de `packages/db/src/compras/`, `apps/backend/src/modules/compras/` y `apps/worker/…/persistidor` (solo en la fase de caja blanca); un patrón previo: `apps/backend/src/modules/importacion/importacion.adv.int.spec.ts`.
+- **Hacer**: caja negra primero (solo contrato y spec), luego caja blanca. Hasta 15 pruebas `*.adv.spec.ts` / `*.adv.int.spec.ts`, limitadas a lo listado en «Ataques»: UPDATE y DELETE de la versión 1 con cada rol, doble acción con el mismo `versionBase`, deshacer sobre filas tocadas por otro y sobre la pila ajena, ids de otro cliente, periodo o estudio en masivas, asistente no asignado, `compraId` ajeno, 5.001 ids, descargas simultáneas y repetida sobre filas corregidas, asistente editando `revisado`/`generado`, fórmulas y HTML en el Excel, montos 0.005, 0.015, negativos y enormes. No escribe código de producción.
+- **Hecho cuando**: cada prueba pasa (la defensa aguanta) o falla con un hallazgo `H-014-n` con severidad, archivo y línea de la causa; la lista queda en el informe al orquestador, que la añade a «Hallazgos adversariales abiertos» de `ESTADO.md`.
+
+## T19 · Pruebas de las correcciones, rojo (tester · sonnet)
+- **Contexto (leer solo esto)**: el informe de T18, las pruebas `*.adv.spec.ts` que fallan, `spec.md` (CA relacionados).
+- **Hacer**: por cada hallazgo que se corrija, una prueba `*.spec.ts` (no adversarial) que lo reproduzca y falle hoy, más las pruebas de regresión de los CA que toque. Los hallazgos que el usuario decida aceptar no llevan prueba. Si no hay hallazgos, T19 a T20 se marcan «sin hallazgos» y no se ejecutan.
+- **Hecho cuando**: cada hallazgo a corregir tiene una prueba roja que falla por la causa indicada.
+
+## T20 · Corregir hallazgos (backend · sonnet)
+- **Contexto (leer solo esto)**: el informe de T18, las pruebas de T19, los archivos de causa que el informe cita.
+- **Hacer**: corregir con el mínimo cambio hasta que pasen las pruebas de T19 y las `*.adv.spec.ts`; no editar pruebas. Un hallazgo que cambie la spec se devuelve al orquestador (`requiere usuario`).
+- **Hecho cuando**: todas las pruebas de T19 y T18 pasan; ningún hallazgo abierto salvo los aceptados por el usuario; las suites de `packages/db`, `domain` y del backend siguen en verde.
+
+## T21 · Verificar criterios (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (Criterios de aceptación), `tasks.md`, salida de los comandos.
+- **Hacer**: `pnpm servicios:up`; suites completas de `packages/domain`, `shared`, `db`, `sunat`, `apps/worker`, `apps/backend` y `tests/aislamiento`, más typecheck, lint y `ci:db`. Para cada CA-1 a CA-20 anotar la prueba o el comando que lo demuestra y el resultado, incluido el p95 y los tiempos de CA-15 y la cobertura por archivo de `compras/` (CA-16); buscar secretos y montos en logs de las pruebas.
+- **Hecho cuando**: tabla CA → evidencia completa y verde, o lista exacta de lo que falta, entregada al orquestador.
+
+## T22 · Revisión contra la spec (arquitecto · sonnet)
+- **Contexto (leer solo esto)**: `spec.md`, `plan.md`, la tabla de T21, el diff de la rama contra `main` (por archivos), las decisiones DU-1 a DU-12.
+- **Hacer**: verificar cada decisión (D-1 a D-18) y cada DU contra el código y las pruebas: inmutabilidad en BD, puntero con CAS, estados y permisos, masivas parciales y solo masivas las sugerencias sin confirmación, deshacer por usuario, descarga complementaria, ausencia de `number` para dinero y de secretos en logs, y que 013 y 014 no se pisan (migraciones, `FilaPropuestaSire`, registro). Listar lo que falta.
+- **Hecho cuando**: informe «conforme» o lista de defectos (T22a pruebas en rojo, T22b corrección); la lista incluye cualquier desvío respecto de 013.
+
+## T23 · Cierre (devops · haiku)
+- **Contexto (leer solo esto)**: `docs/specs/014-compras-backend/tasks.md`, `git status`.
+- **Hacer**: marcar las tareas en `tasks.md`, confirmar que el árbol está limpio salvo cambios ajenos, y hacer el commit final `docs(014): cierre de tareas` con `git add` explícito. Sin push. El orquestador actualiza `ESTADO.md` (fila 014, hallazgos H-014 y las notas [siguientes]: migraciones desde 0034 para 012b y 015+).
+- **Hecho cuando**: `tasks.md` refleja el estado real y el commit existe en `spec/014-compras-backend`.
