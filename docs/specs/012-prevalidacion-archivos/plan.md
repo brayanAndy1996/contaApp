@@ -43,6 +43,8 @@ function validarCampo(valor: string, campo: CampoTxt, formato: FormatoTxt):  // 
 // FormatoProvisionalError (FORMATO_PROVISIONAL), ArchivoNoPrevalidadoError (ARCHIVO_NO_PREVALIDADO; `.resultado`
 // lleva el ResultadoPrevalidacion), DefinicionFormatoInvalidaError (DEFINICION_FORMATO_INVALIDA),
 // NombreArchivoInvalidoError (NOMBRE_ARCHIVO_INVALIDO).
+// PrevalidacionError ← EntradaPrevalidacionInvalidaError: base exportada, como DineroError (010), ReglasError (011)
+// y FormatosError, para que 012b capture cualquier error de prevalidación con un solo instanceof (precisión de T12).
 
 // texto/
 function codificar(texto: string, codificacion: Codificacion): Uint8Array;  // nuevo en cada llamada; nunca sustituye

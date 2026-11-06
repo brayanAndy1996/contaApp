@@ -81,7 +81,7 @@ describe("T13b · ronda adversarial 2b", () => {
       // 012 (plan, Contratos): codificar, formatos/, prevalidar y resumirCambios con sus errores.
       "CaracterNoCodificableError", "codificar", "ArchivoNoPrevalidadoError", "DefinicionFormatoInvalidaError",
       "EntradaPrevalidacionInvalidaError", "FormatoNoVigenteError", "FormatoProvisionalError", "FormatosError",
-      "NombreArchivoInvalidoError", "REGISTRO_FORMATOS", "RegistroFormatos", "generarTxt", "prevalidar",
+      "NombreArchivoInvalidoError", "PrevalidacionError", "REGISTRO_FORMATOS", "RegistroFormatos", "generarTxt", "prevalidar",
       "resumirCambios", "seleccionarFormato", "validarCampo", "validarNombreArchivo",
     ].sort();
     expect(Object.keys(Publico).sort()).toEqual(esperados);
