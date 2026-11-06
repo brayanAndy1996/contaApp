@@ -303,7 +303,7 @@ describe("ronda 1b · duplicados y resumen", () => {
     expect(resumirCambios([original], [vigente]).modificadas).toBe(0);
   });
 
-  it("H-012-28 · el impacto total en IGV que excede NUMERIC(14,2) no hace lanzar un error de dinero a resumirCambios", () => {
+  it("H-012-28 · el impacto total en IGV que excede NUMERIC(14,2) lanza EntradaPrevalidacionInvalidaError, no un error de dinero (D22)", () => {
     const agregada = filaReemplazo(undefined, {
       id: "nueva",
       estado: "agregada",
@@ -314,6 +314,6 @@ describe("ronda 1b · duplicados y resumen", () => {
       }),
     });
     const original = filaReemplazo(undefined, { id: "o1", montos: montosDe("PEN", { biDg: "100.00", igvDg: "18.00" }) });
-    expect(() => resumirCambios([original], [original, agregada])).not.toThrow();
+    expect(() => resumirCambios([original], [original, agregada])).toThrow(EntradaPrevalidacionInvalidaError);
   });
 });

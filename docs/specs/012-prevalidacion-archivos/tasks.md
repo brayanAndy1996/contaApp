@@ -20,7 +20,8 @@ Nivel A. Flujo de 04 §1.3: andamiaje, pruebas (rojo), ratificación, implementa
 | T12 | Integración: checks completos | devops | haiku | T7, T10, T11 | — | — | [x] |
 | T13a | Ronda 1a: ataques de la spec (caja negra) | adversario | opus | T12 | — | ✓ | [x] |
 | T13b | Ronda 1b: escenarios nuevos (caja blanca) | adversario | opus | T12 ∥ T13a | — | ✓ | [x] |
-| T14 | Corregir hallazgos de la ronda 1 | backend | opus | T13a, T13b | — | — | [~] |
+| T14 | Corregir hallazgos de la ronda 1 | backend | opus | T13a, T13b | — | — | [x] |
+| T14a | Cerrar P-10 y P-11 (D21, D22) | backend | opus | T14 | — | — | [x] |
 | T15a | Ronda 2a: regresión de las correcciones | adversario | opus | T14 | — | ✓ | [ ] |
 | T15b | Ronda 2b: escenarios nuevos contra las correcciones | adversario | opus | T14 ∥ T15a | — | ✓ | [ ] |
 | T16 | Corregir hallazgos de la ronda 2 | backend | opus | T15a, T15b | — | — | [ ] |
@@ -250,7 +251,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: los hallazgos de T13a y T13b, los `*.adv.spec.ts` que fallan, y los archivos de producción que nombran.
 - **Hacer**: dejar en verde las pruebas adversariales sin editarlas. Si un hallazgo exige cambiar la spec, `requiere usuario`.
 - **Hecho cuando**: las pruebas adversariales y TDD pasan, la cobertura es ≥ 90 % y lint y typecheck quedan limpios. Commit `fix(012): hallazgos de la ronda 1`.
-- **Resultado**: `[~]`, no `[x]`: 13 de 15 hallazgos corregidos y 2 a la espera del usuario (P-10 y P-11 en `spec.md`), cuyas pruebas siguen en rojo. Ninguna aserción adversarial cambió. Mensaje de commit pedido por el orquestador: `fix(012): hallazgos de la ronda adversarial 1`. Decisiones del usuario anotadas como D19 (H-012-20) y D20 (H-012-26).
+- **Resultado**: `[x]` tras T14a. En T14, 13 de 15 hallazgos corregidos y 2 a la espera del usuario (P-10 y P-11 en `spec.md`), que cerró T14a. Ninguna aserción adversarial cambió. Mensaje de commit pedido por el orquestador: `fix(012): hallazgos de la ronda adversarial 1`. Decisiones del usuario anotadas como D19 (H-012-20) y D20 (H-012-26).
   - H-012-1: `aritmetica.ts` (`igvAceptable`). IGV 0.00 sigue sin ser error (D18). Un IGV distinto de cero con base 0.00 o con signo contrario es error `IGV`, y si no, decide `igvCuadra`.
   - H-012-2: `DUPLICADO` nombra como máximo 20 de las otras copias y dice «y N más» (`explicaciones.ts`, `duplicados.ts`). Con 600 ids de 64 caracteres, unos 1 370 caracteres por error.
   - H-012-3: la gramática de la fecha excluye el año 0000 (`estructura.ts`).
@@ -266,6 +267,17 @@ Reglas comunes:
   - **H-012-28, requiere usuario (P-11)**: `impactoIgv` es `Money` (Ratificación 13) y no hay ningún valor en rango que devolver sin cambiar el contrato o la aserción.
   - Pruebas nuevas: `prevalidacion/correcciones-t14.spec.ts` (10) y `sunat/src/formatos/correcciones-t14.spec.ts` (2), con el caso feliz y el de error de cada ruta nueva.
   - Checks, en serie: domain 1 555 OK, 2 fallos (H-012-24 y H-012-28) y 3 todo, con las `.adv` de 010, 011 y 012 en verde. sunat 14/14 archivos y 207/207 pruebas, tras compilar domain. `pnpm cobertura:dominio` sale 1 solo por esos 2 fallos; con `--coverage.reportOnFailure`, todo archivo queda ≥ 90 %: el mínimo es 91.48 % en `reglas/r-red.ts`, que no cambió, y en 012 es 91.89 % en las ramas de `prevalidar.ts`. `pnpm cobertura:sunat` sale 0, con `empaquetar.ts` al 100 %. tests-limites 13/13 y 329/329. `pnpm typecheck --force` 15/15 y `pnpm lint --force` 9/9.
+
+## T14a · Cerrar P-10 y P-11 (backend · opus)
+- **Contexto (leer solo esto)**: el Resultado de T14, P-10 y P-11 de `spec.md` y los archivos que nombran.
+- **Hacer**: aplicar las decisiones del usuario (2026-11-06, opción (a) en ambas) y ajustar solo las pruebas que fijaban el contrato anterior.
+- **Hecho cuando**: las suites de domain y sunat pasan enteras, la cobertura sale 0 y lint y typecheck quedan limpios. Commit `fix(012): campos sin serializador y rango del impacto total`.
+- **Resultado**: `[x]`.
+  - D21 (P-10, H-012-24): `formatos/valores.ts` exporta `valorDeCampo`, que lanza `DefinicionFormatoInvalidaError` si el campo no tiene valor conocido. `registro.ts` lo llama por cada campo al registrar; `serializar.ts` y `prevalidacion/estructura.ts` lo usan en lugar de `VALORES.get`, así que ya no tienen una rama para un campo desconocido.
+  - D22 (P-11, H-012-28): `prevalidacion/resumen.ts` (`impactoEnRango`) convierte un `MontoFueraDeRangoError` de las sumas por destino o del total en `EntradaPrevalidacionInvalidaError`.
+  - Pruebas ajustadas por las decisiones: `formatos/serializar.spec.ts` (el campo desconocido lanza al registrar, y un formato con solo campos conocidos prevalida apto y genera); `tests/ayudas/formatos.ts` (`serie` y `razonSocial` en vez de `a` y `b`, y `razonSocial` como nombre por defecto de `campoDePrueba`); `formatos/registro.spec.ts` (`nombre: "a"` → `"razonSocial"`, para que cada `debeSerInvalido` siga fallando solo por la causa que nombra); `prevalidacion/ronda1b.adv.spec.ts` de H-012-28 (la aserción y el título piden `EntradaPrevalidacionInvalidaError`). Ninguna otra aserción adversarial cambió.
+  - Pruebas nuevas: `prevalidacion/correcciones-t14a.spec.ts` (8): un subconjunto de campos conocidos registra y genera; 5 nombres sin serializador (`campoNuevo`, `Serie`, `toString`, `__proto__`, `constructor`) lanzan al registrar; el impacto en el borde exacto 999999999999.99 no lanza; un destino fuera de rango lanza.
+  - Checks, en serie: domain 61/61 archivos, 1 565 OK y 3 todo, con las `.adv` de 010, 011 y 012 en verde. `pnpm cobertura:dominio` sale 0 (en los archivos tocados, el mínimo es 96.05 % en las ramas de `registro.ts`). `pnpm cobertura:sunat` sale 0, 14/14 y 207/207. tests-limites 13/13 y 329/329. `pnpm typecheck --force` 15/15 y `pnpm lint --force` 9/9.
 
 ## T15a · Ronda 2a, regresión (adversario · opus) — solo si la ronda 1 dejó fallos
 - **Contexto (leer solo esto)**: el diff de T14 y los hallazgos de la ronda 1.

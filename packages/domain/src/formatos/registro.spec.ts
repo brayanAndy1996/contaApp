@@ -99,14 +99,14 @@ describe("RegistroFormatos.desde · definiciones inválidas (DefinicionFormatoIn
     debeSerInvalido([
       formatoDePrueba({
         separador: "|",
-        campos: [campoDePrueba({ nombre: "a", patron: /^[A-Z|]+$/ })],
+        campos: [campoDePrueba({ nombre: "razonSocial", patron: /^[A-Z|]+$/ })],
       }),
     ]);
   });
 
   it("rechaza un patrón con bandera g o y (RegExp con estado: rompería el determinismo; T6)", () => {
-    debeSerInvalido([formatoDePrueba({ campos: [campoDePrueba({ nombre: "a", patron: /^[A-Z]+$/g })] })]);
-    debeSerInvalido([formatoDePrueba({ campos: [campoDePrueba({ nombre: "a", patron: /^[A-Z]+$/y })] })]);
+    debeSerInvalido([formatoDePrueba({ campos: [campoDePrueba({ nombre: "razonSocial", patron: /^[A-Z]+$/g })] })]);
+    debeSerInvalido([formatoDePrueba({ campos: [campoDePrueba({ nombre: "razonSocial", patron: /^[A-Z]+$/y })] })]);
   });
 
   it("rechaza un separador que puede aparecer en un valor no textual: dígito, letra, punto, guion o barra (T6)", () => {
@@ -116,7 +116,7 @@ describe("RegistroFormatos.desde · definiciones inválidas (DefinicionFormatoIn
   it("acepta un campo cuyo patrón no admite el separador", () => {
     expect(() =>
       RegistroFormatos.desde([
-        formatoDePrueba({ separador: "|", campos: [campoDePrueba({ nombre: "a", patron: /^[A-Z]+$/ })] }),
+        formatoDePrueba({ separador: "|", campos: [campoDePrueba({ nombre: "razonSocial", patron: /^[A-Z]+$/ })] }),
       ]),
     ).not.toThrow();
   });
@@ -127,10 +127,10 @@ describe("RegistroFormatos.desde · definiciones inválidas (DefinicionFormatoIn
   });
 
   it("rechaza nombres de campo repetidos, una lista de campos vacía y una longitud máxima no positiva", () => {
-    debeSerInvalido([formatoDePrueba({ campos: [campoDePrueba({ nombre: "a" }), campoDePrueba({ nombre: "a" })] })]);
+    debeSerInvalido([formatoDePrueba({ campos: [campoDePrueba({ nombre: "razonSocial" }), campoDePrueba({ nombre: "razonSocial" })] })]);
     debeSerInvalido([formatoDePrueba({ campos: [] })]);
-    debeSerInvalido([formatoDePrueba({ campos: [campoDePrueba({ nombre: "a", longitudMax: 0 })] })]);
-    debeSerInvalido([formatoDePrueba({ campos: [campoDePrueba({ nombre: "a", longitudMax: -1 })] })]);
+    debeSerInvalido([formatoDePrueba({ campos: [campoDePrueba({ nombre: "razonSocial", longitudMax: 0 })] })]);
+    debeSerInvalido([formatoDePrueba({ campos: [campoDePrueba({ nombre: "razonSocial", longitudMax: -1 })] })]);
   });
 
   it("rechaza una codificación o un fin de línea desconocidos", () => {

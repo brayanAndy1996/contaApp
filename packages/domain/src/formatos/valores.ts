@@ -3,6 +3,7 @@
 // texto de la fila (fecha, moneda, TC, montos y total; H-012-23): se valida lo mismo que se escribe.
 import { COLUMNAS_COMPRA } from "../comprobante/index";
 import type { FilaCopia } from "../prevalidacion/entrada";
+import { DefinicionFormatoInvalidaError } from "./errores";
 import type { CabeceraTxt } from "./tipos";
 
 export type Valor = (f: FilaCopia, c: CabeceraTxt) => string;
@@ -34,3 +35,14 @@ export const VALORES: ReadonlyMap<string, Valor> = new Map<string, Valor>([
   ...COLUMNAS_COMPRA.map((columna): [string, Valor] => [columna, (f) => f.montos.obtener(columna).toString()]),
   ["total", (f) => f.montos.total.toString()],
 ]);
+
+/**
+ * Serializador del campo `nombre`. Lanza DefinicionFormatoInvalidaError si generarTxt no sabe
+ * escribirlo: RegistroFormatos.desde lo usa para rechazar ese campo al registrar, así que todo
+ * campo de un formato registrado tiene valor y «apto» siempre quiere decir «genera» (D21, H-012-24).
+ */
+export function valorDeCampo(nombre: string): Valor {
+  const valor = VALORES.get(nombre);
+  if (valor === undefined) throw new DefinicionFormatoInvalidaError();
+  return valor;
+}

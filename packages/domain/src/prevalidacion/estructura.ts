@@ -4,7 +4,7 @@
 // documento es tipo 6, y la fecha de emisión.
 import { validarCampo } from "../formatos/campos";
 import type { CabeceraTxt, CampoTxt, CodigoCampo, FormatoTxt } from "../formatos/tipos";
-import { VALORES } from "../formatos/valores";
+import { valorDeCampo } from "../formatos/valores";
 import type { Entero } from "../texto/entero";
 import { tipoCambioDe } from "./aritmetica";
 import type { FilaCopia } from "./entrada";
@@ -59,14 +59,13 @@ const tcValido = (tc: string | null): boolean => tc !== null && tipoCambioDe(tc)
 /**
  * Valor que generarTxt escribiría en el campo, o `null` si no se valida aquí: el periodo (de la
  * cabecera, se valida una vez en validarCabecera), una fecha o un TC de USD que ya tienen su propio
- * error (FECHA_INVALIDA, USD_SIN_TC o TC_INVALIDO) y un campo sin valor conocido.
+ * error (FECHA_INVALIDA, USD_SIN_TC o TC_INVALIDO). Todo campo registrado tiene valor (D21).
  */
 function valorDe(f: FilaCopia, nombre: string, cabecera: CabeceraTxt): string | null {
   if (nombre === "periodo") return null;
   if (nombre === "fechaEmision" && !esFechaValida(f.fechaEmision)) return null;
   if (nombre === "tipoCambio" && f.montos.moneda === "USD" && !tcValido(f.tipoCambio)) return null;
-  const valor = VALORES.get(nombre);
-  return valor === undefined ? null : valor(f, cabecera);
+  return valorDeCampo(nombre)(f, cabecera);
 }
 
 /** Error de validarCampo de un campo del formato con su valor, o `null`. */

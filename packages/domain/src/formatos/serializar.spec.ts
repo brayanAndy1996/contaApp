@@ -41,12 +41,16 @@ describe("valores de la línea", () => {
     expect(lineas.map((l) => l.split("|")[3])).toEqual(["9", "0010"]);
   });
 
-  it("un campo del formato sin valor conocido lanza DefinicionFormatoInvalidaError al serializar", () => {
-    const registro = registroCon({
-      campos: [...provisional.campos, { nombre: "desconocido", obligatorio: false, longitudMax: 5, tipo: "texto" }],
-    });
+  it("un campo del formato sin valor conocido lanza DefinicionFormatoInvalidaError al registrar (D21)", () => {
+    expect(() =>
+      registroCon({
+        campos: [...provisional.campos, { nombre: "desconocido", obligatorio: false, longitudMax: 5, tipo: "texto" }],
+      }),
+    ).toThrow(DefinicionFormatoInvalidaError);
+    // Con solo campos conocidos, lo que prevalidar da por apto, generarTxt lo genera.
+    const registro = registroCon({ campos: [...provisional.campos].reverse() });
     expect(prevalidar([filaReemplazo()], { cabecera: CABECERA, registro }).apto).toBe(true);
-    expect(() => generarTxt([filaReemplazo()], CABECERA, { registro })).toThrow(DefinicionFormatoInvalidaError);
+    expect(lineasCrlf(generarTxt([filaReemplazo()], CABECERA, { registro }).bytes)).toHaveLength(1);
   });
 });
 

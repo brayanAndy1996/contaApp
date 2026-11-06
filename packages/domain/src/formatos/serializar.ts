@@ -10,14 +10,13 @@ import { codificar } from "../texto/codificar";
 import type { Entero } from "../texto/entero";
 import {
   ArchivoNoPrevalidadoError,
-  DefinicionFormatoInvalidaError,
   FormatoProvisionalError,
   NombreArchivoInvalidoError,
 } from "./errores";
 import { seleccionarFormato } from "./registro";
 import type { RegistroFormatos } from "./registro";
 import type { CabeceraTxt, NombresArchivo } from "./tipos";
-import { VALORES } from "./valores";
+import { valorDeCampo } from "./valores";
 
 export interface OpcionesGenerarTxt {
   readonly permitirProvisional?: boolean;
@@ -99,11 +98,8 @@ export function generarTxt(
   if (!formato.oficial && !op.permitirProvisional) throw new FormatoProvisionalError();
   const { resultado, generables } = prevalidarCopia(copias, cab, formato, null);
   if (!resultado.apto) throw new ArchivoNoPrevalidadoError(resultado);
-  const valores = formato.campos.map((campo) => {
-    const valor = VALORES.get(campo.nombre);
-    if (valor === undefined) throw new DefinicionFormatoInvalidaError();
-    return valor;
-  });
+  // Todo campo registrado tiene valor: RegistroFormatos.desde rechaza los demás (D21).
+  const valores = formato.campos.map((campo) => valorDeCampo(campo.nombre));
   const nombres = nombresSeguros(formato.nombre({ ruc: cab.rucDeclarante, periodo: cab.periodo }));
   const ordenadas = [...generables].sort(compararFilas);
   const texto = ordenadas

@@ -3,7 +3,7 @@
 // impacto en IGV por destino, en PEN, sin prorrata. Las USD se convierten con convertirAPen de 010.
 import { COLUMNAS_COMPRA, convertirAPen } from "../comprobante/index";
 import type { Destino, MontosComprobante } from "../comprobante/index";
-import { Money } from "../dinero/index";
+import { MontoFueraDeRangoError, Money } from "../dinero/index";
 import { PARES_DESTINO } from "../reglas/entrada";
 import type { Entero } from "../texto/entero";
 import { tipoCambioDe } from "./aritmetica";
@@ -81,7 +81,8 @@ function montosEnPen(f: FilaCopia): MontosComprobante | null {
  * Conteos de modificadas, excluidas y agregadas, e impacto en IGV por destino (vigente − original),
  * en PEN. Lanza EntradaPrevalidacionInvalidaError ante una forma imposible: una fila del original
  * que no está en estado `original`, un id del original ausente en el vigente, una `agregada` con id
- * del original o una vigente no agregada con un id que no está en el original.
+ * del original, una vigente no agregada con un id que no está en el original, o un impacto (por
+ * destino o total) que excede NUMERIC(14,2) (D22).
  */
 export function resumirCambios(original: readonly FilaReemplazo[], vigente: readonly FilaReemplazo[]): ResumenCambios {
   const originales = leerFilas(original);
@@ -132,17 +133,32 @@ export function resumirCambios(original: readonly FilaReemplazo[], vigente: read
   for (const f of suman) acumular(f, false);
   for (const f of originales) acumular(f, true);
 
-  // Una sola suma por destino (y otra para el total): el rango solo se comprueba en el resultado.
   return Object.freeze({
     modificadas,
     excluidas,
     agregadas,
-    impactoIgv: Object.freeze({
+    impactoIgv: impactoEnRango(igv),
+    filasSinConvertir: Object.freeze([...sinConvertir].sort(compararTexto)),
+  });
+}
+
+/**
+ * Una sola suma por destino (y otra para el total): el rango solo se comprueba en el resultado. Si
+ * alguna sale de NUMERIC(14,2), no hay Money que devolver y un IGV de ese tamaño no es un dato que el
+ * contador corrija: lanza EntradaPrevalidacionInvalidaError, no un error de dinero (D22, H-012-28).
+ */
+type ImpactoIgv = { readonly DG: Money; readonly DGNG: Money; readonly DNG: Money; readonly total: Money };
+
+function impactoEnRango(igv: Record<Destino, Money[]>): ImpactoIgv {
+  try {
+    return Object.freeze({
       DG: Money.suma(igv.DG, "PEN"),
       DGNG: Money.suma(igv.DGNG, "PEN"),
       DNG: Money.suma(igv.DNG, "PEN"),
       total: Money.suma([...igv.DG, ...igv.DGNG, ...igv.DNG], "PEN"),
-    }),
-    filasSinConvertir: Object.freeze([...sinConvertir].sort(compararTexto)),
-  });
+    });
+  } catch (e) {
+    if (e instanceof MontoFueraDeRangoError) invalida();
+    throw e;
+  }
 }
