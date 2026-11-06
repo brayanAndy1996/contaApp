@@ -85,7 +85,7 @@ describe("campos no textuales contra el formato (H-012-23)", () => {
     ]);
   });
 
-  it("fecha y TC válidos se validan tal como se serializan; un TC obligatorio en PEN es CAMPO_OBLIGATORIO", () => {
+  it("fecha y TC válidos se validan tal como se serializan; un TC obligatorio no rige en PEN (D23)", () => {
     const registro = registroCon((c) => {
       if (c.nombre === "fechaEmision") return { ...c, longitudMax: 9 };
       if (c.nombre === "tipoCambio") return { ...c, obligatorio: true, patron: /^[0-9]\.[0-9]{3}$/ };
@@ -100,7 +100,6 @@ describe("campos no textuales contra el formato (H-012-23)", () => {
       { registro },
     );
     expect(r.errores.map((e) => `${e.filaId}:${e.codigo}:${e.campo}`)).toEqual([
-      "a:CAMPO_OBLIGATORIO:tipoCambio",
       "a:LONGITUD:fechaEmision",
       "b:LONGITUD:fechaEmision",
       "c:LONGITUD:fechaEmision",

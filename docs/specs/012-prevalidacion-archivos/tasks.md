@@ -25,7 +25,8 @@ Nivel A. Flujo de 04 §1.3: andamiaje, pruebas (rojo), ratificación, implementa
 | T15a | Ronda 2a: regresión de las correcciones | adversario | opus | T14 | — | ✓ | [x] |
 | T15b | Ronda 2b: escenarios nuevos contra las correcciones | adversario | opus | T14 ∥ T15a | — | ✓ | [x] |
 | T16 | Corregir hallazgos de la ronda 2 | backend | opus | T15a, T15b | — | — | [x] |
-| T17 | Verificar CA-1 a CA-11 y cobertura con evidencia | tester | sonnet | T16 | — | — | [ ] |
+| T16a | Tipo de cambio obligatorio solo en filas USD (P-12, D23) | backend | opus | T16 | — | — | [x] |
+| T17 | Verificar CA-1 a CA-11 y cobertura con evidencia | tester | sonnet | T16a | — | — | [ ] |
 | T18 | Revisión final contra la spec | arquitecto | opus | T17 | — | — | [ ] |
 | T19 | Cierre: tasks y commit (el orquestador actualiza ESTADO) | devops | haiku | T18 | — | — | [ ] |
 
@@ -313,8 +314,18 @@ Reglas comunes:
   - Pruebas nuevas: `prevalidacion/correcciones-t16.spec.ts` (11) y `sunat/src/formatos/correcciones-t16.spec.ts` (2), con el caso feliz y el de error de cada ruta nueva.
   - Checks, en serie: domain 64 archivos, 1 611 OK, 1 fallo (H-012-61 (2)) y 3 todo, con las `.adv` de 010, 011 y 012 en verde salvo ese. sunat 17/17 archivos y 219/219, tras compilar domain. `pnpm cobertura:dominio` sale 1 solo por ese fallo; con `--coverage.reportOnFailure`, todo archivo queda ≥ 90 % (en los tocados, el mínimo es 91.89 % en las ramas de `prevalidar.ts`, igual que en T14; `duplicados.ts` y `valores.ts` al 100 %). `pnpm cobertura:sunat` sale 0, con `empaquetar.ts` al 100 %. tests-limites 13/13 y 329/329. `pnpm typecheck --force` 15/15 y `pnpm lint --force` 9/9.
 
+## T16a · [x] Tipo de cambio obligatorio solo en filas USD (backend · opus)
+- **Contexto (leer solo esto)**: el Resultado de T16, P-12 en `spec.md` y `prevalidacion/estructura.ts`.
+- **Hacer**: aplicar la opción (a) de P-12 que eligió el usuario el 2026-11-06 (D23) y cerrar H-012-61 (2). Commit `fix(012): tipo de cambio obligatorio solo en filas USD`.
+- **Resultado**: `[x]`. Ninguna aserción adversarial cambió.
+  - `prevalidacion/estructura.ts` (`definicionPara`): la obligatoriedad de `tipoCambio` se quita en las filas no USD antes de `validarCampo`, así que la fila PEN con «» ya no da `CAMPO_OBLIGATORIO`. Un TC no nulo en PEN sigue dando solo `TC_INVALIDO`, y una fila USD sin TC solo `USD_SIN_TC`. `RegistroFormatos.desde` no cambia. `ronda2b.adv.spec.ts:255` y `ronda2a.adv.spec.ts:257` pasan.
+  - **Desvío**: `prevalidacion/correcciones-t14.spec.ts` (de T14, no adversarial) pedía `a:CAMPO_OBLIGATORIO:tipoCambio` en una fila PEN, justo lo que D23 revierte; se quitó esa línea esperada y se renombró la prueba. El resto de sus aserciones, igual. Queda anotado en D23.
+  - Docs: P-12 resuelta como D23 en `spec.md`; en `plan.md`, la Ratificación 8 y el comentario de `CampoTxt.obligatorio`. La pregunta afín sobre `tipo: "ruc"` en otros campos de texto no se decidió y queda como está.
+  - Pruebas nuevas: `prevalidacion/correcciones-t16a.spec.ts` (2): el caso feliz (PEN sin TC apta y con el TC vacío en la línea; USD con TC válido sin errores) y el de error (USD sin TC → `USD_SIN_TC`; PEN con TC → `TC_INVALIDO`; nunca `CAMPO_OBLIGATORIO`).
+  - Checks, en serie: domain 65/65 archivos, 1 614 OK y 3 todo, sin fallos. sunat 17/17 y 219/219, tras compilar domain. `pnpm cobertura:dominio` sale 0 (`estructura.ts`: 100 % de líneas y 97.95 % de ramas). `pnpm cobertura:sunat` sale 0. tests-limites 13/13 y 329/329. `pnpm typecheck --force` 15/15 y `pnpm lint --force` 9/9.
+
 ## T17 · Verificar los CA (tester · sonnet)
-- **Contexto (leer solo esto)**: `spec.md` (CA-1 a CA-11 y Casos reales), `tasks.md` (resultados de T8 a T16).
+- **Contexto (leer solo esto)**: `spec.md` (CA-1 a CA-11 y Casos reales), `tasks.md` (resultados de T8 a T16a).
 - **Hacer**:
   - Correr las suites completas de domain, sunat y límites, `pnpm cobertura:dominio` y `pnpm cobertura:sunat`.
   - Para cada CA, anotar la prueba (`archivo › nombre`) o el comando que lo demuestra.

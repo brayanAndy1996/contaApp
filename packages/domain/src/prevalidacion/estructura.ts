@@ -76,6 +76,17 @@ function errorDeCampo(filaId: string | null, campo: CampoTxt, valor: string, for
 }
 
 /**
+ * Definición con la que se valida el campo en esta fila: el documento del proveedor tipo 6 se valida
+ * como RUC, y la obligatoriedad de `tipoCambio` rige solo en USD (D23): en PEN el TC se escribe
+ * «» (Ratificación 4) y un TC no nulo ya es TC_INVALIDO (Ratificación 8).
+ */
+function definicionPara(f: FilaCopia, campo: CampoTxt): CampoTxt {
+  if (campo.nombre === "numeroDocProveedor" && f.proveedor.tipo === TIPO_DOC_RUC) return { ...campo, tipo: "ruc" };
+  if (campo.nombre === "tipoCambio" && campo.obligatorio && f.montos.moneda !== "USD") return { ...campo, obligatorio: false };
+  return campo;
+}
+
+/**
  * Errores de todos los campos de la fila contra el formato, en su orden: los textos tal como
  * llegaron y, además, fecha, moneda, TC, montos y total tal como se serializan (H-012-23).
  */
@@ -84,8 +95,7 @@ function camposDe(f: FilaCopia, formato: FormatoTxt, cabecera: CabeceraTxt): Err
   for (const campo of formato.campos) {
     const valor = valorDe(f, campo.nombre, cabecera);
     if (valor === null) continue;
-    const esRuc = campo.nombre === "numeroDocProveedor" && f.proveedor.tipo === TIPO_DOC_RUC;
-    const definicion: CampoTxt = esRuc ? { ...campo, tipo: "ruc" } : campo;
+    const definicion = definicionPara(f, campo);
     const e = errorDeCampo(f.id, definicion, valor, formato);
     if (e !== null) errores.push(e);
   }
