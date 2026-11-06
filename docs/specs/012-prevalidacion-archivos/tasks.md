@@ -16,7 +16,7 @@ Nivel A. Flujo de 04 §1.3: andamiaje, pruebas (rojo), ratificación, implementa
 | T8 | Implementar `texto/codificar`, `texto/entero` y `formatos/` (sin `generarTxt`) | backend | opus | T1, T3, T6 | ✓ | — | [x] |
 | T9 | Implementar `prevalidar` y `generarTxt` | backend | opus | T4, T8 | ✓ | — | [ ] |
 | T10 | Implementar `resumirCambios` | backend | opus | T5, T9 | ✓ | — | [ ] |
-| T11 | Implementar `empaquetar` en sunat | backend | opus | T1, T5, T8 ∥ T9, T10 | ✓ | — | [ ] |
+| T11 | Implementar `empaquetar` en sunat | backend | opus | T1, T5, T8 ∥ T9, T10 | ✓ | — | [x] |
 | T12 | Integración: checks completos | devops | haiku | T7, T10, T11 | — | — | [ ] |
 | T13a | Ronda 1a: ataques de la spec (caja negra) | adversario | opus | T12 | — | ✓ | [ ] |
 | T13b | Ronda 1b: escenarios nuevos (caja blanca) | adversario | opus | T12 ∥ T13a | — | ✓ | [ ] |
@@ -170,10 +170,11 @@ Reglas comunes:
 - **Hacer**: `prevalidacion/resumen.ts` y su export.
 - **Hecho cuando**: `resumen.spec.ts` pasa, la cobertura es ≥ 90 % y lint y typecheck quedan limpios. Commit `feat(012): resumen de cambios con impacto en IGV por destino`.
 
-## T11 · Implementar empaquetar (backend · opus) ∥ T9, T10
+## T11 · [x] Implementar empaquetar (backend · opus) ∥ T9, T10
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: `@contapp/sunat`; Decisiones: empaquetar, Ratificación de contratos 14), `spec.md` (D6, D7; CA-10), `packages/sunat/src/index.ts`, `packages/sunat/src/errores.ts` (patrón), `packages/sunat/src/formatos/empaquetar.spec.ts`.
 - **Hacer**: `packages/sunat/src/formatos/{empaquetar,index}.ts` y su export desde `src/index.ts`. Usar `validarNombreArchivo` de `@contapp/domain`, sin una gramática propia.
 - **Hecho cuando**: `empaquetar.spec.ts` pasa, `pnpm cobertura:sunat` sale 0 y lint y typecheck de sunat quedan limpios. `fixture-012.spec.ts` puede seguir en rojo hasta T9. Commit `feat(012): empaquetado ZIP en memoria con SHA-256`.
+- **Resultado**: `src/formatos/{empaquetar,index}.ts` y export en `src/index.ts`; sin dependencias nuevas (`fflate` 0.8.2 ya estaba). Valida los nombres con `validarNombreArchivo` de domain y que `nombreZip` sea el base de `nombreTxt` (`.txt`) + `.zip`. Sello DOS con los campos UTC (Ratificación 14): fflate escribe la hora local y su rango termina en 2099, así que recibe una fecha fija y después se reescriben hora y fecha en la cabecera local y en la del directorio central; el rango aceptado es 1980–2107 UTC. `empaquetar.spec.ts`: 32 de 32 en verde (incluidas las «T6»); cobertura de `formatos/` 100 % en las cuatro métricas; lint de sunat OK. Pendiente de T9: `fixture-012.spec.ts` sigue en rojo (`prevalidar` no está en el `dist` de domain; T9 aún no había empezado), por eso `pnpm cobertura:sunat` y el typecheck de sunat fallan solo por ese archivo (10 de 11 suites y 190 pruebas en verde). Desvío: el commit se llamó `feat(012): empaquetado ZIP y hash`, como pidió el orquestador.
 
 ## T12 · Integración (devops · haiku)
 - **Contexto (leer solo esto)**: esta tarea y la salida de los comandos.
