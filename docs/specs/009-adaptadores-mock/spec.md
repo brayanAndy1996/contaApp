@@ -1,6 +1,6 @@
 # Spec 009 · Adaptadores mock (XML, propuesta SIRE) y fixtures
 
-Estado: aprobada (el usuario respondió P1 a P5 el 2026-11-05, todas con la opción recomendada; ver D14 a D18). Rama `spec/009-adaptadores-mock` desde `main`.
+Estado: aprobada (el usuario respondió P1 a P5 el 2026-11-05, todas con la opción recomendada; P-A y P-B el 2026-11-06; ver D14 a D20). Rama `spec/009-adaptadores-mock` desde `main`.
 Nivel de riesgo: C — (1) no en el flujo de R1, porque el mock solo alimenta desarrollo y pruebas; el único camino a un monto incorrecto real sería un mock activo en producción, y lo cubre D8 (D15); (2) no, no maneja datos de estudios ni descifra; (3) y (4) no. Por §2.1, 1 sí condicional → C. TDD no; 1 caso feliz y 1 de error por comportamiento público (§5).
 Cubre: RF-097, RF-097a, RF-097b (el distintivo de la UI es de 016; aquí se entrega la señal) · prepara HU-21 (016) y HU-11 (013, propuesta de ventas) · las notas [009] y [009/devops] de `ESTADO.md`.
 
@@ -63,5 +63,6 @@ Respondió P1 a P5 con la opción recomendada (a) en todas.
 - D17 (P4 a) Los fixtures XML y SIRE son solo sintéticos, con RUC de prueba y las cifras documentadas de los casos. Sin datos de terceros en el repositorio.
 - D18 (P5 a) Las 3 pruebas de cierre de 008 fallan con `CI=true` (con la causa en el mensaje) en vez de omitirse; `ci:db` las corre en un paso aparte, al final y en serie, con la BD despejada de trabajos vivos, y el paso anterior no las repite.
 
-## Decisión del usuario (2026-11-06)
+## Decisiones del usuario (2026-11-06)
 - D19 (P-A a) El script `dev` de `apps/backend` y el de `apps/worker` fijan `NODE_ENV=development` (`cross-env NODE_ENV=development nest start --watch`, portable a Windows; `cross-env` 10.1.0 como devDependency de ambos). Así el `.env` raíz compartido, con `KEK_PRIVATE_KEY_PATH` del worker, no impide arrancar el backend en desarrollo con la creación temprana de D10. En producción un `NODE_ENV` sin definir sigue fallando cerrado (H-007b-3).
+- D20 (P-B, opción recomendada) Antes de las pruebas de cierre de 008, solo con `CI=true`, el paso `ci:cierre` borra de la BD de pruebas los `job_registro` vivos (`en_cola` y `ejecutando`) que dejaron otras suites, con el rol admin de pruebas (`MIGRATIONS_DATABASE_URL`) y sin desactivar RLS. Ese rol debe ser superusuario o BYPASSRLS; si no lo es, no borra nada. Sin `CI` no se borra nada. Sustituye el «marcar como terminados» de T8.

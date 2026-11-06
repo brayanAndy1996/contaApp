@@ -75,7 +75,12 @@ export default defineConfig({
         ["apps/worker/src/trabajos/**/*.spec.ts"],
         sinInt,
       ),
-      proyecto("worker-int", ["apps/worker/src/trabajos/**/*.int.spec.ts"]),
+      // Spec 009 (D18): las pruebas de cierre de 008 van en su paso aparte (ci:cierre) y aquí no se repiten.
+      proyecto(
+        "worker-int",
+        ["apps/worker/src/trabajos/**/*.int.spec.ts"],
+        ["**/node_modules/**", "**/cierre-*.adv.int.spec.ts"],
+      ),
       proyecto(
         "backend-unit",
         ["apps/backend/src/modules/trabajos/**/*.spec.ts"],

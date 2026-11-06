@@ -122,3 +122,6 @@ jobs:
 
       - name: Cobertura de 003 cifrado (umbral 90 %)
         run: pnpm cobertura:crypto
+
+      - name: Pruebas de cierre de 008 (paso aparte, al final y en serie, con la BD despejada)
+        run: pnpm ci:cierre

@@ -13,6 +13,7 @@
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run --passWithNoTests",
     "test:int": "vitest run --mode int --passWithNoTests",
+    "test:int:cierre": "CIERRE_APARTE=1 vitest run --mode int",
     "test:cobertura:cola": "vitest run --config vitest.cobertura-cola.config.mts --coverage",
     "kek:rotar": "node --env-file-if-exists=../../.env --env-file-if-exists=.env dist/cli/kek-rotar.js",
     "trabajos:kek-rotar": "node --env-file-if-exists=../../.env --env-file-if-exists=.env dist/cli/encolar-kek-rotar.js"
