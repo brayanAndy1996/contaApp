@@ -123,5 +123,16 @@ jobs:
       - name: Cobertura de 003 cifrado (umbral 90 %)
         run: pnpm cobertura:crypto
 
+      # Las pruebas de cierre lanzan su propio redis-server (puerto propio); ubuntu-latest no lo trae.
+      # policy-rc.d evita que apt arranque el servicio del sistema (el 6379 ya lo usa el contenedor redis7).
+      - name: Instalar redis-server (binario para las pruebas de cierre)
+        run: |
+          printf '#!/bin/sh\nexit 101\n' | sudo tee /usr/sbin/policy-rc.d > /dev/null
+          sudo chmod +x /usr/sbin/policy-rc.d
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends redis-server
+          sudo rm -f /usr/sbin/policy-rc.d
+          redis-server --version
+
       - name: Pruebas de cierre de 008 (paso aparte, al final y en serie, con la BD despejada)
         run: pnpm ci:cierre
