@@ -68,15 +68,17 @@ Ninguna app importa código de otra app (ni por nombre `@contapp/<app>` ni por r
 
 | Puerto (interfaz) | Adaptador local / pruebas | Adaptador real | Usado por |
 |---|---|---|---|
-| `SireApiClient` | `MockSireApiClient` (propuestas desde fixtures) | `HttpSireApiClient` | worker |
-| `SolPortal` | `MockSolPortal` | `PlaywrightSolPortal` (buzones, declaraciones PDT 621, validación de login) | worker |
-| `XmlProvider` | **`MockXmlProvider`** (fixtures o UBL sintético, errores y latencia configurables) | `RealXmlProvider` (fuente/API que entregará el equipo) | worker |
+| `SireAuth` (variable `SIRE_CLIENT`) | `MockSireAuth` | OAuth real de SUNAT (spec propia) | worker |
+| `SireApiClient` (variable `SIRE_CLIENT`) | `MockSireApiClient` (propuestas desde fixtures) | `HttpSireApiClient` | worker |
+| `SolAuth` (variable `SOL_PORTAL`; verificar la clave SOL, R1) | `MockSolAuth` | Playwright en SOL, validación de login (spec propia) | worker |
+| `SolPortal` | «R2, pendiente» (sin mock en 009) | «R2, pendiente» (`PlaywrightSolPortal`: buzones, declaraciones PDT 621) | worker |
+| `ConsultaRuc` (variable `RUC_CLIENT`) | `MockConsultaRuc` | consulta RUC real (razón social, estado, condición; spec propia) | worker |
+| `XmlProvider` (variable `XML_PROVIDER`) | **`MockXmlProvider`** (fixtures o UBL sintético, errores y latencia configurables) | `RealXmlProvider` (fuente/API que entregará el equipo) | worker |
 | `KeyProvider` | `LocalKeyProvider` (par de llaves en archivos fuera del repo) | `AwsKmsKeyProvider` / `VaultKeyProvider` | backend (solo cifrar), worker (descifrar) |
 | `StorageProvider` | `LocalFsStorage` (`./storage`) | `S3Storage` | backend, worker |
 | `Mailer` | `SmtpMailer` → Mailpit | `SmtpMailer` / SES | worker |
-| `RucDirectory` | `MockRucDirectory` | consulta RUC (razón social, estado, CIIU) | worker |
 
-Selección por variables de entorno: `SIRE_CLIENT=mock|http`, `SOL_PORTAL=mock|playwright`, `XML_PROVIDER=mock|real`, `KEY_PROVIDER=mock|local|aws|vault`, `STORAGE=mock|local|s3` (por defecto `mock`, ver spec 001).
+Selección por variables de entorno: `SIRE_CLIENT=mock|http`, `SOL_PORTAL=mock|playwright`, `RUC_CLIENT=mock|http`, `XML_PROVIDER=mock|real`, `KEY_PROVIDER=mock|local|aws|vault`, `STORAGE=mock|local|s3` (por defecto `mock`, ver spec 001).
 Con todo en `mock` el sistema funciona de punta a punta **sin conectarse a SUNAT**, lo que permite desarrollar y demostrar sin claves reales.
 
 ## 4. Multitenancy
@@ -384,7 +386,7 @@ contapp/
 │   │
 │   ├── sunat/                            # adaptadores externos
 │   │   └── src/
-│   │       ├── puertos.ts                # SireApiClient, SolPortal, XmlProvider, RucDirectory
+│   │       ├── puertos.ts                # SireAuth, SireApiClient, SolAuth, ConsultaRuc, XmlProvider
 │   │       ├── sire/                     # http + mock
 │   │       ├── sol/                      # playwright + mock; selectores en un solo archivo
 │   │       ├── xml/
@@ -412,7 +414,7 @@ contapp/
 │   └── config/                           # tsconfig base, eslint (con reglas de límites), prettier
 │
 ├── fixtures/
-│   ├── xml/                              # XML reales/anónimos para MockXmlProvider
+│   ├── xml/                              # XML sintéticos (UBL 2.1) para MockXmlProvider
 │   ├── sire/                             # propuestas de ejemplo para MockSireApiClient
 │   └── excel/                            # plantilla de importación de clientes
 │

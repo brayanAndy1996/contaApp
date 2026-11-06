@@ -15,7 +15,7 @@ Nivel C (spec): sin TDD ni ronda adversarial. Flujo 04 §1.3: implementar con pr
 | T7  | **[nivel A]** Pruebas de cierre de 008: fallar con `CI=true` en vez de omitir                      | tester   | sonnet | — ∥ T1–T6      | —   | —   | [x]    |
 | T8  | `ci:db` y CI: paso aparte, al final y en serie, con la BD despejada                                | devops   | haiku  | T7             | —   | —   | [ ]    |
 | T9  | Prueba de humo fila SIRE ↔ XML, RUC de prueba y canario en los mocks                               | backend  | sonnet | T2, T3, T4     | —   | —   | [ ]    |
-| T10 | `docs/03-arquitectura.md` §3 con los nombres reales de los puertos                                 | devops   | haiku  | T1 ∥ T3–T9     | —   | —   | [ ]    |
+| T10 | `docs/03-arquitectura.md` §3 con los nombres reales de los puertos                                 | devops   | haiku  | T1 ∥ T3–T9     | —   | —   | [x]    |
 | T11 | Verificar CA-1 a CA-11 con evidencia (suites de los paquetes afectados)                            | tester   | sonnet | T5, T6, T8, T9, T10 | — | —   | [ ]    |
 | T12 | Revisión contra la spec (con atención a T6 y T7, nivel A)                                          | arquitecto | sonnet | T11          | —   | —   | [ ]    |
 | T13 | Cierre: tasks, estado de la spec y commit (el orquestador actualiza ESTADO)                        | devops   | haiku  | T12            | —   | —   | [ ]    |
@@ -101,6 +101,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `spec.md` (D2, D8, D16, D17), `docs/03-arquitectura.md` (§3 y el árbol de carpetas, líneas ~66-80, 345-420), `plan.md` (Contratos).
 - **Hacer**: en la tabla de §3: `SolAuth` (verificar la clave SOL, R1), `ConsultaRuc` (variable `RUC_CLIENT`), `SireAuth` + `SireApiClient` (bajo `SIRE_CLIENT`), `SolPortal` como «R2, pendiente», y quitar `RucDirectory`; agregar `RUC_CLIENT` a la lista de variables; en el árbol, `puertos.ts` con los nombres reales y `fixtures/xml/` como sintéticos. Sin tocar otras secciones.
 - **Hecho cuando**: `grep -n "RucDirectory\|MockRucDirectory" docs/03-arquitectura.md` sin resultados; la tabla coincide con `packages/sunat/src/puertos.ts` (CA-10). Commit `docs(009): nombres reales de los puertos en 03-arquitectura`.
+- **Resultado (2026-11-06)**: §3 con `SireAuth` y `SireApiClient` (`SIRE_CLIENT`), `SolAuth` (`SOL_PORTAL`), `SolPortal` como «R2, pendiente», `ConsultaRuc` (`RUC_CLIENT`) y `XmlProvider` (`XML_PROVIDER`); `RucDirectory` quitado; `RUC_CLIENT=mock|http` en la lista de variables; árbol con los nombres de `puertos.ts` y `fixtures/xml/` sintético. `grep` de `RucDirectory` sin resultados; los 5 puertos de `puertos.ts` están en la tabla y sus mocks existen. Desvíos: «condición» en vez de CIIU (`DatosRuc` no tiene CIIU); la validación de login pasa de `PlaywrightSolPortal` a `SolAuth`; el árbol de `packages/sunat/src` (`sire/`, `sol/`, `xml/`, `ruc/`) no coincide con `src/mock/` y se dejó igual (fuera de la lista de T10).
 
 ## T11 · Verificar CA-1 a CA-11 (tester · sonnet)
 
