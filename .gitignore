@@ -16,3 +16,6 @@ next-env.d.ts
 
 # Worktrees de git de agentes y specs en curso
 .claude/worktrees/
+
+# Netlify (enlace local del sitio)
+.netlify

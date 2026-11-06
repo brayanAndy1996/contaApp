@@ -1,0 +1,16 @@
+# Despliegue de la DEMO (apps/demo) en Netlify. Solo existe en la rama de la demo; no despliega el producto.
+[build]
+  base = "/"
+  command = "pnpm install --frozen-lockfile --filter @contapp/demo... && pnpm --filter @contapp/demo build"
+  publish = "apps/demo/dist"
+
+[build.environment]
+  NODE_VERSION = "24"
+
+# La demo usa datos ficticios: que no la indexen los buscadores.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "no-referrer"
