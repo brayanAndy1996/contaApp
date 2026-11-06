@@ -20,7 +20,7 @@ Nivel C (spec): sin TDD ni ronda adversarial. Flujo 04 §1.3: implementar con pr
 | T11a | Corrección de T11: cobertura de los mocks, `.env` en `despejar-bd`, RUC sin centinelas en `asegurarCliente` | backend  | sonnet | T11          | —   | —   | [x]    |
 | T12 | Revisión contra la spec (con atención a T6 y T7, nivel A)                                          | arquitecto | sonnet | T11          | —   | —   | [x]    |
 | T12a | Correcciones menores de T12: `cross-env` en `test:int:cierre` y prueba de CA-7 con el `crearKeyWrapper` real | backend  | haiku  | T12            | —   | —   | [x]    |
-| T13 | Cierre: tasks, estado de la spec y commit (el orquestador actualiza ESTADO)                        | devops   | haiku  | T12a           | —   | —   | [ ]    |
+| T13 | Cierre: tasks, estado de la spec y commit (el orquestador actualiza ESTADO)                        | devops   | haiku  | T12a           | —   | —   | [x]    |
 
 Paralelismo: T1 ∥ T2 ∥ T6 ∥ T7 arrancan juntas; T3 ∥ T4 tras T1 (comparten `packages/sunat/src/index.ts`: hacen commit una tras otra, cada una agrega solo su línea de exportación); T8 ∥ T9 ∥ T10 cuando sus dependencias estén. No hay dependencia entre T6/T7/T8 y el resto hasta T11.
 
@@ -164,3 +164,4 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `docs/specs/009-adaptadores-mock/{spec,tasks}.md`.
 - **Hacer**: marcar todas las tareas `[x]` con su resultado en una línea; `spec.md` pasa a `Estado: hecha` y los CA a `[x]` según la evidencia de T11; commit con `git add` de esas rutas. No tocar `ESTADO.md` (lo actualiza el orquestador: 009 hecha, notas `[real]`, siguiente 012).
 - **Hecho cuando**: `git status` limpio salvo cambios ajenos. Commit `docs(009): cierre de la spec`.
+- **Resultado (2026-11-06)**: árbol limpio (sin `dump.rdb`; los `coverage/` están ignorados). `pnpm install --frozen-lockfile` OK; `pnpm lint` OK (9/9) y `pnpm typecheck` OK (15/15), ejecutados en Node 22 aunque `.nvmrc` y `engines` piden 24 (aviso de engine, no fallo). `spec.md` en «Estado: hecha», con CA-1 a CA-11 y «Casos reales aplicables» marcados según la evidencia de T11 y T12 (CA-7 también con T12a). **CI de GitHub sobre el HEAD: no comprobado en esta tarea; lo verifica el orquestador antes del merge.** El paso «Instalar redis-server» y `ci:cierre` solo están probados en local. Commit `chore(009): cierre` sobre `3746886`, sin push.
