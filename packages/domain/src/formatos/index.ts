@@ -18,3 +18,5 @@ export * from "./errores";
 export { RegistroFormatos, REGISTRO_FORMATOS, seleccionarFormato } from "./registro";
 export { validarCampo } from "./campos";
 export { validarNombreArchivo } from "./nombres";
+export { generarTxt } from "./serializar";
+export type { OpcionesGenerarTxt, ResultadoGenerarTxt } from "./serializar";
