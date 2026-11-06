@@ -28,7 +28,7 @@ Nivel A. Flujo de 04 §1.3: andamiaje, pruebas (rojo), ratificación, implementa
 | T16a | Tipo de cambio obligatorio solo en filas USD (P-12, D23) | backend | opus | T16 | — | — | [x] |
 | T17 | Verificar CA-1 a CA-11 y cobertura con evidencia | tester | sonnet | T16a | — | — | [x] |
 | T18 | Revisión final contra la spec | arquitecto | opus | T17 | — | — | [x] |
-| T19 | Cierre: tasks y commit (el orquestador actualiza ESTADO) | devops | haiku | T18 | — | — | [ ] |
+| T19 | Cierre: tasks y commit (el orquestador actualiza ESTADO) | devops | haiku | T18 | — | — | [x] |
 
 Escalamientos: no hay ninguno previsto. T7 y T12 son mecánicas: si `haiku` falla una vez, pasan a `sonnet` (04 §3.3). Las rondas 2a y 2b se omiten si la ronda 1 no deja fallos nuevos (04 §2.3); en ese caso T15a, T15b y T16 se marcan «no aplica» y T17 depende de T14. Si T18 encuentra defectos, se añaden T18a (pruebas en rojo, tester sonnet) y T18b (corrección, backend opus).
 
@@ -431,7 +431,8 @@ Reglas comunes:
   - **Nota para futuras reglas de 011**: `hallazgosAislados` (`prevalidar.ts`) evalúa fila por fila. Si una regla llega a depender de otras filas del lote, hay que cambiarlo.
   - **Preguntas para el usuario**: P-13 (`spec.md`, no bloquea el cierre): **(a) (Recom.)** ratificar el desvío y decidir de nuevo con el anexo; (b) que una excluida nunca bloquee.
 
-## T19 · Cierre (devops · haiku)
+## T19 · [x] Cierre (devops · haiku)
 - **Contexto (leer solo esto)**: `tasks.md`.
 - **Hacer**: marcar los estados y los resultados resumidos.
 - **Hecho cuando**: `tasks.md` está al día. Commit `chore(012): cierre de la spec`. El orquestador actualiza `ESTADO.md` y hace el push.
+- **Resultado**: cierre sobre HEAD `9e16c11` con árbol limpio (sin `dump.rdb` ni artefactos sin ignorar; `coverage/` y `.env` están ignorados). `pnpm install --frozen-lockfile` OK, sin cambios en el lockfile. `pnpm lint --force`: 9/9 OK. `pnpm typecheck --force`: 15/15 OK. Las casillas CA-1 a CA-11 y de casos reales ya estaban marcadas por T18. `spec.md` pasa a `Estado: hecha`; P-13 pasa a D24 (desvío (a) de T9, ratificado por el usuario el 2026-11-06, opción recomendada) y «Preguntas abiertas» queda vacía. Las menciones a P-13 de T9 y T18 remiten a D24. `ESTADO.md` no se toca. **El CI de GitHub sobre el HEAD final lo verifica el orquestador antes del merge.** Commit `chore(012): cierre` (lo pidió el orquestador; esta sección decía «cierre de la spec»). Sin push.
