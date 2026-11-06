@@ -362,6 +362,14 @@ describe("orden estable de errores y avisos", () => {
     expect(prev(filas).errores.map((e) => e.filaId)).toEqual(["B1", "a0", "a1"]);
   });
 
+  it("los errores sin fila (filaId null) van primero (T6)", () => {
+    const r = prevalidar([mala("1")], { cabecera: { ...CABECERA, rucDeclarante: "20700000003" } });
+    expect(r.errores.map((e) => [e.filaId, e.codigo])).toEqual([
+      [null, "RUC_INVALIDO"],
+      ["1", "IGV"],
+    ]);
+  });
+
   it("dentro de una fila: por código y luego por campo (CUADRE antes que IGV; igvDg antes que igvDgng)", () => {
     const columnas = { biDg: "100.00", igvDg: "20.00", biDgng: "100.00", igvDgng: "20.00" };
     const f = filaReemplazo(columnas, { montos: MontosComprobante.desde("PEN", { ...columnas, total: "241.00" }) });

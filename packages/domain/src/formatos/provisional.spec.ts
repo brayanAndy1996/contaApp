@@ -2,7 +2,7 @@
 // Es una herramienta de prueba del motor, no la estructura de SUNAT: oficial=false, congelado,
 // con nombres inconfundibles con uno oficial.
 import { describe, expect, it } from "vitest";
-import { COLUMNAS_COMPRA, REGISTRO_FORMATOS, seleccionarFormato, validarNombreArchivo } from "../index";
+import { COLUMNAS_COMPRA, REGISTRO_FORMATOS, seleccionarFormato, validarCampo, validarNombreArchivo } from "../index";
 
 const F = seleccionarFormato("compras", "202610");
 
@@ -86,6 +86,31 @@ describe("formato provisional RCE", () => {
     expect(tipo("tipoCambio")).toBe("tc");
     expect(tipo("total")).toBe("monto");
     for (const col of COLUMNAS_COMPRA) expect(tipo(col)).toBe("monto");
+  });
+
+  it("patrones del comprobante y del proveedor, alineados con la gramática de 011 (T6)", () => {
+    const campo = (n: string) => F.campos.find((c) => c.nombre === n)!;
+    const ok = (n: string, v: string) => expect(validarCampo(v, campo(n), F)).toBeNull();
+    const patron = (n: string, v: string) => expect(validarCampo(v, campo(n), F)).toMatchObject({ codigo: "PATRON" });
+    ok("tipoComprobante", "01");
+    patron("tipoComprobante", "1");
+    ok("serie", "F001");
+    ok("serie", "f001");
+    patron("serie", "F-01");
+    patron("serie", "F 01");
+    ok("numero", "00123");
+    patron("numero", "12A");
+    ok("tipoDocProveedor", "6");
+    patron("tipoDocProveedor", "a");
+    ok("numeroDocProveedor", "AB-123");
+    patron("numeroDocProveedor", "AB 123");
+  });
+
+  it("longitudes de los valores no textuales: TC 8, montos y total 16 (NUMERIC(14,2) con signo; T6)", () => {
+    const largo = (n: string) => F.campos.find((c) => c.nombre === n)?.longitudMax;
+    expect(largo("tipoCambio")).toBe(8);
+    expect(largo("total")).toBe(16);
+    for (const col of COLUMNAS_COMPRA) expect(largo(col)).toBe(16);
   });
 
   it("los nombres son exactos y se distinguen de un oficial", () => {

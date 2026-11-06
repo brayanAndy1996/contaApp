@@ -146,6 +146,7 @@ describe("CA-8 · cuándo una fila modificada cuenta", () => {
     ["el tipo de comprobante", { comprobante: { tipo: "03", serie: "F001", numero: "1" } }],
     ["el documento del proveedor", { proveedor: { tipo: "6", numero: "20700000011" } }],
     ["la fecha de emisión", { fechaEmision: "2026-10-06" }],
+    ["la razón social (cambia la línea del TXT; T6)", { proveedor: { tipo: "6", numero: "20100070970", razonSocial: "ACME" } }],
   ])("cambia %s (identidad)", (_n, over) => {
     expect(mod(over as Partial<FilaReemplazo>).modificadas).toBe(1);
   });
@@ -160,6 +161,15 @@ describe("CA-8 · cuándo una fila modificada cuenta", () => {
     expect(resumirCambios([penOrigen], [sinOrigen]).modificadas).toBe(1);
     const otroTc = { ...penOrigen, estado: "modificada" as const, origenUsd: { ...penOrigen.origenUsd!, tipoCambio: "3.301" } };
     expect(resumirCambios([penOrigen], [otroTc]).modificadas).toBe(1);
+  });
+
+  it("el TC se compara por valor: 3.3 y 3.300 son el mismo TC (T6)", () => {
+    const usd = fila("u1", { biDg: "100.00", igvDg: "18.00" }, { moneda: "USD", tipoCambio: "3.300" });
+    expect(resumirCambios([usd], [{ ...usd, estado: "modificada", tipoCambio: "3.3" }]).modificadas).toBe(0);
+  });
+
+  it("una fila marcada original pero con cambios también cuenta como modificada (T6)", () => {
+    expect(resumirCambios([base], [{ ...base, fechaEmision: "2026-10-06" }]).modificadas).toBe(1);
   });
 
   it("excluida gana a modificada: una fila excluida con cambios cuenta solo como excluida", () => {
@@ -230,6 +240,25 @@ describe("CA-8 · impacto con USD (conversión por componente de 010)", () => {
     expect(impacto(r)).toEqual(CERO);
   });
 
+  it("una USD descuadrada no lanza: no suma y va a filasSinConvertir (convertirAPen exige cuadre; T6)", () => {
+    const d = fila("u1", { biDg: "100.00", igvDg: "18.00" }, {
+      moneda: "USD",
+      tipoCambio: "3.300",
+      estado: "agregada",
+      montos: MontosComprobante.desde("USD", { biDg: "100.00", igvDg: "18.00", total: "118.01" }),
+    });
+    const r = resumirCambios([], [d]);
+    expect(impacto(r)).toEqual(CERO);
+    expect(r.filasSinConvertir).toEqual(["u1"]);
+  });
+
+  it("una USD sin TC excluida en el vigente solo se informa si su original tampoco convierte (T6)", () => {
+    const conTc = usd("u1", { biDg: "100.00", igvDg: "18.00" }, "3.300");
+    expect(resumirCambios([conTc], [{ ...conTc, estado: "excluida", tipoCambio: null }]).filasSinConvertir).toEqual([]);
+    const sinTc = usd("u2", { biDg: "100.00", igvDg: "18.00" }, null);
+    expect(resumirCambios([sinTc], [{ ...sinTc, estado: "excluida" }]).filasSinConvertir).toEqual(["u2"]);
+  });
+
   it("una USD que pierde el TC al modificarse deja su id en filasSinConvertir", () => {
     const o = usd("u1", { biDg: "100.00", igvDg: "18.00" }, "3.300");
     const r = resumirCambios([o], [{ ...o, estado: "modificada", tipoCambio: null }]);
@@ -252,6 +281,16 @@ describe("CA-8 · entradas inválidas (EntradaPrevalidacionInvalidaError)", () =
 
   it("una agregada con un id que ya está en el original", () => {
     lanza([A], [{ ...A, estado: "agregada" }]);
+  });
+
+  it("una vigente no agregada (original, modificada o excluida) con un id que no está en el original (T6)", () => {
+    lanza([A], [A, { ...B, estado: "modificada" }]);
+    lanza([A], [A, { ...B, estado: "original" }]);
+    lanza([A], [A, { ...B, estado: "excluida" }]);
+  });
+
+  it("una fila del original con estado distinto de original (T6)", () => {
+    lanza([{ ...A, estado: "modificada" }], [A]);
   });
 
   it("ids repetidos en el original o en el vigente", () => {

@@ -104,6 +104,15 @@ describe("RegistroFormatos.desde · definiciones inválidas (DefinicionFormatoIn
     ]);
   });
 
+  it("rechaza un patrón con bandera g o y (RegExp con estado: rompería el determinismo; T6)", () => {
+    debeSerInvalido([formatoDePrueba({ campos: [campoDePrueba({ nombre: "a", patron: /^[A-Z]+$/g })] })]);
+    debeSerInvalido([formatoDePrueba({ campos: [campoDePrueba({ nombre: "a", patron: /^[A-Z]+$/y })] })]);
+  });
+
+  it("rechaza un separador que puede aparecer en un valor no textual: dígito, letra, punto, guion o barra (T6)", () => {
+    for (const sep of ["0", "A", ".", "-", "/", " "]) debeSerInvalido([formatoDePrueba({ separador: sep })]);
+  });
+
   it("acepta un campo cuyo patrón no admite el separador", () => {
     expect(() =>
       RegistroFormatos.desde([

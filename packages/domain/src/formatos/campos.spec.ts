@@ -114,6 +114,16 @@ describe("validarCampo · patrón y tipos", () => {
     expect(val(v, c)).toMatchObject({ codigo: "RUC_INVALIDO" });
   });
 
+  it("precedencia (T6): vacío, luego (tipo ruc) RUC_INVALIDO, luego carácter, longitud y patrón", () => {
+    expect(val("|".repeat(11))).toEqual({ codigo: "CARACTER_NO_PERMITIDO", posicion: 0 });
+    const c = campoDePrueba({ nombre: "numero", longitudMax: 8, tipo: "codigo", patron: /^[0-9]{1,8}$/ });
+    expect(val("123456789", c)).toEqual({ codigo: "LONGITUD", posicion: null });
+    expect(val("12A", c)).toEqual({ codigo: "PATRON", posicion: null });
+    const ruc = campoDePrueba({ nombre: "numeroDocProveedor", longitudMax: 11, tipo: "ruc" });
+    expect(val("2070000000|", ruc)).toEqual({ codigo: "RUC_INVALIDO", posicion: null });
+    expect(val("", campoDePrueba({ nombre: "x", tipo: "ruc", obligatorio: true }))).toEqual({ codigo: "CAMPO_OBLIGATORIO", posicion: null });
+  });
+
   it("no lanza con ninguna cadena (devuelve un resultado)", () => {
     for (const v of ["", "\u0000", "\ud800", "\u{1F600}".repeat(50), "|".repeat(1000)]) {
       expect(() => val(v)).not.toThrow();

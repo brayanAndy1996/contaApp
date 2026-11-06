@@ -11,7 +11,7 @@ Nivel A. Flujo de 04 §1.3: andamiaje, pruebas (rojo), ratificación, implementa
 | T3 | Pruebas de `texto/codificar` y `formatos/` (rojo) | tester | sonnet | — ∥ T2 | ✓ | — | [x] |
 | T4 | Pruebas de `prevalidar` y del bloqueo de `generarTxt` (rojo) | tester | sonnet | — ∥ T3 | ✓ | — | [x] |
 | T5 | Pruebas de `resumirCambios`, casos reales, fixture y `empaquetar` (rojo) | tester | sonnet | — ∥ T4 | ✓ | — | [x] |
-| T6 | Ratificar los contratos que fijaron T2–T5 | arquitecto | opus | T2, T3, T4, T5 | — | — | [ ] |
+| T6 | Ratificar los contratos que fijaron T2–T5 | arquitecto | opus | T2, T3, T4, T5 | — | — | [x] |
 | T7 | Lint de dinero en `prevalidacion/` y `formatos/` | devops | haiku | T2, T6 ∥ T8 | ✓ | — | [ ] |
 | T8 | Implementar `texto/codificar`, `texto/entero` y `formatos/` (sin `generarTxt`) | backend | opus | T1, T3, T6 | ✓ | — | [ ] |
 | T9 | Implementar `prevalidar` y `generarTxt` | backend | opus | T4, T8 | ✓ | — | [ ] |
@@ -114,10 +114,27 @@ Reglas comunes:
 - **Hecho cuando**: las pruebas de domain y sunat fallan solo por falta de implementación. Commit `test(012): resumen de cambios, casos reales y empaquetado (rojo)`.
 - **Resultado**: Rojo: domain 12 suites fallan en total (T3 a T5; las otras 43 siguen en verde) y sunat 2 (`empaquetar.spec.ts`: módulo `./index.js` inexistente; `fixture-012.spec.ts`: `prevalidar` aún no existe en el `dist` de domain). Archivos: `prevalidacion/resumen.spec.ts` (CA-8, con propiedad de oráculo en centavos), `tests/casos-reales/prevalidacion.spec.ts` (CA-1, CA-2 con las sugerencias reales de 011 aplicadas, zapatilla, San Juan, `it.todo` del redondeo USD), `sunat/src/formatos/fixture-012.spec.ts` (lee el JSON real; las cifras de `tests/ayudas/filas-reemplazo.ts` se verificaron contra él) y `sunat/src/formatos/empaquetar.spec.ts` (CA-10). **Ambigüedades que T6 debe ratificar**: (1) `resumirCambios` cuenta por el `estado` de la fila vigente; la fecha de emisión forma parte de la identidad (D3); un TC escrito distinto pero del mismo valor ('3.3' vs '3.300') NO se probó (queda para el adversario); (2) `filasSinConvertir` sin repetir y ordenada por unidades de código, e incluye ids de filas USD sin TC válido tanto del original como del vigente, pero no se fijó qué pasa con una excluida sin TC; (3) `impactoIgv.total` = DG + DGNG + DNG; (4) `modificada` cuyo id no está en el original no se probó; (5) `empaquetar` se importa de `./index.js` (`formatos/index`), lanza `EmpaquetadoInvalidoError` con `codigo` /^[A-Z_]+$/ ante nombres inválidos, no-Uint8Array, fecha inválida o no-Date, y no valida el año de la fecha (fflate exige >= 1980: queda para el adversario); (6) dependencia de huso horario: fflate escribe el sello DOS en hora local, la prueba de determinismo asume el mismo huso en las dos llamadas; (7) `fixture-012.spec.ts` queda rojo hasta T9 (necesita domain construido) y la parte de ZIP de extremo a extremo (generarTxt a empaquetar) no se incluyó para no atarla a T11.
 
-## T6 · Ratificar contratos (arquitecto · opus)
+## T6 · [x] Ratificar contratos (arquitecto · opus)
 - **Contexto (leer solo esto)**: `plan.md`, los `*.spec.ts` y stubs de T2 a T5 (solo sus firmas y aserciones de contrato).
 - **Hacer**: comparar lo que fijaron las pruebas con los Contratos del plan. Si hubo diferencias, registrarlas en `plan.md`, Decisiones, «Ratificación de contratos», o pedir al tester que ajuste la prueba. Ninguna ratificación puede cambiar un CA ni una D sin el usuario.
 - **Hecho cuando**: el plan y las pruebas coinciden y quedan anotadas las desviaciones aceptadas. Commit `docs(012): ratificación de contratos tras las pruebas en rojo`.
+- **Resultado**: las 15 ambigüedades de T3–T5 quedan ratificadas en `plan.md`, Decisiones, «Ratificación de contratos (T6)», puntos 1 a 15, y en Contratos (`validarCampo`, `codificar` y `CaracterNoCodificableError`, los códigos exactos de cada error y TC `null` en PEN). Ninguna prueba se corrigió por estar mal. Se agregaron pruebas marcadas «T6» para fijar lo que quedaba abierto, y todas siguen en rojo solo por falta de implementación:
+  - `campos.spec`: precedencia de `validarCampo`.
+  - `registro.spec`: patrón con `g`/`y` y separador letra, dígito, `.`, `-`, `/` o espacio.
+  - `provisional.spec`: patrones alineados con 011; `tipoCambio` 8 y montos 16.
+  - `aritmetica.spec`: PEN con TC → `TC_INVALIDO`; `origenUsd` descuadrado → `CONVERSION_USD`, sin lanzar.
+  - `prevalidar.spec`: `filaId: null` primero.
+  - `resumen.spec`: razón social cuenta como cambio, TC por valor, `original` con cambios cuenta, USD descuadrada → `filasSinConvertir`, excluida sin TC, id ausente no agregado lanza, original con estado distinto lanza.
+  - `sunat/empaquetar.spec`: sello DOS en UTC, independiente del huso, y fecha fuera del rango DOS.
+
+  Correcciones respecto de lo que proponía el tester (ninguna contradice sus pruebas):
+  - (a) En `resumirCambios`, `original` y `modificada` cuentan igual si difieren, y la razón social forma parte de la comparación.
+  - (b) `FormatoProvisionalError` se lanza antes de prevalidar.
+  - (c) `seleccionarFormato` con un periodo mal formado lanza `FormatoNoVigenteError`, para mantener cerrada la lista de errores.
+  - (d) El ZIP no depende del huso horario del worker; el tester lo había dejado como supuesto.
+
+  Notas para 014: mapear `tipoCambio: null` en las filas PEN, porque si no, bloquean con `TC_INVALIDO`; y quitar, no marcar `excluida`, una fila agregada que luego se descarta. Nota para 012b: pasar siempre `reglas`, para que una base gravada con IGV 0.00 traiga el aviso R-ISC.
+  - **P-9 · requiere usuario** (riesgo a aceptar, no bloquea T7–T11): con el punto 1, ninguna fila con IGV 0.00 bloquea, aunque tenga base gravada; por ejemplo, BI DG 1000.00 con IGV 0.00 por olvido. Solo avisa R-ISC, y solo si se pasan `reglas`. No sabemos si SUNAT marca esa fila como error hasta tener el anexo oficial (D10). **(a) (Recom.)** Aceptarlo como dicen CA-1 y D11, y revisarlo al agregar la versión oficial. (b) Bloquearla y que el contador mueva la base (a ISC o a no gravado, como sugiere R-ISC). Eso cambia CA-1, porque San Juan bloquearía, y hay que reabrir la spec.
 
 ## T7 · Lint de dinero en las carpetas nuevas (devops · haiku) ∥ T8
 - **Contexto (leer solo esto)**: `plan.md` (Decisiones: Lint y cobertura), `eslint.config.mjs` (bloque «Dinero (spec 010/011, CA-1)» y `GLOBALES_IO_DOMINIO`), `tests/limites/dominio-prevalidacion.spec.ts`.
@@ -130,7 +147,7 @@ Reglas comunes:
 - **Hecho cuando**: `pnpm --filter @contapp/tests-limites test` queda en verde y `pnpm lint` no da errores nuevos. Commit `chore(012): lint contra number en prevalidación y formatos`.
 
 ## T8 · Implementar codificación y formatos (backend · opus)
-- **Contexto (leer solo esto)**: `plan.md` (Contratos: `formatos/`; Decisiones: Formato provisional RCE, Caracteres, Lint y cobertura), `spec.md` (D2, D5–D8, D10), `packages/domain/src/texto/index.ts`, `packages/domain/src/reglas/errores.ts` (patrón de errores con `codigo`), los specs de T3.
+- **Contexto (leer solo esto)**: `plan.md` (Contratos: `formatos/` y `texto/`; Decisiones: Formato provisional RCE, Caracteres, Lint y cobertura, Ratificación de contratos 2–6, 11 y 15), `spec.md` (D2, D5–D8, D10), `packages/domain/src/texto/index.ts`, `packages/domain/src/reglas/errores.ts` (patrón de errores con `codigo`), los specs de T3.
 - **Hacer**:
   - `texto/{codificar,entero}.ts`.
   - `formatos/{tipos,errores,registro,provisional-rce,campos,nombres,index}.ts`: la validación de un valor contra un `CampoTxt` (devuelve el código y la posición, sin lanzar) y `RUC` con `validarRuc` de `@contapp/shared`.
@@ -139,7 +156,7 @@ Reglas comunes:
 - **Hecho cuando**: los specs de T3 pasan, la cobertura de esos archivos es ≥ 90 % y `pnpm --filter @contapp/domain lint typecheck` queda limpio. Commit `feat(012): codificación y registro de formatos TXT versionados`.
 
 ## T9 · Implementar prevalidar y generarTxt (backend · opus)
-- **Contexto (leer solo esto)**: `plan.md` (Contratos: `prevalidacion/` y `generarTxt`; Decisiones: Errores frente a excepciones, Orden de prevalidar, Explicaciones, generarTxt), `spec.md` (D1, D3, D4, D6, D11, D13, D14, D16), `packages/domain/src/{dinero,comprobante,reglas}/index.ts`, `packages/domain/src/reglas/entrada.ts` (patrón de entrada estricta), los specs de T4.
+- **Contexto (leer solo esto)**: `plan.md` (Contratos: `prevalidacion/` y `generarTxt`; Decisiones: Errores frente a excepciones, Orden de prevalidar, Explicaciones, generarTxt, Ratificación de contratos 1, 3, 4 y 6–12, 15), `spec.md` (D1, D3, D4, D6, D11, D13, D14, D16), `packages/domain/src/{dinero,comprobante,reglas}/index.ts`, `packages/domain/src/reglas/entrada.ts` (patrón de entrada estricta), los specs de T4.
 - **Hacer**:
   - `prevalidacion/{tipos,errores,entrada,estructura,aritmetica,duplicados,explicaciones,prevalidar,index}.ts`.
   - `formatos/serializar.ts` con `generarTxt`: copia congelada leída una vez, `seleccionarFormato`, `prevalidar`, orden estable y codificación.
@@ -147,12 +164,12 @@ Reglas comunes:
 - **Hecho cuando**: los specs de T4 y la parte de CA-1 y CA-2 de domain pasan, la cobertura es ≥ 90 % por archivo, y lint y typecheck quedan limpios. Las pruebas de 010 y 011 siguen en verde. Commit `feat(012): prevalidación SUNAT y generación del TXT bloqueada por construcción`.
 
 ## T10 · Implementar resumirCambios (backend · opus)
-- **Contexto (leer solo esto)**: `plan.md` (Contratos: `ResumenCambios`; Decisiones: resumirCambios), `spec.md` (D12, D14; CA-8), `packages/domain/src/prevalidacion/{tipos,entrada}.ts`, `packages/domain/src/prevalidacion/resumen.spec.ts`.
+- **Contexto (leer solo esto)**: `plan.md` (Contratos: `ResumenCambios`; Decisiones: resumirCambios, Ratificación de contratos 13), `spec.md` (D12, D14; CA-8), `packages/domain/src/prevalidacion/{tipos,entrada}.ts`, `packages/domain/src/prevalidacion/resumen.spec.ts`.
 - **Hacer**: `prevalidacion/resumen.ts` y su export.
 - **Hecho cuando**: `resumen.spec.ts` pasa, la cobertura es ≥ 90 % y lint y typecheck quedan limpios. Commit `feat(012): resumen de cambios con impacto en IGV por destino`.
 
 ## T11 · Implementar empaquetar (backend · opus) ∥ T9, T10
-- **Contexto (leer solo esto)**: `plan.md` (Contratos: `@contapp/sunat`; Decisiones: empaquetar), `spec.md` (D6, D7; CA-10), `packages/sunat/src/index.ts`, `packages/sunat/src/errores.ts` (patrón), `packages/sunat/src/formatos/empaquetar.spec.ts`.
+- **Contexto (leer solo esto)**: `plan.md` (Contratos: `@contapp/sunat`; Decisiones: empaquetar, Ratificación de contratos 14), `spec.md` (D6, D7; CA-10), `packages/sunat/src/index.ts`, `packages/sunat/src/errores.ts` (patrón), `packages/sunat/src/formatos/empaquetar.spec.ts`.
 - **Hacer**: `packages/sunat/src/formatos/{empaquetar,index}.ts` y su export desde `src/index.ts`. Usar `validarNombreArchivo` de `@contapp/domain`, sin una gramática propia.
 - **Hecho cuando**: `empaquetar.spec.ts` pasa, `pnpm cobertura:sunat` sale 0 y lint y typecheck de sunat quedan limpios. `fixture-012.spec.ts` puede seguir en rojo hasta T9. Commit `feat(012): empaquetado ZIP en memoria con SHA-256`.
 

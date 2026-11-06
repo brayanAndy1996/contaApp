@@ -116,6 +116,44 @@ describe("D6 · determinismo", () => {
   });
 });
 
+describe("D6 · el ZIP no depende del huso horario del worker (T6)", () => {
+  // fflate escribe el sello DOS con la hora local; el contrato (plan 012, Ratificación) es que el
+  // sello lleve los campos UTC de `fecha`, para que el mismo instante dé los mismos bytes en
+  // cualquier máquina.
+  const conHuso = <T>(tz: string, f: () => T): T => {
+    const antes = process.env.TZ;
+    process.env.TZ = tz;
+    try {
+      return f();
+    } finally {
+      if (antes === undefined) delete process.env.TZ;
+      else process.env.TZ = antes;
+    }
+  };
+
+  it("el mismo instante da el mismo ZIP en Lima, Tokio y UTC", () => {
+    const utc = conHuso("UTC", () => empaquetar(txtDePrueba(), NOMBRES, FECHA));
+    const lima = conHuso("America/Lima", () => empaquetar(txtDePrueba(), NOMBRES, FECHA));
+    const tokio = conHuso("Asia/Tokyo", () => empaquetar(txtDePrueba(), NOMBRES, FECHA));
+    expect(lima.sha256Zip).toBe(utc.sha256Zip);
+    expect(tokio.sha256Zip).toBe(utc.sha256Zip);
+  });
+
+  it("el sello DOS de la cabecera local lleva la fecha y la hora UTC de `fecha` (2026-10-27T16:00:00Z)", () => {
+    const { zip } = conHuso("America/Lima", () => empaquetar(txtDePrueba(), NOMBRES, FECHA));
+    const hora = zip[10]! | (zip[11]! << 8);
+    const dia = zip[12]! | (zip[13]! << 8);
+    expect(hora).toBe(16 << 11);
+    expect(dia).toBe(((2026 - 1980) << 9) | (10 << 5) | 27);
+  });
+
+  it("una fecha fuera del rango DOS (antes de 1980 o desde 2108, en UTC) lanza EmpaquetadoInvalidoError", () => {
+    expect(() => empaquetar(txtDePrueba(), NOMBRES, new Date("1979-12-31T23:59:59Z"))).toThrow(EmpaquetadoInvalidoError);
+    expect(() => empaquetar(txtDePrueba(), NOMBRES, new Date("2108-01-01T00:00:00Z"))).toThrow(EmpaquetadoInvalidoError);
+    expect(() => empaquetar(txtDePrueba(), NOMBRES, new Date("1980-01-01T00:00:00Z"))).not.toThrow();
+  });
+});
+
 describe("D7 · nombres (EmpaquetadoInvalidoError)", () => {
   const lanza = (nombres: { nombreTxt: string; nombreZip: string }) => {
     expect(typeof EmpaquetadoInvalidoError).toBe("function");

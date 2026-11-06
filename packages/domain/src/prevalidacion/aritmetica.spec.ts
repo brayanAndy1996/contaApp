@@ -235,6 +235,14 @@ describe("CA-4 · moneda USD y tipo de cambio (sintético)", () => {
     expect(e.map((x) => x.codigo)).not.toContain("USD_SIN_TC");
   });
 
+  it("una fila PEN con tipoCambio no nulo da TC_INVALIDO en tipoCambio (no se descarta en silencio; T6)", () => {
+    for (const tc of ["3.300", "1.000", ""]) {
+      expect(errores([filaReemplazo(undefined, { tipoCambio: tc })])).toContainEqual(
+        expect.objectContaining({ filaId: "f1", codigo: "TC_INVALIDO", campo: "tipoCambio" }),
+      );
+    }
+  });
+
   it("la fila USD del fixture (TC 3.300) no tiene errores", () => {
     expect(errores([usd("3.300")])).toEqual([]);
   });
@@ -263,6 +271,15 @@ describe("CA-4 · moneda USD y tipo de cambio (sintético)", () => {
       const s = errores([pen({ biDg: "330.01", igvDg: "59.40" })], true).find((x) => x.codigo === "CONVERSION_USD")?.sugerencia;
       expect(s?.regla).toBe("R-RED");
       expect(s?.sugerencia?.tipo).toBe("ajustar");
+    });
+
+    it("origenUsd con montos USD descuadrados da CONVERSION_USD y no lanza (convertirAPen no se llama; T6)", () => {
+      const descuadrado = { montos: MontosComprobante.desde("USD", { biDg: "100.00", igvDg: "18.00", total: "118.01" }), tipoCambio: "3.300" };
+      let e: readonly ErrorPrevalidacion[] = [];
+      expect(() => {
+        e = errores([pen({ biDg: "330.00", igvDg: "59.40" }, descuadrado)]);
+      }).not.toThrow();
+      expect(e).toContainEqual(expect.objectContaining({ filaId: "f1", codigo: "CONVERSION_USD", campo: "origenUsd" }));
     });
 
     it("el TC de origenUsd inválido da TC_INVALIDO", () => {
