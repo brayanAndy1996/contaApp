@@ -4,7 +4,7 @@
 import { COLUMNAS_COMPRA } from "../comprobante/index";
 import type { FilaCopia } from "../prevalidacion/entrada";
 import { DefinicionFormatoInvalidaError } from "./errores";
-import type { CabeceraTxt } from "./tipos";
+import type { CabeceraTxt, TipoCampo } from "./tipos";
 
 export type Valor = (f: FilaCopia, c: CabeceraTxt) => string;
 
@@ -34,6 +34,21 @@ export const VALORES: ReadonlyMap<string, Valor> = new Map<string, Valor>([
   ["tipoCambio", (f) => (f.montos.moneda === "USD" ? tcConTresDecimales(f.tipoCambio as string) : "")],
   ...COLUMNAS_COMPRA.map((columna): [string, Valor] => [columna, (f) => f.montos.obtener(columna).toString()]),
   ["total", (f) => f.montos.total.toString()],
+]);
+
+/**
+ * Tipo de cada campo de valor fijo: lo escribe el sistema (periodo, fecha, moneda, TC, montos y
+ * total), no el texto de la fila, así que su `tipo` solo puede ser el de ese valor. Uno distinto
+ * (p. ej. un monto `ruc`) haría fallar toda fila con un error que nadie puede corregir (H-012-61).
+ * Los campos de texto de la fila (serie, documento, razón social…) no tienen un tipo fijo.
+ */
+export const TIPOS_FIJOS: ReadonlyMap<string, TipoCampo> = new Map<string, TipoCampo>([
+  ["periodo", "codigo"],
+  ["fechaEmision", "fecha"],
+  ["moneda", "codigo"],
+  ["tipoCambio", "tc"],
+  ...COLUMNAS_COMPRA.map((columna): [string, TipoCampo] => [columna, "monto"]),
+  ["total", "monto"],
 ]);
 
 /**

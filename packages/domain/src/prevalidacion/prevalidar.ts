@@ -4,13 +4,17 @@
 // (5) SIN_FILAS. (6) Si hay `reglas`, evaluarReglas solo sobre las filas sin error de estructura:
 // R-MIX y R-RED como sugerencia de su error, R-ISC, R-NEW y R-GP como avisos. El bloqueo nunca
 // depende de `reglas` (D19): si una regla falla en una fila, esa fila se queda sin sugerencias ni
-// avisos y conserva sus errores; solo un contexto de reglas malformado lanza.
+// avisos y conserva sus errores; solo un contexto de reglas malformado lanza. El contexto se lee y
+// se valida una sola vez, a una copia congelada, y cada fila se evalúa sobre esa copia (H-012-40,
+// H-012-60): el coste es lineal y una relectura del contexto no puede cambiar lo evaluado.
 import { validarRuc } from "@contapp/shared";
 import { seleccionarFormato } from "../formatos/registro";
 import type { RegistroFormatos } from "../formatos/registro";
 import type { CabeceraTxt, FormatoTxt } from "../formatos/tipos";
-import { validarContexto } from "../reglas/entrada";
-import { evaluarReglas } from "../reglas/index";
+import { validarContexto, validarFilas } from "../reglas/entrada";
+import type { ContextoInterno, FilaInterna } from "../reglas/entrada";
+import { evaluarFila } from "../reglas/motor";
+import { ORDEN_REGLAS } from "../reglas/tipos";
 import type { Entero } from "../texto/entero";
 import type { ContextoReglas, FilaEvaluable, Hallazgo, OrigenUsd } from "../reglas/index";
 import { validarAritmetica } from "./aritmetica";
@@ -102,29 +106,33 @@ function repartir(errores: ErrorPrevalidacion[], hallazgos: readonly Hallazgo[])
   return avisos;
 }
 
-/** Hallazgos de una sola fila; si alguna regla falla con ella, ninguno (D19). */
-function hallazgosDeFila(f: FilaEvaluable, reglas: ContextoReglas): readonly Hallazgo[] {
+/** Hallazgos de una sola fila sobre el contexto ya validado; si alguna regla falla con ella, ninguno (D19). */
+function hallazgosDeFila(f: FilaEvaluable, contexto: ContextoInterno): readonly Hallazgo[] {
   try {
-    return evaluarReglas([f], reglas).hallazgos;
+    // validarFilas devuelve una fila por cada una recibida, o lanza.
+    return evaluarFila(validarFilas([f])[0] as FilaInterna, contexto);
   } catch {
-    // MontoFueraDeRangoError, EntradaReglasInvalidaError de la fila (patrón más laxo que 011) u
-    // otro: el aviso se omite y el bloqueo no cambia.
+    // EntradaReglasInvalidaError de la fila (patrón más laxo que 011, H-012-21), MontoFueraDeRangoError
+    // u otro: el aviso se omite y el bloqueo no cambia. El contexto ya no se lee aquí, así que un
+    // contexto malformado nunca llega a este catch (H-012-40).
     return [];
   }
 }
 
 /**
- * Hallazgos de evaluarReglas aislados por fila (D19). Un contexto malformado lanza
- * EntradaReglasInvalidaError, como siempre. Si el lote entero falla, se evalúa fila a fila en
- * orden de id, que es el orden de salida de evaluarReglas (id → regla → destino).
+ * Hallazgos de evaluarReglas aislados por fila (D19). El contexto se valida una vez y lanza
+ * EntradaReglasInvalidaError si está malformado, como siempre. Luego cada fila se valida y se evalúa
+ * sola sobre la copia validada (ninguna regla depende de otra fila), en orden de id. Dentro de la
+ * fila, evaluarFila da cada regla en el orden DG, DGNG, DNG, así que un orden estable por
+ * ORDEN_REGLAS deja el orden de salida de evaluarReglas (id → regla → destino): cuando ninguna fila
+ * falla, el resultado es el del lote.
  */
 function hallazgosAislados(evaluables: readonly FilaEvaluable[], reglas: ContextoReglas): readonly Hallazgo[] {
-  validarContexto(reglas);
-  try {
-    return evaluarReglas(evaluables, reglas).hallazgos;
-  } catch {
-    return [...evaluables].sort((a, b) => compararTexto(a.id, b.id)).flatMap((f) => hallazgosDeFila(f, reglas));
-  }
+  const contexto = validarContexto(reglas);
+  const porRegla = (a: Hallazgo, b: Hallazgo): Entero => ORDEN_REGLAS.indexOf(a.regla) - ORDEN_REGLAS.indexOf(b.regla);
+  return [...evaluables]
+    .sort((a, b) => compararTexto(a.id, b.id))
+    .flatMap((f) => [...hallazgosDeFila(f, contexto)].sort(porRegla));
 }
 
 /**

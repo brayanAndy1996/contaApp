@@ -8,7 +8,8 @@ import { MAX_IDS_DUPLICADO, duplicado } from "./explicaciones";
 import type { ErrorPrevalidacion } from "./tipos";
 
 const MINUSCULA_ASCII = /[a-z]/g;
-const CEROS_IZQUIERDA = /^0+/;
+/** Ceros a la izquierda sin dejar el número vacío: «000» → «0», que no es «» (H-012-41). */
+const CEROS_IZQUIERDA = /^0+(?=[\s\S])/;
 
 /** Solo a-z: ningún otro carácter cambia (sin locale ni plegado Unicode). */
 function mayusculasAscii(s: string): string {

@@ -69,4 +69,9 @@ Los catálogos «Dinero / reglas / prevalidación» y «Formatos TXT/ZIP» de 04
 - Externas: la estructura oficial del TXT de reemplazo y del nombre del ZIP, con un archivo de muestra aceptado (D10). Sin ella, nada se genera en producción. `fflate` en `packages/sunat`, que ya está en el monorepo por 007b.
 
 ## Preguntas abiertas
-Ninguna. P-1 a P-8 quedaron resueltas el 2026-11-06 (D9–D16); P-10 y P-11, de la ronda adversarial 1 (T14), el mismo día (D21 y D22).
+P-1 a P-8 quedaron resueltas el 2026-11-06 (D9–D16); P-10 y P-11, de la ronda adversarial 1 (T14), el mismo día (D21 y D22).
+
+- **P-12 · requiere usuario** (H-012-61, ronda adversarial 2, T16). Un formato que declara `tipoCambio` con `obligatorio: true` se registra, y entonces ninguna fila PEN sale apta: en PEN el TC se escribe «» (Ratificación 4), que da `CAMPO_OBLIGATORIO`, y un TC en PEN es `TC_INVALIDO` (Ratificación 8). La Ratificación 5 no dice si la obligatoriedad de un campo debe ser coherente con el valor que escribe el sistema. T16 corrigió solo la parte técnica: un campo de valor fijo (periodo, fecha, moneda, TC, montos y total) solo admite el `tipo` de su valor.
+  - **(a) (Recom.)** La obligatoriedad de `tipoCambio` rige solo en las filas USD: en PEN el «» lo impone la Ratificación 4 y no se valida como obligatorio. Es como suelen definir el TC los formatos oficiales («obligatorio si la moneda no es PEN»). No cambia ninguna prueba: `ronda2a.adv.spec.ts:257` sigue en verde y la de H-012-61 pasa porque la fila PEN sale apta.
+  - (b) `RegistroFormatos.desde` rechaza `tipoCambio` obligatorio con `DefinicionFormatoInvalidaError`. Obliga a cambiar la aserción adversarial `prevalidacion/ronda2a.adv.spec.ts:257` y la prueba `prevalidacion/correcciones-t14.spec.ts:91`, que registran ese campo como obligatorio para fijar que un TC USD no duplica `USD_SIN_TC` ni `TC_INVALIDO`.
+  - Igual pregunta, sin hallazgo hoy: un campo de texto de la fila con `tipo: "ruc"` (por ejemplo `numeroDocProveedor`, que también lleva DNI, o `razonSocial`) se registra y bloquea las filas cuyo valor no es un RUC. Con (a) o (b) se puede dejar como está o rechazar `ruc` fuera de `numeroDocProveedor`.

@@ -4,7 +4,7 @@
 import { esEnteroPositivo } from "../texto/entero";
 import { DefinicionFormatoInvalidaError, FormatoNoVigenteError } from "./errores";
 import { FORMATO_PROVISIONAL_RCE } from "./provisional-rce";
-import { valorDeCampo } from "./valores";
+import { TIPOS_FIJOS, valorDeCampo } from "./valores";
 import type { CampoTxt, Codificacion, FinDeLinea, FormatoTxt, FuncionNombre, Libro, TipoCampo } from "./tipos";
 
 const PERIODO = /^[0-9]{4}(0[1-9]|1[0-2])$/;
@@ -166,6 +166,9 @@ function copiarCampo(entrada: unknown, separador: string): CampoTxt {
   }
   // Solo campos que generarTxt sabe escribir: así «apto» siempre quiere decir «genera» (D21, H-012-24).
   valorDeCampo(nombre);
+  // Un campo de valor fijo solo admite el tipo de ese valor (H-012-61).
+  const fijo = TIPOS_FIJOS.get(nombre);
+  if (fijo !== undefined && fijo !== tipo) throw new DefinicionFormatoInvalidaError();
   const base = { nombre, obligatorio, longitudMax, tipo: tipo as TipoCampo };
   if (patron === undefined) return Object.freeze(base);
   if (!(patron instanceof RegExp)) throw new DefinicionFormatoInvalidaError();
