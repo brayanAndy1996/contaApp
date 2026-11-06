@@ -62,3 +62,6 @@ Respondió P1 a P5 con la opción recomendada (a) en todas.
 - D16 (P3 a) No hay `SolPortal` simulado en 009: queda para la spec de R2 que lo consuma. `SolAuth` cubre la verificación de la clave SOL.
 - D17 (P4 a) Los fixtures XML y SIRE son solo sintéticos, con RUC de prueba y las cifras documentadas de los casos. Sin datos de terceros en el repositorio.
 - D18 (P5 a) Las 3 pruebas de cierre de 008 fallan con `CI=true` (con la causa en el mensaje) en vez de omitirse; `ci:db` las corre en un paso aparte, al final y en serie, con la BD despejada de trabajos vivos, y el paso anterior no las repite.
+
+## Decisión del usuario (2026-11-06)
+- D19 (P-A a) El script `dev` de `apps/backend` y el de `apps/worker` fijan `NODE_ENV=development` (`cross-env NODE_ENV=development nest start --watch`, portable a Windows; `cross-env` 10.1.0 como devDependency de ambos). Así el `.env` raíz compartido, con `KEK_PRIVATE_KEY_PATH` del worker, no impide arrancar el backend en desarrollo con la creación temprana de D10. En producción un `NODE_ENV` sin definir sigue fallando cerrado (H-007b-3).
