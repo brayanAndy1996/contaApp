@@ -6,7 +6,7 @@ Nivel A. Flujo de 04 §1.3: andamiaje, pruebas (rojo), ratificación, implementa
 
 | # | Tarea | Rol | Modelo | Depende de | TDD | ADV | Estado |
 |---|---|---|---|---|---|---|---|
-| T1 | Andamiaje: dependencias, cobertura y CI | devops | haiku | — | — | — | [ ] |
+| T1 | Andamiaje: dependencias, cobertura y CI | devops | haiku | — | — | — | [x] |
 | T2 | Pruebas de límites: lint de dinero e IO en las carpetas nuevas (rojo) | tester | sonnet | — ∥ T1 | ✓ | — | [x] |
 | T3 | Pruebas de `texto/codificar` y `formatos/` (rojo) | tester | sonnet | — ∥ T2 | ✓ | — | [x] |
 | T4 | Pruebas de `prevalidar` y del bloqueo de `generarTxt` (rojo) | tester | sonnet | — ∥ T3 | ✓ | — | [ ] |
@@ -55,6 +55,7 @@ Reglas comunes:
   5. Agregar en la raíz `cobertura:sunat` (construye shared y domain, luego `pnpm --filter @contapp/sunat test:cobertura`) y su paso de CI después del de domain.
   6. `pnpm install`.
 - **Hecho cuando**: `pnpm install --frozen-lockfile` pasa después de commitear el lockfile. `pnpm cobertura:dominio` y `pnpm cobertura:sunat` salen 0, porque las carpetas aún no existen. Un `src/formatos/__tmp.ts` sin pruebas hace fallar cada script por ese archivo; después se borra. Commit `chore(012): dependencias y cobertura de prevalidación, formatos y empaquetado`.
+- **Resultado**: hecho en una copia limpia de HEAD + T1, porque el árbol compartido tiene specs rojos de T3 en curso. `pnpm install --frozen-lockfile` OK; el lock suma `@contapp/shared` en domain y `fflate` 0.8.2 en sunat. `cobertura:dominio` y `cobertura:sunat` salen 0; con `src/formatos/__tmp.ts` sin pruebas, cada uno falla por ese archivo (borrado). Lint y typecheck de domain y sunat OK. Desvíos: (a) el `vitest.cobertura.config.mts` de sunat usa `src/**/*.spec.ts` sin `*.int.spec.ts`, no `tests/**` (no existe en sunat); (b) pnpm pasó el peer `jsdom` de `@vitest/coverage-v8@5.0.5(vitest@5.0.5)` de 30.1.3 a 30.1.2 (ambos ya estaban en el lock); (c) `@vitest/coverage-v8` no hace falta en sunat, resuelve sin declararlo. (d) En el árbol compartido, `cobertura:dominio` y el typecheck de domain fallan solo por los specs rojos de T3 (`src/formatos/{campos,nombres,provisional,registro}.spec.ts`, `src/texto/codificar.spec.ts`, `tests/ayudas/formatos.ts`), no por T1.
 
 ## T2 · [x] Pruebas de límites, rojo (tester · sonnet) ∥ T1
 - **Contexto (leer solo esto)**: `spec.md` (CA-11), `plan.md` (Decisiones: Lint y cobertura), `tests/limites/dominio-reglas.spec.ts` (patrón completo).

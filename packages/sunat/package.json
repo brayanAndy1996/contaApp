@@ -9,11 +9,13 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run --passWithNoTests",
-    "test:int": "vitest run --mode int --passWithNoTests"
+    "test:int": "vitest run --mode int --passWithNoTests",
+    "test:cobertura": "vitest run --config vitest.cobertura.config.mts --coverage --passWithNoTests"
   },
   "dependencies": {
     "@contapp/domain": "workspace:*",
-    "@contapp/shared": "workspace:*"
+    "@contapp/shared": "workspace:*",
+    "fflate": "0.8.2"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
