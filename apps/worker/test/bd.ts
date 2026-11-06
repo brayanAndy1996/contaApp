@@ -1,7 +1,7 @@
 // Soporte de las pruebas de integracion del worker (spec 003, T7): conexiones por rol, limpieza con el
 // rol administrativo, llaves `local` temporales y lecturas crudas para comparar columnas del sobre.
 // Solo usa DATABASE_URL, MIGRATIONS_DATABASE_URL y @contapp/db; nunca imprime URLs ni llaves.
-import { generateKeyPair } from "node:crypto";
+import { generateKeyPair, randomInt } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -73,7 +73,8 @@ async function asegurarCliente(tenantId: string, clienteId: string): Promise<voi
   const admin = crearDbAdmin();
   try {
     for (let intento = 0; intento < 5; intento++) {
-      const ruc = String(20_000_000_000 + Math.floor(Math.random() * 9_999_999_999));
+      // Último dígito 0-6: 7, 8 y 9 son los centinelas de los mocks (igual que `rucNuevo()` de trabajos.ts).
+      const ruc = `2${String(randomInt(0, 1e9)).padStart(9, "0")}${randomInt(0, 7)}`;
       const r = await admin.pool.query(
         `insert into cliente (id, tenant_id, ruc, razon_social) values ($1, $2, $3, $4)
          on conflict do nothing returning id`,

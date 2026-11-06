@@ -161,6 +161,57 @@ describe("MockSireApiClient entrada inválida", () => {
   });
 });
 
+describe("MockSireApiClient fixtures dañados o ausentes", () => {
+  const pedirEn = (dir: string, periodo = "202610", ruc = RUC) =>
+    new MockSireApiClient({ dirFixtures: dir })
+      .descargarPropuesta(TOKEN, pedir(ruc, periodo))
+      .catch((x: unknown) => x);
+  const dirCon = (archivos: Record<string, string>): string => {
+    const dir = mkdtempSync(join(dirTemporal, "caso-"));
+    for (const [nombre, contenido] of Object.entries(archivos)) {
+      writeFileSync(join(dir, nombre), contenido);
+    }
+    return dir;
+  };
+
+  it("un periodo que no es texto es ErrorDatos y no queda en el registro", async () => {
+    const mock = new MockSireApiClient();
+    const e = await mock
+      .descargarPropuesta(TOKEN, { ruc: RUC, periodo: 202610 as never, libro: "compras" })
+      .catch((x: unknown) => x);
+    expect(clasificarError(e).clase).toBe("datos");
+    expect(mock.registro()).toHaveLength(0);
+  });
+
+  it("sin archivo propio ni genérico es ErrorDatos", async () => {
+    expect(clasificarError(await pedirEn(dirCon({}))).clase).toBe("datos");
+  });
+
+  it("un JSON sin arreglo `filas` (objeto vacío o null) es ErrorDatos", async () => {
+    for (const contenido of ["{}", "null", '{"filas":"no"}']) {
+      const dir = dirCon({ [`${RUC}-compras-202610.json`]: contenido });
+      expect(clasificarError(await pedirEn(dir)).clase).toBe("datos");
+    }
+  });
+
+  it("un archivo por encima del tope de tamaño es ErrorDatos", async () => {
+    const dir = dirCon({ [`${RUC}-compras-202610.json`]: " ".repeat(1_048_577) });
+    expect(clasificarError(await pedirEn(dir)).clase).toBe("datos");
+  });
+
+  it("en el genérico, una fecha sin día numérico cae al día 1 del periodo pedido", async () => {
+    const fila = { tipo: "01", serie: "F001", numero: "1", fechaEmision: "2026-10-xx" };
+    const dir = dirCon({
+      "generico-compras.json": JSON.stringify({ filas: [fila] }),
+    });
+    const p = await new MockSireApiClient({ dirFixtures: dir }).descargarPropuesta(
+      TOKEN,
+      pedir(RUC, "202602"),
+    );
+    expect(p.filas[0]?.fechaEmision).toBe("2026-02-01");
+  });
+});
+
 describe("MockSireApiClient no conserva el token", () => {
   it("el registro y las llamadas no contienen el token", async () => {
     const mock = new MockSireApiClient();

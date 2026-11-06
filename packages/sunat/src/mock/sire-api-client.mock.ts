@@ -105,7 +105,8 @@ export class MockSireApiClient implements SireApiClient {
     try {
       return Promise.resolve(this.resolver(token, solicitud));
     } catch (e) {
-      return Promise.reject(e instanceof Error ? e : new ErrorTransitorio());
+      // `resolver` solo lanza instancias de `Error` (los errores del paquete o un fallo de programación).
+      return Promise.reject(e as Error);
     }
   }
 
