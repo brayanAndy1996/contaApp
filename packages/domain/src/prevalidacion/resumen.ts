@@ -40,9 +40,10 @@ function mismoOrigen(a: OrigenUsdCopia | null, b: OrigenUsdCopia | null): boolea
 }
 
 /** Datos literales de la línea del TXT: comprobante, documento, razón social y fecha. */
-function literales(f: FilaCopia): readonly (string | null)[] {
+function literales(f: FilaCopia): readonly string[] {
   const { comprobante: c, proveedor: p } = f;
-  return [c.tipo, c.serie, c.numero, p.tipo, p.numero, p.razonSocial, f.fechaEmision];
+  // Razón social ausente y "" dan la misma línea (H-012-4, H-012-27).
+  return [c.tipo, c.serie, c.numero, p.tipo, p.numero, p.razonSocial ?? "", f.fechaEmision];
 }
 
 /** Cambia algún dato que va a la línea del TXT (Ratificación 13). El `xml` no cuenta. */

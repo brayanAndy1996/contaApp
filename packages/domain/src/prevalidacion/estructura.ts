@@ -1,9 +1,12 @@
-// Estructura de cada fila contra el formato (D13, CA-5; plan, Ratificación 2, 3, 10 y 11): los
-// textos que viajan al TXT con validarCampo (sin recortar, normalizar ni transliterar), el RUC del
-// proveedor con validarRuc cuando el documento es tipo 6, y la fecha de emisión.
+// Estructura de cada fila contra el formato (D13, CA-5; plan, Ratificación 2, 3, 10 y 11): cada
+// campo del formato con validarCampo, con el mismo valor que escribe generarTxt (los textos sin
+// recortar, normalizar ni transliterar; H-012-23), el RUC del proveedor con validarRuc cuando el
+// documento es tipo 6, y la fecha de emisión.
 import { validarCampo } from "../formatos/campos";
-import type { CampoTxt, CodigoCampo, FormatoTxt } from "../formatos/tipos";
+import type { CabeceraTxt, CampoTxt, CodigoCampo, FormatoTxt } from "../formatos/tipos";
+import { VALORES } from "../formatos/valores";
 import type { Entero } from "../texto/entero";
+import { tipoCambioDe } from "./aritmetica";
 import type { FilaCopia } from "./entrada";
 import { crearError } from "./errores";
 import {
@@ -25,16 +28,6 @@ export const CODIGOS_ESTRUCTURA: ReadonlySet<CodigoError> = new Set<CodigoError>
   "CARACTER_NO_PERMITIDO",
   "RUC_INVALIDO",
 ]);
-
-/** Campos del formato cuyo valor es texto de la fila, tal como llegó. */
-const TEXTOS: Readonly<Record<string, (f: FilaCopia) => string>> = Object.freeze({
-  tipoComprobante: (f) => f.comprobante.tipo,
-  serie: (f) => f.comprobante.serie,
-  numero: (f) => f.comprobante.numero,
-  tipoDocProveedor: (f) => f.proveedor.tipo,
-  numeroDocProveedor: (f) => f.proveedor.numero,
-  razonSocial: (f) => f.proveedor.razonSocial ?? "",
-});
 
 /** Documento de identidad del proveedor que es RUC (se valida con su dígito verificador). */
 const TIPO_DOC_RUC = "6";
@@ -61,31 +54,59 @@ export function explicarCampo(codigo: CodigoCampo, campo: CampoTxt, valor: strin
   }
 }
 
-/** Errores de los campos de texto de la fila, en el orden del formato. */
-function textosDe(f: FilaCopia, formato: FormatoTxt): ErrorPrevalidacion[] {
+const tcValido = (tc: string | null): boolean => tc !== null && tipoCambioDe(tc) !== null;
+
+/**
+ * Valor que generarTxt escribiría en el campo, o `null` si no se valida aquí: el periodo (de la
+ * cabecera, se valida una vez en validarCabecera), una fecha o un TC de USD que ya tienen su propio
+ * error (FECHA_INVALIDA, USD_SIN_TC o TC_INVALIDO) y un campo sin valor conocido.
+ */
+function valorDe(f: FilaCopia, nombre: string, cabecera: CabeceraTxt): string | null {
+  if (nombre === "periodo") return null;
+  if (nombre === "fechaEmision" && !esFechaValida(f.fechaEmision)) return null;
+  if (nombre === "tipoCambio" && f.montos.moneda === "USD" && !tcValido(f.tipoCambio)) return null;
+  const valor = VALORES.get(nombre);
+  return valor === undefined ? null : valor(f, cabecera);
+}
+
+/** Error de validarCampo de un campo del formato con su valor, o `null`. */
+function errorDeCampo(filaId: string | null, campo: CampoTxt, valor: string, formato: FormatoTxt): ErrorPrevalidacion | null {
+  const e = validarCampo(valor, campo, formato);
+  if (e === null) return null;
+  return crearError({ filaId, codigo: e.codigo, campo: campo.nombre, explicacion: explicarCampo(e.codigo, campo, valor, e.posicion) });
+}
+
+/**
+ * Errores de todos los campos de la fila contra el formato, en su orden: los textos tal como
+ * llegaron y, además, fecha, moneda, TC, montos y total tal como se serializan (H-012-23).
+ */
+function camposDe(f: FilaCopia, formato: FormatoTxt, cabecera: CabeceraTxt): ErrorPrevalidacion[] {
   const errores: ErrorPrevalidacion[] = [];
   for (const campo of formato.campos) {
-    const extraer = Object.hasOwn(TEXTOS, campo.nombre) ? TEXTOS[campo.nombre] : undefined;
-    if (extraer === undefined) continue;
-    const valor = extraer(f);
+    const valor = valorDe(f, campo.nombre, cabecera);
+    if (valor === null) continue;
     const esRuc = campo.nombre === "numeroDocProveedor" && f.proveedor.tipo === TIPO_DOC_RUC;
     const definicion: CampoTxt = esRuc ? { ...campo, tipo: "ruc" } : campo;
-    const e = validarCampo(valor, definicion, formato);
-    if (e === null) continue;
-    errores.push(
-      crearError({
-        filaId: f.id,
-        codigo: e.codigo,
-        campo: campo.nombre,
-        explicacion: explicarCampo(e.codigo, campo, valor, e.posicion),
-      }),
-    );
+    const e = errorDeCampo(f.id, definicion, valor, formato);
+    if (e !== null) errores.push(e);
+  }
+  return errores;
+}
+
+/** Campos de la cabecera que van a cada línea (hoy el periodo), una sola vez y con `filaId: null`. */
+export function validarCabecera(cabecera: CabeceraTxt, formato: FormatoTxt): ErrorPrevalidacion[] {
+  const errores: ErrorPrevalidacion[] = [];
+  for (const campo of formato.campos) {
+    if (campo.nombre !== "periodo") continue;
+    const e = errorDeCampo(null, campo, cabecera.periodo, formato);
+    if (e !== null) errores.push(e);
   }
   return errores;
 }
 
 // ---------------------------------------------------------------- fecha de emisión
-const FECHA = /^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/;
+/** El año 0000 no existe en el calendario gregoriano (H-012-3). */
+const FECHA = /^(?!0000)([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/;
 /** Número de dos cifras múltiplo de 4 (00, 04, …, 96). */
 const MULTIPLO_DE_4 = /^([02468][048]|[13579][26])$/;
 const ULTIMO_DIA: Readonly<Record<string, string>> = Object.freeze({
@@ -136,6 +157,6 @@ function fechaDe(f: FilaCopia, periodo: string): ErrorPrevalidacion[] {
 }
 
 /** Errores de estructura y de fecha de una fila no excluida. */
-export function validarEstructura(f: FilaCopia, formato: FormatoTxt, periodo: string): ErrorPrevalidacion[] {
-  return [...textosDe(f, formato), ...fechaDe(f, periodo)];
+export function validarEstructura(f: FilaCopia, formato: FormatoTxt, cabecera: CabeceraTxt): ErrorPrevalidacion[] {
+  return [...camposDe(f, formato, cabecera), ...fechaDe(f, cabecera.periodo)];
 }

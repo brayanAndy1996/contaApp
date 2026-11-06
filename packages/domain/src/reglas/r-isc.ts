@@ -1,5 +1,6 @@
 // R-ISC (RF-081; spec D-1, D-2; plan 011, Decisiones: "R-ISC" y "Ratificación de contratos").
 import type { ColumnaCompra } from "../comprobante/index";
+import { MontoFueraDeRangoError } from "../dinero/index";
 import type { Money } from "../dinero/index";
 import { PARES_DESTINO, crearHallazgo } from "./entrada";
 import type { FilaInterna, ParDestino } from "./entrada";
@@ -23,10 +24,17 @@ export interface DestinoEvaluado {
 
 /**
  * Monto a mover según el XML: `xml.isc − isc` de la fila, desde la BI del único destino con
- * BI ≠ 0, del mismo signo que la BI y con |monto| ≤ |BI|; si no cabe, null.
+ * BI ≠ 0, del mismo signo que la BI y con |monto| ≤ |BI|; si no cabe, null. Si `xml.isc − isc`
+ * excede NUMERIC(14,2) tampoco cabe (la BI sí está en rango): null, sin lanzar (012, H-012-20).
  */
 function iscDelXml(fila: FilaInterna, d: DestinoEvaluado, iscXml: Money): Money | null {
-  const monto = iscXml.restar(fila.montos.obtener("isc"));
+  let monto: Money;
+  try {
+    monto = iscXml.restar(fila.montos.obtener("isc"));
+  } catch (e) {
+    if (e instanceof MontoFueraDeRangoError) return null;
+    throw e;
+  }
   const cabe =
     d.unicoConBi &&
     !monto.esCero() &&

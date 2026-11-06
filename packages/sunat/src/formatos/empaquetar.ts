@@ -66,18 +66,37 @@ function sellarFechaDos(zip: Uint8Array, fecha: Date): void {
   }
 }
 
-function fechaValida(fecha: unknown): fecha is Date {
-  if (!(fecha instanceof Date) || Number.isNaN(fecha.getTime())) return false;
-  const anio = fecha.getUTCFullYear();
-  return anio >= ANIO_DOS_MIN && anio <= ANIO_DOS_MAX;
+/**
+ * Copia de `fecha` hecha con el instante que da `Date.prototype.getTime` una sola vez, o `null` si
+ * no es una Date válida entre 1980 y 2107 (UTC). La validación y el sello DOS usan la copia: un
+ * método propio de la instancia (p. ej. `getUTCFullYear`) no se vuelve a llamar (H-012-30).
+ */
+function copiaDeFecha(fecha: unknown): Date | null {
+  if (!(fecha instanceof Date)) return null;
+  let instante: number;
+  try {
+    instante = Date.prototype.getTime.call(fecha);
+  } catch {
+    // Un objeto con el prototipo de Date que no es una Date real.
+    return null;
+  }
+  if (Number.isNaN(instante)) return null;
+  const copia = new Date(instante);
+  const anio = copia.getUTCFullYear();
+  return anio >= ANIO_DOS_MIN && anio <= ANIO_DOS_MAX ? copia : null;
 }
 
-function nombresValidos(nombres: unknown): nombres is NombresEmpaquetado {
-  if (typeof nombres !== "object" || nombres === null) return false;
+/**
+ * `nombreTxt` y `nombreZip` leídos una sola vez y validados, o `null`. Lo validado es lo que se usa
+ * para armar el ZIP: un getter que cambia en la segunda lectura no mete `../` (H-012-29).
+ */
+function copiaDeNombres(nombres: unknown): NombresEmpaquetado | null {
+  if (typeof nombres !== "object" || nombres === null) return null;
   const { nombreTxt, nombreZip } = nombres as Record<string, unknown>;
-  if (!validarNombreArchivo(nombreTxt as string) || !validarNombreArchivo(nombreZip as string)) return false;
-  const txt = nombreTxt as string;
-  return txt.endsWith(".txt") && nombreZip === `${txt.slice(0, -4)}.zip`;
+  if (typeof nombreTxt !== "string" || typeof nombreZip !== "string") return null;
+  if (!validarNombreArchivo(nombreTxt) || !validarNombreArchivo(nombreZip)) return null;
+  if (!nombreTxt.endsWith(".txt") || nombreZip !== `${nombreTxt.slice(0, -4)}.zip`) return null;
+  return { nombreTxt, nombreZip };
 }
 
 /**
@@ -87,11 +106,13 @@ function nombresValidos(nombres: unknown): nombres is NombresEmpaquetado {
  * gramática de domain o no se corresponden, o si `fecha` no es una Date entre 1980 y 2107 (UTC).
  */
 export function empaquetar(txt: Uint8Array, nombres: NombresEmpaquetado, fecha: Date): Empaquetado {
-  if (!(txt instanceof Uint8Array) || !nombresValidos(nombres) || !fechaValida(fecha)) {
+  const leidos = copiaDeNombres(nombres);
+  const instante = copiaDeFecha(fecha);
+  if (!(txt instanceof Uint8Array) || leidos === null || instante === null) {
     throw new EmpaquetadoInvalidoError();
   }
-  const { nombreTxt, nombreZip } = nombres;
+  const { nombreTxt, nombreZip } = leidos;
   const zip = zipSync({ [nombreTxt]: [txt, { level: 6, mtime: FECHA_PROVISIONAL }] });
-  sellarFechaDos(zip, fecha);
+  sellarFechaDos(zip, instante);
   return { zip, nombreZip, sha256Txt: sha256(txt), sha256Zip: sha256(zip) };
 }

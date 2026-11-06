@@ -153,7 +153,8 @@ function copiarCampo(entrada: unknown, separador: string): CampoTxt {
   const obligatorio = c.obligatorio;
   const longitudMax = c.longitudMax;
   const tipo = c.tipo;
-  const patron = c.patron;
+  // Solo el patrón propio: uno heredado (p. ej. de Object.prototype) no entra en la copia (H-012-25).
+  const patron = Object.hasOwn(c, "patron") ? c.patron : undefined;
   if (
     !esTextoNoVacio(nombre) ||
     typeof obligatorio !== "boolean" ||

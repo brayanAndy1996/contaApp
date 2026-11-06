@@ -23,7 +23,8 @@ export function validarCampo(valor: string, campo: CampoTxt, formato: FormatoTxt
   const posicion = primerCaracterNoPermitido(valor, formato);
   if (posicion !== null) return Object.freeze({ codigo: "CARACTER_NO_PERMITIDO", posicion });
   if (valor.length > campo.longitudMax) return LONGITUD;
-  const patron = campo.patron;
+  // Solo el patrón propio: un `patron` heredado de Object.prototype no se aplica (H-012-25).
+  const patron = Object.hasOwn(campo, "patron") ? campo.patron : undefined;
   // Copia nueva en cada llamada: un patrón ajeno con `g` o `y` no arrastra `lastIndex`.
   if (patron !== undefined && !new RegExp(patron.source, patron.flags).test(valor)) return PATRON;
   return null;

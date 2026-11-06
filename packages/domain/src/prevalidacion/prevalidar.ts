@@ -3,20 +3,22 @@
 // (3) Estructura, fecha, TC, cuadre, IGV y origenUsd de cada fila generable. (4) Duplicados.
 // (5) SIN_FILAS. (6) Si hay `reglas`, evaluarReglas solo sobre las filas sin error de estructura:
 // R-MIX y R-RED como sugerencia de su error, R-ISC, R-NEW y R-GP como avisos. El bloqueo nunca
-// depende de `reglas`.
+// depende de `reglas` (D19): si una regla falla en una fila, esa fila se queda sin sugerencias ni
+// avisos y conserva sus errores; solo un contexto de reglas malformado lanza.
 import { validarRuc } from "@contapp/shared";
 import { seleccionarFormato } from "../formatos/registro";
 import type { RegistroFormatos } from "../formatos/registro";
 import type { CabeceraTxt, FormatoTxt } from "../formatos/tipos";
+import { validarContexto } from "../reglas/entrada";
 import { evaluarReglas } from "../reglas/index";
 import type { Entero } from "../texto/entero";
 import type { ContextoReglas, FilaEvaluable, Hallazgo, OrigenUsd } from "../reglas/index";
 import { validarAritmetica } from "./aritmetica";
 import { buscarDuplicados } from "./duplicados";
-import { compararTexto, leerCabecera, leerFilas, leerObjeto } from "./entrada";
+import { compararTexto, invalida, leerCabecera, leerFilas, leerObjeto } from "./entrada";
 import type { FilaCopia } from "./entrada";
 import { crearError } from "./errores";
-import { CODIGOS_ESTRUCTURA, validarEstructura } from "./estructura";
+import { CODIGOS_ESTRUCTURA, validarCabecera, validarEstructura } from "./estructura";
 import { SIN_FILAS, rucInvalido } from "./explicaciones";
 import type {
   AvisoPrevalidacion,
@@ -100,6 +102,31 @@ function repartir(errores: ErrorPrevalidacion[], hallazgos: readonly Hallazgo[])
   return avisos;
 }
 
+/** Hallazgos de una sola fila; si alguna regla falla con ella, ninguno (D19). */
+function hallazgosDeFila(f: FilaEvaluable, reglas: ContextoReglas): readonly Hallazgo[] {
+  try {
+    return evaluarReglas([f], reglas).hallazgos;
+  } catch {
+    // MontoFueraDeRangoError, EntradaReglasInvalidaError de la fila (patrón más laxo que 011) u
+    // otro: el aviso se omite y el bloqueo no cambia.
+    return [];
+  }
+}
+
+/**
+ * Hallazgos de evaluarReglas aislados por fila (D19). Un contexto malformado lanza
+ * EntradaReglasInvalidaError, como siempre. Si el lote entero falla, se evalúa fila a fila en
+ * orden de id, que es el orden de salida de evaluarReglas (id → regla → destino).
+ */
+function hallazgosAislados(evaluables: readonly FilaEvaluable[], reglas: ContextoReglas): readonly Hallazgo[] {
+  validarContexto(reglas);
+  try {
+    return evaluarReglas(evaluables, reglas).hallazgos;
+  } catch {
+    return [...evaluables].sort((a, b) => compararTexto(a.id, b.id)).flatMap((f) => hallazgosDeFila(f, reglas));
+  }
+}
+
 /**
  * Prevalida copias ya leídas con un formato ya elegido. Filas generables: las no excluidas, más las
  * excluidas si el formato las incluye (D14); solo esas se validan y van al TXT.
@@ -116,19 +143,20 @@ export function prevalidarCopia(
       crearError({ filaId: null, codigo: "RUC_INVALIDO", campo: "rucDeclarante", explicacion: rucInvalido("rucDeclarante") }),
     );
   }
+  errores.push(...validarCabecera(cabecera, formato));
   const generables = Object.freeze(filas.filter((f) => f.estado !== "excluida" || formato.incluyeExcluidas));
   if (generables.length === 0) {
     errores.push(crearError({ filaId: null, codigo: "SIN_FILAS", campo: null, explicacion: SIN_FILAS }));
   }
   const evaluables: FilaEvaluable[] = [];
   for (const f of generables) {
-    const estructura = validarEstructura(f, formato, cabecera.periodo);
+    const estructura = validarEstructura(f, formato, cabecera);
     const aritmetica = validarAritmetica(f);
     errores.push(...estructura, ...aritmetica.errores);
     if (!estructura.some((e) => CODIGOS_ESTRUCTURA.has(e.codigo))) evaluables.push(evaluable(f, aritmetica.origen));
   }
   errores.push(...buscarDuplicados(generables));
-  const avisos = reglas === null ? [] : repartir(errores, evaluarReglas(evaluables, reglas).hallazgos);
+  const avisos = reglas === null ? [] : repartir(errores, hallazgosAislados(evaluables, reglas));
   errores.sort(compararErrores);
   const resultado: ResultadoPrevalidacion = Object.freeze({
     apto: errores.length === 0,
@@ -139,7 +167,10 @@ export function prevalidarCopia(
   return Object.freeze({ resultado, generables });
 }
 
-/** Contexto con forma válida: `cabecera` obligatoria; `reglas` y `registro` opcionales. */
+/**
+ * Contexto con forma válida: `cabecera` obligatoria; `reglas` y `registro` opcionales. `reglas:
+ * null` es forma imposible (H-012-22): no apaga en silencio los avisos; `undefined` = sin reglas.
+ */
 export function leerContexto(o: unknown): {
   cabecera: unknown;
   reglas: ContextoReglas | null;
@@ -147,6 +178,7 @@ export function leerContexto(o: unknown): {
 } {
   const v = leerObjeto(o, CLAVES_CONTEXTO, REQUERIDAS_CONTEXTO);
   const reglas = v.get("reglas");
+  if (reglas === null) invalida();
   return {
     cabecera: v.get("cabecera"),
     reglas: reglas === undefined ? null : (reglas as ContextoReglas),

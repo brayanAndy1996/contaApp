@@ -12,7 +12,7 @@ import {
   igvCuadra,
   verificarCuadre,
 } from "../dinero/index";
-import type { ResultadoCuadre } from "../dinero/index";
+import type { Money, ResultadoCuadre } from "../dinero/index";
 import { PARES_DESTINO } from "../reglas/entrada";
 import type { OrigenUsd } from "../reglas/index";
 import type { FilaCopia } from "./entrada";
@@ -94,13 +94,24 @@ function cuadreFila(f: FilaCopia): ErrorPrevalidacion[] {
   ];
 }
 
-/** IGV por destino a 18 % o 10 % (±0.01). Un IGV exactamente 0.00 nunca es error IGV (D18). */
+/**
+ * IGV de un destino aceptable: exactamente 0.00 (D18), o con base distinta de cero, del mismo signo
+ * que la base y a 18 % o 10 % según igvCuadra (±0.01). La tolerancia de igvCuadra no salva un IGV
+ * sin base ni uno de signo contrario (Ratificación 1, H-012-1).
+ */
+function igvAceptable(bi: Money, igv: Money): boolean {
+  if (igv.esCero()) return true;
+  if (bi.esCero() || bi.esNegativo() !== igv.esNegativo()) return false;
+  return igvCuadra(bi, igv, TASA_IGV_18) || igvCuadra(bi, igv, TASA_IGV_10);
+}
+
+/** IGV por destino (igvAceptable); un error IGV por destino que no lo es. */
 function igvFila(f: FilaCopia): ErrorPrevalidacion[] {
   const errores: ErrorPrevalidacion[] = [];
   for (const par of PARES_DESTINO) {
     const bi = f.montos.obtener(par.bi);
     const igv = f.montos.obtener(par.igv);
-    if (igv.esCero() || igvCuadra(bi, igv, TASA_IGV_18) || igvCuadra(bi, igv, TASA_IGV_10)) continue;
+    if (igvAceptable(bi, igv)) continue;
     errores.push(
       crearError({
         filaId: f.id,

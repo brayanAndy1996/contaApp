@@ -50,7 +50,11 @@ export const ORIGEN_FUERA_DE_RANGO = "La conversión de origenUsd a PEN excede e
 export const conversionUsd = (campo: string, esperado: Money): string =>
   `El campo ${campo} no coincide con la conversión por componente de origenUsd (${esperado.toString()})`;
 
-export const duplicado = (otros: readonly string[]): string =>
-  `El comprobante se repite en las filas ${otros.join(", ")}`;
+/** Máximo de ids que nombra la explicación de DUPLICADO: queda acotada aunque haya miles de copias (H-012-2). */
+export const MAX_IDS_DUPLICADO = 20;
+
+/** Nombra hasta MAX_IDS_DUPLICADO de las otras copias y cuenta las demás («y N más»). */
+export const duplicado = (otros: readonly string[], resto: Entero): string =>
+  `El comprobante se repite en las filas ${otros.join(", ")}${resto > 0 ? ` y ${resto} más` : ""}`;
 
 export const SIN_FILAS = "No hay filas para generar: la lista está vacía o todas las filas están excluidas";
