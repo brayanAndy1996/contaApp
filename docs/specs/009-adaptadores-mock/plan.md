@@ -12,7 +12,7 @@ Nivel C: este plan es más corto que un plan de A/B y solo fija lo que otros con
 | crear | `apps/worker/src/adaptadores/adaptadores.module.ts` (+ `.spec.ts`) | D8, D15: fábricas de los 5 puertos, errores y guarda de producción |
 | modificar | `apps/worker/src/trabajos/trabajos.module.ts` · `app.module.ts` · `.env.example` | las `…DesdeEntorno` salen a `adaptadores.module.ts` y se reexportan; `PERMITIR_ADAPTADORES_MOCK`, `XML_MOCK_LATENCIA_MS`, `XML_FIXTURES_DIR` comentadas |
 | modificar | `apps/backend/src/modules/credenciales/{credenciales.module,key-wrapper}.ts` (+ specs) | D10 (código de cifrado, ver Riesgos) |
-| modificar | `apps/worker/src/trabajos/cierre-r1b.adv.int.spec.ts` · `cierre-r2a.adv.int.spec.ts` · `apps/worker/vitest.config.mts` · `apps/worker/package.json` · `package.json` (`ci:db`) · `.github/workflows/ci.yml` · crear `apps/worker/test/despejar-bd.ts` | D11/D18 (pruebas adversariales de 008, nivel A) |
+| modificar | `apps/worker/src/trabajos/cierre-r1b.adv.int.spec.ts` · `cierre-r2a.adv.int.spec.ts` · `apps/worker/vitest.config.mts` · `apps/worker/vitest.cobertura-cola.config.mts` · `apps/worker/package.json` · `package.json` (script nuevo `ci:cierre`; `ci:db` solo compila `domain` antes de `sunat`) · `.github/workflows/ci.yml` · crear `apps/worker/test/{despejar-bd,bd-despejada}.ts` | D11/D18 (pruebas adversariales de 008, nivel A) |
 | modificar | `docs/03-arquitectura.md` §3 y árbol de carpetas | D2; `fixtures/xml/` pasa de «reales/anónimos» a sintéticos (D17) |
 
 ## Contratos
@@ -35,7 +35,7 @@ Nivel C: este plan es más corto que un plan de A/B y solo fija lo que otros con
 | Zapatilla | descripción de línea «zapatillas» |
 | Boleta 291 | ventas con boletas B001-290 y B001-292, sin la 291 |
 
-**Entorno** (`adaptadores.module.ts`): `SIRE_CLIENT`, `SOL_PORTAL`, `RUC_CLIENT`, `XML_PROVIDER` (ausente = `mock`; otro valor → `ConfiguracionAdaptadoresError`, subclase de `ConfiguracionTrabajosError`, con la variable y sin valores). `NODE_ENV=production` con algún `mock` y sin `PERMITIR_ADAPTADORES_MOCK=1` → el mismo error nombrando las variables; con `1`, `warn` en el log. Exporta los 5 puertos por token de inyección (D9: nadie los consume todavía salvo `trabajos.module.ts`).
+**Entorno** (`adaptadores.module.ts`): `SIRE_CLIENT`, `SOL_PORTAL`, `RUC_CLIENT`, `XML_PROVIDER` (ausente = `mock`; otro valor → `ConfiguracionAdaptadoresError`, subclase de `ConfiguracionTrabajosError`, con la variable y sin valores). `NODE_ENV=production` con algún `mock` y sin `PERMITIR_ADAPTADORES_MOCK=1` → el mismo error nombrando las variables; con `1`, `warn` en el log. Exporta los 5 puertos por token de inyección, uno por puerto (`SIRE_AUTH`, `SIRE_API_CLIENT`, `SOL_AUTH`, `CONSULTA_RUC`, `XML_PROVIDER`; `SIRE_CLIENT` rige dos) y el conjunto `ADAPTADORES` (D9: nadie los consume todavía salvo `trabajos.module.ts`). `XML_FIXTURES_DIR` y `XML_MOCK_LATENCIA_MS` solo afectan al mock XML; una `XML_MOCK_LATENCIA_MS` no numérica es `ConfiguracionAdaptadoresError`.
 
 ## Decisiones
 - Todo en `packages/sunat` sin IO distinto de leer fixtures con `node:fs` en el mock; ninguna app importa los fixtures por ruta.

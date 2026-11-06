@@ -387,16 +387,18 @@ contapp/
 │   ├── sunat/                            # adaptadores externos
 │   │   └── src/
 │   │       ├── puertos.ts                # SireAuth, SireApiClient, SolAuth, ConsultaRuc, XmlProvider
-│   │       ├── sire/                     # http + mock
-│   │       ├── sol/                      # playwright + mock; selectores en un solo archivo
+│   │       ├── errores.ts                # ErrorTransitorio, ErrorCredencial, ErrorDatos, ErrorPortal
+│   │       ├── mock/                     # hoy (009): todos los mocks, uno por puerto (*.mock.ts) + ruta-fixture.ts y ubl-sintetico.ts
+│   │       │                             # (los adaptadores reales de abajo se agregan con la spec de cada uno, junto a su mock)
+│   │       ├── sire/                     # (futuro) http
+│   │       ├── sol/                      # (futuro) playwright; selectores en un solo archivo
 │   │       ├── xml/
-│   │       │   ├── mock-xml-provider.ts  # fixtures o UBL sintético, errores y latencia
-│   │       │   ├── real-xml-provider.ts  # pendiente de la fuente del equipo
-│   │       │   └── ubl/                  # parser UBL 2.1 → modelo legible (ítems, tributos)
-│   │       ├── formatos/                 # estructuras TXT versionadas (RVIE, RCE, ajustes)
+│   │       │   ├── real-xml-provider.ts  # (futuro) pendiente de la fuente del equipo
+│   │       │   └── ubl/                  # (futuro, 016) parser UBL 2.1 → modelo legible (ítems, tributos)
+│   │       ├── formatos/                 # (futuro) estructuras TXT versionadas (RVIE, RCE, ajustes)
 │   │       │   ├── v1/
 │   │       │   └── index.ts
-│   │       └── ruc/                      # validación dígito verificador, consulta RUC
+│   │       └── ruc/                      # (futuro) consulta RUC real; el dígito verificador ya está en packages/shared
 │   │
 │   ├── crypto/                           # cifrado híbrido de credenciales
 │   │   └── src/ (envelope.ts, key-providers/local.ts, key-providers/aws-kms.ts)
