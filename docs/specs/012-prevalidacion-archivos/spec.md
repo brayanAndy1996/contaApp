@@ -40,6 +40,7 @@ Que ningún archivo que genere ContApp salga «procesado con errores» (regla 11
 - D15 (P-7, usuario 2026-11-06: (a)) 012 cubre solo compras (RCE). 013 agrega el formato de ventas como otra entrada del mismo registro versionado y reutiliza la prevalidación genérica.
 - D16 (P-8, usuario 2026-11-06: (a)) No se puede forzar la generación con errores: la fila se corrige o se excluye (lectura literal de RF-088).
 - D17 (usuario 2026-11-06: recomendada) Si todas las filas del periodo están excluidas o no hay filas generables, no se genera un TXT vacío: la prevalidación devuelve el error `SIN_FILAS` mientras no llegue la estructura oficial (que podría permitir un archivo sin filas).
+- D18 (P-9, usuario 2026-11-06: (a), riesgo aceptado) Una base gravada con IGV 0.00 nunca es error `IGV` (ratificación T6, punto 1): no bloquea la generación y solo avisa R-ISC si se pasan las reglas. Es lo que deja pasar San Juan (CA-1). Se revisa al agregar la versión oficial del formato, por si SUNAT la trata como error.
 
 ## Criterios de aceptación
 Los casos usan los fixtures de 009 (`fixtures/sire/20700000002-compras-202610.json`), mapeados a `FilaReemplazo`.

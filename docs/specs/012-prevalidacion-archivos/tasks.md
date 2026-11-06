@@ -12,7 +12,7 @@ Nivel A. Flujo de 04 §1.3: andamiaje, pruebas (rojo), ratificación, implementa
 | T4 | Pruebas de `prevalidar` y del bloqueo de `generarTxt` (rojo) | tester | sonnet | — ∥ T3 | ✓ | — | [x] |
 | T5 | Pruebas de `resumirCambios`, casos reales, fixture y `empaquetar` (rojo) | tester | sonnet | — ∥ T4 | ✓ | — | [x] |
 | T6 | Ratificar los contratos que fijaron T2–T5 | arquitecto | opus | T2, T3, T4, T5 | — | — | [x] |
-| T7 | Lint de dinero en `prevalidacion/` y `formatos/` | devops | haiku | T2, T6 ∥ T8 | ✓ | — | [ ] |
+| T7 | Lint de dinero en `prevalidacion/` y `formatos/` | devops | haiku | T2, T6 ∥ T8 | ✓ | — | [x] |
 | T8 | Implementar `texto/codificar`, `texto/entero` y `formatos/` (sin `generarTxt`) | backend | opus | T1, T3, T6 | ✓ | — | [x] |
 | T9 | Implementar `prevalidar` y `generarTxt` | backend | opus | T4, T8 | ✓ | — | [ ] |
 | T10 | Implementar `resumirCambios` | backend | opus | T5, T9 | ✓ | — | [ ] |
