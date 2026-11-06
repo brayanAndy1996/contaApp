@@ -7,7 +7,7 @@ Nivel A. Flujo de 04 §1.3: andamiaje, pruebas (rojo), ratificación, implementa
 | # | Tarea | Rol | Modelo | Depende de | TDD | ADV | Estado |
 |---|---|---|---|---|---|---|---|
 | T1 | Andamiaje: dependencias, cobertura y CI | devops | haiku | — | — | — | [ ] |
-| T2 | Pruebas de límites: lint de dinero e IO en las carpetas nuevas (rojo) | tester | sonnet | — ∥ T1 | ✓ | — | [ ] |
+| T2 | Pruebas de límites: lint de dinero e IO en las carpetas nuevas (rojo) | tester | sonnet | — ∥ T1 | ✓ | — | [x] |
 | T3 | Pruebas de `texto/codificar` y `formatos/` (rojo) | tester | sonnet | — ∥ T2 | ✓ | — | [ ] |
 | T4 | Pruebas de `prevalidar` y del bloqueo de `generarTxt` (rojo) | tester | sonnet | — ∥ T3 | ✓ | — | [ ] |
 | T5 | Pruebas de `resumirCambios`, casos reales, fixture y `empaquetar` (rojo) | tester | sonnet | — ∥ T4 | ✓ | — | [ ] |
@@ -56,7 +56,7 @@ Reglas comunes:
   6. `pnpm install`.
 - **Hecho cuando**: `pnpm install --frozen-lockfile` pasa después de commitear el lockfile. `pnpm cobertura:dominio` y `pnpm cobertura:sunat` salen 0, porque las carpetas aún no existen. Un `src/formatos/__tmp.ts` sin pruebas hace fallar cada script por ese archivo; después se borra. Commit `chore(012): dependencias y cobertura de prevalidación, formatos y empaquetado`.
 
-## T2 · Pruebas de límites, rojo (tester · sonnet) ∥ T1
+## T2 · [x] Pruebas de límites, rojo (tester · sonnet) ∥ T1
 - **Contexto (leer solo esto)**: `spec.md` (CA-11), `plan.md` (Decisiones: Lint y cobertura), `tests/limites/dominio-reglas.spec.ts` (patrón completo).
 - **Hacer**: `tests/limites/dominio-prevalidacion.spec.ts`.
   1. Con `filePath` en `packages/domain/src/{prevalidacion,formatos}/__prueba__.ts` deben fallar: `let x: number`, `parseFloat("1")`, `Number("1")`, `Math.round(1)`, `+s`, `d.toNumber()`, `import Decimal from "decimal.js"`, `import "node:crypto"`, `import "@contapp/sunat"`, `TextEncoder` y `fetch("x")`.
@@ -65,6 +65,7 @@ Reglas comunes:
   4. En `apps/backend/src/__prueba__.ts`, `import "@contapp/sunat"` falla.
   5. En `packages/sunat/src/formatos/__prueba__.ts`, `import { createHash } from "node:crypto"` pasa.
 - **Hecho cuando**: `pnpm --filter @contapp/tests-limites test` falla solo en los casos de dinero de las carpetas nuevas, que cubrirá T7. Si `TextEncoder` no está prohibido hoy, queda anotado como caso que cubre T7. Los demás archivos siguen en verde. Commit `test(012): lint de dinero e IO en prevalidación y formatos (rojo)`.
+- **Resultado**: `tests/limites/dominio-prevalidacion.spec.ts`, 42 pruebas (2 carpetas x 21) + 2 de fronteras. Rojo: 14 fallan (7 de dinero y `TextEncoder` en `prevalidacion/` y en `formatos/`), que cubre T7. El resto (decimal.js, node:crypto, @contapp/sunat, fetch, specs, Entero, backend sin sunat, sunat con node:crypto) ya pasa. **Nota para T7**: `TextEncoder` NO está prohibido hoy; agregar `TextEncoder` y `TextDecoder` a `GLOBALES_IO_DOMINIO`. Los demás archivos de tests-limites siguen en verde (12 de 13).
 
 ## T3 · Pruebas de texto/codificar y formatos/, rojo (tester · sonnet) ∥ T2
 - **Contexto (leer solo esto)**: `spec.md` (D2, D5–D8, D10, D13, D14; CA-5, CA-9, CA-10 en la parte de nombres), `plan.md` (Contratos: `formatos/`; Decisiones: Formato provisional RCE, Caracteres, generarTxt), `packages/domain/src/texto/index.ts`, `packages/domain/tests/ayudas/comprobante.ts`.
