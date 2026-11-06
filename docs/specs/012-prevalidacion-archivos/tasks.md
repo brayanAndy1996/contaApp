@@ -13,7 +13,7 @@ Nivel A. Flujo de 04 §1.3: andamiaje, pruebas (rojo), ratificación, implementa
 | T5 | Pruebas de `resumirCambios`, casos reales, fixture y `empaquetar` (rojo) | tester | sonnet | — ∥ T4 | ✓ | — | [x] |
 | T6 | Ratificar los contratos que fijaron T2–T5 | arquitecto | opus | T2, T3, T4, T5 | — | — | [x] |
 | T7 | Lint de dinero en `prevalidacion/` y `formatos/` | devops | haiku | T2, T6 ∥ T8 | ✓ | — | [ ] |
-| T8 | Implementar `texto/codificar`, `texto/entero` y `formatos/` (sin `generarTxt`) | backend | opus | T1, T3, T6 | ✓ | — | [ ] |
+| T8 | Implementar `texto/codificar`, `texto/entero` y `formatos/` (sin `generarTxt`) | backend | opus | T1, T3, T6 | ✓ | — | [x] |
 | T9 | Implementar `prevalidar` y `generarTxt` | backend | opus | T4, T8 | ✓ | — | [ ] |
 | T10 | Implementar `resumirCambios` | backend | opus | T5, T9 | ✓ | — | [ ] |
 | T11 | Implementar `empaquetar` en sunat | backend | opus | T1, T5, T8 ∥ T9, T10 | ✓ | — | [ ] |
@@ -147,7 +147,7 @@ Reglas comunes:
 - **Hecho cuando**: `pnpm --filter @contapp/tests-limites test` queda en verde y `pnpm lint` no da errores nuevos. Commit `chore(012): lint contra number en prevalidación y formatos`.
 - **Resultado**: en `eslint.config.mjs` solo cambió lo de T7. `GLOBALES_IO_DOMINIO` suma `TextEncoder` y `TextDecoder`. El bloque «Dinero» suma `packages/domain/src/prevalidacion/**` y `packages/domain/src/formatos/**` a `files`, y su comentario y mensaje dicen «spec 010/011/012». `pnpm --filter @contapp/tests-limites test`: 13 de 13 archivos y 329 de 329 pruebas en verde (antes fallaban 14, todas de `dominio-prevalidacion.spec.ts`). `pnpm lint`: 9 de 9 paquetes OK, ejecutados sin caché y sin errores. Ningún archivo de `packages/domain` usa `TextEncoder` ni `TextDecoder` en código, así que la prohibición no rompe nada.
 
-## T8 · Implementar codificación y formatos (backend · opus)
+## T8 · [x] Implementar codificación y formatos (backend · opus)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: `formatos/` y `texto/`; Decisiones: Formato provisional RCE, Caracteres, Lint y cobertura, Ratificación de contratos 2–6, 11 y 15), `spec.md` (D2, D5–D8, D10), `packages/domain/src/texto/index.ts`, `packages/domain/src/reglas/errores.ts` (patrón de errores con `codigo`), los specs de T3.
 - **Hacer**:
   - `texto/{codificar,entero}.ts`.
@@ -155,6 +155,7 @@ Reglas comunes:
   - Dejar los stubs de `serializar.ts` que necesite T9.
   - Exportar todo desde `src/index.ts`.
 - **Hecho cuando**: los specs de T3 pasan, la cobertura de esos archivos es ≥ 90 % y `pnpm --filter @contapp/domain lint typecheck` queda limpio. Commit `feat(012): codificación y registro de formatos TXT versionados`.
+- **Resultado**: los 5 specs de T3 (y los casos «T6») pasan: 173 pruebas. Archivos: `texto/{codificar,entero}.ts` (+ `texto/index.ts`), `formatos/{tipos,errores,registro,provisional-rce,campos,nombres,index}.ts` y el export en `src/index.ts`. Cobertura con los specs de T3: 100 % en todo, salvo ramas de `campos.ts` (96,4 %) y `registro.ts` (94,6 %); `pnpm cobertura:dominio` sale 1 sin tabla por las suites rojas de T4/T5. Lint OK; `tsc -p tsconfig.build.json` OK; el typecheck completo falla solo en specs de T4/T5 y `tests/ayudas/filas-reemplazo.ts`. Desvíos: (a) `FormatoProvisionalError`, `ArchivoNoPrevalidadoError` y `serializar.ts` quedan para T9: sin `generarTxt` no se prueban y bajarían la cobertura de funciones; (b) `RegistroFormatos.desde` rechaza además dos versiones del mismo libro con el mismo `vigenteDesde`, porque si no, la elección dependería del orden (CA-9); (c) el `patron` de los campos registrados es un getter que da una `RegExp` nueva en cada lectura, y `validarCampo` siempre usa una copia, así que `compile` o `lastIndex` no lo alteran; (d) `esEnteroPositivo` vive en `texto/entero.ts`, fuera del lint, para validar `longitudMax` sin escribir `number`; (e) **pide prueba**: `src/ronda2b.adv.spec.ts` (R2b-1) fija la superficie pública exacta de 011 y ahora falla por los exports nuevos que exige el plan (`codificar`, `CaracterNoCodificableError`, `RegistroFormatos`, `REGISTRO_FORMATOS`, `seleccionarFormato`, `validarCampo`, `validarNombreArchivo` y los errores de formatos). Hay que ampliar su lista, sin cambiar nada más (adversario o tester).
 
 ## T9 · Implementar prevalidar y generarTxt (backend · opus)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: `prevalidacion/` y `generarTxt`; Decisiones: Errores frente a excepciones, Orden de prevalidar, Explicaciones, generarTxt, Ratificación de contratos 1, 3, 4 y 6–12, 15), `spec.md` (D1, D3, D4, D6, D11, D13, D14, D16), `packages/domain/src/{dinero,comprobante,reglas}/index.ts`, `packages/domain/src/reglas/entrada.ts` (patrón de entrada estricta), los specs de T4.
