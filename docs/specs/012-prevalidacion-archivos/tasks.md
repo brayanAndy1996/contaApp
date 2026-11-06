@@ -27,7 +27,7 @@ Nivel A. Flujo de 04 §1.3: andamiaje, pruebas (rojo), ratificación, implementa
 | T16 | Corregir hallazgos de la ronda 2 | backend | opus | T15a, T15b | — | — | [x] |
 | T16a | Tipo de cambio obligatorio solo en filas USD (P-12, D23) | backend | opus | T16 | — | — | [x] |
 | T17 | Verificar CA-1 a CA-11 y cobertura con evidencia | tester | sonnet | T16a | — | — | [x] |
-| T18 | Revisión final contra la spec | arquitecto | opus | T17 | — | — | [ ] |
+| T18 | Revisión final contra la spec | arquitecto | opus | T17 | — | — | [x] |
 | T19 | Cierre: tasks y commit (el orquestador actualiza ESTADO) | devops | haiku | T18 | — | — | [ ] |
 
 Escalamientos: no hay ninguno previsto. T7 y T12 son mecánicas: si `haiku` falla una vez, pasan a `sonnet` (04 §3.3). Las rondas 2a y 2b se omiten si la ronda 1 no deja fallos nuevos (04 §2.3); en ese caso T15a, T15b y T16 se marcan «no aplica» y T17 depende de T14. Si T18 encuentra defectos, se añaden T18a (pruebas en rojo, tester sonnet) y T18b (corrección, backend opus).
@@ -350,13 +350,86 @@ Reglas comunes:
 
   Desajustes spec ↔ implementación (anotados, sin corregir; los decide T18): (1) las casillas de CA-1 a CA-11 y del renglón de casos reales en `spec.md` siguen `[ ]`; (2) CA-9 pide «mismo SHA-256» en una sola llamada, pero `generarTxt` (domain) solo devuelve bytes (D2): el hash vive en `empaquetar` (sunat), así que la igualdad de bytes se prueba en domain y el SHA-256 determinista, en sunat con la misma fecha; no hay una prueba única de punta a punta `generarTxt` en permutación → `empaquetar` → hash; (3) D11 dice que bloquea «el IGV que no cuadra con 18 % ni con 10 % en cualquier destino», pero D18 excluye el IGV 0.00 con base distinta de cero (San Juan); es coherente con CA-1 y está aceptado, y solo conviene que el texto de D11 lo remita a D18; (4) el redondeo USD sigue como `it.todo` (3 `todo` en domain) por falta de cifras reales, según la spec; (5) `PrevalidacionError` sigue exportada en `prevalidacion/index.ts:14` (la nota de T12 la daba por sobrante), y `ronda2b.adv.spec.ts` pasa entero: no es un fallo, pero el arquitecto puede decidir si va al plan.
 
-## T18 · Revisión final (arquitecto · opus)
+## T18 · [x] Revisión final (arquitecto · opus)
 - **Contexto (leer solo esto)**: `spec.md`, `plan.md`, `tasks.md` (resultados), el diff de la rama contra `main` en `packages/{domain,sunat}/src`.
 - **Hacer**:
   - Revisar contra D1–D16 y el DoD de nivel A (04 §5).
   - Confirmar que ningún camino serializa filas no aptas ni usa `number` para dinero, y que el formato provisional no puede pasar por oficial.
   - Listar las notas para 012b, 013 y 014 (por ejemplo, el bloqueo de provisionales en producción y el mapeo a `FilaReemplazo`).
 - **Hecho cuando**: hay un veredicto (aprobada o defectos, que llevan a T18a y T18b) y las notas para el orquestador. Commit `docs(012): revisión final` si cambia `tasks.md`.
+- **Resultado**: **aprobada, sin defectos bloqueantes**. No hacen falta T18a ni T18b. Revisión línea por línea de `git diff main...HEAD` en `packages/domain/src/{texto,formatos,prevalidacion}`, `reglas/r-isc.ts` y `packages/sunat/src/formatos/`, contra D1–D23, el plan y `CLAUDE.md`. Comprobado en HEAD `6e4ce5f`: domain 65 archivos y 1 614 pruebas (+3 `todo`); sunat 17 y 219. Entre `d219f16` (la corrida de T17, con cobertura, lint y typecheck) y HEAD solo cambió `tasks.md`.
+  - **CLAUDE.md**:
+    - `domain` es puro. No usa `node:*`, reloj, azar, `process` ni consola, y `TextEncoder`/`TextDecoder` quedan prohibidos por lint.
+    - Los montos solo pasan por `Money`/`MontosComprobante`, `Money.toString()` y `Money.suma`. `number` aparece solo en `type Entero` y `esEnteroPositivo` (`texto/entero.ts`), para conteos.
+    - Lo externo va en `sunat`: `fflate` y `node:crypto` solo están en `empaquetar.ts`.
+    - No hay secretos. Los mensajes son fijos, y las explicaciones nunca llevan texto crudo de la fila.
+    - `apps/*` no cambia, así que el frontend sigue dependiendo solo de `shared` y el backend no importa `@contapp/sunat` (CA-11, `tests/limites`).
+  - **Seguridad por construcción (D4, D5)**:
+    - `generarTxt` copia la entrada una vez, elige la versión y lanza `FormatoProvisionalError` antes de prevalidar. Después prevalida esas mismas copias y solo serializa `generables` si `apto`, con `codificar` como segunda barrera. Ningún camino serializa una fila no apta.
+    - El provisional no puede pasar por oficial. `oficial` sale de la copia congelada de `REGISTRO_FORMATOS`, el constructor del registro es privado, `FORMATO_PROVISIONAL_RCE` no se exporta y sus nombres llevan `CONTAPP-PROVISIONAL`.
+    - Queda una vía, que es responsabilidad de 012b (ver notas): un `registro` propio con `oficial: true`, pasado en `opciones`.
+  - **Desajustes de T17**:
+    - (1) Casillas: la evidencia de T17 basta, y se marcaron en `spec.md` CA-1 a CA-11 y la de casos reales.
+    - (2) CA-9 «mismo SHA-256»: no hace falta otra prueba. La cadena ya existe en `packages/sunat/src/formatos/ronda1a.adv.spec.ts:55`: 1 000 filas, tres permutaciones, `generarTxt` → `empaquetar`, y los mismos `sha256Txt` y `sha256Zip`. Se suma a la evidencia de CA-9.
+    - (3) D11 ya remite a D18 («salvo el IGV exactamente 0.00»).
+    - (4) Los 3 `todo` de domain son el redondeo USD diferido, uno por spec: `casos-reales/{dinero,reglas,prevalidacion}.spec.ts`, de 010, 011 y 012. Es lo que pide la spec (CA-4 sintético), no un pendiente de 012.
+    - (5) `PrevalidacionError` está en el plan (Contratos, desde el cierre de T12) y en R2b-1. Queda confirmado.
+  - **D23, `tipo: "ruc"` en otro campo de texto**: es una decisión **técnica**, de coherencia de la definición (mismo principio que D21 y H-012-61 (1)), así que no va al usuario.
+    - Ningún campo de texto de la fila es un RUC por definición. El RUC del proveedor ya se valida cuando su tipo de documento es 6 (`definicionPara`).
+    - 012 lo deja como está, porque ningún formato registrado lo usa. La spec de la versión oficial, o 013, hace que `RegistroFormatos.desde` lo rechace. Queda anotado en D23.
+  - **Desvíos ratificados**:
+    - **T8**:
+      - (b) Dos versiones del mismo libro con el mismo `vigenteDesde` se rechazan, para que CA-9 no dependa del orden.
+      - (c) `patron` es un getter que da una copia.
+      - (d) `esEnteroPositivo` vive fuera del lint.
+    - **T9**:
+      - (a) Con `incluyeExcluidas = true`, las excluidas se prevalidan y pueden bloquear. Es la única lectura compatible con D4 (no serializar filas no aptas). Choca con la letra de CA-7 y con D16 solo en un formato que las incluya, que hoy no existe. Queda como riesgo en **P-13** (`spec.md`).
+      - (b) `undefined` se toma como ausente.
+      - (c) La forma del XML se valida sin `reglas`.
+      - (e) `generarTxt` no pasa `reglas`, porque el bloqueo no depende de ellas.
+      - (f) Un dato fuera de rango da `CUADRE` o `CONVERSION_USD`, sin lanzar.
+      - (g) `DUPLICADO` lleva `campo: null`.
+      - (d) Queda superado por D21.
+    - **T10**:
+      - (a) El TC se compara por valor, como texto.
+      - (b) Una USD cuya conversión sale de rango va a `filasSinConvertir`.
+      - (c) Queda superado por D22.
+    - **T11**: el sello DOS se reescribe después de fflate. Depende de fflate 0.8.2 exacto, que es un riesgo ya anotado en el plan.
+    - **T14/T16, aislamiento por fila (D19)**:
+      - El contexto se valida una vez, fuera de todo `catch`, y cada fila pasa por `validarFilas([f])` y `evaluarFila`.
+      - `evaluarFila` solo lee la fila y el contexto, y el orden por `ORDEN_REGLAS` reproduce el de `evaluarReglas`. Lo confirman las pruebas que comparan con el lote.
+      - Usa módulos internos de 011 (`reglas/entrada`, `reglas/motor`) del mismo paquete. Es aceptable, con la nota de abajo.
+      - `prevalidar` nunca devolvió los avisos `XML_AJENO`/`XML_MONEDA` de 011, porque el contrato de `AvisoPrevalidacion` solo tiene R-ISC, R-NEW y R-GP.
+    - **D20**: el documento del proveedor se compara en mayúsculas ASCII para todos los tipos. Lo decidió el usuario y coincide con `normalizarProveedor` de 011. En RUC y DNI no cambia nada.
+    - **D23**: el cambio de aserción de `correcciones-t14.spec.ts` lo nombra la propia decisión (prueba no adversarial de T14). Igual pasa con los ajustes de `serializar.spec.ts`, `registro.spec.ts`, `tests/ayudas/formatos.ts` y la aserción de H-012-28 (D21, D22).
+    - **Nota de proceso, para el orquestador**: el backend escribió `correcciones-t14/t14a/t16/t16a.spec.ts`, aunque la regla común dice «si necesita una prueba, la pide». Se aceptan porque solo agregan regresiones, la ronda 2 las atacó y no reemplazan pruebas de contrato del tester. En próximas specs, conviene delegarlas al tester o cambiar la regla.
+  - **`reglas/r-isc.ts` (011)**: no rompe ningún contrato. Antes, un `xml.isc − isc` fuera de NUMERIC(14,2) lanzaba `MontoFueraDeRangoError`. Ahora `iscDelXml` devuelve `null`, el mismo camino que «no cabe»: el hallazgo sale sin sugerencia, con `requiereConfirmacion: true` y la explicación `iscXmlNoCabe`. Las demás excepciones se propagan. Ninguna prueba de 011 cambió, se sumaron 2 a `r-isc.spec.ts` y `reglas/` (con las `.adv` de 011) sigue en verde.
+  - **Notas para 012b**:
+    - Llamar a `prevalidar` y `generarTxt` sin `registro`, es decir, con `REGISTRO_FORMATOS`. Nunca tomar `registro` ni `permitirProvisional` de la petición. Bloquear `permitirProvisional` en producción (D5) y guardar `provisional` con la versión.
+    - Pasar siempre `reglas` en la ruta 422 (D18, Ratificación 1). `generarTxt` no las pasa, así que `ArchivoNoPrevalidadoError.resultado` no trae sugerencias.
+    - Errores:
+      - `EntradaPrevalidacionInvalidaError` es un mapeo mal hecho (500).
+      - `FormatoNoVigenteError` y `FormatoProvisionalError` son errores de negocio.
+      - En el worker, un `ArchivoNoPrevalidadoError` quiere decir que las filas cambiaron entre el backend y el trabajo: fallo sin reintento.
+    - La fecha del ZIP la da el trabajo, porque `empaquetar` no lee el reloj. Los hashes salen de `empaquetar`.
+    - Los avisos `XML_AJENO`/`XML_MONEDA` se toman de 011, no de `prevalidar`.
+  - **Notas para 014**:
+    - Mapear `tipoCambio: null` en las filas PEN.
+    - Quitar, no marcar `excluida`, una agregada que luego se descarta.
+    - Los ids deben cumplir `^[A-Za-z0-9_-]{1,64}$` y ser únicos.
+    - Si falta la razón social, omitirla, sin inventar un texto.
+    - `xml`, con la forma de `ResumenXml` de 011.
+  - **Notas para 013**:
+    - `ventas` entra como otro `Libro` del registro, con sus valores en `VALORES` y `TIPOS_FIJOS` y su gramática en `GRAMATICAS` (`formatos/nombres.ts`).
+    - La aritmética (`COLUMNAS_COMPRA`, IGV por destino) es de compras, así que ventas necesita la suya.
+  - **Notas para la versión oficial (D10)**:
+    - Agregar su gramática de nombres a `GRAMATICAS`. Si no, `empaquetar` rechaza sus nombres.
+    - Mantener los patrones dentro de la gramática de 011. Si no, D19 aísla la fila y pierde en silencio sus avisos, también el R-ISC de D18.
+    - Rechazar `tipo: "ruc"` en los campos de texto de la fila (D23).
+    - Revisar D18 y P-13.
+    - Probar contra el archivo de muestra aceptado.
+  - **Nota para futuras reglas de 011**: `hallazgosAislados` (`prevalidar.ts`) evalúa fila por fila. Si una regla llega a depender de otras filas del lote, hay que cambiarlo.
+  - **Preguntas para el usuario**: P-13 (`spec.md`, no bloquea el cierre): **(a) (Recom.)** ratificar el desvío y decidir de nuevo con el anexo; (b) que una excluida nunca bloquee.
 
 ## T19 · Cierre (devops · haiku)
 - **Contexto (leer solo esto)**: `tasks.md`.
