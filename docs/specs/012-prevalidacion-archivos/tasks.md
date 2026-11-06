@@ -136,7 +136,7 @@ Reglas comunes:
   Notas para 014: mapear `tipoCambio: null` en las filas PEN, porque si no, bloquean con `TC_INVALIDO`; y quitar, no marcar `excluida`, una fila agregada que luego se descarta. Nota para 012b: pasar siempre `reglas`, para que una base gravada con IGV 0.00 traiga el aviso R-ISC.
   - **P-9 · requiere usuario** (riesgo a aceptar, no bloquea T7–T11): con el punto 1, ninguna fila con IGV 0.00 bloquea, aunque tenga base gravada; por ejemplo, BI DG 1000.00 con IGV 0.00 por olvido. Solo avisa R-ISC, y solo si se pasan `reglas`. No sabemos si SUNAT marca esa fila como error hasta tener el anexo oficial (D10). **(a) (Recom.)** Aceptarlo como dicen CA-1 y D11, y revisarlo al agregar la versión oficial. (b) Bloquearla y que el contador mueva la base (a ISC o a no gravado, como sugiere R-ISC). Eso cambia CA-1, porque San Juan bloquearía, y hay que reabrir la spec.
 
-## T7 · Lint de dinero en las carpetas nuevas (devops · haiku) ∥ T8
+## T7 · [x] Lint de dinero en las carpetas nuevas (devops · haiku) ∥ T8
 - **Contexto (leer solo esto)**: `plan.md` (Decisiones: Lint y cobertura), `eslint.config.mjs` (bloque «Dinero (spec 010/011, CA-1)» y `GLOBALES_IO_DOMINIO`), `tests/limites/dominio-prevalidacion.spec.ts`.
 - **Hacer**:
   1. Agregar `packages/domain/src/prevalidacion/**` y `packages/domain/src/formatos/**` a `files` de ese bloque.
@@ -145,6 +145,7 @@ Reglas comunes:
   
   No tocar otros bloques.
 - **Hecho cuando**: `pnpm --filter @contapp/tests-limites test` queda en verde y `pnpm lint` no da errores nuevos. Commit `chore(012): lint contra number en prevalidación y formatos`.
+- **Resultado**: en `eslint.config.mjs` solo cambió lo de T7. `GLOBALES_IO_DOMINIO` suma `TextEncoder` y `TextDecoder`. El bloque «Dinero» suma `packages/domain/src/prevalidacion/**` y `packages/domain/src/formatos/**` a `files`, y su comentario y mensaje dicen «spec 010/011/012». `pnpm --filter @contapp/tests-limites test`: 13 de 13 archivos y 329 de 329 pruebas en verde (antes fallaban 14, todas de `dominio-prevalidacion.spec.ts`). `pnpm lint`: 9 de 9 paquetes OK, ejecutados sin caché y sin errores. Ningún archivo de `packages/domain` usa `TextEncoder` ni `TextDecoder` en código, así que la prohibición no rompe nada.
 
 ## T8 · Implementar codificación y formatos (backend · opus)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: `formatos/` y `texto/`; Decisiones: Formato provisional RCE, Caracteres, Lint y cobertura, Ratificación de contratos 2–6, 11 y 15), `spec.md` (D2, D5–D8, D10), `packages/domain/src/texto/index.ts`, `packages/domain/src/reglas/errores.ts` (patrón de errores con `codigo`), los specs de T3.

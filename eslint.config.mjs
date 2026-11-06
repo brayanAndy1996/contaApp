@@ -557,6 +557,9 @@ const restriccionesImports = (conDecimal) => ({
 const GLOBALES_IO_DOMINIO = [
   "process",
   "Buffer",
+  // La codificación de texto va en texto/codificar, sin estos globales (spec 012, plan Archivos).
+  "TextEncoder",
+  "TextDecoder",
   "fetch",
   "require",
   "XMLHttpRequest",
@@ -818,12 +821,15 @@ export default tseslint.config(
       ],
     },
   },
-  // Dinero (spec 010/011, CA-1): sin `number` ni Math.* en dinero/, comprobante/ y reglas/ (salvo pruebas).
+  // Dinero (spec 010/011/012, CA-1): sin `number` ni Math.* en dinero/, comprobante/, reglas/,
+  // prevalidacion/ y formatos/ (salvo pruebas).
   {
     files: [
       "packages/domain/src/dinero/**",
       "packages/domain/src/comprobante/**",
       "packages/domain/src/reglas/**",
+      "packages/domain/src/prevalidacion/**",
+      "packages/domain/src/formatos/**",
     ],
     ignores: ["**/*.spec.ts"],
     rules: {
@@ -831,7 +837,7 @@ export default tseslint.config(
         "error",
         ...SINTAXIS_SIN_NUMBER_DOMINIO.map(([selector, message]) => ({
           selector,
-          message: `packages/domain: ${message} (spec 010/011, CA-1).`,
+          message: `packages/domain: ${message} (spec 010/011/012, CA-1).`,
         })),
         ...[
           ...SINTAXIS_PAQUETE_DOMINIO,
