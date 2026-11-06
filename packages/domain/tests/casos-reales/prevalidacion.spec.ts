@@ -23,6 +23,7 @@ import {
   filasFixture,
   filasFixtureCorregidas,
   lineasCrlf,
+  PROV,
   xmlDe,
 } from "../ayudas/filas-reemplazo";
 
@@ -142,13 +143,20 @@ describe("CA-2 · tras aplicar las sugerencias de 011", () => {
 });
 
 describe("caso real: gasto personal, glosa 'zapatilla' · R-GP solo avisa", () => {
+  // El proveedor de `conGlosa` (PROV) no está en el fixture: se declara conocido solo en este bloque,
+  // para que R-NEW no se mezcle con el aviso R-GP y no cambie el contexto de los demás bloques.
+  const prevZ = (filas: readonly FilaReemplazo[]) =>
+    prevalidar(filas, {
+      cabecera: CABECERA,
+      reglas: { ...REGLAS, proveedoresConocidos: [...REGLAS.proveedoresConocidos, { ...PROV }] },
+    });
   const conGlosa = (glosa: string): FilaReemplazo =>
     filaReemplazo({ biDg: "100.00", igvDg: "18.00" }, {
       xml: xmlDe({ gravado: "100.00", igv: "18.00", total: "118.00", glosas: [glosa] }),
     });
 
   it.each(["ZAPATILLAS URBANAS T-42", "zapat. dep."])("la glosa %j da un aviso R-GP y la fila es apta", (glosa) => {
-    const r = prev([conGlosa(glosa)]);
+    const r = prevZ([conGlosa(glosa)]);
     expect(r.apto).toBe(true);
     expect(r.errores).toEqual([]);
     expect(r.avisos).toHaveLength(1);
@@ -161,7 +169,7 @@ describe("caso real: gasto personal, glosa 'zapatilla' · R-GP solo avisa", () =
   });
 
   it("'zapata de concreto' no da aviso", () => {
-    expect(prev([conGlosa("zapata de concreto")]).avisos).toEqual([]);
+    expect(prevZ([conGlosa("zapata de concreto")]).avisos).toEqual([]);
   });
 });
 
