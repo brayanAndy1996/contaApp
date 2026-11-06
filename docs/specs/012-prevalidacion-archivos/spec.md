@@ -39,6 +39,7 @@ Que ningún archivo que genere ContApp salga «procesado con errores» (regla 11
 - D14 (P-6, usuario 2026-11-06: (a)) Si las filas excluidas («No deducible», RF-066) van o no en el TXT lo fija la estructura oficial. Mientras tanto, el formato provisional las omite y el resumen las cuenta.
 - D15 (P-7, usuario 2026-11-06: (a)) 012 cubre solo compras (RCE). 013 agrega el formato de ventas como otra entrada del mismo registro versionado y reutiliza la prevalidación genérica.
 - D16 (P-8, usuario 2026-11-06: (a)) No se puede forzar la generación con errores: la fila se corrige o se excluye (lectura literal de RF-088).
+- D17 (usuario 2026-11-06: recomendada) Si todas las filas del periodo están excluidas o no hay filas generables, no se genera un TXT vacío: la prevalidación devuelve el error `SIN_FILAS` mientras no llegue la estructura oficial (que podría permitir un archivo sin filas).
 
 ## Criterios de aceptación
 Los casos usan los fixtures de 009 (`fixtures/sire/20700000002-compras-202610.json`), mapeados a `FilaReemplazo`.
