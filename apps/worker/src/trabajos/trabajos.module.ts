@@ -81,6 +81,7 @@ export class TrabajosService
       redis: this.redis,
       conexionBull,
       sireAuth: adaptadores.sireAuth,
+      sireApi: adaptadores.sireApiClient,
       consultaRuc: adaptadores.consultaRuc,
       solAuth: adaptadores.solAuth,
       kek: llavesDesdeEntorno(env),
