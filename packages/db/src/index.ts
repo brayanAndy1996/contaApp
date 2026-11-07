@@ -211,7 +211,37 @@ export type {
 } from "./ventas/tipos";
 export { propuesta, propuestaDiferencia } from "./schema/propuestas";
 export { venta, ventaSaltoJustificado } from "./schema/ventas";
-// Spec 014: tablas de compras (versiones inmutables, operaciones, hallazgos y estado del periodo). Los repositorios son de T12.
+// Spec 014: repositorios de compras (versiones inmutables con compare-and-set, operaciones con deshacer y rehacer, estado del
+// periodo y lecturas del persistidor y de 012b; `evaluar`, `transformar` y `aFila` se inyectan porque este paquete no depende de
+// `domain`) y las tablas de drizzle (versiones, operaciones, hallazgos y estado del periodo).
+export { ComprasReglaError, ComprasRepoError } from "./compras/errores";
+export { agregarCompra, crearVersion, descartar, insertarCompras } from "./compras/versiones";
+export type { EntradaCrearVersion } from "./compras/versiones";
+export { aplicarAccion, aplicarMasiva, deshacer, rehacer } from "./compras/operaciones";
+export { fijarEstadoPeriodo, leerEstadoPeriodo } from "./compras/periodo";
+export { leerExistentesCompras, leerProveedoresConocidos } from "./compras/existentes";
+export { leerFilasReemplazo } from "./compras/filas-reemplazo";
+export { COLUMNAS_MONTO as COLUMNAS_MONTO_COMPRA } from "./compras/tipos";
+export type {
+  ColumnaMontoCompra,
+  CompraLeida,
+  CompraNueva,
+  DatosVersion as DatosVersionCompra,
+  EstadoPeriodo as EstadoPeriodoCompra,
+  EstadoPeriodoCompras,
+  Evaluar as EvaluarCompra,
+  ExistenteCompra,
+  HallazgoNuevo as HallazgoCompra,
+  IdentidadCompra,
+  MontosCompra,
+  ProveedorConocido,
+  ResultadoAccion as ResultadoAccionCompra,
+  ResultadoMasiva as ResultadoMasivaCompra,
+  ResultadoPila as ResultadoPilaCompra,
+  ResultadoTransformar as ResultadoTransformarCompra,
+  Transformar as TransformarCompra,
+  VersionFila as VersionCompra,
+} from "./compras/tipos";
 export {
   compra,
   compraHallazgo,
