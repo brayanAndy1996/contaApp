@@ -1,5 +1,5 @@
 // Unitarias del procesador `sire.propuesta.descargar` (spec 013, T12): lo que la integración no recorre (parámetros,
-// libro sin persistidor, usuario ausente, respuesta inconsistente, tope de filas vivas, hash) con la BD y el puerto falsos.
+// libro sin persistidor, usuario ausente, respuesta inconsistente, tope de filas recibidas, hash) con la BD y el puerto falsos.
 import { ErrorDatos, type SireApiClient } from "@contapp/sunat";
 import { describe, expect, it, vi } from "vitest";
 
@@ -184,19 +184,23 @@ describe("descargarPropuesta: errores sin tocar la BD", () => {
 });
 
 describe("descargarPropuesta: guardado", () => {
-  it("tope de filas vivas: existentes + nuevas > 20.000 no guarda el encabezado", async () => {
+  // T18 (D19, usuario 2026-11-07): antes decía «existentes + nuevas > 20.000 no guarda el encabezado»; el tope es de las filas
+  // que llegan en la descarga (ver la prueba de `TOPE_FILAS`), no del total vivo del periodo.
+  it("el tope no cuenta lo ya guardado (D19): 19.999 existentes + 2 nuevas se guardan y dejan su encabezado", async () => {
     const existentes = Array.from({ length: TOPE_FILAS - 1 }, (_v, i) => ({
       clave: `03|S001|${i}`,
       total: "1.00",
     }));
+    const p = persistidor(existentes);
     h.crear.mockClear();
-    const e = await correr({
+    const r = await correr({
       db,
       sireApi: api(propuestaDe(["03|N001|1", "03|N001|2"])),
-      persistidores: { ventas: persistidor(existentes) },
-    }).catch((x: unknown) => x);
-    expect(e).toMatchObject({ detalle: "propuesta_demasiado_grande" });
-    expect(h.crear).not.toHaveBeenCalled();
+      persistidores: { ventas: p },
+    });
+    expect(r).toMatchObject({ recibidas: 2, nuevas: 2, iguales: 0, distintas: 0 });
+    expect(h.crear).toHaveBeenCalledTimes(1);
+    expect(p.insertadas[0]!.map((f) => f.clave)).toEqual(["03|N001|1", "03|N001|2"]);
   });
 
   it("cuenta nuevas, iguales y distintas; inserta la primera aparición y arma el resultado sin montos", async () => {

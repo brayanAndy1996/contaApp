@@ -14,7 +14,7 @@
 //  - Columnas: los nombres de `FilaVentaSire` (tipo, serie, numero, tipoDocContraparte, docContraparte, fechaEmision, moneda,
 //    tipoCambio, baseGravada, igv, exonerada, inafecta, isc, icbper, otros, total); la cabecera es obligatoria (faltan
 //    columnas obligatorias: 400 `columnas_faltantes`).
-//  - Hasta 20.000 filas por archivo y 20.000 vivas en el periodo: más es 422 `propuesta_demasiado_grande` y no se guarda nada.
+//  - Hasta 20.000 filas por archivo (T18, D19: el tope no cuenta las vivas del periodo): más es 422 `propuesta_demasiado_grande` y no se guarda nada.
 //    Un archivo de 20.000 filas pesa unos 2,5 MB (más que el tope de 2 MB de la importación de clientes): el tope de tamaño de
 //    ventas debe permitirlo; uno de 64 MB es 413.
 //  - Con `NODE_ENV=production` ambas rutas responden 422 `layout_no_oficial` (el layout es provisional, `oficial: false`) antes
@@ -373,7 +373,8 @@ describe("tope de 20.000 filas (D10, P-9)", () => {
     await vacio(c.id);
   });
 
-  it("el periodo no pasa de 20.000 vivas tras complementar: 19.999 + 2 nuevas es 422; 19.999 + 1 llega justo y se guarda", async () => {
+  // T18 (D19, usuario 2026-11-07): antes «el periodo no pasa de 20.000 vivas tras complementar: 19.999 + 2 nuevas es 422».
+  it("el tope no cuenta lo ya guardado (D19): 19.999 + 2 nuevas se guardan (el periodo queda en 20.001) y 19.999 + 1 llega justo a 20.000", async () => {
     const c = await nuevo();
     await v.sembrarMuchas(E.tenantId, c.id, 19_999, {
       usuarioId: E.titular.id,
@@ -383,15 +384,19 @@ describe("tope de 20.000 filas (D10, P-9)", () => {
       c.id,
       csvVentas([fila("N001", 1), fila("N001", 2)]),
     );
-    expect(dos.status, dos.texto).toBe(422);
-    expect(dos.json).toEqual({ codigo: "propuesta_demasiado_grande" });
+    expect(dos.status, dos.texto).toBe(201);
+    expect(dos.json.propuesta).toMatchObject({ filasRecibidas: 2, filasNuevas: 2 });
     expect(await v.conteo(c.id)).toMatchObject({
-      ventas: 19_999,
-      propuestas: 1,
+      ventas: 20_001,
+      propuestas: 2,
+    });
+    const otro = await nuevo();
+    await v.sembrarMuchas(E.tenantId, otro.id, 19_999, {
+      usuarioId: E.titular.id,
     });
     const una = await confirmar(
       contador,
-      c.id,
+      otro.id,
       csvVentas([fila("S001", 1), fila("N001", 1)]),
     );
     expect(una.status, una.texto).toBe(201);
@@ -400,7 +405,7 @@ describe("tope de 20.000 filas (D10, P-9)", () => {
       filasNuevas: 1,
       filasIguales: 1,
     });
-    expect((await v.conteo(c.id)).ventas).toBe(20_000);
+    expect((await v.conteo(otro.id)).ventas).toBe(20_000);
   });
 });
 

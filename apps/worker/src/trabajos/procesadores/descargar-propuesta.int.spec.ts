@@ -73,7 +73,7 @@ import {
 //   cada comprobante distinto. Nada se actualiza ni se borra (D4, D16).
 // - `resultado` = { propuestaId, recibidas, nuevas, iguales, distintas, claves, truncado }: `claves` son hasta 40 claves de los
 //   que difieren, `truncado` dice si hay más; pesa ≤ 4 KB y no lleva montos (D16).
-// - Una fila ilegible, más de 20.000 filas recibidas o más de 20.000 vivas del periodo tras complementar (`propuesta_demasiado_grande`)
+// - Una fila ilegible, más de 20.000 filas recibidas (`propuesta_demasiado_grande`; T18, D19: el tope no cuenta lo ya guardado en el periodo)
 //   o un libro sin persistidor (`libro_no_soportado`) son `ErrorDatos`: el trabajo queda `error/datos_invalidos` sin reintentos y
 //   no se guarda NADA (ni el encabezado). Un fallo transitorio se reintenta (008) y tampoco guarda nada; una credencial rechazada no
 //   se reintenta y deja `credencial_invalida`. El código fino (`propuesta_demasiado_grande`, `libro_no_soportado`) no llega a
@@ -444,7 +444,8 @@ describe("CA-3: todo o nada", () => {
     expect(props[0]!.filas_recibidas).toBe(20_000);
   });
 
-  it("el periodo no pasa de 20.000 filas vivas tras complementar: 19.999 + 2 nuevas es propuesta_demasiado_grande y no guarda nada", async () => {
+  // T18 (D19, usuario 2026-11-07): antes «el periodo no pasa de 20.000 vivas: 19.999 + 2 nuevas es propuesta_demasiado_grande».
+  it("el tope no cuenta lo ya guardado (D19): 19.999 vivas + 2 nuevas se guardan y el periodo queda en 20.001", async () => {
     const m = await mundoVentas(e, backend);
     await sembrarVentas(admin, m, 19_999);
     const api = new SireApiControlado().responder([
@@ -452,14 +453,10 @@ describe("CA-3: todo o nada", () => {
       fila("N001", "2"),
     ]);
     const r = await conWorker(api, () => descargar(m));
-    expect([r.estado, r.motivo, r.intentos]).toEqual([
-      "error",
-      "datos_invalidos",
-      0,
-    ]);
-    expect(await contarVentas(admin, m.c.id)).toBe(19_999);
-    // Solo queda el encabezado sembrado: la descarga fallida no dejó el suyo.
-    expect(await propuestasDe(admin, m.c.id)).toHaveLength(1);
+    expect(r.estado).toBe("completado");
+    expect(r.resultado).toMatchObject({ recibidas: 2, nuevas: 2, iguales: 0, distintas: 0 });
+    expect(await contarVentas(admin, m.c.id)).toBe(20_001);
+    expect(await propuestasDe(admin, m.c.id)).toHaveLength(2);
   });
 
   it("19.999 + 1 nueva llega justo a 20.000 vivas y se guarda; lo igual no cuenta contra el tope", async () => {

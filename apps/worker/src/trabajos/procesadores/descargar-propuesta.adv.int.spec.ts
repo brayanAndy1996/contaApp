@@ -1,7 +1,8 @@
 // Spec 013 T17 · ronda adversarial (integración, PostgreSQL real) de la descarga complementaria (D3, D7, D10, D16, D17).
 // Caja blanca sobre `descargar-propuesta.ts`, `persistidores/ventas.ts` y `aplicarComplemento` (packages/db):
-//  - carrera de dos descargas del MISMO periodo con contenido distinto, justo en el tope de 20.000 vivas: el bloqueo
-//    advisory debe serializarlas para que la segunda vea lo que confirmó la primera (una entra y la otra excede el tope);
+//  - carrera de dos descargas del MISMO periodo con contenido distinto, justo en 19.999 vivas: el bloqueo advisory las
+//    serializa (sin `40P01` ni filas duplicadas). T18 (D19, usuario 2026-11-07): el tope de 20.000 es de las filas que llegan
+//    en cada descarga, no del total vivo; antes la segunda excedía el tope y ahora las dos entran;
 //  - la serie que llega del SIRE en minúsculas: la importación y el agregar la guardan en mayúsculas (D7: una sola serie
 //    para la correlatividad); la descarga debe guardar lo mismo.
 // Se invoca el procesador directo con dos trabajos reales, como la carrera de T5 (la cola deduplica las descargas vivas).
@@ -89,7 +90,7 @@ const cancelarEnCola = (m: MundoVentas) =>
     .catch(() => undefined);
 
 describe("T17 · descarga complementaria", () => {
-  it("adv-w1: dos descargas simultáneas del mismo periodo con 19.999 vivas, cada una con UNA nueva distinta (3 rondas): una entra y la otra excede el tope", async () => {
+  it("adv-w1: dos descargas simultáneas del mismo periodo con 19.999 vivas, cada una con UNA nueva distinta (3 rondas): las dos entran, serializadas (D19: el tope no cuenta lo ya guardado)", async () => {
     for (let i = 0; i < 3; i++) {
       const m = await mundoVentas(e, backend);
       try {
@@ -103,14 +104,12 @@ describe("T17 · descarga complementaria", () => {
         await liberarDedupe(admin, a);
         const b = await encolarDescarga(backend, redis, prefijo, m);
         const r = await Promise.allSettled([proc(ctx(m, a) as never), proc(ctx(m, b) as never)]);
-        const estados = r.map((x) => x.status).sort();
-        expect(estados, `ronda ${i}`).toEqual(["fulfilled", "rejected"]);
-        const rechazo = r.find((x) => x.status === "rejected") as PromiseRejectedResult;
-        expect(String((rechazo.reason as { detalle?: unknown })?.detalle ?? rechazo.reason), `ronda ${i}`).toContain(
-          "propuesta_demasiado_grande",
-        );
-        expect(await contarVentas(admin, m.c.id), `ronda ${i}: vivas`).toBe(20_000);
-        expect(await propuestasDe(admin, m.c.id), `ronda ${i}: la sembrada + una`).toHaveLength(2);
+        expect(
+          r.map((x) => x.status),
+          `ronda ${i}: ${JSON.stringify(r.filter((x) => x.status === "rejected").map((x) => String((x as PromiseRejectedResult).reason)))}`,
+        ).toEqual(["fulfilled", "fulfilled"]);
+        expect(await contarVentas(admin, m.c.id), `ronda ${i}: vivas`).toBe(20_001);
+        expect(await propuestasDe(admin, m.c.id), `ronda ${i}: la sembrada + una por descarga`).toHaveLength(3);
       } finally {
         await cancelarEnCola(m);
       }

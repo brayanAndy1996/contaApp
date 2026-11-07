@@ -66,9 +66,9 @@ describe("persistidorVentas.preparar", () => {
       otros: "0.00",
       total: "118.00",
     });
-    // Lo que se inserta conserva serie y número tal como llegaron.
+    // Lo que se inserta conserva el número tal como llegó; la serie va en mayúsculas (T18, H-013-6: antes conservaba «b001»).
     expect(f!.datos).toMatchObject({
-      serie: "b001",
+      serie: "B001",
       numero: "00290",
       tipoCambio: null,
       tipoDocContraparte: "0",

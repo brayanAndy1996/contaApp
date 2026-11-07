@@ -7,7 +7,7 @@
 //                   faltantes: { desde: number, hasta: number, estado: "pendiente" | "justificado" | "parcial", comentario? }[],
 //                   noEvaluables: number }  — `noEvaluables` es la CANTIDAD de filas de la serie con número no evaluable
 //   - las series salen ordenadas por tipo y luego por serie (comparación de texto); una por (tipo, serie);
-//   - número evaluable = 1 a 8 dígitos ASCII (ceros a la izquierda permitidos: "00291" = 291); cualquier otro es no evaluable;
+//   - número evaluable = 1 a 8 dígitos ASCII sin contar los ceros a la izquierda (D21, T18: "00291" y "0000000291" = 291); cualquier otro es no evaluable;
 //   - faltantes = huecos entre el menor y el mayor número presente (sin expandir: un rango = una entrada), ordenados;
 //   - una serie sin ningún número evaluable es `no_evaluable` (sin faltantes); si tiene evaluables se analizan y los demás
 //     solo suman a `noEvaluables`;
@@ -175,7 +175,8 @@ describe("analizarCorrelatividad · rangos enormes sin expandir (CA-6)", () => {
 
 describe("analizarCorrelatividad · números no evaluables (CA-6)", () => {
   it("un número con letras, vacío o de más de 8 dígitos es «no evaluable», sin lanzar", () => {
-    for (const malo of ["ABC", "12A", "", "123456789", "100000000", "000000001", "1.5", "-3", " 12", "１２"]) {
+    // T18 (D21): se quitó "000000001" de la lista; con los ceros a la izquierda ignorados es la 1 (ver correcciones-t18.spec.ts).
+    for (const malo of ["ABC", "12A", "", "123456789", "100000000", "1.5", "-3", " 12", "１２"]) {
       const s = una(f("03", "B001", malo));
       expect(s, `número «${malo}»`).toEqual({ tipo: "03", serie: "B001", estado: "no_evaluable", faltantes: [], noEvaluables: 1 });
     }

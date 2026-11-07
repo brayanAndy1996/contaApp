@@ -1,4 +1,4 @@
-// Unitarias de `aplicarComplemento` (spec 013, D16, D18): el orden de las escrituras, el tope de filas vivas y la primera
+// Unitarias de `aplicarComplemento` (spec 013, D16, D18): el orden de las escrituras, que lo ya guardado no cuenta contra el tope (T18, D19) y la primera
 // aparición de cada clave nueva, con una transacción falsa que registra las sentencias.
 import { describe, expect, it } from "vitest";
 import type { TxConsulta } from "./errores";
@@ -34,7 +34,7 @@ function entrada(
   },
 ) {
   const insertadas: string[][] = [];
-  const e: EntradaComplemento<FilaComplementable<string>> = {
+  const e = {
     clienteId: "c-1",
     periodo: "202610",
     libro: "ventas",
@@ -43,14 +43,14 @@ function entrada(
     usuarioId: "u-1",
     trabajoId: null,
     filas: [fila("03|B001|1")],
-    topeVivas: 20_000,
     leerExistentes: async () => p.existentes ?? [],
     planificar: () => p.plan ?? { nuevas: ["03|B001|1"], iguales: 0, distintas: [] },
     insertar: async (_tx, _id, nuevas) => {
       insertadas.push(nuevas.map((n) => n.datos));
     },
     ...p,
-  };
+    // T18 (D19): `topeVivas` ya no existe; el cast deja que la entrada compile antes y después de quitar el parámetro.
+  } as EntradaComplemento<FilaComplementable<string>>;
   return { e, insertadas };
 }
 
@@ -66,7 +66,7 @@ describe("aplicarComplemento", () => {
       },
     });
     const r = await aplicarComplemento(tx, e);
-    expect(r.excedeTope).toBe(false);
+    expect(r).not.toEqual({ excedeTope: true });
     expect(tx.sentencias[0]!.texto).toContain("pg_advisory_xact_lock");
     const crear = tx.sentencias.find((s) => s.texto.includes("insert into propuesta "))!;
     expect(crear.valores).toEqual(["c-1", "202610", "ventas", "importacion", "a".repeat(64), 3, 2, 0, 1, "u-1", null]);
@@ -77,22 +77,21 @@ describe("aplicarComplemento", () => {
     expect(insertadas).toEqual([["03|B001|1", "03|B001|2"]]);
   });
 
-  it("si lo vivo pasa del tope no escribe nada (ni el encabezado)", async () => {
+  // T18 (D19, usuario 2026-11-07): antes «si lo vivo pasa del tope no escribe nada» y «justo en el tope se guarda». El tope de
+  // 20.000 es de las filas que llegan (lo valida el procesador y la importación antes de llamar); `aplicarComplemento` no
+  // cuenta lo ya guardado: aunque el llamador pasara el viejo `topeVivas` (aquí 2), con 2 existentes y 1 nueva se guarda.
+  it("lo ya guardado no cuenta contra el tope (D19): con 2 existentes y 1 nueva, aun con el viejo `topeVivas: 2`, escribe encabezado y filas", async () => {
     const tx = txFalsa();
     const existentes: ExistenteComplementable[] = [
       { clave: "03|S001|1", origen: "sire", campos: {} },
       { clave: "03|S001|2", origen: "sire", campos: {} },
     ];
-    const { e, insertadas } = entrada({ existentes, topeVivas: 2 });
-    expect(await aplicarComplemento(tx, e)).toEqual({ excedeTope: true });
-    expect(tx.sentencias.some((s) => s.texto.includes("insert into"))).toBe(false);
-    expect(insertadas).toEqual([]);
-  });
-
-  it("justo en el tope se guarda", async () => {
-    const tx = txFalsa();
-    const { e } = entrada({ existentes: [{ clave: "03|S001|1", origen: "sire", campos: {} }], topeVivas: 2 });
-    expect((await aplicarComplemento(tx, e)).excedeTope).toBe(false);
+    const { e, insertadas } = entrada({ existentes, ...({ topeVivas: 2 } as object) });
+    const r = await aplicarComplemento(tx, e);
+    expect(r).not.toEqual({ excedeTope: true });
+    expect(r).toMatchObject({ propuesta: { id: "p-1" }, plan: { nuevas: ["03|B001|1"] } });
+    expect(tx.sentencias.some((s) => s.texto.includes("insert into propuesta "))).toBe(true);
+    expect(insertadas).toEqual([["03|B001|1"]]);
   });
 });
 
