@@ -461,7 +461,9 @@ describe("deshacer · 409 fila_cambiada (D-14, CA-11)", () => {
     ).toBe("vigente");
   });
 
-  it("lista todas las filas cambiadas, y tambien si el cambio lo hizo el mismo usuario desde otra pestana", async () => {
+  // El cambio de filas[0] lo hace otro usuario (ux2): una edicion del propio ux seria su operacion MAS RECIENTE y deshacer
+  // revertiria esa edicion (la pila es una pila), no la masiva. Asi la masiva sigue siendo la ultima de ux.
+  it("lista todas las filas cambiadas por otras personas despues de la masiva (fila_cambiada con ids)", async () => {
     const c = await ec.cliente(X);
     const filas = await sembrar(c, 4, "FD11");
     await masiva(
@@ -470,7 +472,7 @@ describe("deshacer · 409 fila_cambiada (D-14, CA-11)", () => {
       { tipo: "dng" },
       ux,
     );
-    await accion(filas[0].id, 2, { tipo: "bi", valor: "10.00" }, ux, "editar");
+    await accion(filas[0].id, 2, { tipo: "bi", valor: "10.00" }, ux2, "editar");
     await accion(filas[3].id, 2, { tipo: "bi", valor: "11.00" }, ux2, "editar");
     const err = await errorDe(deshacerComo(c, ux));
     expect(err?.codigo).toBe("fila_cambiada");

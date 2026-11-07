@@ -623,9 +623,9 @@ describe("concurrencia de masivas: sin interbloqueos ni filas a medias (D-2, CA-
         nuevas: 10,
       });
       const nuevas = Array.from({ length: 10 }, (_, i) => ({
-        clave: claveCompra("01", "FC03N", String(i + 1), "6", "20100070970"),
+        clave: claveCompra("01", "FC3N", String(i + 1), "6", "20100070970"),
         tipoDoc: "01",
-        serie: "FC03N",
+        serie: "FC3N",
         numero: String(i + 1),
         docTipo: "6",
         docNumero: "20100070970",
