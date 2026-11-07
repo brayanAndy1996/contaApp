@@ -1,6 +1,6 @@
 # Spec 013 · Ventas (RVIE): descarga, importación, grilla y correlatividad
 
-Estado: aprobada (2026-11-06; el usuario respondió P-1 a P-11, ver «Decisiones del usuario»). Rama `spec/013-ventas` desde `main` (e21a465). Plan y tareas en `plan.md` y `tasks.md`.
+Estado: hecha (cierre el 2026-11-07; aprobada el 2026-11-06, el usuario respondió P-1 a P-11, ver «Decisiones del usuario»; D24 y D26 por el usuario el 2026-11-07). Rama `spec/013-ventas` desde `main` (e21a465). Plan y tareas en `plan.md` y `tasks.md`.
 Nivel de riesgo: B (P-11) — (3) sí: una boleta omitida o un resumen mal sumado no se nota a simple vista; (4) sí: muchas series, rangos, monedas y descargas concurrentes; (2) parcial: tablas nuevas con RLS y un archivo del usuario como entrada; (1) parcial: la propuesta es de lectura y no genera archivo aquí. Por §2.1 literal ((3) y (4), más (1) parcial) puede leerse como A: 04 §4 la fija en B.
 Cubre: RF-050, RF-051, RF-052, RF-053, RF-055, RF-056 · HU-11, HU-12 (y RF-042 en HU-11). Prepara el formato del TXT de ventas (RF-100, ver D13). No cubre RF-054 (R2).
 
