@@ -58,7 +58,7 @@ Rutas (todas bajo `/clientes/:clienteId/periodos/:periodo/ventas`; `ClienteScope
 - Persistidor por libro y encabezado con contadores calculados antes de insertarlo — así `propuesta` no se actualiza nunca y 014 no toca nada común.
 - El complemento se serializa con un bloqueo advisory por (cliente, periodo, libro) y la clave única es la red de seguridad — dos descargas simultáneas no dan `40P01` ni duplicados (D16).
 - Cada tabla va en su migración y solo las columnas `revertido_*` admiten `UPDATE` — mínimo privilegio y trazabilidad hasta 017.
-- Resumen y correlatividad se calculan con las filas del periodo en memoria (tope 20.000) con funciones puras — una sola implementación, probada sin BD.
+- Resumen y correlatividad se calculan con las filas del periodo en memoria con funciones puras — una sola implementación, probada sin BD. Tras D19 el periodo no tiene tope de filas vivas (el de 20.000 es por descarga o importación), así que `leerFilasVentas` es lineal en el periodo; si un periodo real pasa de unas 100.000 filas, pasar a agregados SQL (observación de T22, no bloqueante).
 - `PropuestaSire` pasa a unión por `libro` y `FilaPropuestaSire` no cambia — 014 no se rompe.
 - El layout de importación vive en `packages/domain` y el lector de archivos es el de 007b — el parser no se reescribe; el bloqueo por `NODE_ENV` lo decide el servicio, nunca la petición.
 - Nada de `number` para dinero: el frontend solo muestra cadenas del servidor y no suma.
@@ -72,3 +72,10 @@ Rutas (todas bajo `/clientes/:clienteId/periodos/:periodo/ventas`; `ClienteScope
 - La forma de `PersistidorLibro` difiere de la que 014 pidió (`persistir(...)` que devuelve `{ agregadas, existentes, difieren }`): aquí la comparación es común y queda en `propuesta_diferencia`, que responde su pregunta Q-1; T4 de 014 lo reconcilia al rebasar.
 - 014 desarrollándose en paralelo toca `puertos.ts` y `catalogo.ts` → 013 se mergea primero; 014 rebasa y solo agrega campos opcionales y su persistidor.
 - La regla `tipo: "ruc"` de D13 toca `registro.ts` (nivel A) → pruebas del tester y las suites de 012 completas en verde.
+
+## Contrato real del persistidor (T22; lo que 014 recibe de `main`)
+Reemplaza al «Persistidor común» de arriba, que se escribió antes de implementar.
+- `packages/db/src/propuestas/complemento.ts`: `aplicarComplemento(tx, { clienteId, periodo, libro, fuente, hash, usuarioId, trabajoId, filas, leerExistentes, planificar, insertar }) → { propuesta, plan }` y `hashContenido(libro, periodo, filas)`. `planificar` es `planificarComplemento` del dominio. Las filas son `FilaComplementable<D> { clave, campos: Record<string,string>, datos }`; el tope de 20.000 recibidas lo aplica quien llama (D19). `crearPropuesta` e `insertarDiferencias` son comunes; `propuesta_diferencia.origen_existente` solo admite `sire` | `manual`, y `partesDeClave` toma `tipo`, `serie` y `numero` de las **tres primeras partes** de la clave (`tipo|SERIE|numero`): la clave de compras debe empezar así y sumar el documento del proveedor al final.
+- Worker (`apps/worker/src/trabajos/persistidores/`): `PersistidorLibro<D> { preparar(filasCrudas) → FilaPreparada<D>[]; leerExistentes(tx, { clienteId, periodo }) → ExistenteComplemento[]; insertar(tx, ctx, propuestaId, nuevas) }` (`preparar` valida cada fila y lanza `ErrorPropuesta("fila_invalida")` sin contenido) y el registro `PERSISTIDORES: Partial<Record<LibroSire, PersistidorLibro>>` en `index.ts` (compras: un archivo y una línea).
+- `resultado` del trabajo: `{ propuestaId, recibidas, nuevas, iguales, distintas, claves (≤ 40, únicas), truncado }` (no `{ agregadas, existentes, difieren }`). Ruta de encolado: 202 `{ trabajoId }`.
+- Tabla `propuesta`: columnas `creada_en` (no `creada_at`), `trabajo_id` sin FK y los cuatro contadores, además de las del contrato de 014.
