@@ -774,6 +774,14 @@ export interface HojaXlsx {
   filas: (CeldaXlsx | null)[][];
 }
 
+/**
+ * `fast-xml-parser` normaliza el `\r` literal a `\n` y no decodifica las referencias numéricas (`&#13;`, `&#xD;`).
+ * Un CR escrito como referencia (como hace el exportador) se cambia antes de analizar por un marcador de uso privado
+ * y se restaura en `textoDe`, así el lector conserva el retorno de carro tal como está en el archivo.
+ */
+const MARCA_CR = "\uE000";
+const REF_CR = /&#(?:0*13|x0*[dD]);/g;
+
 const analizador = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
@@ -788,7 +796,7 @@ const lista = (x: unknown): any[] =>
   x === undefined || x === null ? [] : Array.isArray(x) ? x : [x];
 const textoDe = (t: unknown): string => {
   if (t === undefined || t === null) return "";
-  if (typeof t === "string") return t;
+  if (typeof t === "string") return t.replaceAll(MARCA_CR, "\r");
   if (typeof t === "object") return textoDe((t as any)["#text"]);
   return String(t);
 };
@@ -812,7 +820,7 @@ export function leerLibroXlsx(bytes: Uint8Array): HojaXlsx[] {
   const parte = (ruta: string): any => {
     const b = partes[ruta];
     if (b === undefined) throw new Error(`falta la parte ${ruta} del .xlsx`);
-    return analizador.parse(strFromU8(b));
+    return analizador.parse(strFromU8(b).replace(REF_CR, MARCA_CR));
   };
   const libro = parte("xl/workbook.xml");
   const rels = lista(parte("xl/_rels/workbook.xml.rels")?.Relationships?.Relationship);
