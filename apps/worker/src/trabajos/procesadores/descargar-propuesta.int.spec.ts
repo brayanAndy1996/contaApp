@@ -305,19 +305,9 @@ describe("CA-1: la primera descarga con el mock", () => {
     expect(a!.hash).toBe(b!.hash);
     expect(c!.hash).not.toBe(a!.hash);
   });
-
-  it("libro compras (sin persistidor hasta 014): error/datos_invalidos sin reintentos y nada guardado", async () => {
-    const m = await mundoVentas(e, backend);
-    const api = new SireApiControlado();
-    const r = await conWorker(api, () => descargar(m, { libro: "compras" }));
-    expect([r.estado, r.motivo, r.intentos]).toEqual([
-      "error",
-      "datos_invalidos",
-      0,
-    ]);
-    await nada(m);
-    // Cuando 014 registre el persistidor de compras esta prueba se reemplaza por la suya (plan: Riesgos).
-  });
+  // El caso «libro compras sin persistidor» se retiró (spec 014, T8): 014 registra el persistidor de compras y lo prueba
+  // `persistidores/persistidor-compras.int.spec.ts`. El libro sin persistidor sigue cubierto por la unitaria
+  // `descargar-propuesta.spec.ts` («libro sin persistidor: libro_no_soportado»).
 });
 
 // ---------------------------------------------------------------------------------------------------------------

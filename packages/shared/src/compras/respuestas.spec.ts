@@ -166,10 +166,45 @@ describe("masivas, deshacer, descarga y errores con datos", () => {
     expect(ok(deshacerRespuestaSchema, { operacionId: randomUUID(), filas: [randomUUID()] })).toBe(true);
     expect(ok(deshacerRespuestaSchema, { operacionId: randomUUID(), filas: 8 })).toBe(false);
   });
-  it("el informe de descarga tiene como máximo 40 claves en difieren", () => {
-    const claves = (n: number) => Array.from({ length: n }, (_, i) => `k${i}`);
-    expect(ok(informeDescargaSchema, { agregadas: 1, existentes: 4, difieren: claves(40), difierenTotal: 90 })).toBe(true);
-    expect(ok(informeDescargaSchema, { agregadas: 1, existentes: 4, difieren: claves(41) })).toBe(false);
+  // Spec 014 · T8 (rojo hasta T13): el `resultado` real del trabajo de descarga es el de 013, `{ propuestaId, recibidas,
+  // nuevas, iguales, distintas, claves (≤ 40), truncado }` (plan 014, Contrato real de 013, punto 5). Reemplaza al
+  // `{ agregadas, existentes, difieren, difierenTotal }` de T4.
+  describe("informe de descarga (forma real del resultado de 013)", () => {
+    const claves = (n: number) => Array.from({ length: n }, (_, i) => `01|F001|${i + 1}|6|20100070970`);
+    const informe = (o: Record<string, unknown> = {}) => ({
+      propuestaId: randomUUID(),
+      recibidas: 6,
+      nuevas: 1,
+      iguales: 4,
+      distintas: 1,
+      claves: claves(1),
+      truncado: false,
+      ...o,
+    });
+    it("acepta el resultado de CA-1 (5 nuevas, sin diferencias) y el de CA-17", () => {
+      expect(ok(informeDescargaSchema, informe({ recibidas: 5, nuevas: 5, iguales: 0, distintas: 0, claves: [] }))).toBe(true);
+      expect(ok(informeDescargaSchema, informe())).toBe(true);
+    });
+    it("tiene como máximo 40 claves", () => {
+      expect(ok(informeDescargaSchema, informe({ claves: claves(40), distintas: 90, truncado: true }))).toBe(true);
+      expect(ok(informeDescargaSchema, informe({ claves: claves(41), truncado: true }))).toBe(false);
+    });
+    it("rechaza la forma anterior de T4 (agregadas, existentes, difieren)", () => {
+      expect(ok(informeDescargaSchema, { agregadas: 1, existentes: 4, difieren: claves(1) })).toBe(false);
+    });
+    it.each([
+      ["sin propuestaId", { propuestaId: undefined }],
+      ["propuestaId que no es uuid", { propuestaId: "p-1" }],
+      ["sin truncado", { truncado: undefined }],
+      ["truncado que no es booleano", { truncado: "si" }],
+      ["recibidas negativas", { recibidas: -1 }],
+      ["nuevas con decimales", { nuevas: 1.5 }],
+      ["iguales como cadena", { iguales: "4" }],
+      ["distintas sin definir", { distintas: undefined }],
+      ["claves que no son cadenas", { claves: [1, 2] }],
+    ])("rechaza: %s", (_nombre, cambio) => {
+      expect(ok(informeDescargaSchema, informe(cambio))).toBe(false);
+    });
   });
   it("los errores con datos exigen su dato", () => {
     expect(ok(errorVersionObsoletaSchema, { codigo: "version_obsoleta", versionVigente: 3 })).toBe(true);
