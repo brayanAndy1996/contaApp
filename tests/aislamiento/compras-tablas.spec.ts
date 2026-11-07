@@ -69,6 +69,15 @@ let errSiembra: unknown;
 const requiereSiembra = () => {
   if (errSiembra) throw errSiembra;
 };
+/**
+ * T19 (H-014-6): siembra las versiones 2..`hasta` de una compra con el rol backend (INSERT, confirmadas) SIN mover el puntero.
+ * El trigger exige que `version_vigente` apunte a una versión que exista (y hacia delante), así que toda prueba que mueva el
+ * puntero tiene que sembrar antes la versión de destino.
+ */
+const conVersiones = (compraId: string, hasta: number) =>
+  dbs.contapp_backend.withTenant({ tenantId: X }, async (tx) => {
+    for (let n = 2; n <= hasta; n++) await tx.query(INSERTAR_VERSION, valoresVersion(compraId, n));
+  });
 
 beforeAll(async () => {
   admin = abrirAdmin(8);
@@ -858,6 +867,8 @@ describe("0032 · compra_version: unica por (compra, n) (D-2)", () => {
     const b = dbs.contapp_backend;
     for (let ronda = 0; ronda < 15; ronda++) {
       const c = await ec.compra(X, cx, { propuestaId: propX });
+      // T19 (H-014-6): el trigger exige que las versiones de destino existan; se siembran 2 y 3 sin mover el puntero.
+      await conVersiones(c.id, 3);
       const llegar = barrera(2);
       const mover = (n: number) =>
         b.withTenant({ tenantId: X }, async (tx) => {
@@ -935,6 +946,7 @@ describe("0032 · inmutabilidad de la identidad: trigger y grants (RNF-052, D-1,
 
   it("el superusuario tampoco puede cambiar la identidad (lo impide el trigger, no solo los grants), pero si mover el puntero", async () => {
     const c = await ec.compra(X, cx, { propuestaId: propX });
+    await conVersiones(c.id, 2); // T19 (H-014-6): el puntero solo se mueve a una versión que existe
     const cx1 = await admin.connect();
     try {
       await cx1.query("BEGIN");
@@ -969,6 +981,9 @@ describe("0032 · inmutabilidad de la identidad: trigger y grants (RNF-052, D-1,
 
   it("el backend mueve version_vigente y descarta (descartada_en de NULL a una fecha); no se puede deshacer ni cambiar la fecha", async () => {
     const c = await ec.compra(X, cx, { origen: "agregada" });
+    // T19 (H-014-6): antes el puntero se movía a una versión 2 que no existía; ahora se siembra la versión 2 (la prueba sigue
+    // demostrando lo mismo: el backend mueve el puntero con CAS y descarta una vez, y no puede deshacer ni cambiar la fecha).
+    await conVersiones(c.id, 2);
     const b = dbs.contapp_backend;
     await b.withTenant({ tenantId: X }, async (tx) => {
       expect(
@@ -1020,6 +1035,93 @@ describe("0032 · inmutabilidad de la identidad: trigger y grants (RNF-052, D-1,
     ).toEqual({
       d: true,
       version_vigente: 2,
+    });
+  });
+
+  // ---- T19 · H-014-6 (rojo hasta T20): el trigger protege el puntero y el descarte, no solo la identidad ----------------------
+  // Hasta hoy el CAS y estas reglas vivían solo en la aplicación: un UPDATE directo del rol backend podía (a) apuntar a una versión
+  // inexistente (la compra desaparece de listado, resumen, Excel y 012b), (b) retroceder el puntero (cambia la vigente sin
+  // versión, autor ni fecha, D-12) o (c) descartar una compra del SIRE (D-7: las del SIRE se excluyen, no se descartan).
+  // `intentar` siempre revierte; los casos aceptados (control) prueban que el rechazo es por la regla y no por otra cosa.
+  describe("H-014-6 · puntero version_vigente y descarte con UPDATE directo", () => {
+    const mover = (compraId: string, hacia: number, desde?: number) =>
+      intentar(
+        dbs.contapp_backend,
+        { tenantId: X },
+        desde === undefined
+          ? "update compra set version_vigente = $2 where id = $1"
+          : "update compra set version_vigente = $2 where id = $1 and version_vigente = $3",
+        desde === undefined ? [compraId, hacia] : [compraId, hacia, desde],
+      );
+    const puntero = async (compraId: string) =>
+      (await admin.query("select version_vigente from compra where id = $1", [compraId])).rows[0].version_vigente as number;
+
+    it("apuntar a una versión que no existe falla (la 2 con solo la 1; la 99 con la 1 y la 2) y el puntero no cambia", async () => {
+      const c = await ec.compra(X, cx, { propuestaId: propX });
+      expect((await mover(c.id, 2, 1)).ok, "versión 2 inexistente").toBe(false);
+      await conVersiones(c.id, 2);
+      expect((await mover(c.id, 99, 1)).ok, "versión 99 inexistente").toBe(false);
+      expect(await puntero(c.id)).toBe(1);
+    });
+
+    it("control: avanzar a una versión que existe sí entra (con el CAS de la aplicación y sin él)", async () => {
+      const c = await ec.compra(X, cx, { propuestaId: propX });
+      await conVersiones(c.id, 3);
+      expect(await mover(c.id, 2, 1)).toEqual({ ok: true, rowCount: 1 });
+      expect(await mover(c.id, 3)).toEqual({ ok: true, rowCount: 1 });
+    });
+
+    it("la versión de OTRA compra no cuenta: la compra B con solo la versión 1 no puede apuntar a la 2 que tiene la A", async () => {
+      const a = await ec.compra(X, cx, { propuestaId: propX });
+      const b = await ec.compra(X, cx, { propuestaId: propX });
+      await conVersiones(a.id, 2);
+      expect((await mover(a.id, 2, 1)).ok, "control: la A sí").toBe(true);
+      expect((await mover(b.id, 2, 1)).ok, "la B no").toBe(false);
+    });
+
+    it("retroceder el puntero (2 a 1, 3 a 2) falla y no deja versión, autor ni fecha: el puntero sigue donde estaba", async () => {
+      const c = await ec.compra(X, cx, { propuestaId: propX });
+      await conVersiones(c.id, 3);
+      await dbs.contapp_backend.withTenant({ tenantId: X }, async (tx) => {
+        await tx.query("update compra set version_vigente = 2 where id = $1 and version_vigente = 1", [c.id]);
+      });
+      expect((await mover(c.id, 1, 2)).ok, "2 a 1").toBe(false);
+      expect((await mover(c.id, 1)).ok, "2 a 1 sin CAS").toBe(false);
+      expect((await mover(c.id, 3, 2)).ok, "control: 2 a 3 sí").toBe(true);
+      expect(await puntero(c.id)).toBe(2);
+    });
+
+    it("descartar una compra del SIRE falla (también para el superusuario); descartar una agregada sí (control) y la del SIRE queda viva", async () => {
+      const sire = await ec.compra(X, cx, { propuestaId: propX });
+      const agregada = await ec.compra(X, cx, { origen: "agregada" });
+      const sql = "update compra set descartada_en = now() where id = $1";
+      expect((await intentar(dbs.contapp_backend, { tenantId: X }, sql, [sire.id])).ok, "backend sobre el SIRE").toBe(false);
+      const su = await admin.connect();
+      try {
+        await su.query("BEGIN");
+        expect((await probar(su, sql, [sire.id])).ok, "superusuario sobre el SIRE").toBe(false);
+        expect((await probar(su, sql, [agregada.id])).ok, "control: superusuario sobre la agregada").toBe(true);
+      } finally {
+        await su.query("ROLLBACK").catch(() => undefined);
+        su.release();
+      }
+      expect((await intentar(dbs.contapp_backend, { tenantId: X }, sql, [agregada.id])).ok, "control: backend sobre la agregada").toBe(true);
+      expect(await contarFilas(admin, "compra", "id = $1 and descartada_en is null", [sire.id])).toBe(1);
+    });
+
+    it("el superusuario tampoco apunta a una versión inexistente ni retrocede el puntero (lo impide el trigger, no solo los grants)", async () => {
+      const c = await ec.compra(X, cx, { propuestaId: propX });
+      await conVersiones(c.id, 2);
+      const su = await admin.connect();
+      try {
+        await su.query("BEGIN");
+        expect((await probar(su, "update compra set version_vigente = 99 where id = $1", [c.id])).ok, "a la 99").toBe(false);
+        expect((await probar(su, "update compra set version_vigente = 2 where id = $1", [c.id])).ok, "control: a la 2").toBe(true);
+        expect((await probar(su, "update compra set version_vigente = 1 where id = $1", [c.id])).ok, "hacia atrás").toBe(false);
+      } finally {
+        await su.query("ROLLBACK").catch(() => undefined);
+        su.release();
+      }
     });
   });
 

@@ -16,8 +16,9 @@ describe("aRespuestaEstado", () => {
 });
 
 describe("PeriodoComprasService.reabrir", () => {
+  // DU-23: `reabrir` recibe el estado visto como último argumento (T19 ajusta la llamada; el typecheck falla hasta T20).
   it("sin sire.aprobar_generar es 403 antes de abrir ninguna transacción", () => {
     const servicio = new PeriodoComprasService({ withTenant: () => Promise.reject(new Error("no debe abrir la BD")) });
-    expect(() => servicio.reabrir({} as never, { tipo: "global" }, new Set(["sire.clasificar"]), "c", "202610")).toThrow(AccesoError);
+    expect(() => servicio.reabrir({} as never, { tipo: "global" }, new Set(["sire.clasificar"]), "c", "202610", "revisado")).toThrow(AccesoError);
   });
 });

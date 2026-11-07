@@ -448,7 +448,7 @@ function casosCompras(): Caso[] {
     caso("POST", "/deshacer", () => "/deshacer", () => ({})),
     caso("POST", "/rehacer", () => "/rehacer", () => ({})),
     caso("POST", "/estado/revisar", () => "/estado/revisar", () => ({})),
-    caso("POST", "/estado/reabrir", () => "/estado/reabrir", () => ({})),
+    caso("POST", "/estado/reabrir", () => "/estado/reabrir", () => ({ estadoVisto: "revisado" })), // DU-23
   ];
 }
 

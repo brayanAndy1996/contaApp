@@ -1276,7 +1276,7 @@ describe("CA-12 · marcar revisado y reabrir (D-9)", () => {
   it("reabrir exige sire.aprobar_generar: el asistente recibe 403 permiso_denegado", async () => {
     const { c } = await escenario();
     await v.estadoPeriodo(E.tenantId, c.id, PERIODO, "revisado", contador.id);
-    const r = await post(asistente, c, "/estado/reabrir");
+    const r = await post(asistente, c, "/estado/reabrir", { estadoVisto: "revisado" }); // DU-23: lleva el estado visto
     expect(r.status, r.text).toBe(403);
     expect(r.body).toEqual({ codigo: "permiso_denegado" });
     expect((await v.periodoFila(c.id)).estado).toBe("revisado");
@@ -1288,7 +1288,7 @@ describe("CA-12 · marcar revisado y reabrir (D-9)", () => {
       await v.estadoPeriodo(E.tenantId, c.id, PERIODO, desde, contador.id);
       const bloqueada = await post(asistente, c, `/${ids["F001-3064"]}/clasificar`, { versionBase: 1, destino: "DNG" });
       expect(bloqueada.status).toBe(desde === "revisado" ? 403 : 409);
-      const r = await post(contador, c, "/estado/reabrir");
+      const r = await post(contador, c, "/estado/reabrir", { estadoVisto: desde }); // DU-23: lleva el estado visto
       expect(r.status, `${desde}: ${r.text}`).toBe(200);
       expect(r.body.estado).toBe("abierto");
       expect((await v.periodoFila(c.id)).estado).toBe("abierto");
@@ -1299,7 +1299,7 @@ describe("CA-12 · marcar revisado y reabrir (D-9)", () => {
 
   it("reabrir un periodo abierto es 409 estado_invalido", async () => {
     const { c } = await escenario();
-    const r = await post(contador, c, "/estado/reabrir");
+    const r = await post(contador, c, "/estado/reabrir", { estadoVisto: "revisado" }); // DU-23
     expect(r.status, r.text).toBe(409);
     expect(r.body).toEqual({ codigo: "estado_invalido" });
   });
@@ -1308,7 +1308,7 @@ describe("CA-12 · marcar revisado y reabrir (D-9)", () => {
     const { c } = await escenario();
     const antes = (await v.foto(c.id)).versiones;
     await post(contador, c, "/estado/revisar");
-    await post(contador, c, "/estado/reabrir");
+    await post(contador, c, "/estado/reabrir", { estadoVisto: "revisado" }); // DU-23
     expect((await v.foto(c.id)).versiones).toEqual(antes);
     expect((await post(contador, c, "/deshacer")).body).toEqual({ codigo: "nada_que_deshacer" });
   });
@@ -1354,7 +1354,7 @@ const RUTAS: Ruta[] = [
   { nombre: "deshacer", escribe: true, metodo: "POST", ruta: () => "/deshacer", cuerpo: () => ({}) },
   { nombre: "rehacer", escribe: true, metodo: "POST", ruta: () => "/rehacer", cuerpo: () => ({}) },
   { nombre: "revisar", escribe: true, metodo: "POST", ruta: () => "/estado/revisar", cuerpo: () => ({}) },
-  { nombre: "reabrir", escribe: true, metodo: "POST", ruta: () => "/estado/reabrir", cuerpo: () => ({}), aprobar: true },
+  { nombre: "reabrir", escribe: true, metodo: "POST", ruta: () => "/estado/reabrir", cuerpo: () => ({ estadoVisto: "revisado" }), aprobar: true },
 ];
 const ES_DE_COMPRA = (r: Ruta) => r.ruta({ "F001-3064": "x", "F001-1040": "x" }).startsWith("/x");
 

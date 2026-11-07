@@ -187,3 +187,46 @@ describe("H-013-4 · el tope de 20.000 filas es de lo que llega, no del total de
     expect((await v.conteo(c.id)).ventas).toBe(20_005);
   });
 });
+
+describe("H-014-5 · GET propuestas/:id/diferencias acepta el UUID de la propuesta en mayúsculas", () => {
+  const diferencias = (clienteId: string, id: string, periodo = "202610") =>
+    v.llamar(contador, "GET", `${base(clienteId, periodo)}/propuestas/${id}/diferencias`);
+  const conDiferencia = async (clienteId: string, periodo = "202610") => {
+    const propuestaId = await v.sembrarPropuesta(E.tenantId, clienteId, { libro: "ventas", nuevas: 1, distintas: 1, periodo, usuarioId: E.titular.id });
+    await v.sembrarDiferencia(E.tenantId, propuestaId, { serie: "B001", numero: "290", campos: ["total"], valoresSire: { total: "1.00" } });
+    return propuestaId;
+  };
+
+  it("caso feliz: en minúsculas, en mayúsculas y con mayúsculas y minúsculas mezcladas da la misma respuesta (200)", async () => {
+    const c = await nuevo();
+    const id = await conDiferencia(c.id);
+    const min = await diferencias(c.id, id.toLowerCase());
+    expect(min.status, min.text).toBe(200);
+    expect(min.body).toHaveLength(1);
+    const may = await diferencias(c.id, id.toUpperCase());
+    expect(may.status, `mayúsculas: ${may.text}`).toBe(200);
+    expect(may.body).toEqual(min.body);
+    const mezcla = id
+      .split("")
+      .map((ch, i) => (i % 2 === 0 ? ch.toUpperCase() : ch.toLowerCase()))
+      .join("");
+    const mix = await diferencias(c.id, mezcla);
+    expect(mix.status, `mezcla: ${mix.text}`).toBe(200);
+    expect(mix.body).toEqual(min.body);
+  });
+
+  it("error: la propuesta de otro cliente, de otro periodo o inexistente sigue siendo 404 aunque venga en mayúsculas", async () => {
+    const c = await nuevo();
+    const otro = await nuevo();
+    const ajena = await conDiferencia(otro.id);
+    const deOtroPeriodo = await conDiferencia(c.id, "202609");
+    for (const [nombre, id] of [
+      ["ajena", ajena],
+      ["otro periodo", deOtroPeriodo],
+      ["inexistente", "0198F6C0-0000-7000-8000-0000000000AA"],
+    ] as const) {
+      const r = await diferencias(c.id, id.toUpperCase());
+      expect(r.status, `${nombre}: ${r.text}`).toBe(404);
+    }
+  });
+});

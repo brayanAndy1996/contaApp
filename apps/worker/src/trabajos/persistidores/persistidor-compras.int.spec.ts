@@ -440,6 +440,8 @@ describe("CA-1 y D-3: todo o nada", () => {
     ["fecha inexistente", { fechaEmision: "2026-02-30" }],
     ["número vacío", { numero: "" }],
     ["barra vertical en una parte de la clave", { numero: "12|3" }],
+    // H-014-4 / DU-24: el NUL no cabe en un `text` de PostgreSQL (22021); se rechaza con fila_invalida, no se limpia.
+    ["razón social con NUL (DU-24)", { razonSocialContraparte: "ACME\u0000 SAC" }],
   ];
 
   it.each(ILEGIBLES)(
