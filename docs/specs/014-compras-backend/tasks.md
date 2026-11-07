@@ -35,7 +35,7 @@ Nivel B con una ronda adversarial acotada (spec DU-12). Flujo 04 §1.3: pruebas 
 | T22a | Pruebas en rojo: código de rechazo de la masiva (M-1) y `descartarAgregadas` en BD | tester | sonnet | T22 | sí | ✓ | — | [x] |
 | T22b | Corregir M-1 y documentar el protocolo de lectura para 012b | backend | sonnet | T22a | sí | — | — | [x] |
 | T22c | Renombrar la migración `0033b` a `0034` (014 aún no está en `main`) | devops | haiku | T22 ∥ T22a | sí | — | — | [x] |
-| T23 | Cierre: tasks y commit (el orquestador actualiza ESTADO)                                          | devops     | haiku  | T22b, T22c          | sí  | —   | —   | [ ]    |
+| T23 | Cierre: tasks y commit (el orquestador actualiza ESTADO)                                          | devops     | haiku  | T22b, T22c          | sí  | —   | —   | [x]    |
 
 Paralelismo: T1 ∥ T2, T3 ∥ T4 (los dos sobre pruebas ya en rojo); T6 ∥ T7 ∥ T8 y T9 ∥ T10 (archivos distintos; T8, T9 y T10 esperan los fixtures de T7 solo donde los usan); T13 ∥ T14; T16 ∥ T17 (T17 no toca los archivos de T16: `exportar.service.ts` y su ruta van en un controlador propio). Los pares que comparten `compras.module.ts` (T15, T16) van en serie.
 
@@ -291,7 +291,21 @@ Reglas comunes:
 - **Hecho cuando**: `pnpm db:migrate` dos veces seguidas sin error sobre la base de pruebas (ya migrada: no aplica nada) y sobre una base nueva vacía (aplica 35 migraciones; trigger endurecido presente); `pnpm --filter @contapp/db exec drizzle-kit generate` no produce migración («nothing to migrate»); `tests/aislamiento/compras-tablas.spec.ts` y `pnpm --filter @contapp/db test` en verde.
 - **Resultado**: hecha. `git mv` de `0033b_compra_puntero_vigente.sql` y de `meta/0033b_snapshot.json` a `0034_…`; en `_journal.json` solo cambió el `tag` de `idx` 34 (`when` e `idx` intactos; el contenido del SQL y del snapshot no se tocó, así que el comentario interno del SQL sigue diciendo `0033b`). Ninguna rama remota tiene migraciones 0034 o superiores. Comentario de `schema/compras.ts` y nota [siguientes] de `ESTADO.md` actualizados (014 usa 0032–0034; 012b y 015 parten de la 0035). `pnpm db:migrate` dos veces sobre la base local (ya había aplicado `0033b`): OK y no re-aplica (35 filas en `__drizzle_migrations`, mismo `when`); sobre una base nueva vacía (creada y borrada) dos veces: OK, 35 filas y el trigger endurecido presente. `drizzle-kit generate`: «nothing to migrate».
 
-## T23 · Cierre (devops · haiku)
+## T23 · [x] Cierre (devops · haiku)
 - **Contexto (leer solo esto)**: `docs/specs/014-compras-backend/tasks.md`, `git status`.
 - **Hacer**: marcar las tareas en `tasks.md`, confirmar que el árbol está limpio salvo cambios ajenos, y hacer el commit final `docs(014): cierre de tareas` con `git add` explícito. Sin push. El orquestador actualiza `ESTADO.md` (fila 014, hallazgos H-014 y M-1, y las notas: [siguientes] migraciones desde la 0035; [012b] protocolo de lectura de `plan.md`; [013] credenciales al descargar solo en compras; [016] única `(compra, version_n, regla)`; [mantenimiento] escritor xlsx común; Q-4 y Q-5). Alinear los encabezados `## Tn` y la tabla con el estado real.
 - **Hecho cuando**: `tasks.md` refleja el estado real y el commit existe en `spec/014-compras-backend`.
+- **Resultado**: hecha (2026-11-07). Commit `chore(014): cierre` en `spec/014-compras-backend`, sin push. El CI de GitHub sobre el HEAD final no se verifica aquí: lo verifica el orquestador antes del merge.
+  - **Criterios**: `spec.md` pasa a «Estado: hecha (cierre el 2026-11-07; …)». Los 20 CA (CA-1 a CA-20) están `[x]`; T22 ya los había marcado y no se cambió ningún texto de CA.
+  - **Checks**: `pnpm install --frozen-lockfile` OK (la única advertencia es `Unsupported engine`: `package.json` pide Node `>=24.1.0 <25` y el entorno tiene Node 22.22.0; no impide la instalación). `pnpm lint` OK, 9 de 9 tareas. `pnpm typecheck` OK, 15 de 15 tareas. Turbo sirvió ambos desde caché (`FULL TURBO`) y esta tarea solo cambia documentos. Sin fallos.
+  - **Árbol**: limpio. No hay `dump.rdb` ni artefactos sin ignorar; solo quedan ignorados (`dist/`, `.turbo/`, `coverage/`, `.next/`, `next-env.d.ts`, `tsconfig.tsbuildinfo`).
+  - **Texto sugerido para ESTADO** (no tocado aquí; lo aplica el orquestador en `main`):
+    - Fila: `| 014-compras-backend | B | hecha | — | Hecha en spec/014-compras-backend. Migraciones 0032 a 0034. Hallazgos H-014-1 a H-014-6 (ronda T18) corregidos en T20; M-1 (revisión T22) corregido en T22b. |`
+    - Hallazgos: H-014-1 a H-014-6 `corregido` (T20); M-1 `corregido` (T22b, prueba previa en T22a).
+    - [siguientes] Migraciones desde la 0035: 014 usa 0032, 0033 y 0034; 012b y 015 parten de la 0035.
+    - [012b] Protocolo de lectura de `plan.md`, «Contrato con 012b»: fijar `generado` primero en la misma transacción y leer después; no usar `foto`; `aFila` recibe `CompraLeida` plana.
+    - [013] Credenciales al descargar solo en compras (desvío ratificado en T22; `plan.md`, «Desvíos ratificados en T22»).
+    - [016] La restricción única `(compra, version_n, regla)` chocará al re-evaluar (DU-22; `plan.md`).
+    - [mantenimiento] El escritor xlsx de compras es propio: unificarlo con el común (deuda).
+    - Q-4 (razón social de más de 100 caracteres: BD 200, TXT 100) y Q-5 (pila de deshacer atascada tras descartar o cambiar una fila) abiertas.
+    - Observaciones (a) a (e) de T22 sin tarea: quedan en su Resultado.
