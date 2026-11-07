@@ -107,6 +107,10 @@ export interface FilaPropuestaSire {
   serie: string;
   numero: string;
   rucContraparte: string;
+  /** Tipo de documento del proveedor (catálogo 06). Ausente = «6» (RUC). */
+  tipoDocContraparte?: string;
+  /** Razón social del proveedor. */
+  razonSocialContraparte?: string;
   /** AAAA-MM-DD */
   fechaEmision: string;
   moneda: "PEN" | "USD";
