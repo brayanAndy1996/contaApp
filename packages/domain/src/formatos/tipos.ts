@@ -1,8 +1,8 @@
 // Tipos de formatos/ (plan 012, Contratos). Conteos y longitudes con `Entero`, nunca dinero.
 import type { Entero } from "../texto/entero";
 
-/** Libro del registro. 013 agrega "ventas" (D15). */
-export type Libro = "compras";
+/** Libro del registro. 013 agrega "ventas" (D13): solo la definición del formato; no se genera aún (012b). */
+export type Libro = "compras" | "ventas";
 
 export type Codificacion = "ascii" | "latin1" | "utf8";
 
