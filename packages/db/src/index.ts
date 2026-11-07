@@ -221,6 +221,18 @@ export { aplicarAccion, aplicarMasiva, deshacer, rehacer } from "./compras/opera
 export { fijarEstadoPeriodo, leerEstadoPeriodo } from "./compras/periodo";
 export { leerExistentesCompras, leerProveedoresConocidos } from "./compras/existentes";
 export { leerFilasReemplazo } from "./compras/filas-reemplazo";
+export { leerDetalleCompra, leerHallazgosVigentes, leerLoteParaResumen, listarCompras } from "./compras/lectura";
+export type {
+  CompraListada,
+  CompraParaResumen,
+  CursorListado as CursorListadoCompras,
+  DetalleLeido as DetalleCompraLeido,
+  FiltrosListado as FiltrosListadoCompras,
+  HallazgoGuardadoFila as HallazgoGuardadoCompra,
+  PaginaListado as PaginaListadoCompras,
+  VersionHistorial as VersionHistorialCompra,
+  VistaListado as VistaListadoCompras,
+} from "./compras/lectura";
 export { COLUMNAS_MONTO as COLUMNAS_MONTO_COMPRA } from "./compras/tipos";
 export type {
   ColumnaMontoCompra,

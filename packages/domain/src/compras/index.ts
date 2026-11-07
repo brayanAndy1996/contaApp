@@ -9,3 +9,5 @@ export type { CompraParaReemplazo } from "./fila-reemplazo";
 export { EstadoPeriodoInvalidoError, puedeEscribir } from "./bloqueo";
 export type { EstadoPeriodo, ResultadoEscritura } from "./bloqueo";
 export { sugerenciaEsMasiva } from "./masivas";
+export { EXPLICACION_GENERICA, detallarHallazgo } from "./hallazgo-vista";
+export type { DetalleHallazgo, HallazgoGuardado } from "./hallazgo-vista";
