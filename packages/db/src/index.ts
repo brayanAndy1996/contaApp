@@ -211,3 +211,11 @@ export type {
 } from "./ventas/tipos";
 export { propuesta, propuestaDiferencia } from "./schema/propuestas";
 export { venta, ventaSaltoJustificado } from "./schema/ventas";
+// Spec 014: tablas de compras (versiones inmutables, operaciones, hallazgos y estado del periodo). Los repositorios son de T12.
+export {
+  compra,
+  compraHallazgo,
+  compraOperacion,
+  compraPeriodo,
+  compraVersion,
+} from "./schema/compras";
