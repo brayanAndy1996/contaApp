@@ -156,6 +156,24 @@ describe("editarCompraSchema y calcularCompraSchema (D-5, D-16)", () => {
     expect(ok(editarCompraSchema, { versionBase: 1, cambios: [] })).toBe(false);
   });
 
+  // DU-18 (T9): editar sin ninguna columna es 400; no crea versión ni entra en deshacer. Calcular no escribe y sigue aceptándolo.
+  it("DU-18: editar rechaza `cambios` vacío (al menos una columna)", () => {
+    expect(ok(editarCompraSchema, { versionBase: 1, cambios: {} })).toBe(false);
+  });
+
+  it("DU-18: editar rechaza `cambios` que solo trae claves que no son columnas (total, desconocidas)", () => {
+    expect(ok(editarCompraSchema, { versionBase: 1, cambios: { total: "5.00" } })).toBe(false);
+    expect(ok(editarCompraSchema, { versionBase: 1, cambios: { desconocida: "5.00" } })).toBe(false);
+  });
+
+  it("DU-18: editar con una sola columna sigue valiendo, también en cero", () => {
+    expect(ok(editarCompraSchema, { versionBase: 1, cambios: { biDg: "0.00" } })).toBe(true);
+  });
+
+  it("DU-18: calcular sigue aceptando `cambios` vacío (no escribe nada)", () => {
+    expect(ok(calcularCompraSchema, { cambios: {} })).toBe(true);
+  });
+
   it("el total no se edita: no llega a los cambios parseados (se descarta o se rechaza)", () => {
     const r = editarCompraSchema.safeParse({ versionBase: 1, cambios: { biDg: "10.00", total: "5.00" } });
     if (r.success) expect((r.data as { cambios: Record<string, unknown> }).cambios).not.toHaveProperty("total");
