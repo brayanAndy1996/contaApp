@@ -16,7 +16,7 @@ Que ningún archivo que genere ContApp salga «procesado con errores» (regla 11
 - `docs/03-arquitectura.md` §11 y §7.3 se actualizan con la ubicación de los formatos (D2).
 
 ## Fuera de alcance
-- Por D9, todo esto va en **012b**, después de 014: la tabla `archivo_generado` (con migración desde la 0032), `packages/storage` con `StorageProvider` y su mock o local, las rutas `POST`/`GET …/archivos` (422 con la lista de filas), el trabajo `archivo.generar` en la cola `archivos`, las versiones con usuario, fecha y hash y la descarga de versiones anteriores (RF-103), el botón «Generar» deshabilitado y el resumen en pantalla (HU-25 y HU-26, con el permiso `sire.aprobar_generar`) y la medición de RNF-035.
+- Por D9, todo esto va en **012b**, después de 014: la tabla `archivo_generado` (con migración desde la 0034), `packages/storage` con `StorageProvider` y su mock o local, las rutas `POST`/`GET …/archivos` (422 con la lista de filas), el trabajo `archivo.generar` en la cola `archivos`, las versiones con usuario, fecha y hash y la descarga de versiones anteriores (RF-103), el botón «Generar» deshabilitado y el resumen en pantalla (HU-25 y HU-26, con el permiso `sire.aprobar_generar`) y la medición de RNF-035.
 - Modelo de comprobantes y versiones de fila (014). Aquí se consume una forma de entrada (`FilaReemplazo`, D3) a la que 014 adapta sus datos.
 - Estructura del TXT de ventas (RVIE): 013 (D15). Correlatividad y boleta 291: 013.
 - Envío a SUNAT y seguimiento del ticket (RF-104, R2). Importar el TXT de SUNAT (RF-051, 013). Prorrata (R2).
