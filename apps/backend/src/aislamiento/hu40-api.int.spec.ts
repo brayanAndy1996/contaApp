@@ -377,6 +377,81 @@ const contrasenaMala = "incorrecta-HU40-aaaaaaaa";
 /** RUC del último archivo de `POST /clientes/importacion/confirmar` (para comprobar que no se creó). */
 let rucImportado = "";
 
+
+/**
+ * 014 (T10): las 23 rutas de compras. El estudio sale de la sesión y `:clienteId` pasa por `ClienteScopeGuard`: un cliente de B
+ * (o un id de otra cosa de B) desde A da 404 antes de leer, escribir o encolar. Las lecturas no devuelven nada de B; las
+ * escrituras no dejan compra, versión, operación, estado de periodo ni trabajo en B. Los ids de compra y de propuesta son al
+ * azar: la ruta se resuelve por el cliente, antes que por ellos. Una ruta nueva de compras sin caso rompe «toda ruta tiene caso».
+ * Rojo: el módulo `compras` aún no existe (T15 a T17).
+ */
+function casosCompras(): Caso[] {
+  const sinEfectosEnB = async (c: Contexto): Promise<void> => {
+    const f = await h.sql(
+      `select (select count(*)::int from compra where cliente_id = any($1::uuid[])) as compras,
+              (select count(*)::int from compra_version v join compra x on x.id = v.compra_id where x.cliente_id = any($1::uuid[])) as versiones,
+              (select count(*)::int from compra_operacion where cliente_id = any($1::uuid[])) as operaciones,
+              (select count(*)::int from compra_periodo where cliente_id = any($1::uuid[])) as periodos,
+              (select count(*)::int from propuesta where cliente_id = any($1::uuid[])) as propuestas`,
+      [c.ajeno.clientes],
+    );
+    expect(f[0]).toEqual({ compras: 0, versiones: 0, operaciones: 0, periodos: 0, propuestas: 0 });
+  };
+  const caso = (
+    metodo: "GET" | "POST",
+    sufijo: string,
+    real: (id: string) => string,
+    cuerpo?: (c: Contexto) => unknown,
+    escribe = metodo === "POST",
+  ): Caso => ({
+    ruta: `${metodo} /clientes/:clienteId/periodos/:periodo/compras${sufijo}`,
+    esperado: E404,
+    construir: (c) =>
+      idsDeCliente(c.ajeno).map((id) => ({
+        ...(metodo === "POST" ? { metodo: "POST" as const } : {}),
+        ruta: `/clientes/${id}/periodos/202610/compras${real(id)}`,
+        ...(cuerpo ? { cuerpo: cuerpo(c) } : {}),
+      })),
+    ...(escribe ? { extra: sinEfectosEnB } : {}),
+  });
+  const compra = () => randomUUID();
+  const items = () => [{ compraId: randomUUID(), versionBase: 1 }];
+  return [
+    caso("GET", "", () => "?limite=5000"),
+    caso("POST", "", () => "", (c) => ({
+      tipo: "01",
+      serie: "F001",
+      numero: "9999",
+      proveedor: { tipo: "6", numero: "20700000099", razonSocial: "Intruso HU40" },
+      fecha: "2026-10-05",
+      moneda: "PEN",
+      montos: { biDg: "100.00", igvDg: "18.00" },
+      tenantId: c.ajeno.tenantId,
+    })),
+    caso("POST", "/descargar", () => "/descargar"),
+    caso("GET", "/resumen", () => "/resumen"),
+    caso("GET", "/exportar.xlsx", () => "/exportar.xlsx"),
+    caso("GET", "/propuestas", () => "/propuestas"),
+    caso("GET", "/propuestas/:propuestaId/diferencias", () => `/propuestas/${randomUUID()}/diferencias`),
+    caso("GET", "/:compraId", () => `/${compra()}`),
+    caso("POST", "/:compraId/clasificar", () => `/${compra()}/clasificar`, () => ({ versionBase: 1, destino: "DNG" })),
+    caso("POST", "/:compraId/editar", () => `/${compra()}/editar`, () => ({ versionBase: 1, cambios: { biDg: "1.00" } })),
+    caso("POST", "/:compraId/calcular", () => `/${compra()}/calcular`, () => ({ cambios: { biDg: "1.00" } }), false),
+    caso("POST", "/:compraId/sugerencias/aceptar", () => `/${compra()}/sugerencias/aceptar`, () => ({ versionBase: 1, regla: "R-ISC", confirmar: true })),
+    caso("POST", "/:compraId/excluir", () => `/${compra()}/excluir`, () => ({ versionBase: 1 })),
+    caso("POST", "/:compraId/restaurar", () => `/${compra()}/restaurar`, () => ({ versionBase: 2 })),
+    caso("POST", "/:compraId/descartar", () => `/${compra()}/descartar`, () => ({ versionBase: 1 })),
+    caso("POST", "/masivas/clasificar", () => "/masivas/clasificar", () => ({ items: items(), destino: "DNG" })),
+    caso("POST", "/masivas/aceptar", () => "/masivas/aceptar", () => ({ items: items(), regla: "R-RED" })),
+    caso("POST", "/masivas/excluir", () => "/masivas/excluir", () => ({ items: items() })),
+    caso("POST", "/masivas/restaurar", () => "/masivas/restaurar", () => ({ items: items() })),
+    caso("POST", "/deshacer", () => "/deshacer", () => ({})),
+    caso("POST", "/rehacer", () => "/rehacer", () => ({})),
+    caso("POST", "/estado/revisar", () => "/estado/revisar", () => ({})),
+    caso("POST", "/estado/reabrir", () => "/estado/reabrir", () => ({})),
+  ];
+}
+
 const CASOS: Caso[] = [
   /* ---------- 004 ---------- */
   {
@@ -907,6 +982,7 @@ const CASOS: Caso[] = [
       expect(f[0]).toEqual({ propuestas: 0, ventas: 0 });
     },
   },
+  ...casosCompras(),
   {
     // 007b (T4): importación. La plantilla no lleva datos de nadie; la vista previa y la confirmación toman el estudio de la
     // sesión: un responsable de B en el archivo no existe para A y no se crea nada.

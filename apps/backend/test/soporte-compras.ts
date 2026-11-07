@@ -252,6 +252,8 @@ export interface OpcionesCompra {
   }[];
   /** Hallazgos de la versión vigente (si se omite, no hay ninguno). */
   hallazgos?: HallazgoSembrado[];
+  /** Una agregada ya descartada (D-7): `descartada_en` con la hora de ahora. */
+  descartada?: boolean;
 }
 
 export interface CompraBd {
@@ -305,7 +307,13 @@ export interface BancoCompras extends BancoVentas {
   sembrarFixture(
     tenantId: string,
     clienteId: string,
-    o: { usuarioId: string; periodo?: string; conocidos?: boolean },
+    o: {
+      usuarioId: string;
+      periodo?: string;
+      conocidos?: boolean;
+      /** Versiones siguientes por fila (`F001-1040`); esas filas quedan sin hallazgos (se corrigieron). */
+      versiones?: Record<string, NonNullable<OpcionesCompra["versiones"]>>;
+    },
   ): Promise<IdsPorNumero>;
   /**
    * `n` compras del SIRE (F002-1 a F002-n, BI 100.00 + IGV 18.00 = 118.00, 50 proveedores) en una sola sentencia; devuelve
@@ -317,6 +325,17 @@ export interface BancoCompras extends BancoVentas {
     n: number,
     o: { usuarioId: string; periodo?: string },
   ): Promise<string[]>;
+  /** Una fila de `propuesta_diferencia` con la clave de compras (`tipo|SERIE|numero|tipoDoc|DOC`). */
+  sembrarDiferenciaCompra(
+    tenantId: string,
+    propuestaId: string,
+    o: {
+      clave: string;
+      origenExistente?: "sire" | "manual";
+      campos: string[];
+      valoresSire: Record<string, string>;
+    },
+  ): Promise<void>;
   estadoPeriodo(
     tenantId: string,
     clienteId: string,
@@ -474,6 +493,8 @@ export async function abrirBancoCompras(): Promise<BancoCompras> {
           h.requiereConfirmacion,
         ]);
       }
+      if (o.descartada === true)
+        await c.query("update compra set descartada_en = now() where id = $1", [id]);
       await c.query("COMMIT");
       return id;
     } catch (e) {
@@ -525,6 +546,7 @@ export async function abrirBancoCompras(): Promise<BancoCompras> {
           total: f.total,
         },
         usuarioId: o.usuarioId,
+        ...(o.versiones?.[etiqueta(f)] ? { versiones: o.versiones[etiqueta(f)]! } : {}),
       });
       ids[etiqueta(f)] = id;
       evaluables.push({
@@ -548,7 +570,9 @@ export async function abrirBancoCompras(): Promise<BancoCompras> {
     }
     const conocidos = o.conocidos ?? true;
     // Cada fila se evalúa sola: una fila que la regla no admite se queda sin hallazgos (D-4, aislamiento de 012 D19).
+    const corregidas = new Set(Object.keys(o.versiones ?? {}).map((k) => ids[k]));
     for (const fila of evaluables) {
+      if (corregidas.has(fila.id)) continue;
       let hallazgos: readonly Hallazgo[] = [];
       try {
         hallazgos = evaluarReglas([fila], {
@@ -658,6 +682,15 @@ export async function abrirBancoCompras(): Promise<BancoCompras> {
     sembrarCompra,
     sembrarFixture,
     sembrarVolumen,
+    sembrarDiferenciaCompra: async (tenantId, propuestaId, o) => {
+      const [tipo = "", serie = "", numero = ""] = o.clave.split("|");
+      await sql(
+        `insert into propuesta_diferencia (tenant_id, propuesta_id, clave, tipo, serie, numero, origen_existente, campos,
+                                           valores_sire)
+         values ($1, $2, $3, $4, $5, $6, $7, $8::text[], $9::jsonb)`,
+        [tenantId, propuestaId, o.clave, tipo, serie, numero, o.origenExistente ?? "sire", o.campos, JSON.stringify(o.valoresSire)],
+      );
+    },
     estadoPeriodo: async (tenantId, clienteId, periodo, estado, marcadoPor = null) => {
       await sql(
         `insert into compra_periodo (tenant_id, cliente_id, periodo, estado, marcado_por, marcado_en)
