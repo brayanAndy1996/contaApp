@@ -158,3 +158,39 @@ export {
 } from "./clientes/repositorio";
 export type { DatosCliente, FiltrosListado } from "./clientes/repositorio";
 export { ClienteArchivadoError, RucDuplicadoError } from "./clientes/errores";
+// Spec 013: propuestas (encabezado inmutable de cada descarga o importación, común a ventas y compras) y ventas (todas
+// con la `tx` de withTenant como primer argumento).
+export {
+  bloquearPeriodoLibro,
+  crearPropuesta,
+  insertarDiferencias,
+  listarDiferencias,
+  listarPropuestas,
+} from "./propuestas/repositorio";
+export type {
+  DiferenciaFila,
+  FuentePropuesta,
+  LibroPropuesta,
+  NuevaDiferencia,
+  NuevaPropuesta,
+  PropuestaFila,
+} from "./propuestas/repositorio";
+export { PropuestasRepoError } from "./propuestas/errores";
+export { leerExistentes, leerFilasVentas, listarVentas, TOPE_TODAS } from "./ventas/lectura";
+export { crearVentaManual, insertarVentas, quitarVentaManual } from "./ventas/escritura";
+export { justificar, listarJustificados, revertirJustificacion } from "./ventas/justificados";
+export { VentasRepoError } from "./ventas/errores";
+export type {
+  ContextoInsercionVentas,
+  DatosJustificar,
+  ExistenteVenta,
+  FiltrosVentas,
+  Justificado,
+  MonedaVenta,
+  OrigenVenta,
+  PaginaVentas,
+  VentaFila,
+  VentaNueva,
+} from "./ventas/tipos";
+export { propuesta, propuestaDiferencia } from "./schema/propuestas";
+export { venta, ventaSaltoJustificado } from "./schema/ventas";
