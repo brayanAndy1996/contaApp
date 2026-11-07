@@ -13,3 +13,4 @@ export * from "./credenciales/index.js";
 export * from "./importacion/index.js";
 export * from "./xml/index.js";
 export * from "./compras/index.js";
+export * from "./ventas/index.js";

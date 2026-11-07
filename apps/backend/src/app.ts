@@ -65,6 +65,17 @@ const RUTAS_LOTES = ["/asignaciones/por-usuario", "/asignaciones/por-cliente"];
 export const LIMITE_ARCHIVO_IMPORTACION = "2mb";
 const RUTAS_IMPORTACION = ["/clientes/importacion/vista-previa", "/clientes/importacion/confirmar"];
 
+/**
+ * Importación de la propuesta de ventas (013, D6, D10): también el archivo crudo, pero de hasta 8 MB (20.000 filas pesan
+ * ~2,5 MB; `LIMITES_VENTAS.maxBytes`). Más de eso responde 413 por `Content-Length` sin leer el cuerpo. Los límites de la
+ * importación de clientes no se tocan.
+ */
+export const LIMITE_ARCHIVO_VENTAS = "8mb";
+const RUTAS_IMPORTACION_VENTAS = [
+  "/clientes/:clienteId/periodos/:periodo/ventas/importar/vista-previa",
+  "/clientes/:clienteId/periodos/:periodo/ventas/importar/confirmar",
+];
+
 /** `TRUST_PROXY`: un entero es el número de saltos de confianza; si no, la lista o alias de Express. */
 export function confianzaProxy(valor: string): string | number {
   return /^\d{1,3}$/.test(valor) ? Number(valor) : valor;
@@ -110,6 +121,7 @@ export async function crearApp(o: OpcionesApp = {}): Promise<INestApplication> {
   // El analizador de lotes va primero y solo en esas dos rutas; el global omite lo ya analizado.
   app.use(RUTAS_LOTES, json({ limit: LIMITE_JSON_LOTES }));
   app.use(RUTAS_IMPORTACION, raw({ type: "application/octet-stream", limit: LIMITE_ARCHIVO_IMPORTACION }));
+  app.use(RUTAS_IMPORTACION_VENTAS, raw({ type: "application/octet-stream", limit: LIMITE_ARCHIVO_VENTAS }));
   app.useBodyParser("json", { limit: LIMITE_JSON });
 
   const reflector = app.get(Reflector);

@@ -25,9 +25,11 @@ import {
 } from "@contapp/queue/worker";
 import {
   MockConsultaRuc,
+  MockSireApiClient,
   MockSireAuth,
   MockSolAuth,
   type ConsultaRuc,
+  type SireApiClient,
   type SireAuth,
   type SolAuth,
 } from "@contapp/sunat";
@@ -38,6 +40,7 @@ import { Ejecutor, type Procesador } from "./ejecutor.js";
 import { dbGuardada, redisGuardado } from "./guardia.js";
 import { authPurgar } from "./procesadores/auth-purgar.js";
 import { consultarRuc } from "./procesadores/consultar-ruc.js";
+import { descargarPropuesta } from "./procesadores/descargar-propuesta.js";
 import { kekRotar } from "./procesadores/kek-rotar.js";
 import {
   verificarSire,
@@ -79,6 +82,8 @@ export interface DepsTrabajos {
   notificador?: Notificador;
   /** Puerto de `credencial.verificar_sire` (directo, sin la caché de token) y del token SIRE; por defecto el mock. */
   sireAuth?: SireAuth;
+  /** Puerto de `sire.propuesta.descargar` (013); por defecto el mock. */
+  sireApi?: SireApiClient;
   /** Puerto de `cliente.consultar_ruc`; por defecto el mock. */
   consultaRuc?: ConsultaRuc;
   /** Puerto de `credencial.verificar_sol`; por defecto el mock. */
@@ -230,6 +235,10 @@ export async function iniciarTrabajos(
       "cliente.consultar_ruc": consultarRuc({
         db,
         consultaRuc: deps.consultaRuc ?? new MockConsultaRuc(),
+      }),
+      "sire.propuesta.descargar": descargarPropuesta({
+        db,
+        sireApi: deps.sireApi ?? new MockSireApiClient(),
       }),
       ...(servicio
         ? {

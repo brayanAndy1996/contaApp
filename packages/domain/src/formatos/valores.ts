@@ -4,7 +4,7 @@
 import { COLUMNAS_COMPRA } from "../comprobante/index";
 import type { FilaCopia } from "../prevalidacion/entrada";
 import { DefinicionFormatoInvalidaError } from "./errores";
-import type { CabeceraTxt, TipoCampo } from "./tipos";
+import type { CabeceraTxt, Libro, TipoCampo } from "./tipos";
 
 export type Valor = (f: FilaCopia, c: CabeceraTxt) => string;
 
@@ -18,6 +18,15 @@ function tcConTresDecimales(tc: string): string {
 function fechaTxt(fecha: string): string {
   return `${fecha.slice(8, 10)}/${fecha.slice(5, 7)}/${fecha.slice(0, 4)}`;
 }
+
+/**
+ * Montos que solo existen en una venta (spec 013, D14b): el resto (`isc`, `icbper`, `total`) ya tiene el
+ * valor de compras. Su serialización llega con 012b; hoy solo se registran para definir el formato RVIE.
+ */
+const COLUMNAS_SOLO_VENTAS: readonly string[] = Object.freeze(["baseGravada", "igv", "exonerada", "inafecta", "otros"]);
+/** Campos de texto que solo existen en una venta: el documento de la contraparte y su tipo. */
+const TEXTO_SOLO_VENTAS: readonly string[] = Object.freeze(["tipoDocContraparte", "docContraparte"]);
+const SOLO_VENTAS: ReadonlySet<string> = new Set([...COLUMNAS_SOLO_VENTAS, ...TEXTO_SOLO_VENTAS]);
 
 /** Valor de cada campo conocido; el texto va tal como llegó. */
 export const VALORES: ReadonlyMap<string, Valor> = new Map<string, Valor>([
@@ -49,6 +58,8 @@ export const TIPOS_FIJOS: ReadonlyMap<string, TipoCampo> = new Map<string, TipoC
   ["tipoCambio", "tc"],
   ...COLUMNAS_COMPRA.map((columna): [string, TipoCampo] => [columna, "monto"]),
   ["total", "monto"],
+  // Solo los ventas reconocen estos cinco (valorDeCampo los rechaza en compras).
+  ...COLUMNAS_SOLO_VENTAS.map((columna): [string, TipoCampo] => [columna, "monto"]),
 ]);
 
 /**
@@ -56,8 +67,15 @@ export const TIPOS_FIJOS: ReadonlyMap<string, TipoCampo> = new Map<string, TipoC
  * escribirlo: RegistroFormatos.desde lo usa para rechazar ese campo al registrar, así que todo
  * campo de un formato registrado tiene valor y «apto» siempre quiere decir «genera» (D21, H-012-24).
  */
-export function valorDeCampo(nombre: string): Valor {
+export function valorDeCampo(nombre: string, libro: Libro = "compras"): Valor {
   const valor = VALORES.get(nombre);
-  if (valor === undefined) throw new DefinicionFormatoInvalidaError();
-  return valor;
+  if (valor !== undefined) return valor;
+  // Ventas (013): los campos propios del libro se registran, pero `generarTxt` no genera ventas hasta 012b
+  // (su cabecera sigue limitada a compras), así que su valor lanza en lugar de inventar uno.
+  if (libro === "ventas" && SOLO_VENTAS.has(nombre)) return sinGenerarVentas;
+  throw new DefinicionFormatoInvalidaError();
+}
+
+function sinGenerarVentas(): string {
+  throw new DefinicionFormatoInvalidaError();
 }

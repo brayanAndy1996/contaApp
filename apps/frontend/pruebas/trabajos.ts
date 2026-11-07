@@ -13,7 +13,11 @@ export const MENSAJES_TRABAJOS = {
     "cliente.consultar_ruc": "Consultando datos de RUC",
     "credencial.verificar_sol": "Verificando clave SOL",
     "credencial.verificar_sire": "Verificando credencial SIRE",
+    // T20a (D24): la descarga de la propuesta del SIRE (ventas y compras comparten tipo).
+    "sire.propuesta.descargar": "Descargando propuesta del SIRE",
   },
+  /** T20a (D24): el periodo (AAAAMM) que la fila del trabajo muestra junto al cliente. */
+  periodo: (p: string) => `Periodo ${p}`,
   estados: {
     en_cola: "En cola",
     ejecutando: "Ejecutando",
@@ -65,6 +69,26 @@ export function trabajoN(
 
 export type TrabajoPrueba = ReturnType<typeof trabajoN>;
 
+export const TIPO_DESCARGA = "sire.propuesta.descargar";
+
+/**
+ * T20a (D24): una descarga de la propuesta del SIRE. `TrabajoVista` trae `clienteId` y, para este tipo, el `periodo`
+ * (AAAAMM, opcional en `shared`); el nombre del cliente sale de `GET /api/clientes`.
+ */
+export function trabajoDescargaN(
+  n: number,
+  estado: EstadoTrabajoPrueba,
+  opciones: { clienteId?: string; periodo?: string | null } = {},
+) {
+  const base = trabajoN(n, TIPO_DESCARGA, estado);
+  const periodo = opciones.periodo === undefined ? "202610" : opciones.periodo;
+  return {
+    ...base,
+    ...(opciones.clienteId ? { clienteId: opciones.clienteId } : {}),
+    ...(periodo === null ? {} : { periodo }),
+  };
+}
+
 /** Trozo SSE de un evento `trabajo` (008: `event: trabajo` + `data: <JSON>`). */
 export const eventoSse = (t: TrabajoPrueba): string =>
   `event: trabajo\ndata: ${JSON.stringify(t)}\n\n`;
@@ -105,6 +129,11 @@ export interface OpcionesPanel {
   resumen?: (vez: number) => { status: number; cuerpo?: unknown };
   /** `true` → el `fetch` del stream no resuelve hasta `liberarCabeceras()` (Next sin primer byte, D-2). */
   cabecerasStreamTarde?: boolean;
+  /**
+   * Respuesta de `GET /api/clientes` (T20a, D24: el panel resuelve el nombre del cliente de una descarga). Sin esta
+   * opción la ruta responde 404 y el panel sigue funcionando sin el nombre.
+   */
+  clientes?: (consulta: URLSearchParams) => { status: number; cuerpo?: unknown };
 }
 
 /** `fetch` simulado del panel: sesión, permisos, listado y un stream SSE por conexión. */
@@ -153,6 +182,11 @@ export function instalarFetchPanel(opciones: OpcionesPanel): PanelFalso {
         resumenes += 1;
         if (!opciones.resumen) return json(404, { codigo: "no_encontrado" });
         const r = opciones.resumen(resumenes);
+        return json(r.status, r.cuerpo);
+      }
+      if (method === "GET" && ruta === "/api/clientes") {
+        if (!opciones.clientes) return json(404, { codigo: "no_encontrado" });
+        const r = opciones.clientes(new URLSearchParams(url.split("?")[1] ?? ""));
         return json(r.status, r.cuerpo);
       }
       if (method === "GET" && ruta === "/api/trabajos/stream") {

@@ -26,11 +26,16 @@ describe("MockSireApiClient con los fixtures del repo", () => {
     const p = await puerto.descargarPropuesta(TOKEN, pedir(RUC, "202610", "ventas"));
     expect(p.libro).toBe("ventas");
     expect(p.periodo).toBe("202610");
-    expect(p.filas.map((f) => `${f.serie}-${f.numero}`)).toEqual(["B001-290", "B001-292"]);
+    // T1 (013): el fixture de ventas trae más filas (serie, NC, USD...); aquí importan solo las boletas 290 y 292.
+    const claves = p.filas.map((f) => `${f.serie}-${f.numero}`);
+    expect(claves).toEqual(expect.arrayContaining(["B001-290", "B001-292"]));
+    expect(claves).not.toContain("B001-291");
   });
 
   it("la propuesta de compras trae las filas de los casos de CA-2", async () => {
     const p = await new MockSireApiClient().descargarPropuesta(TOKEN, pedir(RUC, "202610"));
+    // 013: `PropuestaSire` es una unión por `libro`; se estrecha a compras antes de leer `rucContraparte`.
+    if (p.libro !== "compras") throw new Error("se esperaba la propuesta de compras");
     expect(p.filas.map((f) => `${f.rucContraparte}-${f.serie}-${f.numero}`).sort()).toEqual([
       "20700000011-F001-1040",
       "20700000045-F001-2056",
@@ -71,9 +76,10 @@ describe("MockSireApiClient con los fixtures del repo", () => {
   it("mutar la respuesta no altera la siguiente", async () => {
     const mock = new MockSireApiClient();
     const a = await mock.descargarPropuesta(TOKEN, pedir(RUC, "202610", "ventas"));
+    const longitud = a.filas.length; // T1 (013): el fixture de ventas ya no tiene solo dos filas.
     a.filas.length = 0;
     const b = await mock.descargarPropuesta(TOKEN, pedir(RUC, "202610", "ventas"));
-    expect(b.filas).toHaveLength(2);
+    expect(b.filas).toHaveLength(longitud);
   });
 });
 

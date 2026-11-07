@@ -86,6 +86,11 @@ describe("T13b · ronda adversarial 2b", () => {
       // 014 (plan, Contratos: Dominio): compras/ con su error de estado desconocido.
       "EstadoPeriodoInvalidoError", "aFilaReemplazo", "aplicarEdicion", "claveComprobante", "puedeEscribir",
       "resumirCompras", "sugerenciaEsMasiva",
+      // 013 (T3): clave-comprobante/, correlatividad/, complemento/ y ventas/ (plan, Contratos: Dominio).
+      "LAYOUT_VENTAS_PROVISIONAL", "analizarCorrelatividad", "claveNormalizada", "planificarComplemento",
+      "resumirVentas", "validarFilaVenta",
+      // 013 (T22b, D26): el cuadre exacto de una venta, público para calcularlo al leer.
+      "cuadraVenta",
     ].sort();
     expect(Object.keys(Publico).sort()).toEqual(esperados);
 

@@ -1,7 +1,8 @@
 import { defineConfig } from "vitest/config";
 
-// Cobertura de 010 (DoD A), 011 (CA-13), 012 (CA-11) y 014 (T3): mide dinero/, comprobante/,
-// reglas/, texto/, prevalidacion/, formatos/ y compras/ con las mismas pruebas que
+// Cobertura de 010 (DoD A), 011 (CA-13), 012 (CA-11), 013 (T9) y 014 (T3): mide dinero/, comprobante/,
+// reglas/, texto/, prevalidacion/, formatos/, compras/, clave-comprobante/, correlatividad/, complemento/
+// y ventas/ con las mismas pruebas que
 // vitest.config.mts. Umbral de 90 % por archivo.
 // testTimeout igual que vitest.config.mts: con instrumentación v8 en el runner de CI las
 // propiedades de fast-check (1000 corridas) superan los 5 s por defecto sin fallar aserciones.
@@ -20,6 +21,10 @@ export default defineConfig({
         "src/prevalidacion/**/*.ts",
         "src/formatos/**/*.ts",
         "src/compras/**/*.ts",
+        "src/clave-comprobante/**/*.ts",
+        "src/correlatividad/**/*.ts",
+        "src/complemento/**/*.ts",
+        "src/ventas/**/*.ts",
       ],
       exclude: ["**/*.spec.ts", "**/*.adv.spec.ts"],
       reporter: ["text", "json-summary"],

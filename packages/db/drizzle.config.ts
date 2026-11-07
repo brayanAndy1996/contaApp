@@ -6,12 +6,14 @@ export default defineConfig({
   // Archivos explícitos: evita que drizzle-kit cargue *.spec.ts (vitest no es CJS). Las tablas de 003
   // van aparte del índice: el inventario de 002 (schema.spec.ts) fija las tablas base y sus invariantes
   // (auditoria_descifrado es solo de inserción: sin updated_at ni UNIQUE de negocio). Las de 008 (job_registro,
-  // config_sistema) también van aparte por la misma razón, y las de 006 (plan, suscripcion, admin_plataforma).
+  // config_sistema) también van aparte por la misma razón, las de 006 (plan, suscripcion, admin_plataforma) y las de 013 (propuesta, venta).
   schema: [
     "./src/schema/index.ts",
     "./src/schema/credenciales.ts",
     "./src/schema/trabajos.ts",
     "./src/schema/planes.ts",
+    "./src/schema/propuestas.ts",
+    "./src/schema/ventas.ts",
   ],
   out: "./migrations",
 });
