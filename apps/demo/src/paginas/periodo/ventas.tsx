@@ -4,7 +4,7 @@ import type { FilaVenta } from "../../datos/tipos";
 import { useDemo } from "../../estado/store";
 import { normalizarMonto, sumar } from "../../motor/dominio";
 import { Aviso, Boton, Campo, Insignia, Modal, Tarjeta, claseInput, fechaDoc, soles } from "../../ui/comunes";
-import { SinPropuesta, TrabajoEnCurso } from "../periodo";
+import { SinPropuesta } from "../periodo";
 
 const TIPOS: Record<string, string> = { "01": "Factura", "03": "Boleta", "07": "Nota de crédito", "08": "Nota de débito" };
 
@@ -69,7 +69,6 @@ export function VistaVentas({ clienteId }: { clienteId: string }) {
   if (!p.ventasCargadas)
     return (
       <div className="space-y-4">
-        <TrabajoEnCurso cliente={c.razonSocial} tipo="RVIE" />
         <SinPropuesta clienteId={clienteId} libro="ventas" />
       </div>
     );

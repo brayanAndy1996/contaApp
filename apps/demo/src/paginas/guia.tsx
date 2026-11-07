@@ -18,7 +18,15 @@ const PASOS: { titulo: string; ruta: string; texto: string; reglas?: string[] }[
 export function Guia() {
   return (
     <>
-      <Encabezado titulo="Guía de la demo" subtitulo="Un recorrido de 10 minutos por los procesos principales de ContApp" />
+      <Encabezado
+        titulo="Guía de la demo"
+        subtitulo="Un recorrido de 10 minutos por los procesos principales de ContApp"
+        acciones={
+          <a href="/Manual-ContApp-Demo.pdf" download className="inline-flex items-center gap-1.5 rounded-md bg-teal-700 px-3.5 py-2 text-sm font-medium text-white shadow-sm hover:bg-teal-800">
+            ⤓ Manual completo (PDF)
+          </a>
+        }
+      />
       <div className="mb-5">
         <Aviso tono="azul" titulo="¿Qué es real y qué es simulado?">
           <ul className="mt-1 list-disc space-y-0.5 pl-5">

@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>ContApp · Manual de uso de la demo</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 18mm 16mm; }
+  :root { --teal: #0f766e; --teal-50: #f0fdfa; --slate: #0f172a; --muted: #475569; --line: #e2e8f0; --amber: #fef3c7; }
+  * { box-sizing: border-box; }
+  body { font-family: "Inter", "Segoe UI", Roboto, Arial, sans-serif; color: var(--slate); font-size: 10.5pt; line-height: 1.5; margin: 0; }
+  h1, h2, h3, h4 { line-height: 1.25; margin: 0; }
+  h2 { font-size: 19pt; color: var(--teal); margin: 0 0 4mm; padding-bottom: 2mm; border-bottom: 2px solid var(--teal); break-after: avoid; }
+  h3 { font-size: 13pt; margin: 6mm 0 2mm; break-after: avoid; }
+  h4 { font-size: 11pt; margin: 4mm 0 1.5mm; color: #134e4a; break-after: avoid; }
+  p { margin: 0 0 2.5mm; }
+  ul, ol { margin: 0 0 3mm; padding-left: 6mm; }
+  li { margin-bottom: 1mm; }
+  code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 9pt; background: #f1f5f9; padding: 0 1mm; border-radius: 1mm; }
+  b { font-weight: 650; }
+  .capitulo { break-before: page; }
+  figure { margin: 3mm 0 5mm; break-inside: avoid; }
+  figure img { max-width: 100%; max-height: 92mm; width: auto; border: 1px solid var(--line); border-radius: 2mm; display: block; margin: 0 auto; }
+  figure.media img { max-height: 112mm; }
+  figure.chica img { max-height: 70mm; }
+  figcaption { font-size: 8.5pt; color: var(--muted); margin-top: 1.5mm; text-align: center; }
+  table { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; font-size: 9.5pt; break-inside: auto; }
+  th { background: #f1f5f9; text-align: left; font-weight: 650; color: #334155; }
+  th, td { border: 1px solid var(--line); padding: 1.6mm 2.2mm; vertical-align: top; }
+  tr { break-inside: avoid; }
+  .nota, .ojo, .tip { border-radius: 2mm; padding: 3mm 4mm; margin: 3mm 0 4mm; break-inside: avoid; font-size: 10pt; }
+  .nota { background: #f0f9ff; border-left: 4px solid #0284c7; }
+  .ojo { background: #fffbeb; border-left: 4px solid #d97706; }
+  .tip { background: var(--teal-50); border-left: 4px solid var(--teal); }
+  .pasos { counter-reset: paso; list-style: none; padding-left: 0; }
+  .pasos > li { counter-increment: paso; position: relative; padding-left: 9mm; margin-bottom: 2mm; }
+  .pasos > li::before { content: counter(paso); position: absolute; left: 0; top: 0.2mm; width: 6mm; height: 6mm; border-radius: 50%; background: var(--teal); color: #fff; font-size: 8.5pt; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .etq { display: inline-block; font-size: 8pt; font-weight: 700; border-radius: 99px; padding: 0.2mm 2mm; border: 1px solid; white-space: nowrap; }
+  .r2 { color: #6d28d9; background: #f5f3ff; border-color: #ddd6fe; }
+  .rojo { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
+  .ambar { color: #92400e; background: #fffbeb; border-color: #fde68a; }
+  .azul { color: #0369a1; background: #f0f9ff; border-color: #bae6fd; }
+  .violeta { color: #6d28d9; background: #f5f3ff; border-color: #ddd6fe; }
+  .teal { color: #0f766e; background: #f0fdfa; border-color: #99f6e4; }
+  .kbd { font-family: ui-monospace, monospace; font-size: 8.5pt; border: 1px solid #cbd5e1; border-bottom-width: 2px; border-radius: 1mm; padding: 0 1.2mm; background: #fff; }
+  .dos { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+  /* portada */
+  .portada { height: 255mm; display: flex; flex-direction: column; justify-content: space-between; background: linear-gradient(150deg, #115e59 0%, #0f766e 45%, #1e293b 100%); color: #fff; border-radius: 4mm; padding: 18mm 16mm; }
+  .portada .logo { display: flex; align-items: center; gap: 4mm; font-size: 20pt; font-weight: 800; }
+  .portada .logo span.c { width: 15mm; height: 15mm; border-radius: 3mm; background: #fff; color: #0f766e; display: flex; align-items: center; justify-content: center; font-size: 22pt; }
+  .portada h1 { font-size: 34pt; margin-top: 30mm; }
+  .portada .sub { font-size: 14pt; color: #ccfbf1; margin-top: 4mm; max-width: 150mm; }
+  .portada .datos { font-size: 10.5pt; color: #e2e8f0; line-height: 1.8; }
+  .portada .datos b { color: #fff; }
+  .portada .aviso { background: #fbbf24; color: #451a03; font-weight: 700; border-radius: 2mm; padding: 3mm 4mm; font-size: 10pt; }
+  /* índice */
+  .indice ol { list-style: none; padding: 0; counter-reset: cap; }
+  .indice > ol > li { counter-increment: cap; font-weight: 650; font-size: 11.5pt; margin: 2.5mm 0 1mm; }
+  .indice > ol > li::before { content: counter(cap) ". "; color: var(--teal); }
+  .indice ol ol { font-weight: 400; font-size: 10pt; color: var(--muted); padding-left: 6mm; margin: 0.5mm 0 0; }
+  .indice ol ol li { margin: 0.3mm 0; }
+</style>
+</head>
+<body>
+
+<!-- PORTADA -->
+<section class="portada">
+  <div>
+    <div class="logo"><span class="c">C</span> ContApp</div>
+    <h1>Manual de uso<br />de la demo</h1>
+    <p class="sub">Todo lo que puede hacer la aplicación y cómo hacerlo paso a paso: clientes, SIRE de ventas y compras, motor de correcciones, lupa del comprobante, generación del archivo para SUNAT, buzones, prorrata y más.</p>
+  </div>
+  <div>
+    <p class="datos">
+      <b>Dirección de la demo:</b> https://inspiring-dasik-3dae45.netlify.app<br />
+      <b>Versión:</b> demo navegable del producto final (release 1 + vista previa de release 2)<br />
+      <b>Fecha:</b> noviembre de 2026
+    </p>
+    <p class="aviso">Demo con datos 100 % ficticios. No se conecta a SUNAT y no guarda nada en servidores: todo vive en tu navegador.</p>
+  </div>
+</section>
+
+<!-- ÍNDICE -->
+<section class="capitulo indice">
+  <h2>Contenido</h2>
+  <ol>
+    <li>Qué es ContApp y qué es esta demo
+      <ol><li>Qué hace la aplicación · Qué es real y qué es simulado · Etiquetas R1 y R2</li></ol></li>
+    <li>Primeros pasos
+      <ol><li>Entrar con un rol · Partes de la pantalla · Panel principal · Reiniciar la demo</li></ol></li>
+    <li>Clientes
+      <ol><li>Lista de clientes · Nuevo cliente con consulta RUC · Importación masiva · Ficha del cliente y credenciales</li></ol></li>
+    <li>Trabajos en segundo plano y notificaciones</li>
+    <li>Registro de Ventas (RVIE)
+      <ol><li>Descargar la propuesta · Auditoría de correlatividad · Agregar una venta faltante · Resumen y filtros</li></ol></li>
+    <li>Registro de Compras (RCE)
+      <ol><li>Descargar la propuesta · La grilla · El motor de correcciones · La lupa · Casos resueltos uno por uno · Edición tipo Excel · Clasificación masiva · Excluir y restaurar · Deshacer · Agregar y exportar · Resumen por casillero · Marcar como revisado</li></ol></li>
+    <li>Generar el archivo para SUNAT
+      <ol><li>Resumen de cambios · Prevalidación · Generar TXT y ZIP · Versiones · Envío a SUNAT</li></ol></li>
+    <li>Funciones de la release 2 (vista previa)
+      <ol><li>Clasificación según historial (zona selva) · Reglas aprendidas · Buzones SOL · Prorrata e IGV estimado</li></ol></li>
+    <li>Auditoría, usuarios, roles y plan</li>
+    <li>Recorrido sugerido de 10 minutos</li>
+    <li>Datos de prueba y preguntas frecuentes</li>
+  </ol>
+</section>
+
+<!-- 1 -->
+<section class="capitulo">
+  <h2>1. Qué es ContApp y qué es esta demo</h2>
+  <h3>Qué hace la aplicación</h3>
+  <p>ContApp es una plataforma para <b>estudios contables en Perú</b>. Cada estudio administra los RUC de sus clientes y, por cada uno, revisa y corrige la <b>propuesta del SIRE</b> (Registro de Ventas e Ingresos y Registro de Compras) antes de declarar. La aplicación:</p>
+  <ul>
+    <li>Descarga la propuesta de ventas y compras de cada cliente con sus credenciales SOL/SIRE.</li>
+    <li>Detecta automáticamente los errores típicos del SIRE: ISC mal ubicado, facturas mixtas, redondeos en dólares, proveedores nuevos y posibles gastos personales.</li>
+    <li>Muestra el XML de cada comprobante en lenguaje humano para decidir sin salir de la tabla.</li>
+    <li>Permite editar la propuesta como una hoja de cálculo y clasificar cada compra en <b>DG</b>, <b>DGNG</b> o <b>DNG</b>.</li>
+    <li>Valida todo con las reglas de SUNAT y genera el archivo de reemplazo (TXT dentro de un ZIP) para que no salga «procesado con errores».</li>
+    <li>En la release 2: aprende la clasificación por proveedor, revisa los buzones SOL de todos los clientes y calcula la prorrata y el IGV estimado.</li>
+  </ul>
+  <h3>Qué es real y qué es simulado en la demo</h3>
+  <table>
+    <tr><th style="width:22%">Parte</th><th style="width:16%">En la demo</th><th>Detalle</th></tr>
+    <tr><td>Motor de correcciones</td><td><b>Real</b></td><td>Es el mismo código del producto. Las reglas R-ISC, R-MIX, R-RED, R-NEW y R-GP dan exactamente los mismos resultados.</td></tr>
+    <tr><td>Cálculos de dinero</td><td><b>Real</b></td><td>Montos exactos con dos decimales y redondeo de SUNAT. No hay errores de coma flotante.</td></tr>
+    <tr><td>Prevalidación, resumen de cambios y TXT</td><td><b>Real</b></td><td>Mismo código del producto. El formato del TXT es la versión provisional; la estructura oficial de SUNAT se carga después.</td></tr>
+    <tr><td>SUNAT (API SIRE, SOL, XML)</td><td>Simulado</td><td>Las descargas devuelven datos ficticios con tiempos de espera realistas.</td></tr>
+    <tr><td>Servidor, base de datos y cola de trabajos</td><td>Simulado</td><td>Todo corre en tu navegador. Lo que haces se guarda solo en él.</td></tr>
+  </table>
+  <h3>Etiquetas que verás</h3>
+  <ul>
+    <li><span class="etq r2">R2</span> marca funciones de la <b>release 2</b> que la demo muestra como vista previa (historial, buzones, prorrata, envío a SUNAT).</li>
+    <li><b>XML simulado</b> indica que el XML lo generó el simulador; en el producto vendrá de SUNAT.</li>
+    <li>El <b>banner amarillo</b> superior recuerda siempre que los datos son ficticios.</li>
+  </ul>
+</section>
+
+<!-- 2 -->
+<section class="capitulo">
+  <h2>2. Primeros pasos</h2>
+  <h3>Entrar con un rol</h3>
+  <p>Abre la dirección de la demo. No hay contraseña: eliges con qué usuario ficticio entrar. Cada rol tiene permisos distintos, igual que en el producto.</p>
+  <figure><img src="img/01-login.jpg" /><figcaption>Pantalla de ingreso: elige un usuario para entrar.</figcaption></figure>
+  <table>
+    <tr><th style="width:22%">Usuario</th><th style="width:16%">Rol</th><th>Qué puede hacer</th></tr>
+    <tr><td>Ana Demo Quispe</td><td>Administrador</td><td>Todo: clientes, credenciales, usuarios, plan, auditoría, aprobar y generar archivos.</td></tr>
+    <tr><td>Carlos Demo Rojas</td><td>Contador</td><td>Revisar y corregir ventas y compras, aprobar y generar archivos, gestionar clientes y credenciales.</td></tr>
+    <tr><td>Lucía Demo Flores</td><td>Asistente</td><td>Editar las grillas. <b>No</b> puede generar archivos ni editar un periodo ya marcado como revisado.</td></tr>
+  </table>
+  <div class="tip"><b>Recomendación:</b> entra como <b>Carlos Demo Rojas (Contador)</b> para recorrer todo el flujo.</div>
+
+  <h3>Partes de la pantalla</h3>
+  <ul>
+    <li><b>Menú izquierdo:</b> Panel, Clientes, Trabajos, Buzones SOL, Prorrata e IGV, Auditoría, Usuarios y plan, y la <b>Guía de la demo</b>. En el celular se abre con el botón ☰.</li>
+    <li><b>Barra superior:</b> uso del plan (por ejemplo «5/10 RUC») y la campana 🔔 de notificaciones.</li>
+    <li><b>Pie del menú:</b> tu usuario, el botón <b>Salir</b> (para cambiar de rol) y <b>↺ Reiniciar demo</b>.</li>
+  </ul>
+
+  <h3>Panel principal</h3>
+  <p>Es lo primero que ves. Resume el estado de todo el estudio:</p>
+  <ul>
+    <li><b>Indicadores:</b> clientes activos frente al límite del plan, periodos por presentar, mensajes críticos de buzón y credenciales con problemas.</li>
+    <li><b>Clientes del periodo:</b> estado de cada cliente (Sin descargar, En revisión, Revisado, Archivo generado, Enviado a SUNAT) y un acceso directo a sus compras.</li>
+    <li><b>Mensajes críticos</b> de los buzones y <b>actividad reciente</b> del equipo.</li>
+  </ul>
+  <figure><img src="img/02-panel.jpg" /><figcaption>Panel principal del estudio.</figcaption></figure>
+
+  <h3>Reiniciar la demo</h3>
+  <p>Todo lo que haces queda guardado en tu navegador: si cierras y vuelves, sigue igual. Para empezar de cero pulsa <b>↺ Reiniciar demo</b> al pie del menú y confirma. Cada persona que abre la demo tiene su propia copia de los datos.</p>
+</section>
+
+<!-- 3 -->
+<section class="capitulo">
+  <h2>3. Clientes</h2>
+  <h3>Lista de clientes</h3>
+  <p>Menú <b>Clientes</b>. Muestra todos los RUC del estudio con su ubicación (con la marca <span class="etq teal">Selva</span> si corresponde), régimen, estado de las credenciales SOL y SIRE, estado del periodo actual y responsable. El ✉️ junto al nombre indica mensajes nuevos en su buzón.</p>
+  <ul>
+    <li>Busca por RUC o razón social y filtra por responsable.</li>
+    <li>La barra verde superior muestra cuánto del plan está usado. Si llegas al límite, el botón <b>+ Nuevo cliente</b> se desactiva.</li>
+    <li>Haz clic en una fila para abrir la ficha del cliente.</li>
+  </ul>
+  <figure><img src="img/03-clientes.jpg" /><figcaption>Lista de clientes con credenciales y estado del periodo.</figcaption></figure>
+
+  <h3>Agregar un cliente con consulta RUC</h3>
+  <ol class="pasos">
+    <li>En Clientes pulsa <b>+ Nuevo cliente</b>.</li>
+    <li>Escribe el RUC (11 dígitos) o haz clic en uno de los <b>RUC ficticios de prueba</b> que aparecen debajo del campo.</li>
+    <li>Pulsa <b>Consultar</b>. El sistema valida el dígito verificador y trae razón social, ubicación, actividad y régimen.</li>
+    <li>Elige el <b>responsable</b> del cliente.</li>
+    <li>Opcional: escribe usuario y clave SOL, y <code>client_id</code>/<code>client_secret</code> del SIRE. En la demo cualquier valor sirve y no se guarda.</li>
+    <li>Pulsa <b>Guardar cliente</b>. Si pusiste credenciales, se lanza un trabajo que las verifica en segundo plano.</li>
+  </ol>
+  <figure><img src="img/04-cliente-nuevo.jpg" /><figcaption>Alta de cliente: consulta RUC y credenciales de solo escritura.</figcaption></figure>
+  <div class="nota"><b>Seguridad (como en el producto):</b> las claves son de <b>solo escritura</b>. Se cifran al guardarlas, nunca se vuelven a mostrar y solo el proceso que habla con SUNAT las descifra, en memoria. Cada descifrado queda en la auditoría.</div>
+
+  <h3>Importar varios clientes (CSV o Excel)</h3>
+  <ol class="pasos">
+    <li>En Clientes pulsa <b>⇪ Importar CSV/Excel</b>.</li>
+    <li>Sube un archivo <code>.csv</code> o edita el ejemplo que ya viene cargado. Columnas: <code>ruc, usuario_sol, responsable</code>.</li>
+    <li>Revisa la <b>vista previa</b>: cada línea dice «Se importará» o el motivo del rechazo (RUC inválido, ya es cliente, duplicado en el archivo, no existe en el padrón o supera el cupo del plan).</li>
+    <li>Pulsa <b>Importar N cliente(s)</b>. Solo entran las líneas válidas.</li>
+  </ol>
+  <figure><img src="img/05-importar.jpg" /><figcaption>Importación masiva con vista previa y control de cupo.</figcaption></figure>
+
+  <h3>Ficha del cliente</h3>
+  <p>Al abrir un cliente ves:</p>
+  <ul>
+    <li><b>Datos fiscales</b> y su <b>perfil</b>. Por ejemplo, «Zona selva» y «Ventas exoneradas → compras a DNG».</li>
+    <li><b>Credenciales:</b> estado de SOL y SIRE y el botón <b>Actualizar</b>.</li>
+    <li><b>Periodos:</b> el periodo en curso (para abrirlo) y los ya presentados. Los ajustes a periodos pasados llegan en la release 3.</li>
+    <li><b>Reglas aprendidas</b> <span class="etq r2">R2</span>: ver el capítulo 8.</li>
+  </ul>
+  <h4>Si una clave SOL dejó de funcionar</h4>
+  <p>El cliente <b>FERRETERÍA EL PERNO DEMO</b> trae la clave SOL inválida a propósito. Verás un aviso rojo. Pulsa <b>Actualizar clave SOL</b>, escribe cualquier valor y <b>Guardar y verificar</b>. En unos segundos el estado pasa a «✓ SOL válida».</p>
+  <figure><img src="img/06-cliente-detalle.jpg" /><figcaption>Ficha de un cliente con la clave SOL inválida.</figcaption></figure>
+</section>
+
+<!-- 4 -->
+<section class="capitulo">
+  <h2>4. Trabajos en segundo plano y notificaciones</h2>
+  <p>Las tareas que en el producto hablan con SUNAT corren en segundo plano: descargar propuestas y XML, verificar credenciales, revisar buzones y enviar archivos. Mientras trabajan puedes seguir usando la aplicación.</p>
+  <ul>
+    <li>Abajo a la derecha aparece una <b>tarjeta flotante</b> con el avance de los trabajos en curso.</li>
+    <li>El menú <b>Trabajos</b> muestra el historial completo: en cola, ejecutando, completado o fallido.</li>
+    <li>Al terminar, llega una <b>notificación</b> a la campana 🔔 con un enlace directo al resultado.</li>
+  </ul>
+  <figure><img src="img/32-trabajos.jpg" /><figcaption>Historial de trabajos en segundo plano.</figcaption></figure>
+  <figure><img src="img/34-notificaciones.jpg" /><figcaption>Campana de notificaciones: alertas de credenciales, buzones y trabajos terminados.</figcaption></figure>
+</section>
+
+<!-- 5 -->
+<section class="capitulo">
+  <h2>5. Registro de Ventas (RVIE)</h2>
+  <p>Para llegar: <b>Clientes → (cliente) → Ventas</b>, o la pestaña <b>Ventas (RVIE)</b> dentro del periodo. Cada periodo tiene tres pestañas: <b>Ventas</b>, <b>Compras</b> y <b>Generar archivo</b>.</p>
+  <h3>Descargar la propuesta</h3>
+  <ol class="pasos">
+    <li>Pulsa <b>⤓ Descargar propuesta SIRE</b>. Si el cliente no tiene credenciales SIRE, usa <b>⇪ Importar TXT/Excel de SUNAT</b>.</li>
+    <li>Verás los pasos del trabajo: descifrar credenciales, autenticarse, pedir el ticket, descargar y auditar.</li>
+    <li>Al terminar aparece la grilla de ventas.</li>
+  </ol>
+  <h3>Auditoría de correlatividad</h3>
+  <p>El sistema ordena los comprobantes por tipo y serie y busca <b>saltos en la numeración</b>. En <b>DISTRIBUIDORA ANDINA DEMO</b> verás el caso real del video: <b>falta la boleta B001-291</b> entre la 290 y la 292. El SIRE no la trajo y el contador habría declarado sin notarlo.</p>
+  <figure><img src="img/20-ventas.jpg" /><figcaption>Auditoría de correlatividad: falta la boleta B001-291.</figcaption></figure>
+  <h3>Agregar la venta faltante</h3>
+  <ol class="pasos">
+    <li>En el aviso rojo pulsa <b>+ Agregar B001-291</b>. El formulario ya trae tipo, serie y número.</li>
+    <li>Escribe la <b>base imponible</b>. El IGV (18 %) y el total se calculan solos.</li>
+    <li>Pulsa <b>Agregar</b>. La fila aparece marcada como «Agregada» y el aviso cambia a <b>✓ Numeración completa</b>.</li>
+  </ol>
+  <figure class="chica"><img src="img/21-venta-agregar.jpg" /><figcaption>Formulario para agregar la venta faltante.</figcaption></figure>
+  <h3>Resumen, filtros y detalle</h3>
+  <ul>
+    <li><b>Resumen por tipo de comprobante:</b> cantidad, base, IGV, exonerado y total.</li>
+    <li><b>Búsqueda</b> por serie, número o cliente; <b>filtro</b> por tipo; <b>paginación</b> de 10, 25, 50 o todas.</li>
+    <li>La lupa 🔍 de cada venta muestra su detalle y origen (portal SUNAT o sistema propio).</li>
+    <li><b>+ Agregar venta</b> permite registrar cualquier venta que el SIRE no trajo.</li>
+  </ul>
+  <figure><img src="img/22-ventas-completa.jpg" /><figcaption>Después de agregar la B001-291: numeración completa.</figcaption></figure>
+</section>
+
+<!-- 6 -->
+<section class="capitulo">
+  <h2>6. Registro de Compras (RCE)</h2>
+  <p>Aquí están casi todos los errores del SIRE, que por defecto manda todo a DG. Es el corazón de ContApp.</p>
+  <h3>Descargar la propuesta</h3>
+  <ol class="pasos">
+    <li>Abre <b>Clientes → DISTRIBUIDORA ANDINA DEMO → Revisar compras</b>.</li>
+    <li>Pulsa <b>⤓ Descargar propuesta SIRE</b>.</li>
+    <li>Sigue los 7 pasos del trabajo. Los dos últimos son <b>obtener los XML</b> de cada comprobante y <b>evaluar el motor de reglas</b>.</li>
+  </ol>
+  <figure><img src="img/08-descargando.jpg" /><figcaption>Descarga en curso con el detalle de cada paso.</figcaption></figure>
+
+  <h3>La grilla de compras</h3>
+  <p>Cada fila es un comprobante. Columnas: fecha, comprobante, proveedor, <b>clasificación</b> (DG / DGNG / DNG), BI e IGV de cada destino, no gravado, ISC, ICBPER, otros tributos, total y las <b>reglas</b> que disparó.</p>
+  <ul>
+    <li>El <b>aviso ámbar</b> superior dice cuántas observaciones encontró el motor. <b>Ninguna se aplica sola.</b></li>
+    <li>Marcas en la fila: <span class="etq azul">USD</span> comprobante en dólares, <span class="etq">sin XML</span> XML no disponible, <span class="etq violeta">Nuevo</span> proveedor nuevo para el cliente.</li>
+    <li>Las <b>celdas resaltadas en amarillo</b> son los montos que leyó la regla. Un <b style="color:#dc2626">●</b> rojo junto al total indica que la fila no cuadra.</li>
+    <li><b>Segmentos:</b> Todas · Con observaciones · Con IGV · Sin IGV (no generan crédito fiscal) · Excluidas.</li>
+  </ul>
+  <figure><img src="img/09-compras-grilla.jpg" /><figcaption>Grilla de compras con las observaciones del motor.</figcaption></figure>
+
+  <h3>El motor de correcciones</h3>
+  <table>
+    <tr><th style="width:13%">Regla</th><th style="width:30%">Qué detecta</th><th>Qué sugiere y cómo se resuelve</th></tr>
+    <tr><td><span class="etq rojo">R-ISC</span></td><td>Base gravada con IGV 0, o proveedor del catálogo de «emisores de ISC».</td><td>Mover el monto a la columna <b>ISC</b>. Si el XML lo confirma, se acepta sin preguntar.</td></tr>
+    <tr><td><span class="etq ambar">R-MIX</span></td><td>IGV que no es el 18 % ni el 10 % de la base: factura mixta.</td><td>Separar gravado y no gravado. Con XML usa el <b>monto exacto</b>; sin XML muestra un <b>rango</b> (el IGV viene redondeado) y tú confirmas el gravado.</td></tr>
+    <tr><td><span class="etq azul">R-RED</span></td><td>La suma de componentes no da el total, o la conversión de dólares no cuadra.</td><td>Ajustar el monto para que SUNAT no lo devuelva «procesado con errores».</td></tr>
+    <tr><td><span class="etq violeta">R-NEW</span></td><td>Proveedor que nunca apareció en este cliente.</td><td>Elegir la clasificación (DG / DGNG / DNG) y, si quieres, que el sistema la recuerde.</td></tr>
+    <tr><td><span class="etq rojo">R-GP</span></td><td>Glosa del XML con palabras de consumo personal (zapatillas, juguetes…).</td><td>Excluirla como <b>no deducible</b>, o indicar que «es del negocio».</td></tr>
+    <tr><td><span class="etq teal">R-HIS</span> <span class="etq r2">R2</span></td><td>Proveedor con una clasificación aprendida distinta a la del SIRE.</td><td>Pasar la fila a la clasificación del historial.</td></tr>
+  </table>
+  <div class="tip"><b>Aceptar en bloque:</b> el botón <b>✓ Aceptar N respaldada(s) por XML</b> del aviso ámbar aplica de una vez todas las sugerencias que el XML confirma. Las que necesitan tu criterio quedan pendientes.</div>
+</section>
+
+<section>
+  <h3 style="margin-top:0">La lupa 🔍: el detalle del comprobante</h3>
+  <p>Pulsa la 🔍 de cualquier fila, o haz clic en la etiqueta de una regla. Se abre una ventana con todo lo necesario para decidir sin salir de la tabla:</p>
+  <ol>
+    <li><b>Cabecera:</b> proveedor, RUC, «Proveedor nuevo», «Catálogo: emisor de ISC», fecha, moneda y tipo de cambio, y origen (portal SUNAT «E…» o sistema propio «F…»).</li>
+    <li><b>Ítems del XML en lenguaje humano:</b> descripción, cantidad, precio unitario, valor, afectación (gravado, exonerado, inafecto), IGV, ISC e ICBPER por línea.</li>
+    <li><b>Comparación SIRE vs XML:</b> las diferencias se resaltan en rojo (SIRE) y verde (XML).</li>
+    <li><b>Observaciones del motor</b>, cada una con su explicación y sus botones.</li>
+    <li><b>Fila corregida propuesta:</b> cómo quedaría la fila si aceptas.</li>
+    <li><b>Acciones:</b> cambiar clasificación, «★ Recordar para este proveedor» y «No deducible».</li>
+    <li><b>Historial</b> de este proveedor en el cliente.</li>
+    <li><b>XML:</b> «Ver XML», «Descargar XML» y «PDF (representación impresa)».</li>
+  </ol>
+  <p><b>Atajos de teclado:</b> <span class="kbd">←</span> <span class="kbd">→</span> comprobante anterior o siguiente · <span class="kbd">Enter</span> aceptar la sugerencia · <span class="kbd">Esc</span> cerrar.</p>
+  <figure><img src="img/11-lupa-mixta.jpg" /><figcaption>Lupa de la factura mixta F001-2056: el XML da el gravado exacto 8.97.</figcaption></figure>
+</section>
+
+<section>
+  <h3 style="margin-top:0">Casos resueltos uno por uno</h3>
+  <h4>Caso 1 · Cerveza con ISC enviada a DG (F001-1040) <span class="etq rojo">R-ISC</span></h4>
+  <p>El SIRE trae 770.00 en BI DG con IGV 0. El XML dice que esos 770.00 son <b>ISC</b>. En la lupa pulsa <b>✓ Aceptar sugerencia</b>: el monto pasa de BI DG a ISC y la fila deja de ser observada.</p>
+  <figure class="media"><img src="img/10-lupa-isc.jpg" /><figcaption>R-ISC respaldada por el XML.</figcaption></figure>
+  <h4>Caso 2 · Factura mixta con XML (F001-2056) <span class="etq ambar">R-MIX</span></h4>
+  <p>Base 21.48 con IGV 1.61: no cuadra con el 18 % ni con el 10 %. Sin XML el gravado estaría entre 8.92 y 8.97. El XML trae el exacto: <b>8.97 gravado y 12.51 no gravado</b>. Pulsa <b>Aceptar sugerencia</b>.</p>
+  <h4>Caso 3 · Factura mixta sin XML (TRANSPORTES RUTA SUR · F001-7811) <span class="etq ambar">R-MIX</span></h4>
+  <p>Base 1,500.00 con IGV 171.00. Sin XML, el sistema propone un rango (949.98 – 950.02) y un estimado. Escribe el gravado confirmado en el campo <b>Gravado</b> y pulsa <b>Aceptar</b>. Si escribes un monto fuera del rango, el sistema no lo acepta. También puedes pulsar <b>⟳ Reintentar descarga</b> para obtener el XML con el monto exacto.</p>
+  <figure class="media"><img src="img/25-mixta-sinxml.jpg" /><figcaption>R-MIX sin XML: el contador confirma el gravado dentro del rango.</figcaption></figure>
+</section>
+
+<section>
+  <h4 style="margin-top:0">Caso 4 · Redondeo en dólares (F001-4062) <span class="etq azul">R-RED</span></h4>
+  <p>Comprobante de USD 0.15 + 0.03 con tipo de cambio 3.300. Convertido componente por componente da 0.50 + 0.10 = <b>0.60</b>, pero el SIRE trae <b>0.59</b>. SUNAT lo devolvería «procesado con errores». Acepta el ajuste.</p>
+  <figure class="media"><img src="img/13-lupa-usd.jpg" /><figcaption>R-RED: diferencia por conversión de dólares.</figcaption></figure>
+  <h4>Caso 5 · Zapatillas en una distribuidora (F001-5070) <span class="etq violeta">R-NEW</span> <span class="etq rojo">R-GP</span></h4>
+  <p>Proveedor nuevo cuya glosa dice «Par de zapatillas deportivas». La línea del XML se resalta en rojo. Tienes dos decisiones:</p>
+  <ul>
+    <li><b>R-GP:</b> <b>Excluir (no deducible)</b> si es un gasto del dueño, o <b>Es del negocio</b> si no lo es.</li>
+    <li><b>R-NEW:</b> si la mantienes, elige DG, DGNG o DNG, marca «Recordar para este proveedor» y acepta.</li>
+  </ul>
+  <figure class="media"><img src="img/12-lupa-gasto.jpg" /><figcaption>Proveedor nuevo y posible gasto personal en el mismo comprobante.</figcaption></figure>
+</section>
+
+<section>
+  <h4 style="margin-top:0">Caso 6 · Comprobante sin XML y que no cuadra (F002-8831) <span class="etq azul">R-RED</span></h4>
+  <p>El total es 300.01 y los componentes suman 300.00. El XML no se encontró en el primer intento (pasa en SOL a veces). En la lupa:</p>
+  <ul>
+    <li><b>⟳ Reintentar descarga</b>: el simulador lo obtiene en unos segundos.</li>
+    <li><b>⇪ Subir XML</b>: arrastra un archivo UBL 2.1. El sistema lo lee y verifica que el emisor sea el correcto.</li>
+  </ul>
+  <p>Con el XML disponible, acepta el ajuste del total. Esta fila es la que <b>bloquea la generación</b> mientras no se corrija (ver capítulo 7).</p>
+  <figure class="media"><img src="img/14-lupa-sinxml.jpg" /><figcaption>XML no disponible: reintentar o subir el XML.</figcaption></figure>
+</section>
+
+<section>
+  <h3 style="margin-top:0">Edición tipo Excel</h3>
+  <ol class="pasos">
+    <li>Haz clic en <b>cualquier monto</b> de la grilla. Se convierte en un campo editable.</li>
+    <li>Escribe el nuevo valor y pulsa <span class="kbd">Enter</span> (o <span class="kbd">Esc</span> para cancelar). Un valor inválido se marca en rojo.</li>
+    <li>Con la casilla «Recalcular el total al editar una celda» activada (abajo de la grilla), el total se recalcula solo. Si editas el total a mano, el <b style="color:#dc2626">●</b> rojo avisa si la fila deja de cuadrar.</li>
+  </ol>
+  <p>En la lupa, <b>✎ Editar montos</b> abre todos los montos de la fila a la vez, con el cuadre en vivo («✓ Cuadra» o «✕ No cuadra: diferencia…»).</p>
+  <figure><img src="img/15-celda.jpg" /><figcaption>Edición de una celda directamente en la grilla.</figcaption></figure>
+
+  <h3>Clasificación individual y masiva</h3>
+  <ul>
+    <li><b>Una fila:</b> cambia el desplegable de la columna «Clasif.». Los montos de BI e IGV se mueven solos a la columna del nuevo destino.</li>
+    <li><b>Varias filas:</b> marca las casillas de la izquierda (o la del encabezado para todas las visibles). Aparece la barra <b>«N seleccionada(s)»</b> con los botones DG, DGNG, DNG y <b>Excluir</b>.</li>
+  </ul>
+  <figure><img src="img/16-seleccion.jpg" /><figcaption>Barra de acciones masivas sobre las filas seleccionadas.</figcaption></figure>
+
+  <h3>Excluir y restaurar</h3>
+  <p>Una compra excluida («No deducible») queda tachada, deja de sumar y se ve en el segmento <b>Excluidas</b>. Puedes escribir un motivo. Para revertirla pulsa <b>Restaurar</b> en la columna de clasificación o en la lupa.</p>
+
+  <h3>Deshacer y rehacer</h3>
+  <p>Botones <b>↶ Deshacer</b> y <b>↷ Rehacer</b> en la barra de la grilla, o los atajos <span class="kbd">Ctrl</span>+<span class="kbd">Z</span> y <span class="kbd">Ctrl</span>+<span class="kbd">Y</span>. Funcionan para cualquier cambio del periodo.</p>
+
+  <h3>Agregar una compra y exportar</h3>
+  <ul>
+    <li><b>+ Agregar compra:</b> registra un comprobante que el SIRE no propuso (RUC del proveedor validado, serie, número, fecha, base y clasificación; el IGV se calcula solo). Queda marcado como agregado.</li>
+    <li><b>⤓ Excel:</b> descarga la grilla del periodo en CSV, que se abre en Excel, con las observaciones de cada fila.</li>
+  </ul>
+</section>
+
+<section>
+  <h3 style="margin-top:0">Resumen por casillero</h3>
+  <p>Debajo de la grilla se compara, casillero por casillero (BI e IGV de DG, DGNG y DNG, no gravado, ISC, ICBPER, otros y total), la <b>propuesta original del SIRE</b> con la <b>corregida</b>. La diferencia aparece en verde o en rojo.</p>
+  <figure><img src="img/17-resumen.jpg" /><figcaption>Resumen por casillero: propuesta SIRE frente a corregida.</figcaption></figure>
+  <h3>Marcar el periodo como revisado</h3>
+  <p>Cuando termines, pulsa <b>✓ Marcar como revisado</b> (arriba a la derecha del periodo). La edición queda bloqueada para quien no tenga el permiso de aprobar y generar, como el Asistente. Para volver a editar, <b>🔓 Reabrir periodo</b>.</p>
+</section>
+
+<!-- 7 -->
+<section class="capitulo">
+  <h2>7. Generar el archivo para SUNAT</h2>
+  <p>Pestaña <b>Generar archivo</b> del periodo.</p>
+  <h3>Resumen de cambios</h3>
+  <p>Cuatro indicadores: filas <b>modificadas</b>, <b>excluidas</b> y <b>agregadas</b>, y el <b>impacto en el IGV</b> (crédito fiscal) por destino frente a la propuesta original.</p>
+  <h3>Prevalidación SUNAT</h3>
+  <p>Antes de generar, cada fila pasa por las reglas de estructura y cuadre de SUNAT. Si hay <b>errores bloqueantes</b>, no se permite generar: la lista dice qué fila falla y por qué, con el botón <b>🔍 Corregir</b> que abre la lupa en esa fila. Los <b>avisos</b> (por ejemplo, un proveedor nuevo sin clasificar) no bloquean.</p>
+  <figure><img src="img/18-generar-bloqueado.jpg" /><figcaption>Prevalidación con un error bloqueante (la fila F002-8831 no cuadra).</figcaption></figure>
+  <h3>Generar el TXT y el ZIP</h3>
+  <ol class="pasos">
+    <li>Corrige los errores hasta ver <b>«Apto para generar»</b>.</li>
+    <li>Recomendado: marca el periodo como revisado.</li>
+    <li>Pulsa <b>⚙ Generar TXT + ZIP</b>. Verás la vista previa del TXT y la nueva versión en la tabla.</li>
+    <li>Pulsa <b>⤓ ZIP</b> para descargar el archivo. El ZIP lleva el nombre que exige el formato e incluye el TXT.</li>
+  </ol>
+  <h3>Versiones y envío a SUNAT <span class="etq r2">R2</span></h3>
+  <ul>
+    <li>Cada generación guarda <b>versión, usuario, fecha y huella SHA-256</b>. Puedes descargar cualquier versión anterior.</li>
+    <li><b>Enviar a SUNAT</b> simula el envío por la API SIRE: recibe un ticket y sigue su estado hasta <b>✓ Procesado</b>. Al terminar llega una notificación.</li>
+  </ul>
+  <figure><img src="img/19-generar-listo.jpg" /><figcaption>Archivo generado (v1) y enviado a SUNAT con el ticket procesado.</figcaption></figure>
+  <div class="ojo"><b>Importante:</b> el TXT usa la <b>estructura provisional</b> del motor (el nombre lo dice: «CONTAPP-PROVISIONAL»). La estructura oficial de SUNAT se cargará en una versión futura. No subas este archivo a SUNAT.</div>
+  <div class="nota">Solo <b>Contador</b> y <b>Administrador</b> pueden generar. Si entras como Asistente verás el botón desactivado y el motivo.</div>
+</section>
+
+<!-- 8 -->
+<section class="capitulo">
+  <h2>8. Funciones de la release 2 (vista previa)</h2>
+  <h3>Clasificación según historial: cliente de la selva</h3>
+  <p><b>AGROINDUSTRIAS HUALLAGA DEMO</b> está en Huánuco (zona selva) y sus ventas son exoneradas. Por eso sus compras deben ir a <b>DNG</b>, pero el SIRE las manda todas a DG. Como el estudio ya las clasificó en meses anteriores, el sistema sugiere <span class="etq teal">R-HIS → DNG</span> en cada fila.</p>
+  <ol class="pasos">
+    <li>Abre las compras del cliente y descarga la propuesta.</li>
+    <li>Pulsa <b>✓ Aplicar N según historial</b> en el aviso, o ve fila por fila con la lupa (<b>✓ Pasar a DNG</b>).</li>
+    <li>Revisa lo que queda: la cerveza sin XML (R-ISC) y el proveedor nuevo (R-NEW, donde el sistema recomienda DNG por el perfil del cliente).</li>
+  </ol>
+  <figure><img src="img/23-selva.jpg" /><figcaption>Cliente de la selva: sugerencias «según historial» para pasar a DNG.</figcaption></figure>
+  <figure class="media"><img src="img/24-lupa-historial.jpg" /><figcaption>Lupa con la sugerencia R-HIS y el historial del proveedor.</figcaption></figure>
+  <h3>Reglas aprendidas (Smart Mapping)</h3>
+  <p>Cada vez que usas «★ Recordar para este proveedor», se crea o actualiza una regla del cliente. En la <b>ficha del cliente</b> ves sus reglas, cuántas veces se aplicaron y se aceptaron, y puedes <b>desactivarlas</b> o <b>eliminarlas</b>. Las reglas son de cada cliente y nunca se comparten entre estudios.</p>
+  <figure><img src="img/29-aprendidas.jpg" /><figcaption>Reglas aprendidas de un cliente.</figcaption></figure>
+</section>
+
+<section>
+  <h3 style="margin-top:0">Buzones electrónicos SOL</h3>
+  <p>Menú <b>Buzones SOL</b>. Es una bandeja unificada con los mensajes de todos los clientes:</p>
+  <ul>
+    <li>Los <b>críticos</b> (cobranza coactiva, resoluciones de determinación o multa, requerimientos de fiscalización) se resaltan en rojo con 🚨.</li>
+    <li>Filtros: <b>Sin atender</b>, <b>Críticos</b>, <b>Todos</b> y por cliente.</li>
+    <li><b>⟳ Revisar ahora</b> lanza la revisión de todos los buzones. Revisar <b>no marca el mensaje como leído en SUNAT</b>; eso solo pasa cuando abres el mensaje.</li>
+    <li>Al abrir un mensaje puedes ver el contenido, descargar el adjunto y <b>Marcar como atendido</b> con un comentario interno.</li>
+  </ul>
+  <figure><img src="img/26-buzones.jpg" /><figcaption>Bandeja unificada de buzones SOL.</figcaption></figure>
+  <figure class="chica"><img src="img/27-mensaje.jpg" /><figcaption>Mensaje crítico abierto, listo para marcar como atendido.</figcaption></figure>
+</section>
+
+<section>
+  <h3 style="margin-top:0">Prorrata e IGV estimado</h3>
+  <p>Menú <b>Prorrata e IGV</b>. Elige el cliente arriba a la derecha (TRANSPORTES RUTA SUR DEMO o DISTRIBUIDORA ANDINA DEMO).</p>
+  <ul>
+    <li>El <b>coeficiente de prorrata</b> se calcula con los montos <b>declarados en el PDT 621</b> de los últimos 12 meses: ventas gravadas ÷ ventas totales.</li>
+    <li>El gráfico mes a mes muestra gravadas (verde) y no gravadas (ámbar), con el origen de cada dato.</li>
+    <li><b>Mes faltante:</b> si SOL no devolvió un mes, aparece un aviso. Pulsa <b>Ingresar ahora</b> (o el ✎ del mes) y escribe los montos; queda marcado como «Manual».</li>
+    <li><b>IGV estimado del mes:</b> IGV de ventas − crédito DG − crédito DGNG × prorrata. Indica si hay <b>saldo a favor</b> o <b>IGV a pagar</b>. Para verlo, descarga antes las ventas y compras del periodo de ese cliente.</li>
+  </ul>
+  <figure><img src="img/28-prorrata.jpg" /><figcaption>Prorrata con un mes faltante y el cálculo del IGV.</figcaption></figure>
+</section>
+
+<!-- 9 -->
+<section class="capitulo">
+  <h2>9. Auditoría, usuarios, roles y plan</h2>
+  <h3>Auditoría</h3>
+  <p>Menú <b>Auditoría</b>. Registro de solo lectura de todo lo que pasa: inicios de sesión, altas de clientes, cambios de credenciales, <b>cada cambio en una fila (valor anterior → nuevo)</b>, exclusiones, reglas aprendidas, archivos generados y envíos a SUNAT. Puedes buscar por texto y filtrar por usuario.</p>
+  <figure><img src="img/30-auditoria.jpg" /><figcaption>Auditoría de las acciones del equipo.</figcaption></figure>
+  <h3>Usuarios y plan</h3>
+  <p>Menú <b>Usuarios y plan</b>. Muestra el uso del plan (RUC y usuarios frente a los límites), la frecuencia de revisión de buzones, el estado de la suscripción, los usuarios con sus clientes asignados y la <b>matriz de permisos por rol</b>.</p>
+  <figure><img src="img/31-usuarios.jpg" /><figcaption>Uso del plan, usuarios y permisos por rol.</figcaption></figure>
+  <h3>Probar los permisos</h3>
+  <p>Pulsa <b>Salir</b> y entra como <b>Lucía Demo Flores (Asistente)</b>. En «Generar archivo» el botón aparece desactivado con el motivo, y si el periodo está revisado no podrá editar las compras.</p>
+  <figure><img src="img/35-asistente.jpg" /><figcaption>Vista de la Asistente: puede revisar, pero no generar.</figcaption></figure>
+</section>
+
+<!-- 10 -->
+<section class="capitulo">
+  <h2>10. Recorrido sugerido de 10 minutos</h2>
+  <p>También está dentro de la app, en el menú <b>Guía de la demo</b>, con enlaces directos a cada paso.</p>
+  <table>
+    <tr><th style="width:5%">#</th><th style="width:30%">Qué hacer</th><th>Dónde y qué observar</th></tr>
+    <tr><td>1</td><td>Entrar como Contador</td><td>Carlos Demo Rojas. Mira el panel.</td></tr>
+    <tr><td>2</td><td>Descargar compras</td><td>DISTRIBUIDORA ANDINA DEMO → Compras → Descargar propuesta SIRE. Mira los pasos del trabajo.</td></tr>
+    <tr><td>3</td><td>Cerveza con ISC</td><td>Lupa de F001-1040 → Aceptar sugerencia (R-ISC).</td></tr>
+    <tr><td>4</td><td>Factura mixta</td><td>Lupa de F001-2056 → el XML da 8.97 exacto (R-MIX).</td></tr>
+    <tr><td>5</td><td>Redondeo en USD</td><td>Lupa de F001-4062 → 0.59 frente a 0.60 (R-RED).</td></tr>
+    <tr><td>6</td><td>Gasto personal</td><td>Lupa de F001-5070 → Excluir (no deducible) (R-GP).</td></tr>
+    <tr><td>7</td><td>Edición tipo Excel</td><td>Edita un monto, mira el cuadre y deshaz con Ctrl+Z.</td></tr>
+    <tr><td>8</td><td>Intentar generar</td><td>Generar archivo → bloqueado por F002-8831 → 🔍 Corregir → Reintentar descarga → Aceptar.</td></tr>
+    <tr><td>9</td><td>Generar y enviar</td><td>Generar TXT + ZIP → descargar → Enviar a SUNAT → Procesado.</td></tr>
+    <tr><td>10</td><td>Ventas</td><td>Descargar ventas → falta B001-291 → agregarla.</td></tr>
+    <tr><td>11</td><td>Cliente de la selva</td><td>AGROINDUSTRIAS HUALLAGA → Compras → Aplicar según historial (DNG).</td></tr>
+    <tr><td>12</td><td>Mixta sin XML</td><td>TRANSPORTES RUTA SUR → Compras → F001-7811 → confirmar gravado en el rango.</td></tr>
+    <tr><td>13</td><td>Buzones y credenciales</td><td>Buzones SOL → abrir la coactiva → atender. FERRETERÍA EL PERNO → actualizar clave SOL.</td></tr>
+    <tr><td>14</td><td>Prorrata</td><td>Prorrata e IGV → ingresar el mes faltante.</td></tr>
+    <tr><td>15</td><td>Roles y auditoría</td><td>Salir → entrar como Asistente → ver restricciones. Revisar la Auditoría.</td></tr>
+  </table>
+  <figure><img src="img/33-guia.jpg" /><figcaption>La guía integrada dentro de la app.</figcaption></figure>
+</section>
+
+<!-- 11 -->
+<section class="capitulo">
+  <h2>11. Datos de prueba y preguntas frecuentes</h2>
+  <div class="tip"><b>Recuerda:</b> todo en esta demo es ficticio: estudio, usuarios, clientes, proveedores, montos, mensajes y RUC. Ningún dato corresponde a personas o empresas reales.</div>
+  <h3>Clientes ficticios</h3>
+  <table>
+    <tr><th style="width:32%">Cliente</th><th style="width:16%">RUC</th><th>Para qué sirve</th></tr>
+    <tr><td>DISTRIBUIDORA ANDINA DEMO S.A.C.</td><td>20700000002</td><td>Todos los casos del motor (ISC, mixta, USD, zapatillas, ICBPER, sin XML), la boleta 291 faltante y la prorrata.</td></tr>
+    <tr><td>AGROINDUSTRIAS HUALLAGA DEMO S.A.C.</td><td>20700001025</td><td>Zona selva con ventas exoneradas: compras a DNG según historial; cerveza sin XML.</td></tr>
+    <tr><td>FERRETERÍA EL PERNO DEMO E.I.R.L.</td><td>20700001033</td><td>Clave SOL inválida; restaurante al 10 % (cuadra, no es mixta); buzón con multa.</td></tr>
+    <tr><td>TRANSPORTES RUTA SUR DEMO S.A.C.</td><td>20700001041</td><td>Ventas gravadas y exoneradas: DGNG, mixta sin XML, prorrata con mes faltante.</td></tr>
+    <tr><td>PÉREZ DEMO JUAN CARLOS</td><td>10700001003</td><td>Persona natural sin credenciales: importar la propuesta desde archivo.</td></tr>
+  </table>
+  <p><b>RUC ficticios para el alta y la importación:</b> 20700001203, 20700001211, 20700001220, 20700001050, 20700001114. El RUC 20700001234 sirve para ver el error de dígito verificador.</p>
+
+  <h3>Preguntas frecuentes</h3>
+  <h4>¿Por qué no puedo generar el archivo?</h4>
+  <p>Puede ser por tres razones: la prevalidación tiene errores bloqueantes (corrígelos con 🔍 Corregir), tu rol es Asistente, o todavía no descargaste las compras del periodo.</p>
+  <h4>¿Por qué una observación no desaparece?</h4>
+  <p>El motor vuelve a evaluar la fila después de cada cambio. Si la corrección no resolvió el problema, la observación sigue. Si no estás de acuerdo con la sugerencia, usa <b>Descartar</b>.</p>
+  <h4>Hice muchos cambios y quiero empezar de nuevo</h4>
+  <p>Usa <b>↶ Deshacer</b> para los últimos cambios, o <b>↺ Reiniciar demo</b> para volver todo al estado inicial.</p>
+  <h4>Abrí la demo en otro navegador o computadora y no veo mis cambios</h4>
+  <p>Es normal: la demo guarda los datos solo en el navegador donde trabajas. En el producto real todo se guarda en el servidor, por estudio.</p>
+  <h4>¿Puedo subir el ZIP generado a SUNAT?</h4>
+  <p>No. Usa la estructura provisional y datos ficticios. Solo sirve para ver el proceso.</p>
+  <h4>¿Funciona en el celular?</h4>
+  <p>Sí. El menú se abre con ☰. Para trabajar con la grilla de compras es más cómoda una pantalla grande.</p>
+</section>
+
+</body>
+</html>

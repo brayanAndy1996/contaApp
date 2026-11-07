@@ -7,7 +7,7 @@ import { COLUMNAS_COMPRA, ETIQUETA_COLUMNA, claveHallazgo, cuadre, destinoDe, es
 import { descargar } from "../../motor/empaquetar";
 import type { ColumnaCompra } from "../../motor/dominio";
 import { Aviso, Boton, Campo, Insignia, Modal, Tarjeta, claseInput, fechaDoc, soles } from "../../ui/comunes";
-import { SinPropuesta, TrabajoEnCurso } from "../periodo";
+import { SinPropuesta } from "../periodo";
 import { Paginacion } from "./ventas";
 import { Lupa } from "./lupa";
 import { EXPLICACION_REGLA, TONO_REGLA, useCompras } from "./usar-compras";
@@ -106,7 +106,6 @@ export function VistaCompras({ clienteId }: { clienteId: string }) {
   if (!p.comprasCargadas)
     return (
       <div className="space-y-4">
-        <TrabajoEnCurso cliente={c.razonSocial} tipo="RCE" />
         <SinPropuesta clienteId={clienteId} libro="compras" />
       </div>
     );
