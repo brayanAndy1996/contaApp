@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any -- cuerpos JSON y filas de BD dinámicos en pruebas */
 // Spec 014 T22a · M-1 por HTTP con PostgreSQL real (rojo hasta T22b).
 //  - Una masiva de clasificar con una fila cuya suma al cambiar de destino no cabe en NUMERIC(14,2) (BI de DG y de DGNG cerca de
 //    999999999999.99, destino DGNG; el total sigue cuadrando con un no gravado negativo) y una fila válida: responde 200, la válida

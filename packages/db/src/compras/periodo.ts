@@ -55,6 +55,12 @@ export async function leerEstadoPeriodo(
  * Compare-and-set bajo `FOR UPDATE`: pasa de `desde` a `hacia` y marca quién y cuándo; devuelve `null` si el estado vigente no era
  * `desde` (otro lo cambió antes). Sin fila previa, el estado vigente es `abierto`. Un estado fuera de los tres valores lo rechaza
  * el CHECK de la tabla (ComprasRepoError 23514). Lo usan el backend (revisar y reabrir) y 012b (marcar `generado`).
+ *
+ * [012b] Protocolo: fije `generado` PRIMERO, en la misma transacción que luego llama a `leerFilasReemplazo`. El `FOR UPDATE`
+ * espera a las acciones en curso y las posteriores ven `generado`, de modo que las dos listas de la lectura quedan coherentes.
+ * Si el resultado es `null` (el periodo ya no estaba en `desde`), 012b no debe leer ni generar. Si algo posterior falla, lanzar
+ * revierte el estado. El rol del worker tiene `UPDATE (estado, marcado_por, marcado_en)` sobre `compra_periodo`.
+ * DU-25: la razón social larga (hasta 200) se recorta a 100 en el TXT provisional (lo hace 012b, no esta función).
  */
 export async function fijarEstadoPeriodo(
   tx: TxConsulta,

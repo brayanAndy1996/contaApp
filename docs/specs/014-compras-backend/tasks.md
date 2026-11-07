@@ -33,8 +33,8 @@ Nivel B con una ronda adversarial acotada (spec DU-12). Flujo 04 §1.3: pruebas 
 | T21 | Verificar CA-1 a CA-20 con evidencia (suites completas, `servicios:up`)                           | tester     | sonnet | T20                 | sí  | —   | —   | [x]    |
 | T22 | Revisión contra la spec                                                                           | arquitecto | sonnet | T21                 | sí  | —   | —   | [x]    |
 | T22a | Pruebas en rojo: código de rechazo de la masiva (M-1) y `descartarAgregadas` en BD | tester | sonnet | T22 | sí | ✓ | — | [x] |
-| T22b | Corregir M-1 y documentar el protocolo de lectura para 012b | backend | sonnet | T22a | sí | — | — | [ ] |
-| T22c | Renombrar la migración `0033b` a `0034` (014 aún no está en `main`) | devops | haiku | T22 ∥ T22a | sí | — | — | [ ] |
+| T22b | Corregir M-1 y documentar el protocolo de lectura para 012b | backend | sonnet | T22a | sí | — | — | [x] |
+| T22c | Renombrar la migración `0033b` a `0034` (014 aún no está en `main`) | devops | haiku | T22 ∥ T22a | sí | — | — | [x] |
 | T23 | Cierre: tasks y commit (el orquestador actualiza ESTADO)                                          | devops     | haiku  | T22b, T22c          | sí  | —   | —   | [ ]    |
 
 Paralelismo: T1 ∥ T2, T3 ∥ T4 (los dos sobre pruebas ya en rojo); T6 ∥ T7 ∥ T8 y T9 ∥ T10 (archivos distintos; T8, T9 y T10 esperan los fixtures de T7 solo donde los usan); T13 ∥ T14; T16 ∥ T17 (T17 no toca los archivos de T16: `exportar.service.ts` y su ruta van en un controlador propio). Los pares que comparten `compras.module.ts` (T15, T16) van en serie.
@@ -279,17 +279,17 @@ Reglas comunes:
   - **Cobertura**: `pnpm cobertura:db` verde (exit 0): global ramas 91,25 % (antes 90,62 %); `operaciones.ts` 87,27 % de ramas (antes 78,18 %) y 95,83 % de líneas.
   - **Para T22b**: tras sumar `solicitud_invalida` a la lista deben pasar los 4 + 2 casos rojos; no hay que tocar las pruebas.
 
-## T22b · Corregir M-1 y documentar para 012b (backend · sonnet)
+## T22b · [x] Corregir M-1 y documentar para 012b (backend · sonnet)
 - **Contexto (leer solo esto)**: las pruebas de T22a, el Resultado de T22, `packages/shared/src/compras/respuestas.ts`, `packages/db/src/compras/filas-reemplazo.ts` y `plan.md` («Contrato con 012b»).
 - **Hacer**: (1) sumar `solicitud_invalida` a `CODIGOS_RECHAZO_MASIVA` (quitar el `as` de `masivas.service.ts:40` solo si el tipo ya lo garantiza); (2) completar el JSDoc de `leerFilasReemplazo` con el protocolo de `plan.md` (fijar `generado` primero en la misma transacción, leer después; no usar `foto`; el adaptador de `CompraLeida`). Sin tocar pruebas.
 - **Hecho cuando**: las pruebas de T22a en verde; `shared`, `db` y las de integración de `modules/compras` en verde; typecheck y lint limpios.
-- **Resultado**: pendiente.
+- **Resultado**: hecha. `solicitud_invalida` sumada a `CODIGOS_RECHAZO_MASIVA` (`packages/shared/src/compras/respuestas.ts`, antes de `no_encontrada`); las pruebas de T22a pasan sin tocar sus aserciones (`shared` 1.451 verdes; `correcciones-t22.int.spec.ts` dentro de las 513 de integración de `modules/compras`). **El `as` de `masivas.service.ts:40` se conserva**: `packages/db` tipa el código como `string` (no depende de `shared`), así que quitarlo rompe el typecheck; se dejó un comentario que lo explica. JSDoc de `leerFilasReemplazo` (`packages/db/src/compras/filas-reemplazo.ts`) y de `fijarEstadoPeriodo` (`periodo.ts`) con el protocolo de «Contrato con 012b»: `fijarEstadoPeriodo(…, 'generado')` primero en la misma transacción, luego la lectura; no usar `foto`; `aFila` recibe `CompraLeida` plana; `reglas` desde `leerProveedoresConocidos` y `DICCIONARIO_GLOSAS_BASE`; nota DU-25 (razón social de hasta 200 en BD, recortada a 100 en el TXT por 012b). Además se quitó una directiva `eslint-disable` sin uso en la primera línea de `correcciones-t22.int.spec.ts` (lint con `--max-warnings=0`; sin tocar aserciones). Verificado: `pnpm test:aislamiento` 1.836 verdes; `pnpm cobertura:db` 2.577 verdes y ramas 91,25 % (umbral global cumplido); typecheck y lint de todo el monorepo limpios.
 
-## T22c · Renombrar la migración 0033b a 0034 (devops · haiku)
+## T22c · [x] Renombrar la migración 0033b a 0034 (devops · haiku)
 - **Contexto (leer solo esto)**: el Resultado de T22 (sección «Migración 0033b → 0034»), `packages/db/migrations/meta/_journal.json`, `packages/db/src/schema/compras.ts` (comentario de las líneas 32 y 33), `plan.md` y `ESTADO.md` (nota [siguientes]).
 - **Hacer**: (1) `git mv` de `0033b_compra_puntero_vigente.sql` a `0034_compra_puntero_vigente.sql` y de `meta/0033b_snapshot.json` a `meta/0034_snapshot.json`; (2) en `_journal.json` cambiar solo `tag` de la entrada `idx` 34 a `0034_compra_puntero_vigente` (no tocar `idx` ni `when`, ni el contenido del SQL ni el del snapshot); (3) actualizar el comentario de `schema/compras.ts` (trigger «en 0032, 0033 y 0034»), y en `ESTADO.md` la nota [siguientes] (014 usa 0032, 0033 y 0034; 012b y 015 parten de la 0035); no editar `docs/specs/012-*` (su D9 queda como historia). Confirmar antes que ninguna rama usa 0034 o más (`git ls-tree` de cada rama remota).
 - **Hecho cuando**: `pnpm db:migrate` dos veces seguidas sin error sobre la base de pruebas (ya migrada: no aplica nada) y sobre una base nueva vacía (aplica 35 migraciones; trigger endurecido presente); `pnpm --filter @contapp/db exec drizzle-kit generate` no produce migración («nothing to migrate»); `tests/aislamiento/compras-tablas.spec.ts` y `pnpm --filter @contapp/db test` en verde.
-- **Resultado**: pendiente.
+- **Resultado**: hecha. `git mv` de `0033b_compra_puntero_vigente.sql` y de `meta/0033b_snapshot.json` a `0034_…`; en `_journal.json` solo cambió el `tag` de `idx` 34 (`when` e `idx` intactos; el contenido del SQL y del snapshot no se tocó, así que el comentario interno del SQL sigue diciendo `0033b`). Ninguna rama remota tiene migraciones 0034 o superiores. Comentario de `schema/compras.ts` y nota [siguientes] de `ESTADO.md` actualizados (014 usa 0032–0034; 012b y 015 parten de la 0035). `pnpm db:migrate` dos veces sobre la base local (ya había aplicado `0033b`): OK y no re-aplica (35 filas en `__drizzle_migrations`, mismo `when`); sobre una base nueva vacía (creada y borrada) dos veces: OK, 35 filas y el trigger endurecido presente. `drizzle-kit generate`: «nothing to migrate».
 
 ## T23 · Cierre (devops · haiku)
 - **Contexto (leer solo esto)**: `docs/specs/014-compras-backend/tasks.md`, `git status`.

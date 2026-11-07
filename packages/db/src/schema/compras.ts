@@ -29,8 +29,8 @@ const monto = (nombre: string) => numeric(nombre, { precision: 14, scale: 2 }).n
 
 // Spec 014 (D-1, D-2, D-9). Compras del RCE: la fila de identidad (`compra`) casi no cambia y cada edición es una versión nueva e
 // inmutable (`compra_version`). RLS ENABLE + FORCE, tenant_isolation, grants mínimos y el trigger de identidad
-// (`compra_identidad_inmutable`: solo `version_vigente` y `descartada_en`, de NULL a una fecha, una vez) están en 0032_compra
-// y 0033_compra_hallazgo_periodo. Va aparte del índice del esquema, como `ventas.ts`. Ninguna columna termina en `_at` (013: `_en`).
+// (`compra_identidad_inmutable`: solo `version_vigente` y `descartada_en`, de NULL a una fecha, una vez) están en 0032_compra,
+// 0033_compra_hallazgo_periodo y 0034_compra_puntero_vigente. Va aparte del índice del esquema, como `ventas.ts`. Ninguna columna termina en `_at` (013: `_en`).
 export const compra = pgTable(
   "compra",
   {

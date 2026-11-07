@@ -22,6 +22,20 @@ const SQL_VIGENTE = `select ${COLUMNAS_LEIDA} from ${UNION_VIGENTE}
  * dominio; lo que devuelva pasa tal cual. Los montos y el tipo de cambio llegan como cadenas exactas; una compra en PEN trae
  * `tipoCambio: null`.
  *
+ * [012b] Protocolo de consistencia. Las dos listas son DOS sentencias: en `READ COMMITTED` una acción o una descarga que se cuele
+ * entre ambas las desajusta (`resumirCambios` lanza si una fila no agregada no está en el original). `withTenant({ foto: true })`
+ * no sirve: es `READ ONLY` y 012b debe escribir. Por eso 012b hace, en UNA sola transacción: (1) `fijarEstadoPeriodo(tx, cliente,
+ * periodo, desde, 'generado', usuario)`, que toma `compra_periodo FOR UPDATE`, espera a las acciones en curso y hace que las
+ * nuevas vean `generado` (409 `periodo_generado`); (2) esta lectura; (3) `prevalidar` y `resumirCambios`. Si algo falla, lanza
+ * para revertir también el estado. Las `reglas` de `prevalidar` salen de `leerProveedoresConocidos(tx, cliente, periodo)` y
+ * `DICCIONARIO_GLOSAS_BASE`.
+ *
+ * [012b] `aFila` recibe una `CompraLeida` PLANA, no la `CompraParaReemplazo` anidada (con `MontosComprobante`) que pide
+ * `aFilaReemplazo` de `packages/domain`: 012b escribe el adaptador (modelo: `integracion-012.int.spec.ts:77`) o lo sube a `domain`.
+ *
+ * [012b] DU-25: la razón social de una compra admite hasta 200 caracteres, pero el TXT provisional admite 100; 012b la recorta a
+ * 100 al armar el TXT y lo avisa, sin bloquear. Esta lectura devuelve la razón social completa.
+ *
  * [012b] Quien llame a `prevalidar` con estas filas debe pasarle SIEMPRE las `reglas` y nunca tomar el `registro` de la petición:
  * el registro de lo que se cambió lo da esta lectura (original frente a vigente), no el cliente HTTP.
  */

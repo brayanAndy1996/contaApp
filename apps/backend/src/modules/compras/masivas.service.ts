@@ -37,6 +37,7 @@ function informe(r: ResultadoMasivaCompra): InformeMasiva {
     operacionId: r.operacionId,
     aplicadas: r.aplicadas,
     // Los códigos son los de la lista cerrada del contrato (`CODIGOS_RECHAZO_MASIVA`): los pone `packages/db` y `transformar*`.
+    // El `as` queda: `packages/db` no depende de `shared` y tipa el código como `string`; la prueba de T22a vigila la lista.
     rechazadas: r.rechazadas.map((x) => ({ compraId: x.compraId, codigo: x.codigo as CodigoRechazoMasiva })),
   };
 }
