@@ -34,6 +34,8 @@ describe("MockSireApiClient con los fixtures del repo", () => {
 
   it("la propuesta de compras trae las filas de los casos de CA-2", async () => {
     const p = await new MockSireApiClient().descargarPropuesta(TOKEN, pedir(RUC, "202610"));
+    // 013: `PropuestaSire` es una unión por `libro`; se estrecha a compras antes de leer `rucContraparte`.
+    if (p.libro !== "compras") throw new Error("se esperaba la propuesta de compras");
     expect(p.filas.map((f) => `${f.rucContraparte}-${f.serie}-${f.numero}`).sort()).toEqual([
       "20700000011-F001-1040",
       "20700000045-F001-2056",

@@ -104,7 +104,7 @@ async function cargarPagina(): Promise<ReactElement> {
 //   POST <BASE>/saltos-justificados {tipo, serie, desde, hasta, comentario} (desde/hasta enteros) y recarga la
 //   correlatividad.
 // - Agregar venta: formulario (role=form, «Agregar venta») con los campos de M.campos, validado con
-//   `agregarVentaSchema` de shared; POST <BASE> con montos como cadenas; recarga grilla, resumen y
+//   `ventaAgregarSchema` de shared; POST <BASE> con montos como cadenas; recarga grilla, resumen y
 //   correlatividad. La pantalla NO suma ni compara montos: el servidor decide el cuadre.
 // - «Diferencias de la última descarga» y el resumen se listan como filas (role=row).
 // - Descargar: POST <BASE>/descargar sin cuerpo → 202 {trabajoId}; la región «Descarga» muestra la
@@ -798,14 +798,15 @@ describe("/clientes/:id/ventas · pantalla de ventas (013)", () => {
       expect(llamada.body as object).not.toHaveProperty("tipoCambio");
       expect(llamada.headers["x-csrf-token"]).toBe("csrf-acceso-1");
       expect(llamada.headers["x-estudio"]).toBe("e-a");
-      // Contrato con T11: el esquema de agregar se llama `agregarVentaSchema`.
+      // Contrato con T11: el esquema de agregar se llama `ventaAgregarSchema` (nombre fijado por las pruebas de T4;
+      // T11 cambió aquí solo el nombre importado, que era `agregarVentaSchema`; ninguna aserción se tocó).
       const esquema = (
         shared as unknown as Record<
           string,
           { safeParse: (v: unknown) => { success: boolean } } | undefined
         >
-      )["agregarVentaSchema"];
-      expect(esquema, "falta agregarVentaSchema en @contapp/shared").toBeDefined();
+      )["ventaAgregarSchema"];
+      expect(esquema, "falta ventaAgregarSchema en @contapp/shared").toBeDefined();
       expect(esquema!.safeParse(llamada.body).success).toBe(true);
 
       await vi.waitFor(() => expect(f.lecturas()).toHaveLength(2));

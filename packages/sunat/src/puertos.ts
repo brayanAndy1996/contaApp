@@ -124,11 +124,48 @@ export interface FilaPropuestaSire {
   total: string;
 }
 
-export interface PropuestaSire {
-  libro: LibroSire;
+/**
+ * Fila de la propuesta de ventas del SIRE (RVIE). Montos como cadenas decimales (nunca `number`). Las
+ * columnas son las del layout provisional de 013 (D14b) y no las de compras: `docContraparte` es el
+ * documento del cliente (`-` en una boleta de consumidor final) y los tres tipos de venta no gravada van
+ * separados (`exonerada`, `inafecta`, `otros`).
+ */
+export interface FilaVentaSire {
+  tipo: string;
+  serie: string;
+  numero: string;
+  tipoDocContraparte?: string;
+  docContraparte: string;
+  /** AAAA-MM-DD */
+  fechaEmision: string;
+  moneda: "PEN" | "USD";
+  tipoCambio?: string;
+  baseGravada: string;
+  igv: string;
+  exonerada: string;
+  inafecta: string;
+  isc: string;
+  icbper: string;
+  otros: string;
+  total: string;
+}
+
+/** Propuesta de compras: sus filas son `FilaPropuestaSire` (sin cambios desde 009). */
+export interface PropuestaComprasSire {
+  libro: "compras";
   periodo: string;
   filas: FilaPropuestaSire[];
 }
+
+/** Propuesta de ventas: sus filas son `FilaVentaSire` (013). */
+export interface PropuestaVentasSire {
+  libro: "ventas";
+  periodo: string;
+  filas: FilaVentaSire[];
+}
+
+/** Unión por `libro`: quien lea `filas` estrecha primero por `libro`. */
+export type PropuestaSire = PropuestaComprasSire | PropuestaVentasSire;
 
 /**
  * Puerto de descarga de la propuesta mensual del SIRE. Solo el worker lo usa (el backend nunca llama a

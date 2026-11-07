@@ -155,6 +155,8 @@ async function cargar() {
     periodo: PERIODO,
     libro: "compras",
   });
+  // 013: `PropuestaSire` es una unión por `libro`; aquí se pidió compras, así que se estrecha antes de leer `filas`.
+  if (propuesta.libro !== "compras") throw new Error("se esperaba la propuesta de compras");
   const proveedor = new MockXmlProvider();
   const casos = new Map<string, { fila: FilaPropuestaSire; xml: XmlLeido; crudo: string }>();
   for (const fila of propuesta.filas) {
