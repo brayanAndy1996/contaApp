@@ -232,6 +232,16 @@ export interface CorrelatividadVentasDto {
   series: SerieCorrelatividadDto[];
 }
 
+/** Respuesta 201 de `POST …/saltos-justificados`: el rango justificado y su comentario. */
+export interface SaltoJustificadoDto {
+  id: string;
+  tipo: string;
+  serie: string;
+  desde: number;
+  hasta: number;
+  comentario: string;
+}
+
 export interface PropuestaVentasDto {
   id: string;
   fuente: "api" | "importacion";

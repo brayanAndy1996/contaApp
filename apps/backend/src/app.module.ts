@@ -11,6 +11,7 @@ import { PlataformaModule } from "./modules/plataforma/plataforma.module.js";
 import { RegistroModule } from "./modules/registro/registro.module.js";
 import type { OpcionesRedisTrabajos } from "./modules/trabajos/redis.js";
 import { TrabajosModule } from "./modules/trabajos/trabajos.module.js";
+import { VentasModule } from "./modules/ventas/ventas.module.js";
 
 /** Dependencias de la raíz: las del núcleo y el Redis de trabajos (008). */
 export interface DependenciasApp extends DependenciasNucleo {
@@ -34,6 +35,7 @@ export class AppModule {
         PlanesModule,
         RegistroModule,
         PlataformaModule,
+        VentasModule,
         TrabajosModule.registrar(redis),
       ],
     };

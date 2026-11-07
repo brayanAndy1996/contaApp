@@ -38,6 +38,9 @@ importers:
       '@contapp/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@contapp/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@contapp/queue':
         specifier: workspace:*
         version: link:../../packages/queue

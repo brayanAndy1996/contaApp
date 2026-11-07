@@ -19,6 +19,7 @@
   "dependencies": {
     "@contapp/crypto": "workspace:*",
     "@contapp/db": "workspace:*",
+    "@contapp/domain": "workspace:*",
     "@contapp/queue": "workspace:*",
     "@contapp/shared": "workspace:*",
     "@nestjs/common": "^12.0.1",
