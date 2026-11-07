@@ -149,9 +149,15 @@ let Y: string;
 let ux: string;
 let uy: string;
 
+// Un pool por rol, creado al primer uso y cerrado en afterAll: un pool nuevo por llamada agotaba max_connections (53300).
+const pools: Partial<Record<"contapp_backend" | "contapp_worker", ContappDb>> = {};
 const db = (rol: "contapp_backend" | "contapp_worker", max = 4): ContappDb => {
-  const d = crearDb(rol, max);
-  dbs.push(d);
+  let d = pools[rol];
+  if (!d) {
+    d = crearDb(rol, max);
+    pools[rol] = d;
+    dbs.push(d);
+  }
   return d;
 };
 const backend = () => db("contapp_backend");
@@ -665,7 +671,7 @@ describe("justificar, revertirJustificacion y listarJustificados (D8, CA-7)", ()
 
   it("30 rondas: dos justificaciones simultaneas iguales no fallan, devuelven la misma fila y dejan una vigente", async () => {
     const c = await clienteNuevo();
-    const dos = [backend(), backend()];
+    const dos = [backend(), backend()]; // el mismo pool: cada llamada usa su propia conexion
     for (let ronda = 0; ronda < 30; ronda++) {
       const n = 100 + ronda;
       const r = await Promise.allSettled(dos.map((d) => d.withTenant({ tenantId: X }, (tx) => justificar(tx, datos(c, { desde: n, hasta: n })))));

@@ -116,7 +116,8 @@ describe("0031 · RLS ENABLE + FORCE y catalogo de 002 (CA-4)", () => {
 // =================================================================================================
 describe("0031 · aislamiento por estudio (CA-4)", () => {
   it("el otro estudio y la consulta sin contexto ven 0 filas; no se inserta para un cliente ajeno ni con tenant ajeno", async () => {
-    const id = await ev.salto(X, cx.id);
+    const cz = await ev.cliente(X); // cliente propio: no deja una vigente 291-291 en cx
+    const id = await ev.salto(X, cz.id);
     const propia = await backend.withTenant({ tenantId: X }, (tx) => tx.query("select id from venta_salto_justificado where id = $1", [id]));
     expect(propia.rowCount).toBe(1);
     const ajena = await backend.withTenant({ tenantId: Y }, (tx) => tx.query("select id from venta_salto_justificado where id = $1", [id]));
@@ -146,7 +147,8 @@ describe("0031 · aislamiento por estudio (CA-4)", () => {
 // =================================================================================================
 describe("0031 · CHECK: rango, enteros de 1 a 8 digitos y comentario 1 a 500 (D8)", () => {
   it("inserta el caso real (B001-291 con comentario) con el rol backend", async () => {
-    expect(await intentar(backend, { tenantId: X }, INS, v(cx.id, ux))).toEqual({ ok: true, rowCount: 1 });
+    const c = await ev.cliente(X);
+    expect(await intentar(backend, { tenantId: X }, INS, v(c.id, ux))).toEqual({ ok: true, rowCount: 1 });
   });
 
   it("desde <= hasta: un rango invertido da 23514; desde = hasta y un rango amplio entran", async () => {
@@ -167,15 +169,17 @@ describe("0031 · CHECK: rango, enteros de 1 a 8 digitos y comentario 1 a 500 (D
   });
 
   it("comentario: vacio y de 501 caracteres dan 23514, nulo 23502; de 1 y de 500 entran", async () => {
-    expect(codigo(await intentar(backend, { tenantId: X }, INS, v(cx.id, ux, { comentario: "" })))).toBe("23514");
-    expect(codigo(await intentar(backend, { tenantId: X }, INS, v(cx.id, ux, { comentario: "a".repeat(501) })))).toBe("23514");
-    expect(codigo(await intentar(backend, { tenantId: X }, INS, v(cx.id, ux, { comentario: null as never })))).toBe("23502");
-    expect(await intentar(backend, { tenantId: X }, INS, v(cx.id, ux, { comentario: "a" }))).toEqual({ ok: true, rowCount: 1 });
-    expect(await intentar(backend, { tenantId: X }, INS, v(cx.id, ux, { comentario: "a".repeat(500) }))).toEqual({ ok: true, rowCount: 1 });
+    const c = await ev.cliente(X);
+    expect(codigo(await intentar(backend, { tenantId: X }, INS, v(c.id, ux, { comentario: "" })))).toBe("23514");
+    expect(codigo(await intentar(backend, { tenantId: X }, INS, v(c.id, ux, { comentario: "a".repeat(501) })))).toBe("23514");
+    expect(codigo(await intentar(backend, { tenantId: X }, INS, v(c.id, ux, { comentario: null as never })))).toBe("23502");
+    expect(await intentar(backend, { tenantId: X }, INS, v(c.id, ux, { comentario: "a", desde: 11, hasta: 11 }))).toEqual({ ok: true, rowCount: 1 });
+    expect(await intentar(backend, { tenantId: X }, INS, v(c.id, ux, { comentario: "a".repeat(500), desde: 12, hasta: 12 }))).toEqual({ ok: true, rowCount: 1 });
   });
 
   it("comentario cuenta caracteres y no bytes: 500 letras con tilde entran", async () => {
-    expect(await intentar(backend, { tenantId: X }, INS, v(cx.id, ux, { comentario: "ñ".repeat(500) }))).toEqual({ ok: true, rowCount: 1 });
+    const c = await ev.cliente(X);
+    expect(await intentar(backend, { tenantId: X }, INS, v(c.id, ux, { comentario: "ñ".repeat(500) }))).toEqual({ ok: true, rowCount: 1 });
   });
 });
 
@@ -213,7 +217,8 @@ describe("0031 · unica parcial entre vigentes (D8, CA-7)", () => {
     for (const o of [{ desde: 291, hasta: 292 }, { desde: 290, hasta: 291 }, { serie: "B002" }, { tipo: "01" }, { periodo: "202609" }]) {
       expect(await intentar(backend, { tenantId: X }, INS, v(c.id, ux, o)), JSON.stringify(o)).toEqual({ ok: true, rowCount: 1 });
     }
-    expect(await intentar(backend, { tenantId: X }, INS, v(cx.id, ux))).toEqual({ ok: true, rowCount: 1 });
+    const otro = await ev.cliente(X);
+    expect(await intentar(backend, { tenantId: X }, INS, v(otro.id, ux))).toEqual({ ok: true, rowCount: 1 });
   });
 
   it("30 rondas: dos justificaciones iguales a la vez dejan una sola vigente y la otra recibe 23505", async () => {

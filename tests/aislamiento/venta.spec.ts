@@ -414,7 +414,7 @@ describe("0030 · inmutabilidad: trigger y grants (RNF-052, D4, CA-3)", () => {
 
   for (const rol of ROLES) {
     it(`${rol}: UPDATE y DELETE de una fila sire fallan y la fila queda intacta`, async () => {
-      const id = await ev.venta(X, cx, { numero: "61", propuestaId: propX, montos: { total: "118.00" } });
+      const id = await ev.venta(X, cx, { numero: String(610 + ROLES.indexOf(rol)), propuestaId: propX, montos: { total: "118.00" } });
       const antes = (await admin.query("select * from venta where id = $1", [id])).rows[0];
       const u = await intentar(dbs[rol], { tenantId: X }, "update venta set total = 1 where id = $1", [id]);
       expect(u.ok, "UPDATE de una fila sire").toBe(false);
