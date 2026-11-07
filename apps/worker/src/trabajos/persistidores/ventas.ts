@@ -9,6 +9,7 @@ import {
   insertarVentas,
   leerExistentes,
   prepararFilaVenta,
+  serieEnMayusculas,
   TIPO_DOC_AUSENTE,
   tipoCambioConEscala,
   type VentaNueva,
@@ -33,7 +34,7 @@ function preparar(filas: readonly unknown[]): FilaPreparada<VentaNueva>[] {
     return {
       ...prepararFilaVenta(f, claveNormalizada(f.tipo, f.serie, f.numero)),
       tipo: f.tipo,
-      serie: f.serie,
+      serie: serieEnMayusculas(f.serie),
       numero: f.numero,
     };
   });

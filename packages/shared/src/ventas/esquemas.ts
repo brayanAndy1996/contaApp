@@ -113,7 +113,10 @@ export const saltoJustificarSchema = z
     comentario: z
       .string()
       .max(COMENTARIO_MAX)
-      .refine((c) => c.trim().length > 0),
+      .refine((c) => c.trim().length > 0)
+      // H-013-3: sin caracteres de control (Cc: C0, DEL y C1) salvo tabulación y saltos de línea (\t, \n, \r), que el
+      // formulario (un `textarea`) puede producir y PostgreSQL acepta. El NUL en `text` daba 500.
+      .refine((c) => !/(?![\t\n\r])\p{Cc}/u.test(c)),
   })
   .refine((v) => v.desde <= v.hasta, { path: ["hasta"], message: "desde debe ser <= hasta" });
 export type SaltoJustificarInput = z.infer<typeof saltoJustificarSchema>;

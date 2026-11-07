@@ -82,13 +82,11 @@ export function descargarPropuesta(d: DepsDescargarPropuesta): Procesador {
         usuarioId,
         trabajoId: t.id,
         filas: preparadas,
-        topeVivas: TOPE_FILAS,
         leerExistentes: (x) => persistidor.leerExistentes(x, ctx),
         planificar: planificarComplemento,
         insertar: (x, propuestaId, nuevas) =>
           persistidor.insertar(x, ctx, propuestaId, nuevas),
       });
-      if (aplicado.excedeTope) throw new ErrorPropuesta("propuesta_demasiado_grande");
       const { propuesta: creada, plan } = aplicado;
       const claves = [...new Set(plan.distintas.map((x) => x.clave))];
       const resultado: ResultadoDescarga = {

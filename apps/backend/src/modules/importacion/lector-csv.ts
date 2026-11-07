@@ -26,15 +26,18 @@ function detectarSeparador(texto: string): "," | ";" {
   return puntoComas > comas ? ";" : ",";
 }
 
+const FIN_O_COMILLA = /["\r\n]/g;
+
 /** Registros del texto; `n` es el número de registro (una línea vacía cuenta). */
-function* registros(texto: string, sep: string): Generator<Registro> {
+function* registros(texto: string, sep: string, maxColumnas: number): Generator<Registro> {
   let celdas: string[] = [];
   let campo = "";
   let comillas = false;
   let n = 1;
   let i = 0;
+  // Las columnas más allá de `maxColumnas` se ignoran, como en el `.xlsx` (H-013-2): no se guardan ni se normalizan.
   const cerrar = () => {
-    celdas.push(campo);
+    if (celdas.length < maxColumnas) celdas.push(campo);
     campo = "";
   };
   while (i < texto.length) {
@@ -50,6 +53,12 @@ function* registros(texto: string, sep: string): Generator<Registro> {
       comillas = true;
     } else if (c === sep) {
       cerrar();
+      // Superado el tope de columnas el resto de la línea no importa: se salta hasta la próxima comilla o fin de línea.
+      if (celdas.length >= maxColumnas) {
+        FIN_O_COMILLA.lastIndex = i + 1;
+        const m = FIN_O_COMILLA.exec(texto);
+        i = m === null ? texto.length : m.index - 1;
+      }
     } else if (c === "\r" || c === "\n") {
       if (c === "\r" && texto[i + 1] === "\n") i++;
       cerrar();
@@ -92,11 +101,11 @@ export function leerCsvTabla<C extends string>(
   perfil: PerfilTabla<C>,
 ): FilaTabla<C>[] {
   const { texto, sep } = leerRegistros(datos, perfil.limites.maxBytes);
-  return construirTabla(registros(texto, sep), perfil);
+  return construirTabla(registros(texto, sep, perfil.limites.maxColumnas), perfil);
 }
 
 /** Lee un `.csv` de clientes (007b); lanza `ErrorArchivo`. */
 export function leerCsv(datos: Uint8Array): ArchivoLeido {
   const { texto, sep } = leerRegistros(datos, LIMITES.maxBytes);
-  return construirFilas(registros(texto, sep));
+  return construirFilas(registros(texto, sep, LIMITES.maxColumnas));
 }

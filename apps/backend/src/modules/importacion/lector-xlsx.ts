@@ -39,7 +39,8 @@ const parser = new XMLParser({
     ["sheet", "Relationship", "row", "c", "si", "r"].includes(nombre),
 });
 
-function xml(bytes: Uint8Array | undefined): Nodo {
+/** Texto de una parte XML: UTF-8 estricto y sin DOCTYPE ni entidades propias (XXE, expansión de entidades). */
+function textoXml(bytes: Uint8Array | undefined): string {
   if (bytes === undefined) return invalido();
   let texto = "";
   try {
@@ -47,14 +48,101 @@ function xml(bytes: Uint8Array | undefined): Nodo {
   } catch {
     invalido();
   }
-  // XXE y expansión de entidades: ningún `<!` salvo comentarios y CDATA (el texto de una celda llega escapado).
+  // Ningún `<!` salvo comentarios y CDATA (el texto de una celda llega escapado).
   if (/<!(?!--|\[CDATA\[)/.test(texto)) invalido();
+  return texto;
+}
+
+function analizar(texto: string): Nodo {
   if (XMLValidator.validate(texto) !== true) invalido();
   try {
     return parser.parse(texto) as Nodo;
   } catch {
     return invalido();
   }
+}
+
+function xml(bytes: Uint8Array | undefined): Nodo {
+  return analizar(textoXml(bytes));
+}
+
+interface Etiqueta {
+  /** Posición de `<` y de la siguiente al `>` (o al cierre de comentario, CDATA o instrucción). */
+  inicio: number;
+  fin: number;
+  tipo: "abre" | "cierra" | "vacia" | "otro";
+  /** Nombre sin prefijo de espacio de nombres. */
+  nombre: string;
+}
+
+/** Siguiente etiqueta desde `desde`; los comentarios, CDATA e instrucciones son «otro». `null` si no hay más. */
+function siguienteEtiqueta(texto: string, desde: number): Etiqueta | null {
+  const inicio = texto.indexOf("<", desde);
+  if (inicio < 0) return null;
+  for (const [abre, cierra] of [
+    ["<!--", "-->"],
+    ["<![CDATA[", "]]>"],
+    ["<?", "?>"],
+  ] as const) {
+    if (texto.startsWith(abre, inicio)) {
+      const f = texto.indexOf(cierra, inicio + abre.length);
+      if (f < 0) return invalido();
+      return { inicio, fin: f + cierra.length, tipo: "otro", nombre: "" };
+    }
+  }
+  // Hasta el `>` que cierra la etiqueta: un `>` dentro de un valor entre comillas no cuenta.
+  let comilla = "";
+  let i = inicio + 1;
+  for (; i < texto.length; i++) {
+    const c = texto[i] as string;
+    if (comilla !== "") {
+      if (c === comilla) comilla = "";
+    } else if (c === '"' || c === "'") comilla = c;
+    else if (c === ">") break;
+  }
+  if (i >= texto.length) return invalido();
+  const m = /^<(\/?)([^\s/>]+)/.exec(texto.slice(inicio, Math.min(i + 1, inicio + 200)));
+  if (m === null) return invalido();
+  const nombre = (m[2] as string).slice((m[2] as string).lastIndexOf(":") + 1);
+  const vacia = texto[i - 1] === "/";
+  return { inicio, fin: i + 1, tipo: m[1] === "/" ? "cierra" : vacia ? "vacia" : "abre", nombre };
+}
+
+/**
+ * Las filas de `sheetData` una a una, como fragmentos XML, sin armar el árbol de la hoja: el consumidor corta al pasar el
+ * tope de filas y el resto de la hoja no se recorre (H-013-1). Si la hoja se recorre completa, se valida entera al final.
+ */
+function* fragmentosDeFilas(texto: string): Generator<string> {
+  let pos = 0;
+  let dentro = false;
+  for (;;) {
+    const e = siguienteEtiqueta(texto, pos);
+    if (e === null) break;
+    pos = e.fin;
+    if (e.tipo === "otro") continue;
+    if (!dentro) {
+      if (e.nombre === "sheetData") {
+        if (e.tipo === "vacia") break;
+        if (e.tipo === "abre") dentro = true;
+      }
+      continue;
+    }
+    if (e.tipo === "cierra") {
+      if (e.nombre === "sheetData") break;
+      return invalido();
+    }
+    // Hijo directo de `sheetData`: se recoge entero si es una fila y se salta si no.
+    let profundidad = e.tipo === "abre" ? 1 : 0;
+    while (profundidad > 0) {
+      const s = siguienteEtiqueta(texto, pos);
+      if (s === null) return invalido();
+      pos = s.fin;
+      if (s.tipo === "abre") profundidad++;
+      else if (s.tipo === "cierra") profundidad--;
+    }
+    if (e.nombre === "row") yield texto.slice(e.inicio, pos);
+  }
+  analizar(texto);
 }
 
 const hijo = (n: unknown, clave: string): unknown =>
@@ -127,14 +215,23 @@ function columnaDe(ref: string | undefined, porDefecto: number): number {
   return i - 1;
 }
 
+/** Una fila suelta (`<row>…</row>`): árbol pequeño; un fragmento mal formado es `archivo_invalido`. */
+function analizarFragmento(fragmento: string): Nodo {
+  try {
+    return parser.parse(fragmento) as Nodo;
+  } catch {
+    return invalido();
+  }
+}
+
 function* registrosHoja(
-  hoja: Nodo,
+  hoja: string,
   cadenas: string[],
   limites: Limites,
 ): Generator<Registro> {
-  const filas = lista(hijo(hijo(hoja, "worksheet"), "sheetData"), "row");
   let anterior = 0;
-  for (const fila of filas) {
+  for (const fragmento of fragmentosDeFilas(hoja)) {
+    const fila = lista(analizarFragmento(fragmento), "row")[0];
     const r = atributo(fila, "r");
     const n = r === undefined ? anterior + 1 : Number(r);
     if (!Number.isInteger(n) || n <= anterior || n > MAX_FILA) invalido();
@@ -198,7 +295,7 @@ function leerHoja<T>(
     const relHoja = rels.find((r) => atributo(r, "Id") === id);
     const destinoHoja = atributo(relHoja, "Target");
     if (destinoHoja === undefined) invalido();
-    const hoja = xml(
+    const hoja = textoXml(
       partes.get(resolver(directorio(libroRuta), destinoHoja as string)),
     );
 

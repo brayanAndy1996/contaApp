@@ -11,6 +11,11 @@ function mayusculasAscii(s: string): string {
   return s.replace(MINUSCULA_ASCII, (c) => c.toUpperCase());
 }
 
+/** Serie normalizada (D17): mayúsculas ASCII; es la que agrupa la correlatividad y la que se guarda. */
+export function serieNormalizada(serie: string): string {
+  return mayusculasAscii(serie);
+}
+
 /** `claveNormalizada("03", "b001", "00291")` → `"03|B001|291"`. El tipo no se toca. */
 export function claveNormalizada(tipo: string, serie: string, numero: string): string {
   return `${tipo}|${mayusculasAscii(serie)}|${numero.replace(CEROS_IZQUIERDA, "")}`;

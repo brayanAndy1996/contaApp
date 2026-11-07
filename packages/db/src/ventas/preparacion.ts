@@ -12,6 +12,11 @@ import type { ExistenteVenta, MonedaVenta, VentaNueva } from "./tipos";
 export const TIPO_DOC_AUSENTE = "0";
 const DECIMALES_TIPO_CAMBIO = 3;
 
+/** Serie en mayúsculas ASCII (D17), como la de `claveNormalizada`: la descarga, la importación y el agregar guardan la misma. */
+export function serieEnMayusculas(serie: string): string {
+  return serie.replace(/[a-z]/g, (c) => c.toUpperCase());
+}
+
 /** «3.3» → «3.300». La gramática del dominio ya limita a 3 decimales, así que solo se completan ceros. */
 export function tipoCambioConEscala(tc: string): string {
   const [entera = "", fraccion = ""] = tc.split(".");
@@ -62,7 +67,7 @@ export function prepararFilaVenta(f: FilaVentaLegible, clave: string): FilaCompl
     datos: {
       clave,
       tipo: f.tipo,
-      serie: f.serie,
+      serie: serieEnMayusculas(f.serie),
       numero: f.numero,
       fecha: f.fechaEmision,
       tipoDocContraparte,

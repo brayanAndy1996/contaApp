@@ -21,7 +21,7 @@ export interface ContextoPersistidor {
  * devuelve `leerExistentes`); `datos` es lo que `insertar` sabe guardar y el procesador no abre.
  */
 export interface FilaPreparada<D = unknown> extends FilaComplementable<D> {
-  /** Tal como llegó, solo para el hash del contenido. */
+  /** Para el hash del contenido; la serie ya en mayúsculas (D17). */
   tipo: string;
   serie: string;
   numero: string;

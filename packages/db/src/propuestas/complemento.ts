@@ -1,6 +1,6 @@
 // Aplicación del complemento de una propuesta (spec 013, D3, D16, D18; CA-11). Es la misma secuencia para la descarga del
 // worker y para la importación del backend, y para cualquier libro (014 la reutiliza): bloqueo advisory (cliente, periodo,
-// libro) -> existentes -> plan -> tope de filas vivas -> encabezado -> diferencias -> filas nuevas. Todo dentro de la
+// libro) -> existentes -> plan -> encabezado -> diferencias -> filas nuevas. Todo dentro de la
 // transacción de `withTenant` que recibe: o se guarda completo o no se guarda nada.
 //
 // No conoce el dominio (`packages/db` no depende de `packages/domain`): quien llama pasa `planificar` (por lo común,
@@ -55,8 +55,6 @@ export interface EntradaComplemento<F extends FilaComplementable, T extends TxCo
   trabajoId: string | null;
   /** Todas las recibidas, en el orden en que llegaron (la primera aparición de una clave repetida decide, D18). */
   filas: readonly F[];
-  /** Filas vivas máximas del periodo tras complementar (P-9). */
-  topeVivas: number;
   /** Lo ya guardado del periodo (sire y manual); se llama con el bloqueo tomado. */
   leerExistentes(tx: T): Promise<readonly ExistenteComplementable[]>;
   /** `planificarComplemento` del dominio: pura, sin IO. */
@@ -68,10 +66,14 @@ export interface EntradaComplemento<F extends FilaComplementable, T extends TxCo
   insertar(tx: T, propuestaId: string, nuevas: readonly F[]): Promise<void>;
 }
 
-export type ResultadoComplemento =
-  /** Lo vivo del periodo pasaría del tope: no se escribió nada (ni el encabezado). */
-  | { excedeTope: true }
-  | { excedeTope: false; propuesta: PropuestaFila; plan: PlanComplementable };
+/**
+ * El tope de 20.000 es de las filas recibidas en esa descarga o importación (D19) y lo aplica quien llama antes de
+ * abrir la transacción; aquí no hay tope sobre lo ya guardado del periodo.
+ */
+export interface ResultadoComplemento {
+  propuesta: PropuestaFila;
+  plan: PlanComplementable;
+}
 
 /** Claves de una diferencia: `tipo|SERIE|numero` (D17); ninguna parte contiene `|`. */
 function partesDeClave(clave: string): [string, string, string] {
@@ -89,7 +91,6 @@ export async function aplicarComplemento<F extends FilaComplementable, T extends
     existentes,
     e.filas.map((f) => ({ clave: f.clave, campos: f.campos })),
   );
-  if (existentes.length + plan.nuevas.length > e.topeVivas) return { excedeTope: true };
 
   // La primera aparición de cada clave nueva es la que se guarda (D18).
   const porGuardar = new Set(plan.nuevas);
@@ -123,7 +124,7 @@ export async function aplicarComplemento<F extends FilaComplementable, T extends
   });
   await insertarDiferencias(tx, propuesta.id, diferencias);
   await e.insertar(tx, propuesta.id, nuevas);
-  return { excedeTope: false, propuesta, plan };
+  return { propuesta, plan };
 }
 
 /** Una fila para el hash: la clave de lo recibido tal como llegó (tipo, serie y número) y sus campos comparables. */

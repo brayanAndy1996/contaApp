@@ -30,9 +30,6 @@ import { ErrorArchivo, LIMITES_VENTAS } from "../importacion/tipos.js";
 import { aPropuestaDto, exigirCliente, periodoDe } from "./apoyo.js";
 import { VentasError } from "./errores.js";
 
-/** Tope de filas de un archivo y de filas vivas de un periodo (P-9, D10): el mismo de la descarga del worker. */
-const TOPE_FILAS = LIMITES_VENTAS.maxFilas;
-
 /** Columnas del layout provisional de 009/013 (D6, D14b): sus nombres son los campos de `FilaVentaSire`. */
 const PERFIL_VENTAS: PerfilTabla<string> = {
   limites: LIMITES_VENTAS,
@@ -118,13 +115,14 @@ function leerArchivo(cuerpo: unknown): FilaEvaluada[] {
 }
 
 /**
- * Con `NODE_ENV=production` el layout provisional no importa (D6). Se lee en cada petición y jamás de la petición; va
- * después de la autorización (guards) y antes de leer el archivo.
+ * El layout provisional solo se acepta con `NODE_ENV` exactamente `development` o `test` (D20, falla cerrado): con
+ * `production`, `prod`, `staging`, vacío o sin definir responde `layout_no_oficial`. Se lee en cada petición y jamás de
+ * la petición; va después de la autorización (guards) y antes de leer el archivo.
  */
 function exigirLayoutOficial(): void {
-  if (process.env["NODE_ENV"] === "production" && !LAYOUT_VENTAS_PROVISIONAL.oficial) {
-    throw new VentasError("layout_no_oficial");
-  }
+  const entorno = process.env["NODE_ENV"];
+  if (LAYOUT_VENTAS_PROVISIONAL.oficial) return;
+  if (entorno !== "development" && entorno !== "test") throw new VentasError("layout_no_oficial");
 }
 
 /**
@@ -194,7 +192,6 @@ export class ImportarPropuestaService {
         usuarioId: ctx.userId,
         trabajoId: null,
         filas,
-        topeVivas: TOPE_FILAS,
         leerExistentes: async (x) => (await leerExistentes(x, clienteId, periodo)).map(existenteComplementable),
         planificar: planificarComplemento,
         insertar: (x, propuestaId, nuevas) =>
@@ -204,7 +201,6 @@ export class ImportarPropuestaService {
             nuevas.map((n) => n.datos),
           ),
       });
-      if (aplicado.excedeTope) throw new VentasError("propuesta_demasiado_grande");
       return aplicado.propuesta;
     });
     return { propuesta: aPropuestaDto(propuesta) };

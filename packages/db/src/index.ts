@@ -188,6 +188,7 @@ export type {
 export {
   existenteComplementable,
   prepararFilaVenta,
+  serieEnMayusculas,
   TIPO_DOC_AUSENTE,
   tipoCambioConEscala,
 } from "./ventas/preparacion";
