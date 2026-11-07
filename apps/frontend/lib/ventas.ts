@@ -9,7 +9,9 @@ import type {
   VentaAgregarInput,
   VentaDto,
   VistaPreviaVentas,
+  MotivoFilaVenta,
 } from "@contapp/shared";
+import { MENSAJES } from "./acceso";
 import { api, type RespuestaApi } from "./api";
 
 // Cliente HTTP y textos de la pantalla de ventas (spec 013, D14). Solo envía y recibe lo del contrato de
@@ -119,13 +121,24 @@ export const MENSAJES_VENTAS = {
     "El archivo no es válido. Usa un .xlsx, .csv o .txt con el layout provisional.",
   archivoGrande: "El archivo supera el tamaño permitido.",
   propuestaGrande: "La propuesta supera las 20.000 filas permitidas.",
+  filasOcultas: (n: number) =>
+    `Se omiten ${n} filas válidas de la lista; las filas con error se muestran todas.`,
+  // Códigos cerrados de `MOTIVOS_FILA_VENTA` (shared); el texto nunca incluye el contenido de la celda.
   motivos: {
+    campo_obligatorio: "Falta un dato obligatorio.",
+    tipo_invalido: "El tipo de comprobante no es válido.",
+    serie_invalida: "La serie no es válida.",
+    numero_invalido: "El número no es válido.",
     fecha_invalida: "La fecha no es válida.",
+    moneda_invalida: "La moneda no es válida.",
+    tipo_cambio_requerido: "Falta el tipo de cambio de la venta en USD.",
+    tipo_cambio_invalido: "El tipo de cambio no es válido.",
+    documento_invalido: "El documento de la contraparte no es válido.",
     monto_invalido: "Un monto no es válido.",
     descuadre: "El total no cuadra con la suma de los componentes.",
-    tipo_cambio_requerido: "Falta el tipo de cambio de la venta en USD.",
+    duplicado_en_archivo: "Comprobante repetido en el archivo.",
     celda_peligrosa: "La fila contiene una fórmula o un carácter no permitido.",
-  },
+  } satisfies Record<MotivoFilaVenta, string>,
   motivosTrabajo: {
     sunat_no_responde: "SUNAT no responde",
     credencial_invalida: "Credencial inválida",
@@ -137,6 +150,48 @@ export const MENSAJES_VENTAS = {
     error_interno: "Error interno",
   },
 } as const;
+
+const codigoDe = (datos: unknown): string =>
+  (datos as { codigo?: string } | null)?.codigo ?? "";
+
+/**
+ * Mensaje visible de un error al justificar o agregar. `texto400` es el que corresponde a un 400 de esa
+ * acción; nunca se muestra el cuerpo de la respuesta.
+ */
+export function mensajeDeErrorVentas(
+  status: number,
+  datos: unknown,
+  texto400: string,
+): string {
+  if (status === 400) return texto400;
+  if (status === 403) return MENSAJES.sinPermiso;
+  if (status === 409) {
+    const codigo = codigoDe(datos);
+    if (codigo === "cliente_archivado") return MENSAJES_VENTAS.clienteArchivado;
+    if (codigo === "duplicado") return MENSAJES_VENTAS.ventaDuplicada;
+  }
+  return MENSAJES.errorGeneral;
+}
+
+/** Mensaje visible de un error de la vista previa o de la confirmación de la importación. */
+export function mensajeDeErrorImportacionVentas(
+  status: number,
+  datos: unknown,
+): string {
+  const codigo = codigoDe(datos);
+  if (status === 413) return MENSAJES_VENTAS.archivoGrande;
+  if (status === 403) return MENSAJES.sinPermiso;
+  if (status === 422) {
+    if (codigo === "layout_no_oficial") return MENSAJES_VENTAS.layoutNoOficial;
+    if (codigo === "propuesta_demasiado_grande")
+      return MENSAJES_VENTAS.propuestaGrande;
+  }
+  if (status === 400 && codigo === "archivo_invalido")
+    return MENSAJES_VENTAS.archivoInvalido;
+  if (status === 409 && codigo === "cliente_archivado")
+    return MENSAJES_VENTAS.clienteArchivado;
+  return MENSAJES.errorGeneral;
+}
 
 /** Nombre del tipo de comprobante (catálogo 01 de SUNAT) para el `title` de las celdas; `undefined` si no se conoce. */
 export const NOMBRE_TIPO_COMPROBANTE: Readonly<Record<string, string>> = {

@@ -15,10 +15,15 @@ import {
   filtrosVentasSchema,
   type TamanoPaginaVentas,
 } from "@contapp/shared";
-import { CorrelatividadVentas } from "../../../../../components/ventas/correlatividad-ventas";
+import { AgregarVenta } from "../../../../../components/ventas/agregar-venta";
+import {
+  CorrelatividadVentas,
+  type SaltoElegido,
+} from "../../../../../components/ventas/correlatividad-ventas";
 import { DescargaVentas } from "../../../../../components/ventas/descarga-ventas";
 import { DiferenciasVentas } from "../../../../../components/ventas/diferencias-ventas";
 import { GrillaVentas } from "../../../../../components/ventas/grilla-ventas";
+import { JustificarSalto } from "../../../../../components/ventas/justificar-salto";
 import { ResumenVentas } from "../../../../../components/ventas/resumen-ventas";
 import {
   MENSAJES,
@@ -51,6 +56,11 @@ import {
 // muestran como cadenas. Ocultar acciones según permiso es comodidad (RNF-007); el backend valida.
 
 const TAMANO_INICIAL: TamanoPaginaVentas = 25;
+
+/** Formulario abierto sobre la correlatividad: justificar un salto o agregar una venta (con o sin salto). */
+type Formulario =
+  | { tipo: "justificar"; salto: SaltoElegido }
+  | { tipo: "agregar"; salto: SaltoElegido | null };
 
 /** Cuenta una petición por tipo de dato para descartar respuestas que llegan tarde (cambio de periodo o filtros). */
 function useSecuencia() {
@@ -94,6 +104,8 @@ function Ventas() {
   const [diferencias, setDiferencias] = useState<DiferenciaVentasDto[] | null>(
     null,
   );
+  const [formulario, setFormulario] = useState<Formulario | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
 
   const sGrilla = useSecuencia();
   const sResumen = useSecuencia();
@@ -154,49 +166,58 @@ function Ventas() {
     // `sGrilla` es estable (solo envuelve un ref).
   }, [clienteId, periodo, pagina, tamano, filtros]);
 
+  const falla = useCallback((status: number, datos: unknown) => {
+    if (status !== 401) setErrorGeneral(mensajeDeError(status, datos));
+  }, []);
+
+  const cargarResumen = useCallback(async () => {
+    const id = sResumen.nueva();
+    const r = await obtenerResumenVentas(clienteId, periodo);
+    if (!sResumen.vigente(id)) return;
+    if (r.ok && r.datos) setResumen(r.datos);
+    else falla(r.status, r.datos);
+    // `sResumen` es estable (solo envuelve un ref).
+  }, [clienteId, periodo, falla]);
+
+  const cargarCorrelatividad = useCallback(async () => {
+    const id = sCorrelatividad.nueva();
+    const r = await obtenerCorrelatividad(clienteId, periodo);
+    if (!sCorrelatividad.vigente(id)) return;
+    if (r.ok && r.datos) setCorrelatividad(r.datos);
+    else falla(r.status, r.datos);
+  }, [clienteId, periodo, falla]);
+
+  const cargarPropuestas = useCallback(async () => {
+    const id = sPropuestas.nueva();
+    const r = await listarPropuestas(clienteId, periodo);
+    if (!sPropuestas.vigente(id)) return;
+    if (!(r.ok && Array.isArray(r.datos))) {
+      falla(r.status, r.datos);
+      return;
+    }
+    setPropuestas(r.datos);
+    const ultima = r.datos[0];
+    if (!ultima) {
+      setDiferencias(null);
+      return;
+    }
+    const d = await listarDiferencias(clienteId, periodo, ultima.id);
+    if (!sPropuestas.vigente(id)) return;
+    if (d.ok && Array.isArray(d.datos)) setDiferencias(d.datos);
+    else falla(d.status, d.datos);
+  }, [clienteId, periodo, falla]);
+
   const cargarResto = useCallback(async () => {
-    const idR = sResumen.nueva();
-    const idC = sCorrelatividad.nueva();
-    const idP = sPropuestas.nueva();
-    const falla = (status: number, datos: unknown) => {
-      if (status !== 401) setErrorGeneral(mensajeDeError(status, datos));
-    };
-    const resumenP = obtenerResumenVentas(clienteId, periodo).then((r) => {
-      if (!sResumen.vigente(idR)) return;
-      if (r.ok && r.datos) setResumen(r.datos);
-      else falla(r.status, r.datos);
-    });
-    const correlatividadP = obtenerCorrelatividad(clienteId, periodo).then(
-      (r) => {
-        if (!sCorrelatividad.vigente(idC)) return;
-        if (r.ok && r.datos) setCorrelatividad(r.datos);
-        else falla(r.status, r.datos);
-      },
-    );
-    const propuestasP = listarPropuestas(clienteId, periodo).then(async (r) => {
-      if (!sPropuestas.vigente(idP)) return;
-      if (!(r.ok && Array.isArray(r.datos))) {
-        falla(r.status, r.datos);
-        return;
-      }
-      setPropuestas(r.datos);
-      const ultima = r.datos[0];
-      if (!ultima) {
-        setDiferencias(null);
-        return;
-      }
-      const d = await listarDiferencias(clienteId, periodo, ultima.id);
-      if (!sPropuestas.vigente(idP)) return;
-      if (d.ok && Array.isArray(d.datos)) setDiferencias(d.datos);
-      else falla(d.status, d.datos);
-    });
     try {
-      await Promise.all([resumenP, correlatividadP, propuestasP]);
+      await Promise.all([
+        cargarResumen(),
+        cargarCorrelatividad(),
+        cargarPropuestas(),
+      ]);
     } catch {
       setErrorGeneral(MENSAJES.errorGeneral);
     }
-    // Los `s…` son estables (solo envuelven un ref).
-  }, [clienteId, periodo]);
+  }, [cargarResumen, cargarCorrelatividad, cargarPropuestas]);
 
   // Cambia el periodo o el cliente: lo anterior deja de valer y se vuelve a pedir todo.
   useEffect(() => {
@@ -225,6 +246,29 @@ function Ventas() {
     setCorrelatividad(null);
     setPropuestas(null);
     setDiferencias(null);
+    setFormulario(null);
+    setAviso(null);
+  }
+
+  function abrirFormulario(f: Formulario) {
+    setAviso(null);
+    setFormulario(f);
+  }
+
+  /** Justificada: se cierra el formulario y solo cambia la alerta de correlatividad. */
+  function alJustificar() {
+    setFormulario(null);
+    void cargarCorrelatividad().catch(() => setErrorGeneral(MENSAJES.errorGeneral));
+  }
+
+  /** Agregada: cambian la grilla, el resumen y los saltos; la propuesta original no se toca. */
+  function alAgregarVenta() {
+    setFormulario(null);
+    setAviso(M.ventaAgregada);
+    void cargarGrilla();
+    void Promise.all([cargarResumen(), cargarCorrelatividad()]).catch(() =>
+      setErrorGeneral(MENSAJES.errorGeneral),
+    );
   }
 
   function aplicarFiltros(evento: FormEvent<HTMLFormElement>) {
@@ -327,7 +371,8 @@ function Ventas() {
         {puedeClasificar && (
           <button
             type="button"
-            disabled
+            disabled={!periodoValido}
+            onClick={() => abrirFormulario({ tipo: "agregar", salto: null })}
             className="rounded border px-4 py-2 text-sm disabled:opacity-50"
           >
             {M.agregarVentaManual}
@@ -358,7 +403,35 @@ function Ventas() {
           <CorrelatividadVentas
             correlatividad={correlatividad}
             puedeClasificar={puedeClasificar}
+            alJustificar={(salto) => abrirFormulario({ tipo: "justificar", salto })}
+            alAgregar={(salto) => abrirFormulario({ tipo: "agregar", salto })}
           />
+
+          {aviso && (
+            <p role="status" className="text-sm">
+              {aviso}
+            </p>
+          )}
+          {puedeClasificar && formulario?.tipo === "justificar" && (
+            <JustificarSalto
+              key={`j|${periodo}|${formulario.salto.tipo}|${formulario.salto.serie}|${formulario.salto.desde}|${formulario.salto.hasta}`}
+              clienteId={clienteId}
+              periodo={periodo}
+              salto={formulario.salto}
+              alGuardar={alJustificar}
+              alCancelar={() => setFormulario(null)}
+            />
+          )}
+          {puedeClasificar && formulario?.tipo === "agregar" && (
+            <AgregarVenta
+              key={`a|${periodo}|${formulario.salto?.tipo}|${formulario.salto?.serie}|${formulario.salto?.desde}`}
+              clienteId={clienteId}
+              periodo={periodo}
+              salto={formulario.salto}
+              alAgregar={alAgregarVenta}
+              alCancelar={() => setFormulario(null)}
+            />
+          )}
 
           <section aria-label={M.tablaVentas} className="flex flex-col gap-3">
             <h2 className="text-lg font-medium">{M.tablaVentas}</h2>
