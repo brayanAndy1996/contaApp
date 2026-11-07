@@ -659,7 +659,10 @@ describe("CA-11 · importar sobre un periodo ya cargado complementa", () => {
       filasDistintas: 1,
     });
     expect(await v.ventas(c.id)).toEqual(despues);
-    expect((await v.propuestas(c.id)).length).toBe(2);
+    // periodoTrabajado() ya siembra una propuesta (fuente "api") para la 290 y la 292;
+    // se cuentan solo las de importación: la primera y la repetida.
+    const importaciones = (await v.propuestas(c.id)).filter((p) => p.fuente === "importacion");
+    expect(importaciones).toHaveLength(2);
   });
 
   it("la 291 del archivo con otro total que la agregada a mano se informa con origen manual y la agregada no cambia", async () => {
