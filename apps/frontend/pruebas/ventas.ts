@@ -27,7 +27,7 @@ import { eventoSse, idTrabajo } from "./trabajos";
 //  - Propuesta:   { id, fuente: "api"|"importacion", filasRecibidas, filasNuevas, filasIguales,
 //                   filasDistintas, creadaEn }   (GET /propuestas: la más reciente primero)
 //  - Diferencia:  { clave, tipo, serie, numero, origenExistente, campos: string[], valoresSire }
-//  - Importación: vista previa { filas: { n, estado, errores: string[] }[], validas, conError };
+//  - Importación: vista previa { filas: { n, estado, motivos: string[] }[], validas, conError };
 //                 confirmar 201 { propuesta: Propuesta }.
 
 export const CLIENTE_ID = "c-1";
@@ -505,8 +505,8 @@ export type TrabajoDescarga = ReturnType<typeof trabajoDescarga>;
 
 export type MotivoFilaVenta = keyof typeof MENSAJES_VENTAS.motivos;
 
-export function filaImportadaDe(n: number, errores: MotivoFilaVenta[] = []) {
-  return { n, estado: errores.length > 0 ? "error" : "valida", errores };
+export function filaImportadaDe(n: number, motivos: MotivoFilaVenta[] = []) {
+  return { n, estado: motivos.length > 0 ? "error" : "valida", motivos };
 }
 
 export function vistaPreviaVentasDe(
