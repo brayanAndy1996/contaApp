@@ -31,6 +31,7 @@ import {
   type RedisPrueba,
 } from "../../test/soporte-trabajos.js";
 import { rucConPrefijo, xlsxConDatos } from "../../test/soporte-importacion.js";
+import { csvVentas, fila as filaVenta } from "../../test/soporte-ventas.js";
 import {
   abrirHarness,
   COOKIE,
@@ -737,6 +738,173 @@ const CASOS: Caso[] = [
         [c.ajeno.clientes],
       );
       expect(f[0].n).toBe(0);
+    },
+  },
+  {
+    // 013 (T13): ventas del periodo. El estudio sale de la sesión y `:clienteId` pasa por `ClienteScopeGuard`: un cliente de B
+    // (o un id de otra cosa de B) desde A da 404 antes de leer, escribir o encolar. Las lecturas no devuelven nada de B; las
+    // escrituras no dejan trabajo, venta ni justificación en B. Los ids de venta, justificación y propuesta son al azar: la
+    // ruta se resuelve por el cliente, antes que por ellos.
+    ruta: "POST /clientes/:clienteId/periodos/:periodo/ventas/descargar",
+    esperado: E404,
+    construir: (c) =>
+      idsDeCliente(c.ajeno).map((id) => ({
+        metodo: "POST" as const,
+        ruta: `/clientes/${id}/periodos/202610/ventas/descargar`,
+      })),
+    extra: async (c) => {
+      const f = await h.sql(
+        "select count(*)::int n from job_registro where cliente_id = any($1::uuid[]) and tipo = 'sire.propuesta.descargar'",
+        [c.ajeno.clientes],
+      );
+      expect(f[0].n).toBe(0);
+    },
+  },
+  {
+    ruta: "GET /clientes/:clienteId/periodos/:periodo/ventas",
+    esperado: E404,
+    construir: (c) =>
+      idsDeCliente(c.ajeno).map((id) => ({
+        ruta: `/clientes/${id}/periodos/202610/ventas?tamano=todas`,
+      })),
+  },
+  {
+    ruta: "GET /clientes/:clienteId/periodos/:periodo/ventas/resumen",
+    esperado: E404,
+    construir: (c) =>
+      idsDeCliente(c.ajeno).map((id) => ({
+        ruta: `/clientes/${id}/periodos/202610/ventas/resumen`,
+      })),
+  },
+  {
+    ruta: "GET /clientes/:clienteId/periodos/:periodo/ventas/correlatividad",
+    esperado: E404,
+    construir: (c) =>
+      idsDeCliente(c.ajeno).map((id) => ({
+        ruta: `/clientes/${id}/periodos/202610/ventas/correlatividad`,
+      })),
+  },
+  {
+    ruta: "GET /clientes/:clienteId/periodos/:periodo/ventas/propuestas",
+    esperado: E404,
+    construir: (c) =>
+      idsDeCliente(c.ajeno).map((id) => ({
+        ruta: `/clientes/${id}/periodos/202610/ventas/propuestas`,
+      })),
+  },
+  {
+    ruta: "GET /clientes/:clienteId/periodos/:periodo/ventas/propuestas/:propuestaId/diferencias",
+    esperado: E404,
+    construir: (c) =>
+      idsDeCliente(c.ajeno).map((id) => ({
+        ruta: `/clientes/${id}/periodos/202610/ventas/propuestas/${randomUUID()}/diferencias`,
+      })),
+  },
+  {
+    ruta: "POST /clientes/:clienteId/periodos/:periodo/ventas",
+    esperado: E404,
+    construir: (c) =>
+      idsDeCliente(c.ajeno).map((id) => ({
+        metodo: "POST" as const,
+        ruta: `/clientes/${id}/periodos/202610/ventas`,
+        cuerpo: {
+          tipo: "03",
+          serie: "B001",
+          numero: "291",
+          fechaEmision: "2026-10-05",
+          moneda: "PEN",
+          docContraparte: "-",
+          baseGravada: "100.00",
+          igv: "18.00",
+          exonerada: "0.00",
+          inafecta: "0.00",
+          isc: "0.00",
+          icbper: "0.00",
+          otros: "0.00",
+          total: "118.00",
+          tenantId: c.ajeno.tenantId,
+        },
+      })),
+    extra: async (c) => {
+      const f = await h.sql("select count(*)::int n from venta where cliente_id = any($1::uuid[])", [c.ajeno.clientes]);
+      expect(f[0].n).toBe(0);
+    },
+  },
+  {
+    ruta: "DELETE /clientes/:clienteId/periodos/:periodo/ventas/:ventaId",
+    esperado: E404,
+    construir: (c) =>
+      idsDeCliente(c.ajeno).map((id) => ({
+        metodo: "DELETE" as const,
+        ruta: `/clientes/${id}/periodos/202610/ventas/${randomUUID()}`,
+      })),
+  },
+  {
+    ruta: "POST /clientes/:clienteId/periodos/:periodo/ventas/saltos-justificados",
+    esperado: E404,
+    construir: (c) =>
+      idsDeCliente(c.ajeno).map((id) => ({
+        metodo: "POST" as const,
+        ruta: `/clientes/${id}/periodos/202610/ventas/saltos-justificados`,
+        cuerpo: {
+          tipo: "03",
+          serie: "B001",
+          desde: 291,
+          hasta: 291,
+          comentario: "Intruso HU40",
+          tenantId: c.ajeno.tenantId,
+        },
+      })),
+    extra: async (c) => {
+      const f = await h.sql("select count(*)::int n from venta_salto_justificado where cliente_id = any($1::uuid[])", [
+        c.ajeno.clientes,
+      ]);
+      expect(f[0].n).toBe(0);
+    },
+  },
+  {
+    ruta: "DELETE /clientes/:clienteId/periodos/:periodo/ventas/saltos-justificados/:justificacionId",
+    esperado: E404,
+    construir: (c) =>
+      idsDeCliente(c.ajeno).map((id) => ({
+        metodo: "DELETE" as const,
+        ruta: `/clientes/${id}/periodos/202610/ventas/saltos-justificados/${randomUUID()}`,
+      })),
+  },
+  {
+    // 013 (T14): importación de la propuesta de ventas. El archivo llega crudo y el estudio sale de la sesión; un cliente de B
+    // desde A da 404 antes de leer el archivo y no deja propuesta ni venta en B.
+    ruta: "POST /clientes/:clienteId/periodos/:periodo/ventas/importar/vista-previa",
+    esperado: E404,
+    construir: (c) =>
+      idsDeCliente(c.ajeno).map((id) => ({
+        metodo: "POST" as const,
+        ruta: `/clientes/${id}/periodos/202610/ventas/importar/vista-previa`,
+        binario: csvVentas([filaVenta("B001", 290)]),
+      })),
+    extra: async (c) => {
+      const f = await h.sql("select count(*)::int n from propuesta where cliente_id = any($1::uuid[])", [
+        c.ajeno.clientes,
+      ]);
+      expect(f[0].n).toBe(0);
+    },
+  },
+  {
+    ruta: "POST /clientes/:clienteId/periodos/:periodo/ventas/importar/confirmar",
+    esperado: E404,
+    construir: (c) =>
+      idsDeCliente(c.ajeno).map((id) => ({
+        metodo: "POST" as const,
+        ruta: `/clientes/${id}/periodos/202610/ventas/importar/confirmar`,
+        binario: csvVentas([filaVenta("B001", 290)]),
+      })),
+    extra: async (c) => {
+      const f = await h.sql(
+        `select (select count(*)::int from propuesta where cliente_id = any($1::uuid[])) as propuestas,
+                (select count(*)::int from venta where cliente_id = any($1::uuid[])) as ventas`,
+        [c.ajeno.clientes],
+      );
+      expect(f[0]).toEqual({ propuestas: 0, ventas: 0 });
     },
   },
   {

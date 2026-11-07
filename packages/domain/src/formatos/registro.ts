@@ -4,11 +4,14 @@
 import { esEnteroPositivo } from "../texto/entero";
 import { DefinicionFormatoInvalidaError, FormatoNoVigenteError } from "./errores";
 import { FORMATO_PROVISIONAL_RCE } from "./provisional-rce";
+import { FORMATO_PROVISIONAL_RVIE } from "./provisional-rve";
 import { TIPOS_FIJOS, valorDeCampo } from "./valores";
 import type { CampoTxt, Codificacion, FinDeLinea, FormatoTxt, FuncionNombre, Libro, TipoCampo } from "./tipos";
 
 const PERIODO = /^[0-9]{4}(0[1-9]|1[0-2])$/;
-const LIBROS: readonly string[] = Object.freeze(["compras"] satisfies Libro[]);
+const LIBROS: readonly string[] = Object.freeze(["compras", "ventas"] satisfies Libro[]);
+/** Único campo de texto de la fila que puede ser `ruc`: el documento de la contraparte (012 D23, 013 D13). */
+const DOCUMENTOS_CONTRAPARTE: readonly string[] = Object.freeze(["numeroDocProveedor", "docContraparte"]);
 const CODIFICACIONES: readonly string[] = Object.freeze(["ascii", "latin1", "utf8"] satisfies Codificacion[]);
 const FINES_DE_LINEA: readonly string[] = Object.freeze(["\r\n", "\n"] satisfies FinDeLinea[]);
 const TIPOS: readonly string[] = Object.freeze(
@@ -64,8 +67,8 @@ export class RegistroFormatos {
 Object.freeze(RegistroFormatos);
 Object.freeze(RegistroFormatos.prototype);
 
-/** Hoy solo el RCE provisional de compras (`oficial: false`, rige desde 202601). */
-export const REGISTRO_FORMATOS: RegistroFormatos = RegistroFormatos.desde([FORMATO_PROVISIONAL_RCE]);
+/** Hoy los provisionales RCE (compras) y RVIE (ventas), ambos `oficial: false` y vigentes desde 202601. */
+export const REGISTRO_FORMATOS: RegistroFormatos = RegistroFormatos.desde([FORMATO_PROVISIONAL_RCE, FORMATO_PROVISIONAL_RVIE]);
 
 /**
  * Versión de `libro` con `vigenteDesde` <= `periodo` más reciente (D5). Lanza FormatoNoVigenteError
@@ -127,19 +130,19 @@ function copiarFormato(entrada: unknown): FormatoTxt {
     codificacion: codificacion as Codificacion,
     separador,
     finDeLinea: finDeLinea as FinDeLinea,
-    campos: copiarCampos(campos, separador),
+    campos: copiarCampos(campos, separador, libro as Libro),
     incluyeExcluidas,
     nombre: nombre as FuncionNombre,
   });
 }
 
-function copiarCampos(entrada: unknown, separador: string): readonly CampoTxt[] {
+function copiarCampos(entrada: unknown, separador: string, libro: Libro): readonly CampoTxt[] {
   if (!Array.isArray(entrada) || entrada.length === 0) throw new DefinicionFormatoInvalidaError();
   const total = entrada.length;
   const nombres = new Set<string>();
   const copias: CampoTxt[] = [];
   for (let i = 0; i < total; i++) {
-    const c = copiarCampo(entrada[i], separador);
+    const c = copiarCampo(entrada[i], separador, libro);
     if (nombres.has(c.nombre)) throw new DefinicionFormatoInvalidaError();
     nombres.add(c.nombre);
     copias.push(c);
@@ -147,7 +150,7 @@ function copiarCampos(entrada: unknown, separador: string): readonly CampoTxt[] 
   return Object.freeze(copias);
 }
 
-function copiarCampo(entrada: unknown, separador: string): CampoTxt {
+function copiarCampo(entrada: unknown, separador: string, libro: Libro): CampoTxt {
   if (typeof entrada !== "object" || entrada === null) throw new DefinicionFormatoInvalidaError();
   const c = entrada as Record<string, unknown>;
   const nombre = c.nombre;
@@ -165,7 +168,10 @@ function copiarCampo(entrada: unknown, separador: string): CampoTxt {
     throw new DefinicionFormatoInvalidaError();
   }
   // Solo campos que generarTxt sabe escribir: así «apto» siempre quiere decir «genera» (D21, H-012-24).
-  valorDeCampo(nombre);
+  valorDeCampo(nombre, libro);
+  // Solo el documento de la contraparte puede ser `ruc`: en la serie, el número o la razón social haría
+  // fallar toda fila con un error que nadie puede corregir (012 D23, 013 D13).
+  if (tipo === "ruc" && !DOCUMENTOS_CONTRAPARTE.includes(nombre)) throw new DefinicionFormatoInvalidaError();
   // Un campo de valor fijo solo admite el tipo de ese valor (H-012-61).
   const fijo = TIPOS_FIJOS.get(nombre);
   if (fijo !== undefined && fijo !== tipo) throw new DefinicionFormatoInvalidaError();

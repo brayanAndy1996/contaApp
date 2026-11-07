@@ -7,6 +7,7 @@ import {
 } from "../errores.js";
 import type {
   FilaPropuestaSire,
+  FilaVentaSire,
   LibroSire,
   PropuestaSire,
   SireApiClient,
@@ -46,6 +47,24 @@ const PERIODO = /^(\d{4})(0[1-9]|1[0-2])$/;
 
 function esLibro(valor: unknown): valor is LibroSire {
   return valor === "compras" || valor === "ventas";
+}
+
+/** Fila de cualquiera de los dos libros: el fixture del libro pedido ya trae sus columnas. */
+type FilaSire = FilaPropuestaSire | FilaVentaSire;
+
+/**
+ * Arma la propuesta del libro pedido. Los archivos `{ruc}-{libro}-{periodo}.json` y `generico-{libro}.json`
+ * son del libro que su nombre dice, así que las filas ya tienen la forma de ese libro; aquí solo se
+ * estrecha el tipo para que la unión por `libro` quede bien formada.
+ */
+function armar(
+  libro: LibroSire,
+  periodo: string,
+  filas: FilaSire[],
+): PropuestaSire {
+  return libro === "ventas"
+    ? { libro, periodo, filas: filas as FilaVentaSire[] }
+    : { libro, periodo, filas: filas as FilaPropuestaSire[] };
 }
 
 /** Último día del mes (`mes` 1-12), para no inventar fechas como 31 de abril. */
@@ -156,7 +175,7 @@ export class MockSireApiClient implements SireApiClient {
     if (ultimo === "9") throw new ErrorCredencial();
 
     const propio = this.leer(`${ruc}-${libro}-${periodo}.json`);
-    if (propio !== null) return { libro, periodo, filas: propio };
+    if (propio !== null) return armar(libro, periodo, propio);
 
     const plantilla = this.leer(`generico-${libro}.json`);
     if (plantilla === null) throw new ErrorDatos();
@@ -170,11 +189,11 @@ export class MockSireApiClient implements SireApiClient {
         fechaEmision: `${coincidencia[1]}-${coincidencia[2]}-${String(dia).padStart(2, "0")}`,
       };
     });
-    return { libro, periodo, filas };
+    return armar(libro, periodo, filas);
   }
 
   /** Filas del archivo, o `null` si no existe. Un archivo ilegible o fuera de forma es `ErrorDatos`. */
-  private leer(nombre: string): FilaPropuestaSire[] | null {
+  private leer(nombre: string): FilaSire[] | null {
     const ruta = join(this.dir, nombre);
     let tamano: number;
     try {
@@ -187,7 +206,7 @@ export class MockSireApiClient implements SireApiClient {
       const datos: unknown = JSON.parse(readFileSync(ruta, "utf8"));
       const filas = (datos as { filas?: unknown } | null)?.filas;
       if (!Array.isArray(filas)) throw new ErrorDatos();
-      return filas as FilaPropuestaSire[];
+      return filas as FilaSire[];
     } catch {
       throw new ErrorDatos();
     }

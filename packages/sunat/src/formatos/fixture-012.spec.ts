@@ -12,11 +12,12 @@ import {
   prevalidar,
   type FilaReemplazo,
 } from "@contapp/domain";
-import type { FilaPropuestaSire, PropuestaSire } from "../puertos.js";
+import type { FilaPropuestaSire, PropuestaComprasSire } from "../puertos.js";
 
 const RUTA = join(__dirname, "..", "..", "..", "..", "fixtures", "sire", "20700000002-compras-202610.json");
 const CABECERA = { rucDeclarante: "20700000002", periodo: "202610", libro: "compras" } as const;
-const propuesta = JSON.parse(readFileSync(RUTA, "utf8")) as PropuestaSire;
+// 013: `PropuestaSire` es ahora una unión por `libro`; este fixture es de compras, así que se tipa como tal.
+const propuesta = JSON.parse(readFileSync(RUTA, "utf8")) as PropuestaComprasSire;
 
 /** FilaPropuestaSire (009) -> FilaReemplazo (012): el mapeo que 014 hará con sus versiones. */
 function aFilaReemplazo(f: FilaPropuestaSire, over: Partial<FilaReemplazo> = {}): FilaReemplazo {

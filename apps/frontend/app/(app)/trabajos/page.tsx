@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MENSAJES, mensajeDeError } from "../../../lib/acceso";
+import { listarClientes } from "../../../lib/clientes";
 import {
   cancelarTrabajo,
   obtenerResumenTrabajos,
@@ -12,7 +13,9 @@ import {
 
 // Panel de trabajos (spec 007b, D10; CA-5, CA-7, CA-9). Lista del estudio con estado y motivo, resumen en una
 // línea cuando un tipo tiene muchos trabajos, y seguimiento por SSE con reconexión y sondeo de respaldo
-// (`lib/trabajos`). Los eventos se aplican por lotes: como mucho 4 repintados por segundo.
+// (`lib/trabajos`). Los eventos se aplican por lotes: como mucho 4 repintados por segundo. La descarga de la
+// propuesta del SIRE (D24) se lee con un nombre legible, su cliente (razón social de `GET /clientes`; si no se
+// puede resolver, la fila sigue sin él) y su periodo.
 
 const MENSAJES_PANEL = {
   titulo: "Trabajos",
@@ -20,12 +23,19 @@ const MENSAJES_PANEL = {
   verDetalle: "Ver detalle",
   ocultarDetalle: "Ocultar detalle",
   cancelar: "Cancelar",
+  periodo: (p: string) => `Periodo ${p}`,
 } as const;
+
+/** Tipos cuya fila muestra el cliente y el periodo (D24). */
+const TIPOS_CON_CLIENTE: ReadonlySet<string> = new Set([
+  "sire.propuesta.descargar",
+]);
 
 const TIPOS: Record<string, string> = {
   "cliente.consultar_ruc": "Consultando datos de RUC",
   "credencial.verificar_sol": "Verificando clave SOL",
   "credencial.verificar_sire": "Verificando credencial SIRE",
+  "sire.propuesta.descargar": "Descargando propuesta del SIRE",
 };
 
 const ESTADOS: Record<TrabajoVista["estado"], string> = {
@@ -65,6 +75,19 @@ const conMiles = (n: number): string =>
   String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 
 const nombreDeTipo = (tipo: string): string => TIPOS[tipo] ?? tipo;
+
+/** «Razón social · Periodo 202610»; solo lo que se conoce, sin UUID ni «undefined». */
+function detalleDe(
+  t: TrabajoVista,
+  clientes: ReadonlyMap<string, string>,
+): string {
+  if (!TIPOS_CON_CLIENTE.has(t.tipo)) return "";
+  const partes: string[] = [];
+  const cliente = clientes.get(t.clienteId);
+  if (cliente) partes.push(cliente);
+  if (t.periodo) partes.push(MENSAJES_PANEL.periodo(t.periodo));
+  return partes.join(" · ");
+}
 
 function agrupar(trabajos: Map<string, TrabajoVista>) {
   const porTipo = new Map<string, TrabajoVista[]>();
@@ -111,6 +134,9 @@ export default function Trabajos() {
     new Map(),
   );
   const [resumen, setResumen] = useState<ResumenTrabajos | null>(null);
+  const [clientes, setClientes] = useState<ReadonlyMap<string, string>>(
+    new Map(),
+  );
   const [cargado, setCargado] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorCancelar, setErrorCancelar] = useState<string | null>(null);
@@ -139,6 +165,26 @@ export default function Trabajos() {
     void obtenerResumenTrabajos().then((r) => {
       if (r && montado.current) setResumen(r);
     });
+  }, []);
+
+  // Razón social por cliente (D24), también de los archivados (devuelve activos y archivados). Si la lista falla, el panel sigue igual: solo falta el nombre.
+  useEffect(() => {
+    let vigente = true;
+    void listarClientes({ archivados: true })
+      .then((r) => {
+        if (!vigente || !r.ok || !Array.isArray(r.datos)) return;
+        setClientes(
+          new Map(
+            r.datos
+              .filter((c) => typeof c.razonSocial === "string")
+              .map((c) => [c.id, c.razonSocial]),
+          ),
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      vigente = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -247,7 +293,14 @@ export default function Trabajos() {
                 <tbody>
                   {lista.map((t) => (
                     <tr key={t.id} className="border-b">
-                      <td className="py-1 pr-3">{nombreDeTipo(t.tipo)}</td>
+                      <td className="py-1 pr-3">
+                        {nombreDeTipo(t.tipo)}
+                        {detalleDe(t, clientes) && (
+                          <span className="block text-xs text-gray-600">
+                            {detalleDe(t, clientes)}
+                          </span>
+                        )}
+                      </td>
                       <td className="py-1 pr-3">{ESTADOS[t.estado]}</td>
                       <td className="py-1 pr-3">
                         {t.motivo ? MOTIVOS[t.motivo] : ""}

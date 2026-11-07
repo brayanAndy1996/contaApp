@@ -6,9 +6,9 @@ import type { ComponentesNombre, NombresArchivo } from "./tipos";
 const RUC_11 = /^[0-9]{11}$/;
 const PERIODO = /^[0-9]{4}(0[1-9]|1[0-2])$/;
 
-/** Gramáticas de los nombres que producen los formatos de REGISTRO_FORMATOS (hoy, el provisional). */
+/** Gramáticas de los nombres que producen los formatos de REGISTRO_FORMATOS (los provisionales RCE y RVIE). */
 const GRAMATICAS: readonly RegExp[] = Object.freeze([
-  /^CONTAPP-PROVISIONAL-[0-9]{11}-[0-9]{4}(0[1-9]|1[0-2])-RCE\.(txt|zip)$/,
+  /^CONTAPP-PROVISIONAL-[0-9]{11}-[0-9]{4}(0[1-9]|1[0-2])-(RCE|RVIE)\.(txt|zip)$/,
 ]);
 
 /**
@@ -21,12 +21,21 @@ export function validarNombreArchivo(nombre: string): boolean {
 
 /** `nombre()` del formato provisional RCE: lanza NombreArchivoInvalidoError con componentes malos. */
 export function nombreProvisional(c: ComponentesNombre): NombresArchivo {
+  return nombreConSufijo(c, "RCE");
+}
+
+/** `nombre()` del formato provisional RVIE (ventas, 013 D13): inconfundible con un nombre oficial. */
+export function nombreProvisionalRvie(c: ComponentesNombre): NombresArchivo {
+  return nombreConSufijo(c, "RVIE");
+}
+
+function nombreConSufijo(c: ComponentesNombre, sufijo: "RCE" | "RVIE"): NombresArchivo {
   if (typeof c !== "object" || c === null) throw new NombreArchivoInvalidoError();
   const ruc: unknown = c.ruc;
   const periodo: unknown = c.periodo;
   if (typeof ruc !== "string" || !RUC_11.test(ruc) || typeof periodo !== "string" || !PERIODO.test(periodo)) {
     throw new NombreArchivoInvalidoError();
   }
-  const base = `CONTAPP-PROVISIONAL-${ruc}-${periodo}-RCE`;
+  const base = `CONTAPP-PROVISIONAL-${ruc}-${periodo}-${sufijo}`;
   return Object.freeze({ nombreTxt: `${base}.txt`, nombreZip: `${base}.zip` });
 }

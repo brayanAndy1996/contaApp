@@ -65,6 +65,8 @@ export interface TrabajoVistaDb {
   iniciadoEn: string | null;
   terminadoEn: string | null;
   creadoPor: { usuarioId: string } | null;
+  /** AAAAMM (D24): solo `sire.propuesta.descargar`, de sus parámetros ya validados; ningún otro parámetro sale. */
+  periodo?: string;
 }
 
 export interface NuevoTrabajo {
@@ -110,7 +112,7 @@ export interface FiltrosTrabajos {
 const COLUMNAS = `id, tenant_id, cliente_id, ruc, tipo, cola, canal, prioridad, estado, parametros, clave_dedupe,
   creado_por, intentos, max_intentos, motivo, resultado, disponible_desde, creado_en, iniciado_en, terminado_en,
   actualizado_en`;
-const COLUMNAS_VISTA = `id, tipo, cliente_id, estado, intentos, motivo, creado_en, iniciado_en, terminado_en, creado_por`;
+const COLUMNAS_VISTA = `id, tipo, cliente_id, estado, intentos, motivo, creado_en, iniciado_en, terminado_en, creado_por, parametros`;
 
 const TERMINALES: readonly string[] = ["completado", "error", "cancelado"];
 
@@ -119,6 +121,18 @@ const iso = (d: unknown): string | null =>
 
 const fecha = (d: unknown): Date | null =>
   d === null || d === undefined ? null : new Date(d as Date);
+
+const TIPO_CON_PERIODO = "sire.propuesta.descargar";
+const PERIODO = /^\d{4}(0[1-9]|1[0-2])$/;
+
+/** D24: el periodo de la descarga de la propuesta; nada más de `parametros` se proyecta. */
+function periodoDe(f: Fila): { periodo: string } | undefined {
+  if (f.tipo !== TIPO_CON_PERIODO) return undefined;
+  const p: unknown = f.parametros;
+  if (typeof p !== "object" || p === null) return undefined;
+  const v = (p as Record<string, unknown>)["periodo"];
+  return typeof v === "string" && PERIODO.test(v) ? { periodo: v } : undefined;
+}
 
 function aVista(f: Fila): TrabajoVistaDb {
   return {
@@ -133,6 +147,7 @@ function aVista(f: Fila): TrabajoVistaDb {
     iniciadoEn: iso(f.iniciado_en),
     terminadoEn: iso(f.terminado_en),
     creadoPor: f.creado_por ? { usuarioId: f.creado_por } : null,
+    ...periodoDe(f),
   };
 }
 

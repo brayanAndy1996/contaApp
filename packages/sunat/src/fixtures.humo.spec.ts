@@ -155,6 +155,8 @@ async function cargar() {
     periodo: PERIODO,
     libro: "compras",
   });
+  // 013: `PropuestaSire` es una unión por `libro`; aquí se pidió compras, así que se estrecha antes de leer `filas`.
+  if (propuesta.libro !== "compras") throw new Error("se esperaba la propuesta de compras");
   const proveedor = new MockXmlProvider();
   const casos = new Map<string, { fila: FilaPropuestaSire; xml: XmlLeido; crudo: string }>();
   for (const fila of propuesta.filas) {
@@ -289,24 +291,100 @@ describe("humo: cada fila de compras coincide con su XML (CA-2)", () => {
   });
 });
 
-describe("humo: la propuesta de ventas (CA-5/CA-2)", () => {
-  it("trae las boletas B001-290 y B001-292 y no la 291; cada fila cuadra y no tiene XML", async () => {
+describe("humo: la propuesta de ventas (CA-5/CA-2, D12)", () => {
+  // T1 (013): las filas de ventas llevan las columnas de `FilaVentaSire` (plan, Contratos), no las de compras. Ese
+  // tipo aún no existe en puertos.ts (llega en T11), así que la fila se tipa aquí a mano; cuando exista, se importa.
+  type FilaVentaFixture = {
+    tipo: string;
+    serie: string;
+    numero: string;
+    tipoDocContraparte?: string;
+    docContraparte: string;
+    fechaEmision: string;
+    moneda: "PEN" | "USD";
+    tipoCambio?: string;
+    baseGravada: string;
+    igv: string;
+    exonerada: string;
+    inafecta: string;
+    isc: string;
+    icbper: string;
+    otros: string;
+    total: string;
+  };
+  const COLUMNAS = ["baseGravada", "igv", "exonerada", "inafecta", "isc", "icbper", "otros", "total"] as const;
+  const claveVenta = (f: Pick<FilaVentaFixture, "tipo" | "serie" | "numero">) => `${f.tipo}-${f.serie}-${f.numero}`;
+
+  const descargarVentas = async (): Promise<FilaVentaFixture[]> => {
     const p = await new MockSireApiClient().descargarPropuesta(TOKEN, {
       ruc: CONTRIBUYENTE,
       periodo: PERIODO,
       libro: "ventas",
     });
-    const numeros = p.filas.map((f) => f.numero);
-    expect(numeros).toContain("290");
-    expect(numeros).toContain("292");
-    expect(numeros).not.toContain("291");
-    expect(p.filas.every((f) => f.serie === "B001" && f.tipo === "03")).toBe(true);
-    for (const f of p.filas) {
-      const m = montosDeFila(f);
-      expect(m.total.igual(Money.suma([m.baseGravada, m.igv, m.noGravado, m.isc, m.icbper], f.moneda)), clave(f)).toBe(true);
-    }
+    // `PropuestaSire.filas` se tipa como FilaPropuestaSire; en ventas las filas son las de FilaVentaSire.
+    return p.filas as unknown as FilaVentaFixture[];
+  };
+
+  it("trae las boletas B001-290 y B001-292 y no la 291; ninguna fila de ventas tiene XML", async () => {
+    const filas = await descargarVentas();
+    const claves = filas.map(claveVenta);
+    expect(claves).toContain("03-B001-290");
+    expect(claves).toContain("03-B001-292");
+    expect(claves).not.toContain("03-B001-291");
     const xmls = readdirSync(join(RAIZ, "xml"));
-    expect(xmls.filter((n) => /-03-B001-/.test(n))).toEqual([]);
+    expect(filas.filter((f) => xmls.includes(`${CONTRIBUYENTE}-${f.tipo}-${f.serie}-${f.numero}.xml`))).toEqual([]);
+  });
+
+  it("cada fila tiene las columnas de FilaVentaSire en su formato (números, fecha del periodo, montos, documento y TC)", async () => {
+    for (const f of await descargarVentas()) {
+      const k = claveVenta(f);
+      expect(f.tipo, k).toMatch(/^(01|03|07)$/);
+      expect(f.serie, k).toMatch(/^[A-Z0-9]{4}$/);
+      expect(f.numero, k).toMatch(/^[1-9][0-9]{0,7}$/);
+      expect(f.fechaEmision.slice(0, 7).replace("-", ""), k).toBe(PERIODO);
+      for (const c of COLUMNAS) expect(f[c], `${k}.${c}`).toMatch(/^-?\d+\.\d{2}$/);
+      // El documento de la contraparte va completo (tipo y número) o es `-` sin tipo (D14b).
+      if (f.docContraparte === "-") {
+        expect(f.tipoDocContraparte, k).toBeUndefined();
+      } else {
+        expect(f.tipoDocContraparte, k).toBe("6");
+        expect(f.docContraparte, k).toMatch(/^\d{11}$/);
+      }
+      // El tipo de cambio solo existe en USD y tiene tres decimales.
+      if (f.tipoCambio !== undefined) {
+        expect(f.moneda, k).toBe("USD");
+        expect(f.tipoCambio, k).toMatch(/^\d+\.\d{3}$/);
+      }
+    }
+  });
+
+  it("cada fila cuadra: total = suma de sus columnas de monto, y el IGV es el 18 % de su base gravada (010)", async () => {
+    for (const f of await descargarVentas()) {
+      const k = claveVenta(f);
+      const m = (valor: string) => Money.desde(valor, f.moneda);
+      const sinTotal = COLUMNAS.filter((c) => c !== "total").map((c) => m(f[c]));
+      expect(m(f.total).igual(Money.suma(sinTotal, f.moneda)), `${k}: total`).toBe(true);
+      expect(igvEsperado(m(f.baseGravada), TASA_IGV_18).igual(m(f.igv)), `${k}: IGV`).toBe(true);
+    }
+  });
+
+  it("trae los casos de D12: serie completa, nota de crédito en negativo, USD con y sin TC, salto de B003 y base exonerada", async () => {
+    const filas = await descargarVentas();
+    const numeros = (tipo: string, serie: string) =>
+      filas.filter((f) => f.tipo === tipo && f.serie === serie).map((f) => f.numero);
+    expect(numeros("01", "F001")).toEqual(["10", "11", "12"]);
+    expect(numeros("01", "F002")).toEqual(["1", "2"]);
+    expect(numeros("03", "B003")).toEqual(["400", "401", "405"]);
+    // Una nota de crédito (tipo 07) con todos sus montos en cero o negativos (010 D6).
+    const notas = filas.filter((f) => f.tipo === "07");
+    expect(notas).toHaveLength(1);
+    for (const c of COLUMNAS) expect(notas[0]?.[c] ?? "", c).toMatch(/^(-|0\.00$)/);
+    // Dos ventas USD: una con tipo de cambio y otra sin él (CA-9).
+    const usd = filas.filter((f) => f.moneda === "USD");
+    expect(usd.filter((f) => f.tipoCambio !== undefined)).toHaveLength(1);
+    expect(usd.filter((f) => f.tipoCambio === undefined)).toHaveLength(1);
+    // Una fila con base exonerada.
+    expect(filas.some((f) => f.exonerada !== "0.00")).toBe(true);
   });
 });
 

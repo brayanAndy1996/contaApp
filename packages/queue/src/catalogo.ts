@@ -126,9 +126,51 @@ export const CREDENCIAL_VERIFICAR_SIRE: DefinicionTrabajo<
   parametros: parametrosVacios as ZodType<Record<string, never>>,
 };
 
+const HUSO_LIMA_MS = 5 * 60 * 60 * 1000;
+const PERIODO_AAAAMM = /^\d{4}(0[1-9]|1[0-2])$/;
+
+/** Mes en curso (hora de Lima, UTC-5) como AAAAMM; se evalúa en cada validación, no al cargar el módulo. */
+function periodoEnCurso(): string {
+  const ahora = new Date(Date.now() - HUSO_LIMA_MS);
+  return `${ahora.getUTCFullYear()}${String(ahora.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Periodo AAAAMM con mes 01-12 y sin futuro: no posterior al mes en curso (el mes en curso sí vale). */
+const periodoSireSchema = z
+  .string()
+  .regex(PERIODO_AAAAMM)
+  .refine((p) => p <= periodoEnCurso());
+
+export interface ParametrosDescargarPropuesta {
+  periodo: string;
+  libro: "compras" | "ventas";
+}
+
+/**
+ * Spec 013 (D2): descarga de la propuesta mensual del SIRE (cola y canal `sire`, credencial `sire_api`).
+ * Los parámetros son estrictos: no hay dónde llevar un secreto, un cliente ni un estudio en el payload.
+ * 014 reutiliza el mismo tipo con `libro: "compras"`.
+ */
+export const SIRE_PROPUESTA_DESCARGAR: DefinicionTrabajo<ParametrosDescargarPropuesta> =
+  {
+    tipo: "sire.propuesta.descargar",
+    cola: "sire",
+    canal: "sire",
+    credencial: "sire_api",
+    permiso: "sire.descargar",
+    idempotente: true,
+    parametros: z
+      .object({
+        periodo: periodoSireSchema,
+        libro: z.enum(["compras", "ventas"]),
+      })
+      .strict(),
+  };
+
 registrarTipo(CLIENTE_CONSULTAR_RUC);
 registrarTipo(CREDENCIAL_VERIFICAR_SOL);
 registrarTipo(CREDENCIAL_VERIFICAR_SIRE);
+registrarTipo(SIRE_PROPUESTA_DESCARGAR);
 
 /** Tipo de pruebas: solo existe con NODE_ENV=test (el worker le programa el comportamiento). */
 export const PRUEBA_ECO: DefinicionTrabajo<{ n?: number; rango?: string }> = {
