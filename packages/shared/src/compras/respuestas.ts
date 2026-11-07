@@ -177,16 +177,22 @@ export type InformeMasiva = z.infer<typeof informeMasivaSchema>;
 export const deshacerRespuestaSchema = z.object({ operacionId: z.uuid(), filas: z.array(z.uuid()) });
 export type DeshacerRespuesta = z.infer<typeof deshacerRespuestaSchema>;
 
-/** Tope de claves de `difieren` en el `resultado` del trabajo (4 KB, DU-13). */
-export const DIFIEREN_MAX = 40;
+/** Tope de claves del `resultado` del trabajo de descarga (4 KB, DU-13). */
+export const CLAVES_MAX = 40;
 
-/** `resultado` del trabajo de descarga (D-18): comprobantes nuevos, ya conocidos y los que distan de su versión 1. */
+/**
+ * `resultado` del trabajo de descarga, tal como lo deja el procesador común de 013 (D-18): la propuesta creada, cuántas filas
+ * se recibieron, cuántas son nuevas, iguales o distintas de lo guardado, hasta 40 claves de las distintas y si la lista se
+ * recortó (la completa queda en `propuesta_diferencia`). Sin montos ni razones sociales.
+ */
 export const informeDescargaSchema = z.object({
-  agregadas: entero,
-  existentes: entero,
-  difieren: z.array(z.string()).max(DIFIEREN_MAX),
-  /** Total de los que difieren, cuando la lista de claves se recortó. */
-  difierenTotal: entero.optional(),
+  propuestaId: z.uuid(),
+  recibidas: entero,
+  nuevas: entero,
+  iguales: entero,
+  distintas: entero,
+  claves: z.array(z.string()).max(CLAVES_MAX),
+  truncado: z.boolean(),
 });
 export type InformeDescarga = z.infer<typeof informeDescargaSchema>;
 
@@ -195,3 +201,28 @@ export const errorVersionObsoletaSchema = z.object({ codigo: z.literal("version_
 export const errorRequiereDatoSchema = z.object({ codigo: z.literal("requiere_dato"), dato: z.enum(["gravado", "destino"]) });
 export const errorFilaCambiadaSchema = z.object({ codigo: z.literal("fila_cambiada"), ids: z.array(z.uuid()) });
 export const errorDuplicadoSchema = z.object({ codigo: z.literal("duplicado"), id: z.uuid() });
+
+/** GET …/compras/propuestas (DU-19): una descarga de compras del periodo, la más reciente primero. Mismos campos que `PropuestaVentasDto`. */
+export const propuestaComprasSchema = z.object({
+  id: z.uuid(),
+  fuente: z.enum(["api", "importacion"]),
+  filasRecibidas: entero,
+  filasNuevas: entero,
+  filasIguales: entero,
+  filasDistintas: entero,
+  creadaEn: fechaIso,
+});
+export type PropuestaComprasDto = z.infer<typeof propuestaComprasSchema>;
+
+/** GET …/compras/propuestas/:propuestaId/diferencias (DU-19): lo que el SIRE trajo distinto de lo guardado. Mismos campos que `DiferenciaVentasDto`. */
+export const diferenciaComprasSchema = z.object({
+  clave: z.string(),
+  tipo: z.string(),
+  serie: z.string(),
+  numero: z.string(),
+  /** `agregada` se informa como `manual` (013, punto 8). */
+  origenExistente: z.enum(["sire", "manual"]),
+  campos: z.array(z.string()),
+  valoresSire: z.record(z.string(), z.string()),
+});
+export type DiferenciaComprasDto = z.infer<typeof diferenciaComprasSchema>;
