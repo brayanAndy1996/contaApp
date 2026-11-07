@@ -118,6 +118,8 @@ export async function agregarCompra(
     usuarioId: string;
     identidad: IdentidadCompra;
     montos: MontosCompra;
+    /** Acción de la versión 1; por omisión `agregada`. El backend pasa `agregar`, la de `ACCIONES_VERSION` de `shared`. */
+    accion?: string;
   },
   f: { evaluar: Evaluar },
 ): Promise<{ id: string; version: VersionFila }> {
@@ -164,7 +166,7 @@ export async function agregarCompra(
       compra,
       n: 1,
       datos,
-      accion: "agregada",
+      accion: e.accion ?? "agregada",
       operacionId: null,
       usuarioId: e.usuarioId,
     },

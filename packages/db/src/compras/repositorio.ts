@@ -147,7 +147,12 @@ export async function leerCompra(
 
 const SQL_BLOQUEAR_VARIAS = `select id from compra
   where id = any($1::uuid[]) and cliente_id = $2 and periodo = $3 and descartada_en is null order by id for update`;
-const SQL_LEER_VARIAS = `select ${COLUMNAS_LEIDA} from ${UNION_VIGENTE}
+// La versión vigente de cada compra se busca por su clave única con LATERAL … OFFSET 0: así el plan no depende de las
+// estadísticas (recién cargado un periodo de miles de filas, sin ANALYZE, el planificador recorría el índice de versiones
+// una vez por compra y 5.000 ids tardaban segundos; mismo caso que la lectura de T15).
+const SQL_LEER_VARIAS = `select ${COLUMNAS_LEIDA} from compra c
+  join lateral (select * from compra_version v where v.tenant_id = c.tenant_id and v.compra_id = c.id
+    and v.n = c.version_vigente offset 0) v on true
   where c.id = any($1::uuid[]) and c.cliente_id = $2 and c.periodo = $3 and c.descartada_en is null order by c.id`;
 
 /**

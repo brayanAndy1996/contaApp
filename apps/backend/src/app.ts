@@ -59,6 +59,13 @@ export const LIMITE_JSON_LOTES = "32kb";
 const RUTAS_LOTES = ["/asignaciones/por-usuario", "/asignaciones/por-cliente"];
 
 /**
+ * Acciones masivas de compras (014, D-15): hasta 5.000 `{ compraId, versionBase }`, unos 340 kB de JSON. 5.001 filas deben llegar
+ * a zod (400 `solicitud_invalida`), no cortarse en 413. El resto de rutas conserva `LIMITE_JSON`.
+ */
+export const LIMITE_JSON_MASIVAS = "512kb";
+const RUTAS_MASIVAS = ["/clientes/:clienteId/periodos/:periodo/compras/masivas"];
+
+/**
  * Importación de clientes (007b): el cuerpo es el archivo crudo, `application/octet-stream` de hasta 2 MB. Con más, el
  * analizador responde 413 por `Content-Length` sin leer el cuerpo.
  */
@@ -120,6 +127,7 @@ export async function crearApp(o: OpcionesApp = {}): Promise<INestApplication> {
   });
   // El analizador de lotes va primero y solo en esas dos rutas; el global omite lo ya analizado.
   app.use(RUTAS_LOTES, json({ limit: LIMITE_JSON_LOTES }));
+  app.use(RUTAS_MASIVAS, json({ limit: LIMITE_JSON_MASIVAS }));
   app.use(RUTAS_IMPORTACION, raw({ type: "application/octet-stream", limit: LIMITE_ARCHIVO_IMPORTACION }));
   app.use(RUTAS_IMPORTACION_VENTAS, raw({ type: "application/octet-stream", limit: LIMITE_ARCHIVO_VENTAS }));
   app.useBodyParser("json", { limit: LIMITE_JSON });

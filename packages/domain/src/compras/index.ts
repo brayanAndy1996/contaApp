@@ -11,3 +11,7 @@ export type { EstadoPeriodo, ResultadoEscritura } from "./bloqueo";
 export { sugerenciaEsMasiva } from "./masivas";
 export { EXPLICACION_GENERICA, detallarHallazgo } from "./hallazgo-vista";
 export type { DetalleHallazgo, HallazgoGuardado } from "./hallazgo-vista";
+export { crearEvaluarCompras } from "./evaluar";
+export type { CompraEvaluable, HallazgoJson } from "./evaluar";
+export { aceptarSugerenciaGuardada } from "./aceptar";
+export type { DatoAceptar, EntradaAceptar, RechazoAceptar, ResultadoAceptar } from "./aceptar";

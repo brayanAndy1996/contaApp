@@ -222,8 +222,11 @@ const COLUMNAS_VERSION = `v.compra_id, v.n, v.excluida, v.motivo, v.clasificada,
 
 // Lo que escribió la operación y la versión inmediatamente anterior de cada fila (la que existía antes de ella).
 const SQL_VERSIONES_DE_OPERACION = `select ${COLUMNAS_VERSION} from compra_version v where v.operacion_id = $1 order by v.compra_id`;
-const SQL_VERSIONES_PREVIAS = `select ${COLUMNAS_VERSION} from compra_version v
-  join compra_version o on o.tenant_id = v.tenant_id and o.compra_id = v.compra_id and v.n = o.n - 1
+// La anterior se busca por su clave única con LATERAL … OFFSET 0: el plan no depende de las estadísticas (con las tablas recién
+// cargadas, sin ANALYZE, el planificador recorría el índice de versiones una vez por fila y 5.000 filas tardaban decenas de s).
+const SQL_VERSIONES_PREVIAS = `select ${COLUMNAS_VERSION} from compra_version o
+  join lateral (select * from compra_version v where v.tenant_id = o.tenant_id and v.compra_id = o.compra_id
+    and v.n = o.n - 1 offset 0) v on true
   where o.operacion_id = $1 order by v.compra_id`;
 
 const SQL_MARCAR_DESHECHA = `update compra_operacion set estado = 'deshecha', deshecha_en = now() where id = $1`;
@@ -336,4 +339,16 @@ export function rehacer(
   f: { evaluar: Evaluar },
 ): Promise<ResultadoPila> {
   return revertir(tx, e, f, "rehacer");
+}
+
+const SQL_FILAS_DE_OPERACION = `select distinct compra_id from compra_version where operacion_id = $1 order by compra_id`;
+
+/** Ids de las compras que una operación (acción, masiva, deshacer o rehacer) dejó con una versión nueva, por id ascendente. */
+export async function leerCompraIdsDeOperacion(
+  tx: TxConsulta,
+  operacionId: string,
+): Promise<string[]> {
+  if (!esUuid(operacionId)) return [];
+  const r = await consultar(tx, SQL_FILAS_DE_OPERACION, [operacionId]);
+  return r.rows.map((f) => f.compra_id as string);
 }

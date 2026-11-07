@@ -64,7 +64,14 @@ const motivoSchema = z.string().max(MOTIVO_EXCLUSION_MAX);
 export const clasificarCompraSchema = z.object({ versionBase: versionBaseSchema, destino: destinoCompraSchema });
 export type ClasificarCompra = z.infer<typeof clasificarCompraSchema>;
 
-export const editarCompraSchema = z.object({ versionBase: versionBaseSchema, cambios: montosColumnasSchema });
+/**
+ * DU-18: editar exige al menos una columna. Las claves que no son columna (total incluido) se descartan al analizar, así que
+ * `{ total }` o `{ desconocida }` quedan vacíos y también se rechazan. `calcular` sigue aceptando `{}`: no escribe nada.
+ */
+const cambiosEdicionSchema = montosColumnasSchema.refine((c) => Object.values(c).some((v) => v !== undefined), {
+  message: "cambios debe traer al menos una columna",
+});
+export const editarCompraSchema = z.object({ versionBase: versionBaseSchema, cambios: cambiosEdicionSchema });
 export type EditarCompra = z.infer<typeof editarCompraSchema>;
 
 /** Vista previa (D-16): no lleva versionBase y no escribe nada. */

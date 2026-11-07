@@ -217,11 +217,23 @@ export { venta, ventaSaltoJustificado } from "./schema/ventas";
 export { ComprasReglaError, ComprasRepoError } from "./compras/errores";
 export { agregarCompra, crearVersion, descartar, insertarCompras } from "./compras/versiones";
 export type { EntradaCrearVersion } from "./compras/versiones";
-export { aplicarAccion, aplicarMasiva, deshacer, rehacer } from "./compras/operaciones";
+export {
+  aplicarAccion,
+  aplicarMasiva,
+  deshacer,
+  leerCompraIdsDeOperacion,
+  rehacer,
+} from "./compras/operaciones";
 export { fijarEstadoPeriodo, leerEstadoPeriodo } from "./compras/periodo";
 export { leerExistentesCompras, leerProveedoresConocidos } from "./compras/existentes";
 export { leerFilasReemplazo } from "./compras/filas-reemplazo";
-export { leerDetalleCompra, leerHallazgosVigentes, leerLoteParaResumen, listarCompras } from "./compras/lectura";
+export {
+  leerDetalleCompra,
+  leerHallazgosVigentes,
+  leerLoteParaResumen,
+  leerOrigenesCompras,
+  listarCompras,
+} from "./compras/lectura";
 export type {
   CompraListada,
   CompraParaResumen,

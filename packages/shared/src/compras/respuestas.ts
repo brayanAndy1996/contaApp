@@ -161,6 +161,7 @@ export const CODIGOS_RECHAZO_MASIVA = [
   "revisar_de_nuevo",
   "fila_excluida",
   "no_masiva",
+  "no_excluida",
   "no_encontrada",
 ] as const;
 export type CodigoRechazoMasiva = (typeof CODIGOS_RECHAZO_MASIVA)[number];

@@ -109,6 +109,27 @@ where ($4::boolean is null or t.proveedor_nuevo = $4::boolean)
 order by t.orden_fecha, t.orden_serie, t.orden_numero, t.id
 limit $12`;
 
+const SQL_ORIGENES = `select id, origen from compra
+  where id = any($1::uuid[]) and cliente_id = $2 and periodo = $3 and descartada_en is null`;
+
+/**
+ * Origen (`sire` | `agregada`) de las compras vivas de ESE cliente y periodo entre `ids`; las que no existen, son de otro cliente,
+ * periodo o estudio (RLS) o están descartadas no salen. Lo usa excluir en masa, donde una agregada se descarta (DU-16).
+ */
+export async function leerOrigenesCompras(
+  tx: TxConsulta,
+  clienteId: string,
+  periodo: string,
+  ids: string[],
+): Promise<Map<string, "sire" | "agregada">> {
+  const mapa = new Map<string, "sire" | "agregada">();
+  const validos = ids.filter(esUuid);
+  if (validos.length === 0) return mapa;
+  const r = await consultar(tx, SQL_ORIGENES, [validos, clienteId, periodo]);
+  for (const f of r.rows) mapa.set(f.id as string, f.origen as "sire" | "agregada");
+  return mapa;
+}
+
 /** `%`, `_` y `\` como texto literal en un LIKE. */
 export const escaparLike = (q: string): string => q.replace(/[\\%_]/g, (c) => `\\${c}`);
 
