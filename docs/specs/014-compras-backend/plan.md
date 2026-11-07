@@ -1,7 +1,7 @@
 # Plan 014 · Compras (backend)
 
 ## Archivos
-Migraciones: 013 ya está en `main` con 0028 a 0031 (diario drizzle hasta `idx` 31, `0031_venta_salto_justificado`); 014 usa **0032** (`compras`) y **0033** (`compras_periodo_hallazgo`), verificado en T5. La tarea de BD vuelve a confirmar con `ls packages/db/migrations` y nunca edita una migración aplicada. Rama `spec/014-compras-backend`, ya con `main` mergeado (T5): 013 está en el árbol, así que ninguna tarea «espera 013».
+Migraciones: 013 ya está en `main` con 0028 a 0031 (diario drizzle hasta `idx` 31, `0031_venta_salto_justificado`); 014 usa **0032** (`compras`) y **0033** (`compras_periodo_hallazgo`), verificado en T5, y **0033b** (`compra_puntero_vigente`, T20: endurece el trigger de `compra`, H-014-6). La tarea de BD vuelve a confirmar con `ls packages/db/migrations` y nunca edita una migración aplicada. Rama `spec/014-compras-backend`, ya con `main` mergeado (T5): 013 está en el árbol, así que ninguna tarea «espera 013».
 
 **Regla de capas (013 D16, ratificada)**: `packages/db` no depende de `packages/domain`. Todo cálculo del dominio (reglas, edición, cambio de destino, planificar, mapeo a `FilaReemplazo`) lo hace quien llama (backend o worker) y entra a `packages/db` como función inyectada, igual que `planificar` en `aplicarComplemento`. `packages/db/src/compras/` solo hace SQL: lee y escribe cadenas, bloquea, compara y mueve el puntero.
 | Acción | Ruta | Para qué |
@@ -56,7 +56,7 @@ Reemplaza al «Contrato exigido a 013», que se escribió antes de que 013 exist
 | `POST /` agregar `{tipo, serie, numero, proveedor…, fecha, moneda, tipoCambio?, montos}` | `sire.clasificar` | 201 · 400 · 409 `duplicado` `{id}` |
 | `POST /masivas/{clasificar,aceptar,excluir,restaurar}` `{items[{compraId, versionBase}≤5000], …}` | `sire.clasificar` | 200 `{operacionId\|null, aplicadas, rechazadas[{compraId, codigo}]}` · 400 (5.001) |
 | `POST /deshacer` · `POST /rehacer` | `sire.clasificar` | 200 `{operacionId, filas}` · 409 `fila_cambiada` `{ids}` \| `nada_que_deshacer` \| `nada_que_rehacer` |
-| `POST /estado/revisar` · `POST /estado/reabrir` | `sire.clasificar` · `sire.aprobar_generar` | 200 `{estado, por, en}` · 409 `estado_invalido` |
+| `POST /estado/revisar` · `POST /estado/reabrir` | `sire.clasificar` · `sire.aprobar_generar` | revisar sin cuerpo; reabrir con `{ estadoVisto: "revisado" \| "generado" }` (`reabrirPeriodoSchema`, DU-23) · 200 `{estado, por, en}` · 400 `solicitud_invalida` (sin `estadoVisto` o con otro valor) · 409 `estado_invalido` (el periodo ya no está en `estadoVisto`) |
 Toda escritura: 403 `periodo_revisado` (sin `sire.aprobar_generar`), 409 `periodo_generado`, 409 `cliente_archivado`. Los montos viajan como cadenas decimales.
 
 **BD** (todas con `tenant_id`, RLS `ENABLE` + `FORCE`, uuid v7, NUMERIC(14,2), prueba de catálogo de 002):

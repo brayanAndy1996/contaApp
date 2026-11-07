@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { destinoCompraSchema, MOTIVO_EXCLUSION_MAX, reglaCompraSchema, versionBaseSchema } from "./esquemas.js";
+import { destinoCompraSchema, MOTIVO_EXCLUSION_MAX, reglaCompraSchema, sinControles, versionBaseSchema } from "./esquemas.js";
 
 // Spec 014 (D-15, DU-5, DU-6). Las masivas llevan hasta 5.000 filas explícitas, cada una con su versionBase.
 // Son parciales: el servicio aplica las válidas y responde con las rechazadas.
@@ -33,7 +33,7 @@ export type MasivaClasificar = z.infer<typeof masivaClasificarSchema>;
 export const masivaAceptarSchema = z.object({ items: itemsSchema, regla: reglaCompraSchema });
 export type MasivaAceptar = z.infer<typeof masivaAceptarSchema>;
 
-export const masivaExcluirSchema = z.object({ items: itemsSchema, motivo: z.string().max(MOTIVO_EXCLUSION_MAX).optional() });
+export const masivaExcluirSchema = z.object({ items: itemsSchema, motivo: z.string().max(MOTIVO_EXCLUSION_MAX).refine(sinControles).optional() });
 export type MasivaExcluir = z.infer<typeof masivaExcluirSchema>;
 
 export const masivaRestaurarSchema = z.object({ items: itemsSchema });

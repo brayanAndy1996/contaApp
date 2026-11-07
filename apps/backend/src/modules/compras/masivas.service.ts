@@ -1,10 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
   aplicarMasiva,
-  descartar,
   leerHallazgosVigentes,
-  leerOrigenesCompras,
-  ComprasReglaError,
   type Alcance,
   type ContappDb,
   type ResultadoMasivaCompra,
@@ -185,46 +182,23 @@ export class MasivasComprasService {
     return this.db.withTenant(ctx, async (tx) => {
       await exigirEscritura(tx, alcance, permisos, clienteId, periodo, { crear: true, archivado: true });
       const entorno = await entornoDeReglas(tx, clienteId, periodo);
-      let items = o.items;
-      let agregadas: ItemMasiva[] = [];
-      if (o.descartaAgregadas === true) {
-        const origenes = await leerOrigenesCompras(tx, clienteId, periodo, items.map((i) => i.compraId));
-        const esAgregada = (i: ItemMasiva): boolean => origenes.get(i.compraId.toLowerCase()) === "agregada";
-        agregadas = items.filter(esAgregada).sort((a, b) => a.compraId.toLowerCase().localeCompare(b.compraId.toLowerCase()));
-        items = items.filter((i) => !esAgregada(i));
-      }
-      const r =
-        items.length === 0 && agregadas.length > 0
-          ? { operacionId: null, aplicadas: 0, rechazadas: [] }
-          : await aplicarMasiva(
-              tx,
-              { clienteId, periodo, usuarioId: ctx.userId, accion: o.accion, parametros: o.parametros, items },
-              { transformar: o.armar(entorno, tx), evaluar: entorno.evaluar },
-            );
-      const final = informe(await descartarAgregadas(tx, ctx.userId, agregadas, r));
+      // Las agregadas que se descartan se bloquean dentro de `aplicarMasiva`, con las demás y en un único orden de id (H-014-1).
+      const r = await aplicarMasiva(
+        tx,
+        {
+          clienteId,
+          periodo,
+          usuarioId: ctx.userId,
+          accion: o.accion,
+          parametros: o.parametros,
+          items: o.items,
+          descartarAgregadas: o.descartaAgregadas === true,
+        },
+        { transformar: o.armar(entorno, tx), evaluar: entorno.evaluar },
+      );
+      const final = informe(r);
       if (final.aplicadas === 0) throw new SinCambios(final);
       return final;
     });
   }
-}
-
-/** Se descartan después de la operación, para no tomar bloqueos de `compra` antes de `compra_operacion` (orden del plan). */
-async function descartarAgregadas(
-  tx: Tx,
-  usuarioId: string,
-  agregadas: ItemMasiva[],
-  r: ResultadoMasivaCompra,
-): Promise<ResultadoMasivaCompra> {
-  let aplicadas = r.aplicadas;
-  const rechazadas = [...r.rechazadas];
-  for (const a of agregadas) {
-    try {
-      await descartar(tx, { compraId: a.compraId, versionBase: a.versionBase, usuarioId });
-      aplicadas += 1;
-    } catch (e) {
-      if (!(e instanceof ComprasReglaError)) throw e;
-      rechazadas.push({ compraId: a.compraId, codigo: e.codigo === "version_obsoleta" ? "version_obsoleta" : "no_encontrada" });
-    }
-  }
-  return { operacionId: r.operacionId, aplicadas, rechazadas };
 }

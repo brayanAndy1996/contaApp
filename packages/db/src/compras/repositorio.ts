@@ -313,8 +313,9 @@ export async function escribirVersiones(
   evaluar: Evaluar,
 ): Promise<VersionFila[]> {
   if (lote.length === 0) return [];
-  await moverPunteros(tx, lote);
+  // Primero las versiones y después los punteros: el trigger de `compra` exige que la versión vigente exista (H-014-6).
   const versiones = await insertarVersiones(tx, lote);
+  await moverPunteros(tx, lote);
   await evaluarYGuardar(tx, lote, evaluar);
   return versiones;
 }

@@ -58,8 +58,15 @@ export const CODIGOS_REGLA = ["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP"] as con
 export type CodigoReglaCompra = (typeof CODIGOS_REGLA)[number];
 export const reglaCompraSchema = z.enum(CODIGOS_REGLA);
 
+/**
+ * H-014-3: texto de una línea sin caracteres de control (categoría Unicode Cc: C0, DEL y C1). PostgreSQL rechaza el NUL en `text`
+ * y daba 500. A diferencia de los comentarios de 013 (un `textarea`), aquí tampoco valen \t, \n ni \r: la razón social, el motivo
+ * de exclusión y la búsqueda son campos de una línea y un salto de línea rompería la fila del Excel y del TXT.
+ */
+export const sinControles = (s: string): boolean => !/\p{Cc}/u.test(s);
+
 export const MOTIVO_EXCLUSION_MAX = 200;
-const motivoSchema = z.string().max(MOTIVO_EXCLUSION_MAX);
+const motivoSchema = z.string().max(MOTIVO_EXCLUSION_MAX).refine(sinControles);
 
 export const clasificarCompraSchema = z.object({ versionBase: versionBaseSchema, destino: destinoCompraSchema });
 export type ClasificarCompra = z.infer<typeof clasificarCompraSchema>;
@@ -118,7 +125,7 @@ export const agregarCompraSchema = z
     proveedor: z.object({
       tipo: z.string().regex(/^[0-9A-Z]$/),
       numero: z.string().regex(/^[0-9A-Za-z]{1,15}$/),
-      razonSocial: z.string().min(1).max(100),
+      razonSocial: z.string().min(1).max(100).refine(sinControles),
     }),
     fecha: z.iso.date(),
     moneda: z.enum(MONEDAS_COMPRA),
@@ -149,3 +156,10 @@ export const estadoPeriodoRespuestaSchema = z.object({
   en: z.iso.datetime().nullable(),
 });
 export type EstadoPeriodoRespuesta = z.infer<typeof estadoPeriodoRespuestaSchema>;
+
+/**
+ * DU-23: cuerpo de `POST …/estado/reabrir`. `estadoVisto` es el estado que vio quien lo pide; el servicio reabre solo si el
+ * periodo sigue en ESE estado (compare-and-set). No admite `abierto`: no hay nada que reabrir.
+ */
+export const reabrirPeriodoSchema = z.object({ estadoVisto: z.enum(["revisado", "generado"]) });
+export type ReabrirPeriodo = z.infer<typeof reabrirPeriodoSchema>;

@@ -63,7 +63,8 @@ export class ResumenComprasService {
     periodoCrudo: string,
   ): Promise<ResumenComprasVista> {
     const periodo = periodoDe(periodoCrudo);
-    return this.db.withTenant(contextoDe(sesion), async (tx) => {
+    // Una foto: todas las lecturas del periodo ven el mismo instante (H-014-2).
+    return this.db.withTenant({ ...contextoDe(sesion), foto: true }, async (tx) => {
       await exigirCliente(tx, clienteId, alcance, false);
       const { estado } = await leerEstadoPeriodo(tx, clienteId, periodo);
       let original = cero();

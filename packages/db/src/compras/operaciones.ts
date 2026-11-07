@@ -138,6 +138,11 @@ export async function aplicarMasiva(
     accion: string;
     parametros: unknown;
     items: { compraId: string; versionBase: number }[];
+    /**
+     * Las agregadas a mano de `items` se descartan (D-7) en vez de recibir versión: se bloquean junto con las demás en el mismo
+     * orden de id (H-014-1). Las del SIRE reciben `transformar` como siempre.
+     */
+    descartarAgregadas?: boolean;
   },
   f: Funciones,
 ): Promise<ResultadoMasiva> {
@@ -158,10 +163,16 @@ export async function aplicarMasiva(
   const filas = await bloquearCompras(tx, validas, e.clienteId, e.periodo);
 
   const plan: { compra: CompraLeida; datos: DatosVersion }[] = [];
+  const descartes: string[] = [];
   const encontradas = new Set<string>();
   for (const compra of filas) {
     encontradas.add(compra.id);
     const it = pedidas.get(compra.id)!;
+    if (e.descartarAgregadas === true && compra.origen === "agregada") {
+      if (compra.version === it.versionBase) descartes.push(compra.id);
+      else rechazo.set(compra.id, "version_obsoleta");
+      continue;
+    }
     const r = await calcular(
       compra,
       it.versionBase,
@@ -178,7 +189,10 @@ export async function aplicarMasiva(
   const rechazadas = [...pedidas]
     .filter(([k]) => rechazo.has(k))
     .map(([k, it]) => ({ compraId: it.compraId, codigo: rechazo.get(k)! }));
-  if (plan.length === 0) return { operacionId: null, aplicadas: 0, rechazadas };
+  if (plan.length === 0) {
+    await descartarFilas(tx, descartes);
+    return { operacionId: null, aplicadas: descartes.length, rechazadas };
+  }
 
   await caducarDeshechas(tx, e.clienteId, e.periodo, e.usuarioId);
   const operacionId = await crearOperacion(
@@ -201,7 +215,15 @@ export async function aplicarMasiva(
     })),
     f.evaluar,
   );
-  return { operacionId, aplicadas: plan.length, rechazadas };
+  await descartarFilas(tx, descartes);
+  return { operacionId, aplicadas: plan.length + descartes.length, rechazadas };
+}
+
+const SQL_DESCARTAR_VARIAS = `update compra set descartada_en = now() where id = any($1::uuid[]) and descartada_en is null`;
+
+/** Descarta agregadas ya bloqueadas (su versión vigente ya se comparó con la base): no crea versión ni operación. */
+async function descartarFilas(tx: TxConsulta, ids: string[]): Promise<void> {
+  if (ids.length > 0) await consultar(tx, SQL_DESCARTAR_VARIAS, [ids]);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------

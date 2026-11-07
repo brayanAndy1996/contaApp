@@ -83,7 +83,8 @@ export class ExportarComprasService {
     periodoCrudo: string,
   ): Promise<{ nombre: string; datos: Uint8Array }> {
     const periodo = periodoDe(periodoCrudo);
-    const hojas = await this.db.withTenant(contextoDe(sesion), async (tx) => {
+    // Una foto: todas las lecturas del periodo ven el mismo instante (H-014-2).
+    const hojas = await this.db.withTenant({ ...contextoDe(sesion), foto: true }, async (tx) => {
       await exigirCliente(tx, clienteId, alcance, false);
       const leer = async (vista: "excluidas" | undefined): Promise<CeldaXlsx[][]> => {
         const filas: CeldaXlsx[][] = [];

@@ -1,11 +1,12 @@
 import { Body, Controller, HttpCode, Inject, Param, Post, Req } from "@nestjs/common";
 import type { Alcance } from "@contapp/db";
-import type {
-  AccionCompraRespuesta,
-  CalcularRespuesta,
-  DeshacerRespuesta,
-  EstadoPeriodoRespuesta,
-  InformeMasiva,
+import {
+  reabrirPeriodoSchema,
+  type AccionCompraRespuesta,
+  type CalcularRespuesta,
+  type DeshacerRespuesta,
+  type EstadoPeriodoRespuesta,
+  type InformeMasiva,
 } from "@contapp/shared";
 import type { SesionResuelta } from "../auth/auth.service.js";
 import { Sesion } from "../auth/guards/decoradores.js";
@@ -141,8 +142,12 @@ export class ComprasAccionesController {
     @Req() req: PeticionAcceso,
     @Param("clienteId") clienteId: string,
     @Param("periodo") periodo: string,
+    @Body() cuerpo: unknown,
   ): Promise<EstadoPeriodoRespuesta> {
-    return this.estado.reabrir(sesion, ...accesoDe(req), clienteId, periodo);
+    // DU-23: `estadoVisto` es el estado que vio quien reabre; falta o cualquier otro valor es 400.
+    const v = reabrirPeriodoSchema.safeParse(cuerpo);
+    if (!v.success) throw new AccesoError("solicitud_invalida");
+    return this.estado.reabrir(sesion, ...accesoDe(req), clienteId, periodo, v.data.estadoVisto);
   }
 
   /** 201: la compra agregada a mano (D-7). */

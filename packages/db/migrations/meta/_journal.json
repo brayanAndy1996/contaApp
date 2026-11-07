@@ -239,6 +239,13 @@
       "when": 1794063945752,
       "tag": "0033_compra_hallazgo_periodo",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794063946752,
+      "tag": "0033b_compra_puntero_vigente",
+      "breakpoints": true
     }
   ]
 }

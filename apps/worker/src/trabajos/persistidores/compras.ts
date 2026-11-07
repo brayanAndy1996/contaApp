@@ -118,6 +118,9 @@ function razonSocial(o: object): string | null {
   const v = leer(o, "razonSocialContraparte");
   if (v === undefined || v === null || v === "") return null;
   if (typeof v !== "string") return ilegible();
+  // DU-24 (H-014-4): PostgreSQL no admite el NUL en `text` (22021) y tumbaría la descarga entera con un error de la BD. Se rechaza
+  // la fila (`fila_invalida`, sin reintento) en vez de limpiarla; se mira antes de recortar, así que vale en cualquier posición.
+  if (v.includes("\u0000")) return ilegible();
   // La tabla limita a 200 caracteres; una razón social más larga se recorta y no tumba la descarga.
   const puntos = Array.from(v);
   return puntos.length > MAX_RAZON_SOCIAL

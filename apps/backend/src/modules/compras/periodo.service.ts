@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { fijarEstadoPeriodo, type Alcance, type ContappDb, type EstadoPeriodoCompra, type EstadoPeriodoCompras } from "@contapp/db";
-import type { EstadoPeriodoRespuesta } from "@contapp/shared";
+import type { EstadoPeriodoRespuesta, ReabrirPeriodo } from "@contapp/shared";
 import type { SesionResuelta } from "../auth/auth.service.js";
 import { DB } from "../auth/inyeccion.js";
 import { contextoDe } from "../clientes/contexto.js";
@@ -17,8 +17,8 @@ export function aRespuestaEstado(e: EstadoPeriodoCompra): EstadoPeriodoRespuesta
 
 /**
  * Estado del periodo (spec 014, D-9, DU-4): marcar `revisado` (`sire.clasificar`, solo desde `abierto`) y reabrir
- * (`sire.aprobar_generar`, desde `revisado` o `generado`). Ambos son compare-and-set sobre `compra_periodo`: si el estado ya no
- * es el esperado, 409 `estado_invalido` y no cambia nada. `generado` lo fija 012b. No crean versiones ni entran en deshacer.
+ * (`sire.aprobar_generar`, solo desde el estado que vio quien lo pide, `revisado` o `generado`: DU-23). Ambos son compare-and-set
+ * sobre `compra_periodo`: si el estado ya no es el esperado, 409 `estado_invalido` y no cambia nada. `generado` lo fija 012b. No crean versiones ni entran en deshacer.
  */
 @Injectable()
 export class PeriodoComprasService {
@@ -39,9 +39,10 @@ export class PeriodoComprasService {
     permisos: ReadonlySet<string>,
     clienteId: string,
     periodo: string,
+    estadoVisto: ReabrirPeriodo["estadoVisto"],
   ): Promise<EstadoPeriodoRespuesta> {
     if (!permisos.has(PERMISO_APROBAR_GENERAR)) throw new AccesoError("permiso_denegado");
-    return this.cambiar(sesion, alcance, clienteId, periodo, ["revisado", "generado"], "abierto");
+    return this.cambiar(sesion, alcance, clienteId, periodo, [estadoVisto], "abierto");
   }
 
   private async cambiar(

@@ -266,7 +266,7 @@ export class VentasService {
     const filas = await this.db.withTenant(contextoDe(sesion), async (tx) => {
       await exigirCliente(tx, clienteId, alcance, false);
       const propuestas = await listarPropuestas(tx, clienteId, periodo, "ventas");
-      if (!propuestas.some((p) => p.id === propuestaId)) throw new AccesoError("no_encontrado");
+      if (!propuestas.some((p) => p.id.toLowerCase() === propuestaId.toLowerCase())) throw new AccesoError("no_encontrado");
       return listarDiferencias(tx, propuestaId);
     });
     return filas.map((d) => ({

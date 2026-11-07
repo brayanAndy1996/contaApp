@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sinControles } from "./esquemas.js";
 
 // Spec 014 (D-13). Query string de GET …/compras: todo llega como texto y aquí se convierte. Los booleanos
 // no usan `coerce`: "false" no puede dar true.
@@ -24,6 +25,6 @@ export const listarComprasSchema = z.object({
   alertas: booleanoSchema.optional(),
   proveedorNuevo: booleanoSchema.optional(),
   /** Prefijo de RUC, fragmento de razón social o serie-número. Los comodines los escapa el repositorio. */
-  q: z.string().max(BUSQUEDA_MAX).optional(),
+  q: z.string().max(BUSQUEDA_MAX).refine(sinControles).optional(),
 });
 export type ListarCompras = z.infer<typeof listarComprasSchema>;

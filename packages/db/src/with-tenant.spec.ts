@@ -733,3 +733,44 @@ describe("ajusteTenant / ajusteUsuario / esRolApp", () => {
     }
   });
 });
+
+describe("withTenant con foto: lectura consistente (H-014-2)", () => {
+  const abre = (): string[] =>
+    falso.consultas.map((c) => c.texto).filter((t) => /^BEGIN/.test(t));
+
+  it("sin la opción, y con foto: false, la transacción es BEGIN a secas (READ COMMITTED)", async () => {
+    const db = nuevaDb();
+    await db.withTenant({ tenantId: TENANT_A }, async () => 1);
+    await db.withTenant({ tenantId: TENANT_A, foto: false }, async () => 1);
+    expect(abre()).toEqual(["BEGIN", "BEGIN"]);
+  });
+
+  it("con foto: true abre REPEATABLE READ READ ONLY antes del rol y del contexto, y confirma igual", async () => {
+    const db = nuevaDb();
+    await db.withTenant({ tenantId: TENANT_A, userId: USER_A, foto: true }, async () => 1);
+    const textos = falso.consultas.map((c) => c.texto);
+    expect(abre()).toEqual(["BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY"]);
+    const iBegin = textos.indexOf("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    expect(textos.indexOf("SET LOCAL ROLE contapp_backend")).toBeGreaterThan(iBegin);
+    expect(textos.findIndex((t) => t.includes("set_config"))).toBeGreaterThan(iBegin);
+    expect(textos).toContain("COMMIT");
+  });
+
+  it("un valor de foto que no es booleano es un contexto inválido y no abre conexión", async () => {
+    const db = nuevaDb();
+    for (const foto of ["true", 1, null]) {
+      await expect(
+        db.withTenant({ tenantId: TENANT_A, foto: foto as never }, async () => 1),
+      ).rejects.toBeInstanceOf(ContextoInvalidoError);
+    }
+    expect(connect).not.toHaveBeenCalled();
+  });
+
+  it("ajusteTenant solo pide el inicio especial con foto: true", () => {
+    expect(ajusteTenant({ tenantId: TENANT_A }).inicio).toBeUndefined();
+    expect(ajusteTenant({ tenantId: TENANT_A, foto: false }).inicio).toBeUndefined();
+    expect(ajusteTenant({ tenantId: TENANT_A, foto: true }).inicio).toBe(
+      "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY",
+    );
+  });
+});
