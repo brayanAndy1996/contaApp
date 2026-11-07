@@ -167,6 +167,33 @@ describe("/trabajos · descarga de la propuesta (T20a, D24)", () => {
     expect(filasDe(M.tipos[TIPO_DESCARGA])).toHaveLength(1);
   });
 
+  // T22a (T22, punto 3): un cliente archivado después de descargar deja una fila anónima si el panel pide solo los
+  // activos. `GET /clientes` sin `archivados` no trae a los archivados; con `archivados=1` trae activos y archivados.
+  it("un cliente archivado sigue mostrando su razón social: el panel pide la lista con archivados=1", async () => {
+    const archivado = clienteDe({ id: CB, razonSocial: "Textiles Archivados SAC", archivado: true });
+    const peticiones: string[] = [];
+    montar({
+      clientes: (consulta) => {
+        peticiones.push(consulta.toString());
+        return {
+          status: 200,
+          cuerpo:
+            consulta.get("archivados") === "1"
+              ? [clienteDe({ id: CA, razonSocial: "Ventas Mixtas SAC" }), archivado]
+              : [clienteDe({ id: CA, razonSocial: "Ventas Mixtas SAC" })],
+        };
+      },
+      listado: lista([trabajoDescargaN(1, "completado", { clienteId: CB, periodo: "202610" })]),
+    });
+    await vi.waitFor(() => expect(peticiones.length).toBeGreaterThanOrEqual(1));
+    expect(peticiones.every((q) => new URLSearchParams(q).get("archivados") === "1"), peticiones.join(" | ")).toBe(true);
+    await vi.waitFor(() => fila("Textiles Archivados SAC"));
+    const f = fila("Textiles Archivados SAC");
+    expect(f.textContent).toContain(M.tipos[TIPO_DESCARGA]);
+    expect(f.textContent).toContain(M.periodo("202610"));
+    expect(f.textContent).not.toContain(CB);
+  });
+
   it("más de 10 descargas se resumen con el nombre legible del tipo", async () => {
     const muchos = Array.from({ length: 12 }, (_, i) =>
       trabajoDescargaN(i + 1, "completado", { clienteId: CA, periodo: "202610" }),

@@ -133,7 +133,7 @@ export interface OpcionesPanel {
    * Respuesta de `GET /api/clientes` (T20a, D24: el panel resuelve el nombre del cliente de una descarga). Sin esta
    * opción la ruta responde 404 y el panel sigue funcionando sin el nombre.
    */
-  clientes?: () => { status: number; cuerpo?: unknown };
+  clientes?: (consulta: URLSearchParams) => { status: number; cuerpo?: unknown };
 }
 
 /** `fetch` simulado del panel: sesión, permisos, listado y un stream SSE por conexión. */
@@ -186,7 +186,7 @@ export function instalarFetchPanel(opciones: OpcionesPanel): PanelFalso {
       }
       if (method === "GET" && ruta === "/api/clientes") {
         if (!opciones.clientes) return json(404, { codigo: "no_encontrado" });
-        const r = opciones.clientes();
+        const r = opciones.clientes(new URLSearchParams(url.split("?")[1] ?? ""));
         return json(r.status, r.cuerpo);
       }
       if (method === "GET" && ruta === "/api/trabajos/stream") {

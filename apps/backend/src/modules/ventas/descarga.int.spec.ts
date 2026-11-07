@@ -96,6 +96,9 @@ describe("CA-1 · descargar responde 202 con el trabajoId y encola sin llamar a 
       clienteId: c.id,
       estado: "en_cola",
     });
+    // T22a (T22, punto 1): el título promete la posición; mientras está en cola es un entero >= 1.
+    expect(Number.isInteger(t.posicion), `posicion=${String(t.posicion)}`).toBe(true);
+    expect(t.posicion).toBeGreaterThanOrEqual(1);
   });
 
   it("no escribe ventas ni propuestas: eso es del worker", async () => {

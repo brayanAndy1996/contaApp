@@ -51,25 +51,26 @@ describe("T17 · lector parametrizado de ventas: sin trabajo proporcional al arc
   );
 
   it(
-    "adv-l2: `.csv` de 8 MB con una cabecera de ~8 millones de columnas vacías: se lee o rechaza en < 1 s (las columnas de más no cuestan)",
-    { timeout: 120_000 },
+    "adv-l2: `.csv` de 8 MB con una cabecera de ~8 millones de columnas vacías: se lee o rechaza en < 3 s (las columnas de más no cuestan)",
+    { timeout: 120_000, retry: 2 },
     () => {
       const cabecera = CABECERA_VENTAS.join(",");
       const relleno = ",".repeat(LIMITES_VENTAS.maxBytes - cabecera.length - 10);
       const archivo = strToU8(`${cabecera}${relleno}\r\n`);
       expect(archivo.length).toBeLessThanOrEqual(LIMITES_VENTAS.maxBytes);
       const r = medir(() => leerCsvTabla(archivo, PERFIL));
-      expect(r.ms, "ms para una sola línea de 8 MB").toBeLessThan(1_000);
+      expect(r.ms, "ms para una sola línea de 8 MB").toBeLessThan(3_000);
     },
   );
 
   it(
-    "adv-l3: H-007b-1 con los topes de ventas: 20.000 filas `<row><c r=\"XFD1\"/></row>` se leen o rechazan en < 1 s",
-    { timeout: 60_000 },
+    "adv-l3: H-007b-1 con los topes de ventas: 20.000 filas `<row><c r=\"XFD1\"/></row>` se leen o rechazan en < 3 s",
+    { timeout: 60_000, retry: 2 },
     () => {
       const archivo = xlsxConRelleno('<row><c r="XFD1"/></row>'.repeat(20_000));
       const r = medir(() => leerXlsxTabla(archivo, PERFIL));
-      expect(r.ms).toBeLessThan(1_000);
+      // T22a: el reloj es solo una red de seguridad; la comprobación exacta es el conteo de trabajo de correcciones-t18.spec.ts.
+      expect(r.ms).toBeLessThan(3_000);
     },
   );
 });

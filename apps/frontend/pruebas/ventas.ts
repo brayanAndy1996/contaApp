@@ -19,7 +19,7 @@ import { eventoSse, idTrabajo } from "./trabajos";
 //  - Página:      { filas: VentaVista[], total, pagina, tamano: number | "todas", avisos: ("todas_limitada")[] }
 //  - Venta:       { id, origen: "sire"|"manual", tipo, serie, numero, fechaEmision, tipoDocContraparte|null,
 //                   docContraparte, moneda: "PEN"|"USD", tipoCambio|null, baseGravada, igv, exonerada,
-//                   inafecta, isc, icbper, otros, total }
+//                   inafecta, isc, icbper, otros, total, cuadra: boolean }  (T22b, D26: `cuadra` lo calcula el backend al leer)
 //  - Resumen:     { porTipo: ({ tipo, cantidad, ...columnas })[], total: { cantidad, ...columnas },
 //                   sinConvertir: { clave, moneda }[], avisos: ("usd_sin_tipo_cambio")[] }
 //  - Correlat.:   { series: { tipo, serie, estado, faltantes: { desde, hasta, estado, comentario? }[],
@@ -65,6 +65,8 @@ export const MENSAJES_VENTAS = {
   montoMinimo: "Monto mínimo",
   montoMaximo: "Monto máximo",
   tablaVentas: "Ventas del periodo",
+  // T22b (D26): marca de la fila del SIRE cuyo total no cuadra con la suma de los componentes.
+  noCuadra: "No cuadra",
   // Resumen (RF-056).
   importesEnSoles: "Importes en soles",
   avisoUsdSinTipoCambio:
@@ -210,6 +212,8 @@ export interface VentaVista {
   icbper: string;
   otros: string;
   total: string;
+  /** T22b (D26): el backend lo calcula al leer; `false` si Σ de las siete columnas no es el total. */
+  cuadra: boolean;
 }
 
 let contadorVentas = 0;
@@ -234,6 +238,7 @@ export function ventaDe(parcial: Partial<VentaVista> = {}): VentaVista {
     icbper: "0.00",
     otros: "0.00",
     total: "118.00",
+    cuadra: true,
     ...parcial,
   };
 }
@@ -263,6 +268,12 @@ export const V_USD_SIN_TC = ventaDe({
   baseGravada: "1000.00",
   igv: "180.00",
   total: "1180.00",
+});
+/** T22b: venta del SIRE guardada tal cual aunque el total no cuadre (100.00 + 18.00 ≠ 118.01). */
+export const V_DESCUADRADA = ventaDe({
+  numero: "294",
+  total: "118.01",
+  cuadra: false,
 });
 export const V_MANUAL = ventaDe({
   origen: "manual",

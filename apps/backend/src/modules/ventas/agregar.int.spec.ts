@@ -77,6 +77,7 @@ const falta = async (clienteId: string) => {
 };
 const COLUMNAS_DTO = [
   "baseGravada",
+  "cuadra",
   "docContraparte",
   "exonerada",
   "fechaEmision",

@@ -9,10 +9,13 @@ describe("@contapp/shared exporta los esquemas de ventas", () => {
     "ventaAgregarSchema",
     "saltoJustificarSchema",
     "vistaPreviaVentasSchema",
-    "informeImportacionVentasSchema",
   ])("%s", (nombre) => {
     const esquema = (shared as unknown as Record<string, { safeParse?: unknown } | undefined>)[nombre];
     expect(typeof esquema?.safeParse).toBe("function");
+  });
+
+  it("T22a: `informeImportacionVentasSchema` ya no se exporta", () => {
+    expect(shared).not.toHaveProperty("informeImportacionVentasSchema");
   });
 
   it("no pisa los esquemas previos (clientes e importación de 007)", () => {

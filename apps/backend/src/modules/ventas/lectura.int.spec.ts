@@ -38,6 +38,7 @@ let ajeno: { id: string; ruc: string };
 
 const COLUMNAS_DTO = [
   "baseGravada",
+  "cuadra",
   "docContraparte",
   "exonerada",
   "fechaEmision",

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { informeImportacionVentasSchema, vistaPreviaVentasSchema } from "./esquemas.js";
+import * as esquemas from "./esquemas.js";
+import { MOTIVOS_ADVERTENCIA_VENTA, MOTIVOS_FILA_VENTA, vistaPreviaVentasSchema } from "./esquemas.js";
 
 // Spec 013 (D6; CA-10; plan: Rutas, `POST /importar/vista-previa` y `/confirmar`). Contrato fijado por estas
 // pruebas, con el patrón de 007b (`importacion/esquemas.ts`): las respuestas nunca devuelven el contenido
@@ -7,10 +8,11 @@ import { informeImportacionVentasSchema, vistaPreviaVentasSchema } from "./esque
 //  - vistaPreviaVentasSchema: { filas: [{ n >= 1, estado: 'valida'|'error', motivos: MotivoFila[],
 //    advertencias: AdvertenciaFila[] (T20a, D22) }], validas >= 0, conError >= 0, conAdvertencia >= 0 }. `motivos` es una lista cerrada de códigos (incluye 'celda_peligrosa',
 //    el de una celda con fórmula); ningún campo admite texto libre ni el valor de una celda.
-//  - informeImportacionVentasSchema (respuesta 201 de confirmar): { propuestaId (uuid), recibidas, nuevas,
-//    iguales, distintas } enteros >= 0. Una fila ilegible rechaza todo el archivo (D3): no hay filas parciales.
+//  - T22a (T22, punto 2): `informeImportacionVentasSchema` se ELIMINA (nadie lo usa y su forma no es la del 201
+//    real, que es `{ propuesta: PropuestaVentasDto }`). Los motivos `descuadre`, `tipo_cambio_requerido` y
+//    `duplicado_en_archivo` salen de MOTIVOS_FILA_VENTA: los dos primeros viven solo como advertencias (D22) y el
+//    tercero no existe desde D18. Una fila ilegible rechaza todo el archivo (D3): no hay filas parciales.
 //  - Claves desconocidas descartadas: ni `valor`, ni `celda`, ni `contenido`, ni el archivo sobreviven.
-const U = "01920000-0000-7000-8000-0000000000a1";
 const FORMULA = "=HYPERLINK(\"http://x\",\"CANARIO\")";
 const PELIGROSAS = [FORMULA, "+cmd|' /C calc'!A0", "-2+3", "@SUM(1+1)", "=1+1", "\t=1+1"];
 
@@ -23,7 +25,6 @@ const vistaOk = {
   conError: 1,
   conAdvertencia: 0,
 };
-const informeOk = { propuestaId: U, recibidas: 3, nuevas: 1, iguales: 1, distintas: 1 };
 
 describe("vistaPreviaVentasSchema", () => {
   it("acepta una vista previa con errores por fila y la devuelve igual", () => {
@@ -118,53 +119,40 @@ describe("vistaPreviaVentasSchema", () => {
   });
 });
 
-describe("informeImportacionVentasSchema", () => {
-  it("acepta el informe de confirmar y lo devuelve igual", () => {
-    const r = informeImportacionVentasSchema.safeParse(informeOk);
-    expect(r.success).toBe(true);
-    expect(r.data).toEqual(informeOk);
+describe("T22a: esquemas y motivos sin uso", () => {
+  it("`informeImportacionVentasSchema` ya no existe en shared", () => {
+    expect(esquemas).not.toHaveProperty("informeImportacionVentasSchema");
   });
 
-  it("acepta 0 en todos los contadores (repetir los mismos datos da 0 nuevas)", () => {
-    expect(
-      informeImportacionVentasSchema.safeParse({ propuestaId: U, recibidas: 2, nuevas: 0, iguales: 2, distintas: 0 }).success,
-    ).toBe(true);
+  it.each(["descuadre", "tipo_cambio_requerido", "duplicado_en_archivo"])(
+    "`%s` no es un motivo de error de fila",
+    (motivo) => {
+      expect(MOTIVOS_FILA_VENTA as readonly string[]).not.toContain(motivo);
+    },
+  );
+
+  it("los motivos de error vivos siguen siendo la lista cerrada de siempre, en orden", () => {
+    expect([...MOTIVOS_FILA_VENTA]).toEqual([
+      "campo_obligatorio",
+      "tipo_invalido",
+      "serie_invalida",
+      "numero_invalido",
+      "fecha_invalida",
+      "moneda_invalida",
+      "tipo_cambio_invalido",
+      "documento_invalido",
+      "monto_invalido",
+      "celda_peligrosa",
+    ]);
   });
 
-  it("propuestaId debe ser uuid", () => {
-    for (const malo of ["no-uuid", "", 5, null, FORMULA]) {
-      expect(informeImportacionVentasSchema.safeParse({ ...informeOk, propuestaId: malo }).success, JSON.stringify(malo)).toBe(false);
-    }
-  });
-
-  it.each(["recibidas", "nuevas", "iguales", "distintas"])("%s: entero >= 0", (campo) => {
-    for (const v of [-1, 1.5, "1", null, NaN, Infinity]) {
-      expect(informeImportacionVentasSchema.safeParse({ ...informeOk, [campo]: v }).success, `${campo}=${String(v)}`).toBe(false);
-    }
-  });
-
-  it("exige todos los campos", () => {
-    for (const campo of Object.keys(informeOk)) {
-      const resto: Record<string, unknown> = { ...informeOk };
-      delete resto[campo];
-      expect(informeImportacionVentasSchema.safeParse(resto).success, campo).toBe(false);
-    }
-  });
-
-  it("ningún campo admite el contenido crudo de una celda: se descarta o se rechaza", () => {
-    for (const peligrosa of PELIGROSAS) {
-      const r = informeImportacionVentasSchema.safeParse({
-        ...informeOk,
-        valor: peligrosa,
-        celda: peligrosa,
-        contenido: peligrosa,
-        archivo: peligrosa,
-        noImportadas: [{ n: 2, motivo: peligrosa, valor: peligrosa }],
-      });
-      if (r.success) {
-        expect(JSON.stringify(r.data), JSON.stringify(peligrosa)).not.toContain(peligrosa);
-        expect(r.data).toEqual(informeOk);
-      }
+  it("`descuadre` y `tipo_cambio_requerido` solo quedan como advertencias", () => {
+    expect([...MOTIVOS_ADVERTENCIA_VENTA]).toEqual(["descuadre", "tipo_cambio_requerido"]);
+    for (const motivo of ["descuadre", "tipo_cambio_requerido"]) {
+      expect(vistaPreviaVentasSchema.safeParse({
+        filas: [{ n: 1, estado: "error", motivos: [motivo], advertencias: [] }],
+        validas: 0, conError: 1, conAdvertencia: 0,
+      }).success, motivo).toBe(false);
     }
   });
 });
