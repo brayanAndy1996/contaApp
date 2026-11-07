@@ -42,6 +42,11 @@ export const trabajoVistaSchema = z.object({
   iniciadoEn: fechaIso.nullable(),
   terminadoEn: fechaIso.nullable(),
   creadoPor: z.object({ usuarioId: z.uuid() }).nullable(),
+  /** AAAAMM (D24). Solo lo trae `sire.propuesta.descargar`; ningún otro parámetro del trabajo sale. */
+  periodo: z
+    .string()
+    .regex(/^\d{4}(0[1-9]|1[0-2])$/)
+    .nullish(),
 });
 
 /**

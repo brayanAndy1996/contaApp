@@ -141,18 +141,30 @@ export const MOTIVOS_FILA_VENTA = [
 ] as const;
 export type MotivoFilaVenta = (typeof MOTIVOS_FILA_VENTA)[number];
 
+/**
+ * D22: avisos que NO bloquean la importación (la fila es válida y se guarda tal cual, D3). Son los mismos códigos que
+ * `descuadre` y `tipo_cambio_requerido` de `MOTIVOS_FILA_VENTA`, pero aquí son una lista cerrada propia; orden fijo.
+ */
+export const MOTIVOS_ADVERTENCIA_VENTA = ["descuadre", "tipo_cambio_requerido"] as const;
+export type MotivoAdvertenciaVenta = (typeof MOTIVOS_ADVERTENCIA_VENTA)[number];
+
 export const filaVistaPreviaVentasSchema = z.object({
   n: z.number().int().min(1),
   estado: z.enum(["valida", "error"]),
   motivos: z.array(z.enum(MOTIVOS_FILA_VENTA)),
+  /** Siempre presente, vacía si no hay; nunca el monto ni el contenido de la celda. */
+  advertencias: z.array(z.enum(MOTIVOS_ADVERTENCIA_VENTA)),
 });
 export type FilaVistaPreviaVentas = z.infer<typeof filaVistaPreviaVentasSchema>;
 
 /** Respuesta de `POST …/importar/vista-previa`: ningún campo lleva el contenido de una celda. */
 export const vistaPreviaVentasSchema = z.object({
   filas: z.array(filaVistaPreviaVentasSchema),
+  /** Filas válidas (incluye las que traen advertencias). */
   validas: entero,
   conError: entero,
+  /** Filas con alguna advertencia (D22); también cuentan en `validas`. */
+  conAdvertencia: entero,
 });
 export type VistaPreviaVentas = z.infer<typeof vistaPreviaVentasSchema>;
 

@@ -16,8 +16,10 @@ import {
   type TamanoPaginaVentas,
 } from "@contapp/shared";
 import { AgregarVenta } from "../../../../../components/ventas/agregar-venta";
+import { ConfirmarAccion } from "../../../../../components/ventas/confirmar-accion";
 import {
   CorrelatividadVentas,
+  type RevertirElegido,
   type SaltoElegido,
 } from "../../../../../components/ventas/correlatividad-ventas";
 import { DescargaVentas } from "../../../../../components/ventas/descarga-ventas";
@@ -42,12 +44,15 @@ import {
   listarVentas,
   obtenerCorrelatividad,
   obtenerResumenVentas,
+  quitarVenta,
+  revertirJustificacion,
   type CorrelatividadVentasDto,
   type DiferenciaVentasDto,
   type FiltrosGrilla,
   type PaginaVentasDto,
   type PropuestaVentasDto,
   type ResumenVentasDto,
+  type VentaDto,
 } from "../../../../../lib/ventas";
 
 // Ventas del periodo de un cliente (spec 013, D14; RF-050, RF-052, RF-053, RF-056). El periodo (AAAAMM) se
@@ -61,6 +66,11 @@ const TAMANO_INICIAL: TamanoPaginaVentas = 25;
 type Formulario =
   | { tipo: "justificar"; salto: SaltoElegido }
   | { tipo: "agregar"; salto: SaltoElegido | null };
+
+/** Acción que espera confirmación (D23): revertir una justificación o quitar una venta agregada a mano. */
+type Confirmacion =
+  | { tipo: "revertir"; clave: string; justificacionId: string }
+  | { tipo: "quitar"; clave: string; ventaId: string };
 
 /** Cuenta una petición por tipo de dato para descartar respuestas que llegan tarde (cambio de periodo o filtros). */
 function useSecuencia() {
@@ -106,6 +116,9 @@ function Ventas() {
   );
   const [formulario, setFormulario] = useState<Formulario | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [errorAccion, setErrorAccion] = useState<string | null>(null);
+  const [confirmacion, setConfirmacion] = useState<Confirmacion | null>(null);
+  const [ejecutando, setEjecutando] = useState(false);
 
   const sGrilla = useSecuencia();
   const sResumen = useSecuencia();
@@ -248,11 +261,57 @@ function Ventas() {
     setDiferencias(null);
     setFormulario(null);
     setAviso(null);
+    setErrorAccion(null);
+    setConfirmacion(null);
   }
 
   function abrirFormulario(f: Formulario) {
     setAviso(null);
+    setErrorAccion(null);
+    setConfirmacion(null);
     setFormulario(f);
+  }
+
+  function pedirConfirmacion(c: Confirmacion) {
+    setAviso(null);
+    setErrorAccion(null);
+    setFormulario(null);
+    setConfirmacion(c);
+  }
+
+  /** Confirmada la acción: llama a la API y recarga lo que cambia; un error del servidor sale en un aviso. */
+  async function ejecutarConfirmacion() {
+    const c = confirmacion;
+    if (c === null || ejecutando) return;
+    setEjecutando(true);
+    try {
+      const r =
+        c.tipo === "revertir"
+          ? await revertirJustificacion(clienteId, periodo, c.justificacionId)
+          : await quitarVenta(clienteId, periodo, c.ventaId);
+      setConfirmacion(null);
+      if (r.ok) {
+        setAviso(c.tipo === "revertir" ? M.justificacionRevertida : M.ventaQuitada);
+        if (c.tipo === "quitar") {
+          void cargarGrilla();
+          void Promise.all([cargarResumen(), cargarCorrelatividad()]).catch(() =>
+            setErrorGeneral(MENSAJES.errorGeneral),
+          );
+        } else {
+          void cargarCorrelatividad().catch(() => setErrorGeneral(MENSAJES.errorGeneral));
+        }
+      } else if (r.status !== 401) {
+        setErrorAccion(c.tipo === "revertir" ? M.errorRevertir : M.errorQuitar);
+        // Lo que ve la persona debe ser lo que dice el servidor (p. ej. otra persona ya la revirtió).
+        if (c.tipo === "revertir")
+          void cargarCorrelatividad().catch(() => setErrorGeneral(MENSAJES.errorGeneral));
+      }
+    } catch {
+      setConfirmacion(null);
+      setErrorAccion(c.tipo === "revertir" ? M.errorRevertir : M.errorQuitar);
+    } finally {
+      setEjecutando(false);
+    }
   }
 
   /** Justificada: se cierra el formulario y solo cambia la alerta de correlatividad. */
@@ -405,12 +464,32 @@ function Ventas() {
             puedeClasificar={puedeClasificar}
             alJustificar={(salto) => abrirFormulario({ tipo: "justificar", salto })}
             alAgregar={(salto) => abrirFormulario({ tipo: "agregar", salto })}
+            alRevertir={(r: RevertirElegido) =>
+              pedirConfirmacion({ tipo: "revertir", ...r })
+            }
           />
 
           {aviso && (
             <p role="status" className="text-sm">
               {aviso}
             </p>
+          )}
+          {errorAccion && (
+            <p role="alert" className="text-sm text-red-600">
+              {errorAccion}
+            </p>
+          )}
+          {puedeClasificar && confirmacion && (
+            <ConfirmarAccion
+              mensaje={
+                confirmacion.tipo === "revertir"
+                  ? M.confirmarRevertir(confirmacion.clave)
+                  : M.confirmarQuitar(confirmacion.clave)
+              }
+              ocupado={ejecutando}
+              alConfirmar={() => void ejecutarConfirmacion()}
+              alCancelar={() => setConfirmacion(null)}
+            />
           )}
           {puedeClasificar && formulario?.tipo === "justificar" && (
             <JustificarSalto
@@ -513,6 +592,16 @@ function Ventas() {
             <GrillaVentas
               key={`${pagina}|${tamano}|${JSON.stringify(filtros)}`}
               filas={datosPagina?.filas ?? []}
+              alQuitar={
+                puedeClasificar
+                  ? (v: VentaDto) =>
+                      pedirConfirmacion({
+                        tipo: "quitar",
+                        clave: `${v.serie}-${v.numero}`,
+                        ventaId: v.id,
+                      })
+                  : undefined
+              }
             />
 
             <div className="flex flex-wrap items-center gap-3 text-sm">

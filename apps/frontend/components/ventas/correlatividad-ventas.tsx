@@ -9,7 +9,7 @@ import { MENSAJES_VENTAS as M } from "../../lib/ventas";
 
 // Región «Correlatividad» (spec 013, D7; RF-053, HU-12). Muestra por serie lo que calcula el servidor: los
 // saltos como rangos (jamás se expanden número por número), su estado de justificación y, con permiso, las
-// acciones «Justificar» y «Agregar venta». Los formularios los abre la pantalla (T16) mediante los `al…`.
+// acciones «Justificar», «Agregar venta» y, en lo justificado, «Revertir». Los formularios los abre la pantalla (T16) mediante los `al…`.
 
 export interface SaltoElegido {
   tipo: string;
@@ -17,6 +17,18 @@ export interface SaltoElegido {
   desde: number;
   hasta: number;
 }
+
+/** Justificación que se quiere revertir y el salto que cubre, tal como se lee en la confirmación (D23). */
+export interface RevertirElegido {
+  justificacionId: string;
+  clave: string;
+}
+
+/** «B001-291» o «B001-291 a B001-293», para la confirmación. */
+const claveFaltante = (serie: string, f: FaltanteVentasDto): string =>
+  f.desde === f.hasta
+    ? `${serie}-${f.desde}`
+    : `${serie}-${f.desde} a ${serie}-${f.hasta}`;
 
 const requiereRevision = (f: FaltanteVentasDto): boolean =>
   f.estado === "pendiente" || f.estado === "parcial";
@@ -33,12 +45,14 @@ function Faltante({
   puedeClasificar,
   alJustificar,
   alAgregar,
+  alRevertir,
 }: {
   s: SerieCorrelatividadDto;
   f: FaltanteVentasDto;
   puedeClasificar: boolean;
   alJustificar?: (salto: SaltoElegido) => void;
   alAgregar?: (salto: SaltoElegido) => void;
+  alRevertir?: (r: RevertirElegido) => void;
 }) {
   const salto: SaltoElegido = {
     tipo: s.tipo,
@@ -56,6 +70,25 @@ function Faltante({
         <span className="text-sm">{M.justificadoEnParte}</span>
       )}
       {f.comentario && <span className="text-sm">{f.comentario}</span>}
+      {puedeClasificar &&
+        f.estado === "justificado" &&
+        f.justificacionId !== undefined && (
+          <span className="flex gap-2">
+            <button
+              type="button"
+              disabled={!alRevertir}
+              onClick={() =>
+                alRevertir?.({
+                  justificacionId: f.justificacionId as string,
+                  clave: claveFaltante(s.serie, f),
+                })
+              }
+              className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+            >
+              {M.revertir}
+            </button>
+          </span>
+        )}
       {puedeClasificar && f.estado !== "justificado" && (
         <span className="flex gap-2">
           <button
@@ -85,12 +118,15 @@ export function CorrelatividadVentas({
   puedeClasificar,
   alJustificar,
   alAgregar,
+  alRevertir,
 }: {
   correlatividad: CorrelatividadVentasDto | null;
   /** `sire.clasificar` y cliente activo: sin él no se muestran las acciones (la alerta sí). */
   puedeClasificar: boolean;
   alJustificar?: (salto: SaltoElegido) => void;
   alAgregar?: (salto: SaltoElegido) => void;
+  /** «Revertir» en el salto justificado por una única justificación vigente (D23); la pantalla pide la confirmación. */
+  alRevertir?: (r: RevertirElegido) => void;
 }) {
   const series = correlatividad?.series ?? [];
   const porRevisar = series.reduce(
@@ -126,6 +162,7 @@ export function CorrelatividadVentas({
                   puedeClasificar={puedeClasificar}
                   alJustificar={alJustificar}
                   alAgregar={alAgregar}
+                  alRevertir={alRevertir}
                 />
               ))}
             </ul>

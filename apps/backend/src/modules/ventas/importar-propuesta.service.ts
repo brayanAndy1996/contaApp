@@ -19,7 +19,12 @@ import {
   type ErrorFilaVenta,
   type FilaVentaValida,
 } from "@contapp/domain";
-import type { MotivoFilaVenta, PropuestaVentasDto, VistaPreviaVentas } from "@contapp/shared";
+import type {
+  MotivoAdvertenciaVenta,
+  MotivoFilaVenta,
+  PropuestaVentasDto,
+  VistaPreviaVentas,
+} from "@contapp/shared";
 import type { SesionResuelta } from "../auth/auth.service.js";
 import { DB } from "../auth/inyeccion.js";
 import { contextoDe } from "../clientes/contexto.js";
@@ -76,12 +81,22 @@ interface FilaEvaluada {
   motivos: MotivoFilaVenta[];
   /** Presente solo si la fila es válida. */
   fila?: FilaVentaValida;
+  /** D22: avisos que no bloquean, en orden fijo; vacío en una fila con error (no se evalúa). */
+  advertencias: MotivoAdvertenciaVenta[];
+}
+
+/** D22: `descuadre` si el total no cuadra y `tipo_cambio_requerido` si es USD sin tipo de cambio (orden fijo). */
+function advertenciasDe(fila: FilaVentaValida, cuadra: boolean): MotivoAdvertenciaVenta[] {
+  const a: MotivoAdvertenciaVenta[] = [];
+  if (!cuadra) a.push("descuadre");
+  if (fila.moneda === "USD" && fila.tipoCambio === undefined) a.push("tipo_cambio_requerido");
+  return a;
 }
 
 /** Evalúa una fila del archivo: una celda peligrosa la descarta sin más; si no, la juzga `validarFilaVenta` (dominio). */
 function evaluar(f: FilaTabla<string>): FilaEvaluada {
   if (f.formulas.length > 0 || Object.values(f.valores).some(esPeligrosa)) {
-    return { n: f.n, motivos: ["celda_peligrosa"] };
+    return { n: f.n, motivos: ["celda_peligrosa"], advertencias: [] };
   }
   const cruda: Record<string, string> = {};
   for (const [campo, valor] of Object.entries(f.valores)) {
@@ -91,7 +106,9 @@ function evaluar(f: FilaTabla<string>): FilaEvaluada {
   // La serie se guarda en mayúsculas, como la de una venta agregada a mano, para no crear una serie aparte (D7).
   if (cruda["serie"] !== undefined) cruda["serie"] = cruda["serie"].toUpperCase();
   const r = validarFilaVenta(cruda);
-  return r.ok ? { n: f.n, motivos: [], fila: r.fila } : { n: f.n, motivos: motivosDe(r.errores) };
+  return r.ok
+    ? { n: f.n, motivos: [], fila: r.fila, advertencias: advertenciasDe(r.fila, r.cuadra) }
+    : { n: f.n, motivos: motivosDe(r.errores), advertencias: [] };
 }
 
 /** Un `.xlsx` es un zip (`PK`); lo demás se lee como texto (`.csv`/`.txt` con `,` o `;`). */
@@ -148,9 +165,15 @@ export class ImportarPropuestaService {
     const filas = leerArchivo(cuerpo);
     const validas = filas.filter((f) => f.fila !== undefined).length;
     return {
-      filas: filas.map((f) => ({ n: f.n, estado: f.fila === undefined ? "error" : "valida", motivos: f.motivos })),
+      filas: filas.map((f) => ({
+        n: f.n,
+        estado: f.fila === undefined ? "error" : "valida",
+        motivos: f.motivos,
+        advertencias: f.advertencias,
+      })),
       validas,
       conError: filas.length - validas,
+      conAdvertencia: filas.filter((f) => f.advertencias.length > 0).length,
     };
   }
 

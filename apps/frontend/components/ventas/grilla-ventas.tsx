@@ -33,7 +33,13 @@ const COLUMNAS = [
 const CELDA = "whitespace-nowrap px-2";
 const CELDA_MONTO = `${CELDA} text-right tabular-nums`;
 
-function FilaVenta({ v }: { v: VentaDto }) {
+function FilaVenta({
+  v,
+  alQuitar,
+}: {
+  v: VentaDto;
+  alQuitar?: (v: VentaDto) => void;
+}) {
   return (
     <tr style={{ height: ALTO_FILA }} className="border-t">
       <td className={CELDA} title={NOMBRE_TIPO_COMPROBANTE[v.tipo]}>
@@ -43,6 +49,15 @@ function FilaVenta({ v }: { v: VentaDto }) {
         {v.serie}-{v.numero}
         {v.origen === "manual" && (
           <span className="ml-2 rounded border px-1 text-xs">Manual</span>
+        )}
+        {v.origen === "manual" && alQuitar && (
+          <button
+            type="button"
+            onClick={() => alQuitar(v)}
+            className="ml-2 rounded border px-2 text-xs"
+          >
+            {M.quitar}
+          </button>
         )}
       </td>
       <td className={CELDA}>{v.fechaEmision}</td>
@@ -64,7 +79,14 @@ function FilaVenta({ v }: { v: VentaDto }) {
   );
 }
 
-export function GrillaVentas({ filas }: { filas: VentaDto[] }) {
+export function GrillaVentas({
+  filas,
+  alQuitar,
+}: {
+  filas: VentaDto[];
+  /** «Quitar» solo en las ventas de origen `manual` y solo si la pantalla lo pasa (`sire.clasificar`, cliente activo). */
+  alQuitar?: (v: VentaDto) => void;
+}) {
   const [desplazamiento, setDesplazamiento] = useState(0);
 
   const inicio = Math.max(
@@ -106,7 +128,7 @@ export function GrillaVentas({ filas }: { filas: VentaDto[] }) {
             </tr>
           )}
           {visibles.map((v) => (
-            <FilaVenta key={v.id} v={v} />
+            <FilaVenta key={v.id} v={v} alQuitar={alQuitar} />
           ))}
           {fin < filas.length && (
             <tr

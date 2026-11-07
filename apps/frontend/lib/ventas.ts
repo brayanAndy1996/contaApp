@@ -10,6 +10,7 @@ import type {
   VentaDto,
   VistaPreviaVentas,
   MotivoFilaVenta,
+  MotivoAdvertenciaVenta,
 } from "@contapp/shared";
 import { MENSAJES } from "./acceso";
 import { api, type RespuestaApi } from "./api";
@@ -112,7 +113,34 @@ export const MENSAJES_VENTAS = {
   verVentas: "Ver ventas del periodo",
   validas: (n: number) => `Filas válidas: ${n}`,
   conError: (n: number) => `Filas con error: ${n}`,
-  estadoFila: { valida: "Válida", conError: "Con error" },
+  estadoFila: {
+    valida: "Válida",
+    conError: "Con error",
+    // D22: válida pero con algo que revisar; no bloquea la importación.
+    conAdvertencia: "Válida con advertencia",
+  },
+  conAdvertencia: (n: number) => `Filas con advertencia: ${n}`,
+  avisoAdvertencias:
+    "Las filas con advertencia se pueden confirmar: se guardan tal cual.",
+  // Códigos cerrados de `MOTIVOS_ADVERTENCIA_VENTA` (shared); nunca el monto ni el contenido de la celda.
+  advertencias: {
+    descuadre:
+      "El total no cuadra con la suma de los componentes; se guardará tal cual.",
+    tipo_cambio_requerido:
+      "Falta el tipo de cambio de la venta en USD; no se incluirá en el resumen.",
+  } satisfies Record<MotivoAdvertenciaVenta, string>,
+  // D23: revertir una justificación y quitar una venta agregada a mano (ambos piden confirmación).
+  revertir: "Revertir",
+  quitar: "Quitar",
+  confirmar: "Confirmar",
+  confirmarRevertir: (clave: string) =>
+    `¿Revertir la justificación del salto ${clave}? Quedará registro de quién la revirtió y cuándo.`,
+  confirmarQuitar: (clave: string) =>
+    `¿Quitar la venta ${clave} agregada a mano? Esta acción no se puede deshacer.`,
+  justificacionRevertida: "Justificación revertida.",
+  ventaQuitada: "Venta quitada.",
+  errorRevertir: "No se pudo revertir la justificación.",
+  errorQuitar: "No se pudo quitar la venta.",
   corregirFilas:
     "Corrige las filas con error: si alguna falla no se guarda nada.",
   layoutNoOficial:
@@ -299,6 +327,27 @@ export const justificarSalto = (
   api<{ id: string }>(`${base(clienteId, periodo)}/saltos-justificados`, {
     method: "POST",
     body: datos,
+  });
+
+/** Revierte una justificación vigente (D8): 204. La fila queda con quién y cuándo la revirtió. */
+export const revertirJustificacion = (
+  clienteId: string,
+  periodo: string,
+  justificacionId: string,
+): Promise<RespuestaApi<null>> =>
+  api<null>(
+    `${base(clienteId, periodo)}/saltos-justificados/${encodeURIComponent(justificacionId)}`,
+    { method: "DELETE" },
+  );
+
+/** Quita una venta de origen `manual` (D5): 204. Las del SIRE no se pueden quitar (409). */
+export const quitarVenta = (
+  clienteId: string,
+  periodo: string,
+  ventaId: string,
+): Promise<RespuestaApi<null>> =>
+  api<null>(`${base(clienteId, periodo)}/${encodeURIComponent(ventaId)}`, {
+    method: "DELETE",
   });
 
 export const agregarVenta = (

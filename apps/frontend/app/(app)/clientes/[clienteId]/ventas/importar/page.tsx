@@ -24,7 +24,7 @@ import {
 // Asistente de importación de la propuesta de ventas (spec 013, D6, D3, D16; RF-051, CA-10): archivo → vista
 // previa → confirmar. Es el asistente de 007b adaptado a ventas. El archivo vive solo en memoria (un `ref`),
 // viaja como cuerpo crudo y nunca se lee ni se muestra aquí: la vista previa trae únicamente números de fila,
-// estado y códigos de motivo. Todo o nada: con una fila con error no se puede confirmar. Sin cálculos.
+// estado y códigos de motivo. Todo o nada: con una fila con error no se puede confirmar; las advertencias (D22) no bloquean. Sin cálculos.
 
 const ACEPTA = ".xlsx,.csv,.txt,text/csv,text/plain";
 /** Filas válidas que se listan; las filas con error se muestran siempre todas. */
@@ -224,9 +224,15 @@ function Importar() {
           <ul className="text-sm">
             <li>{M.validas(vista.validas)}</li>
             <li>{M.conError(vista.conError)}</li>
+            {vista.conAdvertencia > 0 && (
+              <li>{M.conAdvertencia(vista.conAdvertencia)}</li>
+            )}
           </ul>
           {vista.conError > 0 && (
             <p className="text-sm">{M.corregirFilas}</p>
+          )}
+          {vista.conAdvertencia > 0 && vista.conError === 0 && (
+            <p className="text-sm">{M.avisoAdvertencias}</p>
           )}
           <table className="w-full text-left text-sm">
             <thead>
@@ -241,13 +247,18 @@ function Importar() {
                 <tr key={f.n}>
                   <td>{f.n}</td>
                   <td>
-                    {f.estado === "valida"
-                      ? M.estadoFila.valida
-                      : M.estadoFila.conError}
+                    {f.estado !== "valida"
+                      ? M.estadoFila.conError
+                      : f.advertencias.length > 0
+                        ? M.estadoFila.conAdvertencia
+                        : M.estadoFila.valida}
                   </td>
                   <td>
                     {f.motivos.map((m) => (
                       <p key={m}>{M.motivos[m] ?? M.archivoInvalido}</p>
+                    ))}
+                    {f.advertencias.map((a) => (
+                      <p key={a}>{M.advertencias[a]}</p>
                     ))}
                   </td>
                 </tr>
