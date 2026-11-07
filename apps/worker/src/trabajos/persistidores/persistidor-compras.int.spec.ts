@@ -1217,7 +1217,10 @@ describe("CA-15 (persistir) y DU-20: volumen y sin tope por periodo", () => {
       distintas: 0,
     });
     expect(await contarCompras(admin, m.c.id, PERIODO, true)).toBe(5_001);
-    expect(await propuestasDe(admin, m.c.id)).toHaveLength(1);
+    // 2 propuestas: la sembrada por `sembrarCompras` (5.000 filas, también `fuente = 'api'`) y la de esta descarga (1 fila).
+    const props = await propuestasDe(admin, m.c.id);
+    expect(props).toHaveLength(2);
+    expect(props.filter((p) => p.filas_recibidas === 1)).toHaveLength(1);
   });
 
   it("DU-20: 5.000 vivas y una segunda descarga de 1.000 nuevas dejan 6.000 vivas (lo ya guardado cuenta como iguales)", async () => {
