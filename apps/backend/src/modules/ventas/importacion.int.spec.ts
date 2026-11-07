@@ -143,7 +143,7 @@ describe("CA-10 · vista previa: errores por fila y no persiste nada", () => {
       expect(f[4].motivos).toContain("fecha_invalida");
       expect(f[5].motivos).toContain("monto_invalido");
       for (const fila of r.json.filas)
-        expect(Object.keys(fila).sort()).toEqual(["estado", "motivos", "n"]);
+        expect(Object.keys(fila).sort()).toEqual(["advertencias", "estado", "motivos", "n"]);
       expect(r.texto).not.toContain(sucio);
       await vacio(c.id);
     },

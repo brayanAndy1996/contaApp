@@ -44,7 +44,7 @@ describe("tope de bytes de la ruta = el del lector de ventas", () => {
 describe("celdas peligrosas", () => {
   it.each(["=1+1", "@SUM(1)", "+cmd|x", "-1+1", "  =1+1", "a\tb"])("«%s» en un texto: celda_peligrosa y nada más", async (celda) => {
     const r = await previa(csv(con("docContraparte", `"${celda}"`)));
-    expect(r.filas).toEqual([{ n: 2, estado: "error", motivos: ["celda_peligrosa"] }]);
+    expect(r.filas).toEqual([{ n: 2, estado: "error", motivos: ["celda_peligrosa"], advertencias: [] }]);
   });
 
   it.each(["-", "-50.00", "+5"])("«%s» no lo es: el consumidor final y los números con signo", async (celda) => {
@@ -86,9 +86,9 @@ describe("motivos de fila: los códigos del dominio, traducidos a la lista cerra
     for (const f of r.filas) for (const m of f.motivos) expect(MOTIVOS_FILA_VENTA).toContain(m);
   });
 
-  it("una fila descuadrada pero legible es válida (D3: se guarda tal cual llegó)", async () => {
+  it("una fila descuadrada pero legible es válida con la advertencia `descuadre` (D3, D22: se guarda tal cual llegó)", async () => {
     const r = await previa(csv(con("total", "999.00")));
-    expect(r.filas[0]).toEqual({ n: 2, estado: "valida", motivos: [] });
+    expect(r.filas[0]).toEqual({ n: 2, estado: "valida", motivos: [], advertencias: ["descuadre"] });
   });
 });
 
@@ -107,7 +107,7 @@ describe("el archivo", () => {
     const sinOpcionales = CABECERA.split(",").filter((c) => c !== "tipoDocContraparte" && c !== "tipoCambio");
     const fila = BUENA.filter((_v, i) => i !== 3 && i !== 7);
     const r = await previa(new TextEncoder().encode([sinOpcionales.join(","), fila.join(",")].join("\r\n")));
-    expect(r.filas).toEqual([{ n: 2, estado: "valida", motivos: [] }]);
+    expect(r.filas).toEqual([{ n: 2, estado: "valida", motivos: [], advertencias: [] }]);
   });
 
   it("la serie en minúsculas y los espacios alrededor de una celda no invalidan la fila", async () => {

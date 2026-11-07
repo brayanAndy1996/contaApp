@@ -27,7 +27,7 @@ import { eventoSse, idTrabajo } from "./trabajos";
 //  - Propuesta:   { id, fuente: "api"|"importacion", filasRecibidas, filasNuevas, filasIguales,
 //                   filasDistintas, creadaEn }   (GET /propuestas: la más reciente primero)
 //  - Diferencia:  { clave, tipo, serie, numero, origenExistente, campos: string[], valoresSire }
-//  - Importación: vista previa { filas: { n, estado, motivos: string[] }[], validas, conError };
+//  - Importación: vista previa { filas: { n, estado, motivos: string[], advertencias: string[] }[], validas, conError, conAdvertencia };
 //                 confirmar 201 { propuesta: Propuesta }.
 
 export const CLIENTE_ID = "c-1";
@@ -123,7 +123,34 @@ export const MENSAJES_VENTAS = {
   verVentas: "Ver ventas del periodo",
   validas: (n: number) => `Filas válidas: ${n}`,
   conError: (n: number) => `Filas con error: ${n}`,
-  estadoFila: { valida: "Válida", conError: "Con error" },
+  estadoFila: {
+    valida: "Válida",
+    conError: "Con error",
+    // T20a (D22): una fila válida con advertencias.
+    conAdvertencia: "Válida con advertencia",
+  },
+  // T20a (D22): advertencias de la vista previa. No bloquean: la fila se confirma y se guarda tal cual (D3).
+  conAdvertencia: (n: number) => `Filas con advertencia: ${n}`,
+  avisoAdvertencias:
+    "Las filas con advertencia se pueden confirmar: se guardan tal cual.",
+  advertencias: {
+    descuadre:
+      "El total no cuadra con la suma de los componentes; se guardará tal cual.",
+    tipo_cambio_requerido:
+      "Falta el tipo de cambio de la venta en USD; no se incluirá en el resumen.",
+  },
+  // T20a (D23): revertir una justificación y quitar una venta agregada a mano (ambos piden confirmación).
+  revertir: "Revertir",
+  quitar: "Quitar",
+  confirmar: "Confirmar",
+  confirmarRevertir: (clave: string) =>
+    `¿Revertir la justificación del salto ${clave}? Quedará registro de quién la revirtió y cuándo.`,
+  confirmarQuitar: (clave: string) =>
+    `¿Quitar la venta ${clave} agregada a mano? Esta acción no se puede deshacer.`,
+  justificacionRevertida: "Justificación revertida.",
+  ventaQuitada: "Venta quitada.",
+  errorRevertir: "No se pudo revertir la justificación.",
+  errorQuitar: "No se pudo quitar la venta.",
   corregirFilas:
     "Corrige las filas con error: si alguna falla no se guarda nada.",
   layoutNoOficial:
@@ -355,6 +382,8 @@ export interface FaltanteVista {
   hasta: number;
   estado: "pendiente" | "justificado" | "parcial";
   comentario?: string;
+  /** Solo en un salto justificado por una única justificación vigente (T13). */
+  justificacionId?: string;
 }
 
 export interface SerieVista {
@@ -403,6 +432,27 @@ export const CORRELATIVIDAD_JUSTIFICADA = {
         estado: "justificado",
         comentario: COMENTARIO_JUSTIFICADO,
       },
+    ]),
+    serieDe("01", "F001"),
+    serieDe("03", "B003", [{ desde: 402, hasta: 404, estado: "pendiente" }]),
+    serieDe("01", "F002", [], { estado: "no_evaluable", noEvaluables: 2 }),
+  ],
+};
+
+/** Id de la justificación vigente de la 291 (el servidor lo entrega en `justificacionId`, T13). */
+export const JUSTIFICACION_ID = uuidDe(30, 1);
+
+/** Como `CORRELATIVIDAD_JUSTIFICADA`, con el `justificacionId` que permite revertir (T20a, D23). */
+export const CORRELATIVIDAD_JUSTIFICADA_CON_ID = {
+  series: [
+    serieDe("03", "B001", [
+      {
+        desde: 291,
+        hasta: 291,
+        estado: "justificado",
+        comentario: COMENTARIO_JUSTIFICADO,
+        justificacionId: JUSTIFICACION_ID,
+      } as FaltanteVista,
     ]),
     serieDe("01", "F001"),
     serieDe("03", "B003", [{ desde: 402, hasta: 404, estado: "pendiente" }]),
@@ -505,15 +555,28 @@ export type TrabajoDescarga = ReturnType<typeof trabajoDescarga>;
 
 export type MotivoFilaVenta = keyof typeof MENSAJES_VENTAS.motivos;
 
-export function filaImportadaDe(n: number, motivos: MotivoFilaVenta[] = []) {
-  return { n, estado: motivos.length > 0 ? "error" : "valida", motivos };
+export type AdvertenciaFilaVenta = keyof typeof MENSAJES_VENTAS.advertencias;
+
+/** T20a (D22): cada fila trae `advertencias` (lista, vacía si no hay); un error no se evalúa y no lleva ninguna. */
+export function filaImportadaDe(
+  n: number,
+  motivos: MotivoFilaVenta[] = [],
+  advertencias: AdvertenciaFilaVenta[] = [],
+) {
+  return {
+    n,
+    estado: motivos.length > 0 ? "error" : "valida",
+    motivos,
+    advertencias: motivos.length > 0 ? [] : advertencias,
+  };
 }
 
 export function vistaPreviaVentasDe(
   filas: ReturnType<typeof filaImportadaDe>[],
 ) {
   const validas = filas.filter((f) => f.estado === "valida").length;
-  return { filas, validas, conError: filas.length - validas };
+  const conAdvertencia = filas.filter((f) => f.advertencias.length > 0).length;
+  return { filas, validas, conError: filas.length - validas, conAdvertencia };
 }
 
 /** Archivo con una celda de fórmula: su contenido jamás debe verse en pantalla. */
