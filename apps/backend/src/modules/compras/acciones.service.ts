@@ -233,7 +233,7 @@ export class AccionesComprasService {
             clienteId,
             periodo,
             usuarioId: ctx.userId,
-            accion: "agregar",
+            accion: "agregada",
             identidad: {
               clave: claveComprobante(
                 { tipo: c.tipo, serie: c.serie, numero: c.numero },

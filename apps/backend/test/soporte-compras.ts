@@ -13,7 +13,7 @@
 //  - `compra_hallazgo(tenant_id, compra_id, version_n, regla, sugerencia jsonb, lecturas jsonb, requiere_confirmacion)`.
 //  - `compra_operacion(tenant_id, cliente_id, periodo, usuario_id, tipo, estado, referencia_id, creada_en, deshecha_en)`.
 //  - `compra_periodo(tenant_id, cliente_id, periodo, estado, marcado_por, marcado_en)`.
-//  - `accion` de la versión 1: `descarga` (SIRE) o `agregar` (a mano), como en `ACCIONES_VERSION` de `@contapp/shared`.
+//  - `accion` de la versión 1: `original` (SIRE) o `agregada` (a mano), como en `ACCIONES_VERSION` de `@contapp/shared`.
 // Los hallazgos de las filas del fixture se calculan con `evaluarReglas` de 011 (la misma regla que aplica la descarga) y se
 // guardan con la sugerencia y las lecturas como cadenas decimales (la forma de `HallazgoVista` de `@contapp/shared`).
 import { readFileSync } from "node:fs";
@@ -470,7 +470,7 @@ export async function abrirBancoCompras(): Promise<BancoCompras> {
         ]);
       let actual = m1;
       let estado = { excluida: false, motivo: null as string | null, clasificada: false };
-      await poner(1, m1, { ...estado, accion: origen === "sire" ? "descarga" : "agregar" });
+      await poner(1, m1, { ...estado, accion: origen === "sire" ? "original" : "agregada" });
       let n = 1;
       for (const x of versiones) {
         n++;

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
+  ACCIONES_VERSION,
   accionCompraRespuestaSchema,
   calcularRespuestaSchema,
   detalleCompraSchema,
@@ -66,7 +67,7 @@ const fila = {
 };
 const version = {
   n: 1,
-  accion: "descarga",
+  accion: "original",
   operacionId: null,
   usuarioId: null,
   creadaEn: "2026-11-06T12:00:00.000Z",
@@ -121,6 +122,11 @@ describe("listado, detalle, acción y calcular", () => {
   it("el detalle separa la versión 1 de la vigente", () => {
     expect(ok(detalleCompraSchema, { original: version, vigente: fila, versiones: [version], hallazgos: [hallazgo] })).toBe(true);
     expect(ok(detalleCompraSchema, { vigente: fila, versiones: [], hallazgos: [] })).toBe(false);
+  });
+  it("T17a: las acciones de la versión 1 son las que guardan el persistidor y agregarCompra", () => {
+    expect(ACCIONES_VERSION).toEqual(expect.arrayContaining(["original", "agregada"]));
+    expect(ACCIONES_VERSION).not.toContain("descarga");
+    expect(ACCIONES_VERSION).not.toContain("agregar");
   });
   it("una versión rechaza una acción desconocida", () => {
     expect(ok(versionCompraVistaSchema, version)).toBe(true);

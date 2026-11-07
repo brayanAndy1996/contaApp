@@ -18,7 +18,7 @@
 // SUPUESTOS que fijan estas pruebas y que el implementador (T16) puede rebatir con el arquitecto:
 //  (a) el estado del periodo se comprueba ANTES que la versión base y que las precondiciones de la acción;
 //  (b) la aceptación de una sugerencia contrasta el hallazgo GUARDADO de la versión base con la fila actual (re-evaluación);
-//  (c) la `accion` de la versión es una de `ACCIONES_VERSION` de `@contapp/shared` (descarga, agregar, clasificar, editar,
+//  (c) la `accion` de la versión es una de `ACCIONES_VERSION` de `@contapp/shared` (original, agregada, clasificar, editar,
 //      sugerencia, excluir, restaurar, deshacer, rehacer).
 // Rojo: el módulo `compras` aún no existe (T15 y T16): toda ruta responde 404 de ruta inexistente.
 import { randomUUID } from "node:crypto";
@@ -530,7 +530,7 @@ describe("CA-6 · aceptar una sugerencia (RF-080, D-4)", () => {
     expect(fila.hallazgos.map((h) => h.regla)).not.toContain("R-ISC");
     const u = await ultima(id);
     expect(u).toMatchObject({ n: 2, accion: "sugerencia", biDg: "0.00", isc: "770.00" });
-    expect((await v.versiones(id))[0]).toMatchObject({ n: 1, biDg: "770.00", isc: "0.00", accion: "descarga" });
+    expect((await v.versiones(id))[0]).toMatchObject({ n: 1, biDg: "770.00", isc: "0.00", accion: "original" });
   });
 
   it("R-ISC pide confirmación: sin `confirmar` no se aplica nada (nada se aplica solo)", async () => {
@@ -683,7 +683,7 @@ describe("CA-7 · excluir y restaurar (RF-066, HU-17, D-6)", () => {
     expect((await get(titular(), c)).body.filas.map((f: any) => f.id)).toContain(id);
     expect((await get(titular(), c, "?vista=excluidas")).body.filas).toEqual([]);
     // La versión 1 sigue siendo la del SIRE.
-    expect((await v.versiones(id))[0]).toMatchObject({ n: 1, excluida: false, accion: "descarga" });
+    expect((await v.versiones(id))[0]).toMatchObject({ n: 1, excluida: false, accion: "original" });
   });
 
   it("con el periodo generado, excluir y restaurar son 409 periodo_generado", async () => {
@@ -778,7 +778,7 @@ describe("CA-8 · agregar y descartar (RF-067, HU-18, D-7)", () => {
     const cs = await v.compras(c.id);
     const nueva = cs.find((x) => x.id === fila.id)!;
     expect(nueva).toMatchObject({ origen: "agregada", propuesta_id: null, version_vigente: 1, descartada: false });
-    expect((await v.versiones(fila.id))[0]).toMatchObject({ n: 1, accion: "agregar", usuario_id: E.titular.id, total: "118.50" });
+    expect((await v.versiones(fila.id))[0]).toMatchObject({ n: 1, accion: "agregada", usuario_id: E.titular.id, total: "118.50" });
     // El resumen la cuenta como vigente.
     const res = await get(titular(), c, "/resumen");
     expect(res.status, res.text).toBe(200);

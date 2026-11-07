@@ -86,6 +86,8 @@ describe("T13b · ronda adversarial 2b", () => {
       // 014 (plan, Contratos: Dominio): compras/ con su error de estado desconocido.
       "EstadoPeriodoInvalidoError", "aFilaReemplazo", "aplicarEdicion", "claveComprobante", "puedeEscribir",
       "resumirCompras", "sugerenciaEsMasiva",
+      // 014 (T15, T16): vista de hallazgos, aceptar lo guardado y evaluar una compra (compras/hallazgo-vista, aceptar, evaluar).
+      "EXPLICACION_GENERICA", "aceptarSugerenciaGuardada", "crearEvaluarCompras", "detallarHallazgo",
       // 013 (T3): clave-comprobante/, correlatividad/, complemento/ y ventas/ (plan, Contratos: Dominio).
       "LAYOUT_VENTAS_PROVISIONAL", "analizarCorrelatividad", "claveNormalizada", "planificarComplemento",
       "resumirVentas", "validarFilaVenta",

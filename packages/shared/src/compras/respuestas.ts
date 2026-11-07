@@ -75,8 +75,8 @@ export const hallazgoVistaSchema = z.object({
 export type HallazgoVista = z.infer<typeof hallazgoVistaSchema>;
 
 export const ACCIONES_VERSION = [
-  "descarga",
-  "agregar",
+  "original",
+  "agregada",
   "clasificar",
   "editar",
   "sugerencia",

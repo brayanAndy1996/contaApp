@@ -185,7 +185,7 @@ describe("CA-18 · masiva de aceptar sugerencias: parcial, en una sola operació
     for (const id of k.aplicables) {
       const vs = await v.versiones(id);
       expect(vs.map((x) => x.n)).toEqual([1, 2]);
-      expect(vs[0]).toMatchObject({ biDg: "500.00", isc: "0.00", accion: "descarga" }); // versión 1 intacta
+      expect(vs[0]).toMatchObject({ biDg: "500.00", isc: "0.00", accion: "original" }); // versión 1 intacta
       expect(vs[1]).toMatchObject({ accion: "sugerencia", biDg: "0.00", isc: "500.00", total: "500.00", operacion_id: inf.operacionId });
     }
     // Las rechazadas no cambian.
@@ -288,7 +288,7 @@ describe("CA-4 · clasificar 12 filas es una sola operación y el resumen lo ref
     for (const id of ids) {
       const vs = await v.versiones(id);
       expect(vs.map((x) => x.n)).toEqual([1, 2]);
-      expect(vs[0]).toMatchObject({ biDg: "100.00", igvDg: "18.00", biDng: "0.00", accion: "descarga" });
+      expect(vs[0]).toMatchObject({ biDg: "100.00", igvDg: "18.00", biDng: "0.00", accion: "original" });
       expect(vs[1]).toMatchObject({ accion: "clasificar", clasificada: true, biDg: "0.00", igvDg: "0.00", biDng: "100.00", igvDng: "18.00", total: "118.00", operacion_id: inf.operacionId });
     }
     const res = await v.llamar(contador, "GET", `${base(c.id)}/resumen`);

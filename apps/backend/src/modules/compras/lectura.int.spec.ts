@@ -22,6 +22,7 @@ import {
   detalleCompraSchema,
   filaCompraVistaSchema,
   listadoComprasSchema,
+  versionCompraVistaSchema,
 } from "@contapp/shared";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
@@ -509,13 +510,13 @@ describe("CA-2 · detalle: original y vigente por separado, con versiones y hall
     expect(detalleCompraSchema.safeParse(r.body).success, r.text).toBe(true);
     expect(Object.keys(r.body).sort()).toEqual(["hallazgos", "original", "versiones", "vigente"]);
 
-    expect(r.body.original).toMatchObject({ n: 1, accion: "descarga", excluida: false, clasificada: false });
+    expect(r.body.original).toMatchObject({ n: 1, accion: "original", excluida: false, clasificada: false });
     expect(r.body.original.montos).toMatchObject({ biDg: "100.00", igvDg: "18.00", biDng: "0.00", icbper: "1.50", total: "119.50" });
     expect(r.body.vigente).toMatchObject({ id, version: 3, clasificada: true, excluida: false, origen: "sire" });
     expect(r.body.vigente.montos).toMatchObject({ biDg: "0.00", biDng: "90.00", igvDng: "18.00", total: "109.50" });
 
     expect(r.body.versiones.map((x: any) => x.n)).toEqual([1, 2, 3]);
-    expect(r.body.versiones.map((x: any) => x.accion)).toEqual(["descarga", "clasificar", "editar"]);
+    expect(r.body.versiones.map((x: any) => x.accion)).toEqual(["original", "clasificar", "editar"]);
     for (const x of r.body.versiones) {
       expect(x.usuarioId).toBe(E.titular.id);
       expect(Number.isNaN(Date.parse(x.creadaEn))).toBe(false);
@@ -536,14 +537,41 @@ describe("CA-2 · detalle: original y vigente por separado, con versiones y hall
     expect(r.body.vigente.version).toBe(1);
   });
 
-  it("una agregada: versión 1 con accion agregar y sin propuesta a la vista", async () => {
+  it("una agregada: versión 1 con accion agregada y sin propuesta a la vista", async () => {
     const c = await nuevoCliente();
     const id = await v.sembrarCompra(E.tenantId, c.id, { serie: "F940", numero: "1", usuarioId: u(), origen: "agregada" });
     const r = await v.llamar(contador, "GET", `${base(c.id)}/${id}`);
     expect(r.status, r.text).toBe(200);
     expect(r.body.vigente.origen).toBe("agregada");
-    expect(r.body.original.accion).toBe("agregar");
+    expect(r.body.original.accion).toBe("agregada");
     expect(r.text).not.toContain("propuesta");
+  });
+
+  it("T17a: el detalle de una descargada y el de una agregada por la ruta traen acciones válidas según versionCompraVistaSchema", async () => {
+    const c = await nuevoCliente();
+    const descargada = await v.sembrarCompra(E.tenantId, c.id, { serie: "F950", numero: "1", usuarioId: u() });
+    const alta = await v.llamar(E.titular, "POST", `${base(c.id)}`, {
+      tipo: "01",
+      serie: "F950",
+      numero: "2",
+      proveedor: { tipo: "6", numero: "20700000099", razonSocial: "PROVEEDOR AGREGADO SAC" },
+      fecha: "2026-10-15",
+      moneda: "PEN",
+      montos: { biDg: "100.00", igvDg: "18.00" },
+    });
+    expect(alta.status, alta.text).toBe(201);
+    for (const [id, esperada] of [
+      [descargada, "original"],
+      [alta.body.fila.id, "agregada"],
+    ] as const) {
+      const r = await v.llamar(contador, "GET", `${base(c.id)}/${id}`);
+      expect(r.status, r.text).toBe(200);
+      for (const x of [r.body.original, ...r.body.versiones]) {
+        const ok = versionCompraVistaSchema.safeParse(x);
+        expect(ok.success, `acción ${x.accion}: ${r.text}`).toBe(true);
+      }
+      expect(r.body.original.accion).toBe(esperada);
+    }
   });
 
   it("el detalle de una excluida se puede leer, con su motivo", async () => {
