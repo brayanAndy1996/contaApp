@@ -107,6 +107,27 @@ async function esperarBloqueados(xid: string, n: number): Promise<void> {
   throw new Error(`no llegaron ${n} peticiones a esperar la fila retenida`);
 }
 
+/**
+ * Espera a que haya una cadena de dos esperas: una petición bloqueada por la transacción `xid` y otra bloqueada por esa
+ * primera (la masiva retiene la fila de id menor y espera la mayor; el deshacer espera a la masiva, no al retenedor).
+ * Se observa con `pg_blocking_pids`, no con un tiempo fijo.
+ */
+async function esperarCadena(xid: string): Promise<void> {
+  for (let i = 0; i < 200; i++) {
+    const [{ n }] = await v.b.sql(
+      `select count(*)::int as n
+         from pg_stat_activity y
+         join pg_stat_activity x on x.pid = any(pg_blocking_pids(y.pid))
+         join pg_locks r on r.locktype = 'transactionid' and r.granted and r.transactionid::text = $1
+        where r.pid = any(pg_blocking_pids(x.pid))`,
+      [xid],
+    );
+    if (n >= 1) return;
+    await espera(50);
+  }
+  throw new Error("no se formó la cadena retenedor <- masiva <- deshacer");
+}
+
 /** `true` si otra transacción retiene la fila (SELECT … FOR UPDATE NOWAIT da 55P03). */
 async function filaRetenida(id: string): Promise<boolean> {
   try {
@@ -195,8 +216,9 @@ describe("H-014-1 · la masiva de excluir bloquea en un único orden por id (D-2
       });
       await esperarBloqueados(retenedor.xid, 1);
       des = post(E.titular, c, "/deshacer");
-      await esperarBloqueados(retenedor.xid, 2);
-      await espera(200);
+      // Con un único orden ascendente la masiva toma g1 y espera s2 (la cola de la fila del retenedor es de 1); el deshacer
+      // espera a la masiva por g1, no al retenedor. Se espera esa cadena en lugar de «2 en la cola de s2».
+      await esperarCadena(retenedor.xid);
     } finally {
       await retenedor.soltar();
     }
