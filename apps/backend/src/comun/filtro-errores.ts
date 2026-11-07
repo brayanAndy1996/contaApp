@@ -6,6 +6,7 @@ import {
   type ExceptionFilter,
 } from "@nestjs/common";
 import { ContrasenaInvalidaError } from "../modules/auth/errores.js";
+import { ComprasError } from "../modules/compras/errores.js";
 import { respuestaDeErrorCola } from "../modules/trabajos/errores.js";
 
 export interface EventoError {
@@ -25,7 +26,7 @@ const CODIGO_POR_ESTADO: Record<number, string> = {
   429: "demasiados_intentos",
 };
 
-type Cuerpo = { codigo: string; motivo?: string };
+type Cuerpo = { codigo: string; motivo?: string; [dato: string]: unknown };
 
 function esObjeto(valor: unknown): valor is Record<string, unknown> {
   return typeof valor === "object" && valor !== null;
@@ -72,6 +73,10 @@ export class FiltroErrores implements ExceptionFilter {
     const deCola = respuestaDeErrorCola(excepcion);
     if (deCola !== null) {
       return { estado: deCola.estado, cuerpo: { codigo: deCola.codigo } };
+    }
+    // Compras (014): además del código, la versión vigente, el dato pedido o los ids implicados, que ya vienen saneados.
+    if (excepcion instanceof ComprasError) {
+      return { estado: excepcion.getStatus(), cuerpo: { ...excepcion.cuerpo } };
     }
     if (excepcion instanceof HttpException) {
       const estado = excepcion.getStatus();

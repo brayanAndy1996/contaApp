@@ -821,9 +821,9 @@ export default tseslint.config(
       ],
     },
   },
-  // Dinero (spec 010/011/012/013, CA-1): sin `number` ni Math.* en dinero/, comprobante/, reglas/,
-  // prevalidacion/, formatos/ y, desde 013, correlatividad/, ventas/, complemento/ y clave-comprobante/
-  // (salvo pruebas). Los conteos y números de comprobante usan `Entero` de texto/, que queda fuera.
+  // Dinero (spec 010/011/012/013/014, CA-1): sin `number` ni Math.* en dinero/, comprobante/, reglas/,
+  // prevalidacion/, formatos/, compras/ (014) y, desde 013, correlatividad/, ventas/, complemento/ y
+  // clave-comprobante/ (salvo pruebas). Los conteos y números de comprobante usan `Entero` de texto/.
   {
     files: [
       "packages/domain/src/dinero/**",
@@ -831,6 +831,7 @@ export default tseslint.config(
       "packages/domain/src/reglas/**",
       "packages/domain/src/prevalidacion/**",
       "packages/domain/src/formatos/**",
+      "packages/domain/src/compras/**",
       "packages/domain/src/correlatividad/**",
       "packages/domain/src/ventas/**",
       "packages/domain/src/complemento/**",
@@ -842,7 +843,7 @@ export default tseslint.config(
         "error",
         ...SINTAXIS_SIN_NUMBER_DOMINIO.map(([selector, message]) => ({
           selector,
-          message: `packages/domain: ${message} (spec 010/011/012/013, CA-1).`,
+          message: `packages/domain: ${message} (spec 010/011/012/013/014, CA-1).`,
         })),
         ...[
           ...SINTAXIS_PAQUETE_DOMINIO,

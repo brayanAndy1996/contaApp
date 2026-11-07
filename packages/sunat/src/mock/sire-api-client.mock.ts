@@ -1,5 +1,6 @@
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { igvEsperado, Money, TASA_IGV_18 } from "@contapp/domain";
 import {
   ErrorCredencial,
   ErrorDatos,
@@ -211,4 +212,137 @@ export class MockSireApiClient implements SireApiClient {
       throw new ErrorDatos();
     }
   }
+}
+
+// --- Volumen de compras para CA-15 (spec 014, T7) ----------------------------------------------------------------
+
+/** Contribuyente de prueba: titular de las propuestas, no es un proveedor. */
+const RUC_CONTRIBUYENTE_PRUEBA = "20700000002";
+const ARCHIVO_RUCS_PRUEBA = join(__dirname, "..", "..", "..", "..", "fixtures", "rucs-prueba.json");
+
+const CERO = "0.00";
+const BASES_PEN = ["100.00", "250.50", "84.75", "1200.00", "35.20", "560.00", "19.90", "3400.00"];
+const BASES_DGNG = ["40.00", "12.50"];
+const BASES_USD = ["150.00", "75.25", "1000.00"];
+/** 3 bolsas × 0.50: el mismo valor de prueba de 009 (ICBPER). */
+const ICBPER_PRUEBA = "1.50";
+
+interface Proveedor {
+  ruc: string;
+  razonSocial: string;
+}
+
+/** Proveedores de `fixtures/rucs-prueba.json` sin el contribuyente: la única fuente de RUC de prueba. */
+function proveedoresDePrueba(): Proveedor[] {
+  let datos: unknown;
+  try {
+    datos = JSON.parse(readFileSync(ARCHIVO_RUCS_PRUEBA, "utf8"));
+  } catch {
+    throw new ErrorDatos();
+  }
+  if (!Array.isArray(datos)) throw new ErrorDatos();
+  const proveedores: Proveedor[] = [];
+  for (const r of datos as Array<{ ruc?: unknown; razonSocial?: unknown } | null>) {
+    const ruc = r?.ruc;
+    const razonSocial = r?.razonSocial;
+    if (typeof ruc !== "string" || typeof razonSocial !== "string") throw new ErrorDatos();
+    if (ruc !== RUC_CONTRIBUYENTE_PRUEBA) proveedores.push({ ruc, razonSocial });
+  }
+  if (proveedores.length === 0) throw new ErrorDatos();
+  return proveedores;
+}
+
+/** Número de comprobante `i` (desde 0): único, sin ceros a la izquierda y con último dígito 0-6 (sin centinelas). */
+function numeroSinCentinela(i: number): string {
+  const n = i + 1;
+  return String(Math.floor(n / 7) * 10 + (n % 7));
+}
+
+function elegir(lista: readonly string[], i: number): string {
+  const valor = lista[i % lista.length];
+  if (valor === undefined) throw new ErrorDatos();
+  return valor;
+}
+
+type IdentidadFila = Pick<
+  FilaPropuestaSire,
+  "tipo" | "serie" | "numero" | "rucContraparte" | "razonSocialContraparte" | "fechaEmision"
+>;
+
+/**
+ * Una fila de volumen, en cuatro formas según `i`: USD con TC 3.300 (cada 20), PEN mixta DG + DGNG (cada 5, desde
+ * el 2), PEN con ICBPER (cada 5, desde el 4) y PEN gravada (el resto). El IGV es el de 010 (`igvEsperado`).
+ */
+function filaDeVolumen(i: number, id: IdentidadFila): FilaPropuestaSire {
+  if (i % 20 === 19) {
+    const bi = Money.desde(elegir(BASES_USD, i), "USD");
+    const igv = igvEsperado(bi, TASA_IGV_18);
+    return {
+      ...id,
+      moneda: "USD",
+      tipoCambio: "3.300",
+      biDg: bi.toString(),
+      igvDg: igv.toString(),
+      biDgng: CERO,
+      igvDgng: CERO,
+      biDng: CERO,
+      igvDng: CERO,
+      noGravado: CERO,
+      isc: CERO,
+      icbper: CERO,
+      otros: CERO,
+      total: Money.suma([bi, igv], "USD").toString(),
+    };
+  }
+  const bi = Money.desde(elegir(BASES_PEN, i), "PEN");
+  const igv = igvEsperado(bi, TASA_IGV_18);
+  const ng = i % 5 === 2 ? Money.desde(elegir(BASES_DGNG, i), "PEN") : Money.cero("PEN");
+  const igvNg = igvEsperado(ng, TASA_IGV_18);
+  const icbper = i % 5 === 4 ? Money.desde(ICBPER_PRUEBA, "PEN") : Money.cero("PEN");
+  return {
+    ...id,
+    moneda: "PEN",
+    biDg: bi.toString(),
+    igvDg: igv.toString(),
+    biDgng: ng.toString(),
+    igvDgng: igvNg.toString(),
+    biDng: CERO,
+    igvDng: CERO,
+    noGravado: CERO,
+    isc: CERO,
+    icbper: icbper.toString(),
+    otros: CERO,
+    total: Money.suma([bi, igv, ng, igvNg, icbper], "PEN").toString(),
+  };
+}
+
+/**
+ * Filas de compras para el caso de volumen de CA-15: 5.000 por defecto, del periodo `periodo` (AAAAMM).
+ * Deterministas: la misma entrada da el mismo arreglo, y una cantidad menor da su prefijo. Sin RUC reales: los RUC
+ * y las razones sociales son los de `fixtures/rucs-prueba.json` (sin el contribuyente). Los números de comprobante
+ * son únicos y terminan en 0-6, así que ningún número cae en un centinela. Montos con `Money`. No se guarda como
+ * archivo: el mock rechaza los de más de 1 MiB.
+ */
+export function generarFilasComprasVolumen(cantidad = 5_000, periodo = "202610"): FilaPropuestaSire[] {
+  const coincidencia = PERIODO.exec(periodo);
+  if (coincidencia === null || !Number.isInteger(cantidad) || cantidad < 0) throw new ErrorDatos();
+  const anio = coincidencia[1] ?? "";
+  const mes = coincidencia[2] ?? "";
+  const proveedores = proveedoresDePrueba();
+  const filas: FilaPropuestaSire[] = [];
+  for (let i = 0; i < cantidad; i += 1) {
+    const proveedor = proveedores[i % proveedores.length];
+    if (proveedor === undefined) throw new ErrorDatos();
+    filas.push(
+      filaDeVolumen(i, {
+        tipo: "01",
+        serie: "F001",
+        numero: numeroSinCentinela(i),
+        rucContraparte: proveedor.ruc,
+        razonSocialContraparte: proveedor.razonSocial,
+        fechaEmision: `${anio}-${mes}-${String(1 + (i % 28)).padStart(2, "0")}`,
+      }),
+    );
+  }
+  return filas;
 }

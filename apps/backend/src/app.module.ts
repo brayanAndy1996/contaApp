@@ -3,6 +3,7 @@ import { NucleoModule, type DependenciasNucleo } from "./infra/nucleo.module.js"
 import { AccesoModule } from "./modules/acceso/acceso.module.js";
 import { AuthModule } from "./modules/auth/auth.module.js";
 import { ClientesModule } from "./modules/clientes/clientes.module.js";
+import { ComprasModule } from "./modules/compras/compras.module.js";
 import { CredencialesModule } from "./modules/credenciales/credenciales.module.js";
 import { EstudioModule } from "./modules/estudio/estudio.module.js";
 import { ImportacionModule } from "./modules/importacion/importacion.module.js";
@@ -36,6 +37,7 @@ export class AppModule {
         RegistroModule,
         PlataformaModule,
         VentasModule,
+        ComprasModule,
         TrabajosModule.registrar(redis),
       ],
     };

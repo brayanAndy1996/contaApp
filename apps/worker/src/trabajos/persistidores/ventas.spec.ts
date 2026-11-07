@@ -141,8 +141,7 @@ describe("persistidorVentas.leerExistentes e insertar", () => {
 });
 
 describe("registro de persistidores", () => {
-  it("ventas está registrado y compras todavía no (lo agrega 014)", () => {
+  it("ventas está registrado (el de compras lo agrega 014 y lo prueba compras.spec.ts)", () => {
     expect(PERSISTIDORES.ventas).toBe(persistidorVentas);
-    expect(PERSISTIDORES.compras).toBeUndefined();
   });
 });

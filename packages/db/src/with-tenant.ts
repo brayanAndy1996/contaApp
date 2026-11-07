@@ -17,6 +17,12 @@ export interface ContextoTenant {
   tenantId: string;
   /** UUID del usuario que actúa (opcional). */
   userId?: string;
+  /**
+   * Lectura consistente (H-014-2): la transacción abre en `REPEATABLE READ READ ONLY`, así que todas sus sentencias ven el
+   * mismo instante y no puede escribir ni bloquear filas. Para generar un archivo o un resumen de varias lecturas. Sin esta
+   * opción (o en `false`) la transacción es la de siempre, `READ COMMITTED`.
+   */
+  foto?: boolean;
 }
 
 /** Transacción con contexto fijado. Solo es válida mientras dura la llamada a withTenant/withUsuario. */
@@ -61,17 +67,24 @@ function verificarNoAnidado(): void {
 interface Ajuste {
   sql: string;
   valores: string[];
+  /** Sentencia con la que abre la transacción; sin ella, `BEGIN` (READ COMMITTED). */
+  inicio?: string;
 }
+
+/** Abre la transacción de una lectura consistente (ver `ContextoTenant.foto`). */
+const BEGIN_FOTO = "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY";
 
 /** Valida el contexto de withTenant ANTES de abrir conexión. */
 export function ajusteTenant(ctx: unknown): Ajuste {
   if (typeof ctx !== "object" || ctx === null) throw new ContextoInvalidoError();
-  const { tenantId, userId } = ctx as Partial<ContextoTenant>;
+  const { tenantId, userId, foto } = ctx as Partial<ContextoTenant>;
   if (!uuidValido(tenantId)) throw new ContextoInvalidoError();
   if (userId !== undefined && !uuidValido(userId)) throw new ContextoInvalidoError();
+  if (foto !== undefined && typeof foto !== "boolean") throw new ContextoInvalidoError();
   return {
     sql: "SELECT set_config('app.tenant_id', $1, true), set_config('app.user_id', $2, true)",
     valores: [tenantId.toLowerCase(), userId === undefined ? "" : userId.toLowerCase()],
+    ...(foto === true ? { inicio: BEGIN_FOTO } : {}),
   };
 }
 
@@ -195,7 +208,7 @@ export async function ejecutarEnContexto<T>(
   try {
     await client.query(LIMPIAR_SESION);
     olvidarSentencias(client);
-    await client.query("BEGIN");
+    await client.query(ajuste.inicio ?? "BEGIN");
     await client.query(SET_ROLE[rolApp]);
     await client.query(ajuste.sql, ajuste.valores);
     const tx = crearTx(client, () => terminada);
