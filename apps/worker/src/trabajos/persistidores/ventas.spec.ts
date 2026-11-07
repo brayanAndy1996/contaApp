@@ -6,7 +6,8 @@ const h = vi.hoisted(() => ({
   leer: vi.fn(),
   insertar: vi.fn(async () => undefined),
 }));
-vi.mock("@contapp/db", () => ({
+vi.mock("@contapp/db", async (importarOriginal) => ({
+  ...(await importarOriginal<typeof import("@contapp/db")>()),
   leerExistentes: h.leer,
   insertarVentas: h.insertar,
 }));

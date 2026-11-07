@@ -140,3 +140,47 @@ describe("quitar y revertir: la fila desaparece entre la lectura y la escritura"
     });
   });
 });
+
+describe("correlatividad: justificacionId de cada faltante (desvío autorizado de T13)", () => {
+  const filas = (numeros: string[]) => numeros.map((numero) => ({ tipo: "03", serie: "B001", numero }));
+  const salto = (id: string, desde: number, hasta: number) => ({
+    id,
+    tipo: "03",
+    serie: "B001",
+    desde,
+    hasta,
+    comentario: `salto ${id}`,
+  });
+  async function faltantes(numeros: string[], justificados: ReturnType<typeof salto>[]) {
+    vi.mocked(leerFilasVentas).mockResolvedValue(filas(numeros) as never);
+    vi.mocked(listarJustificados).mockResolvedValue(justificados as never);
+    const r = await armar().correlatividad(sesion, alcance, CLIENTE, "202610");
+    return r.series[0]!.faltantes;
+  }
+
+  it("lo justifica una sola: el faltante lleva el id de esa justificación", async () => {
+    expect(await faltantes(["290", "292"], [salto("j-1", 291, 291)])).toEqual([
+      { desde: 291, hasta: 291, estado: "justificado", comentario: "salto j-1", justificacionId: "j-1" },
+    ]);
+  });
+
+  it("una justificación más ancha que el hueco lo cubre: lleva su id", async () => {
+    const f = await faltantes(["290", "294"], [salto("j-1", 200, 300)]);
+    expect(f[0]).toMatchObject({ desde: 291, hasta: 293, estado: "justificado", justificacionId: "j-1" });
+  });
+
+  it("pendiente, parcial y cubierto por varias a la vez: sin id (no hay una sola que revertir)", async () => {
+    expect(await faltantes(["290", "292"], [])).toEqual([{ desde: 291, hasta: 291, estado: "pendiente" }]);
+    const parcial = await faltantes(["290", "294"], [salto("j-1", 291, 291)]);
+    expect(parcial[0]).toMatchObject({ estado: "parcial" });
+    expect(parcial[0]).not.toHaveProperty("justificacionId");
+    const varias = await faltantes(["290", "294"], [salto("j-1", 291, 292), salto("j-2", 293, 293)]);
+    expect(varias[0]).toMatchObject({ estado: "justificado" });
+    expect(varias[0]).not.toHaveProperty("justificacionId");
+  });
+
+  it("dos justificaciones que cubren sola al faltante: el id es el de la que el dominio eligió (la de menor desde)", async () => {
+    const f = await faltantes(["290", "292"], [salto("j-b", 291, 291), salto("j-a", 280, 295)]);
+    expect(f[0]).toMatchObject({ comentario: "salto j-a", justificacionId: "j-a" });
+  });
+});

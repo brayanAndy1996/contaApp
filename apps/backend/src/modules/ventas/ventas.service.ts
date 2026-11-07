@@ -1,10 +1,8 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
   bloquearPeriodoLibro,
-  clienteVisible,
   crearVentaManual,
   justificar,
-  leerClienteDto,
   leerFilasVentas,
   listarDiferencias,
   listarJustificados,
@@ -12,11 +10,10 @@ import {
   listarVentas,
   quitarVentaManual,
   revertirJustificacion,
+  TIPO_DOC_AUSENTE,
   VentasRepoError,
   type Alcance,
   type ContappDb,
-  type PropuestaFila,
-  type Tx,
   type VentaFila,
 } from "@contapp/db";
 import {
@@ -43,42 +40,17 @@ import type { SesionResuelta } from "../auth/auth.service.js";
 import { DB } from "../auth/inyeccion.js";
 import { contextoDe, esUuid } from "../clientes/contexto.js";
 import { Encolador } from "../trabajos/encolador.js";
+import { exigirCliente, aPropuestaDto, periodoDe } from "./apoyo.js";
 import { VentasError } from "./errores.js";
 
-/** Periodo AAAAMM con mes 01 a 12. Lo futuro lo rechaza el catálogo de la cola al descargar (008/013 D2). */
-const PERIODO = /^[0-9]{4}(?:0[1-9]|1[0-2])$/;
 /** SQLSTATE `unique_violation`: la clave (tipo, serie, número) ya está en el periodo (D9). */
 const UNICA_VIOLADA = "23505";
-/** Tipo de documento de la contraparte cuando no se informa (igual que el persistidor del worker). */
-const TIPO_DOC_AUSENTE = "0";
 const TAMANO_POR_OMISION = 25;
-
-function periodoDe(valor: string): string {
-  if (!PERIODO.test(valor)) throw new AccesoError("solicitud_invalida");
-  return valor;
-}
 
 /** Un id mal formado en la ruta es un recurso inexistente (404), igual que uno que no existe. */
 function idDe(valor: string): string {
   if (!esUuid(valor)) throw new AccesoError("no_encontrado");
   return valor;
-}
-
-/**
- * Cliente del alcance (D5). `ClienteScopeGuard` ya filtró la ruta; esto lo repite dentro de la misma transacción
- * (`filtroAlcance` vía `clienteVisible`) y, en una escritura, rechaza al cliente archivado con 409.
- */
-async function exigirCliente(
-  tx: Tx,
-  clienteId: string,
-  alcance: Alcance,
-  escritura: boolean,
-): Promise<void> {
-  if (!(await clienteVisible(tx, clienteId, alcance))) throw new AccesoError("no_encontrado");
-  if (!escritura) return;
-  const cliente = await leerClienteDto(tx, clienteId);
-  if (cliente === null) throw new AccesoError("no_encontrado");
-  if (cliente.archivado) throw new AccesoError("cliente_archivado");
 }
 
 /** Fila de la BD → `VentaDto`: ni la clave interna, ni la propuesta, ni el usuario, ni el estudio. */
@@ -102,18 +74,6 @@ function aVentaDto(f: VentaFila): VentaDto {
     icbper: f.icbper,
     otros: f.otros,
     total: f.total,
-  };
-}
-
-function aPropuestaDto(p: PropuestaFila): PropuestaVentasDto {
-  return {
-    id: p.id,
-    fuente: p.fuente,
-    filasRecibidas: p.filasRecibidas,
-    filasNuevas: p.filasNuevas,
-    filasIguales: p.filasIguales,
-    filasDistintas: p.filasDistintas,
-    creadaEn: p.creadaEn.toISOString(),
   };
 }
 
@@ -253,13 +213,23 @@ export class VentasService {
       })),
     );
     return {
-      series: r.series.map((s) => ({
-        tipo: s.tipo,
-        serie: s.serie,
-        estado: s.estado,
-        faltantes: s.faltantes.map((f) => ({ ...f })),
-        noEvaluables: s.noEvaluables,
-      })),
+      series: r.series.map((s) => {
+        // Misma elección que el dominio: de las justificaciones de la serie (por `desde`, estable) la primera que cubre sola.
+        const delaSerie = justificados
+          .filter((j) => j.tipo === s.tipo && j.serie === s.serie)
+          .sort((a, b) => a.desde - b.desde);
+        return {
+          tipo: s.tipo,
+          serie: s.serie,
+          estado: s.estado,
+          faltantes: s.faltantes.map((f) => {
+            const sola =
+              f.comentario === undefined ? undefined : delaSerie.find((j) => j.desde <= f.desde && j.hasta >= f.hasta);
+            return sola === undefined ? { ...f } : { ...f, justificacionId: sola.id };
+          }),
+          noEvaluables: s.noEvaluables,
+        };
+      }),
     };
   }
 

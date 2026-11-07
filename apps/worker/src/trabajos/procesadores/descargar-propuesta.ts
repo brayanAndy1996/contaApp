@@ -7,24 +7,17 @@
 //      tope de 20.000 vivas -> `propuesta` -> `propuesta_diferencia` -> filas nuevas. Todo o nada.
 // El `resultado` del trabajo lleva solo contadores y hasta 40 claves (≤ 4 KB, sin montos). Nada de lo recibido llega a
 // logs ni a mensajes de error: los errores son códigos.
-import { createHash } from "node:crypto";
-import {
-  bloquearPeriodoLibro,
-  crearPropuesta,
-  insertarDiferencias,
-  type ContappDb,
-  type NuevaDiferencia,
-} from "@contapp/db";
+import { aplicarComplemento, hashContenido, type ContappDb } from "@contapp/db";
 import { planificarComplemento } from "@contapp/domain";
 import { SIRE_PROPUESTA_DESCARGAR } from "@contapp/queue";
 import type { SireApiClient } from "@contapp/sunat";
 import type { Procesador } from "../ejecutor.js";
 import { ErrorPropuesta } from "../persistidores/errores.js";
 import { PERSISTIDORES } from "../persistidores/index.js";
-import type {
-  FilaPreparada,
-  PersistidoresLibro,
-} from "../persistidores/tipos.js";
+import type { PersistidoresLibro } from "../persistidores/tipos.js";
+
+// El hash vive en `packages/db`: la importación del backend lo calcula igual.
+export { hashContenido };
 
 /** Tope de filas de una propuesta y de filas vivas de un periodo (P-9, D10). */
 export const TOPE_FILAS = 20_000;
@@ -48,42 +41,10 @@ export interface ResultadoDescarga {
   truncado: boolean;
 }
 
-/**
- * Hash del contenido recibido: no depende del orden de las filas ni de nada ajeno a ellas. Cada fila entra con sus
- * valores tal como llegaron; las filas se ordenan para que el mismo conjunto dé siempre el mismo SHA-256.
- */
-export function hashContenido(
-  libro: string,
-  periodo: string,
-  filas: readonly FilaPreparada[],
-): string {
-  const lineas = filas
-    .map((f) =>
-      JSON.stringify([
-        f.tipo,
-        f.serie,
-        f.numero,
-        ...Object.keys(f.campos)
-          .sort()
-          .map((k) => f.campos[k]),
-      ]),
-    )
-    .sort();
-  const h = createHash("sha256");
-  h.update(JSON.stringify([libro, periodo, lineas]));
-  return h.digest("hex");
-}
-
 function leerParametros(p: unknown) {
   const r = SIRE_PROPUESTA_DESCARGAR.parametros.safeParse(p);
   if (!r.success) throw new ErrorPropuesta("parametros_invalidos");
   return r.data;
-}
-
-/** Tipo, serie y número normalizados salen de la clave `tipo|SERIE|numero` (ninguno contiene `|`). */
-function partesDeClave(clave: string): [string, string, string] {
-  const [tipo = "", serie = "", numero = ""] = clave.split("|");
-  return [tipo, serie, numero];
 }
 
 export function descargarPropuesta(d: DepsDescargarPropuesta): Procesador {
@@ -112,48 +73,23 @@ export function descargarPropuesta(d: DepsDescargarPropuesta): Procesador {
     const ctx = { clienteId: t.clienteId, periodo };
 
     return d.db.withTenant({ tenantId: t.tenantId }, async (tx) => {
-      await bloquearPeriodoLibro(tx, t.clienteId, periodo, libro);
-      const existentes = await persistidor.leerExistentes(tx, ctx);
-      const plan = planificarComplemento(
-        existentes,
-        preparadas.map((p) => ({ clave: p.clave, campos: p.campos })),
-      );
-      if (existentes.length + plan.nuevas.length > TOPE_FILAS)
-        throw new ErrorPropuesta("propuesta_demasiado_grande");
-
-      const nuevas = new Set(plan.nuevas);
-      const aInsertar: FilaPreparada[] = [];
-      for (const p of preparadas)
-        if (nuevas.delete(p.clave)) aInsertar.push(p); // la primera aparición (D18)
-
-      const creada = await crearPropuesta(tx, {
+      const aplicado = await aplicarComplemento(tx, {
         clienteId: t.clienteId,
         periodo,
         libro,
         fuente: "api",
         hash,
-        filasRecibidas: preparadas.length,
-        filasNuevas: plan.nuevas.length,
-        filasIguales: plan.iguales,
-        filasDistintas: plan.distintas.length,
         usuarioId,
         trabajoId: t.id,
+        filas: preparadas,
+        topeVivas: TOPE_FILAS,
+        leerExistentes: (x) => persistidor.leerExistentes(x, ctx),
+        planificar: planificarComplemento,
+        insertar: (x, propuestaId, nuevas) =>
+          persistidor.insertar(x, ctx, propuestaId, nuevas),
       });
-      const diferencias: NuevaDiferencia[] = plan.distintas.map((x) => {
-        const [tipo, serie, numero] = partesDeClave(x.clave);
-        return {
-          clave: x.clave,
-          tipo,
-          serie,
-          numero,
-          origenExistente: x.origenExistente,
-          campos: [...x.campos],
-          valoresSire: { ...x.valoresSire },
-        };
-      });
-      await insertarDiferencias(tx, creada.id, diferencias);
-      await persistidor.insertar(tx, ctx, creada.id, aInsertar);
-
+      if (aplicado.excedeTope) throw new ErrorPropuesta("propuesta_demasiado_grande");
+      const { propuesta: creada, plan } = aplicado;
       const claves = [...new Set(plan.distintas.map((x) => x.clave))];
       const resultado: ResultadoDescarga = {
         propuestaId: creada.id,

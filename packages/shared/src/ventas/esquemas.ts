@@ -217,7 +217,10 @@ export interface FaltanteVentasDto {
   desde: number;
   hasta: number;
   estado: "pendiente" | "justificado" | "parcial";
+  /** Solo cuando una única justificación vigente cubre el faltante completo (D8). */
   comentario?: string;
+  /** La justificación vigente que lo cubre: con ella se puede revertir tras recargar. Ausente si no hay una sola. */
+  justificacionId?: string;
 }
 
 export interface SerieCorrelatividadDto {

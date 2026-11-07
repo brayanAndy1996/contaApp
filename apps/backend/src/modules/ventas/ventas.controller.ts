@@ -7,22 +7,28 @@ import type {
   ResumenVentasDto,
   SaltoJustificadoDto,
   VentaDto,
+  VistaPreviaVentas,
 } from "@contapp/shared";
 import type { SesionResuelta } from "../auth/auth.service.js";
 import { Sesion } from "../auth/guards/decoradores.js";
 import { Permiso, type PeticionAcceso } from "../acceso/guards/decoradores.js";
 import { alcanceDe } from "../clientes/contexto.js";
+import { ImportarPropuestaService } from "./importar-propuesta.service.js";
 import { VentasService } from "./ventas.service.js";
 
 /**
  * Ventas de un cliente y periodo (spec 013, D2, D5 a D11). El permiso lo exige `PermisoGuard` (leer: `clientes.ver`;
  * descargar: `sire.descargar`; agregar, quitar y justificar: `sire.clasificar`) y el alcance, `ClienteScopeGuard`
  * (`:clienteId`: ajeno, no asignado e inexistente dan el mismo 404). El periodo, el cuerpo y la query llegan crudos al
- * servicio, que los valida (400 `solicitud_invalida`). La importación del layout provisional va en T14.
+ * servicio, que los valida (400 `solicitud_invalida`). La importación del layout provisional (`sire.descargar`) recibe el
+ * archivo crudo (`application/octet-stream`, ≤ 8 MB, analizado en `crearApp`): llega como `Buffer` y nada de él se registra.
  */
 @Controller("clientes/:clienteId/periodos/:periodo/ventas")
 export class VentasController {
-  constructor(@Inject(VentasService) private readonly servicio: VentasService) {}
+  constructor(
+    @Inject(VentasService) private readonly servicio: VentasService,
+    @Inject(ImportarPropuestaService) private readonly importacion: ImportarPropuestaService,
+  ) {}
 
   /** 202 `{ trabajoId }`: solo encola, nunca llama a SUNAT. */
   @Permiso("sire.descargar")
@@ -92,6 +98,34 @@ export class VentasController {
     @Param("propuestaId") propuestaId: string,
   ): Promise<DiferenciaVentasDto[]> {
     return this.servicio.diferencias(sesion, alcanceDe(req.acceso), clienteId, periodo, propuestaId);
+  }
+
+  /** 200 `{ filas, validas, conError }`: errores por fila, sin escribir nada. */
+  @Permiso("sire.descargar")
+  @Post("importar/vista-previa")
+  @HttpCode(200)
+  vistaPrevia(
+    @Sesion() sesion: SesionResuelta,
+    @Req() req: PeticionAcceso,
+    @Param("clienteId") clienteId: string,
+    @Param("periodo") periodo: string,
+    @Body() cuerpo: unknown,
+  ): Promise<VistaPreviaVentas> {
+    return this.importacion.vistaPrevia(sesion, alcanceDe(req.acceso), clienteId, periodo, cuerpo);
+  }
+
+  /** 201 `{ propuesta }`: revalida todo y complementa el periodo; con una fila con error no guarda nada. */
+  @Permiso("sire.descargar")
+  @Post("importar/confirmar")
+  @HttpCode(201)
+  confirmarImportacion(
+    @Sesion() sesion: SesionResuelta,
+    @Req() req: PeticionAcceso,
+    @Param("clienteId") clienteId: string,
+    @Param("periodo") periodo: string,
+    @Body() cuerpo: unknown,
+  ): Promise<{ propuesta: PropuestaVentasDto }> {
+    return this.importacion.confirmar(sesion, alcanceDe(req.acceso), clienteId, periodo, cuerpo);
   }
 
   /** 201 `VentaDto` de la venta agregada a mano. */

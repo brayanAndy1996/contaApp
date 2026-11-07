@@ -292,6 +292,8 @@ describe("CA-7 · justificar la 291", () => {
         hasta: 291,
         estado: "justificado",
         comentario: "Boleta anulada en caja",
+        // Desvío autorizado de T14 (desvío 1 de T13): el faltante justificado lleva el id de su justificación para revertir.
+        justificacionId: r.body.id,
       },
     ]);
     // La otra serie sigue alertando.

@@ -2,7 +2,7 @@
 // Pura: sin disco, sin red, sin logs. Todo tope se comprueba antes de reservar memoria: número de entradas,
 // tamaño declarado (por entrada y total) y tamaño real acumulado mientras se descomprime por trozos.
 import { Inflate } from "fflate";
-import { ErrorArchivo, LIMITES } from "./tipos.js";
+import { ErrorArchivo, LIMITES, type Limites } from "./tipos.js";
 
 /** Un `.xlsx` real trae decenas de entradas; miles son un ataque (o un archivo que no es una planilla). */
 export const MAX_ENTRADAS = 500;
@@ -38,7 +38,7 @@ function rutaSegura(nombre: string): boolean {
   );
 }
 
-function leerDirectorio(datos: Uint8Array, dv: DataView): Entrada[] {
+function leerDirectorio(datos: Uint8Array, dv: DataView, limites: Limites): Entrada[] {
   // Fin del directorio central: últimos 22 B + comentario de hasta 65.535 B.
   const desde = Math.max(0, datos.length - 22 - 0xffff);
   let fin = -1;
@@ -89,9 +89,9 @@ function leerDirectorio(datos: Uint8Array, dv: DataView): Entrada[] {
     if ((banderas & 0x1) !== 0) invalido(); // cifrada
     if (metodo !== 0 && metodo !== 8) invalido();
     if (!rutaSegura(nombre) || nombres.has(nombre)) invalido();
-    if (declarado > LIMITES.maxDescomprimido) invalido();
+    if (declarado > limites.maxDescomprimido) invalido();
     declaradoTotal += declarado;
-    if (declaradoTotal > LIMITES.maxDescomprimido) invalido();
+    if (declaradoTotal > limites.maxDescomprimido) invalido();
     if (metodo === 0 && comprimido !== declarado) invalido();
     nombres.add(nombre);
     entradas.push({ nombre, metodo, comprimido, declarado, offsetLocal });
@@ -154,16 +154,17 @@ function descomprimir(
 export function abrirZip(
   datos: Uint8Array,
   conservar: (nombre: string) => boolean,
+  limites: Limites = LIMITES,
 ): Map<string, Uint8Array> {
   if (datos.length < 22) invalido();
   const dv = new DataView(datos.buffer, datos.byteOffset, datos.byteLength);
-  const entradas = leerDirectorio(datos, dv);
+  const entradas = leerDirectorio(datos, dv, limites);
   const resultado = new Map<string, Uint8Array>();
   let real = 0;
   for (const e of entradas) {
-    const bytes = descomprimir(datos, dv, e, LIMITES.maxDescomprimido - real);
+    const bytes = descomprimir(datos, dv, e, limites.maxDescomprimido - real);
     real += bytes.length;
-    if (real > LIMITES.maxDescomprimido) invalido();
+    if (real > limites.maxDescomprimido) invalido();
     if (conservar(e.nombre)) resultado.set(e.nombre, bytes);
   }
   return resultado;

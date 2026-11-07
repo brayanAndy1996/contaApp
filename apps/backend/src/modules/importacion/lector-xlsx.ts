@@ -2,8 +2,14 @@
 // `fflate` con topes (zip-seguro.ts) y `fast-xml-parser` sin DOCTYPE ni entidades propias. Lee solo la primera
 // hoja; no evalúa fórmulas: marca la columna. Pura: todo en memoria, sin disco ni logs.
 import { XMLParser, XMLValidator } from "fast-xml-parser";
-import { construirFilas, type Registro } from "./tabla.js";
-import { ErrorArchivo, LIMITES, type ArchivoLeido } from "./tipos.js";
+import {
+  construirFilas,
+  construirTabla,
+  type FilaTabla,
+  type PerfilTabla,
+  type Registro,
+} from "./tabla.js";
+import { ErrorArchivo, LIMITES, type ArchivoLeido, type Limites } from "./tipos.js";
 import { abrirZip } from "./zip-seguro.js";
 
 /** Columnas de una hoja de Excel (A..XFD). */
@@ -121,7 +127,11 @@ function columnaDe(ref: string | undefined, porDefecto: number): number {
   return i - 1;
 }
 
-function* registrosHoja(hoja: Nodo, cadenas: string[]): Generator<Registro> {
+function* registrosHoja(
+  hoja: Nodo,
+  cadenas: string[],
+  limites: Limites,
+): Generator<Registro> {
   const filas = lista(hijo(hijo(hoja, "worksheet"), "sheetData"), "row");
   let anterior = 0;
   for (const fila of filas) {
@@ -136,7 +146,7 @@ function* registrosHoja(hoja: Nodo, cadenas: string[]): Generator<Registro> {
       const i = columnaDe(atributo(c, "r"), siguiente);
       siguiente = i + 1;
       // Más allá de las columnas que se leen, la celda se ignora: no se rellena hasta ella (H-007b-1).
-      if (i >= LIMITES.maxColumnas) continue;
+      if (i >= limites.maxColumnas) continue;
       if ("f" in c) formulas.add(i);
       const tipo = atributo(c, "t") ?? "n";
       let valor: string;
@@ -154,14 +164,22 @@ function* registrosHoja(hoja: Nodo, cadenas: string[]): Generator<Registro> {
   }
 }
 
-/** Lee la primera hoja de un `.xlsx`; lanza `ErrorArchivo`. */
-export function leerXlsx(datos: Uint8Array): ArchivoLeido {
-  if (datos.length > LIMITES.maxBytes)
+/**
+ * Lee la primera hoja de un `.xlsx` con los topes dados y entrega sus registros ya construidos con `construir`; lanza
+ * `ErrorArchivo`. Los topes de bytes, entradas y descompresión se comprueban antes de reservar memoria.
+ */
+function leerHoja<T>(
+  datos: Uint8Array,
+  limites: Limites,
+  construir: (registros: Iterable<Registro>) => T,
+): T {
+  if (datos.length > limites.maxBytes)
     throw new ErrorArchivo("archivo_demasiado_grande");
   try {
     const partes = abrirZip(
       datos,
       (n) => n.endsWith(".xml") || n.endsWith(".rels"),
+      limites,
     );
 
     const oficial = relaciones(partes, "").find((r) =>
@@ -199,9 +217,22 @@ export function leerXlsx(datos: Uint8Array): ArchivoLeido {
           )
         : [];
 
-    return construirFilas(registrosHoja(hoja, cadenas));
+    return construir(registrosHoja(hoja, cadenas, limites));
   } catch (e) {
     if (e instanceof ErrorArchivo) throw e;
     throw new ErrorArchivo("archivo_invalido");
   }
+}
+
+/** Lee un `.xlsx` con el perfil de otro uso (ventas, 013): sus topes y sus columnas; lanza `ErrorArchivo`. */
+export function leerXlsxTabla<C extends string>(
+  datos: Uint8Array,
+  perfil: PerfilTabla<C>,
+): FilaTabla<C>[] {
+  return leerHoja(datos, perfil.limites, (r) => construirTabla(r, perfil));
+}
+
+/** Lee la primera hoja de un `.xlsx` de clientes (007b); lanza `ErrorArchivo`. */
+export function leerXlsx(datos: Uint8Array): ArchivoLeido {
+  return leerHoja(datos, LIMITES, construirFilas);
 }

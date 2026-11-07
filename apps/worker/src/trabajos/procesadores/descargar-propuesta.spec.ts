@@ -3,15 +3,10 @@
 import { ErrorDatos, type SireApiClient } from "@contapp/sunat";
 import { describe, expect, it, vi } from "vitest";
 
+// `aplicarComplemento` (packages/db) es el real; la transacción es falsa y registra las sentencias que recibe.
 const h = vi.hoisted(() => ({
-  bloquear: vi.fn(async () => undefined),
-  crear: vi.fn(async () => ({ id: "p-1" })),
-  difs: vi.fn(async () => undefined),
-}));
-vi.mock("@contapp/db", () => ({
-  bloquearPeriodoLibro: h.bloquear,
-  crearPropuesta: h.crear,
-  insertarDiferencias: h.difs,
+  crear: vi.fn<(valores: unknown[]) => void>(),
+  difs: vi.fn<(valores: unknown[]) => void>(),
 }));
 
 import { ErrorPropuesta } from "../persistidores/errores.js";
@@ -36,8 +31,21 @@ const trabajo = (parametros: unknown, creadoPor: string | null = "u-1") => ({
   creadoPor,
 });
 const conToken = <T>(usar: (t: string) => Promise<T>) => usar("tok");
+const tx = {
+  query: async (texto: string, valores: unknown[]) => {
+    if (texto.includes("insert into propuesta_diferencia")) {
+      h.difs(valores);
+      return { rows: [], rowCount: 0 };
+    }
+    if (texto.includes("insert into propuesta ")) {
+      h.crear(valores);
+      return { rows: [{ id: "p-1" }], rowCount: 1 };
+    }
+    return { rows: [], rowCount: 0 };
+  },
+};
 const db = {
-  withTenant: async (_c: unknown, f: (tx: unknown) => unknown) => f({}),
+  withTenant: async (_c: unknown, f: (tx: unknown) => unknown) => f(tx),
 } as never;
 
 const prep = (clave: string, total = "1.00"): FilaPreparada => ({
@@ -219,29 +227,32 @@ describe("descargarPropuesta: guardado", () => {
       "03|B001|3",
       "03|B001|4",
     ]);
-    expect(h.crear).toHaveBeenCalledWith(
-      {},
-      expect.objectContaining({
-        libro: "ventas",
-        fuente: "api",
-        filasRecibidas: 4,
-        filasNuevas: 2,
-        filasIguales: 1,
-        filasDistintas: 1,
-        usuarioId: "u-1",
-        trabajoId: "j-1",
-        hash: expect.stringMatching(/^[0-9a-f]{64}$/),
-      }),
-    );
-    expect(h.difs).toHaveBeenCalledWith({}, "p-1", [
+    // Orden de SQL_CREAR: cliente, periodo, libro, fuente, hash, recibidas, nuevas, iguales, distintas, usuario, trabajo.
+    expect(h.crear).toHaveBeenCalledWith([
+      "c-1",
+      "202610",
+      "ventas",
+      "api",
+      expect.stringMatching(/^[0-9a-f]{64}$/),
+      4,
+      2,
+      1,
+      1,
+      "u-1",
+      "j-1",
+    ]);
+    expect(h.difs).toHaveBeenCalledTimes(1);
+    const [propuestaId, lote] = h.difs.mock.calls[0]![0] as [string, string];
+    expect(propuestaId).toBe("p-1");
+    expect(JSON.parse(lote)).toEqual([
       expect.objectContaining({
         clave: "03|B001|2",
         tipo: "03",
         serie: "B001",
         numero: "2",
-        origenExistente: "sire",
+        origen_existente: "sire",
         campos: ["total"],
-        valoresSire: { total: "1.00" },
+        valores_sire: { total: "1.00" },
       }),
     ]);
   });

@@ -1,6 +1,12 @@
 // Lector de `.csv` de importación (spec 007b, D7): UTF-8 con o sin BOM, separador `,` o `;`, comillas RFC 4180.
 // Pura: todo en memoria, sin disco ni logs; los errores llevan solo el código.
-import { construirFilas, type Registro } from "./tabla.js";
+import {
+  construirFilas,
+  construirTabla,
+  type FilaTabla,
+  type PerfilTabla,
+  type Registro,
+} from "./tabla.js";
 import { ErrorArchivo, LIMITES, type ArchivoLeido } from "./tipos.js";
 
 /** El separador es el que más aparece (fuera de comillas) en la primera línea con contenido. */
@@ -60,10 +66,12 @@ function* registros(texto: string, sep: string): Generator<Registro> {
   }
 }
 
-/** Lee un `.csv` UTF-8 (BOM opcional, separador `,` o `;`); lanza `ErrorArchivo`. */
-export function leerCsv(datos: Uint8Array): ArchivoLeido {
-  if (datos.length > LIMITES.maxBytes)
-    throw new ErrorArchivo("archivo_demasiado_grande");
+/** Registros del `.csv` UTF-8 (BOM opcional, separador `,` o `;`) con los topes del perfil; lanza `ErrorArchivo`. */
+function leerRegistros(
+  datos: Uint8Array,
+  maxBytes: number,
+): { texto: string; sep: "," | ";" } {
+  if (datos.length > maxBytes) throw new ErrorArchivo("archivo_demasiado_grande");
   if (datos.length === 0) throw new ErrorArchivo("archivo_invalido");
   let texto: string;
   try {
@@ -75,5 +83,20 @@ export function leerCsv(datos: Uint8Array): ArchivoLeido {
   }
   // Un NUL no aparece en un CSV de texto: es un binario (p. ej. un `.xlsx` subido como `.csv`).
   if (texto.includes("\u0000")) throw new ErrorArchivo("archivo_invalido");
-  return construirFilas(registros(texto, detectarSeparador(texto)));
+  return { texto, sep: detectarSeparador(texto) };
+}
+
+/** Lee un `.csv` con el perfil de otro uso (ventas, 013): sus topes y sus columnas; lanza `ErrorArchivo`. */
+export function leerCsvTabla<C extends string>(
+  datos: Uint8Array,
+  perfil: PerfilTabla<C>,
+): FilaTabla<C>[] {
+  const { texto, sep } = leerRegistros(datos, perfil.limites.maxBytes);
+  return construirTabla(registros(texto, sep), perfil);
+}
+
+/** Lee un `.csv` de clientes (007b); lanza `ErrorArchivo`. */
+export function leerCsv(datos: Uint8Array): ArchivoLeido {
+  const { texto, sep } = leerRegistros(datos, LIMITES.maxBytes);
+  return construirFilas(registros(texto, sep));
 }

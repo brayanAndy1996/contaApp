@@ -31,6 +31,7 @@ import {
   type RedisPrueba,
 } from "../../test/soporte-trabajos.js";
 import { rucConPrefijo, xlsxConDatos } from "../../test/soporte-importacion.js";
+import { csvVentas, fila as filaVenta } from "../../test/soporte-ventas.js";
 import {
   abrirHarness,
   COOKIE,
@@ -869,6 +870,42 @@ const CASOS: Caso[] = [
         metodo: "DELETE" as const,
         ruta: `/clientes/${id}/periodos/202610/ventas/saltos-justificados/${randomUUID()}`,
       })),
+  },
+  {
+    // 013 (T14): importación de la propuesta de ventas. El archivo llega crudo y el estudio sale de la sesión; un cliente de B
+    // desde A da 404 antes de leer el archivo y no deja propuesta ni venta en B.
+    ruta: "POST /clientes/:clienteId/periodos/:periodo/ventas/importar/vista-previa",
+    esperado: E404,
+    construir: (c) =>
+      idsDeCliente(c.ajeno).map((id) => ({
+        metodo: "POST" as const,
+        ruta: `/clientes/${id}/periodos/202610/ventas/importar/vista-previa`,
+        binario: csvVentas([filaVenta("B001", 290)]),
+      })),
+    extra: async (c) => {
+      const f = await h.sql("select count(*)::int n from propuesta where cliente_id = any($1::uuid[])", [
+        c.ajeno.clientes,
+      ]);
+      expect(f[0].n).toBe(0);
+    },
+  },
+  {
+    ruta: "POST /clientes/:clienteId/periodos/:periodo/ventas/importar/confirmar",
+    esperado: E404,
+    construir: (c) =>
+      idsDeCliente(c.ajeno).map((id) => ({
+        metodo: "POST" as const,
+        ruta: `/clientes/${id}/periodos/202610/ventas/importar/confirmar`,
+        binario: csvVentas([filaVenta("B001", 290)]),
+      })),
+    extra: async (c) => {
+      const f = await h.sql(
+        `select (select count(*)::int from propuesta where cliente_id = any($1::uuid[])) as propuestas,
+                (select count(*)::int from venta where cliente_id = any($1::uuid[])) as ventas`,
+        [c.ajeno.clientes],
+      );
+      expect(f[0]).toEqual({ propuestas: 0, ventas: 0 });
+    },
   },
   {
     // 007b (T4): importación. La plantilla no lleva datos de nadie; la vista previa y la confirmación toman el estudio de la

@@ -2,7 +2,7 @@
 // `sire.propuesta.descargar` es común: baja la propuesta, compara con lo guardado y deja el encabezado y las diferencias;
 // cada libro solo aporta lo suyo (validar sus filas, leer lo existente e insertar las nuevas). 014 agrega el de compras
 // en `index.ts` sin tocar nada común.
-import type { Tx } from "@contapp/db";
+import type { FilaComplementable, Tx } from "@contapp/db";
 import type { ExistenteComplemento } from "@contapp/domain";
 
 export type LibroSire = "compras" | "ventas";
@@ -20,15 +20,11 @@ export interface ContextoPersistidor {
  * Una fila validada y lista para comparar. `campos` son cadenas ya normalizadas con la escala de la columna (lo mismo que
  * devuelve `leerExistentes`); `datos` es lo que `insertar` sabe guardar y el procesador no abre.
  */
-export interface FilaPreparada<D = unknown> {
-  /** `claveNormalizada` (D17). */
-  clave: string;
+export interface FilaPreparada<D = unknown> extends FilaComplementable<D> {
   /** Tal como llegó, solo para el hash del contenido. */
   tipo: string;
   serie: string;
   numero: string;
-  campos: Readonly<Record<string, string>>;
-  datos: D;
 }
 
 export interface PersistidorLibro<D = unknown> {

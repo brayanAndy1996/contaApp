@@ -176,6 +176,22 @@ export type {
   PropuestaFila,
 } from "./propuestas/repositorio";
 export { PropuestasRepoError } from "./propuestas/errores";
+export { aplicarComplemento, hashContenido } from "./propuestas/complemento";
+export type {
+  EntradaComplemento,
+  ExistenteComplementable,
+  FilaComplementable,
+  FilaParaHash,
+  PlanComplementable,
+  ResultadoComplemento,
+} from "./propuestas/complemento";
+export {
+  existenteComplementable,
+  prepararFilaVenta,
+  TIPO_DOC_AUSENTE,
+  tipoCambioConEscala,
+} from "./ventas/preparacion";
+export type { FilaVentaLegible } from "./ventas/preparacion";
 export { leerExistentes, leerFilasVentas, listarVentas, TOPE_TODAS } from "./ventas/lectura";
 export { crearVentaManual, insertarVentas, quitarVentaManual } from "./ventas/escritura";
 export { justificar, listarJustificados, revertirJustificacion } from "./ventas/justificados";
