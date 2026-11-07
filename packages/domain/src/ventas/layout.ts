@@ -117,8 +117,12 @@ function tipoCambioValido(v: unknown): boolean {
   }
 }
 
-/** El cuadre es exacto (tolerancia 0.00) en la moneda del comprobante; Σ fuera de rango es «no cuadra». */
-function cuadraExacto(montos: Readonly<Record<ColumnaVenta, string>>, moneda: Moneda): boolean {
+/**
+ * El cuadre es exacto (tolerancia 0.00) en la moneda del comprobante; Σ fuera de rango es «no cuadra». Es la regla
+ * pública que usan `validarFilaVenta` y la lectura de ventas (spec 013, D26). Los ocho montos deben ser cadenas
+ * NUMERIC(14,2) válidas (como las guarda la BD); si no lo son, lanza el error de dinero correspondiente.
+ */
+export function cuadraVenta(montos: Readonly<Record<ColumnaVenta, string>>, moneda: Moneda): boolean {
   const total = Money.desde(montos.total, moneda);
   const componentes = COMPONENTES_VENTA.map((c) => Money.desde(montos[c], moneda));
   try {
@@ -207,5 +211,5 @@ export function validarFilaVenta(cruda: unknown): ResultadoFilaVenta {
     ...(tipoCambio === undefined ? {} : { tipoCambio }),
     ...montos,
   };
-  return { ok: true, fila, cuadra: cuadraExacto(montos, moneda) };
+  return { ok: true, fila, cuadra: cuadraVenta(montos, moneda) };
 }

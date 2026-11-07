@@ -167,10 +167,10 @@ export default function Trabajos() {
     });
   }, []);
 
-  // Razón social por cliente (D24). Si la lista falla, el panel sigue igual: solo falta el nombre.
+  // Razón social por cliente (D24), también de los archivados (devuelve activos y archivados). Si la lista falla, el panel sigue igual: solo falta el nombre.
   useEffect(() => {
     let vigente = true;
-    void listarClientes()
+    void listarClientes({ archivados: true })
       .then((r) => {
         if (!vigente || !r.ok || !Array.isArray(r.datos)) return;
         setClientes(

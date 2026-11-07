@@ -90,8 +90,8 @@ const PREVIA_VALIDA = vistaPreviaVentasDe([
 const PREVIA_CON_ERRORES = vistaPreviaVentasDe([
   filaImportadaDe(2),
   filaImportadaDe(3, ["fecha_invalida"]),
-  filaImportadaDe(4, ["monto_invalido", "descuadre"]),
-  filaImportadaDe(5, ["tipo_cambio_requerido"]),
+  filaImportadaDe(4, ["monto_invalido", "tipo_cambio_invalido"]),
+  filaImportadaDe(5, ["documento_invalido"]),
   filaImportadaDe(6, ["celda_peligrosa"]),
 ]);
 const PROPUESTA_IMPORTADA = propuestaDe(5, {
@@ -232,8 +232,8 @@ describe("/clientes/:id/ventas/importar · asistente de importación (013)", () 
       expect(f3.textContent).toContain(M.motivos.fecha_invalida);
       const f4 = filaN(region, 4);
       expect(f4.textContent).toContain(M.motivos.monto_invalido);
-      expect(f4.textContent).toContain(M.motivos.descuadre);
-      expect(filaN(region, 5).textContent).toContain(M.motivos.tipo_cambio_requerido);
+      expect(f4.textContent).toContain(M.motivos.tipo_cambio_invalido);
+      expect(filaN(region, 5).textContent).toContain(M.motivos.documento_invalido);
       expect(filaN(region, 6).textContent).toContain(M.motivos.celda_peligrosa);
 
       await asentar();

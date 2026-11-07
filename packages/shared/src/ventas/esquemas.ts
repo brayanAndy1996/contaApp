@@ -131,19 +131,16 @@ export const MOTIVOS_FILA_VENTA = [
   "numero_invalido",
   "fecha_invalida",
   "moneda_invalida",
-  "tipo_cambio_requerido",
   "tipo_cambio_invalido",
   "documento_invalido",
   "monto_invalido",
-  "descuadre",
-  "duplicado_en_archivo",
   "celda_peligrosa",
 ] as const;
 export type MotivoFilaVenta = (typeof MOTIVOS_FILA_VENTA)[number];
 
 /**
- * D22: avisos que NO bloquean la importación (la fila es válida y se guarda tal cual, D3). Son los mismos códigos que
- * `descuadre` y `tipo_cambio_requerido` de `MOTIVOS_FILA_VENTA`, pero aquí son una lista cerrada propia; orden fijo.
+ * D22: avisos que NO bloquean la importación (la fila es válida y se guarda tal cual, D3). Lista cerrada
+ * propia (no son motivos de error de fila); orden fijo.
  */
 export const MOTIVOS_ADVERTENCIA_VENTA = ["descuadre", "tipo_cambio_requerido"] as const;
 export type MotivoAdvertenciaVenta = (typeof MOTIVOS_ADVERTENCIA_VENTA)[number];
@@ -167,16 +164,6 @@ export const vistaPreviaVentasSchema = z.object({
   conAdvertencia: entero,
 });
 export type VistaPreviaVentas = z.infer<typeof vistaPreviaVentasSchema>;
-
-/** Contadores de una descarga o importación, tal como los lista `GET …/propuestas`. */
-export const informeImportacionVentasSchema = z.object({
-  propuestaId: z.uuid(),
-  recibidas: entero,
-  nuevas: entero,
-  iguales: entero,
-  distintas: entero,
-});
-export type InformeImportacionVentas = z.infer<typeof informeImportacionVentasSchema>;
 
 // --- DTOs de respuesta (solo tipos; montos como cadenas) -----------------------------------------
 
@@ -204,6 +191,8 @@ export interface VentaDto extends MontosVentaDto {
   docContraparte: string;
   moneda: "PEN" | "USD";
   tipoCambio: string | null;
+  /** D26: Σ de las siete columnas = total (tolerancia 0.00), calculado al leer; una venta manual siempre cuadra. */
+  cuadra: boolean;
 }
 
 export type AvisoLecturaVentas = "todas_limitada";

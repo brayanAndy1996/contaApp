@@ -4,7 +4,7 @@
 //  (2) Token y descarga SIN transacción abierta (008 D6): `conToken` y el puerto `SireApiClient`.
 //  (3) Tope de 20.000 filas recibidas y validación de TODAS las filas: una ilegible da `ErrorDatos` y no se guarda nada.
 //  (4) Una sola `withTenant`: bloqueo advisory (cliente, periodo, libro) -> existentes -> `planificarComplemento` ->
-//      tope de 20.000 vivas -> `propuesta` -> `propuesta_diferencia` -> filas nuevas. Todo o nada.
+//      `propuesta` -> `propuesta_diferencia` -> filas nuevas. Todo o nada. Sin tope de filas vivas (D19).
 // El `resultado` del trabajo lleva solo contadores y hasta 40 claves (≤ 4 KB, sin montos). Nada de lo recibido llega a
 // logs ni a mensajes de error: los errores son códigos.
 import { aplicarComplemento, hashContenido, type ContappDb } from "@contapp/db";
@@ -19,7 +19,7 @@ import type { PersistidoresLibro } from "../persistidores/tipos.js";
 // El hash vive en `packages/db`: la importación del backend lo calcula igual.
 export { hashContenido };
 
-/** Tope de filas de una propuesta y de filas vivas de un periodo (P-9, D10). */
+/** Tope de filas RECIBIDAS en una descarga (P-9, D10, D19); no limita las filas vivas del periodo. */
 export const TOPE_FILAS = 20_000;
 /** Claves que lista el `resultado` (la lista completa queda en `propuesta_diferencia`). */
 export const TOPE_CLAVES_RESULTADO = 40;

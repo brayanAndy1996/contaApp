@@ -129,6 +129,8 @@ export const MENSAJES_VENTAS = {
     tipo_cambio_requerido:
       "Falta el tipo de cambio de la venta en USD; no se incluirá en el resumen.",
   } satisfies Record<MotivoAdvertenciaVenta, string>,
+  // D26: marca de una venta del SIRE cuyo total no cuadra con la suma de los componentes (se muestra tal cual llegó).
+  noCuadra: "No cuadra",
   // D23: revertir una justificación y quitar una venta agregada a mano (ambos piden confirmación).
   revertir: "Revertir",
   quitar: "Quitar",
@@ -159,12 +161,9 @@ export const MENSAJES_VENTAS = {
     numero_invalido: "El número no es válido.",
     fecha_invalida: "La fecha no es válida.",
     moneda_invalida: "La moneda no es válida.",
-    tipo_cambio_requerido: "Falta el tipo de cambio de la venta en USD.",
     tipo_cambio_invalido: "El tipo de cambio no es válido.",
     documento_invalido: "El documento de la contraparte no es válido.",
     monto_invalido: "Un monto no es válido.",
-    descuadre: "El total no cuadra con la suma de los componentes.",
-    duplicado_en_archivo: "Comprobante repetido en el archivo.",
     celda_peligrosa: "La fila contiene una fórmula o un carácter no permitido.",
   } satisfies Record<MotivoFilaVenta, string>,
   motivosTrabajo: {

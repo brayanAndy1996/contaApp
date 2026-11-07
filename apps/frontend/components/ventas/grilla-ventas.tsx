@@ -50,6 +50,11 @@ function FilaVenta({
         {v.origen === "manual" && (
           <span className="ml-2 rounded border px-1 text-xs">Manual</span>
         )}
+        {!v.cuadra && (
+          <span className="ml-2 rounded border border-red-700 px-1 text-xs font-medium text-red-700">
+            {M.noCuadra}
+          </span>
+        )}
         {v.origen === "manual" && alQuitar && (
           <button
             type="button"

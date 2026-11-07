@@ -165,6 +165,8 @@ export const MENSAJES_VENTAS = {
   motivos: {
     fecha_invalida: "La fecha no es válida.",
     monto_invalido: "Un monto no es válido.",
+    tipo_cambio_invalido: "El tipo de cambio no es válido.",
+    documento_invalido: "El documento de la contraparte no es válido.",
     descuadre: "El total no cuadra con la suma de los componentes.",
     tipo_cambio_requerido: "Falta el tipo de cambio de la venta en USD.",
     celda_peligrosa: "La fila contiene una fórmula o un carácter no permitido.",

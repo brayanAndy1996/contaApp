@@ -19,6 +19,7 @@ import {
 import {
   analizarCorrelatividad,
   claveNormalizada,
+  cuadraVenta,
   MontoFueraDeRangoError,
   resumirVentas,
   validarFilaVenta,
@@ -53,7 +54,10 @@ function idDe(valor: string): string {
   return valor;
 }
 
-/** Fila de la BD → `VentaDto`: ni la clave interna, ni la propuesta, ni el usuario, ni el estudio. */
+/**
+ * Fila de la BD → `VentaDto`: ni la clave interna, ni la propuesta, ni el usuario, ni el estudio. `cuadra` se calcula
+ * aquí con el dominio (D26): no hay columna; la fila se devuelve tal cual llegó aunque no cuadre (D3).
+ */
 function aVentaDto(f: VentaFila): VentaDto {
   return {
     id: f.id,
@@ -74,6 +78,7 @@ function aVentaDto(f: VentaFila): VentaDto {
     icbper: f.icbper,
     otros: f.otros,
     total: f.total,
+    cuadra: cuadraVenta(f, f.moneda),
   };
 }
 
@@ -295,7 +300,8 @@ export class VentasService {
     const serie = f.serie.toUpperCase();
     const creada = await this.db.withTenant(ctx, async (tx) => {
       await exigirCliente(tx, clienteId, alcance, true);
-      // Orden de bloqueo (plan): advisory del periodo -> cliente -> filas; así no se cruza con una descarga en curso.
+      // Primero se lee el cliente (lectura simple, sin bloqueo); luego se toma el advisory del periodo, que es el único
+      // bloqueo: así esta escritura no se cruza con una descarga ni con otra venta del mismo periodo.
       await bloquearPeriodoLibro(tx, clienteId, periodo, "ventas");
       try {
         return await crearVentaManual(tx, {
