@@ -6,6 +6,9 @@
 
 [build.environment]
   NODE_VERSION = "24"
+  # Netlify detecta Next.js (apps/frontend) en el monorepo e instala solo @netlify/plugin-nextjs.
+  # La demo es Vite (estática): esta variable hace que el plugin se salte.
+  NETLIFY_NEXT_PLUGIN_SKIP = "true"
 
 # La demo usa datos ficticios: que no la indexen los buscadores.
 [[headers]]
