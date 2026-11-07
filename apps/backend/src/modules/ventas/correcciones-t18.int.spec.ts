@@ -95,7 +95,8 @@ describe("H-013-8 · los ceros a la izquierda no abren un faltante (D21)", () =>
     const j = await justificar(c.id, { ...salto("Boletas anuladas"), desde: 291, hasta: 292 });
     expect(j.status, j.text).toBe(201);
     expect((await corr(c.id)).body.series[0].faltantes).toEqual([
-      { desde: 291, hasta: 292, estado: "justificado", comentario: "Boletas anuladas" },
+      // `justificacionId` va en el faltante justificado por contrato (desvío autorizado de T13).
+      { desde: 291, hasta: 292, estado: "justificado", comentario: "Boletas anuladas", justificacionId: expect.any(String) },
     ]);
   });
 
