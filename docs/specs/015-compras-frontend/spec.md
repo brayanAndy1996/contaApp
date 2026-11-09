@@ -1,7 +1,7 @@
 # Spec 015 · Compras (frontend): grilla editable tipo Excel, resumen y acciones masivas
 
-Estado: borrador (2026-11-09; esperando respuesta a P-1 a P-10). Rama `spec/015-compras-frontend` desde `main`. Plan y tareas: se escriben después de aprobada (C va sin `plan.md`, 04 §1.3: el plan cabe en `tasks.md`).
-Nivel de riesgo: C (fila 015 de 04 §4). Por 04 §2.1: (1) parcial: el frontend no persiste montos, solo envía cadenas que el servidor valida y recalcula (014 D-5, D-16); (2) no: no maneja credenciales ni cruza estudios; (3) sí: una suma o un cuadre mal pintado no se nota a simple vista; (4) sí: 5.000 filas, selección masiva y ediciones concurrentes. Literal saldría B; se mantiene C porque el dinero y las reglas ya están probados en 010, 011 y 014, y aquí solo hay que mostrar y no inventar cifras. Para no depender de esa suposición, los ayudantes de montos y la edición llevan pruebas propias (CA-17). Ver P-10.
+Estado: aprobada (2026-11-09: el usuario respondió P-1 a P-10 con la opción recomendada; ver «Decisiones del usuario»). Rama `spec/015-compras-frontend` desde `main`. Plan y tareas: `plan.md` y `tasks.md` (C normalmente va sin plan; aquí se escribe uno corto porque la pantalla tiene muchas piezas y archivos por repartir).
+Nivel de riesgo: C (fila 015 de 04 §4). Por 04 §2.1: (1) parcial: el frontend no persiste montos, solo envía cadenas que el servidor valida y recalcula (014 D-5, D-16); (2) no: no maneja credenciales ni cruza estudios; (3) sí: una suma o un cuadre mal pintado no se nota a simple vista; (4) sí: 5.000 filas, selección masiva y ediciones concurrentes. Literal saldría B; se mantiene C porque el dinero y las reglas ya están probados en 010, 011 y 014, y aquí solo hay que mostrar y no inventar cifras. Para no depender de esa suposición, los ayudantes de montos y la edición llevan pruebas propias (CA-17). Ver «Decisiones del usuario», P-10.
 Cubre: RF-061 a RF-071 (la parte de pantalla; RF-060 solo el botón de descarga) · HU-14 a HU-19 · RNF-072 · nota [015] de `ESTADO.md` · consume el contrato de `docs/specs/014-compras-backend/` (DU-10, DU-19, DU-22, DU-23, DU-26).
 
 ## Objetivo
@@ -26,7 +26,7 @@ Que el contador revise en una sola pantalla las compras del periodo de un client
 
 ## Decisiones
 - D-1 Ruta y estructura. Una página con el periodo en la URL (como ventas). Permisos desde `GET /acceso/yo`: `clientes.ver` (ver; sin él, mensaje y nada más), `sire.descargar`, `sire.clasificar` y `sire.aprobar_generar`. Ocultar acciones sin permiso es comodidad; el backend vuelve a validar y su 403/409 se muestra tal cual (RNF-007). Cliente archivado: solo lectura.
-- D-2 Fronteras. `apps/frontend` solo importa `@contapp/shared` (más las librerías externas que P-1 y P-2 autoricen). Las respuestas se validan con los esquemas de `shared/compras`; si no calzan, error genérico y nada se pinta a medias. Sin `innerHTML`: toda razón social, motivo y glosa del SIRE son texto no confiable que React escapa (014 D-13).
+- D-2 Fronteras. `apps/frontend` solo importa `@contapp/shared` (más las librerías externas de P-1 y P-2: `@tanstack/react-table`, `@tanstack/react-virtual` y `decimal.js`). Las respuestas se validan con los esquemas de `shared/compras`; si no calzan, error genérico y nada se pinta a medias. Sin `innerHTML`: toda razón social, motivo y glosa del SIRE son texto no confiable que React escapa (014 D-13).
 - D-3 Montos. Siempre cadenas decimales; entrada validada con `montoDecimalSchema` (máx. 2 decimales, signo permitido para notas de crédito) antes de enviar; sumas y comparaciones con `decimal.js` (P-2); formato de miles por manipulación de texto (`1,234.56`, negativo con `-`). Prohibidos `number`, `parseFloat`, `parseInt`, `Number()` y `toFixed` sobre montos (prueba estática, como `ventas.estatico.spec.ts`). El ayudante `conMiles(number)` de ventas no se reutiliza.
 - D-4 Datos. El listado se pide por cursor en bloques de 1.000 con los filtros del servidor (`vista`, `alertas`, `proveedorNuevo`, `q`) hasta que `siguiente` sea `null`; la grilla es usable desde el primer bloque y un indicador muestra «Cargando…». Cada cambio de filtro cancela la carga anterior y las respuestas viejas se descartan con una secuencia (patrón `useSecuencia` de 013). Tras cada acción se actualiza la fila con la respuesta del servidor y se recarga el resumen; no hay actualización optimista de montos.
 - D-5 Grilla. Virtualizada (RNF-031: 5.000 filas fluidas), `role="grid"`, encabezados de casillero agrupados (DG, DGNG, DNG, no gravado, ISC, ICBPER, otros, total), columnas de identidad fijas (P-8), filas con alerta resaltadas con icono y texto además del color. La razón social del SIRE se corta con elipsis y completa en `title`.
@@ -66,42 +66,17 @@ Los casos usan las formas de `shared/compras` y los datos de 014 (`20700000002-c
 
 ## Dependencias
 - Specs: 004 (sesión), 005 (permisos y `acceso/yo`), 007a (cliente y archivado), 007b (`seguirTrabajos`, panel de trabajos), 013 (patrón de pantalla, `useSecuencia`, descarga y diferencias), 014 (todas las rutas de compras y los esquemas de `shared/compras`; ya en `main`). Después: 016 (lupa y XML), 018 (E2E).
-- Externas: ninguna en R1 (adaptadores en `mock`). Librerías nuevas solo si P-1 o P-2 lo autorizan.
+- Externas: ninguna en R1 (adaptadores en `mock`). Librerías nuevas, con versión exacta y ≥ 2 semanas de publicadas (P-1, P-2): `@tanstack/react-table`, `@tanstack/react-virtual` (sin Query ni React Hook Form) y `decimal.js` 10.6.0, la misma que `packages/domain`.
 
-## Preguntas abiertas
-Cada una con su opción recomendada; el usuario responde con la letra (como en 014).
-
-- **P-1 · Librerías de la grilla.** 03 §Frontend prevé TanStack Table/Query y React Hook Form, pero 013 se hizo sin ellas (virtualización y estado propios) y no están en `package.json`.
-  - (a) Seguir 013: grilla virtualizada y estado propios, sin librerías nuevas; formularios con `useState` + esquemas de `shared`.
-  - (b) (Recom.) Agregar solo TanStack Table + TanStack Virtual para la grilla; datos con `api()` y `useSecuencia` como en 013; sin Query ni React Hook Form.
-  - (c) Pila completa de 03: Table, Virtual, Query y React Hook Form.
-- **P-2 · Suma local con `decimal.js` (DU-10).** `decimal.js` 10.6.0 está en `packages/domain`, no en el frontend.
-  - (a) (Recom.) Agregar `decimal.js` 10.6.0 (misma versión) a `apps/frontend`: es una librería externa, no rompe «solo depende de `shared`».
-  - (b) Exportar desde `packages/shared` un ayudante de montos (sumar, comparar, formatear) que lleve `decimal.js`; el frontend solo importa `shared`. Toca `shared` y su lint.
-  - (c) Sin suma local: el total sale solo de `POST …/calcular` (con retardo de unos 300 ms por celda). Se aparta de DU-10.
-- **P-3 · Cuándo se guarda una edición.**
-  - (a) Por celda: cada Enter/Tab/clic fuera guarda esa celda (una versión y un paso de deshacer por celda).
-  - (b) (Recom.) Por fila: Tab/Enter mueven entre celdas sin guardar; al salir de la fila (Enter en la última, flecha vertical o clic en otra fila) se envía un solo `editar` con todas las celdas cambiadas. Una versión y un Ctrl+Z por fila; Esc descarta la fila.
-  - (c) Por borrador: se editan varias filas y un botón «Guardar cambios» las envía todas. Pierde lo editado al cerrar la pestaña y choca más con ediciones concurrentes.
-- **P-4 · Alcance de Ctrl+Z / Ctrl+Y.** El deshacer del servidor es por usuario y periodo y sobrevive a recargar (014 D-14), pero la respuesta no dice qué operación revierte.
-  - (a) Ctrl+Z y Ctrl+Y siempre llaman al servidor, incluso para operaciones de sesiones anteriores; se resaltan las filas afectadas.
-  - (b) (Recom.) El atajo vale solo si hubo una operación propia en esta carga de la pantalla; el botón «Deshacer» de la barra siempre está y, si no hay operación de esta pantalla, pide confirmar («Se revertirá tu última operación de este periodo, hecha antes de abrir esta pantalla»).
-- **P-5 · Cómo se ve el destino (DG / DGNG / DNG) de una fila.** La fila no trae un campo `destino`; HU-15 habla de pasar «de DG a DNG».
-  - (a) Sin columna: se deduce leyendo las columnas de monto y se clasifica desde el menú de la fila o la barra masiva.
-  - (b) (Recom.) Columna «Destino» solo informativa, calculada en pantalla comparando con cero las bases (DG, DGNG, DNG, «Mixta» si hay base en más de una, «Sin base»); sin escribir nada.
-  - (c) Pedir a 014 un campo `destino` en `FilaCompraVista` (cambio mínimo de backend y de `shared`).
-- **P-6 · Lupa y detalle de la fila (RF-061).** La lupa es de 016, pero el detalle `GET …/:compraId` (original, versiones, hallazgos) ya existe y no tiene consumidor.
-  - (a) Solo un icono de lupa deshabilitado con «Disponible con el detalle del comprobante (016)».
-  - (b) (Recom.) Lupa deshabilitada más un panel lateral «Historial» de 015, de solo lectura: valor original del SIRE frente al vigente y la lista de versiones (autor, fecha, acción) y hallazgos.
-- **P-7 · Dónde se agrega una compra (HU-18, sin XML hasta 016).**
-  - (a) (Recom.) Diálogo con el formulario completo (comprobante, proveedor, fecha, moneda, tipo de cambio y las 10 columnas con total en vivo) y «Subir XML» deshabilitado.
-  - (b) Fila en blanco al final de la grilla, que se llena como en Excel. Más cercana a la hoja de cálculo, pero con campos de texto (proveedor, razón social) incómodos en celdas.
-- **P-8 · Anchura de la grilla (≈ 20 columnas en ≥ 1366 px).**
-  - (a) (Recom.) Todas las columnas visibles con desplazamiento horizontal; tipo, comprobante y proveedor fijos a la izquierda y total y acciones fijos a la derecha.
-  - (b) Igual que (a), pero con grupos DGNG y DNG plegables (plegados por defecto) para ver más de un vistazo. Riesgo: ocultar montos que importan.
-- **P-9 · Pegar desde Excel.**
-  - (a) (Recom.) No en R1: se puede pegar un valor en la celda en edición (lo hace el navegador), no rangos de varias celdas.
-  - (b) Pegar rangos de varias celdas: una `editar` por fila afectada y, si falla alguna, informe parcial. Más trabajo y más riesgo; sería otra spec.
-- **P-10 · Nivel y pruebas.** Por 04 §2.1 literal saldría B (respuestas 3 y 4); 04 §4 fija C.
-  - (a) (Recom.) C como en 04 §4, con las pruebas de CA-17 (caso feliz y de error por comportamiento y prueba estática de montos e imports). Sin TDD ni adversarial.
-  - (b) B: tester·sonnet escribe primero las pruebas del ayudante de montos y de la edición (TDD), sin adversarial.
+## Decisiones del usuario (2026-11-09)
+El usuario eligió la opción recomendada en las diez preguntas. Cada una queda como decisión firme; las D-n de arriba ya las recogen.
+- **P-1 (b) Librerías de la grilla:** solo TanStack Table y TanStack Virtual. Los datos van con `api()` y `useSecuencia` como en 013; sin TanStack Query ni React Hook Form (formularios con `useState` y los esquemas de `shared`).
+- **P-2 (a) Suma local:** `decimal.js` 10.6.0 en `apps/frontend` (misma versión que `packages/domain`). Es una librería externa y no rompe «solo depende de `shared`».
+- **P-3 (b) Cuándo se guarda:** por fila. Tab, Enter y las flechas mueven entre celdas sin guardar; al salir de la fila (Enter en la última celda, flecha vertical o clic en otra fila) se envía un solo `editar` con todas las celdas cambiadas. Una versión y un Ctrl+Z por fila; Esc descarta la fila.
+- **P-4 (b) Alcance de Ctrl+Z / Ctrl+Y:** el atajo vale solo si hubo una operación propia en esta carga de la pantalla. El botón «Deshacer» de la barra siempre está y, si no hay operación de esta pantalla, pide confirmar («Se revertirá tu última operación de este periodo, hecha antes de abrir esta pantalla»).
+- **P-5 (b) Destino de la fila:** columna «Destino» solo informativa, calculada en pantalla comparando con cero las bases (DG, DGNG, DNG, «Mixta» si hay base en más de una, «Sin base»). No escribe nada ni toca el backend.
+- **P-6 (b) Lupa y detalle:** icono de lupa deshabilitado («Disponible con el detalle del comprobante (016)») más un panel lateral «Historial» de solo lectura con el valor original del SIRE frente al vigente, las versiones (autor, fecha, acción) y los hallazgos, desde `GET …/:compraId`.
+- **P-7 (a) Dónde se agrega:** diálogo con el formulario completo (comprobante, proveedor, fecha, moneda, tipo de cambio y las 10 columnas con total en vivo); «Subir XML» queda deshabilitado hasta 016.
+- **P-8 (a) Anchura:** todas las columnas visibles con desplazamiento horizontal; tipo, comprobante y proveedor fijos a la izquierda y total y acciones fijos a la derecha.
+- **P-9 (a) Pegar:** en R1 no se pegan rangos; solo un valor en la celda que se edita (lo hace el navegador).
+- **P-10 (a) Nivel y pruebas:** C como en 04 §4, con las pruebas de CA-17 (un caso feliz y uno de error por comportamiento, más la prueba estática de montos e imports), sin TDD ni adversarial, y además una prueba manual contra el sistema completo antes de verificar, como en 013 T20.
