@@ -291,6 +291,8 @@ export const MENSAJES_COMPRAS = {
   // Masivas, informe, deshacer y rehacer (D-8, D-9, P-4).
   barraMasiva: "Acciones sobre la selección",
   aceptarRed: "Aceptar R-RED",
+  aceptarRedSinSugerencia:
+    "Ninguna de las compras seleccionadas tiene una sugerencia R-RED para aceptar.",
   aplicadas: (n: number) => `${n} aplicadas`,
   rechazadas: (n: number) => `${n} rechazadas`,
   informeMasivo: "Resultado de la acción masiva",

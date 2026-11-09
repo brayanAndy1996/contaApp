@@ -3,8 +3,12 @@ import type { ContextoCompras, ErrorCompras } from "../../lib/compras";
 // Ayudas comunes de las acciones de compras (spec 015, T7 a T9). Sin JSX ni montos: solo decide qué se recarga
 // tras una respuesta del servidor y cómo se avisa. La pantalla (T10) entrega `alAvisar` a un `aria-live`.
 
-/** Cómo avisa una acción a la pantalla: un texto y si fue bien o mal. */
-export type AlAvisar = (texto: string, tipo: "ok" | "error") => void;
+/**
+ * Cómo avisa una acción a la pantalla: un texto y su tipo. `ok` es una escritura hecha en esta pantalla (T10 la
+ * registra para el atajo de deshacer), `error` un fallo y `info` un aviso que no es ninguno de los dos (deshacer,
+ * rehacer, «nada que deshacer»).
+ */
+export type AlAvisar = (texto: string, tipo: "ok" | "error" | "info") => void;
 
 /** Códigos tras los cuales la fila quedó vieja en pantalla: se recarga para que el usuario revise y repita. */
 const CODIGOS_FILA_VIEJA = new Set([
