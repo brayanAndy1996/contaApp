@@ -1,9 +1,9 @@
-// Stub de T4 (rojo): T10 lo reemplaza con el esquema real. No implementado.
-const noImplementado = (...args: unknown[]): never => {
-  void args;
-  throw new Error("no implementado");
-};
-export const origenDocumentoXmlSchema = {
-  parse: noImplementado,
-  safeParse: noImplementado,
-};
+import { z } from "zod";
+
+/**
+ * Procedencia del XML guardado de un comprobante (016): `simulado` y `real` vienen del origen del puerto
+ * (`origenXmlSchema`, que no cambia); `subido` lo cargó el usuario a mano.
+ */
+export const origenDocumentoXmlSchema = z.enum(["simulado", "real", "subido"]);
+
+export type OrigenDocumentoXml = z.infer<typeof origenDocumentoXmlSchema>;

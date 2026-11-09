@@ -113,23 +113,33 @@ export type DescartarCompra = z.infer<typeof descartarCompraSchema>;
 export const MONEDAS_COMPRA = ["PEN", "USD"] as const;
 export type MonedaCompra = (typeof MONEDAS_COMPRA)[number];
 
+/** Tipo de cambio como texto (hasta 4 enteros y 3 decimales). Que sea mayor que cero lo comprueba `agregarCompraSchema`. */
+export const tipoCambioSchema = z.string().regex(GRAMATICA_TIPO_CAMBIO);
+
+/** Identidad de un comprobante (tipo, serie, número): gramática de la compra agregada a mano. */
+export const identidadCompraSchema = z.object({
+  tipo: z.string().regex(/^[0-9]{2}$/),
+  serie: z.string().regex(/^[0-9A-Z]{1,4}$/),
+  numero: z.string().regex(/^[0-9]{1,8}$/),
+});
+
+/** Proveedor de una compra agregada. La razón social es texto no confiable de una línea. */
+export const proveedorCompraSchema = z.object({
+  tipo: z.string().regex(/^[0-9A-Z]$/),
+  numero: z.string().regex(/^[0-9A-Za-z]{1,15}$/),
+  razonSocial: z.string().min(1).max(100).refine(sinControles),
+});
+
 /**
  * Agregar una compra a mano (D-7). La razón social es texto no confiable: se guarda tal cual y quien la
  * muestra la escapa. El total no se envía (es Σ de `montos`). USD exige tipo de cambio y PEN lo prohíbe.
  */
-export const agregarCompraSchema = z
-  .object({
-    tipo: z.string().regex(/^[0-9]{2}$/),
-    serie: z.string().regex(/^[0-9A-Z]{1,4}$/),
-    numero: z.string().regex(/^[0-9]{1,8}$/),
-    proveedor: z.object({
-      tipo: z.string().regex(/^[0-9A-Z]$/),
-      numero: z.string().regex(/^[0-9A-Za-z]{1,15}$/),
-      razonSocial: z.string().min(1).max(100).refine(sinControles),
-    }),
+export const agregarCompraSchema = identidadCompraSchema
+  .extend({
+    proveedor: proveedorCompraSchema,
     fecha: z.iso.date(),
     moneda: z.enum(MONEDAS_COMPRA),
-    tipoCambio: z.string().regex(GRAMATICA_TIPO_CAMBIO).optional(),
+    tipoCambio: tipoCambioSchema.optional(),
     montos: montosColumnasSchema,
   })
   .superRefine((v, ctx) => {
