@@ -110,12 +110,18 @@ afterAll(async () => {
 
 const comoX = <T>(fn: (tx: Tx) => Promise<T>) => backend.withTenant({ tenantId: X }, fn);
 const comoY = <T>(fn: (tx: Tx) => Promise<T>) => backend.withTenant({ tenantId: Y }, fn);
-const hallazgo = (compraId: string, versionN: number, regla: string, confirmar = false) =>
-  admin.query(
-    `insert into compra_hallazgo (tenant_id, compra_id, version_n, regla, sugerencia, lecturas, requiere_confirmacion)
-     values ($1, $2, $3, $4, '{"destino":"DNG"}'::jsonb, '{"biDg":"1000.00"}'::jsonb, $5)`,
+// 016 P-2: el hallazgo cuelga de la evaluación n = 1 de su versión (se crea si falta, como `ec.hallazgo`).
+const hallazgo = async (compraId: string, versionN: number, regla: string, confirmar = false) => {
+  await admin.query(
+    `insert into compra_evaluacion (tenant_id, compra_id, version_n, n) values ($1, $2, $3, 1) on conflict do nothing`,
+    [X, compraId, versionN],
+  );
+  await admin.query(
+    `insert into compra_hallazgo (tenant_id, compra_id, version_n, evaluacion_n, regla, sugerencia, lecturas, requiere_confirmacion)
+     values ($1, $2, $3, 1, $4, '{"destino":"DNG"}'::jsonb, '{"biDg":"1000.00"}'::jsonb, $5)`,
     [X, compraId, versionN, regla, confirmar],
   );
+};
 const numeros = (p: Pagina) => p.filas.map((f) => `${f.compra.serie}-${f.compra.numero}`);
 
 describe("listarCompras · filtros, orden y paginación con cursor", () => {

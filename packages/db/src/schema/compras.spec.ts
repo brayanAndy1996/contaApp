@@ -260,6 +260,7 @@ describe("esquema 014: compra_hallazgo", () => {
         "tenant_id",
         "compra_id",
         "version_n",
+        "evaluacion_n",
         "regla",
         "sugerencia",
         "lecturas",
@@ -267,12 +268,13 @@ describe("esquema 014: compra_hallazgo", () => {
         "creada_en",
       ].sort(),
     );
+    expect(col("evaluacion_n").notNull).toBe(true);
     expect(col("sugerencia").getSQLType()).toBe("jsonb");
     expect(col("lecturas").getSQLType()).toBe("jsonb");
     expect(opcionales(c)).toEqual(["sugerencia"]);
   });
 
-  it("FK compuesta a compra(tenant_id, id) y unica (compra_id, version_n, regla)", () => {
+  it("FK compuesta a compra(tenant_id, id) y unica (compra_id, version_n, evaluacion_n, regla) (016 P-2)", () => {
     expect(fks(c)).toContainEqual({
       desde: ["tenant_id", "compra_id"],
       hacia: "compra",
@@ -281,8 +283,9 @@ describe("esquema 014: compra_hallazgo", () => {
     expect(
       unicas(c).some(
         (u) =>
-          ["compra_id", "version_n", "regla"].every((k) => u.includes(k)) &&
-          u.length <= 4,
+          ["compra_id", "version_n", "evaluacion_n", "regla"].every((k) =>
+            u.includes(k),
+          ) && u.length <= 5,
       ),
     ).toBe(true);
   });

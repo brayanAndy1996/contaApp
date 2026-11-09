@@ -307,7 +307,11 @@ describe("crearVersion · punto unico de escritura de version (D-1, D-2, D-4)", 
   it("re-evalua la fila con la version NUEVA y guarda sus hallazgos con version_n = n; los de la version anterior quedan (nota [014])", async () => {
     const c = await ec.compra(X, cx, { propuestaId: propX, montos: MONTOS_DG });
     await admin.query(
-      "insert into compra_hallazgo (tenant_id, compra_id, version_n, regla, sugerencia, lecturas, requiere_confirmacion) values ($1, $2, 1, 'R-VIEJA', '{}', '{}', false)",
+      "insert into compra_evaluacion (tenant_id, compra_id, version_n, n) values ($1, $2, 1, 1) on conflict do nothing",
+      [X, c.id],
+    );
+    await admin.query(
+      "insert into compra_hallazgo (tenant_id, compra_id, version_n, evaluacion_n, regla, sugerencia, lecturas, requiere_confirmacion) values ($1, $2, 1, 1, 'R-VIEJA', '{}', '{}', false)",
       [X, c.id],
     );
     const e = evaluadorFalso();
