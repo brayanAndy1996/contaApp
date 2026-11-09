@@ -71,6 +71,19 @@ describe("ResumenCompras (spec 015 T3, D-12, CA-15)", () => {
     expect(aviso.textContent).toBe(M.avisoSinConvertir(1));
   });
 
+  it("el rótulo de alcance dice «Periodo entero» una sola vez (T11: salía «Periodo entero. Periodo entero: …»)", () => {
+    render(<ResumenCompras resumen={resumenDe(FILAS_014)} />);
+    const parrafo = screen.getByText(M.periodoEntero).closest("p")!;
+    expect(parrafo.textContent!.match(/periodo entero/gi)).toHaveLength(1);
+    expect(parrafo.textContent).toBe("Periodo entero: no cambia con los filtros de la grilla.");
+  });
+
+  it("una sola compra en USD sin tipo de cambio se dice «1 compra», no «1 compras»", () => {
+    const resumen = resumenDe(FILAS_014, { filasSinConvertir: [C_4062_USD.id] });
+    render(<ResumenCompras resumen={resumen} />);
+    expect(screen.getByRole("status").textContent).toMatch(/^1 compra en USD /);
+  });
+
   it("cargando (sin resumen) solo muestra el título y el rótulo, sin cifras", () => {
     render(<ResumenCompras resumen={null} />);
     expect(screen.getByRole("heading", { name: M.tituloResumen })).toBeTruthy();

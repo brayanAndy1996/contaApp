@@ -32,6 +32,17 @@ describe("InformeMasivo", () => {
     expect(fila.textContent).toBe(`F001-1040${M.rechazoMasiva.requiere_dato}`);
   });
 
+  it("una sola aplicada se dice «1 aplicada», no «1 aplicadas»", () => {
+    render(
+      <InformeMasivo
+        informe={{ operacionId: uuidDe(9, 1), aplicadas: 1, rechazadas: [] }}
+        filas={[C_1040_ISC]}
+        alCerrar={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/^1 aplicadas?$/).textContent).toBe("1 aplicada");
+  });
+
   it("un código desconocido da el mensaje genérico, una fila no cargada se muestra por id corto y Cerrar funciona", async () => {
     const alCerrar = vi.fn();
     render(

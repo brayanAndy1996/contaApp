@@ -4,6 +4,9 @@ import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TEXTOS_GRILLA } from "../../../../../components/compras/columnas-compras";
 import { reiniciarSesion } from "../../../../../lib/sesion";
+import { seguirTrabajos, type OpcionesSeguimiento } from "../../../../../lib/trabajos";
+import { idTrabajo } from "../../../../../pruebas/trabajos";
+import { trabajoDescarga } from "../../../../../pruebas/ventas";
 import {
   BASE,
   C_1040_ISC,
@@ -537,5 +540,37 @@ describe("/clientes/:id/compras · ensamblado (spec 015 T10)", () => {
       ).toBe(true);
     });
   });
-});
+  describe("defectos de la prueba manual (spec 015 T11 → T12)", () => {
+    it("D-1: al completar la descarga se vuelve a pedir el listado y la grilla muestra las filas nuevas", async () => {
+      const f = await montar({
+        estado: { filas: [] },
+        extra: (estado) => ({
+          [`POST ${BASE}/descargar`]: () => {
+            // El worker trae las compras del SIRE mientras corre el trabajo.
+            estado.filas = [...FILAS_014];
+            return { status: 202, cuerpo: { trabajoId: idTrabajo(1) } };
+          },
+        }),
+      });
+      const user = userEvent.setup();
+      expect(await screen.findByText(M.sinCompras)).toBeTruthy();
+      const listadosAntes = f.listados().length;
 
+      await user.click(screen.getByRole("button", { name: M.descargar }));
+      await vi.waitFor(() => expect(vi.mocked(seguirTrabajos)).toHaveBeenCalled());
+      const opciones = vi.mocked(seguirTrabajos).mock.calls.at(-1)![0] as OpcionesSeguimiento;
+      act(() => opciones.alEvento(trabajoDescarga(1, "completado") as never));
+
+      // CA-3: «al completar se refresca la grilla» (GET compras?limite=…), no solo resumen y propuestas.
+      await vi.waitFor(() => expect(f.listados().length).toBeGreaterThan(listadosAntes));
+      expect(await screen.findByText("F001-3064")).toBeTruthy();
+      expect(screen.queryByText(M.sinCompras)).toBeNull();
+    });
+
+    it("una sola compra se dice «1 compra cargada», no «1 compras cargadas»", async () => {
+      await montar({ estado: { filas: [C_3064_BOLSAS] } });
+      const estadoCarga = await screen.findByText(/cargadas?$/);
+      expect(estadoCarga.textContent).toMatch(/^1 compra cargada$/);
+    });
+  });
+});
