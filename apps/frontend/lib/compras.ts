@@ -360,6 +360,7 @@ export const MENSAJES_COMPRAS = {
     deshacer: "Deshecha",
     rehacer: "Rehecha",
   },
+  tituloHallazgos: "Hallazgos",
   sinHallazgos: "Sin hallazgos.",
 
   // Errores por código del servidor (014). Nunca se muestra el código ni el cuerpo crudo.
