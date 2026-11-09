@@ -93,7 +93,8 @@ const clienteNuevo = () => ec.cliente(X);
 const compraDe = async (c: ClientePrueba, serie = "F001") => {
   const k = comprobante(serie);
   const s = await ec.compraXml(X, c, { serie: k.serie, numero: k.numero });
-  return { ...s, ...k };
+  // `id` es el uuid de la compra; la identidad del XML va aparte en `idXml` (k.id la pisaba).
+  return { ...s, serie: k.serie, numero: k.numero, id: s.id, idXml: k.id };
 };
 const datos = (m: Partial<DatosVersion["montos"]>): DatosVersion => ({
   montos: montos({ ...MONTOS_DG, ...m }),
@@ -366,7 +367,7 @@ describe("fijarObtencion y listarPorObtener (D-4, D-10)", () => {
     const b = await compraDe(c); // con XML, sin hallazgos
     const d = await compraDe(c); // hallazgo en la evaluacion 1, ninguno en la 2 (vigente)
     await ec.hallazgo(X, a.id, 1, "R-ISC", 1);
-    await ec.xml(X, c, b.id, { origen: "simulado" });
+    await ec.xml(X, c, b.idXml, { origen: "simulado" });
     await ec.hallazgo(X, d.id, 1, "R-MIX", 1);
     await ec.evaluacion(X, d.id, 1, 2);
     const ajena = await compraDe(await clienteNuevo());
@@ -452,7 +453,10 @@ describe("evaluacion numerada · versiones nuevas (D-5, P-2)", () => {
   it("crearVersion: la version nueva nace con la evaluacion 1 y el XML vigente leido dentro de la transaccion", async () => {
     const c = await clienteNuevo();
     const k = await compraDe(c);
-    const xmlId = await ec.xml(X, c, k.id, { origen: "subido", subidoPor: ux });
+    const xmlId = await ec.xml(X, c, k.idXml, {
+      origen: "subido",
+      subidoPor: ux,
+    });
     const { evaluar, llamadas } = evaluadorXml();
     const v = await comoBackend((tx) =>
       crearVersion(
@@ -511,8 +515,8 @@ describe("evaluacion numerada · versiones nuevas (D-5, P-2)", () => {
     const a = await compraDe(c);
     const b = await compraDe(c);
     const d = await compraDe(c);
-    const xa = await ec.xml(X, c, a.id, { origen: "real" });
-    const xb = await ec.xml(X, c, b.id, { origen: "simulado" });
+    const xa = await ec.xml(X, c, a.idXml, { origen: "real" });
+    const xb = await ec.xml(X, c, b.idXml, { origen: "simulado" });
     const accion = evaluadorXml();
     await comoBackend((tx) =>
       aplicarAccion(
@@ -570,7 +574,7 @@ describe("evaluacion numerada · re-evaluar la misma version (D-5, CA-6, CA-7, C
     const c = await clienteNuevo();
     const k = await compraDe(c);
     await ec.hallazgo(X, k.id, 1, "R-XML", 1, { xml: "sin", version: "1" });
-    const xmlId = await ec.xml(X, c, k.id, { origen: "real" });
+    const xmlId = await ec.xml(X, c, k.idXml, { origen: "real" });
     const { evaluar, llamadas } = evaluadorXml();
     await comoWorker((tx) => reevaluarCompra(tx, k.id, { evaluar }));
     expect(llamadas).toEqual([
@@ -597,14 +601,14 @@ describe("evaluacion numerada · re-evaluar la misma version (D-5, CA-6, CA-7, C
   it("re-evaluar varias veces numera 2, 3, 4 y nunca choca; cada una apunta al XML vigente de ese momento", async () => {
     const c = await clienteNuevo();
     const k = await compraDe(c);
-    const x1 = await ec.xml(X, c, k.id, { origen: "simulado" });
+    const x1 = await ec.xml(X, c, k.idXml, { origen: "simulado" });
     await comoBackend((tx) =>
       reevaluarCompra(tx, k.id, { evaluar: evaluadorXml().evaluar }),
     );
     await comoBackend((tx) =>
       reevaluarCompra(tx, k.id, { evaluar: evaluadorXml().evaluar }),
     );
-    const x2 = await ec.xml(X, c, k.id, { origen: "subido", subidoPor: ux });
+    const x2 = await ec.xml(X, c, k.idXml, { origen: "subido", subidoPor: ux });
     const ultima = evaluadorXml();
     await comoBackend((tx) =>
       reevaluarCompra(tx, k.id, { evaluar: ultima.evaluar }),
@@ -649,7 +653,7 @@ describe("evaluacion numerada · re-evaluar la misma version (D-5, CA-6, CA-7, C
     ]);
     // Evaluacion 1 (sin XML), como la deja la descarga.
     await ec.hallazgo(X, k.id, 1, regla, 1, sin.lecturas);
-    await ec.xml(X, c, k.id, { origen: "real" });
+    await ec.xml(X, c, k.idXml, { origen: "real" });
     await comoWorker((tx) =>
       reevaluarCompra(tx, k.id, { evaluar: evaluar.evaluar }),
     );
@@ -694,7 +698,7 @@ describe("evaluacion numerada · re-evaluar la misma version (D-5, CA-6, CA-7, C
       listarCompras(tx, c.id, PERIODO, { limite: 50, alertas: true }),
     );
     expect(antes.filas.map((f) => f.compra.id)).toEqual([k.id]);
-    await ec.xml(X, c, k.id, { origen: "real" });
+    await ec.xml(X, c, k.idXml, { origen: "real" });
     await comoBackend((tx) =>
       reevaluarCompra(tx, k.id, { evaluar: evaluadorXml(() => []).evaluar }),
     );
@@ -728,7 +732,7 @@ describe("evaluacion numerada · re-evaluar la misma version (D-5, CA-6, CA-7, C
   it("lo contrario: sin hallazgos en la evaluacion 1 y con uno en la 2, el listado con alertas y el detalle lo ven", async () => {
     const c = await clienteNuevo();
     const k = await compraDe(c);
-    await ec.xml(X, c, k.id, { origen: "real" });
+    await ec.xml(X, c, k.idXml, { origen: "real" });
     await comoBackend((tx) =>
       reevaluarCompra(tx, k.id, { evaluar: evaluadorXml().evaluar }),
     );
@@ -754,7 +758,7 @@ describe("evaluacion numerada · re-evaluar la misma version (D-5, CA-6, CA-7, C
   it("una version nueva despues de re-evaluar vuelve a la evaluacion 1 con el XML vigente; los vigentes son los suyos, no los de la evaluacion 2 anterior", async () => {
     const c = await clienteNuevo();
     const k = await compraDe(c);
-    const xmlId = await ec.xml(X, c, k.id, { origen: "real" });
+    const xmlId = await ec.xml(X, c, k.idXml, { origen: "real" });
     await comoBackend((tx) =>
       reevaluarCompra(tx, k.id, { evaluar: evaluadorXml().evaluar }),
     );
@@ -803,7 +807,7 @@ describe("evaluacion numerada · re-evaluar la misma version (D-5, CA-6, CA-7, C
         { evaluar: evaluadorXml().evaluar },
       ),
     );
-    await ec.xml(X, c, k.id, { origen: "real" });
+    await ec.xml(X, c, k.idXml, { origen: "real" });
     const { evaluar, llamadas } = evaluadorXml();
     await comoWorker((tx) => reevaluarCompra(tx, k.id, { evaluar }));
     expect(llamadas.map((l) => l.version)).toEqual([2]);
@@ -821,7 +825,7 @@ describe("evaluacion numerada · re-evaluar la misma version (D-5, CA-6, CA-7, C
       const c = await clienteNuevo();
       const k = await compraDe(c);
       await ec.estadoPeriodo(X, c, PERIODO, estado, ux);
-      await ec.xml(X, c, k.id, { origen: "real" });
+      await ec.xml(X, c, k.idXml, { origen: "real" });
       await comoWorker((tx) =>
         reevaluarCompra(tx, k.id, { evaluar: evaluadorXml().evaluar }),
       );
@@ -836,7 +840,7 @@ describe("evaluacion numerada · re-evaluar la misma version (D-5, CA-6, CA-7, C
   it("si evaluar lanza, la transaccion se revierte y no queda evaluacion ni hallazgos nuevos (014 D-4)", async () => {
     const c = await clienteNuevo();
     const k = await compraDe(c);
-    await ec.xml(X, c, k.id, { origen: "real" });
+    await ec.xml(X, c, k.idXml, { origen: "real" });
     const codigo = await codigoError(
       comoBackend((tx) =>
         reevaluarCompra(tx, k.id, {
@@ -892,7 +896,7 @@ describe("evaluacion numerada · re-evaluar la misma version (D-5, CA-6, CA-7, C
   it("el detalle sembrado llega a evaluar tal cual (opaco) y nada mas: ni ruta ni sha256 ni autor", async () => {
     const c = await clienteNuevo();
     const k = await compraDe(c);
-    await ec.xml(X, c, k.id, {
+    await ec.xml(X, c, k.idXml, {
       origen: "subido",
       subidoPor: ux,
       detalle: detalleXml(CANARIO_XML),
