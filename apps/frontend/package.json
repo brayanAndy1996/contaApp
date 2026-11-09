@@ -12,6 +12,9 @@
   },
   "dependencies": {
     "@contapp/shared": "workspace:*",
+    "@tanstack/react-table": "9.3.1",
+    "@tanstack/react-virtual": "3.14.22",
+    "decimal.js": "10.6.0",
     "next": "16.4.3",
     "react": "19.3.0",
     "react-dom": "19.3.0"

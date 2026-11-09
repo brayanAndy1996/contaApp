@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
   Suspense,
@@ -30,6 +31,7 @@ import {
   reactivarCliente,
   type ClienteDto,
 } from "../../../../lib/clientes";
+import { MENSAJES_COMPRAS } from "../../../../lib/compras";
 import { MENSAJES_PLAN } from "../../../../lib/planes";
 import { MENSAJES_REGISTRO } from "../../../../lib/registro";
 
@@ -337,6 +339,15 @@ function DetalleCliente() {
         <header className="flex flex-col gap-1">
           <h1 className="text-2xl font-semibold">{cliente.razonSocial}</h1>
           <p className="text-sm">RUC {cliente.ruc}</p>
+          {/* Enlace a la pantalla de compras (spec 015, D-1). */}
+          <nav aria-label="Registros del cliente" className="text-sm">
+            <Link
+              href={`/clientes/${encodeURIComponent(cliente.id)}/compras`}
+              className="underline"
+            >
+              {MENSAJES_COMPRAS.enlaceCompras}
+            </Link>
+          </nav>
         </header>
       )}
       {archivado && (
