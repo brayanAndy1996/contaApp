@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,13 +7,19 @@ import { reiniciarSesion } from "../../../../../lib/sesion";
 import type { OpcionesSeguimiento } from "../../../../../lib/trabajos";
 import {
   BASE,
+  C_3064_BOLSAS,
   FILAS_014,
   MENSAJES_COMPRAS as M,
   PERIODO,
   PERMISOS,
+  TEXTO_HOSTIL,
+  consultaDe,
+  filaDe,
+  generarFilas,
   instalarFetchCompras,
   montosDe,
   resumenDe,
+  uuidDe,
   type EstadoCompras,
   type FetchCompras,
   type OpcionesCompras,
@@ -90,7 +96,7 @@ function estadoBase(): Partial<EstadoCompras> {
 }
 
 async function montar(
-  o: OpcionesCompras & { periodo?: string | null } = {},
+  o: OpcionesCompras & { periodo?: string | null; antes?: () => void } = {},
 ): Promise<FetchCompras> {
   const periodo = o.periodo === undefined ? PERIODO : o.periodo;
   busqueda.actual = new URLSearchParams(periodo ? `periodo=${periodo}` : "");
@@ -100,6 +106,7 @@ async function montar(
     estado: { ...estadoBase(), ...o.estado },
     extra: o.extra,
   });
+  o.antes?.();
   render(await cargarPagina());
   await vi.waitFor(() => expect(f.de("GET /api/acceso/yo")).toHaveLength(1));
   return f;
@@ -329,6 +336,167 @@ describe("/clientes/:id/compras · página de compras (spec 015 T3)", () => {
       expect(await screen.findByText(M.errores.estado_invalido!)).toBeTruthy();
       await vi.waitFor(() => expect(lecturas(f, "/resumen")).toHaveLength(2));
       expect(await screen.findByRole("button", { name: M.marcarRevisado })).toBeTruthy();
+    });
+  });
+
+  describe("grilla conectada: carga, filtros y selección (T5; CA-1, CA-2, CA-12)", () => {
+    beforeEach(() => {
+      // jsdom no mide el diseño: el virtualizador lee `clientWidth`/`clientHeight` del contenedor.
+      vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(1200);
+      vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(480);
+    });
+
+    /** Retiene las llamadas de `fetch` que cumplen `coincide` hasta que se abra la compuerta. */
+    function compuerta(coincide: (url: string) => boolean) {
+      let abrir!: () => void;
+      const abierta = new Promise<void>((resolver) => {
+        abrir = resolver;
+      });
+      return {
+        abrir,
+        instalar: () => {
+          const real = globalThis.fetch;
+          vi.stubGlobal("fetch", async (entrada: RequestInfo | URL, init?: RequestInit) => {
+            const url =
+              typeof entrada === "string"
+                ? entrada
+                : entrada instanceof URL
+                  ? entrada.pathname + entrada.search
+                  : entrada.url;
+            if (coincide(url)) await abierta;
+            return real(entrada, init);
+          });
+        },
+      };
+    }
+
+    const filasPintadas = () =>
+      [...document.querySelectorAll<HTMLElement>("[data-fila]")].map(
+        (f) => f.textContent ?? "",
+      );
+    const hayComprobante = (numero: string) =>
+      filasPintadas().some((t) => t.includes(`F001-${numero}`));
+    const esListado = (url: string) => url.startsWith(`${BASE}?`);
+
+    it("feliz: lista las compras con IGV al abrir y pide al servidor cada filtro y la búsqueda (CA-1, CA-2, CA-12)", async () => {
+      const f = await montar();
+      expect(await screen.findByText(M.cargaCompleta(4))).toBeTruthy();
+      const inicial = consultaDe(f.listados()[0]!.url);
+      expect(inicial.get("vista")).toBe("con_igv");
+      expect(inicial.get("limite")).toBe("1000");
+      expect(inicial.has("alertas")).toBe(false);
+      // F001-1040 no tiene IGV: va a «sin IGV», no a la lista principal.
+      expect(hayComprobante("3064")).toBe(true);
+      expect(hayComprobante("1040")).toBe(false);
+      // El proveedor nuevo se ve con su etiqueta (CA-12).
+      expect(filasPintadas().find((t) => t.includes("F001-3064"))).toContain(M.proveedorNuevo);
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("checkbox", { name: M.filtroAlertas }));
+      await vi.waitFor(() => expect(f.listados()).toHaveLength(2));
+      expect(consultaDe(f.listados()[1]!.url).get("alertas")).toBe("true");
+      expect(await screen.findByText(M.cargaCompleta(3))).toBeTruthy();
+      expect(hayComprobante("4062")).toBe(false);
+
+      await user.click(screen.getByRole("checkbox", { name: M.filtroProveedorNuevo }));
+      await vi.waitFor(() => expect(f.listados()).toHaveLength(3));
+      expect(consultaDe(f.listados()[2]!.url).get("proveedorNuevo")).toBe("true");
+      expect(await screen.findByText(M.cargaCompleta(1))).toBeTruthy();
+
+      // La búsqueda espera un retardo corto y pide una sola vez con lo escrito.
+      await user.type(screen.getByRole("searchbox", { name: M.buscar }), "20700000053");
+      await vi.waitFor(() => expect(f.listados()).toHaveLength(4));
+      expect(consultaDe(f.listados()[3]!.url).get("q")).toBe("20700000053");
+      expect(consultaDe(f.listados()[3]!.url).get("alertas")).toBe("true");
+
+      await user.click(screen.getByRole("radio", { name: M.vistas.excluidas }));
+      await vi.waitFor(() => expect(f.listados()).toHaveLength(5));
+      expect(consultaDe(f.listados()[4]!.url).get("vista")).toBe("excluidas");
+      expect(await screen.findByText(M.sinResultados)).toBeTruthy();
+    });
+
+    it("una razón social con HTML se ve como texto y no crea elementos (CA-2)", async () => {
+      await montar({
+        estado: {
+          filas: [
+            filaDe({
+              id: uuidDe(6, 1),
+              numero: "7001",
+              proveedor: { tipo: "6", numero: "20100070970", razonSocial: TEXTO_HOSTIL },
+            }),
+          ],
+        },
+      });
+      expect(await screen.findByText(TEXTO_HOSTIL)).toBeTruthy();
+      expect(document.querySelector("img")).toBeNull();
+    });
+
+    it("error: la respuesta vieja de un filtro anterior se descarta tras un cambio rápido de filtro", async () => {
+      const lenta = compuerta((url) => esListado(url) && !url.includes("alertas"));
+      const f = await montar({ antes: lenta.instalar });
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole("checkbox", { name: M.filtroAlertas }));
+      // Responde el filtro nuevo (3 con alerta) mientras el listado completo sigue retenido.
+      expect(await screen.findByText(M.cargaCompleta(3))).toBeTruthy();
+      expect(hayComprobante("4062")).toBe(false);
+
+      lenta.abrir();
+      await new Promise((r) => setTimeout(r, 60));
+      // Llegó tarde la respuesta sin filtrar (traía F001-4062) y no se pintó.
+      expect(hayComprobante("4062")).toBe(false);
+      expect(screen.queryByText(M.cargaCompleta(4))).toBeNull();
+      expect(screen.getByText(M.cargaCompleta(3))).toBeTruthy();
+      expect(f.listados().map((l) => consultaDe(l.url).get("alertas"))).toContain("true");
+    });
+
+    it("carga por cursor: usable desde el primer bloque y «las N del filtro» deshabilitado hasta terminar (CA-2)", async () => {
+      const segundo = compuerta((url) => esListado(url) && url.includes("cursor="));
+      const f = await montar({
+        estado: { filas: generarFilas(2500) },
+        antes: segundo.instalar,
+      });
+      // Primer bloque en pantalla (1.000 de las 2.475) con «Cargando…» y sin poder seleccionar todo.
+      expect(await screen.findByText(M.cargandoMas(1000))).toBeTruthy();
+      expect(filasPintadas().length).toBeGreaterThan(0);
+      const todas = screen.getByRole("button", { name: M.seleccionarDelFiltro(1000) });
+      expect((todas as HTMLButtonElement).disabled).toBe(true);
+      expect(screen.getByText(M.seleccionarDelFiltroCargando)).toBeTruthy();
+
+      segundo.abrir();
+      expect(await screen.findByText(M.cargaCompleta(2475))).toBeTruthy();
+      expect(f.listados()).toHaveLength(3);
+      const lista = screen.getByRole("button", { name: M.seleccionarDelFiltro(2475) });
+      expect((lista as HTMLButtonElement).disabled).toBe(false);
+
+      fireEvent.click(lista);
+      const primera = document.querySelector<HTMLElement>("[data-fila]")!;
+      expect(primera.getAttribute("aria-selected")).toBe("true");
+    });
+
+    it("error: con más de 5.000 compras en el filtro pide filtrar y no deja seleccionarlas", async () => {
+      await montar({ estado: { filas: generarFilas(5200) } });
+      expect(await screen.findByText(M.cargaCompleta(5148), {}, { timeout: 15000 })).toBeTruthy();
+      const todas = screen.getByRole("button", { name: M.seleccionarDelFiltro(5148) });
+      expect((todas as HTMLButtonElement).disabled).toBe(true);
+      expect(screen.getByText(M.seleccionarDemasiadas(5000))).toBeTruthy();
+    }, 30000);
+
+    it("error: si el listado falla se muestra el mensaje con «Reintentar» y reintenta", async () => {
+      let falla = true;
+      const f = await montar({
+        extra: {
+          [`GET ${BASE}`]: () =>
+            falla
+              ? { status: 403, cuerpo: { codigo: "permiso_denegado" } }
+              : { status: 200, cuerpo: { filas: [C_3064_BOLSAS], siguiente: null } },
+        },
+      });
+      expect(await screen.findByText(M.errores.permiso_denegado!)).toBeTruthy();
+      falla = false;
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: M.reintentar }));
+      expect(await screen.findByText(M.cargaCompleta(1))).toBeTruthy();
+      expect(f.listados().length).toBeGreaterThanOrEqual(2);
     });
   });
 });

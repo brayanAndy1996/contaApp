@@ -22,10 +22,16 @@ import {
   calcularSoloLectura,
 } from "../../../../../components/compras/estado-periodo";
 import { ExportarCompras } from "../../../../../components/compras/exportar-compras";
+import {
+  FiltrosListado,
+  SeleccionDelFiltro,
+} from "../../../../../components/compras/filtros-compras";
+import { GrillaCompras } from "../../../../../components/compras/grilla-compras";
 import { ResumenCompras } from "../../../../../components/compras/resumen-compras";
 import { MENSAJES, cargarYo, mensajeDeError, tiene } from "../../../../../lib/acceso";
 import { obtenerCliente, type ClienteDto } from "../../../../../lib/clientes";
 import {
+  FILTROS_INICIALES,
   MENSAJES_COMPRAS as M,
   PERIODO_VALIDO,
   PERMISO_APROBAR_GENERAR,
@@ -37,15 +43,19 @@ import {
   obtenerResumenCompras,
   type ContextoCompras,
   type EstadoPeriodoCompras,
+  type FiltrosCompras,
   type PermisosCompras,
 } from "../../../../../lib/compras";
+import { useFilasCompras } from "../../../../../lib/filas-compras";
 import { useSecuencia } from "../../../../../lib/secuencia";
 
 // Compras del periodo de un cliente (spec 015, D-1, D-12 a D-16; RF-060, RF-068, RF-069, RF-071). El periodo
 // (AAAAMM) se escribe aquí o llega en `?periodo=`. La página solo pide y muestra: resumen, estado, descarga y
 // diferencias son del servidor y los montos se muestran como cadenas. Ocultar acciones según permiso es
-// comodidad (RNF-007): el backend vuelve a validar y su 403/404/409 se muestra con su mensaje. La grilla la une
-// T5 en el hueco marcado abajo; las piezas de escritura reciben `ContextoCompras` y `soloLectura`.
+// comodidad (RNF-007): el backend vuelve a validar y su 403/404/409 se muestra con su mensaje. La grilla se carga
+// por cursor con los filtros del servidor (T5, D-4): cada cambio de filtro cancela la carga anterior y descarta
+// sus respuestas viejas; no hay actualización optimista de montos. Las piezas de escritura reciben
+// `ContextoCompras` y `soloLectura`.
 
 const SIN_PERMISOS: PermisosCompras = {
   ver: false,
@@ -53,9 +63,6 @@ const SIN_PERMISOS: PermisosCompras = {
   clasificar: false,
   aprobarGenerar: false,
 };
-
-/** Las acciones sobre filas (T5 en adelante) aún no existen: recargar una fila no hace nada hasta unir la grilla. */
-const sinFilas = async (): Promise<void> => undefined;
 
 function Compras() {
   const { clienteId } = useParams<{ clienteId: string }>();
@@ -80,6 +87,7 @@ function Compras() {
     null,
   );
 
+  const [filtros, setFiltros] = useState<FiltrosCompras>(FILTROS_INICIALES);
   const sResumen = useSecuencia();
   const sPropuestas = useSecuencia();
 
@@ -173,7 +181,26 @@ function Compras() {
     };
   }, [verCompras, periodoValido, cargarTodo]);
 
+  const {
+    filas,
+    carga,
+    errorCarga,
+    seleccion,
+    setSeleccion,
+    seleccionarTodas,
+    recargarFila,
+    recargarFilas,
+    reintentar,
+  } = useFilasCompras({
+    clienteId,
+    periodo,
+    activo: verCompras && periodoValido,
+    filtros,
+    alFallar: falla,
+  });
+
   function cambiarPeriodo(valor: string) {
+    setFiltros(FILTROS_INICIALES);
     setPeriodo(valor.trim());
     setResumen(null);
     setEstado("abierto");
@@ -203,11 +230,20 @@ function Compras() {
       permisos: permisosVigentes,
       estado,
       soloLectura,
-      recargarFila: sinFilas,
-      recargarFilas: sinFilas,
+      recargarFila,
+      recargarFilas,
       recargarResumen: cargarResumen,
     }),
-    [clienteId, periodo, permisosVigentes, estado, soloLectura, cargarResumen],
+    [
+      clienteId,
+      periodo,
+      permisosVigentes,
+      estado,
+      soloLectura,
+      cargarResumen,
+      recargarFila,
+      recargarFilas,
+    ],
   );
 
   if (permisos === null) {
@@ -320,8 +356,65 @@ function Compras() {
         <>
           <ResumenCompras resumen={resumen} />
 
-          {/* Hueco de la grilla de compras (T5 la une aquí con los filtros, la carga por cursor y la selección;
-              recibe `contexto` y `soloLectura`). T3 no toca `grilla-compras.tsx`. */}
+          <section
+            key={`compras|${clienteId}|${periodo}`}
+            aria-labelledby="titulo-lista-compras"
+            className="flex flex-col gap-3"
+          >
+            <h2 id="titulo-lista-compras" className="text-lg font-semibold">
+              {M.tituloListado}
+            </h2>
+            <FiltrosListado
+              key={`filtros|${clienteId}|${periodo}`}
+              filtros={filtros}
+              alCambiar={setFiltros}
+            />
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <p role="status" aria-live="polite">
+                {carga === "cargando"
+                  ? filas.length === 0
+                    ? M.cargando
+                    : M.cargandoMas(filas.length)
+                  : carga === "completa"
+                    ? filas.length === 0
+                      ? M.sinResultados
+                      : M.cargaCompleta(filas.length)
+                    : null}
+              </p>
+              {carga === "error" && (
+                <>
+                  <p role="alert" className="text-red-600">
+                    {errorCarga ?? M.errorCarga}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={reintentar}
+                    className="rounded border px-3 py-1"
+                  >
+                    {M.reintentar}
+                  </button>
+                </>
+              )}
+            </div>
+            <SeleccionDelFiltro
+              key={`seleccion|${clienteId}|${periodo}`}
+              cantidad={carga === "error" ? 0 : filas.length}
+              cargando={carga !== "completa"}
+              seleccionadas={seleccion.size}
+              alSeleccionar={seleccionarTodas}
+            />
+            <GrillaCompras
+              key={`grilla|${clienteId}|${periodo}`}
+              filas={filas}
+              cargando={carga === "cargando"}
+              seleccion={seleccion}
+              alCambiarSeleccion={setSeleccion}
+              soloLectura={soloLectura}
+              // Las acciones por fila, el historial y la barra masiva los une T10.
+              renderAcciones={() => null}
+              alAbrirHistorial={() => undefined}
+            />
+          </section>
 
           {propuestas !== null && propuestas.length > 0 && (
             <DiferenciasCompras diferencias={diferencias} />

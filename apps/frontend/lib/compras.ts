@@ -155,6 +155,7 @@ export const MENSAJES_COMPRAS = {
 
   // Resumen (D-8).
   tituloResumen: "Resumen del periodo",
+  tituloListado: "Compras del periodo",
   periodoEntero: "Periodo entero",
   columnaOriginal: "Original del SIRE",
   columnaVigente: "Vigente",
