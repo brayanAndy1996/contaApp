@@ -20,7 +20,7 @@ Nivel C (spec P-10): sin TDD ni adversarial. Flujo 04 §1.3 para C: implementar 
 | T12 | Correctivas de T11 (solo si hay defectos): pruebas de los defectos y su corrección                   | tester / frontend | sonnet | T11        | —   | —   | [x]    |
 | T13 | Verificar CA-1 a CA-17 con evidencia (suites completas)                                              | tester   | sonnet | T12 (o T11 sin defectos) | — | —   | [x]    |
 | T14 | Revisión contra la spec                                                                              | arquitecto | sonnet | T13               | —   | —   | [x]    |
-| T15 | Cierre: tasks, spec «hecha» y commit (el orquestador actualiza ESTADO)                               | devops   | haiku  | T14                 | —   | —   | [ ]    |
+| T15 | Cierre: tasks, spec «hecha» y commit (el orquestador actualiza ESTADO)                               | devops   | haiku  | T14                 | —   | —   | [x]    |
 
 Paralelismo: T1 va sola (T2 espera a T1 porque instala lo que usa). Tras T2: **T3 ∥ T4** (T3 posee `page.tsx` y los paneles; T4 posee `grilla-compras.tsx` y `columnas-compras.ts`) y, sin tocar ninguno de esos archivos, **T7 ∥ T8 ∥ T9** (cada una crea solo sus componentes, que reciben `ContextoCompras` y props por el contrato del plan; no editan la página ni la grilla) — todas pueden correr a la vez que T3–T6. T5 espera a T3 y T4 (une página y grilla); T6 espera a T5 (edita `grilla-compras.tsx` y la página); T10 espera a T6 a T9 y es la única que une todo. T11 a T15 son secuenciales.
 
@@ -198,3 +198,13 @@ Criterios sin cubrir: ninguno. Tareas nuevas: ninguna. Notas para T14: el commit
 - **Contexto (leer solo esto)**: este `tasks.md`, `docs/specs/ESTADO.md` (fila 015 y las notas [015] y [siguientes]).
 - **Hacer**: marcar las tareas `[x]` con su resultado en una línea, pasar la spec a «Estado: hecha» con CA-1 a CA-17 marcados `[x]` solo si T13 los cubrió, y dejar listo el texto de ESTADO para el orquestador (fila 015 «hecha»; notas para 016: lupa y «Subir XML» deshabilitados, panel «Historial» ya creado, `compra_hallazgo` única por versión; para 018: flujos de teclado y prueba manual de T11). Comprobar `pnpm install --frozen-lockfile`, `pnpm lint` y `pnpm typecheck`.
 - **Hecho cuando**: `tasks.md` al día, árbol limpio salvo cambios ajenos y commit `docs(015): cierre de la spec`; rama lista para merge, sin push.
+- **Resultado**: `pnpm install --frozen-lockfile` OK (lockfile sin cambios; aviso ya conocido de Node 22.22 frente a `>=24.1`), `pnpm lint` OK (9 tareas), `pnpm typecheck` OK (15 tareas). Spec 015 pasa a «Estado: hecha» con CA-1 a CA-17 en `[x]` (T13 los cubrió todos); «Casos reales aplicables» queda en `[ ]` por estar fuera de CA-1 a CA-17.
+
+## Texto para ESTADO
+
+Para el orquestador: copiar a `docs/specs/ESTADO.md` (esta tarea no toca ese archivo).
+
+- **Fila 015:** «hecha».
+- **Notas para 016:** la lupa de la grilla (`apps/frontend/components/compras/grilla-compras.tsx:823-830`) y «Subir XML» (`apps/frontend/components/compras/agregar-compra.tsx:239-247`) quedan deshabilitados; el panel «Historial» ya está creado (`apps/frontend/components/compras/historial-compra.tsx`); `compra_hallazgo` es única por versión: la clave es (compra, versión, regla) (`compra_hallazgo_compra_version_regla_unique`, migración 0033).
+- **Notas para 017:** D-13 pide «quién marcó revisado»; el contrato de 014 solo trae un id (`por`, `packages/shared/src/compras/esquemas.ts:155`) más la fecha (`en`), así que la pantalla muestra la fecha y el id corto.
+- **Notas para 018:** flujos de teclado y prueba manual de T11 (18 puntos con evidencia en navegador real); Ctrl+Z de una masiva de unas 4.850 filas tarda unos 7 s (recarga el listado entero).
