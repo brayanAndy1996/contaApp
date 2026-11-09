@@ -24,3 +24,12 @@ export class ConfiguracionStorageError extends Error {
     this.variable = variable;
   }
 }
+
+/** Fallo de E/S del almacenamiento. Mensaje fijo: nunca incluye la ruta, el contenido ni el mensaje del sistema. */
+export class StorageIOError extends Error {
+  readonly codigo = "storage_io";
+  constructor() {
+    super("No se pudo completar la operación de almacenamiento");
+    this.name = "StorageIOError";
+  }
+}
