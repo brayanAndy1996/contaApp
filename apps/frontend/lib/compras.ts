@@ -512,11 +512,11 @@ export type ResultadoCompras<T> =
   | { ok: true; status: number; datos: T }
   | ErrorCompras;
 
-interface Esquema<T> {
+export interface Esquema<T> {
   safeParse(valor: unknown): { success: boolean; data?: T };
 }
 
-function falla(status: number, datos: unknown): ErrorCompras {
+export function falla(status: number, datos: unknown): ErrorCompras {
   const error: ErrorCompras = {
     ok: false,
     status,
@@ -534,14 +534,14 @@ function falla(status: number, datos: unknown): ErrorCompras {
   return error;
 }
 
-const respuestaInvalida = (status: number): ErrorCompras => ({
+export const respuestaInvalida = (status: number): ErrorCompras => ({
   ok: false,
   status,
   codigo: "respuesta_invalida",
   mensaje: MENSAJES.errorGeneral,
 });
 
-async function pedir<T>(
+export async function pedir<T>(
   ruta: string,
   esquema: Esquema<T>,
   opciones: { method?: string; body?: unknown } = {},
@@ -560,7 +560,7 @@ async function pedir<T>(
   return { ok: true, status: r.status, datos: analizado.data };
 }
 
-const esquemaTrabajo: Esquema<{ trabajoId: string }> = {
+export const esquemaTrabajo: Esquema<{ trabajoId: string }> = {
   safeParse(valor) {
     const id = (valor as { trabajoId?: unknown } | null)?.trabajoId;
     return typeof id === "string" && id !== ""
@@ -602,7 +602,7 @@ const esquemaDiferencias: Esquema<DiferenciaComprasDto[]> = {
 const base = (clienteId: string, periodo: string): string =>
   `/clientes/${encodeURIComponent(clienteId)}/periodos/${encodeURIComponent(periodo)}/compras`;
 
-const rutaDe = (clienteId: string, periodo: string, compraId: string): string =>
+export const rutaDe = (clienteId: string, periodo: string, compraId: string): string =>
   `${base(clienteId, periodo)}/${encodeURIComponent(compraId)}`;
 
 /** Query del listado: solo manda lo que tiene valor; los textos viajan codificados por `URLSearchParams`. */

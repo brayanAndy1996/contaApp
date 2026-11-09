@@ -118,6 +118,22 @@ describe("<GrillaCompras />", () => {
     expect(C_1040_ISC.hallazgos).toHaveLength(1);
   });
 
+  it("con `alAbrirLupa` la lupa se habilita y entrega la fila con el orden de la grilla, sección por sección (016)", async () => {
+    const excluida = filaDe({ ...EXCLUIDA, id: uuidDe(3, 7) });
+    const sinIgv = filaDe({ ...SIN_BASE, id: uuidDe(3, 8) });
+    const conIgv = filaDe({ id: uuidDe(3, 9), numero: "6009" });
+    // Llegan mezcladas; la grilla las muestra con IGV, sin IGV y excluidas.
+    const alAbrirLupa = vi.fn();
+    montar([excluida, sinIgv, conIgv], { alAbrirLupa });
+
+    const lupa = within(filaDeComprobante("6002")).getByRole("button", {
+      name: `${M.columnas.lupa} F001-6002`,
+    }) as HTMLButtonElement;
+    expect(lupa.disabled).toBe(false);
+    await userEvent.setup().click(lupa);
+    expect(alAbrirLupa).toHaveBeenCalledWith(sinIgv.id, [conIgv.id, sinIgv.id, excluida.id]);
+  });
+
   it("muestra la razón social del SIRE como texto, sin interpretarla (CA-2)", () => {
     montar([
       filaDe({

@@ -95,6 +95,11 @@ export interface PropsGrillaCompras {
   alCalcular?: (id: string, cambios: CambiosFila) => Promise<ResultadoCompras<CalcularRespuesta>>;
   renderAcciones: (fila: FilaCompraVista) => ReactNode;
   alAbrirHistorial: (id: string) => void;
+  /**
+   * Abre la lupa (016) de la fila con el orden actual de la grilla (ids de todas las filas, sección por sección), para
+   * que ← → la recorran igual. Sin esta función la lupa queda deshabilitada.
+   */
+  alAbrirLupa?: (id: string, orden: readonly string[]) => void;
 }
 
 type Item =
@@ -163,6 +168,7 @@ export function GrillaCompras({
   alCalcular,
   renderAcciones,
   alAbrirHistorial,
+  alAbrirLupa,
 }: PropsGrillaCompras) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const enfocarRef = useRef(false);
@@ -823,15 +829,27 @@ export function GrillaCompras({
     if (id === "lupa") {
       return (
         <div key={id} {...comun} className={`${CELDA} items-center`}>
-          <button
-            type="button"
-            disabled
-            title={M.lupaDeshabilitada}
-            aria-label={`${M.columnas.lupa}: ${M.lupaDeshabilitada}`}
-            className="rounded border px-1 text-gray-500"
-          >
-            <span aria-hidden="true">🔍</span>
-          </button>
+          {alAbrirLupa ? (
+            <button
+              type="button"
+              onClick={() => alAbrirLupa(f.id, datos.map((d) => d.id))}
+              tabIndex={esActiva ? 0 : -1}
+              aria-label={`${M.columnas.lupa} ${comprobante}`}
+              className="rounded border px-1"
+            >
+              <span aria-hidden="true">🔍</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled
+              title={M.lupaDeshabilitada}
+              aria-label={`${M.columnas.lupa}: ${M.lupaDeshabilitada}`}
+              className="rounded border px-1 text-gray-500"
+            >
+              <span aria-hidden="true">🔍</span>
+            </button>
+          )}
         </div>
       );
     }

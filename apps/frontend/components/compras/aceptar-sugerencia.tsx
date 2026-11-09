@@ -154,7 +154,7 @@ export function AceptarSugerencias({
           <p className="text-sm">{M.sinHallazgos}</p>
         ) : (
           <ul className="flex flex-col gap-2">
-            {fila.hallazgos.map((h) => (
+            {fila.hallazgos.map((h, i) => (
               <li
                 key={h.regla}
                 className="flex flex-col gap-1 rounded border p-2 text-sm"
@@ -166,6 +166,7 @@ export function AceptarSugerencias({
                 <button
                   type="button"
                   aria-label={`${M.aceptar} ${h.regla}`}
+                  autoFocus={i === 0}
                   disabled={ocupado}
                   onClick={() => aceptar(h)}
                   className="w-fit rounded bg-black px-3 py-1 text-sm text-white disabled:opacity-50"

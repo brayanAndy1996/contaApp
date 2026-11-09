@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TEXTOS_GRILLA } from "../../../../../components/compras/columnas-compras";
 import { reiniciarSesion } from "../../../../../lib/sesion";
 import { seguirTrabajos, type OpcionesSeguimiento } from "../../../../../lib/trabajos";
+import { MENSAJES_LUPA as L } from "../../../../../lib/lupa-compras";
+import { detalleLupaDe, rutaDetalle } from "../../../../../pruebas/lupa-compras";
 import { idTrabajo } from "../../../../../pruebas/trabajos";
 import { trabajoDescarga } from "../../../../../pruebas/ventas";
 import {
@@ -460,14 +462,14 @@ describe("/clientes/:id/compras · ensamblado (spec 015 T10)", () => {
   });
 
   describe("historial y lupa (P-6)", () => {
-    it("feliz: «Historial» abre el panel con el valor original y el vigente; la lupa está deshabilitada", async () => {
+    it("feliz: «Historial» abre el panel con el valor original y el vigente; la lupa está habilitada", async () => {
       const f = await montar();
       const user = userEvent.setup();
       await screen.findByText(M.cargaCompleta(4));
       const lupa = within(fila(C_3064_BOLSAS.id)!).getByRole("button", {
-        name: `${M.columnas.lupa}: ${M.lupaDeshabilitada}`,
+        name: `${M.columnas.lupa} F001-3064`,
       }) as HTMLButtonElement;
-      expect(lupa.disabled).toBe(true);
+      expect(lupa.disabled).toBe(false);
 
       await user.click(
         within(fila(C_3064_BOLSAS.id)!).getByRole("button", {
@@ -495,6 +497,50 @@ describe("/clientes/:id/compras · ensamblado (spec 015 T10)", () => {
         }),
       );
       expect((await screen.findAllByRole("alert")).length).toBeGreaterThan(0);
+      expect(screen.getByRole("grid", { name: M.tablaCompras })).toBeTruthy();
+    });
+
+    it("feliz: la lupa abre el comprobante de la fila, ← → siguen el orden de la grilla y Esc cierra recargando la fila", async () => {
+      const extra: Record<string, { status: number; cuerpo: unknown }> = {};
+      for (const f of FILAS_014) extra[rutaDetalle(f.id)] = { status: 200, cuerpo: detalleLupaDe(f) };
+      const f = await montar({ extra });
+      const user = userEvent.setup();
+      await screen.findByText(M.cargaCompleta(4));
+      const abierta = C_3064_BOLSAS;
+
+      await user.click(
+        within(fila(abierta.id)!).getByRole("button", { name: `${M.columnas.lupa} F001-3064` }),
+      );
+      expect(await screen.findByRole("heading", { name: L.tituloModal("F001-3064") })).toBeTruthy();
+      expect(await screen.findByRole("region", { name: L.secciones.cabecera })).toBeTruthy();
+
+      await user.keyboard("{ArrowRight}");
+      await vi.waitFor(() =>
+        expect(screen.queryByRole("heading", { name: L.tituloModal("F001-3064") })).toBeNull(),
+      );
+      const vecina = screen.getByRole("heading", { name: /^Comprobante F001-/ }).textContent!.replace("Comprobante ", "");
+      const filaVecina = FILAS_014.find((x) => `${x.serie}-${x.numero}` === vecina)!;
+      const antesVecina = lecturas(f, `/${filaVecina.id}`).length;
+
+      await user.keyboard("{Escape}");
+      expect(screen.queryByRole("dialog", { name: /^Comprobante/ })).toBeNull();
+      await vi.waitFor(() => expect(lecturas(f, `/${filaVecina.id}`).length).toBeGreaterThan(antesVecina));
+    });
+
+    it("error: si el detalle de la lupa falla la pantalla sigue y se puede cerrar", async () => {
+      await montar({
+        extra: {
+          [rutaDetalle(C_3064_BOLSAS.id)]: { status: 500, cuerpo: { codigo: "error_interno" } },
+        },
+      });
+      const user = userEvent.setup();
+      await screen.findByText(M.cargaCompleta(4));
+      await user.click(
+        within(fila(C_3064_BOLSAS.id)!).getByRole("button", { name: `${M.columnas.lupa} F001-3064` }),
+      );
+      expect((await screen.findAllByRole("alert")).length).toBeGreaterThan(0);
+      await user.click(screen.getByRole("button", { name: L.cerrar }));
+      expect(screen.queryByRole("dialog", { name: /^Comprobante/ })).toBeNull();
       expect(screen.getByRole("grid", { name: M.tablaCompras })).toBeTruthy();
     });
   });

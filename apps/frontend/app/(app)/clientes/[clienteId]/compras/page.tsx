@@ -32,6 +32,7 @@ import {
   calcularSoloLectura,
 } from "../../../../../components/compras/estado-periodo";
 import { HistorialCompra } from "../../../../../components/compras/historial-compra";
+import { LupaCompra } from "../../../../../components/compras/lupa-compra";
 import { ExportarCompras } from "../../../../../components/compras/exportar-compras";
 import {
   FiltrosListado,
@@ -246,6 +247,8 @@ function Compras() {
   );
 
   const [historialId, setHistorialId] = useState<string | null>(null);
+  /** Lupa abierta (016): la compra y el orden que tenía la grilla al abrirla, para que ← → la recorran. */
+  const [lupa, setLupa] = useState<{ id: string; orden: readonly string[] } | null>(null);
   const [agregando, setAgregando] = useState(false);
   /** Compra que hay que ubicar (duplicado o recién agregada): se espera a verla en la lista de la vista actual. */
   const [porUbicar, setPorUbicar] = useState<string | null>(null);
@@ -286,6 +289,7 @@ function Compras() {
   function cambiarPeriodo(valor: string) {
     setAviso(null);
     setHistorialId(null);
+    setLupa(null);
     setAgregando(false);
     setPorUbicar(null);
     setResaltadas(new Set());
@@ -621,6 +625,7 @@ function Compras() {
                   />
                 )}
                 alAbrirHistorial={setHistorialId}
+                alAbrirLupa={(id, orden) => setLupa({ id, orden })}
               />
             </div>
           </section>
@@ -649,6 +654,18 @@ function Compras() {
                 }}
               />
             </div>
+          )}
+          {lupa !== null && (
+            <LupaCompra
+              key={`lupa|${clienteId}|${periodo}`}
+              contexto={contexto}
+              filas={filas}
+              orden={lupa.orden}
+              compraId={lupa.id}
+              alCambiar={(id) => setLupa({ ...lupa, id })}
+              alCerrar={() => setLupa(null)}
+              alAvisarDe={avisarDeFila}
+            />
           )}
           {historialId !== null && (
             <div
