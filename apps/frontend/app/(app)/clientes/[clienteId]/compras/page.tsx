@@ -507,7 +507,10 @@ function Compras() {
         periodoValido={periodoValido}
         ultimaPropuesta={propuestas?.[0]}
         cargadas={propuestas !== null}
-        alCompletar={() => void cargarTodo()}
+        alCompletar={() => {
+          void cargarTodo();
+          reintentar();
+        }}
       />
 
       {periodoValido && (

@@ -17,7 +17,7 @@ Nivel C (spec P-10): sin TDD ni adversarial. Flujo 04 §1.3 para C: implementar 
 | T9  | Agregar compra (diálogo) y panel «Historial» (componentes)                                           | frontend | sonnet | T2 ∥ T3–T8          | —   | —   | [x]    |
 | T10 | Ensamblado en la página y la grilla: acciones, barra masiva, atajos, agregar, historial, lupa y «Subir XML» deshabilitados | frontend | sonnet | T6, T7, T8, T9      | —   | —   | [x]    |
 | T11 | Prueba manual de la pantalla contra el sistema completo (`pnpm servicios:up` o equivalente)          | tester   | sonnet | T10                 | —   | —   | [x]    |
-| T12 | Correctivas de T11 (solo si hay defectos): pruebas de los defectos y su corrección                   | tester / frontend | sonnet | T11        | —   | —   | [ ]    |
+| T12 | Correctivas de T11 (solo si hay defectos): pruebas de los defectos y su corrección                   | tester / frontend | sonnet | T11        | —   | —   | [x]    |
 | T13 | Verificar CA-1 a CA-17 con evidencia (suites completas)                                              | tester   | sonnet | T12 (o T11 sin defectos) | — | —   | [ ]    |
 | T14 | Revisión contra la spec                                                                              | arquitecto | sonnet | T13               | —   | —   | [ ]    |
 | T15 | Cierre: tasks, spec «hecha» y commit (el orquestador actualiza ESTADO)                               | devops   | haiku  | T14                 | —   | —   | [ ]    |
@@ -146,6 +146,7 @@ Observaciones (sin tarea; ninguna es de la spec): (a) el texto del resumen sale 
 - **Contexto (leer solo esto)**: el Resultado de T11, las piezas de `components/compras/` y `lib/` que cada defecto señale y sus pruebas.
 - **Hacer**: solo si T11 lista defectos. El tester escribe una prueba por defecto y confirma que falla por la causa esperada (sin tocar producción); el frontend la corrige. Un defecto que cambie la spec o pida backend no se corrige: se informa al orquestador.
 - **Hecho cuando**: pruebas de los defectos en verde, suite del frontend, `typecheck` y `lint` limpios. Commits `test(015): defectos de la prueba manual (rojo)` y `fix(015): defectos de la prueba manual`. Si no hubo defectos, anotar «sin defectos» y pasar a T13.
+- **Resultado**: D-1 corregido (`alCompletar` de la descarga llama además a `reintentar()` de `useFilasCompras` y la grilla vuelve a pedir el listado), plurales con 1 en `lib/compras.ts` (`cargaCompleta`, `avisoSinConvertir`, `aplicadas`, `rechazadas`, `filasConIgv`, `filasSinIgv`) y rótulo «Periodo entero» una sola vez en `resumen-compras.tsx`; las 5 pruebas en rojo pasan sin tocarlas, suite 66 archivos y 662 pruebas, `typecheck`, `lint` y `next build` OK.
 
 ## T13 · Verificar criterios (tester · sonnet)
 

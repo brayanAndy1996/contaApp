@@ -26,7 +26,7 @@ const CASILLEROS: readonly Casillero[] = [
 
 export const TEXTOS_RESUMEN = {
   casillero: "Casillero",
-  alcance: "Periodo entero: no cambia con los filtros de la grilla.",
+  alcance: "no cambia con los filtros de la grilla.",
   particion: "Con IGV y sin IGV",
   aumenta: "aumenta",
   disminuye: "disminuye",
@@ -56,7 +56,7 @@ export function ResumenCompras({
     <section aria-label={M.tituloResumen} className="flex flex-col gap-3">
       <h2 className="text-lg font-medium">{M.tituloResumen}</h2>
       <p className="text-sm">
-        <strong>{M.periodoEntero}</strong>. {TEXTOS_RESUMEN.alcance}
+        <strong>{M.periodoEntero}</strong>: {TEXTOS_RESUMEN.alcance}
       </p>
       {resumen && sinConvertir > 0 && (
         <p

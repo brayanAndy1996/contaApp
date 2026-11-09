@@ -97,7 +97,8 @@ export const MENSAJES_COMPRAS = {
   cargandoPantalla: "Cargando…",
   cargando: "Cargando…",
   cargandoMas: (cargadas: number) => `Cargando… ${cargadas} compras`,
-  cargaCompleta: (n: number) => `${n} compras cargadas`,
+  cargaCompleta: (n: number) =>
+    n === 1 ? "1 compra cargada" : `${n} compras cargadas`,
   errorCarga: "No se pudieron cargar las compras.",
   sinCompras: "No hay compras en este periodo.",
   sinResultados: "Ninguna compra coincide con los filtros.",
@@ -162,10 +163,14 @@ export const MENSAJES_COMPRAS = {
   columnaDiferencia: "Diferencia",
   conIgv: "Con IGV",
   sinIgv: "Sin IGV",
-  filasConIgv: (n: number) => `${n} compras con IGV`,
-  filasSinIgv: (n: number) => `${n} compras sin IGV`,
+  filasConIgv: (n: number) =>
+    n === 1 ? "1 compra con IGV" : `${n} compras con IGV`,
+  filasSinIgv: (n: number) =>
+    n === 1 ? "1 compra sin IGV" : `${n} compras sin IGV`,
   avisoSinConvertir: (n: number) =>
-    `${n} compras en USD no se incluyen en el resumen: falta su tipo de cambio.`,
+    n === 1
+      ? "1 compra en USD no se incluye en el resumen: falta su tipo de cambio."
+      : `${n} compras en USD no se incluyen en el resumen: falta su tipo de cambio.`,
   casilleros: {
     biDg: "Base DG",
     igvDg: "IGV DG",
@@ -302,8 +307,9 @@ export const MENSAJES_COMPRAS = {
   aceptarRed: "Aceptar R-RED",
   aceptarRedSinSugerencia:
     "Ninguna de las compras seleccionadas tiene una sugerencia R-RED para aceptar.",
-  aplicadas: (n: number) => `${n} aplicadas`,
-  rechazadas: (n: number) => `${n} rechazadas`,
+  aplicadas: (n: number) => (n === 1 ? "1 aplicada" : `${n} aplicadas`),
+  rechazadas: (n: number) =>
+    n === 1 ? "1 rechazada" : `${n} rechazadas`,
   informeMasivo: "Resultado de la acción masiva",
   tablaRechazadas: "Compras rechazadas",
   columnaMotivo: "Motivo",
