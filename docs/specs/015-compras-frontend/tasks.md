@@ -198,7 +198,7 @@ Criterios sin cubrir: ninguno. Tareas nuevas: ninguna. Notas para T14: el commit
 - **Contexto (leer solo esto)**: este `tasks.md`, `docs/specs/ESTADO.md` (fila 015 y las notas [015] y [siguientes]).
 - **Hacer**: marcar las tareas `[x]` con su resultado en una línea, pasar la spec a «Estado: hecha» con CA-1 a CA-17 marcados `[x]` solo si T13 los cubrió, y dejar listo el texto de ESTADO para el orquestador (fila 015 «hecha»; notas para 016: lupa y «Subir XML» deshabilitados, panel «Historial» ya creado, `compra_hallazgo` única por versión; para 018: flujos de teclado y prueba manual de T11). Comprobar `pnpm install --frozen-lockfile`, `pnpm lint` y `pnpm typecheck`.
 - **Hecho cuando**: `tasks.md` al día, árbol limpio salvo cambios ajenos y commit `docs(015): cierre de la spec`; rama lista para merge, sin push.
-- **Resultado**: `pnpm install --frozen-lockfile` OK (lockfile sin cambios; aviso ya conocido de Node 22.22 frente a `>=24.1`), `pnpm lint` OK (9 tareas), `pnpm typecheck` OK (15 tareas). Spec 015 pasa a «Estado: hecha» con CA-1 a CA-17 en `[x]` (T13 los cubrió todos); «Casos reales aplicables» queda en `[ ]` por estar fuera de CA-1 a CA-17.
+- **Resultado**: `pnpm install --frozen-lockfile` OK (lockfile sin cambios; aviso ya conocido de Node 22.22 frente a `>=24.1`), `pnpm lint` OK (9 tareas), `pnpm typecheck` OK (15 tareas). Spec 015 pasa a «Estado: hecha» con CA-1 a CA-17 en `[x]` (T13 los cubrió todos); «Casos reales aplicables» también en `[x]` (cubiertos según T11 y T13; lo marcó el orquestador).
 
 ## Texto para ESTADO
 
