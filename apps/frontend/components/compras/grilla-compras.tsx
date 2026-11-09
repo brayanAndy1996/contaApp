@@ -602,6 +602,16 @@ export function GrillaCompras({
   }
 
   const itemsVirtuales = filasVirtuales.getVirtualItems();
+
+  // Filas resaltadas (deshacer, «Ver filas», ubicar una compra existente): la primera se lleva a la vista sin mover
+  // el foco. Con miles de filas, resaltar fuera de la ventana no serviría de nada (T10).
+  useEffect(() => {
+    if (!resaltadas || resaltadas.size === 0) return;
+    const i = items.findIndex((x) => x.tipo === "fila" && resaltadas.has(x.fila.original.id));
+    if (i >= 0) filasVirtuales.scrollToIndex(i, { align: "center" });
+    // Al cambiar lo resaltado o la cantidad de filas (la compra ubicada puede llegar con una carga nueva); el
+    // virtualizador y `items` se leen del último pintado.
+  }, [resaltadas, items.length]);
   const columnasVisibles = columnasVirtuales.getVirtualItems();
   const margenIzq = columnasVisibles.length
     ? (columnasVisibles[0]?.start ?? anchoInicio) - anchoInicio

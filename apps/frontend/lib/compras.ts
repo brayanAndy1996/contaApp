@@ -341,6 +341,7 @@ export const MENSAJES_COMPRAS = {
   tipoCambioObligatorio: "El tipo de cambio es obligatorio en USD.",
   yaExisteEnPropuesta: "Ya existe en la propuesta",
   ubicarExistente: "Ubicar la compra existente",
+  noSeUbico: "No se pudo ubicar la compra con los filtros actuales. Quita los filtros y vuelve a buscarla.",
   campos: {
     tipo: "Tipo",
     serie: "Serie",

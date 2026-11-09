@@ -1,7 +1,7 @@
 "use client";
 
 import type { FilaCompraVista } from "@contapp/shared";
-import { useCallback, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { MENSAJES } from "../../lib/acceso";
 import {
   MENSAJES_COMPRAS as M,
@@ -95,6 +95,16 @@ export function useDeshacerCompras({
     actual.current = o;
     setOperaciones(o);
   }, []);
+
+  // Las operaciones propias valen para UN periodo de UN cliente (P-4): al cambiar, el atajo vuelve a quedar sin
+  // operación propia y lo que había pendiente de avisar o confirmar se descarta (T10).
+  const { clienteId, periodo } = contexto;
+  useEffect(() => {
+    poner({ pila: 0, rehechas: 0 });
+    setConfirmar(null);
+    setConflicto(null);
+    setAviso(null);
+  }, [clienteId, periodo, poner]);
 
   const avisar = useCallback(
     (texto: string, tipo: "info" | "error") => {

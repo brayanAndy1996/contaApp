@@ -12,6 +12,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { MENSAJES } from "../../lib/acceso";
 import {
   MENSAJES_COMPRAS as M,
@@ -41,12 +42,26 @@ import { ExcluirCompra } from "./excluir-compra";
 
 type Panel = "aceptar" | "excluir" | "descartar" | null;
 
+// La celda de la grilla recorta su contenido (`overflow-hidden`) y su fila usa `transform`, que además es el bloque
+// contenedor de todo lo `fixed`: el menú y las ventanas salen por un portal a `document.body` (T10), si no se verían
+// cortados dentro de la fila. Los eventos de React siguen subiendo por el árbol de componentes.
 function Ventana({ children }: { children: ReactNode }) {
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
       {children}
-    </div>
+    </div>,
+    document.body,
   );
+}
+
+/** Alto aproximado del menú: si no cabe debajo del botón, se abre hacia arriba. */
+const ALTO_MENU = 280;
+const ANCHO_MENU = 224;
+
+interface PosicionMenu {
+  top?: number;
+  bottom?: number;
+  left: number;
 }
 
 export function AccionesFilaCompras({
@@ -59,6 +74,7 @@ export function AccionesFilaCompras({
   alAvisar?: AlAvisar;
 }) {
   const [abierto, setAbierto] = useState(false);
+  const [posicion, setPosicion] = useState<PosicionMenu>({ left: 0 });
   const [panel, setPanel] = useState<Panel>(null);
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +84,18 @@ export function AccionesFilaCompras({
 
   useEffect(() => {
     if (abierto) menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+  }, [abierto]);
+
+  // El menú es `fixed`: si la grilla se desplaza, deja de apuntar a su botón y se cierra.
+  useEffect(() => {
+    if (!abierto) return;
+    const cerrar = () => setAbierto(false);
+    window.addEventListener("scroll", cerrar, true);
+    window.addEventListener("resize", cerrar);
+    return () => {
+      window.removeEventListener("scroll", cerrar, true);
+      window.removeEventListener("resize", cerrar);
+    };
   }, [abierto]);
 
   if (!contexto.permisos.clasificar) return null;
@@ -175,19 +203,31 @@ export function AccionesFilaCompras({
         aria-label={`${M.columnas.acciones} ${comprobante}`}
         disabled={bloqueo !== null || ocupado}
         title={bloqueo ?? undefined}
-        onClick={() => setAbierto((a) => !a)}
+        onClick={() => {
+          const caja = boton.current?.getBoundingClientRect();
+          if (caja) {
+            const left = Math.max(8, Math.min(caja.right - ANCHO_MENU, window.innerWidth - ANCHO_MENU - 8));
+            setPosicion(
+              caja.bottom + ALTO_MENU > window.innerHeight && caja.top > ALTO_MENU
+                ? { bottom: window.innerHeight - caja.top + 4, left }
+                : { top: caja.bottom + 4, left },
+            );
+          }
+          setAbierto((a) => !a);
+        }}
         className="rounded border px-2 py-1 text-sm disabled:opacity-50"
       >
         {ocupado ? M.guardando : M.columnas.acciones}
       </button>
 
-      {abierto && bloqueo === null && (
+      {abierto && bloqueo === null && createPortal(
         <div
           ref={menu}
           role="menu"
           aria-label={`${M.columnas.acciones} ${comprobante}`}
           onKeyDown={alTeclear}
-          className="absolute right-0 z-40 mt-1 flex w-56 flex-col rounded border bg-white p-1 shadow-lg"
+          style={{ position: "fixed", ...posicion }}
+          className="z-50 flex w-56 flex-col rounded border bg-white p-1 text-black shadow-lg"
         >
           {fila.excluida ? (
             item(M.restaurar, restaurar)
@@ -203,7 +243,8 @@ export function AccionesFilaCompras({
           )}
           {fila.origen === "agregada" &&
             item(M.descartar, () => abrirPanel("descartar"))}
-        </div>
+        </div>,
+        document.body,
       )}
 
       {error && (
