@@ -48,7 +48,7 @@ Reglas comunes:
 - Migraciones: 016 usa **0035** y **0036**; confirmar con `ls packages/db/migrations` y el diario antes de crear; nunca editar una aplicada. Si 012b llega antes a `main`, renumerar las de 016 (plan, «Archivos»). Las pruebas de 002–015 siguen en verde.
 - Montos: cadenas decimales / `Money`; ningún `number` para dinero en `ubl/`, repositorios, DTOs ni pantallas. Toda consulta de negocio dentro de `withTenant()`; nunca desactivar RLS. `apps/backend` nunca importa `@contapp/sunat`. Adaptadores en `mock` (`XML_PROVIDER=mock`, `STORAGE=mock`).
 - Dependencias nuevas con versión exacta y ≥ 2 semanas publicadas: solo `fast-xml-parser` 5.11.2 en `domain` (T1, ya está en el lockfile por el backend).
-- P-9 (USD en «agregar desde XML») está pendiente del usuario: T7, T14 y T16 cubren PEN y dejan USD como `it.todo` con el comportamiento provisional del plan. Una ambigüedad nueva que cambie la spec no se decide: `requiere usuario` y se informa al orquestador.
+- P-9 (USD en «agregar desde XML») decidida (a): en USD se pide el tipo de cambio además del destino; T7, T14 y T16 cubren PEN y USD (plan, «Decisión P-9»). Una ambigüedad nueva que cambie la spec no se decide: `requiere usuario` y se informa al orquestador.
 
 ## T1 · [ ] Andamiaje (devops · haiku)
 - **Contexto (leer solo esto)**: `plan.md` (Archivos; Storage), `packages/crypto/{package.json,tsconfig.json,tsconfig.build.json,vitest.config.mts}` (modelo de paquete), `packages/domain/package.json`, `apps/backend/package.json` (línea de `fast-xml-parser`), `eslint.config.mjs` (solo `POLITICAS` y las líneas que nombran `storage`), `.env.example`, `.gitignore`, `pnpm-workspace.yaml`.
@@ -81,8 +81,8 @@ Reglas comunes:
 - **Hecho cuando**: fallan por «no implementado». Commit `test(016): worker de XML en rojo`.
 
 ## T7 · [ ] Pruebas HTTP, rojo (tester · sonnet)
-- **Contexto (leer solo esto)**: `spec.md` (D-3, D-6, D-7, D-8, D-9, D-11, P-6, P-9 de `plan.md`; CA-2, CA-6 a CA-9, CA-12 a CA-18), `plan.md` (Contratos: HTTP y `DetalleCompraDto`), `apps/backend/src/modules/compras/{lectura,acciones,masivas}.int.spec.ts` (modelo y soporte; no repetir), `apps/backend/src/modules/importacion/importacion.adv.int.spec.ts` (cuerpo crudo).
-- **Hacer**: `apps/backend/src/modules/compras/{detalle,xml,desde-xml}.int.spec.ts`. Detalle de F001-2056 con cabecera, ítems, comparación y explicación de R-MIX (CA-14) y < 500 ms p95 con 500 ítems (CA-18); `xml` en sus cuatro estados; subir el mismo comprobante (CA-12), ajeno por cada campo (422 con el campo), no XML, 1 MiB + 1 → 413 sin nada en storage ni BD (CA-2), P-6 (simulado → subido 200; subido → 409); descarga con `attachment` y `nosniff`; aislamiento 404 en las cuatro rutas (CA-17); obtener → 202 e idempotente; desde XML: vista previa sin escribir, alta con destino, 409 `duplicado {id}` (CA-13), USD como `it.todo` (P-9); masiva acepta R-MIX tras el XML y no ofrece las de un XML en otra moneda (CA-6, CA-9); aceptar una sugerencia evaluada antes del XML que ya no sale → 409 `revisar_de_nuevo` (CA-8); acciones desde la lupa con los mismos 409/422 de 014 (CA-15); ningún log contiene canarios (CA-17).
+- **Contexto (leer solo esto)**: `spec.md` (D-3, D-6, D-7, D-8, D-9, D-11, P-6, P-9; CA-2, CA-6 a CA-9, CA-12 a CA-18), `plan.md` (Contratos: HTTP y `DetalleCompraDto`), `apps/backend/src/modules/compras/{lectura,acciones,masivas}.int.spec.ts` (modelo y soporte; no repetir), `apps/backend/src/modules/importacion/importacion.adv.int.spec.ts` (cuerpo crudo).
+- **Hacer**: `apps/backend/src/modules/compras/{detalle,xml,desde-xml}.int.spec.ts`. Detalle de F001-2056 con cabecera, ítems, comparación y explicación de R-MIX (CA-14) y < 500 ms p95 con 500 ítems (CA-18); `xml` en sus cuatro estados; subir el mismo comprobante (CA-12), ajeno por cada campo (422 con el campo), no XML, 1 MiB + 1 → 413 sin nada en storage ni BD (CA-2), P-6 (simulado → subido 200; subido → 409); descarga con `attachment` y `nosniff`; aislamiento 404 en las cuatro rutas (CA-17); obtener → 202 e idempotente; desde XML: vista previa sin escribir, alta con destino, 409 `duplicado {id}` (CA-13), USD (F001-4062) con tipo de cambio → 201 con el TC guardado, USD sin TC o PEN con TC → 400 sin nada en storage ni BD, vista previa con `requiereTipoCambio` (P-9); masiva acepta R-MIX tras el XML y no ofrece las de un XML en otra moneda (CA-6, CA-9); aceptar una sugerencia evaluada antes del XML que ya no sale → 409 `revisar_de_nuevo` (CA-8); acciones desde la lupa con los mismos 409/422 de 014 (CA-15); ningún log contiene canarios (CA-17).
 - **Hecho cuando**: fallan por «no implementado» (404 de ruta inexistente o módulo ausente). Commit `test(016): API de detalle y XML en rojo`.
 
 ## T8 · [ ] Parser UBL y dominio (backend · opus)
@@ -117,8 +117,8 @@ Reglas comunes:
 
 ## T14 · [ ] Backend de escritura (backend · sonnet)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: HTTP; Decisiones), `spec.md` (D-3, D-5, D-7, D-8, P-6), las pruebas de T7 (subir, desde XML, aceptar y masiva), `apps/backend/src/app.ts` (cuerpo crudo de importación), `apps/backend/src/modules/compras/{escritura,transformar,acciones.service,masivas.service}.ts`, lo creado en T13.
-- **Hacer**: cuerpo crudo de 1 MiB para las rutas XML; `xml.service.ts` (parsear, identidad, P-6, storage, `guardarDocumentoXml` y `reevaluarCompra` en una transacción, borrar el archivo si falla); `desde-xml.service.ts` (vista previa sin escribir; alta con `agregarCompra` de 014 y el XML en una transacción; USD según el provisional de P-9); XML vigente en el entorno de aceptar y de la masiva.
-- **Hecho cuando**: todas las pruebas de T7 pasan (salvo los `it.todo` de P-9); las de 014 siguen verdes; `test`, `typecheck` y `lint` del backend limpios. Commit `feat(016): subir XML y agregar desde XML`.
+- **Hacer**: cuerpo crudo de 1 MiB para las rutas XML; `xml.service.ts` (parsear, identidad, P-6, storage, `guardarDocumentoXml` y `reevaluarCompra` en una transacción, borrar el archivo si falla); `desde-xml.service.ts` (vista previa sin escribir; alta con `agregarCompra` de 014 y el XML en una transacción; `tipoCambio` de la query validado con `agregarCompraSchema`, P-9); XML vigente en el entorno de aceptar y de la masiva.
+- **Hecho cuando**: todas las pruebas de T7 pasan, USD incluido; las de 014 siguen verdes; `test`, `typecheck` y `lint` del backend limpios. Commit `feat(016): subir XML y agregar desde XML`.
 
 ## T15 · [ ] Lupa (frontend · sonnet; nivel C)
 - **Contexto (leer solo esto)**: `plan.md` (Frontend; `DetalleCompraDto`), `spec.md` (D-6, D-8, D-9, P-8; CA-9, CA-11, CA-14 a CA-17), `apps/frontend/AGENTS.md`, `packages/shared/src/xml/*` (de T10), `apps/frontend/lib/{compras,montos-compras,trabajos}.ts`, `apps/frontend/components/compras/{grilla-compras,historial-compra,aceptar-sugerencia,acciones-fila-compras,excluir-compra}.tsx`, `apps/frontend/pruebas/compras.ts`.
@@ -127,8 +127,8 @@ Reglas comunes:
 
 ## T16 · [ ] Subir XML y agregar desde XML (frontend · sonnet; nivel C)
 - **Contexto (leer solo esto)**: `plan.md` (Frontend), `spec.md` (CA-12, CA-13), `lib/lupa-compras.ts` y `estado-xml.tsx` (de T15), `apps/frontend/components/compras/agregar-compra.tsx`.
-- **Hacer**: `subir-xml.tsx` (arrastrar o elegir, tope en el navegador, mensajes de `xml_ajeno` con el campo, `xml_invalido`, `xml_existente`); usarlo en la lupa (completa el modal sin recargar) y en «Agregar compra» (vista previa, prellenado, solo destino, 409 con enlace a la existente; USD según P-9).
-- **Hecho cuando**: un caso feliz y uno de error por flujo pasan; `test`, `typecheck` y `lint` limpios. Commit `feat(016): subir XML y agregar desde XML`.
+- **Hacer**: `subir-xml.tsx` (arrastrar o elegir, tope en el navegador, mensajes de `xml_ajeno` con el campo, `xml_invalido`, `xml_existente`); usarlo en la lupa (completa el modal sin recargar) y en «Agregar compra» (vista previa, prellenado, solo destino, 409 con enlace a la existente; en USD pide también el tipo de cambio, P-9).
+- **Hecho cuando**: un caso feliz y uno de error por flujo pasan, más USD con tipo de cambio y USD sin él (no envía); `test`, `typecheck` y `lint` limpios. Commit `feat(016): subir XML y agregar desde XML`.
 
 ## T17 · [ ] Cobertura en CI (devops · haiku)
 - **Contexto (leer solo esto)**: `package.json` (scripts `cobertura:*`), `.github/workflows/ci.yml` (pasos de cobertura), `packages/domain/vitest.cobertura.config.mts`, `apps/backend/vitest.cobertura.config.mts` y `apps/worker/vitest.cobertura-cola.config.mts` (modelos), `packages/storage/package.json`.
@@ -165,7 +165,7 @@ Reglas comunes:
 
 ## T24 · [ ] Prueba manual contra el sistema completo (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (CA-6, CA-9 a CA-16), `docs/specs/015-compras-frontend/tasks.md` (T11, como modelo), `README` o scripts `servicios:up` y `dev` del `package.json` raíz.
-- **Hacer**: con `servicios:up`, mocks y `XML_SIMULADO_EN_REGLAS=1`: descargar 202610 del cliente de fixtures, ver encolarse los XML, abrir la lupa de F001-2056 y F001-1040 (aceptar R-MIX y R-ISC), navegar con el teclado, centinelas 7, 8 y 9 con «Reintentar» y «Subir XML», subir uno ajeno, agregar desde XML (nuevo y duplicado), descargar el XML, F001-4062; repetir con la bandera en `0`. Anotar cada defecto con pasos y archivo probable.
+- **Hacer**: con `servicios:up`, mocks y `XML_SIMULADO_EN_REGLAS=1`: descargar 202610 del cliente de fixtures, ver encolarse los XML, abrir la lupa de F001-2056 y F001-1040 (aceptar R-MIX y R-ISC), navegar con el teclado, centinelas 7, 8 y 9 con «Reintentar» y «Subir XML», subir uno ajeno, agregar desde XML (nuevo en PEN, nuevo en USD con tipo de cambio y duplicado), descargar el XML, F001-4062; repetir con la bandera en `0`. Anotar cada defecto con pasos y archivo probable.
 - **Hecho cuando**: informe de pasos con resultado; los defectos de pantalla van a T24a y los de servidor al orquestador. Sin commit si no hay cambios.
 
 ## T25 · [ ] Verificar criterios (tester · sonnet)
