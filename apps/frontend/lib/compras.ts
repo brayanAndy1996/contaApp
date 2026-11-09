@@ -256,6 +256,7 @@ export const MENSAJES_COMPRAS = {
   clasificar: "Clasificar",
   clasificarComo: (destino: string) => `Clasificar como ${destino}`,
   aceptarSugerencia: "Aceptar sugerencia",
+  aceptar: "Aceptar",
   aceptarSugerencias: "Aceptar sugerencias",
   excluir: "Excluir",
   restaurar: "Restaurar",
