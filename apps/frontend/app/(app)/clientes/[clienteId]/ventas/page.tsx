@@ -34,6 +34,7 @@ import {
   tiene,
 } from "../../../../../lib/acceso";
 import { obtenerCliente, type ClienteDto } from "../../../../../lib/clientes";
+import { MENSAJES_COMPRAS } from "../../../../../lib/compras";
 import {
   MENSAJES_VENTAS as M,
   PERIODO_VALIDO,
@@ -377,6 +378,9 @@ function Ventas() {
     datosPagina !== null &&
     tamano !== "todas" &&
     pagina * tamano < datosPagina.total;
+  const hrefCompras = `/clientes/${encodeURIComponent(clienteId)}/compras${
+    periodoValido ? `?periodo=${periodo}` : ""
+  }`;
   const hrefImportar = `/clientes/${encodeURIComponent(clienteId)}/ventas/importar${
     periodoValido ? `?periodo=${periodo}` : ""
   }`;
@@ -390,6 +394,12 @@ function Ventas() {
             {cliente.razonSocial} · RUC {cliente.ruc}
           </p>
         )}
+        {/* Enlace entre Ventas y Compras (spec 015, D-1). */}
+        <nav aria-label="Registros del cliente" className="flex gap-3 text-sm">
+          <Link href={hrefCompras} className="underline">
+            {MENSAJES_COMPRAS.enlaceCompras}
+          </Link>
+        </nav>
       </header>
 
       {archivado && (
