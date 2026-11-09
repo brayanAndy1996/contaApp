@@ -4,6 +4,8 @@ node_modules/
 !.env.example
 secrets/
 storage/
+# packages/storage (@contapp/storage) sí va en git: storage/ solo ignora las carpetas de archivos locales (spec 016)
+!packages/storage/
 dist/
 .next/
 .turbo/

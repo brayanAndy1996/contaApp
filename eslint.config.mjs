@@ -63,6 +63,11 @@ const POLITICAS = {
     mensaje:
       "packages/domain no puede importar paquetes de IO (03-arquitectura §2).",
   },
+  "packages/storage": {
+    soloPermitidos: ["packages/shared"],
+    mensaje:
+      "packages/storage solo puede importar packages/shared (03-arquitectura §2; spec 016).",
+  },
 };
 
 // Descifrado de @contapp/crypto (spec 003, CA-4b): solo el worker lo importa. Prohibiciones por
