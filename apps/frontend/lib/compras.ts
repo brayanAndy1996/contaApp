@@ -252,6 +252,14 @@ export const MENSAJES_COMPRAS = {
     "El monto admite como máximo 2 decimales: corrígelo para guardarlo.",
   versionObsoleta:
     "Otra persona cambió esta compra. Se recargó la fila: revisa y repite.",
+  editandoFila: (comprobante: string) => `Editando ${comprobante}`,
+  ayudaEdicion:
+    "Enter guarda la fila · Esc la cancela · Tab pasa a la siguiente celda · Flecha arriba o abajo guarda y cambia de fila",
+  cambiosSinGuardar: "Hay cambios sin guardar",
+  celdaDe: (celda: string, comprobante: string) => `${celda} de ${comprobante}`,
+  explicacionCelda: (celda: string, texto: string) => `${celda}: ${texto}`,
+  pegarRango:
+    "Solo se puede pegar un valor en la celda; no se pegan varias celdas a la vez.",
 
   // Acciones por fila (D-7, D-10, D-11).
   clasificar: "Clasificar",

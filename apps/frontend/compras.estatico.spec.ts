@@ -48,10 +48,12 @@ function especificadores(fuente: string): string[] {
 
 const TODOS = archivos(RAIZ);
 
-/** Código de producción de la pantalla de compras: `lib/compras.ts` y `components/compras/` (sin pruebas). */
+/** Código de producción de la pantalla de compras: `lib/compras.ts`, `lib/edicion-compras.ts`, `lib/filas-compras.ts` y `components/compras/` (sin pruebas). */
 function codigoDeCompras(): { ruta: string; texto: string }[] {
   const candidatos = [
     join(RAIZ, "lib/compras.ts"),
+    join(RAIZ, "lib/edicion-compras.ts"),
+    join(RAIZ, "lib/filas-compras.ts"),
     ...archivos(join(RAIZ, "components/compras")),
   ].filter((r) => existsSync(r) && !/\.spec\.(ts|tsx)$/.test(r));
   return candidatos.map((r) => ({

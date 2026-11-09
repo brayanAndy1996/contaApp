@@ -26,7 +26,11 @@ import {
   FiltrosListado,
   SeleccionDelFiltro,
 } from "../../../../../components/compras/filtros-compras";
-import { GrillaCompras } from "../../../../../components/compras/grilla-compras";
+import type { AlAvisar } from "../../../../../components/compras/accion-compras";
+import {
+  GrillaCompras,
+  type ResultadoGuardado,
+} from "../../../../../components/compras/grilla-compras";
 import { ResumenCompras } from "../../../../../components/compras/resumen-compras";
 import { MENSAJES, cargarYo, mensajeDeError, tiene } from "../../../../../lib/acceso";
 import { obtenerCliente, type ClienteDto } from "../../../../../lib/clientes";
@@ -38,6 +42,8 @@ import {
   PERMISO_CLASIFICAR,
   PERMISO_DESCARGAR,
   PERMISO_VER,
+  calcularCompra,
+  editarCompra,
   listarDiferenciasCompras,
   listarPropuestasCompras,
   obtenerResumenCompras,
@@ -46,6 +52,7 @@ import {
   type FiltrosCompras,
   type PermisosCompras,
 } from "../../../../../lib/compras";
+import type { CambiosFila } from "../../../../../lib/edicion-compras";
 import { useFilasCompras } from "../../../../../lib/filas-compras";
 import { useSecuencia } from "../../../../../lib/secuencia";
 
@@ -188,6 +195,7 @@ function Compras() {
     seleccion,
     setSeleccion,
     seleccionarTodas,
+    aplicarFila,
     recargarFila,
     recargarFilas,
     reintentar,
@@ -199,7 +207,44 @@ function Compras() {
     alFallar: falla,
   });
 
+  // Aviso de lo que pasó con una acción de la pantalla (aria-live). T10 unirá aquí las demás acciones.
+  const [aviso, setAviso] = useState<{ texto: string; tipo: "ok" | "error" | "info" } | null>(null);
+  const alAvisar = useCallback<AlAvisar>((texto, tipo) => setAviso({ texto, tipo }), []);
+
+  /** Guarda la fila editada con un solo `editar` (P-3, D-6); la fila y el resumen vuelven del servidor (D-4). */
+  const guardarFila = useCallback(
+    async (
+      id: string,
+      versionBase: number,
+      cambios: CambiosFila,
+    ): Promise<ResultadoGuardado> => {
+      const r = await editarCompra(clienteId, periodo, id, { versionBase, cambios });
+      if (r.ok) {
+        aplicarFila(r.datos.fila);
+        void cargarResumen().catch(() => setErrorGeneral(MENSAJES.errorGeneral));
+        alAvisar(M.filaGuardada, "ok");
+        return "cerrar";
+      }
+      if (r.status === 401) return "mantener";
+      alAvisar(r.codigo === "version_obsoleta" ? M.versionObsoleta : r.mensaje, "error");
+      if (r.codigo === "version_obsoleta") {
+        // La fila cambió en otro lado: se recarga y se descarta el borrador para que el usuario revise y repita.
+        await recargarFila(id);
+        return "cerrar";
+      }
+      return "mantener";
+    },
+    [clienteId, periodo, aplicarFila, cargarResumen, recargarFila, alAvisar],
+  );
+
+  /** Vista previa del total y del cuadre mientras se teclea (D-6, DU-10): no escribe nada. */
+  const calcularFila = useCallback(
+    (id: string, cambios: CambiosFila) => calcularCompra(clienteId, periodo, id, { cambios }),
+    [clienteId, periodo],
+  );
+
   function cambiarPeriodo(valor: string) {
+    setAviso(null);
     setFiltros(FILTROS_INICIALES);
     setPeriodo(valor.trim());
     setResumen(null);
@@ -403,6 +448,15 @@ function Compras() {
               seleccionadas={seleccion.size}
               alSeleccionar={seleccionarTodas}
             />
+            {aviso && (
+              <p
+                role={aviso.tipo === "error" ? "alert" : "status"}
+                aria-live={aviso.tipo === "error" ? "assertive" : "polite"}
+                className={`text-sm ${aviso.tipo === "error" ? "text-red-600" : ""}`}
+              >
+                {aviso.texto}
+              </p>
+            )}
             <GrillaCompras
               key={`grilla|${clienteId}|${periodo}`}
               filas={filas}
@@ -410,6 +464,8 @@ function Compras() {
               seleccion={seleccion}
               alCambiarSeleccion={setSeleccion}
               soloLectura={soloLectura}
+              alGuardarFila={guardarFila}
+              alCalcular={calcularFila}
               // Las acciones por fila, el historial y la barra masiva los une T10.
               renderAcciones={() => null}
               alAbrirHistorial={() => undefined}

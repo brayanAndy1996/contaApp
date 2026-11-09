@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,6 +13,7 @@ import {
   PERIODO,
   PERMISOS,
   TEXTO_HOSTIL,
+  accionDe,
   consultaDe,
   filaDe,
   generarFilas,
@@ -497,6 +498,123 @@ describe("/clientes/:id/compras · página de compras (spec 015 T3)", () => {
       await user.click(screen.getByRole("button", { name: M.reintentar }));
       expect(await screen.findByText(M.cargaCompleta(1))).toBeTruthy();
       expect(f.listados().length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe("edición de una fila con teclado (T6; CA-4)", () => {
+    const FILA = C_3064_BOLSAS;
+    const EDITAR = `POST ${BASE}/${FILA.id}/editar`;
+    const CALCULAR = `POST ${BASE}/${FILA.id}/calcular`;
+
+    beforeEach(() => {
+      vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(3200);
+      vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(600);
+    });
+
+    const celda = (columna: string) =>
+      document.querySelector<HTMLElement>(`[data-fila="${FILA.id}"] [data-col="${columna}"]`)!;
+    const campo = () => document.querySelector<HTMLInputElement>("input[data-edicion]");
+    /** Foco en la celda de la BI de F001-3064 y Enter: abre la fila para editar. */
+    async function abrirBi(user: ReturnType<typeof userEvent.setup>) {
+      await screen.findByText(M.cargaCompleta(4));
+      act(() => celda("biDg").focus());
+      await user.keyboard("{Enter}");
+      expect(campo()).not.toBeNull();
+    }
+
+    it("feliz: edita la BI, el total se recalcula, un solo editar, la fila y el resumen vienen del servidor", async () => {
+      const guardada = {
+        ...FILA,
+        version: 2,
+        montos: montosDe({ biDg: "150.00", igvDg: "18.00", icbper: "1.50" }),
+      };
+      const f = await montar({
+        extra: (estado) => ({
+          [CALCULAR]: {
+            status: 200,
+            cuerpo: { total: "169.50", cuadre: { cuadra: true, celdas: [] } },
+          },
+          [EDITAR]: () => {
+            estado.filas = estado.filas.map((x) => (x.id === FILA.id ? guardada : x));
+            return { status: 200, cuerpo: accionDe(guardada) };
+          },
+        }),
+      });
+      const user = userEvent.setup();
+      await abrirBi(user);
+      await user.keyboard("150.00");
+      expect(celda("total").textContent).toContain("169.50");
+      await vi.waitFor(() => expect(f.de(CALCULAR)).toHaveLength(1));
+      expect(f.de(CALCULAR)[0]!.body).toEqual({ cambios: { biDg: "150.00" } });
+
+      const resumenes = lecturas(f, "/resumen").length;
+      await user.keyboard("{Enter}");
+      await vi.waitFor(() => expect(f.de(EDITAR)).toHaveLength(1));
+      expect(f.de(EDITAR)[0]!.body).toEqual({ versionBase: 1, cambios: { biDg: "150.00" } });
+      expect(await screen.findByText(M.filaGuardada)).toBeTruthy();
+      await vi.waitFor(() => expect(campo()).toBeNull());
+      // La celda muestra lo que respondió el servidor, sin pedir otra vez la fila.
+      expect(celda("biDg").textContent).toBe("150.00");
+      expect(celda("total").textContent).toBe("169.50");
+      await vi.waitFor(() => expect(lecturas(f, "/resumen")).toHaveLength(resumenes + 1));
+      expect(lecturas(f, `/${FILA.id}`)).toHaveLength(0);
+    });
+
+    it("error: 409 version_obsoleta recarga la fila, descarta el borrador y avisa", async () => {
+      const f = await montar({
+        extra: (estado) => ({
+          [CALCULAR]: {
+            status: 200,
+            cuerpo: { total: "169.50", cuadre: { cuadra: true, celdas: [] } },
+          },
+          [EDITAR]: () => {
+            // Otra persona ya la había cambiado.
+            estado.filas = estado.filas.map((x) =>
+              x.id === FILA.id
+                ? { ...x, version: 2, montos: montosDe({ biDg: "300.00", igvDg: "54.00" }) }
+                : x,
+            );
+            return { status: 409, cuerpo: { codigo: "version_obsoleta", versionVigente: 2 } };
+          },
+        }),
+      });
+      const user = userEvent.setup();
+      await abrirBi(user);
+      await user.keyboard("150.00{Enter}");
+      expect((await screen.findByRole("alert")).textContent).toBe(M.versionObsoleta);
+      await vi.waitFor(() => expect(lecturas(f, `/${FILA.id}`)).toHaveLength(1));
+      await vi.waitFor(() => expect(celda("biDg").textContent).toBe("300.00"));
+      expect(campo()).toBeNull();
+    });
+
+    it("error: otro fallo del servidor se muestra y el borrador sigue abierto", async () => {
+      const f = await montar({
+        extra: {
+          [CALCULAR]: { status: 500, cuerpo: {} },
+          [EDITAR]: { status: 403, cuerpo: { codigo: "periodo_revisado" } },
+        },
+      });
+      const user = userEvent.setup();
+      await abrirBi(user);
+      await user.keyboard("150.00");
+      // `calcular` caído no impide seguir: total local y aviso.
+      expect((await screen.findAllByText(new RegExp(M.cuadreNoVerificado))).length).toBeGreaterThan(0);
+      await user.keyboard("{Enter}");
+      expect(await screen.findByText(M.errores.periodo_revisado!)).toBeTruthy();
+      expect(f.de(EDITAR)).toHaveLength(1);
+      await vi.waitFor(() => expect(campo()?.value).toBe("150.00"));
+    });
+
+    it("solo lectura (periodo generado): no se abre la edición ni se pide nada", async () => {
+      const f = await montar({
+        estado: { estado: "generado", resumen: resumenDe(FILAS_014, {}, "generado") },
+      });
+      const user = userEvent.setup();
+      await screen.findByText(M.cargaCompleta(4));
+      act(() => celda("biDg").focus());
+      await user.keyboard("{Enter}");
+      expect(campo()).toBeNull();
+      expect(f.de(EDITAR)).toHaveLength(0);
     });
   });
 });

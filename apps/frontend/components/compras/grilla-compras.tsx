@@ -5,15 +5,32 @@ import {
   useMemo,
   useRef,
   useState,
+  type ClipboardEvent,
   type CSSProperties,
   type KeyboardEvent,
   type ReactNode,
 } from "react";
 import { useTable, type Column, type Row } from "@tanstack/react-table";
 import { defaultRangeExtractor, useVirtualizer, type Range } from "@tanstack/react-virtual";
-import type { ColumnaMontoCompra, FilaCompraVista } from "@contapp/shared";
-import { MENSAJES_COMPRAS as M } from "../../lib/compras";
-import { conMiles, destinoDe } from "../../lib/montos-compras";
+import type { CalcularRespuesta, ColumnaMontoCompra, FilaCompraVista } from "@contapp/shared";
+import { MENSAJES_COMPRAS as M, type ResultadoCompras } from "../../lib/compras";
+import {
+  aplicarCuadre,
+  cambiarCelda,
+  cambiosParaEnviar,
+  errorDeCelda,
+  esColumnaEditable,
+  explicaciones,
+  hayCambios,
+  iniciarEdicion,
+  marcarCuadreNoVerificado,
+  sinCuadre,
+  textoDe,
+  totalLocal,
+  type CambiosFila,
+  type EstadoEdicion,
+} from "../../lib/edicion-compras";
+import { conMiles, destinoDe, validarMonto } from "../../lib/montos-compras";
 import {
   COLUMNAS_COMPRAS,
   ENCABEZADOS,
@@ -28,13 +45,19 @@ import {
   type SeccionCompras,
 } from "./columnas-compras";
 
-// Grilla de compras del periodo (spec 015, T4; D-5, D-16; P-5, P-8; RF-061). Solo lectura aquí: la edición
-// de las celdas es de T6. TanStack Table 9 da el modelo de columnas y filas (con las columnas fijas y los
-// anchos) y TanStack Virtual la ventana de filas y de columnas: con miles de filas solo hay en el DOM las
-// visibles más un margen. El marcado, el teclado y la accesibilidad (`role="grid"`) son propios.
+// Grilla de compras del periodo (spec 015, T4 y T6; D-5, D-6, D-16; P-3, P-5, P-8, P-9; RF-061, RF-064).
+// TanStack Table 9 da el modelo de columnas y filas (con las columnas fijas y los anchos) y TanStack Virtual
+// la ventana de filas y de columnas: con miles de filas solo hay en el DOM las visibles más un margen. El
+// marcado, el teclado y la accesibilidad (`role="grid"`) son propios.
 //
-// Los montos son cadenas del servidor: aquí solo se les da formato (`conMiles`); nada se calcula. La razón
-// social, el motivo y la explicación vienen del SIRE y son texto no confiable: React los escapa.
+// Edición por fila (P-3): Enter, F2 o doble clic en una celda de monto abren la fila; Tab y Shift+Tab pasan
+// entre las celdas de monto sin guardar; al salir de la fila (Enter, flecha vertical o foco en otra fila) se
+// pide UN solo `editar` con las celdas cambiadas; Esc descarta. El estado del borrador es puro
+// (`lib/edicion-compras.ts`); a los 300 ms sin teclear se pide el cuadre a `calcular`.
+//
+// Los montos son cadenas del servidor: aquí solo se les da formato (`conMiles`); el único cálculo es el total
+// que se muestra mientras se teclea (suma exacta con decimal.js, vía `edicion-compras`). La razón social, el
+// motivo y la explicación vienen del SIRE y son texto no confiable: React los escapa.
 
 const ALTO_FILA = 52;
 const ALTO_SECCION = 30;
@@ -44,6 +67,10 @@ const ALTO_CABECERA = ALTO_GRUPO + ALTO_ENCABEZADO;
 const SALTO_PAGINA = 10;
 const MARGEN_FILAS = 6;
 const MARGEN_COLUMNAS = 2;
+/** Espera sin teclear antes de pedir el cuadre a `calcular` (D-6). */
+export const RETARDO_CALCULAR_MS = 300;
+
+export type ResultadoGuardado = "cerrar" | "mantener";
 
 export interface PropsGrillaCompras {
   filas: readonly FilaCompraVista[];
@@ -52,14 +79,20 @@ export interface PropsGrillaCompras {
   alCambiarSeleccion: (seleccion: Set<string>) => void;
   /** Filas a resaltar (afectadas por deshacer o por «Ver filas»). */
   resaltadas?: ReadonlySet<string>;
-  /** Motivo legible de solo lectura (`ContextoCompras.soloLectura`) o `null`. La edición es de T6. */
+  /** Motivo legible de solo lectura (`ContextoCompras.soloLectura`) o `null`: con motivo no se edita. */
   soloLectura?: string | null;
-  /** Guardado de una fila editada (T6): `versionBase` y solo las celdas cambiadas. */
+  /**
+   * Guarda la fila editada: `versionBase` y solo las celdas cambiadas, en UN `editar`. Sin esta función la grilla
+   * no se edita. Devuelve `"mantener"` si el guardado falló y el borrador debe seguir abierto; con cualquier otra
+   * cosa la edición se cierra (la fila ya se actualizó o se recargó).
+   */
   alGuardarFila?: (
     id: string,
     versionBase: number,
-    cambios: Partial<Record<ColumnaMontoCompra, string>>,
-  ) => Promise<void> | void;
+    cambios: CambiosFila,
+  ) => Promise<ResultadoGuardado | void> | ResultadoGuardado | void;
+  /** Vista previa del total y del cuadre (`POST …/calcular`, no escribe nada). Sin ella no hay cuadre en vivo. */
+  alCalcular?: (id: string, cambios: CambiosFila) => Promise<ResultadoCompras<CalcularRespuesta>>;
   renderAcciones: (fila: FilaCompraVista) => ReactNode;
   alAbrirHistorial: (id: string) => void;
 }
@@ -97,6 +130,24 @@ function conIndices(range: Range, extra: readonly number[]): number[] {
 
 const limitar = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 
+/** Fila abierta para editar: su borrador, la celda con el cursor y si está guardando. */
+interface EdicionFila {
+  estado: EstadoEdicion;
+  columna: ColumnaMontoCompra;
+  guardando: boolean;
+  /** Aviso propio de la edición (pegar varias celdas). */
+  aviso: string | null;
+}
+
+/** Forma canónica de un texto ya validado (con 2 decimales); si no es válido se devuelve tal cual. */
+function validarValor(texto: string): string {
+  const r = validarMonto(texto);
+  return r.ok ? r.valor : texto;
+}
+
+const idExplicacion = (columna: ColumnaMontoCompra) => `explicacion-edicion-${columna}`;
+const ID_PANEL_EDICION = "panel-edicion-compras";
+
 const CELDA =
   "flex h-full shrink-0 flex-col justify-center overflow-hidden border-b border-gray-200 px-2 text-sm bg-inherit focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-700";
 const CELDA_MONTO = `${CELDA} items-end text-right tabular-nums`;
@@ -107,12 +158,30 @@ export function GrillaCompras({
   seleccion,
   alCambiarSeleccion,
   resaltadas,
+  soloLectura,
+  alGuardarFila,
+  alCalcular,
   renderAcciones,
   alAbrirHistorial,
 }: PropsGrillaCompras) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const enfocarRef = useRef(false);
   const [activaPedida, setActiva] = useState<Activa>({ r: 0, c: 0 });
+  const [edicion, setEdicion] = useState<EdicionFila | null>(null);
+  const [anuncio, setAnuncio] = useState("");
+  // Lo último que dieron el padre y el estado: las continuaciones asíncronas (guardar, calcular) no deben usar
+  // valores de un render viejo.
+  const edicionRef = useRef<EdicionFila | null>(null);
+  const guardarRef = useRef(alGuardarFila);
+  const calcularRef = useRef(alCalcular);
+  const irARef = useRef<(r: number, c: number) => void>(() => undefined);
+  /** Turno de `calcular`: una respuesta tardía (o de una fila ya cerrada) no pisa el estado actual. */
+  const turnoCalcular = useRef(0);
+  useEffect(() => {
+    edicionRef.current = edicion;
+    guardarRef.current = alGuardarFila;
+    calcularRef.current = alCalcular;
+  });
 
   // Secciones «con IGV» / «sin IGV» / «excluidas»: orden estable dentro de cada una.
   const { datos, cuenta } = useMemo(() => {
@@ -207,9 +276,51 @@ export function GrillaCompras({
     );
     if (celda) {
       enfocarRef.current = false;
-      celda.focus({ preventScroll: true });
+      // La celda en edición enfoca su campo con el texto seleccionado: teclear reemplaza el monto.
+      const campo = celda.querySelector<HTMLInputElement>("input[data-edicion]");
+      if (campo) {
+        campo.focus({ preventScroll: true });
+        campo.select();
+      } else {
+        celda.focus({ preventScroll: true });
+      }
     }
   });
+
+  // La fila editada ya no está (se descartó o salió del filtro): se cierra la edición sin enviar nada.
+  useEffect(() => {
+    if (edicion && !filasTabla.some((row) => row.id === edicion.estado.filaId)) {
+      turnoCalcular.current += 1;
+      setEdicion(null);
+    }
+  }, [edicion, filasTabla]);
+
+  // Cuadre en vivo (D-6): a los 300 ms sin teclear, `calcular` con las celdas cambiadas y válidas.
+  const filaEditada = edicion?.estado.filaId ?? null;
+  const cambiosEnVivo = edicion ? JSON.stringify(cambiosParaEnviar(edicion.estado).cambios) : null;
+  useEffect(() => {
+    if (filaEditada === null || cambiosEnVivo === null) return;
+    const turno = ++turnoCalcular.current;
+    const cambios = JSON.parse(cambiosEnVivo) as CambiosFila;
+    const actualizar = (cambiar: (e: EstadoEdicion) => EstadoEdicion) =>
+      setEdicion((e) => (e && e.estado.filaId === filaEditada ? { ...e, estado: cambiar(e.estado) } : e));
+    if (Object.keys(cambios).length === 0) {
+      actualizar(sinCuadre);
+      return;
+    }
+    const calcular = calcularRef.current;
+    if (!calcular) return;
+    const temporizador = setTimeout(() => {
+      calcular(filaEditada, cambios)
+        .then((r) => (r.ok ? r.datos.cuadre : null))
+        .catch(() => null)
+        .then((cuadre) => {
+          if (turno !== turnoCalcular.current) return;
+          actualizar((e) => (cuadre ? aplicarCuadre(e, cuadre) : marcarCuadreNoVerificado(e)));
+        });
+    }, RETARDO_CALCULAR_MS);
+    return () => clearTimeout(temporizador);
+  }, [filaEditada, cambiosEnVivo]);
 
   function irA(r: number, c: number) {
     if (nFilas === 0) return;
@@ -225,6 +336,183 @@ export function GrillaCompras({
     }
   }
 
+  irARef.current = irA;
+
+  const puedeEditar = (fila: FilaCompraVista): boolean =>
+    !soloLectura && alGuardarFila !== undefined && !fila.excluida;
+
+  /** Posición (fila, columna) de la celda con el cursor de edición. */
+  function posicionDeEdicion(ed: EdicionFila): Activa {
+    const r = filasTabla.findIndex((row) => row.id === ed.estado.filaId);
+    const c = todas.findIndex((col) => col.id === ed.columna);
+    return { r: Math.max(0, r), c: Math.max(0, c) };
+  }
+
+  /** Vuelve el foco a la celda que se está editando (la salida de la fila se bloqueó). */
+  function volverAEdicion(ed: EdicionFila) {
+    const { r, c } = posicionDeEdicion(ed);
+    setActiva({ r, c });
+    enfocarRef.current = true;
+  }
+
+  function empezarEdicion(r: number, c: number): boolean {
+    const row = filasTabla[r];
+    const columna = todas[c]?.id;
+    if (!row || columna === undefined || !esColumnaEditable(columna) || !puedeEditar(row.original)) {
+      return false;
+    }
+    setActiva({ r, c });
+    enfocarRef.current = true;
+    setAnuncio("");
+    setEdicion((e) =>
+      e && e.estado.filaId === row.id
+        ? { ...e, columna }
+        : { estado: iniciarEdicion(row.original), columna, guardando: false, aviso: null },
+    );
+    return true;
+  }
+
+  function cancelarEdicion() {
+    const ed = edicionRef.current;
+    if (!ed || ed.guardando) return;
+    turnoCalcular.current += 1;
+    setEdicion(null);
+    setAnuncio(M.edicionCancelada);
+    enfocarRef.current = true;
+  }
+
+  /** Cambia la celda en edición a la siguiente (o anterior) columna de monto de la misma fila, sin guardar. */
+  function moverEdicion(sentido: 1 | -1) {
+    const ed = edicionRef.current;
+    if (!ed || ed.guardando) return;
+    const { r, c } = posicionDeEdicion(ed);
+    for (let i = c + sentido; i >= 0 && i < nColumnas; i += sentido) {
+      const columna = todas[i]?.id;
+      if (columna !== undefined && esColumnaEditable(columna)) {
+        setEdicion({ ...ed, columna });
+        irA(r, i);
+        return;
+      }
+    }
+  }
+
+  /**
+   * Sale de la fila en edición (P-3): un solo `editar` con las celdas cambiadas. Con un monto inválido no se envía
+   * nada y el cursor vuelve a esa celda; si el guardado falla el borrador sigue abierto. Devuelve si la fila se cerró.
+   */
+  async function salirDeFila(destino: Activa | null): Promise<boolean> {
+    const ed = edicionRef.current;
+    if (!ed || ed.guardando) return false;
+    const { cambios, invalidas } = cambiosParaEnviar(ed.estado);
+    const cerrar = () => {
+      turnoCalcular.current += 1;
+      setEdicion(null);
+      if (destino) irARef.current(destino.r, destino.c);
+      else enfocarRef.current = true;
+    };
+    if (invalidas.length > 0) {
+      const siguiente = { ...ed, columna: invalidas[0]! };
+      setEdicion(siguiente);
+      volverAEdicion(siguiente);
+      return false;
+    }
+    if (Object.keys(cambios).length === 0) {
+      cerrar();
+      return true;
+    }
+    turnoCalcular.current += 1;
+    setEdicion({ ...ed, guardando: true });
+    let resultado: ResultadoGuardado | void = "mantener";
+    try {
+      resultado = await guardarRef.current?.(ed.estado.filaId, ed.estado.versionBase, cambios);
+    } catch {
+      resultado = "mantener";
+    }
+    if (resultado === "mantener") {
+      const abierta = { ...ed, guardando: false };
+      setEdicion((e) => (e && e.estado.filaId === ed.estado.filaId ? abierta : e));
+      volverAEdicion(abierta);
+      return false;
+    }
+    cerrar();
+    return true;
+  }
+
+  function alTeclearCampo(e: KeyboardEvent<HTMLInputElement>) {
+    // Las teclas del campo son del campo: la grilla no las ve (flechas laterales y Ctrl+Z editan el texto).
+    e.stopPropagation();
+    const ed = edicionRef.current;
+    if (!ed || e.nativeEvent.isComposing) return;
+    if (ed.guardando) {
+      e.preventDefault();
+      return;
+    }
+    const { r, c } = posicionDeEdicion(ed);
+    switch (e.key) {
+      case "Enter":
+        e.preventDefault();
+        void salirDeFila({ r: r + 1, c });
+        break;
+      case "ArrowDown":
+        e.preventDefault();
+        void salirDeFila({ r: r + 1, c });
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        void salirDeFila({ r: r - 1, c });
+        break;
+      case "ArrowRight":
+      case "ArrowLeft": {
+        // Las flechas laterales pasan a la celda vecina solo si no hay nada que mover dentro del texto: con el
+        // texto entero seleccionado (recién abierta) o con el cursor en el borde que corresponde.
+        const campo = e.currentTarget;
+        const { selectionStart: desde, selectionEnd: hasta, value } = campo;
+        const todoSeleccionado = desde === 0 && hasta === value.length;
+        const alBorde =
+          desde === hasta && (e.key === "ArrowRight" ? hasta === value.length : desde === 0);
+        if (todoSeleccionado || alBorde) {
+          e.preventDefault();
+          moverEdicion(e.key === "ArrowRight" ? 1 : -1);
+        }
+        break;
+      }
+      case "Escape":
+        e.preventDefault();
+        cancelarEdicion();
+        break;
+      case "Tab":
+        e.preventDefault();
+        moverEdicion(e.shiftKey ? -1 : 1);
+        break;
+      case "F2":
+        e.preventDefault();
+        break;
+      default:
+        break;
+    }
+  }
+
+  /** Solo se pega un valor en la celda (P-9): varias celdas (tabulaciones o saltos) se rechazan y se explica. */
+  function alPegarEnCampo(e: ClipboardEvent<HTMLInputElement>) {
+    const pegado = e.clipboardData.getData("text");
+    if (!/[\t\r\n]/.test(pegado.trim())) return;
+    e.preventDefault();
+    setEdicion((ed) => (ed ? { ...ed, aviso: M.pegarRango } : ed));
+  }
+
+  function alEscribirEnCampo(columna: ColumnaMontoCompra, texto: string) {
+    setEdicion((ed) =>
+      ed ? { ...ed, estado: cambiarCelda(ed.estado, columna, texto), aviso: null } : ed,
+    );
+  }
+
+  /** El foco llegó a otra fila mientras se editaba: se guarda la fila editada (o se vuelve a ella si no se puede). */
+  async function alEnfocarOtraFila(r: number, c: number) {
+    const ed = edicionRef.current;
+    if (!ed) return;
+    await salirDeFila({ r, c });
+  }
+
   function alternarSeleccion(id: string) {
     const siguiente = new Set(seleccion);
     if (siguiente.has(id)) siguiente.delete(id);
@@ -235,6 +523,12 @@ export function GrillaCompras({
   function alTeclear(e: KeyboardEvent<HTMLDivElement>) {
     const destino = e.target as HTMLElement;
     const esCelda = destino.getAttribute("role") === "gridcell" && destino.dataset.r !== undefined;
+    if (e.key === "Escape" && edicionRef.current) {
+      // Esc descarta la fila abierta aunque el foco esté en otra celda o botón de la misma fila.
+      e.preventDefault();
+      cancelarEdicion();
+      return;
+    }
     if (!esCelda) {
       // Dentro de un control de la celda, Esc devuelve el foco a la celda.
       if (e.key === "Escape") {
@@ -293,6 +587,8 @@ export function GrillaCompras({
       }
       case "Enter":
       case "F2": {
+        // Una celda de monto editable abre la fila; las demás, si tienen controles, entran en el primero.
+        if (empezarEdicion(r, c)) break;
         // Una celda con controles (casilla, acciones): Enter entra en el primero; Esc vuelve a la celda.
         const control = destino.querySelector<HTMLElement>("button, input, a[href], [tabindex='0']");
         if (!control) return;
@@ -346,10 +642,73 @@ export function GrillaCompras({
       tabIndex: esActiva ? 0 : -1,
       style: estilo,
       onFocus: () => {
+        const ed = edicionRef.current;
+        if (ed && ed.estado.filaId !== f.id) {
+          // Clic o foco en otra fila: la fila abierta se guarda (P-3) antes de pasar a esta.
+          void alEnfocarOtraFila(r, c);
+          return;
+        }
         if (activa.r !== r || activa.c !== c) setActiva({ r, c });
+        // Otra celda de monto de la misma fila abierta: el campo pasa a ella.
+        if (ed && esColumnaEditable(columna.id) && ed.columna !== columna.id && !ed.guardando) {
+          setEdicion({ ...ed, columna: columna.id });
+          enfocarRef.current = true;
+        }
+      },
+      onDoubleClick: () => {
+        if (esColumnaEditable(columna.id)) empezarEdicion(r, c);
       },
     };
     const id = columna.id;
+    const enEdicion = edicion && edicion.estado.filaId === f.id ? edicion : null;
+
+    /** Celda de monto de la fila abierta: el campo en la que tiene el cursor y el borrador en las demás. */
+    function celdaMontoEnEdicion(id: ColumnaMontoCompra, ed: EdicionFila) {
+      const explicacion = explicaciones(ed.estado).find((x) => x.columna === id);
+      const invalida = explicacion !== undefined;
+      const texto = textoDe(ed.estado, id);
+      const tocada = ed.estado.borrador[id] !== undefined;
+      const valido = errorDeCelda(ed.estado, id) === null;
+      const color = invalida
+        ? "bg-red-50 text-red-800 ring-2 ring-inset ring-red-600"
+        : tocada
+          ? "bg-yellow-50 font-semibold"
+          : "";
+      const nombre = M.celdaDe(M.casilleros[id], comprobante);
+      const descripcion = invalida ? idExplicacion(id) : undefined;
+      return (
+        <div
+          key={id}
+          {...comun}
+          aria-invalid={invalida || undefined}
+          aria-describedby={descripcion}
+          className={`${CELDA_MONTO} ${color}`}
+        >
+          {ed.columna === id ? (
+            <input
+              data-edicion=""
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
+              spellCheck={false}
+              value={texto}
+              readOnly={ed.guardando}
+              aria-label={nombre}
+              aria-invalid={invalida || undefined}
+              aria-describedby={descripcion}
+              aria-busy={ed.guardando}
+              onChange={(e) => alEscribirEnCampo(id, e.target.value)}
+              onKeyDown={alTeclearCampo}
+              onPaste={alPegarEnCampo}
+              className="w-full rounded border border-blue-700 bg-white px-1 py-0.5 text-right tabular-nums text-black"
+            />
+          ) : (
+            <span>{tocada && valido ? conMiles(validarValor(texto)) : texto}</span>
+          )}
+        </div>
+      );
+    }
+
 
     if (id === "seleccionar") {
       return (
@@ -482,6 +841,19 @@ export function GrillaCompras({
         </div>
       );
     }
+    if (enEdicion && esMonto(id)) {
+      if (id === "total") {
+        return (
+          <div key={id} {...comun} className={`${CELDA_MONTO} font-medium`}>
+            <span>{conMiles(totalLocal(enEdicion.estado))}</span>
+            {enEdicion.estado.cuadreNoVerificado && (
+              <span className="text-xs font-normal text-amber-900">{M.cuadreNoVerificado}</span>
+            )}
+          </div>
+        );
+      }
+      return celdaMontoEnEdicion(id, enEdicion);
+    }
     if (esMonto(id)) {
       return (
         <div key={id} {...comun} className={id === "total" ? `${CELDA_MONTO} font-medium` : CELDA_MONTO}>
@@ -535,7 +907,12 @@ export function GrillaCompras({
   const tramos = tramosDeGrupo(centro);
   const vacio = items.length === 0;
 
+  const filaAbierta = edicion
+    ? filasTabla.find((row) => row.id === edicion.estado.filaId)?.original
+    : undefined;
+
   return (
+    <>
     <div
       ref={scrollRef}
       role="grid"
@@ -639,5 +1016,58 @@ export function GrillaCompras({
         </div>
       </div>
     </div>
+    {edicion && filaAbierta && (
+      <PanelEdicion edicion={edicion} comprobante={`${filaAbierta.serie}-${filaAbierta.numero}`} />
+    )}
+    <p aria-live="polite" className="sr-only">
+      {anuncio}
+    </p>
+    </>
   );
 }
+
+/**
+ * Lo que la fila abierta tiene que decir y no cabe en una celda: total en vivo, cada monto que no se puede enviar
+ * o que no cuadra con su explicación (visible, no solo color) y las teclas. Cada celda marcada apunta aquí con
+ * `aria-describedby`. Queda pegado al borde inferior para verse mientras se edita.
+ */
+function PanelEdicion({ edicion, comprobante }: { edicion: EdicionFila; comprobante: string }) {
+  const lista = explicaciones(edicion.estado);
+  return (
+    <section
+      id={ID_PANEL_EDICION}
+      aria-label={M.editandoFila(comprobante)}
+      aria-live="polite"
+      className="sticky bottom-0 z-40 flex flex-col gap-1 rounded border border-blue-700 bg-white p-2 text-sm text-black"
+    >
+      <p className="font-medium">
+        {M.editandoFila(comprobante)} · {M.totalLocal} {conMiles(totalLocal(edicion.estado))}
+        {edicion.guardando && ` · ${M.guardando}`}
+        {!edicion.guardando && hayCambios(edicion.estado) && ` · ${M.cambiosSinGuardar}`}
+        {edicion.estado.cuadreNoVerificado && ` · ${M.cuadreNoVerificado}`}
+      </p>
+      {lista.length > 0 && (
+        <ul className="flex flex-col gap-0.5">
+          {lista.map((x) => (
+            <li
+              key={x.columna}
+              id={idExplicacion(x.columna)}
+              className="font-medium text-red-800"
+            >
+              <span aria-hidden="true">⚠ </span>
+              {M.explicacionCelda(M.casilleros[x.columna], x.texto)}
+              {x.tipo === "cuadre" && ` (${M.descuadre})`}
+            </li>
+          ))}
+        </ul>
+      )}
+      {edicion.aviso && (
+        <p role="alert" className="font-medium text-red-800">
+          {edicion.aviso}
+        </p>
+      )}
+      <p className="text-xs text-gray-700">{M.ayudaEdicion}</p>
+    </section>
+  );
+}
+

@@ -154,6 +154,12 @@ export function useFilasCompras({
     [clienteId, periodo, quitarFila],
   );
 
+  /** Pone en la lista una fila que ya trae el servidor en la respuesta de una escritura (sin otro GET). */
+  const aplicarFila = useCallback((fila: FilaCompraVista) => {
+    porFila.current.set(fila.id, (porFila.current.get(fila.id) ?? 0) + 1);
+    setFilas((previas) => fusionar(previas, [fila]));
+  }, []);
+
   /** Vuelve a pedir el listado completo con los filtros vigentes y lo cambia de una vez (sin vaciar la grilla). */
   const recargarListado = useCallback(async () => {
     if (cargaActual.current !== "completa") return;
@@ -209,6 +215,7 @@ export function useFilasCompras({
     seleccion,
     setSeleccion,
     seleccionarTodas,
+    aplicarFila,
     recargarFila,
     recargarFilas,
     reintentar,
