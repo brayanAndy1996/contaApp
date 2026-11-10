@@ -482,7 +482,7 @@ describe("CA-8 / P-2 · 409 resumen_cambiado", () => {
     const r = await generar(contador, c, "compras", viejo);
     expect(r.status, r.text).toBe(409);
     expect(r.body).toEqual({ codigo: "resumen_cambiado" });
-    await sinEfectos(c);
+    await sinEfectos(c, "abierto");
     expect((await generar(contador, c, "compras", await cuerpoDe(c, "compras"))).status).toBe(202);
   });
 
@@ -609,7 +609,7 @@ describe("D10 · logs, parámetros y respuestas sin razones sociales, montos ni 
     await v.sembrarCompra(E.tenantId, c.id, {
       serie: "F077",
       numero: "1",
-      doc: "20700000077",
+      doc: "20700000070",
       razonSocial: razon,
       origen: "agregada",
       usuarioId: u(),
