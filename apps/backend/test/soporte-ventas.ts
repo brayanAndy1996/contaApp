@@ -509,6 +509,10 @@ export async function abrirBancoVentas(): Promise<BancoVentas> {
           await c.query("SET session_replication_role = replica");
           // Un DELETE estático por tabla, de la hija a la madre.
           const borrar = [
+            // Spec 012b: versiones de archivo (inmutables), exclusiones y estado del periodo de ventas, antes que `venta`.
+            "delete from archivo_generado where tenant_id = any($1::uuid[])",
+            "delete from venta_exclusion where tenant_id = any($1::uuid[])",
+            "delete from venta_periodo where tenant_id = any($1::uuid[])",
             "delete from venta_salto_justificado where tenant_id = any($1::uuid[])",
             "delete from venta where tenant_id = any($1::uuid[])",
             "delete from propuesta_diferencia where tenant_id = any($1::uuid[])",

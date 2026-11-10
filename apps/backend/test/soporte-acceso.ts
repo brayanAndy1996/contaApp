@@ -163,6 +163,13 @@ export async function abrirBanco(cupo?: object, extra: Record<string, unknown> =
         // dejar credenciales; sin borrarlos antes, `delete from cliente`/`membresia`/`tenant` fallan (FK) y el estudio
         // queda huérfano sin suscripción, lo que rompe `planes.spec.ts` de aislamiento.
         // 013/014/016: propuestas, ventas, compras (con su evaluación numerada) y XML cuelgan de cliente; de la hija a la madre.
+        // 012b: las versiones de archivo (inmutables por trigger), las exclusiones de ventas y el estado del periodo de ventas
+        // cuelgan de cliente y de la cola; sin borrarlos antes (con `session_replication_role = replica`, que salta el trigger
+        // de inmutabilidad), `delete from cliente` falla y el estudio queda huérfano sin suscripción (`planes.spec.ts`, como en 016).
+        await intentar("set local session_replication_role = replica");
+        for (const tabla of ["archivo_generado", "venta_exclusion", "venta_periodo"])
+          await intentar(`delete from ${tabla} where tenant_id = $1`, [t]);
+        await intentar("set local session_replication_role = origin");
         for (const tabla of [
           "compra_hallazgo",
           "compra_evaluacion",

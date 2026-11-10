@@ -747,6 +747,8 @@ export async function abrirBancoCompras(): Promise<BancoCompras> {
           await c.query("SET session_replication_role = replica");
           // Un DELETE estático por tabla, de la hija a la madre; ventas y propuestas las limpia `v.cerrar()`.
           const borrar = [
+            // Spec 012b: las versiones de archivo (inmutables por trigger) se borran con `replica`, antes que el resto.
+            "delete from archivo_generado where tenant_id = any($1::uuid[])",
             "delete from compra_hallazgo where tenant_id = any($1::uuid[])",
             "delete from compra_evaluacion where tenant_id = any($1::uuid[])",
             "delete from compra_version where tenant_id = any($1::uuid[])",

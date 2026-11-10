@@ -465,6 +465,59 @@ function casosCompras(): Caso[] {
   ];
 }
 
+/**
+ * 012b (T6): las 12 rutas nuevas: las cuatro de archivos por libro (previo, generar, versiones y descarga del ZIP), las dos de
+ * estado de ventas (revisar y reabrir) y las dos de excluir y restaurar ventas. El estudio sale de la sesión y `:clienteId` pasa
+ * por `ClienteScopeGuard`: un cliente de B (o un id de otra cosa de B) desde A da 404 antes de leer, escribir o encolar. Los ids de
+ * archivo y de venta son al azar: la ruta se resuelve por el cliente, antes que por ellos. Ninguna deja versión, exclusión, estado
+ * de ventas ni trabajo `archivo.generar` en B. Una ruta nueva de archivos o de estado de ventas sin caso rompe «toda ruta tiene
+ * caso». Rojo: el módulo `archivos`, las rutas de estado y de exclusión de ventas y las tablas de 012b aún no existen (T10, T12, T13).
+ */
+function casosArchivos(): Caso[] {
+  const sinEfectosEnB = async (c: Contexto): Promise<void> => {
+    const f = await h.sql(
+      `select (select count(*)::int from archivo_generado where cliente_id = any($1::uuid[])) as versiones,
+              (select count(*)::int from venta_exclusion where cliente_id = any($1::uuid[])) as exclusiones,
+              (select count(*)::int from venta_periodo where cliente_id = any($1::uuid[])) as periodos,
+              (select count(*)::int from job_registro where cliente_id = any($1::uuid[]) and tipo = 'archivo.generar') as trabajos`,
+      [c.ajeno.clientes],
+    );
+    expect(f[0]).toEqual({ versiones: 0, exclusiones: 0, periodos: 0, trabajos: 0 });
+  };
+  const caso = (
+    metodo: "GET" | "POST",
+    libro: "compras" | "ventas",
+    sufijo: string,
+    real: () => string,
+    cuerpo?: () => unknown,
+  ): Caso => ({
+    ruta: `${metodo} /clientes/:clienteId/periodos/:periodo/${libro}${sufijo}`,
+    esperado: E404,
+    construir: (c) =>
+      idsDeCliente(c.ajeno).map((id) => ({
+        ...(metodo === "POST" ? { metodo: "POST" as const } : {}),
+        ruta: `/clientes/${id}/periodos/202610/${libro}${real()}`,
+        ...(cuerpo ? { cuerpo: cuerpo() } : {}),
+      })),
+    extra: sinEfectosEnB,
+  });
+  const generar = () => ({ estadoVisto: "abierto", huella: "a".repeat(64) });
+  const delLibro = (libro: "compras" | "ventas"): Caso[] => [
+    caso("GET", libro, "/archivos/previo", () => "/archivos/previo"),
+    caso("POST", libro, "/archivos", () => "/archivos", generar),
+    caso("GET", libro, "/archivos", () => "/archivos"),
+    caso("GET", libro, "/archivos/:archivoId/zip", () => `/archivos/${randomUUID()}/zip`),
+  ];
+  return [
+    ...delLibro("compras"),
+    ...delLibro("ventas"),
+    caso("POST", "ventas", "/estado/revisar", () => "/estado/revisar", () => ({})),
+    caso("POST", "ventas", "/estado/reabrir", () => "/estado/reabrir", () => ({ estadoVisto: "revisado" })),
+    caso("POST", "ventas", "/:ventaId/excluir", () => `/${randomUUID()}/excluir`, () => ({ motivo: "Intruso HU40" })),
+    caso("POST", "ventas", "/:ventaId/restaurar", () => `/${randomUUID()}/restaurar`, () => ({})),
+  ];
+}
+
 const CASOS: Caso[] = [
   /* ---------- 004 ---------- */
   {
@@ -996,6 +1049,7 @@ const CASOS: Caso[] = [
     },
   },
   ...casosCompras(),
+  ...casosArchivos(),
   {
     // 007b (T4): importación. La plantilla no lleva datos de nadie; la vista previa y la confirmación toman el estudio de la
     // sesión: un responsable de B en el archivo no existe para A y no se crea nada.
