@@ -70,3 +70,12 @@ Las rutas estáticas `desde-xml*` van antes de `:compraId`. Subir y obtener se p
 
 ## Decisión P-9 (2026-11-09)
 - **Agregar desde un XML en USD** (P-9 a): el tipo de cambio viaja en la query junto al destino y se valida con `agregarCompraSchema` de 014 (obligatorio y mayor que cero en USD, prohibido en PEN): su falta o sobra es 400 `solicitud_invalida`, no 422 `requiere_dato` (ese código sigue siendo solo el de aceptar sugerencias de 014). No se toma del XML aunque traiga `PaymentExchangeRate`.
+
+## Desvíos ratificados (revisión final T26, 2026-11-10)
+- **Cuerpo crudo en vez de multipart** (D-8): ratificado. Las rutas `POST` con XML (`…/:compraId/xml` y `…/desde-xml*`) usan `raw` con cualquier `Content-Type` y 1 MiB. El destino y el tipo de cambio van en la query. Más de 1 MiB da 413 antes del controlador, y el tipo lo decide el parser (decisión (g)).
+- **`trasConfirmar` en `PersistidorLibro`**: ratificado. `descargar-propuesta.ts` lo llama tras el commit. Si falla, solo registra un código: no cambia el `resultado` de 013 ni hace fallar la descarga. Ventas no lo implementa.
+- **Migraciones 0035 a 0038** (antes 0035 y 0036): 0037 `encolar_xml_obtener` (decisión del usuario (a)) y 0038 `compra_worker_sin_update` (H-016-8 y H-016-9). Las cuatro se renumeran juntas si 012b llega antes a `main`. Como 0032 a 0034, 0035 y 0036 son DDL de drizzle que el diario aplica una vez; las partes repetibles (políticas con `DROP … IF EXISTS`, grants y backfill con `ON CONFLICT DO NOTHING`) lo son. 0037 y 0038 son repetibles sentencia a sentencia (`CREATE OR REPLACE`, `DROP TRIGGER IF EXISTS`, `GRANT`/`REVOKE`).
+- **Bloqueo del worker sin `UPDATE`** (cambia «BD» y el orden de bloqueo): `GRANT UPDATE (version_vigente)` de 0036 se revoca en 0038. El worker bloquea con `bloquear_compras_reevaluar` (`FOR UPDATE` por id ascendente, el mismo modo y orden que 014). Así no aparecen interbloqueos nuevos.
+- **`reevaluarComprobante` en vez de `reevaluarCompra`** (decisión (e)): la llegada o subida de un XML re-evalúa todas las compras vivas del comprobante. Aceptar, en la lupa o en bloque, contrasta el hallazgo guardado con una evaluación nueva hecha con el XML vigente y la bandera actual (`sigueVigente` en `transformar.ts`).
+- **`XmlProvider.obtener` con `rucReceptor`** (decisión (f)): un campo opcional más en `packages/sunat/src/puertos.ts`. El mock lo usa como receptor.
+- **«Editar» en la lupa** (decisión del usuario (b)): abre la edición por fila de 015 en la grilla. La lupa no tiene un formulario propio de edición.

@@ -72,3 +72,22 @@ El usuario eligió la opción recomendada en las ocho preguntas y después en P-
 - **P-7 (a) Credencial de `xml.obtener`:** `credencial: null` y canal `ninguno` mientras solo exista el mock; el proveedor real fija los suyos (Alcance).
 - **P-8 (a) PDF y «Recordar para este proveedor»:** fuera de 016; los botones no aparecen (Fuera de alcance).
 - **P-9 (a) Agregar desde un XML en USD:** el XML no suele traer el tipo de cambio y 014 lo exige en USD, así que el diálogo pide el tipo de cambio además del destino; en PEN no pide nada extra (D-8, CA-13).
+
+## Decisiones del usuario (2026-11-10)
+Tomadas durante la implementación. Precisan D-8, D-10 y CA-15 sin cambiar el alcance.
+- **(a) Encolado desde el worker:** el worker encola `xml.obtener` (lotes tras la descarga, CA-10) con la función `SECURITY DEFINER` acotada `encolar_xml_obtener` (migración 0037). No recibe `INSERT` en `job_registro`: la función solo crea un trabajo `xml.obtener` `en_cola` de la cola `xml`, toma el estudio de `app.tenant_id` y aplica el dedupe y el tope de 008.
+- **(b) CA-15 «edita»:** la lupa tiene un botón «Editar» que la cierra y abre la fila en edición en la grilla, con las rutas, los 409 y los 422 de 014.
+- **(c) CA-15 «Enter acepta»:** Enter abre la aceptación de la sugerencia visible y un segundo Enter la confirma. La ayuda de teclado de la lupa lo dice así.
+
+## Decisiones técnicas del orquestador (2026-11-10)
+Salen de las rondas adversariales y de la implementación. Precisan D-1 a D-5, D-8 y P-6 sin cambiar el alcance. Las ratifica la revisión final (T26).
+- **(d) XML ambiguos (ronda 1, H-016-1 a H-016-7):** `TaxTotal`, `LegalMonetaryTotal`/`RequestedMonetaryTotal`, `PayableAmount` o `TaxInclusiveAmount` repetidos a nivel documento dan `xml_invalido`. La raíz tiene que cuadrar con el tipo: `Invoice` solo admite 01 y 03, `CreditNote` es 07 y `DebitNote` es 08. Un importe negativo en el XML da `xml_invalido` (el signo de la nota de crédito lo pone el mapeo), y `-0` queda en 0.00. La declaración de codificación tiene una gramática estricta: un `encoding` repetido, con prefijo, con espacios o mal entrecomillado da `xml_invalido`. Las líneas autocerradas cuentan para el tope de 2.000 ítems. `GET xml` solo lee rutas `xml/{tenant}/{cliente}/` del estudio y el cliente de la petición; cualquier otra da 404.
+- **(e) Ronda 2 (H-016-8 a H-016-13):**
+  - El worker no tiene `UPDATE` sobre `compra`. La re-evaluación bloquea las filas con la función acotada `bloquear_compras_reevaluar`. El `INSERT` del worker en `compra_version` queda acotado a la versión `n = 1` de una compra creada en la misma transacción (trigger de la migración 0038).
+  - El candado del tope de `encolar_xml_obtener` usa el estudio normalizado, igual que `insertarTrabajo`.
+  - Aceptar una sugerencia, en la lupa o en bloque, re-evalúa con el XML vigente y la bandera P-4 actuales. Si el resultado no es el que se mostró, da 409 `revisar_de_nuevo`.
+  - Al llegar o subirse un XML se re-evalúan todas las compras vivas del comprobante (mismo cliente e identidad, en cualquier periodo), no solo una fila. La descarga evalúa las compras nuevas con la bandera P-4 y el XML ya guardado.
+  - «Agregar desde XML» responde 409 `xml_existente` si el comprobante ya tiene un XML `real` o `subido`, y no crea la compra. Si la compra ya existe, manda el 409 `duplicado` de CA-13.
+- **(f) Receptor del mock:** `XmlProvider.obtener` recibe el RUC del cliente (`rucReceptor`), y el UBL sintético lo pone como receptor para que pase D-3. El adaptador real lo ignora o lo usa a su modo.
+- **(g) Cuerpo de la subida:** las rutas `POST` con XML aceptan el cuerpo crudo con cualquier `Content-Type`, hasta 1 MiB. El tipo de contenido no decide nada: decide el parser (D-1).
+- **(h) Moneda:** un `DocumentCurrencyCode` distinto de PEN o USD da `xml_invalido`.
