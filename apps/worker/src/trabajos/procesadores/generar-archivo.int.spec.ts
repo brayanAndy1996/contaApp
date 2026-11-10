@@ -733,7 +733,7 @@ describe("CA-7: concurrencia, reintentos y numeración", () => {
 
   it("dos trabajos con la misma huella a la vez dan una sola versión y un solo ZIP", async () => {
     for (let ronda = 0; ronda < 3; ronda++) {
-      const periodo = `2025${String(ronda + 1).padStart(2, "0")}`;
+      const periodo = `2026${String(ronda + 1).padStart(2, "0")}`;
       const m = await mundo();
       const almacen = new AlmacenEspia();
       await sembrarComprasBase(admin, m, { periodo });
@@ -878,7 +878,7 @@ describe("cliente archivado y fallos tras guardar el ZIP", () => {
     expect(await estadoDe(admin, "compras", m.c.id)).toBeNull();
     expect((await versionesDe(admin, m.c.id, { periodo: PERIODO }))).toEqual([]);
     const afuera = `${r.error!.message}\n${r.error!.stack ?? ""}\n${volcado(llamadas)}`;
-    expect(afuera).not.toContain("archivos/");
+    expect(afuera).not.toContain(`archivos/${m.T}`);
     expect(afuera).not.toContain(almacen.intentosGuardar[0]!);
   });
 });

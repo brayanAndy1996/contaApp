@@ -5,11 +5,13 @@ import { describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => ({
   leer: vi.fn(),
   insertar: vi.fn(async () => undefined),
+  estado: vi.fn(async () => ({ estado: "abierto" })),
 }));
 vi.mock("@contapp/db", async (importarOriginal) => ({
   ...(await importarOriginal<typeof import("@contapp/db")>()),
   leerExistentes: h.leer,
   insertarVentas: h.insertar,
+  leerEstadoPeriodoVentas: h.estado,
 }));
 
 import { ErrorPropuesta } from "./errores.js";

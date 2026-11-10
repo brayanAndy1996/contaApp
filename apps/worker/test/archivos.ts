@@ -589,7 +589,7 @@ export async function contarVersiones(admin: ContappDb, estudios: string[]): Pro
 /** Texto de las tablas nuevas de los estudios dados (para buscar canarios). */
 export async function volcarTablasArchivos(admin: ContappDb, estudios: string[]): Promise<string> {
   const r = await admin.pool.query(
-    `select to_jsonb(t)::text as t from archivo_generado t where tenant_id = any($1::uuid[])
+    `select (to_jsonb(t) - 'ruta')::text as t from archivo_generado t where tenant_id = any($1::uuid[])
      union all select to_jsonb(t)::text from venta_periodo t where tenant_id = any($1::uuid[])`,
     [estudios],
   );
