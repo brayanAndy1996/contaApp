@@ -392,10 +392,13 @@ function casosCompras(): Caso[] {
               (select count(*)::int from compra_version v join compra x on x.id = v.compra_id where x.cliente_id = any($1::uuid[])) as versiones,
               (select count(*)::int from compra_operacion where cliente_id = any($1::uuid[])) as operaciones,
               (select count(*)::int from compra_periodo where cliente_id = any($1::uuid[])) as periodos,
-              (select count(*)::int from propuesta where cliente_id = any($1::uuid[])) as propuestas`,
+              (select count(*)::int from propuesta where cliente_id = any($1::uuid[])) as propuestas,
+              (select count(*)::int from documento_xml where cliente_id = any($1::uuid[])) as xml,
+              (select count(*)::int from documento_xml_obtencion where cliente_id = any($1::uuid[])) as obtenciones,
+              (select count(*)::int from job_registro where cliente_id = any($1::uuid[]) and tipo = 'xml.obtener') as "trabajosXml"`,
       [c.ajeno.clientes],
     );
-    expect(f[0]).toEqual({ compras: 0, versiones: 0, operaciones: 0, periodos: 0, propuestas: 0 });
+    expect(f[0]).toEqual({ compras: 0, versiones: 0, operaciones: 0, periodos: 0, propuestas: 0, xml: 0, obtenciones: 0, trabajosXml: 0 });
   };
   const caso = (
     metodo: "GET" | "POST",
@@ -403,6 +406,7 @@ function casosCompras(): Caso[] {
     real: (id: string) => string,
     cuerpo?: (c: Contexto) => unknown,
     escribe = metodo === "POST",
+    xml = false,
   ): Caso => ({
     ruta: `${metodo} /clientes/:clienteId/periodos/:periodo/compras${sufijo}`,
     esperado: E404,
@@ -411,6 +415,8 @@ function casosCompras(): Caso[] {
         ...(metodo === "POST" ? { metodo: "POST" as const } : {}),
         ruta: `/clientes/${id}/periodos/202610/compras${real(id)}`,
         ...(cuerpo ? { cuerpo: cuerpo(c) } : {}),
+        // 016: las rutas con XML reciben el cuerpo crudo (un UBL mínimo; nunca llega a leerse).
+        ...(xml ? { binario: new TextEncoder().encode('<?xml version="1.0"?><Invoice/>') } : {}),
       })),
     ...(escribe ? { extra: sinEfectosEnB } : {}),
   });
@@ -449,6 +455,13 @@ function casosCompras(): Caso[] {
     caso("POST", "/rehacer", () => "/rehacer", () => ({})),
     caso("POST", "/estado/revisar", () => "/estado/revisar", () => ({})),
     caso("POST", "/estado/reabrir", () => "/estado/reabrir", () => ({ estadoVisto: "revisado" })), // DU-23
+    // 016 (T7): lupa y XML. Mismo 404 desde otro estudio; ninguna deja XML, obtención ni trabajo en B.
+    caso("GET", "/:compraId/detalle", () => `/${compra()}/detalle`, undefined, true),
+    caso("GET", "/:compraId/xml", () => `/${compra()}/xml`, undefined, true),
+    caso("POST", "/:compraId/xml", () => `/${compra()}/xml`, undefined, true, true),
+    caso("POST", "/:compraId/xml/obtener", () => `/${compra()}/xml/obtener`, () => ({})),
+    caso("POST", "/desde-xml/vista-previa", () => "/desde-xml/vista-previa", undefined, true, true),
+    caso("POST", "/desde-xml", () => "/desde-xml?destino=DG", undefined, true, true),
   ];
 }
 
