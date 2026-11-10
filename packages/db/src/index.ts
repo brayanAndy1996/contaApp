@@ -204,6 +204,12 @@ export type {
   DatosJustificar,
   ExistenteVenta,
   FiltrosVentas,
+  DatosExcluirVenta,
+  EstadoPeriodoVenta,
+  EstadoPeriodoVentas,
+  ExcluidaVenta,
+  ExclusionLeida,
+  ExclusionVenta,
   Justificado,
   MonedaVenta,
   OrigenVenta,
@@ -212,7 +218,11 @@ export type {
   VentaNueva,
 } from "./ventas/tipos";
 export { propuesta, propuestaDiferencia } from "./schema/propuestas";
-export { venta, ventaSaltoJustificado } from "./schema/ventas";
+export { venta, ventaExclusion, ventaPeriodo, ventaSaltoJustificado } from "./schema/ventas";
+// Spec 012b: estado del periodo de ventas, exclusión de ventas del SIRE con error y las listas del previo y del worker.
+export { fijarEstadoPeriodoVentas, leerEstadoPeriodoVentas } from "./ventas/periodo";
+export { exclusionVigente, excluirVenta, restaurarVenta } from "./ventas/exclusion";
+export { leerExcluidasVentas, leerFilasReemplazoVentas } from "./ventas/filas-reemplazo";
 // Spec 014: repositorios de compras (versiones inmutables con compare-and-set, operaciones con deshacer y rehacer, estado del
 // periodo y lecturas del persistidor y de 012b; `evaluar`, `transformar` y `aFila` se inyectan porque este paquete no depende de
 // `domain`) y las tablas de drizzle (versiones, operaciones, hallazgos y estado del periodo).
@@ -312,3 +322,9 @@ export { leerHistorialProveedor, TOPE_HISTORIAL } from "./xml/historial";
 export type { CompraHistorialProveedor } from "./xml/historial";
 export { compraEvaluacion } from "./schema/compras";
 export { documentoXml, documentoXmlObtencion } from "./schema/xml";
+// Spec 012b: versiones generadas del archivo de reemplazo (inmutables; solo el worker inserta) y su tabla.
+export { ArchivosRepoError } from "./archivos/errores";
+export { insertarVersion, ultimaVersion } from "./archivos/versiones";
+export type { LibroArchivo, NuevaVersionArchivo, VersionArchivo } from "./archivos/versiones";
+export { leerVersion, listarVersiones } from "./archivos/lectura";
+export { archivoGenerado } from "./schema/archivos";
