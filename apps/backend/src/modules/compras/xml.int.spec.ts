@@ -45,6 +45,7 @@ import {
   prepararStorage,
   sembrarObtencion,
   sha256Hex,
+  trabajosDeTipo,
   xmlConLineasMinimas,
   xmlDe,
   type EstadoObtencion,
@@ -96,7 +97,7 @@ const detalle = (a: Actor, c: Cliente, id: string) => v.llamar(a, "GET", ruta(c,
 const post = (a: Actor, c: Cliente, id: string, resto: string, cuerpo: unknown) => v.llamar(a, "POST", ruta(c, id, resto), cuerpo);
 const masivaAceptar = (a: Actor, c: Cliente, items: string[], regla: string, versionBase = 1) =>
   v.llamar(a, "POST", `${base(c.id)}/masivas/aceptar`, { items: items.map((compraId) => ({ compraId, versionBase })), regla });
-const trabajosXml = async (c: Cliente) => (await v.trabajos(c.id)).filter((t) => t.tipo === "xml.obtener");
+const trabajosXml = (c: Cliente) => trabajosDeTipo(v, c.id, "xml.obtener");
 /** Nada guardado para el cliente: ni documento_xml ni archivo en storage. */
 async function nadaGuardado(c: Cliente): Promise<void> {
   expect(await documentosXml(v, c.id)).toEqual([]);

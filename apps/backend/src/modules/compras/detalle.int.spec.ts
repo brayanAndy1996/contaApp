@@ -37,6 +37,7 @@ import {
   pedirXml,
   prepararStorage,
   sembrarObtencion,
+  trabajosDeTipo,
   xmlConItems,
   xmlDe,
   type EstadoObtencion,
@@ -123,7 +124,7 @@ describe("D-8 · detalle de una compra sin XML", () => {
     const { c, ids } = await escenario();
     const antes = await v.foto(c.id);
     for (const id of Object.values(ids)) expect((await detalle(contador, c, id)).status).toBe(200);
-    expect((await v.trabajos(c.id)).filter((t) => t.tipo === "xml.obtener")).toEqual([]);
+    expect(await trabajosDeTipo(v, c.id, "xml.obtener")).toEqual([]);
     expect(await documentosXml(v, c.id)).toEqual([]);
     expect(archivosBajo(st.dir, `xml/${E.tenantId}/${c.id}/`)).toEqual([]);
     expect(await v.foto(c.id)).toEqual(antes);

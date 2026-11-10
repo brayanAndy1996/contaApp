@@ -266,3 +266,7 @@ function esquema(nombre: string): Esquema {
 }
 export const detalleLupaSchema: Esquema = { safeParse: (v) => esquema("detalleLupaSchema").safeParse(v) };
 export const vistaPreviaDesdeXmlSchema: Esquema = { safeParse: (v) => esquema("vistaPreviaDesdeXmlSchema").safeParse(v) };
+
+/** Trabajos de un tipo del cliente (`v.trabajos()` de 013/014 filtra fijo por `sire.propuesta.descargar`). */
+export const trabajosDeTipo = (v: BancoCompras, clienteId: string, tipo: string): Promise<any[]> =>
+  v.b.sql("select * from job_registro where cliente_id = $1 and tipo = $2 order by creado_en, id", [clienteId, tipo]);

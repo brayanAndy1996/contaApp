@@ -37,6 +37,7 @@ import {
   pedirXml,
   prepararStorage,
   sha256Hex,
+  trabajosDeTipo,
   vistaPreviaDesdeXmlSchema,
   xmlDe,
   type NombreXml,
@@ -116,6 +117,7 @@ describe("CA-13 · vista previa: parsea y devuelve los campos, no guarda nada", 
     // No escribe nada: ni compras, ni XML, ni archivos, ni trabajos.
     await nadaGuardado(c);
     expect(await v.foto(c.id)).toEqual(antes);
+    expect(await trabajosDeTipo(v, c.id, "xml.obtener")).toEqual([]);
     expect(await v.trabajos(c.id)).toEqual([]);
   });
 
