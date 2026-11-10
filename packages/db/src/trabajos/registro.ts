@@ -297,6 +297,42 @@ export async function trabajoVivoPorClave(
   return r.rows.length === 0 ? null : aVista(r.rows[0]!);
 }
 
+// Spec 016 (T12b): el worker no tiene INSERT en job_registro (0018); encola `xml.obtener` con la función acotada de 0037.
+const SQL_ENCOLAR_XML = `select id, nuevo from public.encolar_xml_obtener($1::uuid, $2::text, $3::uuid[], $4::uuid)`;
+const SQL_VISTA_POR_ID = `select ${COLUMNAS_VISTA} from job_registro where id = $1`;
+
+export interface LoteXml {
+  clienteId: string;
+  /** AAAAMM. */
+  periodo: string;
+  /** 1..100 ids de compra, ascendentes y únicos (forma canónica del catálogo). */
+  compraIds: readonly string[];
+  creadoPor: string | null;
+}
+
+/**
+ * Encola un lote `xml.obtener` (programado) en el estudio del contexto con `public.encolar_xml_obtener` (rol contapp_worker).
+ * La función decide tipo, cola, canal, prioridad, RUC, max_intentos, clave de dedupe y tope; aquí solo se relee la vista del
+ * trabajo creado o del vivo con la misma clave (`nuevo` = false). Errores como TrabajosRepoError con su SQLSTATE: 22023
+ * lote inválido, 42501 sin estudio o sin EXECUTE, 23503 cliente o creador ajeno, 53400 cola llena.
+ */
+export async function encolarLoteXml(
+  tx: TxConsulta,
+  e: LoteXml,
+): Promise<{ trabajo: TrabajoVistaDb; nuevo: boolean }> {
+  const r = await consultar(tx, SQL_ENCOLAR_XML, [
+    e.clienteId,
+    e.periodo,
+    [...e.compraIds],
+    e.creadoPor,
+  ]);
+  const f = r.rows[0];
+  if (f === undefined) throw new TrabajosRepoError("desconocido");
+  const v = await consultar(tx, SQL_VISTA_POR_ID, [f.id]);
+  if (v.rows.length === 0) throw new TrabajosRepoError("desconocido");
+  return { trabajo: aVista(v.rows[0]!), nuevo: f.nuevo === true };
+}
+
 const SQL_CONTAR_PENDIENTES = `select count(*) as n from job_registro where cola = $1 and estado = 'en_cola'`;
 
 /** Trabajos en_cola de esa cola en el estudio (tope `max_pendientes_tenant`). */

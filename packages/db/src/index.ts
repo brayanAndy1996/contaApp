@@ -92,6 +92,7 @@ export { SEED } from "./seed/datos";
 // Spec 008: trabajos (job_registro con la `tx` de withTenant; sistema.*, auth.purgar y config con la de withSistema).
 export {
   contarPendientes,
+  encolarLoteXml,
   insertarTrabajo,
   leerTrabajo,
   listarTrabajos,
@@ -107,6 +108,7 @@ export {
 export type {
   CamposTransicion,
   GuardaTransicion,
+  LoteXml,
   OpcionesInsertar,
   CanalTrabajo,
   ColaTrabajo,
