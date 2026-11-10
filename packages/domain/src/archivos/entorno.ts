@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-unused-vars -- stub de T1: T7 usa los parámetros */
-// Stub de T1 (spec 012b, rojo). T7: `nodeEnv !== "production"`, única función para backend y worker (D2).
-export function permiteProvisional(_nodeEnv: string | undefined): boolean {
-  throw new Error("no implementado");
+// D2 (spec 012b): el formato provisional solo se genera fuera de producción. Única función para backend y
+// worker: ninguno toma `permitirProvisional` de la petición.
+export function permiteProvisional(nodeEnv: string | undefined): boolean {
+  return nodeEnv !== "production";
 }

@@ -2,8 +2,8 @@
 // cabecera (una sola lectura a copias congeladas), seleccionarFormato, FormatoProvisionalError,
 // prevalidar esas mismas copias (ArchivoNoPrevalidadoError) y, al final, serializar y codificar.
 // No acepta un formato suelto: la versión la elige el registro (D5).
-import { compararTexto, leerCabecera, leerFilas, leerObjeto, invalida } from "../prevalidacion/entrada";
-import type { FilaCopia } from "../prevalidacion/entrada";
+import { compararTexto, esVentaCopia, leerCabecera, leerFilasDe, leerObjeto, invalida } from "../prevalidacion/entrada";
+import type { FilaTxt } from "../prevalidacion/entrada";
 import { prevalidarCopia } from "../prevalidacion/prevalidar";
 import type { FilaReemplazo, FilaReemplazoVenta } from "../prevalidacion/tipos";
 import { codificar } from "../texto/codificar";
@@ -46,15 +46,22 @@ function compararNumero(a: string, b: string): -1 | 0 | 1 {
   return compararTexto(x, y);
 }
 
+/** Documento del proveedor (compras) o de la contraparte (ventas; sin tipo = ""). */
+function documento(f: FilaTxt): { readonly tipo: string; readonly numero: string } {
+  return esVentaCopia(f) ? { tipo: f.contraparte.tipo ?? "", numero: f.contraparte.numero } : f.proveedor;
+}
+
 /** Fecha, tipo, serie (texto), número, tipo y número del documento, e id. */
-function compararFilas(a: FilaCopia, b: FilaCopia): -1 | 0 | 1 {
+function compararFilas(a: FilaTxt, b: FilaTxt): -1 | 0 | 1 {
+  const da = documento(a);
+  const db = documento(b);
   return (
     compararTexto(a.fechaEmision, b.fechaEmision) ||
     compararTexto(a.comprobante.tipo, b.comprobante.tipo) ||
     compararTexto(a.comprobante.serie, b.comprobante.serie) ||
     compararNumero(a.comprobante.numero, b.comprobante.numero) ||
-    compararTexto(a.proveedor.tipo, b.proveedor.tipo) ||
-    compararTexto(a.proveedor.numero, b.proveedor.numero) ||
+    compararTexto(da.tipo, db.tipo) ||
+    compararTexto(da.numero, db.numero) ||
     compararTexto(a.id, b.id)
   );
 }
@@ -84,9 +91,9 @@ function leerOpciones(o: unknown): { permitirProvisional: boolean; registro: Reg
  * Genera el TXT del periodo. Lanza FormatoNoVigenteError, FormatoProvisionalError (formato
  * `oficial: false` sin `permitirProvisional`) o ArchivoNoPrevalidadoError (sin bytes) antes de
  * serializar. Las líneas siguen un orden estable (D6) y omiten las excluidas si el formato no las
- * incluye (D14). `codificar` es la segunda barrera: lanza si un carácter no cabe.
+ * incluye (D14). `codificar` es la segunda barrera: lanza si un carácter no cabe. El libro sale de
+ * `cabecera.libro` (012b): filas del otro libro → EntradaPrevalidacionInvalidaError.
  */
-/** Ventas (012b): con `cabecera.libro = "ventas"`. Aún sin implementar (T7). */
 export function generarTxt(
   filas: readonly FilaReemplazoVenta[],
   cabecera: CabeceraTxt,
@@ -103,14 +110,14 @@ export function generarTxt(
   opciones?: OpcionesGenerarTxt,
 ): ResultadoGenerarTxt {
   const op = leerOpciones(opciones);
-  const copias = leerFilas(filas);
   const cab = leerCabecera(cabecera);
+  const copias = leerFilasDe(cab.libro, filas);
   const formato = seleccionarFormato(cab.libro, cab.periodo, op.registro);
   if (!formato.oficial && !op.permitirProvisional) throw new FormatoProvisionalError();
   const { resultado, generables } = prevalidarCopia(copias, cab, formato, null);
   if (!resultado.apto) throw new ArchivoNoPrevalidadoError(resultado);
   // Todo campo registrado tiene valor: RegistroFormatos.desde rechaza los demás (D21).
-  const valores = formato.campos.map((campo) => valorDeCampo(campo.nombre));
+  const valores = formato.campos.map((campo) => valorDeCampo(campo.nombre, cab.libro));
   const nombres = nombresSeguros(formato.nombre({ ruc: cab.rucDeclarante, periodo: cab.periodo }));
   const ordenadas = [...generables].sort(compararFilas);
   const texto = ordenadas

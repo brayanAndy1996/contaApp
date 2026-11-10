@@ -19,11 +19,12 @@ import type { Entero } from "../texto/entero";
 import type { ContextoReglas, FilaEvaluable, Hallazgo, OrigenUsd } from "../reglas/index";
 import { validarAritmetica } from "./aritmetica";
 import { buscarDuplicados } from "./duplicados";
-import { compararTexto, invalida, leerCabecera, leerFilas, leerObjeto } from "./entrada";
-import type { FilaCopia } from "./entrada";
+import { compararErrores, compararTexto, esVentaCopia, invalida, leerCabecera, leerFilasDe, leerObjeto } from "./entrada";
+import type { FilaCopia, FilaTxt } from "./entrada";
 import { crearError } from "./errores";
 import { CODIGOS_ESTRUCTURA, validarCabecera, validarEstructura } from "./estructura";
 import { SIN_FILAS, rucInvalido } from "./explicaciones";
+import { erroresDeVentaCopia } from "./ventas";
 import type {
   AvisoPrevalidacion,
   CodigoAvisoPrevalidacion,
@@ -41,7 +42,7 @@ const REQUERIDAS_CONTEXTO = ["cabecera"];
 /** Resultado y filas que irían al TXT (para generarTxt, que serializa esas mismas copias). */
 export interface Prevalidado {
   readonly resultado: ResultadoPrevalidacion;
-  readonly generables: readonly FilaCopia[];
+  readonly generables: readonly FilaTxt[];
 }
 
 /** La fila tal como la recibe evaluarReglas (011), construida desde la copia. */
@@ -54,18 +55,6 @@ function evaluable(f: FilaCopia, origen: OrigenUsd | null): FilaEvaluable {
     ...(origen === null ? {} : { origenUsd: origen }),
     ...(f.xml === null ? {} : { xml: f.xml }),
   };
-}
-
-/**
- * `filaId: null` primero; luego filaId, código y campo (`null` primero), por unidades de código.
- * Ids y nombres de campo nunca son "", así que `null` → "" los deja primero.
- */
-function compararErrores(a: ErrorPrevalidacion, b: ErrorPrevalidacion): -1 | 0 | 1 {
-  return (
-    compararTexto(a.filaId ?? "", b.filaId ?? "") ||
-    compararTexto(a.codigo, b.codigo) ||
-    compararTexto(a.campo ?? "", b.campo ?? "")
-  );
 }
 
 const claveError = (filaId: string, codigo: string, destino: string | null): string =>
@@ -139,10 +128,11 @@ function hallazgosAislados(evaluables: readonly FilaEvaluable[], reglas: Context
 
 /**
  * Prevalida copias ya leídas con un formato ya elegido. Filas generables: las no excluidas, más las
- * excluidas si el formato las incluye (D14); solo esas se validan y van al TXT.
+ * excluidas si el formato las incluye (D14); solo esas se validan y van al TXT. Las de ventas (012b)
+ * se validan con erroresDeVentaCopia y nunca llevan `reglas`.
  */
 export function prevalidarCopia(
-  filas: readonly FilaCopia[],
+  filas: readonly FilaTxt[],
   cabecera: CabeceraTxt,
   formato: FormatoTxt,
   reglas: ContextoReglas | null,
@@ -160,6 +150,10 @@ export function prevalidarCopia(
   }
   const evaluables: FilaEvaluable[] = [];
   for (const f of generables) {
+    if (esVentaCopia(f)) {
+      errores.push(...erroresDeVentaCopia(f, formato, cabecera));
+      continue;
+    }
     const estructura = validarEstructura(f, formato, cabecera);
     const aritmetica = validarAritmetica(f);
     errores.push(...estructura, ...aritmetica.errores);
@@ -199,9 +193,9 @@ export function leerContexto(o: unknown): {
 /**
  * Decide si el periodo puede generarse y lista las filas por corregir. Pura y determinista; no muta
  * la entrada. Forma imposible → EntradaPrevalidacionInvalidaError; periodo sin versión vigente →
- * FormatoNoVigenteError. Un dato corregible nunca lanza: es un ErrorPrevalidacion.
+ * FormatoNoVigenteError. Un dato corregible nunca lanza: es un ErrorPrevalidacion. El libro sale de
+ * `cabecera.libro` (012b): las filas del otro libro, o `reglas` con ventas, son forma imposible.
  */
-/** Ventas (012b): se elige por `cabecera.libro`; las filas del otro libro y `reglas` lanzan. Aún sin implementar (T7). */
 export function prevalidar(filas: readonly FilaReemplazoVenta[], contexto: ContextoPrevalidacionVentas): ResultadoPrevalidacion;
 export function prevalidar(filas: readonly FilaReemplazo[], contexto: ContextoPrevalidacion): ResultadoPrevalidacion;
 export function prevalidar(
@@ -209,8 +203,9 @@ export function prevalidar(
   contexto: ContextoPrevalidacion | ContextoPrevalidacionVentas,
 ): ResultadoPrevalidacion {
   const ctx = leerContexto(contexto);
-  const copias = leerFilas(filas);
   const cabecera = leerCabecera(ctx.cabecera);
+  if (cabecera.libro === "ventas" && ctx.reglas !== null) invalida();
+  const copias = leerFilasDe(cabecera.libro, filas);
   const formato = seleccionarFormato(cabecera.libro, cabecera.periodo, ctx.registro);
   return prevalidarCopia(copias, cabecera, formato, ctx.reglas).resultado;
 }

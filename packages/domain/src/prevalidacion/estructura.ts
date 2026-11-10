@@ -7,7 +7,8 @@ import type { CabeceraTxt, CampoTxt, CodigoCampo, FormatoTxt } from "../formatos
 import { valorDeCampo } from "../formatos/valores";
 import type { Entero } from "../texto/entero";
 import { tipoCambioDe } from "./aritmetica";
-import type { FilaCopia } from "./entrada";
+import { esVentaCopia, monedaDe } from "./entrada";
+import type { FilaTxt } from "./entrada";
 import { crearError } from "./errores";
 import {
   FECHA_INVALIDA,
@@ -61,11 +62,11 @@ const tcValido = (tc: string | null): boolean => tc !== null && tipoCambioDe(tc)
  * cabecera, se valida una vez en validarCabecera), una fecha o un TC de USD que ya tienen su propio
  * error (FECHA_INVALIDA, USD_SIN_TC o TC_INVALIDO). Todo campo registrado tiene valor (D21).
  */
-function valorDe(f: FilaCopia, nombre: string, cabecera: CabeceraTxt): string | null {
+function valorDe(f: FilaTxt, nombre: string, cabecera: CabeceraTxt): string | null {
   if (nombre === "periodo") return null;
   if (nombre === "fechaEmision" && !esFechaValida(f.fechaEmision)) return null;
-  if (nombre === "tipoCambio" && f.montos.moneda === "USD" && !tcValido(f.tipoCambio)) return null;
-  return valorDeCampo(nombre)(f, cabecera);
+  if (nombre === "tipoCambio" && monedaDe(f) === "USD" && !tcValido(f.tipoCambio)) return null;
+  return valorDeCampo(nombre, cabecera.libro)(f, cabecera);
 }
 
 /** Error de validarCampo de un campo del formato con su valor, o `null`. */
@@ -80,9 +81,11 @@ function errorDeCampo(filaId: string | null, campo: CampoTxt, valor: string, for
  * como RUC, y la obligatoriedad de `tipoCambio` rige solo en USD (D23): en PEN el TC se escribe
  * «» (Ratificación 4) y un TC no nulo ya es TC_INVALIDO (Ratificación 8).
  */
-function definicionPara(f: FilaCopia, campo: CampoTxt): CampoTxt {
-  if (campo.nombre === "numeroDocProveedor" && f.proveedor.tipo === TIPO_DOC_RUC) return { ...campo, tipo: "ruc" };
-  if (campo.nombre === "tipoCambio" && campo.obligatorio && f.montos.moneda !== "USD") return { ...campo, obligatorio: false };
+function definicionPara(f: FilaTxt, campo: CampoTxt): CampoTxt {
+  if (campo.nombre === "numeroDocProveedor" && !esVentaCopia(f) && f.proveedor.tipo === TIPO_DOC_RUC) {
+    return { ...campo, tipo: "ruc" };
+  }
+  if (campo.nombre === "tipoCambio" && campo.obligatorio && monedaDe(f) !== "USD") return { ...campo, obligatorio: false };
   return campo;
 }
 
@@ -90,7 +93,7 @@ function definicionPara(f: FilaCopia, campo: CampoTxt): CampoTxt {
  * Errores de todos los campos de la fila contra el formato, en su orden: los textos tal como
  * llegaron y, además, fecha, moneda, TC, montos y total tal como se serializan (H-012-23).
  */
-function camposDe(f: FilaCopia, formato: FormatoTxt, cabecera: CabeceraTxt): ErrorPrevalidacion[] {
+function camposDe(f: FilaTxt, formato: FormatoTxt, cabecera: CabeceraTxt): ErrorPrevalidacion[] {
   const errores: ErrorPrevalidacion[] = [];
   for (const campo of formato.campos) {
     const valor = valorDe(f, campo.nombre, cabecera);
@@ -148,7 +151,7 @@ export function esFechaValida(fecha: string): boolean {
   return dia <= ultimo;
 }
 
-function fechaDe(f: FilaCopia, periodo: string): ErrorPrevalidacion[] {
+function fechaDe(f: FilaTxt, periodo: string): ErrorPrevalidacion[] {
   if (!esFechaValida(f.fechaEmision)) {
     return [crearError({ filaId: f.id, codigo: "FECHA_INVALIDA", campo: "fechaEmision", explicacion: FECHA_INVALIDA })];
   }
@@ -165,7 +168,7 @@ function fechaDe(f: FilaCopia, periodo: string): ErrorPrevalidacion[] {
   ];
 }
 
-/** Errores de estructura y de fecha de una fila no excluida. */
-export function validarEstructura(f: FilaCopia, formato: FormatoTxt, cabecera: CabeceraTxt): ErrorPrevalidacion[] {
+/** Errores de estructura y de fecha de una fila no excluida (compras o ventas, 012b). */
+export function validarEstructura(f: FilaTxt, formato: FormatoTxt, cabecera: CabeceraTxt): ErrorPrevalidacion[] {
   return [...camposDe(f, formato, cabecera), ...fechaDe(f, cabecera.periodo)];
 }

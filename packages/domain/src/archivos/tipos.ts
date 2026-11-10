@@ -10,6 +10,7 @@ import type {
   ResumenCambiosVentas,
 } from "../prevalidacion/index";
 import type { ContextoReglas } from "../reglas/index";
+import type { Entero } from "../texto/entero";
 
 export type CodigoAvisoArchivo = "R-ISC" | "R-NEW" | "R-GP" | "SALTO_CORRELATIVIDAD" | "RAZON_SOCIAL_RECORTADA";
 
@@ -73,7 +74,7 @@ export interface CompraLeidaPlana {
   readonly fecha: string;
   readonly moneda: Moneda;
   readonly tipoCambio: string | null;
-  readonly version: number;
+  readonly version: Entero;
   readonly excluida: boolean;
   readonly montos: Readonly<Record<string, string>>;
 }

@@ -2,11 +2,12 @@
 // para serializar, y prevalidar, para validar contra el formato también los campos que no son
 // texto de la fila (fecha, moneda, TC, montos y total; H-012-23): se valida lo mismo que se escribe.
 import { COLUMNAS_COMPRA } from "../comprobante/index";
-import type { FilaCopia } from "../prevalidacion/entrada";
+import { esVentaCopia, monedaDe } from "../prevalidacion/entrada";
+import type { FilaCopia, FilaTxt, FilaVentaCopia } from "../prevalidacion/entrada";
 import { DefinicionFormatoInvalidaError } from "./errores";
 import type { CabeceraTxt, Libro, TipoCampo } from "./tipos";
 
-export type Valor = (f: FilaCopia, c: CabeceraTxt) => string;
+export type Valor = (f: FilaTxt, c: CabeceraTxt) => string;
 
 /** TC aceptado por TipoCambio.desde, completado con ceros a 3 decimales como texto (`3` → `3.000`). */
 function tcConTresDecimales(tc: string): string {
@@ -20,13 +21,33 @@ function fechaTxt(fecha: string): string {
 }
 
 /**
- * Montos que solo existen en una venta (spec 013, D14b): el resto (`isc`, `icbper`, `total`) ya tiene el
- * valor de compras. Su serialización llega con 012b; hoy solo se registran para definir el formato RVIE.
+ * Montos que solo existen en una venta (spec 013, D14b): el resto (`isc`, `icbper`, `total`) es común a
+ * los dos libros. Desde 012b se serializan.
  */
-const COLUMNAS_SOLO_VENTAS: readonly string[] = Object.freeze(["baseGravada", "igv", "exonerada", "inafecta", "otros"]);
-/** Campos de texto que solo existen en una venta: el documento de la contraparte y su tipo. */
-const TEXTO_SOLO_VENTAS: readonly string[] = Object.freeze(["tipoDocContraparte", "docContraparte"]);
-const SOLO_VENTAS: ReadonlySet<string> = new Set([...COLUMNAS_SOLO_VENTAS, ...TEXTO_SOLO_VENTAS]);
+const COLUMNAS_SOLO_VENTAS = Object.freeze(["baseGravada", "igv", "exonerada", "inafecta", "otros"] as const);
+
+/**
+ * La fila como compra. Un campo propio de compras con una fila de ventas (o sin fila) no tiene valor:
+ * es un formato mal definido para ese libro, no un dato que el contador corrija.
+ */
+function compra(f: FilaTxt | undefined): FilaCopia {
+  if (typeof f !== "object" || f === null || esVentaCopia(f)) throw new DefinicionFormatoInvalidaError();
+  return f;
+}
+
+/** La fila como venta (012b); con una fila de compras (o sin fila) lanza, como `compra`. */
+function venta(f: FilaTxt | undefined): FilaVentaCopia {
+  if (typeof f !== "object" || f === null || !esVentaCopia(f)) throw new DefinicionFormatoInvalidaError();
+  return f;
+}
+
+/** Monto común a los dos libros (`isc`, `icbper`, `total`). */
+function comun(columna: "isc" | "icbper" | "total"): Valor {
+  return (f) => {
+    if (esVentaCopia(f)) return f.montos[columna].toString();
+    return columna === "total" ? f.montos.total.toString() : f.montos.obtener(columna).toString();
+  };
+}
 
 /** Valor de cada campo conocido; el texto va tal como llegó. */
 export const VALORES: ReadonlyMap<string, Valor> = new Map<string, Valor>([
@@ -35,14 +56,28 @@ export const VALORES: ReadonlyMap<string, Valor> = new Map<string, Valor>([
   ["serie", (f) => f.comprobante.serie],
   ["numero", (f) => f.comprobante.numero],
   ["fechaEmision", (f) => fechaTxt(f.fechaEmision)],
-  ["tipoDocProveedor", (f) => f.proveedor.tipo],
-  ["numeroDocProveedor", (f) => f.proveedor.numero],
-  ["razonSocial", (f) => f.proveedor.razonSocial ?? ""],
-  ["moneda", (f) => f.montos.moneda],
+  ["tipoDocProveedor", (f) => compra(f).proveedor.tipo],
+  ["numeroDocProveedor", (f) => compra(f).proveedor.numero],
+  ["razonSocial", (f) => compra(f).proveedor.razonSocial ?? ""],
+  ["moneda", (f) => monedaDe(f)],
   // En PEN va vacío, también con origenUsd (Ratificación 4).
-  ["tipoCambio", (f) => (f.montos.moneda === "USD" ? tcConTresDecimales(f.tipoCambio as string) : "")],
-  ...COLUMNAS_COMPRA.map((columna): [string, Valor] => [columna, (f) => f.montos.obtener(columna).toString()]),
-  ["total", (f) => f.montos.total.toString()],
+  ["tipoCambio", (f) => (monedaDe(f) === "USD" ? tcConTresDecimales(f.tipoCambio as string) : "")],
+  ...COLUMNAS_COMPRA.filter((columna) => columna !== "isc" && columna !== "icbper").map(
+    (columna): [string, Valor] => [columna, (f) => compra(f).montos.obtener(columna).toString()],
+  ),
+  ["isc", comun("isc")],
+  ["icbper", comun("icbper")],
+  ["total", comun("total")],
+]);
+
+/**
+ * Valor de los campos que solo existen en una venta (012b): el documento de la contraparte y su tipo
+ * (el consumidor final va sin tipo) y los cinco montos propios.
+ */
+const VALORES_VENTAS: ReadonlyMap<string, Valor> = new Map<string, Valor>([
+  ["tipoDocContraparte", (f) => venta(f).contraparte.tipo ?? ""],
+  ["docContraparte", (f) => venta(f).contraparte.numero],
+  ...COLUMNAS_SOLO_VENTAS.map((columna): [string, Valor] => [columna, (f) => venta(f).montos[columna].toString()]),
 ]);
 
 /**
@@ -70,12 +105,8 @@ export const TIPOS_FIJOS: ReadonlyMap<string, TipoCampo> = new Map<string, TipoC
 export function valorDeCampo(nombre: string, libro: Libro = "compras"): Valor {
   const valor = VALORES.get(nombre);
   if (valor !== undefined) return valor;
-  // Ventas (013): los campos propios del libro se registran, pero `generarTxt` no genera ventas hasta 012b
-  // (su cabecera sigue limitada a compras), así que su valor lanza en lugar de inventar uno.
-  if (libro === "ventas" && SOLO_VENTAS.has(nombre)) return sinGenerarVentas;
-  throw new DefinicionFormatoInvalidaError();
-}
-
-function sinGenerarVentas(): string {
+  // Los campos propios de ventas (013) solo valen en ese libro; desde 012b se serializan.
+  const deVentas = libro === "ventas" ? VALORES_VENTAS.get(nombre) : undefined;
+  if (deVentas !== undefined) return deVentas;
   throw new DefinicionFormatoInvalidaError();
 }
