@@ -1,5 +1,6 @@
 // Spec 016 · T8 (backend). Bordes de `planificarObtencionXml` y de `crearEvaluarCompras` con XML que no cubren las pruebas
-// de T2: tamaño de lote no válido y un `detalle` guardado ilegible (se evalúa como sin XML, no deja la fila sin hallazgos).
+// de T2: tamaño de lote no válido, un `detalle` guardado ilegible y `xml: null` (se evalúan como sin XML, no dejan la fila sin
+// hallazgos) y un defecto de programa (se propaga).
 import { describe, expect, it } from "vitest";
 import { detalleMixta } from "../../tests/ayudas/ubl";
 import { crearEvaluarCompras } from "./evaluar";
@@ -31,5 +32,17 @@ describe("crearEvaluarCompras · detalle ilegible", () => {
     const sinXml = evaluar(compra);
     expect(sinXml.length).toBeGreaterThan(0);
     expect(evaluar({ ...compra, xml: { origen: "subido", detalle: roto } })).toEqual(sinXml);
+  });
+
+  it("xml: null (como lo entrega packages/db) se evalúa como sin XML, no como sin hallazgos", () => {
+    const evaluar = crearEvaluarCompras([{ tipo: "6", numero: "20700000045" }]);
+    const sinXml = evaluar(compra);
+    expect(sinXml.map((h) => h.regla)).toContain("R-MIX");
+    expect(evaluar({ ...compra, xml: null })).toEqual(sinXml);
+  });
+
+  it("un defecto de programa no se esconde como «sin hallazgos»: se propaga", () => {
+    const evaluar = crearEvaluarCompras([]);
+    expect(() => evaluar({ ...compra, xml: { origen: "subido", detalle: {} as never } })).toThrow(TypeError);
   });
 });

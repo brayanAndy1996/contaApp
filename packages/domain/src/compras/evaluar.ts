@@ -8,7 +8,8 @@
 import { MontosComprobante } from "../comprobante/index";
 import type { ColumnaCompra } from "../comprobante/index";
 import { DICCIONARIO_GLOSAS_BASE } from "../texto/index";
-import { evaluarReglas } from "../reglas/index";
+import { DineroError } from "../dinero/index";
+import { ReglasError, evaluarReglas } from "../reglas/index";
 import type { ContextoReglas, DocProveedor, FilaEvaluable, Hallazgo, ResumenXml, Sugerencia } from "../reglas/index";
 import { aResumenXml } from "../ubl/index";
 import type { DetalleXml } from "../ubl/index";
@@ -52,8 +53,8 @@ export interface CompraEvaluable {
   readonly clasificada: boolean;
   /** Las 10 columnas y el total como cadenas decimales. */
   readonly montos: Readonly<Record<ColumnaCompra | "total", string>>;
-  /** XML vigente (016); sin él, la evaluación de 014. */
-  readonly xml?: XmlEvaluable;
+  /** XML vigente (016); sin él (`undefined` o `null`, como lo entrega `packages/db`), la evaluación de 014. */
+  readonly xml?: XmlEvaluable | null;
 }
 
 const enMayusculas = (s: string): string => s.replace(MINUSCULA_ASCII, (c) => c.toUpperCase());
@@ -115,15 +116,18 @@ export function hallazgoAJson(h: Hallazgo): HallazgoJson {
 
 /**
  * Resumen del XML para las reglas (016, D-7, P-4): solo si el origen no es `simulado` o la bandera está activa. Un `detalle`
- * guardado que ya no se puede leer se ignora (la fila se evalúa como sin XML) en vez de dejarla sin hallazgos.
+ * guardado con un monto ilegible se ignora (la fila se evalúa como sin XML) en vez de dejarla sin hallazgos; cualquier otro
+ * error es un defecto de programa y se propaga.
  */
 function resumenXml(c: CompraEvaluable, opciones: OpcionesEvaluar): ResumenXml | null {
-  if (c.xml === undefined) return null;
-  if (c.xml.origen === "simulado" && !opciones.xmlSimuladoEnReglas) return null;
+  const xml = c.xml;
+  if (xml === undefined || xml === null) return null;
+  if (xml.origen === "simulado" && !opciones.xmlSimuladoEnReglas) return null;
   try {
-    return aResumenXml(c.xml.detalle);
-  } catch {
-    return null;
+    return aResumenXml(xml.detalle);
+  } catch (e) {
+    if (e instanceof DineroError) return null;
+    throw e;
   }
 }
 
@@ -159,8 +163,10 @@ export function crearEvaluarCompras(
         if (!porRegla.has(h.regla)) porRegla.set(h.regla, hallazgoAJson(h));
       }
       return [...porRegla.values()];
-    } catch {
-      return [];
+    } catch (e) {
+      // Solo una compra que las reglas o el dinero no aceptan queda sin hallazgos (D-4); un defecto de programa se propaga.
+      if (e instanceof ReglasError || e instanceof DineroError) return [];
+      throw e;
     }
   };
 }
