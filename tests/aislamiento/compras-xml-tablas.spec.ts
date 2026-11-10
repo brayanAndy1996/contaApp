@@ -909,10 +909,15 @@ describe("0036 · backfill: los hallazgos sembrados antes de migrar quedan en la
       await c.connect();
       await aplicar(c, tags.slice(0, i));
 
-      // Siembra con el esquema anterior. `replica` salta triggers y FK (no hay estudio ni cliente reales en la base temporal);
+      // Siembra con el esquema anterior. `replica` salta triggers y FK de la siembra vieja (no hay cliente real en la base temporal);
       // los CHECK y los NOT NULL siguen vigentes.
       const T = "11111111-1111-4111-8111-111111111111";
       const CL = "22222222-2222-4222-8222-222222222222";
+      // El estudio existe de verdad: asi las filas nuevas posteriores (evaluaciones, hallazgos) ejercen la FK a `tenant`.
+      await c.query("insert into tenant (id, nombre) values ($1, $2)", [
+        T,
+        "Estudio temporal T5",
+      ]);
       await c.query("SET session_replication_role = replica");
       const compra = async (
         serie: string,

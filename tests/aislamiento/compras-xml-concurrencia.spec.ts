@@ -142,6 +142,7 @@ async function verificarConvergencia(
   compraId: string,
   xmlId: string,
   etiqueta: string,
+  origen: "real" | "subido" = "real",
 ) {
   expect(await versionesN(admin, compraId), `${etiqueta}: versiones`).toEqual([
     1, 2,
@@ -170,14 +171,14 @@ async function verificarConvergencia(
   expect(
     h.map((x) => x.lecturas),
     `${etiqueta}: la ultima evaluacion se calculo con el XML`,
-  ).toEqual([{ xml: "real", version: "2" }]);
+  ).toEqual([{ xml: origen, version: "2" }]);
   const vigentes = await backend.withTenant({ tenantId: X }, (tx) =>
     leerHallazgosVigentes(tx, [compraId]),
   );
   expect(
     vigentes.get(compraId)?.map((x) => x.lecturas),
     `${etiqueta}: los vigentes son los de esa evaluacion`,
-  ).toEqual([{ xml: "real", version: "2" }]);
+  ).toEqual([{ xml: origen, version: "2" }]);
 }
 
 const xmlIdDe = async (c: ClientePrueba, k: CompraK): Promise<string> => {
@@ -394,7 +395,12 @@ describe("dos subidas simultaneas del mismo comprobante (D-4, P-6; plan «Riesgo
       });
       const r = await Promise.allSettled([subida, edita, reeval]);
       expect(r.map(estado), `ronda ${ronda}`).toEqual(["ok", "ok", "ok"]);
-      await verificarConvergencia(k.id, await xmlIdDe(c, k), `ronda ${ronda}`);
+      await verificarConvergencia(
+        k.id,
+        await xmlIdDe(c, k),
+        `ronda ${ronda}`,
+        "subido",
+      );
     }
   }, 60_000);
 });
