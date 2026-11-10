@@ -28,8 +28,10 @@ import type {
   AvisoPrevalidacion,
   CodigoAvisoPrevalidacion,
   ContextoPrevalidacion,
+  ContextoPrevalidacionVentas,
   ErrorPrevalidacion,
   FilaReemplazo,
+  FilaReemplazoVenta,
   ResultadoPrevalidacion,
 } from "./tipos";
 
@@ -199,7 +201,13 @@ export function leerContexto(o: unknown): {
  * la entrada. Forma imposible → EntradaPrevalidacionInvalidaError; periodo sin versión vigente →
  * FormatoNoVigenteError. Un dato corregible nunca lanza: es un ErrorPrevalidacion.
  */
-export function prevalidar(filas: readonly FilaReemplazo[], contexto: ContextoPrevalidacion): ResultadoPrevalidacion {
+/** Ventas (012b): se elige por `cabecera.libro`; las filas del otro libro y `reglas` lanzan. Aún sin implementar (T7). */
+export function prevalidar(filas: readonly FilaReemplazoVenta[], contexto: ContextoPrevalidacionVentas): ResultadoPrevalidacion;
+export function prevalidar(filas: readonly FilaReemplazo[], contexto: ContextoPrevalidacion): ResultadoPrevalidacion;
+export function prevalidar(
+  filas: readonly FilaReemplazo[] | readonly FilaReemplazoVenta[],
+  contexto: ContextoPrevalidacion | ContextoPrevalidacionVentas,
+): ResultadoPrevalidacion {
   const ctx = leerContexto(contexto);
   const copias = leerFilas(filas);
   const cabecera = leerCabecera(ctx.cabecera);

@@ -9,7 +9,8 @@ import type { Entero } from "../texto/entero";
 import { tipoCambioDe } from "./aritmetica";
 import { compararTexto, invalida, leerFilas } from "./entrada";
 import type { FilaCopia, OrigenUsdCopia } from "./entrada";
-import type { FilaReemplazo, ResumenCambios } from "./tipos";
+import type { CabeceraTxt } from "../formatos/tipos";
+import type { FilaReemplazo, FilaReemplazoVenta, ResumenCambios, ResumenCambiosVentas } from "./tipos";
 
 // ---------------------------------------------------------------- «difiere»
 /**
@@ -84,7 +85,19 @@ function montosEnPen(f: FilaCopia): MontosComprobante | null {
  * del original, una vigente no agregada con un id que no está en el original, o un impacto (por
  * destino o total) que excede NUMERIC(14,2) (D22).
  */
-export function resumirCambios(original: readonly FilaReemplazo[], vigente: readonly FilaReemplazo[]): ResumenCambios {
+/** Ventas (012b): con `cabecera.libro = "ventas"`. Aún sin implementar (T7). */
+export function resumirCambios(
+  original: readonly FilaReemplazoVenta[],
+  vigente: readonly FilaReemplazoVenta[],
+  cabecera: CabeceraTxt,
+): ResumenCambiosVentas;
+export function resumirCambios(original: readonly FilaReemplazo[], vigente: readonly FilaReemplazo[]): ResumenCambios;
+export function resumirCambios(
+  original: readonly FilaReemplazo[] | readonly FilaReemplazoVenta[],
+  vigente: readonly FilaReemplazo[] | readonly FilaReemplazoVenta[],
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- stub de T1: T7 lo usa para elegir el libro
+  _cabecera?: CabeceraTxt,
+): ResumenCambios | ResumenCambiosVentas {
   const originales = leerFilas(original);
   const vigentes = leerFilas(vigente);
   const porId = new Map<string, FilaCopia>();

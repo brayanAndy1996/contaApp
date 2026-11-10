@@ -95,6 +95,8 @@ describe("T13b · ronda adversarial 2b", () => {
       "cuadraVenta",
       // 016 (T2, T8): parser UBL, resumen para las reglas, identidad y plan de obtención de XML (ubl/, compras/obtencion).
       "UblError", "aResumenXml", "compararIdentidad", "leerUbl", "planificarObtencionXml",
+      // 012b (T1, plan Contratos: Dominio): archivos/ (previo, huella, adaptadores, D2) y los errores de una fila de ventas.
+      "canonHuella", "compraLeidaAFila", "erroresDeFilaVenta", "permiteProvisional", "prepararArchivo", "ventaAFila",
     ].sort();
     expect(Object.keys(Publico).sort()).toEqual(esperados);
 

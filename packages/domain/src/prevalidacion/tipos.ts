@@ -3,6 +3,7 @@
 import type { Destino, MontosComprobante } from "../comprobante/index";
 import type { Money } from "../dinero/index";
 import type { CabeceraTxt } from "../formatos/tipos";
+import type { ColumnaVenta } from "../ventas/columnas";
 import type { RegistroFormatos } from "../formatos/registro";
 import type { Entero } from "../texto/entero";
 import type { ContextoReglas, DocProveedor, Hallazgo, IdComprobante, ResumenXml } from "../reglas/index";
@@ -84,5 +85,38 @@ export interface ResumenCambios {
   /** Σ IGV de las vigentes no excluidas − Σ IGV de las originales, por destino; total = DG + DGNG + DNG. */
   readonly impactoIgv: { readonly DG: Money; readonly DGNG: Money; readonly DNG: Money; readonly total: Money };
   /** Ids de las filas USD que no se pudieron convertir a PEN (sin repetir, por unidades de código). */
+  readonly filasSinConvertir: readonly string[];
+}
+
+// ---------------------------------------------------------------- ventas (spec 012b, D12; plan, Contratos: Dominio)
+export type EstadoFilaVenta = "original" | "agregada" | "excluida";
+
+/** Fila de ventas del periodo a generar. La moneda es la de sus `montos` (las ocho columnas, todas en la misma). */
+export interface FilaReemplazoVenta {
+  /** ^[A-Za-z0-9_-]{1,64}$, único en la llamada. */
+  readonly id: string;
+  readonly estado: EstadoFilaVenta;
+  readonly comprobante: IdComprobante;
+  /** Sin `tipo` en el consumidor final (numero «-»). */
+  readonly contraparte: { readonly tipo?: string; readonly numero: string };
+  /** AAAA-MM-DD. */
+  readonly fechaEmision: string;
+  readonly montos: Readonly<Record<ColumnaVenta, Money>>;
+  /** Obligatorio si la fila es USD; `null` si es PEN. */
+  readonly tipoCambio: string | null;
+}
+
+/** Contexto de prevalidar con ventas: sin `reglas` (pasarlas lanza). */
+export interface ContextoPrevalidacionVentas {
+  readonly cabecera: CabeceraTxt;
+  readonly registro?: RegistroFormatos;
+}
+
+/** Resumen de cambios de ventas: no hay modificadas; el impacto es solo el IGV total, en PEN. */
+export interface ResumenCambiosVentas {
+  readonly modificadas: 0;
+  readonly excluidas: Entero;
+  readonly agregadas: Entero;
+  readonly impactoIgv: { readonly total: Money };
   readonly filasSinConvertir: readonly string[];
 }

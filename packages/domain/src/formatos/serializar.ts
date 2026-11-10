@@ -5,7 +5,7 @@
 import { compararTexto, leerCabecera, leerFilas, leerObjeto, invalida } from "../prevalidacion/entrada";
 import type { FilaCopia } from "../prevalidacion/entrada";
 import { prevalidarCopia } from "../prevalidacion/prevalidar";
-import type { FilaReemplazo } from "../prevalidacion/tipos";
+import type { FilaReemplazo, FilaReemplazoVenta } from "../prevalidacion/tipos";
 import { codificar } from "../texto/codificar";
 import type { Entero } from "../texto/entero";
 import {
@@ -86,8 +86,19 @@ function leerOpciones(o: unknown): { permitirProvisional: boolean; registro: Reg
  * serializar. Las líneas siguen un orden estable (D6) y omiten las excluidas si el formato no las
  * incluye (D14). `codificar` es la segunda barrera: lanza si un carácter no cabe.
  */
+/** Ventas (012b): con `cabecera.libro = "ventas"`. Aún sin implementar (T7). */
+export function generarTxt(
+  filas: readonly FilaReemplazoVenta[],
+  cabecera: CabeceraTxt,
+  opciones?: OpcionesGenerarTxt,
+): ResultadoGenerarTxt;
 export function generarTxt(
   filas: readonly FilaReemplazo[],
+  cabecera: CabeceraTxt,
+  opciones?: OpcionesGenerarTxt,
+): ResultadoGenerarTxt;
+export function generarTxt(
+  filas: readonly FilaReemplazo[] | readonly FilaReemplazoVenta[],
   cabecera: CabeceraTxt,
   opciones?: OpcionesGenerarTxt,
 ): ResultadoGenerarTxt {
