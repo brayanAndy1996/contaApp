@@ -1,8 +1,8 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
-  bloquearPeriodoLibro,
   crearVentaManual,
   justificar,
+  leerEstadoPeriodoVentas,
   leerFilasVentas,
   listarDiferencias,
   listarJustificados,
@@ -14,12 +14,10 @@ import {
   VentasRepoError,
   type Alcance,
   type ContappDb,
-  type VentaFila,
 } from "@contapp/db";
 import {
   analizarCorrelatividad,
   claveNormalizada,
-  cuadraVenta,
   MontoFueraDeRangoError,
   resumirVentas,
   validarFilaVenta,
@@ -32,57 +30,21 @@ import {
   type DiferenciaVentasDto,
   type PaginaVentasDto,
   type PropuestaVentasDto,
-  type ResumenVentasDto,
+  type ResumenVentasVista,
   type SaltoJustificadoDto,
   type VentaDto,
 } from "@contapp/shared";
 import { AccesoError } from "../acceso/errores.js";
 import type { SesionResuelta } from "../auth/auth.service.js";
 import { DB } from "../auth/inyeccion.js";
-import { contextoDe, esUuid } from "../clientes/contexto.js";
+import { contextoDe } from "../clientes/contexto.js";
 import { Encolador } from "../trabajos/encolador.js";
-import { exigirCliente, aPropuestaDto, periodoDe } from "./apoyo.js";
+import { aPropuestaDto, aVentaDto, exigirCliente, exigirEscrituraVentas, idDe, periodoDe } from "./apoyo.js";
 import { VentasError } from "./errores.js";
 
 /** SQLSTATE `unique_violation`: la clave (tipo, serie, número) ya está en el periodo (D9). */
 const UNICA_VIOLADA = "23505";
 const TAMANO_POR_OMISION = 25;
-
-/** Un id mal formado en la ruta es un recurso inexistente (404), igual que uno que no existe. */
-function idDe(valor: string): string {
-  if (!esUuid(valor)) throw new AccesoError("no_encontrado");
-  return valor;
-}
-
-/**
- * Fila de la BD → `VentaDto`: ni la clave interna, ni la propuesta, ni el usuario, ni el estudio. `cuadra` se calcula
- * aquí con el dominio (D26): no hay columna; la fila se devuelve tal cual llegó aunque no cuadre (D3).
- */
-function aVentaDto(f: VentaFila): VentaDto {
-  return {
-    id: f.id,
-    origen: f.origen,
-    tipo: f.tipo,
-    serie: f.serie,
-    numero: f.numero,
-    fechaEmision: f.fecha,
-    tipoDocContraparte: f.tipoDocContraparte,
-    docContraparte: f.docContraparte,
-    moneda: f.moneda,
-    tipoCambio: f.tipoCambio,
-    baseGravada: f.baseGravada,
-    igv: f.igv,
-    exonerada: f.exonerada,
-    inafecta: f.inafecta,
-    isc: f.isc,
-    icbper: f.icbper,
-    otros: f.otros,
-    total: f.total,
-    cuadra: cuadraVenta(f, f.moneda),
-    // T10/T13 (012b) leen la exclusión vigente; hasta entonces ninguna venta sale excluida.
-    exclusion: null,
-  };
-}
 
 /**
  * Ventas del periodo (spec 013, D2, D5 a D11). Toda consulta va dentro de `withTenant`. El backend nunca llama a SUNAT:
@@ -100,12 +62,14 @@ export class VentasService {
   async descargar(
     sesion: SesionResuelta,
     alcance: Alcance,
+    permisos: ReadonlySet<string>,
     clienteId: string,
     periodoCrudo: string,
   ): Promise<{ trabajoId: string }> {
     const periodo = periodoDe(periodoCrudo);
     const ctx = contextoDe(sesion);
-    await this.db.withTenant(ctx, (tx) => exigirCliente(tx, clienteId, alcance, true));
+    // 012b D5, P-9: el estado se comprueba al encolar (sin bloquear); el worker lo repite bajo el bloqueo.
+    await this.db.withTenant(ctx, (tx) => exigirEscrituraVentas(tx, alcance, permisos, clienteId, periodo, { bloquear: false }));
     // Un periodo posterior al mes en curso lo rechaza el catálogo (`ParametrosInvalidosError`: el filtro lo da como 400).
     const r = await this.encolador.encolar(
       { tenantId: ctx.tenantId, userId: ctx.userId },
@@ -159,12 +123,17 @@ export class VentasService {
     alcance: Alcance,
     clienteId: string,
     periodoCrudo: string,
-  ): Promise<ResumenVentasDto> {
+  ): Promise<ResumenVentasVista> {
     const periodo = periodoDe(periodoCrudo);
-    const filas = await this.db.withTenant(contextoDe(sesion), async (tx) => {
+    const { todas, estado } = await this.db.withTenant(contextoDe(sesion), async (tx) => {
       await exigirCliente(tx, clienteId, alcance, false);
-      return leerFilasVentas(tx, clienteId, periodo);
+      return {
+        todas: await leerFilasVentas(tx, clienteId, periodo),
+        estado: (await leerEstadoPeriodoVentas(tx, clienteId, periodo)).estado,
+      };
     });
+    // 012b D12, RF-056: las excluidas no suman; se cuentan aparte.
+    const filas = todas.filter((f) => f.exclusion === null);
     try {
       const r = resumirVentas(
         filas.map((f) => ({
@@ -187,6 +156,8 @@ export class VentasService {
         total: { ...r.total },
         sinConvertir: r.sinConvertir.map((s) => ({ clave: s.clave, moneda: s.moneda })),
         avisos: [...r.avisos],
+        estado,
+        excluidas: todas.length - filas.length,
       };
     } catch (e) {
       if (e instanceof MontoFueraDeRangoError) throw new VentasError("resumen_fuera_de_rango");
@@ -286,6 +257,7 @@ export class VentasService {
   async agregar(
     sesion: SesionResuelta,
     alcance: Alcance,
+    permisos: ReadonlySet<string>,
     clienteId: string,
     periodoCrudo: string,
     cuerpo: unknown,
@@ -301,10 +273,9 @@ export class VentasService {
     // La serie se guarda en mayúsculas (la clave ya las normaliza) para que no cree una serie aparte en la correlatividad.
     const serie = f.serie.toUpperCase();
     const creada = await this.db.withTenant(ctx, async (tx) => {
-      await exigirCliente(tx, clienteId, alcance, true);
-      // Primero se lee el cliente (lectura simple, sin bloqueo); luego se toma el advisory del periodo, que es el único
-      // bloqueo: así esta escritura no se cruza con una descarga ni con otra venta del mismo periodo.
-      await bloquearPeriodoLibro(tx, clienteId, periodo, "ventas");
+      // Cliente (lectura simple), advisory del periodo (así esta escritura no se cruza con una descarga, otra venta ni generar)
+      // y estado del periodo (409 `periodo_generado`, 403 `periodo_revisado`; 012b D5, P-9).
+      await exigirEscrituraVentas(tx, alcance, permisos, clienteId, periodo);
       try {
         return await crearVentaManual(tx, {
           clienteId,
@@ -340,15 +311,15 @@ export class VentasService {
   async quitar(
     sesion: SesionResuelta,
     alcance: Alcance,
+    permisos: ReadonlySet<string>,
     clienteId: string,
     periodoCrudo: string,
     ventaCruda: string,
   ): Promise<void> {
     const periodo = periodoDe(periodoCrudo);
-    const ventaId = idDe(ventaCruda);
     await this.db.withTenant(contextoDe(sesion), async (tx) => {
-      await exigirCliente(tx, clienteId, alcance, true);
-      await bloquearPeriodoLibro(tx, clienteId, periodo, "ventas");
+      await exigirEscrituraVentas(tx, alcance, permisos, clienteId, periodo);
+      const ventaId = idDe(ventaCruda); // un id mal formado es un 404, pero después del estado (plan 012b)
       const venta = (await leerFilasVentas(tx, clienteId, periodo)).find((v) => v.id === ventaId);
       if (venta === undefined) throw new AccesoError("no_encontrado");
       if (venta.origen !== "manual") throw new VentasError("venta_no_quitable");
@@ -360,6 +331,7 @@ export class VentasService {
   async justificar(
     sesion: SesionResuelta,
     alcance: Alcance,
+    permisos: ReadonlySet<string>,
     clienteId: string,
     periodoCrudo: string,
     cuerpo: unknown,
@@ -370,7 +342,7 @@ export class VentasService {
     const { tipo, serie, desde, hasta, comentario } = valor.data;
     const ctx = contextoDe(sesion);
     const j = await this.db.withTenant(ctx, async (tx) => {
-      await exigirCliente(tx, clienteId, alcance, true);
+      await exigirEscrituraVentas(tx, alcance, permisos, clienteId, periodo);
       const filas = await leerFilasVentas(tx, clienteId, periodo);
       // Sin justificaciones: son los huecos del periodo tal cual (una ya justificada sigue siendo un faltante).
       const grupo = analizarCorrelatividad(
@@ -389,15 +361,16 @@ export class VentasService {
   async revertir(
     sesion: SesionResuelta,
     alcance: Alcance,
+    permisos: ReadonlySet<string>,
     clienteId: string,
     periodoCrudo: string,
     justificacionCruda: string,
   ): Promise<void> {
     const periodo = periodoDe(periodoCrudo);
-    const id = idDe(justificacionCruda);
     const ctx = contextoDe(sesion);
     await this.db.withTenant(ctx, async (tx) => {
-      await exigirCliente(tx, clienteId, alcance, true);
+      await exigirEscrituraVentas(tx, alcance, permisos, clienteId, periodo);
+      const id = idDe(justificacionCruda);
       const vigentes = await listarJustificados(tx, clienteId, periodo);
       if (!vigentes.some((j) => j.id === id)) throw new AccesoError("no_encontrado");
       if (!(await revertirJustificacion(tx, id, ctx.userId))) throw new AccesoError("no_encontrado");

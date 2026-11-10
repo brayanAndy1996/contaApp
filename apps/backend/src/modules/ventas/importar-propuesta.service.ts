@@ -32,7 +32,7 @@ import { leerCsvTabla } from "../importacion/lector-csv.js";
 import { leerXlsxTabla } from "../importacion/lector-xlsx.js";
 import { columnasDePerfil, type FilaTabla, type PerfilTabla } from "../importacion/tabla.js";
 import { ErrorArchivo, LIMITES_VENTAS } from "../importacion/tipos.js";
-import { aPropuestaDto, exigirCliente, periodoDe } from "./apoyo.js";
+import { aPropuestaDto, exigirCliente, exigirEscrituraVentas, periodoDe } from "./apoyo.js";
 import { VentasError } from "./errores.js";
 
 /** Columnas del layout provisional de 009/013 (D6, D14b): sus nombres son los campos de `FilaVentaSire`. */
@@ -180,6 +180,7 @@ export class ImportarPropuestaService {
   async confirmar(
     sesion: SesionResuelta,
     alcance: Alcance,
+    permisos: ReadonlySet<string>,
     clienteId: string,
     periodoCrudo: string,
     cuerpo: unknown,
@@ -205,7 +206,9 @@ export class ImportarPropuestaService {
     const hash = hashContenido("ventas", periodo, filas);
 
     const propuesta = await this.db.withTenant(ctx, async (tx) => {
-      await exigirCliente(tx, clienteId, alcance, true);
+      // Cliente, advisory del libro y estado del periodo (012b D5, P-9): con `generado` 409 `periodo_generado`; con `revisado`
+      // solo `sire.aprobar_generar`. `aplicarComplemento` vuelve a tomar el advisory (ya es nuestro) y no cambia el orden.
+      await exigirEscrituraVentas(tx, alcance, permisos, clienteId, periodo);
       const aplicado = await aplicarComplemento<FilaComplementable<VentaNueva>, typeof tx>(tx, {
         clienteId,
         periodo,

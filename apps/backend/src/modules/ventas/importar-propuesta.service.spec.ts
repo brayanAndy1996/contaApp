@@ -132,7 +132,7 @@ describe("confirmar", () => {
   it("una fila con error: 422 filas_con_errores antes de tocar la BD", async () => {
     const withTenant = vi.fn((_c: unknown, fn: (tx: unknown) => unknown) => Promise.resolve(fn({})));
     const s = new ImportarPropuestaService({ withTenant } as never);
-    await expect(s.confirmar(sesion, alcance, "c-1", "202610", csv(BUENA, con("fechaEmision", "2026-02-30")))).rejects.toMatchObject({
+    await expect(s.confirmar(sesion, alcance, new Set<string>(), "c-1", "202610", csv(BUENA, con("fechaEmision", "2026-02-30")))).rejects.toMatchObject({
       codigo: "filas_con_errores",
       status: 422,
     });
@@ -152,7 +152,7 @@ describe("NODE_ENV se lee en cada petición", () => {
       codigo: "layout_no_oficial",
       status: 422,
     });
-    await expect(s.confirmar(sesion, alcance, "c-1", "202610", undefined)).rejects.toMatchObject({ codigo: "layout_no_oficial" });
+    await expect(s.confirmar(sesion, alcance, new Set<string>(), "c-1", "202610", undefined)).rejects.toMatchObject({ codigo: "layout_no_oficial" });
     expect(withTenant).not.toHaveBeenCalled();
     vi.stubEnv("NODE_ENV", "development");
     expect((await previa(csv(BUENA))).validas).toBe(1);

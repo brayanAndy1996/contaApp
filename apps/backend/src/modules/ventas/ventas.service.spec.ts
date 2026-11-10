@@ -11,6 +11,7 @@ vi.mock("@contapp/db", async (original) => ({
   crearVentaManual: vi.fn(),
   justificar: vi.fn(),
   leerClienteDto: vi.fn(),
+  leerEstadoPeriodoVentas: vi.fn(),
   leerFilasVentas: vi.fn(),
   listarJustificados: vi.fn(),
   quitarVentaManual: vi.fn(),
@@ -25,6 +26,7 @@ import {
   clienteVisible,
   crearVentaManual,
   leerClienteDto,
+  leerEstadoPeriodoVentas,
   leerFilasVentas,
   listarJustificados,
   quitarVentaManual,
@@ -42,6 +44,7 @@ const CLIENTE = "0190a000-0000-7000-8000-0000000000c1";
 const VENTA = "0190a000-0000-7000-8000-0000000000d1";
 const sesion = { tenantActivo: TENANT, usuarioId: ACTOR } as SesionResuelta;
 const alcance: Alcance = { tipo: "global" };
+const SIN_PERMISOS: ReadonlySet<string> = new Set<string>();
 const encolador = { encolar: vi.fn() };
 
 function armar() {
@@ -70,6 +73,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(clienteVisible).mockResolvedValue(true);
   vi.mocked(leerClienteDto).mockResolvedValue({ archivado: false } as never);
+  vi.mocked(leerEstadoPeriodoVentas).mockResolvedValue({ estado: "abierto", marcadoPor: null, marcadoEn: null });
 });
 
 describe("cliente fuera del alcance o que desapareció entre el guard y la transacción", () => {
@@ -81,7 +85,7 @@ describe("cliente fuera del alcance o que desapareció entre el guard y la trans
 
   it("una escritura responde no_encontrado si el cliente ya no existe y no escribe nada", async () => {
     vi.mocked(leerClienteDto).mockResolvedValue(null);
-    await expect(armar().agregar(sesion, alcance, CLIENTE, "202610", cuerpoVenta)).rejects.toMatchObject({
+    await expect(armar().agregar(sesion, alcance, SIN_PERMISOS, CLIENTE, "202610", cuerpoVenta)).rejects.toMatchObject({
       codigo: "no_encontrado",
     });
     expect(crearVentaManual).not.toHaveBeenCalled();
@@ -110,14 +114,14 @@ describe("resumen", () => {
 describe("agregar", () => {
   it("una fila que el zod acepta pero el dominio no (documento con símbolo) es 400 solicitud_invalida y no escribe", async () => {
     await expect(
-      armar().agregar(sesion, alcance, CLIENTE, "202610", { ...cuerpoVenta, docContraparte: "=CMD()" }),
+      armar().agregar(sesion, alcance, SIN_PERMISOS, CLIENTE, "202610", { ...cuerpoVenta, docContraparte: "=CMD()" }),
     ).rejects.toMatchObject({ codigo: "solicitud_invalida" });
     expect(crearVentaManual).not.toHaveBeenCalled();
   });
 
   it("un error de la BD que no es la clave repetida se propaga (no se disfraza de duplicado)", async () => {
     vi.mocked(crearVentaManual).mockRejectedValue(new VentasRepoError("23514"));
-    await expect(armar().agregar(sesion, alcance, CLIENTE, "202610", cuerpoVenta)).rejects.toMatchObject({
+    await expect(armar().agregar(sesion, alcance, SIN_PERMISOS, CLIENTE, "202610", cuerpoVenta)).rejects.toMatchObject({
       codigo: "23514",
     });
   });
@@ -127,7 +131,7 @@ describe("quitar y revertir: la fila desaparece entre la lectura y la escritura"
   it("quitar responde no_encontrado si el DELETE no borró nada", async () => {
     vi.mocked(leerFilasVentas).mockResolvedValue([{ id: VENTA, origen: "manual" }] as never);
     vi.mocked(quitarVentaManual).mockResolvedValue(false);
-    await expect(armar().quitar(sesion, alcance, CLIENTE, "202610", VENTA)).rejects.toMatchObject({
+    await expect(armar().quitar(sesion, alcance, SIN_PERMISOS, CLIENTE, "202610", VENTA)).rejects.toMatchObject({
       codigo: "no_encontrado",
     });
   });
@@ -135,7 +139,7 @@ describe("quitar y revertir: la fila desaparece entre la lectura y la escritura"
   it("revertir responde no_encontrado si otra solicitud la revirtió justo antes", async () => {
     vi.mocked(listarJustificados).mockResolvedValue([{ id: VENTA }] as never);
     vi.mocked(revertirJustificacion).mockResolvedValue(false);
-    await expect(armar().revertir(sesion, alcance, CLIENTE, "202610", VENTA)).rejects.toMatchObject({
+    await expect(armar().revertir(sesion, alcance, SIN_PERMISOS, CLIENTE, "202610", VENTA)).rejects.toMatchObject({
       codigo: "no_encontrado",
     });
   });

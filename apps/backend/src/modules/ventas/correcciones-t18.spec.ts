@@ -55,7 +55,7 @@ describe("H-013-5 · el layout provisional solo importa con NODE_ENV development
     const { s, withTenant } = servicio();
     const esperado = { codigo: "layout_no_oficial", status: 422 };
     await expect(s.vistaPrevia(sesion, alcance, "c-1", "202610", archivo)).rejects.toMatchObject(esperado);
-    await expect(s.confirmar(sesion, alcance, "c-1", "202610", archivo)).rejects.toMatchObject(esperado);
+    await expect(s.confirmar(sesion, alcance, new Set<string>(), "c-1", "202610", archivo)).rejects.toMatchObject(esperado);
     expect(withTenant).not.toHaveBeenCalled();
   });
 
@@ -65,7 +65,7 @@ describe("H-013-5 · el layout provisional solo importa con NODE_ENV development
     const { s, withTenant } = servicio();
     const esperado = { codigo: "layout_no_oficial", status: 422 };
     await expect(s.vistaPrevia(sesion, alcance, "c-1", "202610", archivo)).rejects.toMatchObject(esperado);
-    await expect(s.confirmar(sesion, alcance, "c-1", "202610", archivo)).rejects.toMatchObject(esperado);
+    await expect(s.confirmar(sesion, alcance, new Set<string>(), "c-1", "202610", archivo)).rejects.toMatchObject(esperado);
     expect(withTenant).not.toHaveBeenCalled();
   });
 
