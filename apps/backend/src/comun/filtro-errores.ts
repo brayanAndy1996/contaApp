@@ -5,6 +5,7 @@ import {
   type ArgumentsHost,
   type ExceptionFilter,
 } from "@nestjs/common";
+import { ArchivosError } from "../modules/archivos/errores.js";
 import { ContrasenaInvalidaError } from "../modules/auth/errores.js";
 import { ComprasError } from "../modules/compras/errores.js";
 import { XmlError } from "../modules/compras/errores-xml.js";
@@ -77,6 +78,10 @@ export class FiltroErrores implements ExceptionFilter {
     }
     // Compras (014): además del código, la versión vigente, el dato pedido o los ids implicados, que ya vienen saneados.
     if (excepcion instanceof ComprasError) {
+      return { estado: excepcion.getStatus(), cuerpo: { ...excepcion.cuerpo } };
+    }
+    // Archivos (012b): `prevalidacion_fallida` lleva además la lista de errores (existe para mostrarse); nunca rutas ni hashes.
+    if (excepcion instanceof ArchivosError) {
       return { estado: excepcion.getStatus(), cuerpo: { ...excepcion.cuerpo } };
     }
     // XML (016): `xml_ajeno` lleva además los nombres de los campos que difieren; nunca el contenido del XML.

@@ -2,6 +2,7 @@ import { Module, type DynamicModule } from "@nestjs/common";
 import type { StorageProvider } from "@contapp/storage";
 import { NucleoModule, type DependenciasNucleo } from "./infra/nucleo.module.js";
 import { AccesoModule } from "./modules/acceso/acceso.module.js";
+import { ArchivosModule } from "./modules/archivos/archivos.module.js";
 import { AuthModule } from "./modules/auth/auth.module.js";
 import { ClientesModule } from "./modules/clientes/clientes.module.js";
 import { ComprasModule } from "./modules/compras/compras.module.js";
@@ -39,6 +40,8 @@ export class AppModule {
         PlanesModule,
         RegistroModule,
         PlataformaModule,
+        // Antes que Ventas y Compras: sus `GET :ventaId` / `GET :compraId` capturarían `archivos` (spec 012b).
+        ArchivosModule,
         VentasModule,
         ComprasModule,
         TrabajosModule.registrar(redis),
