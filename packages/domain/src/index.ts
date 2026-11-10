@@ -26,3 +26,4 @@ export type {
   RecibidaComplemento,
 } from "./complemento/index";
 export * from "./ventas/index";
+export * from "./ubl/index";

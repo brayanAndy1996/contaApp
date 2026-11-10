@@ -9,7 +9,9 @@ import { MontosComprobante } from "../comprobante/index";
 import type { ColumnaCompra } from "../comprobante/index";
 import { DICCIONARIO_GLOSAS_BASE } from "../texto/index";
 import { evaluarReglas } from "../reglas/index";
-import type { ContextoReglas, DocProveedor, Hallazgo, Sugerencia } from "../reglas/index";
+import type { ContextoReglas, DocProveedor, FilaEvaluable, Hallazgo, ResumenXml, Sugerencia } from "../reglas/index";
+import { aResumenXml } from "../ubl/index";
+import type { DetalleXml } from "../ubl/index";
 
 const TIPO_DOC = /^[0-9A-Z]$/;
 const NUMERO_DOC = /^[0-9A-Z-]{1,15}$/;
@@ -24,6 +26,21 @@ export interface HallazgoJson {
   readonly requiereConfirmacion: boolean;
 }
 
+/** Origen del XML guardado (016, `documento_xml.origen`). */
+export type OrigenXml = "simulado" | "real" | "subido";
+
+/** XML vigente de la compra (016): el `detalle` jsonb guardado, opaco para `packages/db`. */
+export interface XmlEvaluable {
+  readonly origen: OrigenXml;
+  readonly detalle: DetalleXml;
+}
+
+/** Opciones de la evaluación (016, P-4). */
+export interface OpcionesEvaluar {
+  /** `XML_SIMULADO_EN_REGLAS`: si el XML simulado entra en las reglas (por defecto no). */
+  readonly xmlSimuladoEnReglas: boolean;
+}
+
 /** Lo que la evaluación necesita de una compra (estructural: `packages/db` no depende de este paquete). */
 export interface CompraEvaluable {
   readonly docTipo: string;
@@ -35,6 +52,8 @@ export interface CompraEvaluable {
   readonly clasificada: boolean;
   /** Las 10 columnas y el total como cadenas decimales. */
   readonly montos: Readonly<Record<ColumnaCompra | "total", string>>;
+  /** XML vigente (016); sin él, la evaluación de 014. */
+  readonly xml?: XmlEvaluable;
 }
 
 const enMayusculas = (s: string): string => s.replace(MINUSCULA_ASCII, (c) => c.toUpperCase());
@@ -95,12 +114,29 @@ export function hallazgoAJson(h: Hallazgo): HallazgoJson {
 }
 
 /**
+ * Resumen del XML para las reglas (016, D-7, P-4): solo si el origen no es `simulado` o la bandera está activa. Un `detalle`
+ * guardado que ya no se puede leer se ignora (la fila se evalúa como sin XML) en vez de dejarla sin hallazgos.
+ */
+function resumenXml(c: CompraEvaluable, opciones: OpcionesEvaluar): ResumenXml | null {
+  if (c.xml === undefined) return null;
+  if (c.xml.origen === "simulado" && !opciones.xmlSimuladoEnReglas) return null;
+  try {
+    return aResumenXml(c.xml.detalle);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Evaluación de una compra por llamada sobre un único entorno (el historial de proveedores del cliente y el diccionario base).
  * Se guarda UN hallazgo por regla y versión (la tabla lo exige): si una regla marca varios destinos de la misma compra queda
  * el primero, en el orden del dominio (DG, DGNG, DNG). Un R-NEW resuelto (la fila ya está `clasificada`) no reaparece (D-4).
+ * Con XML (016): la fila lleva `xml: aResumenXml(detalle)` si el origen no es `simulado` o `xmlSimuladoEnReglas` está activa;
+ * un XML ajeno o en otra moneda no respalda nada (011 lo deja como aviso).
  */
 export function crearEvaluarCompras(
   proveedoresConocidos: readonly { tipo: string; numero: string }[],
+  opciones: OpcionesEvaluar = { xmlSimuladoEnReglas: false },
 ): (c: CompraEvaluable) => HallazgoJson[] {
   const contexto: ContextoReglas = {
     proveedoresConocidos: proveedoresValidos(proveedoresConocidos),
@@ -109,17 +145,14 @@ export function crearEvaluarCompras(
   };
   return (c) => {
     try {
-      const resultado = evaluarReglas(
-        [
-          {
-            id: "fila",
-            proveedor: { tipo: c.docTipo, numero: c.docNumero },
-            comprobante: { tipo: c.tipoDoc, serie: c.serie, numero: c.numero },
-            montos: MontosComprobante.desde(c.moneda, c.montos),
-          },
-        ],
-        contexto,
-      );
+      const fila: FilaEvaluable = {
+        id: "fila",
+        proveedor: { tipo: c.docTipo, numero: c.docNumero },
+        comprobante: { tipo: c.tipoDoc, serie: c.serie, numero: c.numero },
+        montos: MontosComprobante.desde(c.moneda, c.montos),
+      };
+      const xml = resumenXml(c, opciones);
+      const resultado = evaluarReglas([xml === null ? fila : { ...fila, xml }], contexto);
       const porRegla = new Map<string, HallazgoJson>();
       for (const h of resultado.hallazgos) {
         if (h.regla === "R-NEW" && c.clasificada) continue;
