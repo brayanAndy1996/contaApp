@@ -39,6 +39,8 @@ const CANTIDAD: Readonly<Record<RaizUbl, string>> = {
   DebitNote: "DebitedQuantity",
 };
 const TIPO_NOTA: Readonly<Record<RaizUbl, string | null>> = { Invoice: null, CreditNote: "07", DebitNote: "08" };
+/** Tipos que admite un `Invoice` (factura y boleta): una nota va siempre en su propia raíz (H-016-3). */
+const TIPOS_FACTURA: readonly string[] = ["01", "03"];
 const AFECTACION_DE_ESQUEMA: readonly (readonly [string, AfectacionXml])[] = [
   ["1000", "gravado"],
   ["9997", "exonerado"],
@@ -63,6 +65,17 @@ const HEX = "0123456789abcdef";
 
 // ------------------------------------------------------------------ navegación del árbol
 const esNodo = (v: unknown): v is Nodo => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** Cuántas veces aparece el elemento `nombre` en `n`, sea nodo, texto o vacío (`<a/>`). */
+function cuantos(n: Nodo | null, nombre: string): Entero {
+  if (n === null || !Object.hasOwn(n, nombre)) return 0;
+  return [n[nombre]].flat().length;
+}
+
+/** `xml_invalido` si alguno de `nombres` aparece, entre todos, más de una vez en `n`: un total repetido es ambiguo. */
+function aLoSumoUno(n: Nodo | null, ...nombres: readonly string[]): void {
+  if (nombres.reduce((suma, nombre) => suma + cuantos(n, nombre), 0) > 1) invalido();
+}
 
 /** Hijos `nombre` de `n` (con `isArray`, todo elemento llega como arreglo). */
 function hijos(n: Nodo | null, nombre: string): Nodo[] {
@@ -180,6 +193,7 @@ function raizDe(arbol: Nodo): { raiz: RaizUbl; nodo: Nodo } {
 function identidadDe(raiz: RaizUbl, n: Nodo): IdentidadXml {
   const id = ID_COMPROBANTE.exec(requerido(textoEn(n, "ID"))) ?? invalido();
   const tipo = TIPO_NOTA[raiz] ?? conGramatica(requerido(textoEn(n, "InvoiceTypeCode")), TIPO_COMPROBANTE);
+  if (raiz === "Invoice" && !TIPOS_FACTURA.includes(tipo)) invalido();
   const proveedor = primero(n, "AccountingSupplierParty", "Party");
   const ruc = conGramatica(requerido(textoEn(proveedor, "PartyIdentification", "ID")), RUC);
   const razonSocial = textoEn(proveedor, "PartyLegalEntity", "RegistrationName") ?? textoEn(proveedor, "PartyName", "Name") ?? "";
@@ -262,8 +276,16 @@ function totalesDe(n: Nodo, lineas: readonly Linea[], lector: LectorMontos, nega
       // 9995 y 9996 (gratuitas) y los esquemas desconocidos no suman.
     }
   }
+  // Un solo total por documento (H-016-2, H-016-5): un segundo TaxTotal, total monetario o importe es ambiguo.
+  aLoSumoUno(n, "TaxTotal");
+  aLoSumoUno(n, "LegalMonetaryTotal", "RequestedMonetaryTotal");
   const monetario = primero(n, "LegalMonetaryTotal") ?? primero(n, "RequestedMonetaryTotal");
-  const total = lector.leer(primero(monetario, "PayableAmount")) ?? lector.leer(primero(monetario, "TaxInclusiveAmount")) ?? incompleto();
+  aLoSumoUno(monetario, "PayableAmount");
+  aLoSumoUno(monetario, "TaxInclusiveAmount");
+  // Los dos se leen siempre (también se valida el que no se usa): un importe negativo nunca pasa desapercibido (H-016-4).
+  const pagable = lector.leer(primero(monetario, "PayableAmount"));
+  const incluyeImpuestos = lector.leer(primero(monetario, "TaxInclusiveAmount"));
+  const total = pagable ?? incluyeImpuestos ?? incompleto();
   const t = (lista: readonly Money[]): string => texto(sumar(lista, moneda), negativo);
   return {
     gravado: t(columnas.gravado),

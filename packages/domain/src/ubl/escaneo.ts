@@ -4,7 +4,8 @@
 //  - más de 1 MiB; un BOM de UTF-16; cualquier byte 0x00;
 //  - cualquier `<!DOCTYPE` o `<!ENTITY` (sin distinguir mayúsculas), aunque esté dentro de un comentario o de un CDATA;
 //  - toda otra declaración `<!` que no sea comentario ni `<![CDATA[`;
-//  - una profundidad de elementos mayor que 32 o más de 2.000 líneas (`InvoiceLine|CreditNoteLine|DebitNoteLine`);
+//  - una profundidad de elementos mayor que 32 o más de 2.000 líneas (`InvoiceLine|CreditNoteLine|DebitNoteLine`, también
+//    las autocerradas);
 //  - un comentario, CDATA, instrucción o etiqueta sin cerrar.
 // Las marcas que se buscan son ASCII, que ocupa los mismos bytes en UTF-8 y en ISO-8859-1.
 import type { Entero } from "../texto/index";
@@ -127,12 +128,15 @@ function escanearEstructura(b: Uint8Array): void {
     const fin = finEtiqueta(b, i + 1);
     if (siguiente === BARRA) {
       profundidad--;
-    } else if (b[fin - 1] !== BARRA) {
-      profundidad++;
-      if (profundidad > TOPE_PROFUNDIDAD) invalido();
+    } else {
+      // Toda línea de apertura cuenta para el tope, también la autocerrada (H-016-1): el mapeo la tomaría como ítem.
       if (esLinea(b, i + 1)) {
         lineas++;
         if (lineas > TOPE_ITEMS) invalido();
+      }
+      if (b[fin - 1] !== BARRA) {
+        profundidad++;
+        if (profundidad > TOPE_PROFUNDIDAD) invalido();
       }
     }
     i = fin + 1;

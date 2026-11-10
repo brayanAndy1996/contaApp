@@ -10,7 +10,7 @@ import {
 } from "@contapp/db";
 import { compararIdentidad } from "@contapp/domain";
 import type { DetalleLupa } from "@contapp/shared";
-import { ArchivoNoEncontradoError, type StorageProvider } from "@contapp/storage";
+import { ArchivoNoEncontradoError, validarRuta, type StorageProvider } from "@contapp/storage";
 import { AccesoError } from "../acceso/errores.js";
 import type { SesionResuelta } from "../auth/auth.service.js";
 import { DB } from "../auth/inyeccion.js";
@@ -29,6 +29,19 @@ export interface XmlDescargable {
   /** `{ruc}-{tipo}-{serie}-{numero}.xml`, armado con la identidad del comprobante (nunca con un nombre del usuario). */
   nombre: string;
   bytes: Uint8Array;
+}
+
+/**
+ * `true` si `ruta` cumple la gramática de storage y empieza por `xml/{tenant}/{cliente}/` (H-016-7). Toda lectura de storage del
+ * backend pasa por aquí antes de `storage.leer`: la ruta sale de una fila y el CHECK de la BD solo valida su forma.
+ */
+export function rutaDelCliente(ruta: string, tenantId: string, clienteId: string): boolean {
+  try {
+    validarRuta(ruta);
+  } catch {
+    return false;
+  }
+  return ruta.startsWith(`xml/${tenantId.toLowerCase()}/${clienteId.toLowerCase()}/`);
 }
 
 /** Solo letras, dígitos, punto y guion en el nombre del adjunto: la identidad ya viene validada, esto es el cinturón. */
@@ -133,12 +146,16 @@ export class XmlComprasService {
   ): Promise<XmlDescargable> {
     const periodo = periodoDe(periodoCrudo);
     const compraId = idDe(compraCruda);
-    const { identidad, ruta } = await this.db.withTenant(contextoDe(sesion), async (tx) => {
+    const ctx = contextoDe(sesion);
+    const { identidad, ruta } = await this.db.withTenant(ctx, async (tx) => {
       await exigirCliente(tx, clienteId, alcance, false);
       const d = await leerDetalleXml(tx, clienteId, periodo, compraId);
       if (d === null || d.xml === null) throw new AccesoError("no_encontrado");
       return { identidad: d.identidad, ruta: d.xml.ruta };
     });
+    // H-016-7: solo se lee una ruta del estudio de la sesión y del cliente de la URL. Otra (fila corrupta o manipulada) es como
+    // no tener XML: 404 sin servir bytes ni llevar la ruta a la respuesta o al log.
+    if (!rutaDelCliente(ruta, ctx.tenantId, clienteId)) throw new AccesoError("no_encontrado");
     let bytes: Uint8Array;
     try {
       bytes = await this.storage.leer(ruta);

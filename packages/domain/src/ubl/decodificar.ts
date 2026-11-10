@@ -7,7 +7,14 @@ import { invalido } from "./tipos";
 
 type Codificacion = "utf8" | "latin1";
 
-const DECLARACION = /^<\?xml\s[^>]*?\bencoding\s*=\s*["']([A-Za-z0-9._-]{1,40})["']/;
+/**
+ * Gramática estricta de la declaración (XML 1.0 §2.8 y §4.3.3): `version`, luego `encoding` y `standalone` opcionales, en ese
+ * orden y una sola vez, con la misma comilla a cada lado y un `EncName` sin espacios. Todo lo demás es ambiguo (H-016-6).
+ */
+const DECLARACION =
+  /^<\?xml[ \t\r\n]+version[ \t\r\n]*=[ \t\r\n]*(?:"1\.[0-9]{1,3}"|'1\.[0-9]{1,3}')(?:[ \t\r\n]+encoding[ \t\r\n]*=[ \t\r\n]*(?:"([A-Za-z][A-Za-z0-9._-]{0,39})"|'([A-Za-z][A-Za-z0-9._-]{0,39})'))?(?:[ \t\r\n]+standalone[ \t\r\n]*=[ \t\r\n]*(?:"(?:yes|no)"|'(?:yes|no)'))?[ \t\r\n]*\?>/;
+/** `<?xml` seguido de un espacio: es la declaración (no una instrucción `<?xml-…`). */
+const INICIO_DECLARACION = /^<\?xml[ \t\r\n]/;
 const LARGO_MAX_DECLARACION: Entero = 512;
 const TROZO: Entero = 8_192;
 
@@ -22,13 +29,17 @@ function latin1(b: Uint8Array, desde: Entero, hasta: Entero): string {
   return salida;
 }
 
-/** Codificación declarada en `<?xml … encoding="…"?>`; sin declaración o sin `encoding`, UTF-8. */
+/**
+ * Codificación declarada en `<?xml … encoding="…"?>`; sin declaración o sin `encoding`, UTF-8. Una declaración que no cumple la
+ * gramática estricta (atributo repetido o parecido, comillas mal puestas, espacios en el nombre, sin cerrar) es `xml_invalido`.
+ */
 function codificacionDeclarada(b: Uint8Array, desde: Entero): Codificacion {
   const cabecera = latin1(b, desde, desde + LARGO_MAX_DECLARACION < b.length ? desde + LARGO_MAX_DECLARACION : b.length);
-  const fin = cabecera.indexOf("?>");
-  const m = cabecera.startsWith("<?xml") && fin > 0 ? DECLARACION.exec(cabecera.slice(0, fin)) : null;
-  if (m === null) return "utf8";
-  const nombre = m[1]!.toLowerCase();
+  if (!INICIO_DECLARACION.test(cabecera)) return "utf8";
+  const m = DECLARACION.exec(cabecera) ?? invalido();
+  const declarado = m[1] ?? m[2];
+  if (declarado === undefined) return "utf8";
+  const nombre = declarado.toLowerCase();
   if (nombre === "utf-8") return "utf8";
   if (nombre === "iso-8859-1") return "latin1";
   return invalido();

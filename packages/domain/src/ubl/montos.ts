@@ -1,6 +1,6 @@
 // Spec 016 (D-2): importes del XML → `Money` en la moneda del documento. Todo importe pasa por `MontoExacto` y
 // `redondearSunat` (mitad hacia afuera a 2 decimales) y debe caber en NUMERIC(14,2); si no, `xml_invalido`. Ningún monto
-// pasa por `number`.
+// pasa por `number`. Ningún importe del XML puede ser negativo.
 import { Money, MontoExacto, redondearSunat } from "../dinero/index";
 import type { Moneda } from "../dinero/index";
 import { invalido } from "./tipos";
@@ -17,10 +17,16 @@ function enDinero<T>(f: () => T): T {
   }
 }
 
-/** Importe del XML (texto ya recortado) → `Money` redondeado. `null` (el elemento no vino) → 0.00. */
+/**
+ * Importe del XML (texto ya recortado) → `Money` redondeado. `null` (el elemento no vino) → 0.00. Un importe estrictamente
+ * negativo es `xml_invalido` en cualquier raíz (H-016-4): el signo de la nota de crédito lo pone solo el mapeo. `-0` y `-0.00`
+ * no son negativos y quedan en 0.00.
+ */
 export function importe(texto: string | null, moneda: Moneda): Money {
   if (texto === null) return Money.cero(moneda);
-  return enDinero(() => redondearSunat(MontoExacto.desde(texto, moneda)));
+  const exacto = enDinero(() => MontoExacto.desde(texto, moneda));
+  if (exacto.toString().startsWith("-")) invalido();
+  return enDinero(() => redondearSunat(exacto));
 }
 
 /** Suma de importes; el resultado también debe caber en NUMERIC(14,2). */
