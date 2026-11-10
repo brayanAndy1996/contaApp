@@ -64,6 +64,11 @@ export interface ReferenciaXml {
   icbper: string;
   otros: string;
   total: string;
+  /**
+   * RUC del cliente (el receptor del comprobante), 11 dígitos. El worker lo pasa para que el XML sintético sea el de ese
+   * cliente (spec 016, D-3). Sin él, el mock deja el receptor sin identificar.
+   */
+  rucReceptor?: string;
 }
 
 export interface SolicitudXml {

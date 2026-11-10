@@ -9,6 +9,7 @@ import type { ReferenciaXml } from "../puertos.js";
  */
 
 const RE_FECHA = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
+const RE_RUC = /^[0-9]{11}$/;
 const RE_TIPO_CAMBIO = /^[0-9]{1,4}(\.[0-9]{1,3})?$/;
 
 export function generarUblSintetico(
@@ -21,6 +22,13 @@ export function generarUblSintetico(
   if (ref.tipoCambio !== undefined && !RE_TIPO_CAMBIO.test(ref.tipoCambio)) {
     throw new Error("tipoCambio");
   }
+
+  if (ref.rucReceptor !== undefined && !RE_RUC.test(ref.rucReceptor)) {
+    throw new Error("rucReceptor");
+  }
+  // Con RUC del cliente, el receptor es ese RUC (tipo 6); sin él, queda sin identificar (tipo 0, "-").
+  const receptorTipo = ref.rucReceptor === undefined ? "0" : "6";
+  const receptorDoc = ref.rucReceptor ?? "-";
 
   const base = Money.desde(ref.baseGravada, moneda);
   const igv = Money.desde(ref.igv, moneda);
@@ -105,10 +113,10 @@ export function generarUblSintetico(
     </cac:Party>
   </cac:AccountingSupplierParty>
   <cac:AccountingCustomerParty>
-    <cbc:AdditionalAccountID>0</cbc:AdditionalAccountID>
+    <cbc:AdditionalAccountID>${receptorTipo}</cbc:AdditionalAccountID>
     <cac:Party>
       <cac:PartyIdentification>
-        <cbc:ID schemeID="0">-</cbc:ID>
+        <cbc:ID schemeID="${receptorTipo}">${receptorDoc}</cbc:ID>
       </cac:PartyIdentification>
       <cac:PartyLegalEntity>
         <cbc:RegistrationName>PRUEBA CLIENTE SINTETICO</cbc:RegistrationName>

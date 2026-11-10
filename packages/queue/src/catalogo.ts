@@ -167,10 +167,43 @@ export const SIRE_PROPUESTA_DESCARGAR: DefinicionTrabajo<ParametrosDescargarProp
       .strict(),
   };
 
+/** Lote de `xml.obtener`: de 1 a 100 compras. */
+export const TOPE_LOTE_XML = 100;
+
+export interface ParametrosObtenerXml {
+  periodo: string;
+  compraIds: string[];
+}
+
+/**
+ * Spec 016 (D-7, P-7): obtención del XML de un lote de compras de un periodo (cola `xml`, sin canal ni credencial mientras
+ * solo exista el mock; el proveedor real fija las suyas). Los parámetros son estrictos y canónicos: de 1 a 100 uuid únicos
+ * y en orden ascendente (el dedupe de 008 trata igual el mismo lote); lo desordenado o repetido se rechaza, no se normaliza.
+ */
+export const XML_OBTENER: DefinicionTrabajo<ParametrosObtenerXml> = {
+  tipo: "xml.obtener",
+  cola: "xml",
+  canal: "ninguno",
+  credencial: null,
+  permiso: "sire.clasificar",
+  idempotente: true,
+  parametros: z
+    .object({
+      periodo: z.string().regex(PERIODO_AAAAMM),
+      compraIds: z
+        .array(z.uuid())
+        .min(1)
+        .max(TOPE_LOTE_XML)
+        .refine((ids) => ids.every((id, i) => i === 0 || (ids[i - 1] as string) < id)),
+    })
+    .strict(),
+};
+
 registrarTipo(CLIENTE_CONSULTAR_RUC);
 registrarTipo(CREDENCIAL_VERIFICAR_SOL);
 registrarTipo(CREDENCIAL_VERIFICAR_SIRE);
 registrarTipo(SIRE_PROPUESTA_DESCARGAR);
+registrarTipo(XML_OBTENER);
 
 /** Tipo de pruebas: solo existe con NODE_ENV=test (el worker le programa el comportamiento). */
 export const PRUEBA_ECO: DefinicionTrabajo<{ n?: number; rango?: string }> = {

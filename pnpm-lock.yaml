@@ -190,6 +190,9 @@ importers:
       '@contapp/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@contapp/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
       '@contapp/sunat':
         specifier: workspace:*
         version: link:../../packages/sunat

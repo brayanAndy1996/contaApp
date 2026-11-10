@@ -11,7 +11,9 @@ import { aplicarComplemento, hashContenido, type ContappDb } from "@contapp/db";
 import { planificarComplemento } from "@contapp/domain";
 import { SIRE_PROPUESTA_DESCARGAR } from "@contapp/queue";
 import type { SireApiClient } from "@contapp/sunat";
-import type { Procesador } from "../ejecutor.js";
+import type { ContextoProcesador } from "../ejecutor.js";
+import type { RedisEncolado } from "../encolar-xml.js";
+import { registrar, type LoggerTrabajos } from "../registro.js";
 import { ErrorPropuesta } from "../persistidores/errores.js";
 import { PERSISTIDORES } from "../persistidores/index.js";
 import type { PersistidoresLibro } from "../persistidores/tipos.js";
@@ -29,6 +31,11 @@ export interface DepsDescargarPropuesta {
   sireApi: SireApiClient;
   /** Por defecto, el registro de `../persistidores`. */
   persistidores?: PersistidoresLibro;
+  /** Redis y prefijo con que `trasConfirmar` publica los trabajos que encola (016); sin Redis solo quedan en BD. */
+  redis?: RedisEncolado;
+  prefijo?: string;
+  /** Donde se registra (solo un código) el fallo de `trasConfirmar`; sin logger no se registra. */
+  logger?: LoggerTrabajos;
 }
 
 export interface ResultadoDescarga {
@@ -47,7 +54,10 @@ function leerParametros(p: unknown) {
   return r.data;
 }
 
-export function descargarPropuesta(d: DepsDescargarPropuesta): Procesador {
+/** Es un `Procesador` que, además, tipa su resultado (la descarga de 013). */
+export function descargarPropuesta(
+  d: DepsDescargarPropuesta,
+): (ctx: ContextoProcesador) => Promise<ResultadoDescarga> {
   const persistidores = d.persistidores ?? PERSISTIDORES;
   return async ({ trabajo: t, conToken }) => {
     const { periodo, libro } = leerParametros(t.parametros);
@@ -72,7 +82,7 @@ export function descargarPropuesta(d: DepsDescargarPropuesta): Procesador {
     const hash = hashContenido(libro, periodo, preparadas);
     const ctx = { clienteId: t.clienteId, periodo };
 
-    return d.db.withTenant({ tenantId: t.tenantId }, async (tx) => {
+    const resultado = await d.db.withTenant({ tenantId: t.tenantId }, async (tx) => {
       const aplicado = await aplicarComplemento(tx, {
         clienteId: t.clienteId,
         periodo,
@@ -100,5 +110,34 @@ export function descargarPropuesta(d: DepsDescargarPropuesta): Procesador {
       };
       return resultado;
     });
+
+    // Después del commit (016): el gancho del libro. Su fallo no cambia la descarga ni su resultado; solo se registra un código.
+    if (persistidor.trasConfirmar !== undefined) {
+      try {
+        await persistidor.trasConfirmar(
+          {
+            ...ctx,
+            tenantId: t.tenantId,
+            usuarioId,
+            db: d.db,
+            ...(d.redis === undefined ? {} : { redis: d.redis }),
+            ...(d.prefijo === undefined ? {} : { prefijo: d.prefijo }),
+          },
+          resultado.propuestaId,
+        );
+      } catch (e) {
+        if (d.logger !== undefined) {
+          const codigo = (e as { codigo?: unknown } | null)?.codigo;
+          registrar(d.logger, "warn", {
+            evento: "tras_confirmar_fallo",
+            tenant_id: t.tenantId,
+            job_id: t.id,
+            tipo: t.tipo,
+            codigo: typeof codigo === "string" ? codigo : "desconocido",
+          });
+        }
+      }
+    }
+    return resultado;
   };
 }
