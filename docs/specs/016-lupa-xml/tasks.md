@@ -30,7 +30,7 @@ Nivel A (spec P-1) con la lupa del frontend como C por tarea (T15, T16: pruebas 
 | T22 | Pruebas de las correcciones de la ronda 2 (rojo) | tester | sonnet | T21 | ✓ | — | [ ] |
 | T23 | Corregir los hallazgos de la ronda 2 | backend | opus | T22 | — | — | [ ] |
 | T24 | Prueba manual contra el sistema completo | tester | sonnet | T16, T23 | — | — | [x] |
-| T25 | Verificar CA-1 a CA-18 con evidencia, suites completas y cobertura | tester | sonnet | T24 | — | — | [ ] |
+| T25 | Verificar CA-1 a CA-18 con evidencia, suites completas y cobertura | tester | sonnet | T24 | — | — | [x] |
 | T26 | Revisión final contra la spec | arquitecto | opus | T25 | — | — | [ ] |
 | T27 | Cierre: `tasks.md` y commit (el orquestador actualiza ESTADO) | devops | haiku | T26 | — | — | [ ] |
 
@@ -198,10 +198,52 @@ Defectos de servidor: **ninguno.**
 
 Observaciones (sin tarea): (a) los avisos salen dos veces en regiones `role="alert"`/`aria-live` («Sugerencia aceptada.», «La sugerencia cambió…», «Otra persona cambió esta compra…»), como la observación (f) de 015 T11. (b) «XML subido por 01920000 el …»: la pantalla muestra el id corto del autor (CA-16 pide autor); `subidoPor` es solo un uuid en el DTO, igual que en 015 el autor del Historial. (c) Con la lupa abierta, Enter abre el diálogo «Aceptar sugerencias» (hay que pulsar «Aceptar» otra vez), aunque la ayuda de la lupa dice «Enter acepta la sugerencia» y CA-15 «Enter acepta»; con una sugerencia exacta única podría aceptarla directo. (d) En estado «Pendiente» la lupa no ofrece «Subir XML» (sí en `sin_solicitar` y `no_disponible`). (e) `documento_xml_obtencion` de F001-6008 sigue en `no_encontrado` tras subirle el XML: sin efecto visible (la lupa mira `documento_xml` y la planificación omite lo guardado). (f) El texto de `transitorio` «se volverá a intentar» sigue tras agotar los 3 reintentos de 008; el siguiente intento es el botón o la próxima descarga (que sí lo replanifica, punto 1). No probados: CA-8 concurrencia edición/llegada del XML en paralelo, CA-18 con 500 ítems y los casos de unidad (ISO-8859-1, nota de crédito, `currencyID` mezclado), que cubren las suites de T25.
 
-## T25 · [ ] Verificar criterios (tester · sonnet)
+## T25 · [x] Verificar criterios (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (CA-1 a CA-18 y casos reales), los informes de T18, T21 y T24.
 - **Hacer**: suites completas (`pnpm test`, `test:aislamiento`, `ci:db`), los `cobertura:*` de 016 y los de siempre; por cada CA, la prueba o el comando que lo demuestra (`archivo:línea`) o «falta».
 - **Hecho cuando**: tabla CA → evidencia en la sección «Resultado» de esta tarea; cobertura ≥ 90 % en `ubl/`, `storage`, `db/xml` y los módulos XML de backend y worker; ningún adversarial abierto. Commit `docs(016): verificación de criterios`.
+- **Resultado**: **los 18 CA cumplidos**, sin adversarial abierto. Decisiones del 2026-11-10 aplicadas: CA-15 «edita» = botón «Editar» de la lupa (cierra la lupa y abre la fila en edición en la grilla, T24a); «Enter acepta» = Enter abre la aceptación y un segundo Enter la confirma (la ayuda ya lo dice); encolado del worker por `encolar_xml_obtener` (0037); H-016-8 corregido en 0038. Se agregó una prueba (`compras-xml-concurrencia.spec.ts`, «descartada entre la lectura y el bloqueo») para cubrir la rama de carrera de `reevaluar.ts`; no se tocó producción.
+
+Suites y comandos (de a uno, rama `spec/016-lupa-xml`, mocks, PG 17 y Redis nativos, BD `contapp` existente sin recrear):
+
+| Comando | Resultado |
+|---|---|
+| `pnpm --filter @contapp/storage build` (antes de todo) · `pnpm typecheck` · `pnpm lint` | OK (17/17 y 10/10 tareas, 0 advertencias) |
+| Unitarias: frontend / backend / `packages/db` / `packages/domain` | 70 archivos·730 pruebas / 87·1.088 / 52·753 / 98·2.247 (la de `cobertura:dominio`): todas verdes. Con `pnpm test` en paralelo (turbo) fallaron por tiempo agotado de 5 s bajo carga `seed-arranque.spec.ts`, `seed-r2b.adv.spec.ts` (db) y una de `diccionario.spec.ts` (domain); cada una pasa sola y el resto de paquetes pasó (sunat 262, shared 1.555, queue 395, storage 114, crypto 291, limites 329, worker 337) |
+| `cobertura:dominio` | OK: 98 archivos·2.247 pruebas; `ubl/` 99,24 % sentencias · 97,48 % ramas · 100 % funciones y líneas |
+| `cobertura:storage` | OK: 114 pruebas; 98,47 % · 93,65 % ramas (`local.ts` 92,3 %, `index.ts` 92,85 %) |
+| `cobertura:sunat` | OK: 262 pruebas |
+| `cobertura:db` | 2.811 de 2.812 pruebas; **única falla `planes.spec.ts` «todo estudio existente tiene suscripcion»**: 109 estudios «Estudio t005…» de pruebas anteriores sin suscripción en la BD local (tenants sucios; el CI parte de BD limpia). Cobertura medida con `--coverage.reportOnFailure`: total 97,63 % · 91,66 % ramas; `src/xml` 99,12 % · 93,61 % ramas · 100 % funciones y líneas (`reevaluar.ts` 92,85 % ramas tras la prueba nueva; antes 82,14 %) |
+| `cobertura:cola` | OK: 126 archivos·1.821 pruebas; 99,23 % |
+| `cobertura:xml` (backend y worker; umbral 90 % por archivo) | OK: backend 32 archivos·834 pruebas, 98,78 % sentencias · 98,03 % ramas (los dos únicos archivos con filas parciales, ≥ 91 % en ramas; el resto 100 %); worker 40·440, 100 % (`obtener-xml.ts`, `encolar-xml.ts`) |
+| `pnpm test:aislamiento` | 2.044 de 2.045; **solo `planes.spec.ts`** (la misma causa); los 62 archivos restantes, incluidos `compras-xml-*` y `trabajos-encolar-xml`, verdes |
+| `pnpm --filter @contapp/backend test:int` / `@contapp/worker test:int` | OK: 88 archivos·2.180 pruebas / 24·248 |
+| `git diff --stat main...HEAD` | 193 archivos, +41.234 −190: parser UBL (`domain/ubl`), `packages/storage`, `db/xml` y migraciones 0035–0038, catálogo de `queue`, `shared/xml`, módulos XML de backend y worker, lupa y «Agregar desde XML» del frontend, pruebas, configs de cobertura y CI, y los documentos de 016. Nada de ventas, auth ni otras specs: alcance coherente con la spec |
+
+| CA | Evidencia | Resultado |
+|---|---|---|
+| CA-1 | `packages/domain/src/ubl/seguridad.spec.ts:51` (XXE, HTTP, «billion laughs», `<!doctype`, CDATA, UTF-16, NUL; < 100 ms, sin repetir contenido) · `ronda1.adv.spec.ts` · `apps/backend/src/modules/compras/xml.int.spec.ts:226` (422 `xml_invalido`) · T24 punto 9 | Cumplido |
+| CA-2 | `seguridad.spec.ts:121` (1 MiB + 1, 2.001 ítems, profundidad 33, bomba de 50.000 niveles) · `seguridad.spec.ts:156` (sin rastro) · `xml.int.spec.ts:226` · `xml.adv.int.spec.ts:99` (gzip y cuerpo fragmentado) · `desde-xml.int.spec.ts:389` (nada en storage ni BD) · `packages/storage/src/*.spec.ts` | Cumplido |
+| CA-3 | `ubl/leer.spec.ts:20` (F001-2056: 8.97 / 1.61 / 12.51 / 23.09) · `leer.spec.ts:79` (ISO-8859-1 y prefijos distintos) | Cumplido |
+| CA-4 | `ubl/leer.spec.ts:20` (F001-1040: 0.00 / ISC 770.00 / 770.00 sin error) · `ubl/bordes.spec.ts` | Cumplido |
+| CA-5 | `ubl/leer.spec.ts:20` (ICBPER 1.50 e IGV 18.00 de 3064; USD 0.15 / 0.03 / 0.18 de 4062) · `leer.spec.ts:210` (nota de crédito en negativo, `currencyID` mezclado → `monedaUnica = false`, `redondearSunat`) · `domain/src/compras/evaluar-xml.spec.ts:107` (R-GP con la glosa de la zapatilla de 5070) · `pnpm lint` (sin `number` en dinero) | Cumplido |
+| CA-6 | `evaluar-xml.spec.ts` · `xml.int.spec.ts:594` · `detalle.int.spec.ts:353` · `apps/worker/.../obtener-xml.int.spec.ts:610` · `tests/aislamiento/compras-xml-evaluacion.spec.ts:572` (versión sin cambio, sin error de clave única) · T24 puntos 2 y 4 | Cumplido |
+| CA-7 | `evaluar-xml.spec.ts:83` · `xml.int.spec.ts:633` · `compras-xml-evaluacion.spec.ts:572` · T24 punto 5 (DG 0.00, ISC 770.00) | Cumplido |
+| CA-8 | `tests/aislamiento/compras-xml-concurrencia.spec.ts:192` (5 rondas en ambos órdenes) · `xml.int.spec.ts:651` y `:696` (409 `revisar_de_nuevo`) · `reevaluacion.ronda2.int.spec.ts:131` · `reevaluacion.adv.int.spec.ts` · T24 punto 13 | Cumplido |
+| CA-9 | `detalle.int.spec.ts:402` · `xml.int.spec.ts:713` (la masiva no la ofrece) · `lupa-compra.spec.tsx:336` · `evaluar-xml.spec.ts` · T24 punto 10 (F001-4062 sin convertir) | Cumplido |
+| CA-10 | `apps/worker/.../obtener-xml.int.spec.ts:224` · `domain/.../obtencion.spec.ts:67` (primero los de hallazgos, omite lo guardado) · `worker/src/trabajos/encolar-xml.int.spec.ts:80` · `tests/aislamiento/trabajos-encolar-xml.spec.ts:683` (dedupe) · T24 punto 1 (repetir la descarga: 10 → 10 filas) | Cumplido |
+| CA-11 | `obtener-xml.int.spec.ts:471` (centinelas 8, 7 y 9; el de credencial no reintenta) · `detalle.int.spec.ts:232` · `lupa-compra.spec.tsx:336` y `:454` («Subir XML» y «Reintentar») · `lupa-correcciones.spec.tsx:81` (P-1) · T24 punto 8 | Cumplido |
+| CA-12 | `xml.int.spec.ts:109`, `:191` (`xml_ajeno` con el campo), `:226` · `xml.adv.int.spec.ts` · `subir-xml.spec.tsx:44` y `:72` · `lupa-correcciones.spec.tsx:148` (P-2) · T24 punto 9 | Cumplido |
+| CA-13 | `desde-xml.int.spec.ts:94`, `:204`, `:287` (USD con TC, F001-4062), `:316` (400 sin guardar), `:351` (409 `duplicado` con id) · `desde-xml.service.spec.ts` · `agregar-desde-xml.spec.tsx:50`, `:102`, `:176` · T24 puntos 11 y 12 | Cumplido |
+| CA-14 | `detalle.int.spec.ts:304` · `lupa-compra.spec.tsx:104` (cabecera, ítems con afectación, comparación resaltada, explicación de R-MIX) · T24 punto 3 | Cumplido |
+| CA-15 | `xml.int.spec.ts:740` (mismos 409 y 422) · `lupa-compra.spec.tsx:199` (← →, Esc), `:265` (aceptar con 409/422; Enter abre y Enter confirma), `:311` (revisado sin permiso: deshabilitadas) · `lupa-correcciones.spec.tsx:201` y `:263` («Editar») y `:324` (ayuda de teclado) · `page.integracion.spec.tsx` («Editar» cierra la lupa y abre la fila en edición; al cerrar, la grilla muestra el cambio) · T24 puntos 6 y 7 | Cumplido (con las decisiones del 2026-11-10) |
+| CA-16 | `detalle.int.spec.ts:232` y `:288` (origen subido con quién y cuándo) · `evaluar-xml.spec.ts` · `compras-bandera.spec.ts` y `.adv.spec.ts` (worker) · `reevaluacion.adv.int.spec.ts:102` (bandera cambiada entre evaluar y aceptar) · `lupa-compra.spec.tsx:339` («XML simulado», «XML real», «XML subido por … el …») · T24 puntos 2 y 15 | Cumplido; el autor sale como id corto (T24 observación b), sin nombre |
+| CA-17 | `xml.int.spec.ts:364` (adjunto, `nosniff`, `no-store`), `:515` (404 igual que inexistente en las cuatro rutas), `:560` (sin XML ni montos en logs ni `resultado`) · `detalle-privacidad.int.spec.ts:27` · `detalle.int.spec.ts:438` y `lupa-compra.spec.tsx:175` (`<script>` como texto) · `tests/aislamiento/compras-xml-lectura.spec.ts` y `hu40-api.int.spec.ts` · T24 puntos 16 y 17 | Cumplido |
+| CA-18 | `detalle.int.spec.ts:468` (500 ítems, p95 < 500 ms en 30 lecturas; con el archivo borrado del storage el detalle responde) | Cumplido |
+
+Casos reales: San Juan ISC (CA-4, CA-7), mixta 21.48 / 1.61 → 8.97 + 12.51 (CA-3, CA-6), redondeo USD (CA-5, CA-9), zapatilla (CA-5) e ICBPER (CA-5) cubiertos; boleta 291 no aplica.
+
+Pendientes ajenos a T25 (para el orquestador): `tasks.md` aún muestra `[ ]` en T18 a T23, que ya tienen sus commits; las observaciones (a), (d), (e) y (f) de T24 siguen sin tarea (avisos duplicados en `aria-live`, sin «Subir XML» en «Pendiente», obtención en `no_encontrado` tras subir). No se probó por pantalla CA-8 ni CA-18 (los cubren las suites).
 
 ## T26 · [ ] Revisión final (arquitecto · opus)
 - **Contexto (leer solo esto)**: `spec.md`, `plan.md`, la tabla de T25, `git diff main...spec/016-lupa-xml --stat` y los archivos que la tabla marque dudosos, `docs/03-arquitectura.md` §7.2.

@@ -20,6 +20,7 @@ import {
 import {
   aplicarAccion,
   aplicarMasiva,
+  codigoError,
   crearVersion,
   deshacer,
   entradaXml,
@@ -546,4 +547,47 @@ describe("orden de bloqueo: llegada de XML con masiva, accion de fila y deshacer
       }
     }
   }, 180_000);
+});
+
+// =================================================================================================
+describe("la compra se descarta mientras la re-evaluacion espera su bloqueo (reevaluar.ts)", () => {
+  it("descartada entre la lectura y el bloqueo: no_encontrada, sin escribir evaluacion ni XML", async () => {
+    const c = await ec.cliente(X);
+    // Solo se descarta una compra agregada a mano.
+    const k = await ec.compra(X, c, {
+      origen: "agregada",
+      serie: "F001",
+      numero: String(++consecutivo),
+    });
+    await ec.evaluacion(X, k.id, 1, 1);
+    const retiene = await admin.connect();
+    try {
+      await retiene.query("begin");
+      await retiene.query("select id from compra where id = $1 for update", [
+        k.id,
+      ]);
+      const espera = codigoError(
+        backend.withTenant({ tenantId: X }, (tx) =>
+          reevaluarCompra(tx, k.id, {
+            evaluar: evaluadorXml().evaluar,
+            bloqueo: "fila",
+          }),
+        ),
+      );
+      // La re-evaluacion ya leyo la compra viva y espera el FOR UPDATE; se descarta y se libera.
+      await dormir(700);
+      await retiene.query(
+        "update compra set descartada_en = now() where id = $1",
+        [k.id],
+      );
+      await retiene.query("commit");
+      expect(await espera).toBe("no_encontrada");
+    } finally {
+      await retiene.query("rollback").catch(() => undefined);
+      retiene.release();
+    }
+    expect(await evaluacionesDe(admin, k.id)).toEqual([
+      { version_n: 1, n: 1, documento_xml_id: null },
+    ]);
+  }, 30_000);
 });
