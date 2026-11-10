@@ -161,7 +161,8 @@ describe("T21 · GRANT UPDATE (version_vigente) del worker (0036): el puntero so
     expect(intentos.retroceso).toMatchObject({ ok: false, code: "42501" });
     expect(intentos.descartar).toMatchObject({ ok: false, code: "42501" });
     expect(intentos.identidad).toMatchObject({ ok: false, code: "42501" });
-    expect(intentos.otroEstudio).toMatchObject({ ok: true, rowCount: 0 });
+    // H-016-8: sin privilegio UPDATE sobre compra, el worker falla antes de mirar filas (RLS incluida): 42501, no 0 filas.
+    expect(intentos.otroEstudio).toMatchObject({ ok: false, code: "42501" });
     expect(await punteroDe(admin, p.id)).toBe(1);
     expect(await punteroDe(admin, r2.id)).toBe(2);
   });

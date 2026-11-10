@@ -14,9 +14,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { abrirAdmin, exportado } from "./auth-soporte";
 import type { ContappDb, Tx } from "./soporte";
 import { crearDb, probar, type ClientePrueba } from "./trabajos-soporte";
-import { INSERTAR_VERSION, PERIODO, valoresVersion } from "./compras-soporte";
+import { claveCompra, INSERTAR_VERSION, montos, MONTOS_DG, PERIODO, valoresVersion } from "./compras-soporte";
 import {
   EscenarioXml,
+  insertarCompras,
   evaluacionesDe,
   evaluadorXml,
   punteroDe,
@@ -200,6 +201,107 @@ describe("H-016-8 · se mantiene: la re-evaluación desde el worker funciona sin
       expect(codigo, id).toBe("no_encontrada");
     }
     expect(await evaluacionesDe(admin, ajena.id)).toHaveLength(1);
+  });
+});
+
+// =================================================================================================
+// El worker necesita INSERT en compra_version solo para la versión 1 de las compras que crea la descarga (`insertarCompras`).
+// Decisión del orquestador (parte de H-016-8): su INSERT queda acotado a `n = 1` y a una compra creada en la MISMA transacción
+// y sin versiones previas. Un `n = 2` huérfano deja el puntero en 1, pero el backend calcula `n = version_vigente + 1` y chocaría
+// con `compra_version_compra_n_unique` (23505) en la siguiente edición, descarte o deshacer de esa compra.
+// Error esperado: 42501 (la restricción la impone un trigger BEFORE INSERT o una política RLS con WITH CHECK, que corre antes
+// que la unicidad: por eso `n = 1` repetido también da 42501 y no 23505). La restricción es solo del rol worker: el backend
+// escribe versiones nuevas con normalidad (las cubren las pruebas de 014).
+describe("H-016-8 · el INSERT del worker en compra_version queda acotado a n = 1 de una compra creada en la misma transacción", () => {
+  const codigoDe = (p: Promise<unknown>) =>
+    p.then(() => "ok").catch((e: { code?: string }) => String(e.code ?? "sin_codigo"));
+
+  it("n = 2 sobre una compra existente: 42501 y no queda la versión huérfana", async () => {
+    const s = await ec.compraXml(X, cx, { serie: "F001", numero: numero() });
+    const r = await codigoDe(
+      worker.withTenant({ tenantId: X }, (tx) =>
+        tx.query(INSERTAR_VERSION, valoresVersion(s.id, 2, { montos: { biDg: "1.00", igvDg: "0.18" } })),
+      ),
+    );
+    expect(r).toBe("42501");
+    expect(await versionesN(admin, s.id)).toEqual([1]);
+  });
+
+  it("n = 1 sobre una compra existente que ya tiene versión 1: 42501 (antes que la unicidad, que daría 23505)", async () => {
+    const s = await ec.compraXml(X, cx, { serie: "F001", numero: numero() });
+    const r = await codigoDe(
+      worker.withTenant({ tenantId: X }, (tx) => tx.query(INSERTAR_VERSION, valoresVersion(s.id, 1))),
+    );
+    expect(r).toBe("42501");
+    expect(await versionesN(admin, s.id)).toEqual([1]);
+  });
+
+  it("n = 1 sobre una compra de una transacción anterior, aunque aún no tenga versiones: 42501", async () => {
+    const propuestaId = await ec.propuesta(X, cx, { libro: "compras", nuevas: 1 });
+    const numeroC = numero();
+    const id = (
+      await admin.query(
+        `insert into compra (tenant_id, cliente_id, periodo, propuesta_id, clave, tipo_doc, serie, numero, doc_tipo, doc_numero,
+                             fecha, moneda, origen, version_vigente)
+         values ($1, $2, $3, $4, $5, '01', 'F001', $6, '6', '20100070970', '2026-10-05', 'PEN', 'sire', 1) returning id`,
+        [X, cx.id, PERIODO, propuestaId, claveCompra("01", "F001", numeroC, "6", "20100070970"), numeroC],
+      )
+    ).rows[0].id as string;
+    const r = await codigoDe(
+      worker.withTenant({ tenantId: X }, (tx) => tx.query(INSERTAR_VERSION, valoresVersion(id, 1))),
+    );
+    expect(r, "la compra no se creó en esta transacción").toBe("42501");
+    expect(await versionesN(admin, id)).toEqual([]);
+  });
+
+  it("n >= 2 sobre una compra creada en la misma transacción también se rechaza (42501)", async () => {
+    const propuestaId = await ec.propuesta(X, cx, { libro: "compras", nuevas: 1 });
+    const numeroC = numero();
+    const r = await codigoDe(
+      worker.withTenant({ tenantId: X }, async (tx) => {
+        const id = (
+          await tx.query(
+            `insert into compra (cliente_id, periodo, propuesta_id, clave, tipo_doc, serie, numero, doc_tipo, doc_numero,
+                                 fecha, moneda, origen, version_vigente)
+             values ($1, $2, $3, $4, '01', 'F001', $5, '6', '20100070970', '2026-10-05', 'PEN', 'sire', 1) returning id`,
+            [cx.id, PERIODO, propuestaId, claveCompra("01", "F001", numeroC, "6", "20100070970"), numeroC],
+          )
+        ).rows[0].id as string;
+        await tx.query(INSERTAR_VERSION, valoresVersion(id, 2));
+      }),
+    );
+    expect(r).toBe("42501");
+  });
+
+  it("se mantiene: la descarga normal (insertarCompras con el rol worker) crea la compra con su versión 1 y su evaluación 1", async () => {
+    const c = await ec.cliente(X);
+    const propuestaId = await ec.propuesta(X, c, { libro: "compras", nuevas: 2 });
+    const nueva = () => {
+      const n = numero();
+      return {
+        clave: claveCompra("01", "F001", n, "6", "20100070970"),
+        tipoDoc: "01",
+        serie: "F001",
+        numero: n,
+        docTipo: "6",
+        docNumero: "20100070970",
+        razonSocial: "PROVEEDOR SINTETICO SAC",
+        fecha: "2026-10-05",
+        moneda: "PEN" as const,
+        tipoCambio: null,
+        montos: montos(MONTOS_DG),
+      };
+    };
+    const { evaluar } = evaluadorXml();
+    const ids = await worker.withTenant({ tenantId: X }, (tx) =>
+      insertarCompras(tx, { clienteId: c.id, periodo: PERIODO, propuestaId }, [nueva(), nueva()], { evaluar }),
+    );
+    expect(ids).toHaveLength(2);
+    for (const id of ids) {
+      expect(await versionesN(admin, id)).toEqual([1]);
+      expect(await punteroDe(admin, id)).toBe(1);
+      expect((await evaluacionesDe(admin, id)).map((e) => [e.version_n, e.n])).toEqual([[1, 1]]);
+    }
   });
 });
 
