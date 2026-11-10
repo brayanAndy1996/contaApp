@@ -333,6 +333,8 @@ describe("CA-10: lotes tras la descarga de la propuesta", () => {
 
   it("las compras con hallazgos van en el primer lote; los lotes son de 100, ordenados y únicos", async () => {
     const m = await mundoVentas(e, backend);
+    // El proveedor ya tiene historial en un periodo anterior: sin esto R-NEW marcaría las 130 compras (proveedor nuevo).
+    await sembrarCompra(admin, m, filaCompra("1"), { periodo: "202609" });
     const p = puertosXml();
     const api = new SireApiControlado();
     // 130 comprobantes; el último dígito del número nunca es 7, 8 ni 9 (centinelas del mock). Los 5 últimos tienen un IGV

@@ -57,6 +57,8 @@ async function capturar(
   }
 }
 
+const FIRMA_ENCOLAR_XML = "encolar_xml_obtener(uuid,text,uuid[],uuid)";
+
 describe("ADV escalada desde DATABASE_URL", () => {
   let pool: Pool;
   let backend: ContappDb;
@@ -263,6 +265,24 @@ describe("ADV escalada desde DATABASE_URL", () => {
       `select n.nspname || '.' || p.proname as f from pg_proc p join pg_namespace n on n.oid = p.pronamespace
         where p.prosecdef and n.nspname not in ('pg_catalog', 'information_schema')`,
     );
+    const defsPublic = (
+      await filasRaw(
+        pool,
+        null,
+        `select p.oid::regprocedure::text as f from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+          where p.prosecdef and n.nspname = 'public'`,
+      )
+    ).map((d) => d.f);
+    const encolarXml = await filasRaw(
+      pool,
+      null,
+      `select pg_get_userbyid(p.proowner) as dueno, p.proconfig as config,
+              has_function_privilege('public', p.oid, 'EXECUTE') as publico,
+              coalesce((select array_agg(r.rolname::text order by r.rolname) from pg_roles r
+                         where r.oid <> p.proowner and r.rolname like 'contapp\\_%' and has_function_privilege(r.oid, p.oid, 'EXECUTE')), '{}'::text[]) as ejecutan
+         from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'public' and p.proname = 'encolar_xml_obtener'`,
+    );
     const vistas = await filasRaw(
       pool,
       null,
@@ -279,9 +299,24 @@ describe("ADV escalada desde DATABASE_URL", () => {
     // Spec 004 (D10) y 005 (D7): las unicas SECURITY DEFINER admitidas son las de FUNCIONES_AUTH (15) del esquema `auth`.
     // Ajuste de 008 (T3, D18): FUNCIONES_AUTH pasa a 16 (auth.purgar) y se admiten las dos del esquema `sistema`
     // (devuelven solo UUID; dueño contapp_enumerador; EXECUTE solo contapp_worker).
+    // Ajuste de 016 (T12b, migracion 0037; decision del usuario 2026-11-10): se admite exactamente
+    // public.encolar_xml_obtener(uuid, text, uuid[], uuid) y nada mas en `public`.
     expect(defs.map((d) => d.f).sort()).toEqual(
-      [...FUNCIONES_AUTH.map((n) => `auth.${n}`), ...FUNCIONES_SISTEMA.map((n) => `sistema.${n}`)].sort(),
+      [
+        ...FUNCIONES_AUTH.map((n) => `auth.${n}`),
+        ...FUNCIONES_SISTEMA.map((n) => `sistema.${n}`),
+        "public.encolar_xml_obtener",
+      ].sort(),
     );
+    expect(defsPublic).toEqual([FIRMA_ENCOLAR_XML]);
+    expect(encolarXml).toEqual([
+      {
+        dueno: "contapp_migrator",
+        config: ["search_path=pg_catalog, pg_temp"],
+        publico: false,
+        ejecutan: ["contapp_worker"],
+      },
+    ]);
     expect(vistas).toEqual([]);
     expect(uuid).toEqual([{ prosecdef: false, dueno: "contapp_migrator" }]);
   });
