@@ -51,6 +51,8 @@ const h = vi.hoisted(() => ({
       logger: { log: (e: unknown) => void; warn: (e: unknown) => void };
     },
   },
+  xml: { deps: null as null | Record<string, unknown> },
+  crearStorage: vi.fn(),
   authPurgar: vi.fn(async () => ({})),
   kekRotar: vi.fn(async () => ({})),
 }));
@@ -126,6 +128,17 @@ vi.mock("../credenciales/descifrar-credencial.js", () => ({
 }));
 vi.mock("./procesadores/auth-purgar.js", () => ({ authPurgar: h.authPurgar }));
 vi.mock("./procesadores/kek-rotar.js", () => ({ kekRotar: h.kekRotar }));
+// T17a: el procesador de XML se reemplaza por un doble que captura sus dependencias (el cableado, no su lógica).
+vi.mock("./procesadores/obtener-xml.js", () => ({
+  obtenerXml: (d: Record<string, unknown>) => {
+    h.xml.deps = d;
+    return async () => ({});
+  },
+}));
+vi.mock("@contapp/storage", async (original) => ({
+  ...(await original<typeof import("@contapp/storage")>()),
+  crearStorage: (env: unknown) => h.crearStorage(env),
+}));
 
 import { iniciarTrabajos, type DepsTrabajos } from "./iniciar.js";
 import type { EventoLog } from "./registro.js";
@@ -272,5 +285,85 @@ describe("iniciarTrabajos (unitarias)", () => {
       codigo: "credenciales_sire_no_configuradas",
     });
     await en2.detener();
+  });
+
+  it("T17a · si el proveedor se cuelga al soltar los arriendos, el cierre igual termina y fuerza BullMQ", async () => {
+    h.ejecutor.esperar.mockResolvedValue(false);
+    h.ejecutor.soltarEnCurso.mockRejectedValueOnce(new Error("redis caído"));
+    const { d, logs } = deps();
+    const en = await iniciarTrabajos(d);
+    await expect(en.detener({ esperaMs: 10 })).resolves.toBeUndefined();
+    expect(h.ejecutor.soltarEnCurso).toHaveBeenCalledTimes(1);
+    expect(h.workers[0]!.cerrar).toHaveBeenCalledWith(true);
+    expect(logs.map((l) => l.evento)).toContain("trabajos_detenidos");
+  });
+
+  it("T17a · sin trabajos en curso pero con BullMQ que no cierra a tiempo: fuerza el cierre y el proceso deja de escribir", async () => {
+    const { d, logs } = deps();
+    const en = await iniciarTrabajos(d);
+    // Redis caído: el cierre ordenado de BullMQ no vuelve; solo el forzado termina.
+    h.workers[0]!.cerrar.mockImplementation((forzar: boolean) =>
+      forzar ? Promise.resolve() : new Promise<void>(() => undefined),
+    );
+    const bd = (
+      h.ejecutor.deps as unknown as {
+        db: {
+          withTenant: (c: unknown, f: (tx: unknown) => unknown) => Promise<unknown>;
+        };
+      }
+    ).db;
+    // Vivo: pasa a la BD de la prueba (un vi.fn que no devuelve promesa).
+    expect(bd.withTenant({}, async () => "ok")).toBeUndefined();
+    await en.detener({ esperaMs: 40 });
+    expect(h.workers[0]!.cerrar.mock.calls.map((c) => c[0])).toEqual([false, true]);
+    expect(h.ejecutor.soltarEnCurso).not.toHaveBeenCalled();
+    await expect(bd.withTenant({}, async () => "ok")).rejects.toMatchObject({
+      codigo: "proceso_detenido",
+    });
+    expect(logs.map((l) => l.evento)).toContain("trabajos_detenidos");
+  });
+
+  it("T17a · xml.obtener: proveedor mock, bandera del simulado apagada por defecto y storage creado solo al primer uso", async () => {
+    h.crearStorage.mockReturnValue({
+      guardar: vi.fn(async () => undefined),
+      leer: vi.fn(async () => new Uint8Array([1, 2])),
+      eliminar: vi.fn(async () => undefined),
+    });
+    const en = await iniciarTrabajos(deps().d);
+    const x = h.xml.deps as {
+      xmlProvider: { constructor: { name: string } };
+      xmlSimuladoEnReglas: boolean;
+      storage: {
+        guardar: (r: string, b: Uint8Array) => Promise<void>;
+        leer: (r: string) => Promise<Uint8Array>;
+        eliminar: (r: string) => Promise<void>;
+      };
+    };
+    expect(x.xmlProvider.constructor.name).toBe("MockXmlProvider");
+    expect(x.xmlSimuladoEnReglas).toBe(false);
+    // Un worker sin XML no exige configurar el storage: no se crea al arrancar.
+    expect(h.crearStorage).not.toHaveBeenCalled();
+
+    const bytes = new Uint8Array([9]);
+    await x.storage.guardar("xml/a.xml", bytes);
+    await expect(x.storage.leer("xml/a.xml")).resolves.toEqual(new Uint8Array([1, 2]));
+    await x.storage.eliminar("xml/a.xml");
+    expect(h.crearStorage).toHaveBeenCalledTimes(1);
+    const real = h.crearStorage.mock.results[0]!.value as Record<"guardar" | "leer" | "eliminar", ReturnType<typeof vi.fn>>;
+    expect(real.guardar).toHaveBeenCalledWith("xml/a.xml", bytes);
+    expect(real.leer).toHaveBeenCalledWith("xml/a.xml");
+    expect(real.eliminar).toHaveBeenCalledWith("xml/a.xml");
+    await en.detener();
+  });
+
+  it("T17a · xml.obtener: usa el proveedor, el storage y la bandera que se le inyectan", async () => {
+    const xmlProvider = { obtener: vi.fn() };
+    const storage = { guardar: vi.fn(), leer: vi.fn(), eliminar: vi.fn() };
+    const en = await iniciarTrabajos(
+      deps({ xmlProvider, storage, xmlSimuladoEnReglas: true } as never).d,
+    );
+    expect(h.xml.deps).toMatchObject({ xmlProvider, storage, xmlSimuladoEnReglas: true });
+    expect(h.crearStorage).not.toHaveBeenCalled();
+    await en.detener();
   });
 });

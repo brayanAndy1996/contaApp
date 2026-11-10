@@ -32,4 +32,23 @@ describe("XmlError", () => {
     expect(responder(new XmlError("xml_invalido"))).toEqual({ estado: 422, cuerpo: { codigo: "xml_invalido" } });
     expect(responder(new XmlError("xml_incompleto"))).toEqual({ estado: 422, cuerpo: { codigo: "xml_incompleto" } });
   });
+
+  it("xml_ajeno sin campos (llamada fuera de los tipos) lleva una lista vacía, nunca undefined", () => {
+    const e = new (XmlError as unknown as new (c: string) => XmlError)("xml_ajeno");
+    expect(e.cuerpo).toEqual({ codigo: "xml_ajeno", campos: [] });
+    expect(responder(e)).toEqual({ estado: 422, cuerpo: { codigo: "xml_ajeno", campos: [] } });
+  });
+
+  it("los campos de xml_ajeno son una copia: cambiar el arreglo de origen no cambia el error", () => {
+    const campos: Array<"ruc" | "serie"> = ["ruc"];
+    const e = new XmlError("xml_ajeno", campos);
+    campos.push("serie");
+    expect(e.cuerpo).toEqual({ codigo: "xml_ajeno", campos: ["ruc"] });
+  });
+
+  it("el error lleva su código y nombre, sin mensaje con datos", () => {
+    const e = new XmlError("xml_invalido");
+    expect(e).toMatchObject({ codigo: "xml_invalido", name: "XmlError" });
+    expect(e.getStatus()).toBe(422);
+  });
 });
