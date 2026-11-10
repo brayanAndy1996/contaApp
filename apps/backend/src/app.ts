@@ -1,10 +1,11 @@
 import "reflect-metadata";
-import type { INestApplication } from "@nestjs/common";
+import { Logger, type INestApplication } from "@nestjs/common";
 import { NestFactory, Reflector } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { json, raw } from "express";
 import type { ContappDb } from "@contapp/db";
 import { PREFIJO_POR_DEFECTO } from "@contapp/queue";
+import { crearStorage, type StorageProvider } from "@contapp/storage";
 import { AppModule } from "./app.module.js";
 import { FiltroErrores } from "./comun/filtro-errores.js";
 import { leerEntorno, type EnvCrudo } from "./config/entorno.js";
@@ -44,6 +45,8 @@ export interface OpcionesApp {
    * con Redis caído la app arranca, las lecturas responden y encolar no espera.
    */
   redis?: { url?: string; prefijo?: string };
+  /** Storage de XML (016): por defecto `crearStorage(env)` (`STORAGE=mock|local`, `STORAGE_DIR`). */
+  storage?: StorageProvider;
 }
 
 const REDIS_POR_DEFECTO = "redis://localhost:6379";
@@ -113,6 +116,7 @@ export async function crearApp(o: OpcionesApp = {}): Promise<INestApplication> {
         url: o.redis?.url ?? env.REDIS_URL ?? REDIS_POR_DEFECTO,
         prefijo: o.redis?.prefijo ?? PREFIJO_POR_DEFECTO,
       },
+      storage: o.storage ?? crearStorage(env, new Logger("Storage")),
     }),
     // El analizador de cuerpo se registra a mano: solo JSON y con límite propio.
     { bodyParser: false },

@@ -19,6 +19,7 @@ import {
   type CambiosMontos,
 } from "@contapp/domain";
 import type { DatoSugerencia, DestinoCompra } from "@contapp/shared";
+import { aEvaluable } from "./evaluable.js";
 
 /** La fila vigente en el dominio (`Money` en su moneda). */
 export const montosDeDominio = (c: Pick<CompraLeida, "moneda" | "montos">): MontosComprobante =>
@@ -82,7 +83,7 @@ export function transformarSugerencia(ctx: ContextoSugerencia): TransformarCompr
   return async (actual) => {
     hallazgos ??= await ctx.cargarHallazgos();
     const r = aceptarSugerenciaGuardada({
-      compra: actual,
+      compra: aEvaluable(actual),
       hallazgo: hallazgos.get(actual.id)?.find((h) => h.regla === ctx.regla),
       proveedoresConocidos: ctx.conocidos,
       confirmar: ctx.confirmar,

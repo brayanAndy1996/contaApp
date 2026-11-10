@@ -1,4 +1,5 @@
 import { Module, type DynamicModule } from "@nestjs/common";
+import type { StorageProvider } from "@contapp/storage";
 import { NucleoModule, type DependenciasNucleo } from "./infra/nucleo.module.js";
 import { AccesoModule } from "./modules/acceso/acceso.module.js";
 import { AuthModule } from "./modules/auth/auth.module.js";
@@ -10,19 +11,21 @@ import { ImportacionModule } from "./modules/importacion/importacion.module.js";
 import { PlanesModule } from "./modules/planes/planes.module.js";
 import { PlataformaModule } from "./modules/plataforma/plataforma.module.js";
 import { RegistroModule } from "./modules/registro/registro.module.js";
+import { StorageModule } from "./modules/storage/storage.module.js";
 import type { OpcionesRedisTrabajos } from "./modules/trabajos/redis.js";
 import { TrabajosModule } from "./modules/trabajos/trabajos.module.js";
 import { VentasModule } from "./modules/ventas/ventas.module.js";
 
-/** Dependencias de la raíz: las del núcleo y el Redis de trabajos (008). */
+/** Dependencias de la raíz: las del núcleo, el Redis de trabajos (008) y el storage de XML (016). */
 export interface DependenciasApp extends DependenciasNucleo {
   redis: OpcionesRedisTrabajos;
+  storage: StorageProvider;
 }
 
 /** Raíz de la app: `crearApp` aporta las dependencias (BD, hasher, cola de correo, comunes, origen, Redis). */
 @Module({})
 export class AppModule {
-  static registrar({ redis, ...dependencias }: DependenciasApp): DynamicModule {
+  static registrar({ redis, storage, ...dependencias }: DependenciasApp): DynamicModule {
     return {
       module: AppModule,
       imports: [
@@ -39,6 +42,7 @@ export class AppModule {
         VentasModule,
         ComprasModule,
         TrabajosModule.registrar(redis),
+        StorageModule.registrar(storage),
       ],
     };
   }

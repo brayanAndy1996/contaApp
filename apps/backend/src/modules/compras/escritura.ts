@@ -11,6 +11,7 @@ import {
 } from "@contapp/db";
 import { crearEvaluarCompras, DineroError, puedeEscribir } from "@contapp/domain";
 import { AccesoError } from "../acceso/errores.js";
+import { aEvaluable } from "./evaluable.js";
 import { ComprasError, type CodigoCompras } from "./errores.js";
 import { exigirCliente } from "./apoyo.js";
 
@@ -42,7 +43,9 @@ export interface EntornoReglas {
 
 export async function entornoDeReglas(tx: Tx, clienteId: string, periodo: string): Promise<EntornoReglas> {
   const conocidos = await leerProveedoresConocidos(tx, clienteId, periodo);
-  return { conocidos, evaluar: crearEvaluarCompras(conocidos) };
+  // P-4: el XML simulado solo entra en las reglas con `XML_SIMULADO_EN_REGLAS=1` (apagado por defecto).
+  const evaluarDominio = crearEvaluarCompras(conocidos, { xmlSimuladoEnReglas: process.env.XML_SIMULADO_EN_REGLAS === "1" });
+  return { conocidos, evaluar: (fila) => evaluarDominio(aEvaluable(fila)) };
 }
 
 const CODIGOS_PROPIOS: ReadonlySet<string> = new Set<CodigoCompras>([

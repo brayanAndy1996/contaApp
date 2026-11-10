@@ -3,12 +3,16 @@ import { AccionesComprasService } from "./acciones.service.js";
 import { ComprasAccionesController } from "./compras-acciones.controller.js";
 import { ComprasController } from "./compras.controller.js";
 import { ComprasService } from "./compras.service.js";
+import { DetalleComprasController } from "./detalle.controller.js";
+import { DetalleComprasService } from "./detalle.service.js";
 import { ExportarComprasController } from "./exportar.controller.js";
 import { ExportarComprasService } from "./exportar.service.js";
 import { HistorialComprasService } from "./historial.service.js";
 import { MasivasComprasService } from "./masivas.service.js";
 import { PeriodoComprasService } from "./periodo.service.js";
 import { ResumenComprasService } from "./resumen.service.js";
+import { XmlComprasController } from "./xml.controller.js";
+import { XmlComprasService } from "./xml.service.js";
 
 /**
  * Compras del periodo (spec 014). La BD y el `Encolador` llegan de los módulos globales. Orden de `controllers`: las rutas
@@ -17,7 +21,13 @@ import { ResumenComprasService } from "./resumen.service.js";
  * estáticas (`masivas/*`, `deshacer`, `estado/*`) van antes de `:compraId/...`.
  */
 @Module({
-  controllers: [ExportarComprasController, ComprasController, ComprasAccionesController],
+  controllers: [
+    ExportarComprasController,
+    DetalleComprasController,
+    XmlComprasController,
+    ComprasController,
+    ComprasAccionesController,
+  ],
   providers: [
     ComprasService,
     ResumenComprasService,
@@ -26,6 +36,8 @@ import { ResumenComprasService } from "./resumen.service.js";
     MasivasComprasService,
     HistorialComprasService,
     PeriodoComprasService,
+    DetalleComprasService,
+    XmlComprasService,
   ],
 })
 export class ComprasModule {}

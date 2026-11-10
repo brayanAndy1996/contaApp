@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import { ContrasenaInvalidaError } from "../modules/auth/errores.js";
 import { ComprasError } from "../modules/compras/errores.js";
+import { XmlError } from "../modules/compras/errores-xml.js";
 import { respuestaDeErrorCola } from "../modules/trabajos/errores.js";
 
 export interface EventoError {
@@ -76,6 +77,10 @@ export class FiltroErrores implements ExceptionFilter {
     }
     // Compras (014): además del código, la versión vigente, el dato pedido o los ids implicados, que ya vienen saneados.
     if (excepcion instanceof ComprasError) {
+      return { estado: excepcion.getStatus(), cuerpo: { ...excepcion.cuerpo } };
+    }
+    // XML (016): `xml_ajeno` lleva además los nombres de los campos que difieren; nunca el contenido del XML.
+    if (excepcion instanceof XmlError) {
       return { estado: excepcion.getStatus(), cuerpo: { ...excepcion.cuerpo } };
     }
     if (excepcion instanceof HttpException) {
