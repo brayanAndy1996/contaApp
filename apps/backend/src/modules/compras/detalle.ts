@@ -33,7 +33,7 @@ const CODIGO_AFECTACION: Readonly<Record<string, string>> = {
   exportacion: "40",
 };
 
-function aItems(detalle: DetalleXml | null): ItemXml[] {
+export function aItems(detalle: DetalleXml | null): ItemXml[] {
   if (detalle === null) return [];
   return detalle.items.map((i) => ({
     descripcion: i.descripcion,

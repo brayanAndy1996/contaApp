@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { leerDetalleXml, leerHistorialProveedor, type Alcance, type ContappDb } from "@contapp/db";
+import { leerDetalleXml, leerHistorialProveedor, type Alcance, type ContappDb, type Tx } from "@contapp/db";
 import { detalleLupaSchema, type DetalleLupa } from "@contapp/shared";
 import { AccesoError } from "../acceso/errores.js";
 import type { SesionResuelta } from "../auth/auth.service.js";
@@ -25,18 +25,25 @@ export class DetalleComprasService {
   ): Promise<DetalleLupa> {
     const periodo = periodoDe(periodoCrudo);
     const compraId = idDe(compraCruda);
-    const { leido, historial } = await this.db.withTenant(contextoDe(sesion), async (tx) => {
+    return this.db.withTenant(contextoDe(sesion), async (tx) => {
       await exigirCliente(tx, clienteId, alcance, false);
-      const leido = await leerDetalleXml(tx, clienteId, periodo, compraId);
-      if (leido === null) throw new AccesoError("no_encontrado");
-      const historial = await leerHistorialProveedor(tx, clienteId, periodo, {
-        docTipo: leido.compra.docTipo,
-        docNumero: leido.compra.docNumero,
-      });
-      return { leido, historial };
+      return this.leer(tx, clienteId, periodo, compraId);
     });
-    // El esquema es la última puerta: descarta toda clave que el DTO no declara (ruta de storage, hash, tenant) aunque la lectura
-    // de `packages/db` las traiga. Un DTO que no lo cumple es un defecto de programa (500 sin detalle), no una respuesta rara.
+  }
+
+  /**
+   * El DTO de la compra dentro de la transacción de quien llama (404 si no es de este cliente y periodo). La subida del XML lo usa
+   * para responder con lo que quedó guardado, sin otra ida y vuelta. El esquema es la última puerta: descarta toda clave que el DTO
+   * no declara (ruta de storage, hash, tenant) aunque la lectura de `packages/db` las traiga; un DTO que no lo cumple es un
+   * defecto de programa (500 sin detalle), no una respuesta rara.
+   */
+  async leer(tx: Tx, clienteId: string, periodo: string, compraId: string): Promise<DetalleLupa> {
+    const leido = await leerDetalleXml(tx, clienteId, periodo, compraId);
+    if (leido === null) throw new AccesoError("no_encontrado");
+    const historial = await leerHistorialProveedor(tx, clienteId, periodo, {
+      docTipo: leido.compra.docTipo,
+      docNumero: leido.compra.docNumero,
+    });
     return detalleLupaSchema.parse(aDetalleLupa(leido, historial));
   }
 }

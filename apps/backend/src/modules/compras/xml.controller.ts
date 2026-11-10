@@ -1,4 +1,5 @@
-import { Controller, Get, Header, HttpCode, Inject, Param, Post, Req, StreamableFile } from "@nestjs/common";
+import { Body, Controller, Get, Header, HttpCode, Inject, Param, Post, Req, StreamableFile } from "@nestjs/common";
+import type { DetalleLupa } from "@contapp/shared";
 import type { SesionResuelta } from "../auth/auth.service.js";
 import { Sesion } from "../auth/guards/decoradores.js";
 import { Permiso, type PeticionAcceso } from "../acceso/guards/decoradores.js";
@@ -49,5 +50,24 @@ export class XmlComprasController {
     @Param("compraId") compraId: string,
   ): Promise<{ trabajoId: string }> {
     return this.servicio.obtener(sesion, alcanceDe(req.acceso), clienteId, periodo, compraId);
+  }
+
+  /**
+   * HU-22: el XML crudo del comprobante (`application/xml`, `text/xml` u `application/octet-stream`, ≤ 1 MiB: más es 413 antes del
+   * controlador). 200 con el detalle de la lupa ya completo. Se permite en cualquier estado del periodo (D-7); el cliente archivado
+   * es 409. 422 `xml_invalido` | `xml_incompleto` | `xml_ajeno`, 409 `xml_existente` (P-6).
+   */
+  @Permiso("sire.clasificar")
+  @Post(":compraId/xml")
+  @HttpCode(200)
+  subir(
+    @Sesion() sesion: SesionResuelta,
+    @Req() req: PeticionAcceso,
+    @Param("clienteId") clienteId: string,
+    @Param("periodo") periodo: string,
+    @Param("compraId") compraId: string,
+    @Body() cuerpo: unknown,
+  ): Promise<DetalleLupa> {
+    return this.servicio.subir(sesion, alcanceDe(req.acceso), clienteId, periodo, compraId, cuerpo);
   }
 }

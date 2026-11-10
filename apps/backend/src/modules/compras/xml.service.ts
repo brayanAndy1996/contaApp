@@ -1,5 +1,15 @@
-import { Inject, Injectable } from "@nestjs/common";
-import { fijarObtencion, leerDetalleXml, type Alcance, type ContappDb } from "@contapp/db";
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import {
+  fijarObtencion,
+  guardarDocumentoXml,
+  leerClienteDto,
+  leerDetalleXml,
+  reevaluarCompra,
+  type Alcance,
+  type ContappDb,
+} from "@contapp/db";
+import { compararIdentidad } from "@contapp/domain";
+import type { DetalleLupa } from "@contapp/shared";
 import { ArchivoNoEncontradoError, type StorageProvider } from "@contapp/storage";
 import { AccesoError } from "../acceso/errores.js";
 import type { SesionResuelta } from "../auth/auth.service.js";
@@ -9,7 +19,10 @@ import { STORAGE } from "../storage/storage.module.js";
 import { Encolador } from "../trabajos/encolador.js";
 import { exigirCliente, idDe, periodoDe } from "./apoyo.js";
 import { aplicaXml } from "./detalle.js";
+import { DetalleComprasService } from "./detalle.service.js";
 import { XmlError } from "./errores-xml.js";
+import { aErrorHttp, entornoDeReglas, exigir } from "./escritura.js";
+import { bytesDeCuerpo, leerXml, rutaNueva, sha256De } from "./xml-entrada.js";
 
 /** El XML guardado de un comprobante, listo para descargar. */
 export interface XmlDescargable {
@@ -28,11 +41,87 @@ const nombreSeguro = (texto: string): string => texto.replace(/[^A-Za-z0-9._-]/g
  */
 @Injectable()
 export class XmlComprasService {
+  private readonly log = new Logger(XmlComprasService.name);
+
   constructor(
     @Inject(DB) private readonly db: Pick<ContappDb, "withTenant">,
     @Inject(Encolador) private readonly encolador: Encolador,
     @Inject(STORAGE) private readonly storage: StorageProvider,
+    @Inject(DetalleComprasService) private readonly detalle: DetalleComprasService,
   ) {}
+
+  /**
+   * HU-22: sube el XML del comprobante de una compra (cuerpo crudo, hasta 1 MiB). Se parsea con el parser del dominio ANTES de
+   * tocar BD o storage; dentro de `withTenant` se comprueba la identidad (D-3: 422 `xml_ajeno` con los campos que difieren, sin
+   * datos del XML) y P-6 (409 `xml_existente` con uno real o subido), se escribe el archivo, y en la MISMA transacción se inserta
+   * `documento_xml` (que toma el advisory del comprobante) y se re-evalúa la compra sin crear versión (D-5). Se permite en cualquier
+   * estado del periodo (D-7). Responde con el detalle de la lupa ya completo.
+   *
+   * Coherencia storage/BD: el archivo se escribe primero y la fila después; si la transacción falla (o P-6 la rechaza dentro de la
+   * carrera) se borra el archivo, y si el borrado falla queda un huérfano que ninguna fila referencia (no es visible para nadie y no
+   * se loguea su ruta).
+   */
+  async subir(
+    sesion: SesionResuelta,
+    alcance: Alcance,
+    clienteId: string,
+    periodoCrudo: string,
+    compraCruda: string,
+    cuerpo: unknown,
+  ): Promise<DetalleLupa> {
+    const periodo = periodoDe(periodoCrudo);
+    const compraId = idDe(compraCruda).toLowerCase();
+    const bytes = bytesDeCuerpo(cuerpo);
+    const xml = leerXml(bytes);
+    const ctx = contextoDe(sesion);
+    const huella: { ruta: string | null; referenciado: boolean } = { ruta: null, referenciado: false };
+    try {
+      const respuesta = await this.db.withTenant(ctx, async (tx) => {
+        await exigirCliente(tx, clienteId, alcance, true);
+        const cliente = exigir(await leerClienteDto(tx, clienteId));
+        const previo = exigir(await leerDetalleXml(tx, cliente.id, periodo, compraId));
+        const identidad = compararIdentidad(xml, { rucCliente: cliente.ruc, compra: previo.compra });
+        if (!identidad.ok) throw new XmlError("xml_ajeno", identidad.campos);
+        // P-6 sin escribir nada; la decisión definitiva la toma `guardarDocumentoXml` bajo el advisory del comprobante.
+        if (previo.xml !== null && previo.xml.origen !== "simulado") throw new XmlError("xml_existente");
+        const ruta = rutaNueva(ctx.tenantId, cliente.id);
+        await this.storage.guardar(ruta, bytes);
+        huella.ruta = ruta;
+        const guardado = await guardarDocumentoXml(tx, {
+          ...previo.identidad,
+          clienteId: cliente.id,
+          origen: "subido",
+          ruta,
+          sha256: sha256De(bytes),
+          tamano: bytes.length,
+          detalle: xml,
+          subidoPor: ctx.userId,
+        });
+        if (guardado === "existente_no_simulado") throw new XmlError("xml_existente");
+        huella.referenciado = true;
+        const entorno = await entornoDeReglas(tx, cliente.id, periodo);
+        try {
+          await reevaluarCompra(tx, compraId, { evaluar: entorno.evaluar });
+        } catch (e) {
+          throw aErrorHttp(e);
+        }
+        return this.detalle.leer(tx, cliente.id, periodo, compraId);
+      });
+      return respuesta;
+    } catch (e) {
+      if (huella.ruta !== null) await this.limpiar(huella.ruta);
+      throw e;
+    }
+  }
+
+  /** Borra un archivo que ninguna fila referencia (mejor esfuerzo). Nunca lleva la ruta ni la causa al log (D-11). */
+  private async limpiar(ruta: string): Promise<void> {
+    try {
+      await this.storage.eliminar(ruta);
+    } catch {
+      this.log.warn("No se pudo borrar un archivo de XML sin fila en la BD");
+    }
+  }
 
   /** Los bytes tal cual se guardaron. 404 igual que una compra inexistente si la compra no es de este alcance o no tiene XML. */
   async descargar(

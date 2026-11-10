@@ -3,6 +3,8 @@ import { AccionesComprasService } from "./acciones.service.js";
 import { ComprasAccionesController } from "./compras-acciones.controller.js";
 import { ComprasController } from "./compras.controller.js";
 import { ComprasService } from "./compras.service.js";
+import { DesdeXmlComprasController } from "./desde-xml.controller.js";
+import { DesdeXmlComprasService } from "./desde-xml.service.js";
 import { DetalleComprasController } from "./detalle.controller.js";
 import { DetalleComprasService } from "./detalle.service.js";
 import { ExportarComprasController } from "./exportar.controller.js";
@@ -25,6 +27,7 @@ import { XmlComprasService } from "./xml.service.js";
     ExportarComprasController,
     DetalleComprasController,
     XmlComprasController,
+    DesdeXmlComprasController,
     ComprasController,
     ComprasAccionesController,
   ],
@@ -38,6 +41,7 @@ import { XmlComprasService } from "./xml.service.js";
     PeriodoComprasService,
     DetalleComprasService,
     XmlComprasService,
+    DesdeXmlComprasService,
   ],
 })
 export class ComprasModule {}
