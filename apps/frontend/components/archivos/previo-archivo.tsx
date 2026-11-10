@@ -1,7 +1,7 @@
 "use client";
 
-import type { PrevioArchivoDto } from "@contapp/shared";
-import { MENSAJES_ARCHIVO as M } from "../../lib/archivos";
+import type { ExcluidaPrevioDto, PrevioArchivoDto } from "@contapp/shared";
+import { MENSAJES_ARCHIVO as M, type LibroArchivo } from "../../lib/archivos";
 import { conMiles } from "../../lib/montos-compras";
 
 // Previo del archivo (spec 012b, T14; D1, D5; CA-1, CA-9): errores con enlace que ubica la fila en la grilla,
@@ -13,11 +13,22 @@ const DESTINOS = ["DG", "DGNG", "DNG"] as const;
 
 export function PrevioArchivo({
   previo,
+  libro = "compras",
   alUbicarFila,
+  alExcluir,
+  alRestaurar,
+  bloqueo = null,
 }: {
   previo: PrevioArchivoDto;
+  libro?: LibroArchivo;
   /** Ubica y resalta la fila en la grilla; sin esta función los errores no llevan enlace. */
   alUbicarFila?: (filaId: string) => void;
+  /** Ventas (T15, D12): abre «Excluir» para un error `excluible`; sin esta función no hay botón (sin `sire.clasificar`). */
+  alExcluir?: (filaId: string) => void;
+  /** Ventas (T15, D12): pide restaurar una venta excluida; sin esta función no hay botón. */
+  alRestaurar?: (excluida: ExcluidaPrevioDto) => void;
+  /** Motivo por el que las escrituras de ventas están bloqueadas (periodo `generado` o `revisado` sin permiso). */
+  bloqueo?: string | null;
 }) {
   const { resumen } = previo;
   const impacto = resumen.impactoIgv;
@@ -40,6 +51,16 @@ export function PrevioArchivo({
 
       <section aria-label={M.tituloErrores} className="flex flex-col gap-2">
         <h4 className="font-medium">{M.tituloErrores}</h4>
+        {libro === "ventas" && previo.errores.length > 0 && (
+          <p role="note" className="rounded bg-amber-50 p-2 text-sm text-amber-900">
+            {M.erroresVentasAyuda}
+          </p>
+        )}
+        {bloqueo !== null && (alExcluir || alRestaurar) && (
+          <p role="note" className="text-sm">
+            {bloqueo}
+          </p>
+        )}
         {previo.errores.length === 0 ? (
           <p className="text-sm">{M.sinErrores}</p>
         ) : (
@@ -53,15 +74,28 @@ export function PrevioArchivo({
                 </p>
                 <p>{e.explicacion}</p>
                 {e.diferencia !== null && <p>{M.diferencia(conMiles(e.diferencia))}</p>}
-                {e.filaId !== null && alUbicarFila && (
-                  <button
-                    type="button"
-                    onClick={() => alUbicarFila(e.filaId!)}
-                    className="underline"
-                  >
-                    {M.ubicarFila}
-                  </button>
-                )}
+                <div className="flex flex-wrap gap-3">
+                  {e.filaId !== null && alUbicarFila && (
+                    <button
+                      type="button"
+                      onClick={() => alUbicarFila(e.filaId!)}
+                      className="underline"
+                    >
+                      {M.ubicarFila}
+                    </button>
+                  )}
+                  {libro === "ventas" && e.excluible && e.filaId !== null && alExcluir && (
+                    <button
+                      type="button"
+                      disabled={bloqueo !== null}
+                      title={bloqueo ?? undefined}
+                      onClick={() => alExcluir(e.filaId!)}
+                      className="rounded border px-3 py-1 disabled:opacity-50"
+                    >
+                      {M.excluir}
+                    </button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
@@ -94,6 +128,47 @@ export function PrevioArchivo({
             ))}
           </ul>
           <p className="text-xs">{M.avisosOmitidos}</p>
+        </section>
+      )}
+
+      {libro === "ventas" && (previo.excluidas.length > 0 || previo.excluidasOmitidas > 0) && (
+        <section aria-label={M.tituloExcluidas} className="flex flex-col gap-2">
+          <h4 className="font-medium">{M.tituloExcluidas}</h4>
+          <p className="text-xs">{M.excluidasAyuda}</p>
+          <ul className="flex flex-col gap-2 text-sm">
+            {previo.excluidas.map((x) => (
+              <li key={x.filaId} className="flex flex-col gap-1 rounded border p-2">
+                <strong>{x.comprobante}</strong>
+                <span>{M.excluidaMotivo(x.motivo)}</span>
+                <span className="flex flex-wrap gap-3">
+                  {alUbicarFila && (
+                    <button
+                      type="button"
+                      onClick={() => alUbicarFila(x.filaId)}
+                      className="underline"
+                    >
+                      {M.ubicarFila}
+                    </button>
+                  )}
+                  {alRestaurar && (
+                    <button
+                      type="button"
+                      aria-label={M.restaurarVenta(x.comprobante)}
+                      disabled={bloqueo !== null}
+                      title={bloqueo ?? undefined}
+                      onClick={() => alRestaurar(x)}
+                      className="rounded border px-3 py-1 disabled:opacity-50"
+                    >
+                      {M.restaurar}
+                    </button>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {previo.excluidasOmitidas > 0 && (
+            <p className="text-sm">{M.excluidasOmitidas(previo.excluidasOmitidas)}</p>
+          )}
         </section>
       )}
 

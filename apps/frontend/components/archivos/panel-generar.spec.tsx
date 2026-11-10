@@ -250,3 +250,53 @@ describe("PanelGenerar · previo y generación (spec 012b T14)", () => {
     expect(f.de(GET_PREVIO)).toHaveLength(2);
   });
 });
+
+describe("PanelGenerar · pantallas angostas (spec 012b T15)", () => {
+  beforeEach(() => {
+    seguimiento.opciones = null;
+    reiniciarSesion();
+  });
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  const conAncho = (angosta: boolean) =>
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((consulta: string) => ({
+        matches: angosta,
+        media: consulta,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+
+  it("feliz: en pantalla angosta «Ubicar en la grilla» cierra el panel para no tapar la fila", async () => {
+    instalarFetchArchivos({ previo: () => ({ status: 200, cuerpo: previoConErrorDe() }) });
+    conAncho(true);
+    const alUbicarFila = vi.fn();
+    montar({ alUbicarFila });
+    const user = userEvent.setup();
+    const panel = await abrir(user);
+    await user.click(await within(panel).findByRole("button", { name: M.ubicarFila }));
+
+    expect(alUbicarFila).toHaveBeenCalledWith(FILA_ID);
+    expect(screen.queryByRole("complementary", { name: M.titulo })).toBeNull();
+    // Se vuelve a abrir con el mismo botón.
+    expect(await abrir(user)).toBeTruthy();
+  });
+
+  it("error: en pantalla ancha el panel se queda abierto al ubicar", async () => {
+    instalarFetchArchivos({ previo: () => ({ status: 200, cuerpo: previoConErrorDe() }) });
+    conAncho(false);
+    const alUbicarFila = vi.fn();
+    montar({ alUbicarFila });
+    const user = userEvent.setup();
+    const panel = await abrir(user);
+    await user.click(await within(panel).findByRole("button", { name: M.ubicarFila }));
+
+    expect(alUbicarFila).toHaveBeenCalledWith(FILA_ID);
+    expect(screen.getByRole("complementary", { name: M.titulo })).toBeTruthy();
+  });
+});

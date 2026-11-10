@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { VentaDto } from "@contapp/shared";
 import { MENSAJES_VENTAS as M, NOMBRE_TIPO_COMPROBANTE } from "../../lib/ventas";
 
@@ -36,12 +36,27 @@ const CELDA_MONTO = `${CELDA} text-right tabular-nums`;
 function FilaVenta({
   v,
   alQuitar,
+  alExcluir,
+  alRestaurar,
+  bloqueo,
+  resaltada,
 }: {
   v: VentaDto;
   alQuitar?: (v: VentaDto) => void;
+  alExcluir?: (v: VentaDto) => void;
+  alRestaurar?: (v: VentaDto) => void;
+  bloqueo: string | null;
+  resaltada: boolean;
 }) {
+  // `exclusion` llega con 012b; un servidor anterior no la manda y la venta cuenta como no excluida.
+  const exclusion = (v as { exclusion?: VentaDto["exclusion"] }).exclusion ?? null;
+  const clave = `${v.serie}-${v.numero}`;
   return (
-    <tr style={{ height: ALTO_FILA }} className="border-t">
+    <tr
+      style={{ height: ALTO_FILA }}
+      data-resaltada={resaltada ? "true" : undefined}
+      className={`border-t ${resaltada ? "bg-yellow-100" : ""} ${exclusion ? "text-gray-600" : ""}`}
+    >
       <td className={CELDA} title={NOMBRE_TIPO_COMPROBANTE[v.tipo]}>
         {v.tipo}
       </td>
@@ -55,13 +70,48 @@ function FilaVenta({
             {M.noCuadra}
           </span>
         )}
+        {exclusion && (
+          <span
+            className="ml-2 rounded border border-gray-700 px-1 text-xs font-medium"
+            title={M.motivoDeExclusion(exclusion.motivo)}
+          >
+            {M.marcaExcluida}
+            <span className="ml-1 font-normal">{M.motivoDeExclusion(exclusion.motivo)}</span>
+          </span>
+        )}
         {v.origen === "manual" && alQuitar && (
           <button
             type="button"
+            disabled={bloqueo !== null}
+            title={bloqueo ?? undefined}
             onClick={() => alQuitar(v)}
-            className="ml-2 rounded border px-2 text-xs"
+            className="ml-2 rounded border px-2 text-xs disabled:opacity-50"
           >
             {M.quitar}
+          </button>
+        )}
+        {!exclusion && alExcluir && (
+          <button
+            type="button"
+            aria-label={M.excluirComprobante(clave)}
+            disabled={bloqueo !== null}
+            title={bloqueo ?? undefined}
+            onClick={() => alExcluir(v)}
+            className="ml-2 rounded border px-2 text-xs disabled:opacity-50"
+          >
+            {M.excluir}
+          </button>
+        )}
+        {exclusion && alRestaurar && (
+          <button
+            type="button"
+            aria-label={`${M.restaurar} ${clave}`}
+            disabled={bloqueo !== null}
+            title={bloqueo ?? undefined}
+            onClick={() => alRestaurar(v)}
+            className="ml-2 rounded border px-2 text-xs disabled:opacity-50"
+          >
+            {M.restaurar}
           </button>
         )}
       </td>
@@ -87,12 +137,41 @@ function FilaVenta({
 export function GrillaVentas({
   filas,
   alQuitar,
+  alExcluir,
+  alRestaurar,
+  puedeExcluir,
+  bloqueo = null,
+  resaltada = null,
 }: {
   filas: VentaDto[];
   /** «Quitar» solo en las ventas de origen `manual` y solo si la pantalla lo pasa (`sire.clasificar`, cliente activo). */
   alQuitar?: (v: VentaDto) => void;
+  /** «Excluir» (012b, D12) en las ventas para las que `puedeExcluir` dice sí; sin esta función no hay botón. */
+  alExcluir?: (v: VentaDto) => void;
+  /** «Restaurar» (012b) en las ventas excluidas; sin esta función no hay botón. */
+  alRestaurar?: (v: VentaDto) => void;
+  /** La venta del SIRE tiene un error que bloquea la generación (la pantalla lo sabe por el previo y por «No cuadra»). */
+  puedeExcluir?: (v: VentaDto) => boolean;
+  /** Motivo del bloqueo de las escrituras por el estado del periodo: los botones quedan deshabilitados con este texto. */
+  bloqueo?: string | null;
+  /** Id de la venta que hay que ubicar y resaltar. */
+  resaltada?: string | null;
 }) {
   const [desplazamiento, setDesplazamiento] = useState(0);
+  const contenedor = useRef<HTMLDivElement>(null);
+
+  // Ubicar una venta: se desplaza hasta su fila (alto fijo) y se resalta.
+  useEffect(() => {
+    if (resaltada === null) return;
+    const i = filas.findIndex((f) => f.id === resaltada);
+    if (i === -1 || contenedor.current === null) return;
+    const destino = Math.max(0, i * ALTO_FILA - Math.floor(ALTO_VENTANA / 2));
+    contenedor.current.scrollTop = destino;
+    setDesplazamiento(destino);
+    if (typeof contenedor.current.scrollIntoView === "function") {
+      contenedor.current.scrollIntoView({ block: "nearest" });
+    }
+  }, [resaltada, filas]);
 
   const inicio = Math.max(
     0,
@@ -106,6 +185,7 @@ export function GrillaVentas({
 
   return (
     <div
+      ref={contenedor}
       tabIndex={0}
       onScroll={(e) => setDesplazamiento(e.currentTarget.scrollTop)}
       style={{ maxHeight: ALTO_VENTANA }}
@@ -133,7 +213,15 @@ export function GrillaVentas({
             </tr>
           )}
           {visibles.map((v) => (
-            <FilaVenta key={v.id} v={v} alQuitar={alQuitar} />
+            <FilaVenta
+              key={v.id}
+              v={v}
+              alQuitar={alQuitar}
+              alExcluir={alExcluir && (!puedeExcluir || puedeExcluir(v)) ? alExcluir : undefined}
+              alRestaurar={alRestaurar}
+              bloqueo={bloqueo}
+              resaltada={v.id === resaltada}
+            />
           ))}
           {fin < filas.length && (
             <tr

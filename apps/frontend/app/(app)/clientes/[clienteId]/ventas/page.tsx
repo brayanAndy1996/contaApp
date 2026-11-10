@@ -13,8 +13,11 @@ import {
 import {
   TAMANOS_PAGINA_VENTAS,
   filtrosVentasSchema,
+  type EstadoPeriodoRespuesta,
+  type PrevioArchivoDto,
   type TamanoPaginaVentas,
 } from "@contapp/shared";
+import { PanelGenerar } from "../../../../../components/archivos/panel-generar";
 import { AgregarVenta } from "../../../../../components/ventas/agregar-venta";
 import { ConfirmarAccion } from "../../../../../components/ventas/confirmar-accion";
 import {
@@ -24,6 +27,8 @@ import {
 } from "../../../../../components/ventas/correlatividad-ventas";
 import { DescargaVentas } from "../../../../../components/ventas/descarga-ventas";
 import { DiferenciasVentas } from "../../../../../components/ventas/diferencias-ventas";
+import { EstadoPeriodoVentas } from "../../../../../components/ventas/estado-periodo-ventas";
+import { ExcluirVenta } from "../../../../../components/ventas/excluir-venta";
 import { GrillaVentas } from "../../../../../components/ventas/grilla-ventas";
 import { JustificarSalto } from "../../../../../components/ventas/justificar-salto";
 import { ResumenVentas } from "../../../../../components/ventas/resumen-ventas";
@@ -34,11 +39,16 @@ import {
   tiene,
 } from "../../../../../lib/acceso";
 import { obtenerCliente, type ClienteDto } from "../../../../../lib/clientes";
-import { MENSAJES_COMPRAS } from "../../../../../lib/compras";
+import {
+  MENSAJES_COMPRAS,
+  PERMISO_APROBAR_GENERAR,
+  type EstadoPeriodoCompras,
+} from "../../../../../lib/compras";
 import {
   MENSAJES_VENTAS as M,
   PERIODO_VALIDO,
   SIN_FILTROS,
+  bloqueoPorEstado,
   conMiles,
   listarDiferencias,
   listarPropuestas,
@@ -46,13 +56,14 @@ import {
   obtenerCorrelatividad,
   obtenerResumenVentas,
   quitarVenta,
+  restaurarVenta,
   revertirJustificacion,
   type CorrelatividadVentasDto,
   type DiferenciaVentasDto,
   type FiltrosGrilla,
   type PaginaVentasDto,
   type PropuestaVentasDto,
-  type ResumenVentasDto,
+  type ResumenVentasConEstado,
   type VentaDto,
 } from "../../../../../lib/ventas";
 
@@ -73,6 +84,14 @@ type Confirmacion =
   | { tipo: "revertir"; clave: string; justificacionId: string }
   | { tipo: "quitar"; clave: string; ventaId: string };
 
+/** Excluir o restaurar una venta (012b, D12): ambos se piden desde la grilla o desde el panel y salen en un diálogo. */
+type AccionExclusion =
+  | { tipo: "excluir"; ventaId: string; clave: string | null }
+  | { tipo: "restaurar"; ventaId: string; clave: string };
+
+/** Cuánto dura el resalte de la venta ubicada desde el panel. */
+const DURACION_RESALTE_MS = 6000;
+
 /** Cuenta una petición por tipo de dato para descartar respuestas que llegan tarde (cambio de periodo o filtros). */
 function useSecuencia() {
   const n = useRef(0);
@@ -92,6 +111,7 @@ function Ventas() {
     ver: boolean;
     descargar: boolean;
     clasificar: boolean;
+    aprobarGenerar: boolean;
   } | null>(null);
   const [cliente, setCliente] = useState<ClienteDto | null>(null);
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null);
@@ -106,7 +126,18 @@ function Ventas() {
   const [filtrosInvalidos, setFiltrosInvalidos] = useState(false);
 
   const [datosPagina, setDatosPagina] = useState<PaginaVentasDto | null>(null);
-  const [resumen, setResumen] = useState<ResumenVentasDto | null>(null);
+  const [resumen, setResumen] = useState<ResumenVentasConEstado | null>(null);
+  const [estado, setEstado] = useState<EstadoPeriodoCompras>("abierto");
+  const [marca, setMarca] = useState<{
+    estado: EstadoPeriodoCompras;
+    en: string;
+  } | null>(null);
+  const [exclusion, setExclusion] = useState<AccionExclusion | null>(null);
+  /** Ventas con un error `excluible` según el último previo que vio el panel (D12). */
+  const [excluibles, setExcluibles] = useState<ReadonlySet<string>>(new Set());
+  const [resaltada, setResaltada] = useState<string | null>(null);
+  const [porUbicar, setPorUbicar] = useState<string | null>(null);
+  const temporizadorResalte = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [correlatividad, setCorrelatividad] =
     useState<CorrelatividadVentasDto | null>(null);
   const [propuestas, setPropuestas] = useState<PropuestaVentasDto[] | null>(
@@ -137,7 +168,12 @@ function Ventas() {
       if (!vigente) return;
       if (!yo) {
         if (status !== 401) setErrorGeneral(mensajeDeError(status, null));
-        setPermisos({ ver: false, descargar: false, clasificar: false });
+        setPermisos({
+          ver: false,
+          descargar: false,
+          clasificar: false,
+          aprobarGenerar: false,
+        });
         return;
       }
       const ver = tiene(yo, "clientes.ver");
@@ -145,6 +181,7 @@ function Ventas() {
         ver,
         descargar: tiene(yo, "sire.descargar"),
         clasificar: tiene(yo, "sire.clasificar"),
+        aprobarGenerar: tiene(yo, PERMISO_APROBAR_GENERAR),
       });
       if (!ver) {
         setErrorGeneral(MENSAJES.sinPermiso);
@@ -154,7 +191,12 @@ function Ventas() {
       if (vigente && c.ok && c.datos) setCliente(c.datos);
     })().catch(() => {
       if (vigente) {
-        setPermisos({ ver: false, descargar: false, clasificar: false });
+        setPermisos({
+          ver: false,
+          descargar: false,
+          clasificar: false,
+          aprobarGenerar: false,
+        });
         setErrorGeneral(MENSAJES.errorGeneral);
       }
     });
@@ -188,8 +230,11 @@ function Ventas() {
     const id = sResumen.nueva();
     const r = await obtenerResumenVentas(clienteId, periodo);
     if (!sResumen.vigente(id)) return;
-    if (r.ok && r.datos) setResumen(r.datos);
-    else falla(r.status, r.datos);
+    if (r.ok && r.datos) {
+      setResumen(r.datos);
+      // Un servidor anterior a 012b no manda el estado: el periodo cuenta como abierto.
+      setEstado(r.datos.estado ?? "abierto");
+    } else falla(r.status, r.datos);
     // `sResumen` es estable (solo envuelve un ref).
   }, [clienteId, periodo, falla]);
 
@@ -257,6 +302,12 @@ function Ventas() {
     setPagina(1);
     setDatosPagina(null);
     setResumen(null);
+    setEstado("abierto");
+    setMarca(null);
+    setExclusion(null);
+    setExcluibles(new Set());
+    setResaltada(null);
+    setPorUbicar(null);
     setCorrelatividad(null);
     setPropuestas(null);
     setDiferencias(null);
@@ -331,6 +382,100 @@ function Ventas() {
     );
   }
 
+  /** El estado del periodo lo cambió esta persona (revisar o reabrir): se guarda y se recarga el resumen. */
+  function alCambiarEstado(r: EstadoPeriodoRespuesta) {
+    setEstado(r.estado);
+    setMarca(r.en === null ? null : { estado: r.estado, en: r.en });
+    void cargarResumen().catch(() => setErrorGeneral(MENSAJES.errorGeneral));
+  }
+
+  /** Excluir o restaurar cambió la venta: grilla, resumen (estado y excluidas) y saltos; el panel recarga su previo. */
+  function recargarTrasExclusion() {
+    void cargarGrilla();
+    void Promise.all([cargarResumen(), cargarCorrelatividad()]).catch(() =>
+      setErrorGeneral(MENSAJES.errorGeneral),
+    );
+  }
+
+  function resaltar(id: string) {
+    if (temporizadorResalte.current !== null) clearTimeout(temporizadorResalte.current);
+    setResaltada(id);
+    temporizadorResalte.current = setTimeout(() => setResaltada(null), DURACION_RESALTE_MS);
+  }
+  useEffect(
+    () => () => {
+      if (temporizadorResalte.current !== null) clearTimeout(temporizadorResalte.current);
+    },
+    [],
+  );
+
+  /** Ubica y resalta una venta (enlace de un error del panel): si no está en la página, se piden todas sin filtros. */
+  function ubicarFila(id: string) {
+    setAviso(null);
+    setErrorAccion(null);
+    if (datosPagina?.filas.some((f) => f.id === id)) {
+      resaltar(id);
+      return;
+    }
+    const sinFiltros = JSON.stringify(filtros) === JSON.stringify(SIN_FILTROS);
+    if (tamano === "todas" && pagina === 1 && sinFiltros) {
+      setErrorAccion(M.noSeUbico);
+      return;
+    }
+    setBorrador(SIN_FILTROS);
+    setFiltros(SIN_FILTROS);
+    setFiltrosInvalidos(false);
+    setTamano("todas");
+    setPagina(1);
+    setDatosPagina(null);
+    setPorUbicar(id);
+  }
+
+  useEffect(() => {
+    if (porUbicar === null || datosPagina === null) return;
+    if (datosPagina.filas.some((f) => f.id === porUbicar)) resaltar(porUbicar);
+    else setErrorAccion(M.noSeUbico);
+    setPorUbicar(null);
+    // `resaltar` solo usa un ref y setters.
+  }, [porUbicar, datosPagina]);
+
+  function pedirExclusion(a: AccionExclusion) {
+    setAviso(null);
+    setErrorAccion(null);
+    setFormulario(null);
+    setConfirmacion(null);
+    setExclusion(a);
+  }
+
+  /** Para el diálogo de excluir del panel: la clave sale de la grilla si la venta está en la página cargada. */
+  const claveDe = (id: string): string | null => {
+    const v = datosPagina?.filas.find((f) => f.id === id);
+    return v ? `${v.serie}-${v.numero}` : null;
+  };
+
+  async function ejecutarRestaurar() {
+    const a = exclusion;
+    if (a?.tipo !== "restaurar" || ejecutando) return;
+    setEjecutando(true);
+    try {
+      const r = await restaurarVenta(clienteId, periodo, a.ventaId);
+      setExclusion(null);
+      if (r.ok) {
+        setAviso(M.ventaRestaurada);
+        recargarTrasExclusion();
+      } else if (r.status !== 401) {
+        setErrorAccion(r.mensaje || M.errorRestaurar);
+        // Otra persona cambió el estado o la venta: se vuelve a pedir lo que ve la pantalla.
+        recargarTrasExclusion();
+      }
+    } catch {
+      setExclusion(null);
+      setErrorAccion(M.errorRestaurar);
+    } finally {
+      setEjecutando(false);
+    }
+  }
+
   function aplicarFiltros(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
     const limpios: FiltrosGrilla = {
@@ -373,6 +518,13 @@ function Ventas() {
 
   const puedeDescargar = permisos.descargar && !archivado;
   const puedeClasificar = permisos.clasificar && !archivado;
+  // P-1, P-9: con `generado` nadie escribe; con `revisado`, solo quien tiene `sire.aprobar_generar`. Los botones
+  // siguen a la vista pero deshabilitados, con este texto.
+  const bloqueo = bloqueoPorEstado(estado, permisos.aprobarGenerar);
+  const escribible = bloqueo === null;
+  /** Una venta del SIRE que no cuadra, o con un error `excluible` en el último previo, se puede excluir (D12). */
+  const puedeExcluirFila = (v: VentaDto): boolean =>
+    v.origen === "sire" && (!v.cuadra || excluibles.has(v.id));
   const total = datosPagina?.total ?? 0;
   const hayMas =
     datosPagina !== null &&
@@ -432,15 +584,25 @@ function Ventas() {
             className="rounded border px-3 py-2"
           />
         </label>
-        {puedeDescargar && (
-          <Link href={hrefImportar} className="rounded border px-4 py-2 text-sm">
-            {M.importar}
-          </Link>
-        )}
+        {puedeDescargar &&
+          (escribible ? (
+            <Link href={hrefImportar} className="rounded border px-4 py-2 text-sm">
+              {M.importar}
+            </Link>
+          ) : (
+            <span
+              aria-disabled="true"
+              title={bloqueo ?? undefined}
+              className="rounded border px-4 py-2 text-sm opacity-50"
+            >
+              {M.importar}
+            </span>
+          ))}
         {puedeClasificar && (
           <button
             type="button"
-            disabled={!periodoValido}
+            disabled={!periodoValido || !escribible}
+            title={bloqueo ?? undefined}
             onClick={() => abrirFormulario({ tipo: "agregar", salto: null })}
             className="rounded border px-4 py-2 text-sm disabled:opacity-50"
           >
@@ -454,11 +616,77 @@ function Ventas() {
         </p>
       )}
 
+      {periodoValido && (
+        <EstadoPeriodoVentas
+          key={`estado|${clienteId}|${periodo}`}
+          clienteId={clienteId}
+          periodo={periodo}
+          estado={estado}
+          clasificar={permisos.clasificar}
+          aprobarGenerar={permisos.aprobarGenerar}
+          archivado={archivado}
+          en={marca !== null && marca.estado === estado ? marca.en : null}
+          alCambiar={alCambiarEstado}
+          alRecargar={() =>
+            void cargarResumen().catch(() => setErrorGeneral(MENSAJES.errorGeneral))
+          }
+        />
+      )}
+      {periodoValido && bloqueo !== null && (
+        <p role="status" className="w-full max-w-xl rounded bg-amber-50 p-3 text-sm text-amber-900">
+          {bloqueo}
+        </p>
+      )}
+
+      {periodoValido && (
+        <PanelGenerar
+          key={`archivo|${clienteId}|${periodo}`}
+          clienteId={clienteId}
+          periodo={periodo}
+          libro="ventas"
+          puedeVer={permisos.ver}
+          puedeGenerar={permisos.aprobarGenerar && !archivado}
+          recarga={resumen}
+          bloqueo={bloqueo}
+          alUbicarFila={ubicarFila}
+          alGenerado={() =>
+            void Promise.all([cargarGrilla(), cargarResumen()]).catch(() =>
+              setErrorGeneral(MENSAJES.errorGeneral),
+            )
+          }
+          alExcluir={
+            puedeClasificar
+              ? (id) => pedirExclusion({ tipo: "excluir", ventaId: id, clave: claveDe(id) })
+              : undefined
+          }
+          alRestaurar={
+            puedeClasificar
+              ? (x) =>
+                  pedirExclusion({
+                    tipo: "restaurar",
+                    ventaId: x.filaId,
+                    clave: x.comprobante,
+                  })
+              : undefined
+          }
+          alPrevio={(p: PrevioArchivoDto) =>
+            setExcluibles(
+              new Set(
+                p.errores
+                  .filter((e) => e.excluible && e.filaId !== null)
+                  .map((e) => e.filaId as string),
+              ),
+            )
+          }
+        />
+      )}
+
       <DescargaVentas
         key={`${clienteId}|${periodo}`}
         clienteId={clienteId}
         periodo={periodo}
         puedeDescargar={puedeDescargar}
+        bloqueo={bloqueo}
         periodoValido={periodoValido}
         ultimaPropuesta={propuestas?.[0]}
         cargadas={propuestas !== null}
@@ -472,10 +700,20 @@ function Ventas() {
           <CorrelatividadVentas
             correlatividad={correlatividad}
             puedeClasificar={puedeClasificar}
-            alJustificar={(salto) => abrirFormulario({ tipo: "justificar", salto })}
-            alAgregar={(salto) => abrirFormulario({ tipo: "agregar", salto })}
-            alRevertir={(r: RevertirElegido) =>
-              pedirConfirmacion({ tipo: "revertir", ...r })
+            alJustificar={
+              escribible
+                ? (salto) => abrirFormulario({ tipo: "justificar", salto })
+                : undefined
+            }
+            alAgregar={
+              escribible
+                ? (salto) => abrirFormulario({ tipo: "agregar", salto })
+                : undefined
+            }
+            alRevertir={
+              escribible
+                ? (r: RevertirElegido) => pedirConfirmacion({ tipo: "revertir", ...r })
+                : undefined
             }
           />
 
@@ -489,7 +727,7 @@ function Ventas() {
               {errorAccion}
             </p>
           )}
-          {puedeClasificar && confirmacion && (
+          {puedeClasificar && escribible && confirmacion && (
             <ConfirmarAccion
               mensaje={
                 confirmacion.tipo === "revertir"
@@ -501,7 +739,7 @@ function Ventas() {
               alCancelar={() => setConfirmacion(null)}
             />
           )}
-          {puedeClasificar && formulario?.tipo === "justificar" && (
+          {puedeClasificar && escribible && formulario?.tipo === "justificar" && (
             <JustificarSalto
               key={`j|${periodo}|${formulario.salto.tipo}|${formulario.salto.serie}|${formulario.salto.desde}|${formulario.salto.hasta}`}
               clienteId={clienteId}
@@ -511,7 +749,7 @@ function Ventas() {
               alCancelar={() => setFormulario(null)}
             />
           )}
-          {puedeClasificar && formulario?.tipo === "agregar" && (
+          {puedeClasificar && escribible && formulario?.tipo === "agregar" && (
             <AgregarVenta
               key={`a|${periodo}|${formulario.salto?.tipo}|${formulario.salto?.serie}|${formulario.salto?.desde}`}
               clienteId={clienteId}
@@ -602,6 +840,29 @@ function Ventas() {
             <GrillaVentas
               key={`${pagina}|${tamano}|${JSON.stringify(filtros)}`}
               filas={datosPagina?.filas ?? []}
+              resaltada={resaltada}
+              bloqueo={bloqueo}
+              puedeExcluir={puedeExcluirFila}
+              alExcluir={
+                puedeClasificar
+                  ? (v: VentaDto) =>
+                      pedirExclusion({
+                        tipo: "excluir",
+                        ventaId: v.id,
+                        clave: `${v.serie}-${v.numero}`,
+                      })
+                  : undefined
+              }
+              alRestaurar={
+                puedeClasificar
+                  ? (v: VentaDto) =>
+                      pedirExclusion({
+                        tipo: "restaurar",
+                        ventaId: v.id,
+                        clave: `${v.serie}-${v.numero}`,
+                      })
+                  : undefined
+              }
               alQuitar={
                 puedeClasificar
                   ? (v: VentaDto) =>
@@ -659,6 +920,40 @@ function Ventas() {
             <DiferenciasVentas diferencias={diferencias} />
           )}
         </>
+      )}
+
+      {/* Excluir y restaurar salen en un diálogo sobre todo lo demás: el panel lateral no lo tapa. */}
+      {puedeClasificar && escribible && exclusion !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          {exclusion.tipo === "excluir" ? (
+            <ExcluirVenta
+              key={`x|${exclusion.ventaId}`}
+              clienteId={clienteId}
+              periodo={periodo}
+              ventaId={exclusion.ventaId}
+              clave={exclusion.clave}
+              alTerminar={() => {
+                setExclusion(null);
+                setAviso(M.ventaExcluida);
+                recargarTrasExclusion();
+              }}
+              alCancelar={() => setExclusion(null)}
+              alFallar={(status) => {
+                if (status === 403 || status === 404 || status === 409) {
+                  recargarTrasExclusion();
+                }
+              }}
+            />
+          ) : (
+            <ConfirmarAccion
+              key={`r|${exclusion.ventaId}`}
+              mensaje={M.confirmarRestaurar(exclusion.clave)}
+              ocupado={ejecutando}
+              alConfirmar={() => void ejecutarRestaurar()}
+              alCancelar={() => setExclusion(null)}
+            />
+          )}
+        </div>
       )}
     </main>
   );

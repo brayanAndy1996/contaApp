@@ -1,7 +1,11 @@
 "use client";
 
-import type { MontosVentaDto, ResumenVentasDto } from "@contapp/shared";
-import { MENSAJES_VENTAS as M, NOMBRE_TIPO_COMPROBANTE } from "../../lib/ventas";
+import type { MontosVentaDto } from "@contapp/shared";
+import {
+  MENSAJES_VENTAS as M,
+  NOMBRE_TIPO_COMPROBANTE,
+  type ResumenVentasConEstado,
+} from "../../lib/ventas";
 
 // Resumen de ventas en soles (spec 013, D11; RF-056). Todas las cifras las calcula el servidor (con
 // notas de crédito restando y USD convertido); aquí solo se muestran las cadenas recibidas.
@@ -19,7 +23,7 @@ const COLUMNAS_MONTO: ReadonlyArray<[keyof MontosVentaDto, string]> = [
 
 const MONTO = "px-2 text-right tabular-nums";
 
-export function ResumenVentas({ resumen }: { resumen: ResumenVentasDto | null }) {
+export function ResumenVentas({ resumen }: { resumen: ResumenVentasConEstado | null }) {
   return (
     <section aria-label="Resumen" className="flex flex-col gap-3">
       <h2 className="text-lg font-medium">Resumen</h2>
@@ -27,6 +31,11 @@ export function ResumenVentas({ resumen }: { resumen: ResumenVentasDto | null })
       {resumen && resumen.avisos.includes("usd_sin_tipo_cambio") && (
         <p role="status" className="rounded bg-amber-50 p-3 text-sm text-amber-900">
           {M.avisoUsdSinTipoCambio}
+        </p>
+      )}
+      {resumen && (resumen.excluidas ?? 0) > 0 && (
+        <p role="note" className="text-sm">
+          {M.excluidas(resumen.excluidas ?? 0)}
         </p>
       )}
       {resumen && (

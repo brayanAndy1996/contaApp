@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
+  ExcluidaPrevioDto,
   PrevioArchivoDto,
   TrabajoVista,
   VersionArchivoDto,
@@ -26,6 +27,13 @@ import { VersionesArchivo } from "./versiones-archivo";
 // trabajo; ante 409, 422 o un trabajo en error se vuelve a pedir el previo (P-10). Ver el previo y descargar
 // piden `clientes.ver` (P-4). Ocultar el botón es comodidad: el backend vuelve a validar (RNF-007).
 
+/** Bajo este ancho (el `lg` de Tailwind) el panel cubriría la grilla: al ubicar una fila se cierra. */
+const ANCHO_ANGOSTO = "(max-width: 1023px)";
+const esPantallaAngosta = (): boolean =>
+  typeof window !== "undefined" &&
+  typeof window.matchMedia === "function" &&
+  window.matchMedia(ANCHO_ANGOSTO).matches;
+
 const ACTIVO: ReadonlySet<TrabajoVista["estado"]> = new Set(["en_cola", "ejecutando"]);
 
 type Carga = "inactiva" | "cargando" | "lista" | "error";
@@ -39,6 +47,10 @@ export function PanelGenerar({
   recarga,
   alUbicarFila,
   alGenerado,
+  alExcluir,
+  alRestaurar,
+  alPrevio,
+  bloqueo = null,
 }: {
   clienteId: string;
   periodo: string;
@@ -53,6 +65,14 @@ export function PanelGenerar({
   alUbicarFila?: (filaId: string) => void;
   /** El trabajo terminó bien: la página recarga el resumen y el estado. */
   alGenerado?: () => void;
+  /** Ventas (T15, D12): «Excluir» en un error `excluible`; sin esta función no hay botón (sin `sire.clasificar`). */
+  alExcluir?: (filaId: string) => void;
+  /** Ventas (T15, D12): «Restaurar» en una venta excluida; sin esta función no hay botón. */
+  alRestaurar?: (excluida: ExcluidaPrevioDto) => void;
+  /** Cada vez que llega un previo: la página de ventas sabe así qué filas son excluibles. */
+  alPrevio?: (previo: PrevioArchivoDto) => void;
+  /** Motivo del bloqueo de las escrituras de ventas (`generado`, o `revisado` sin `sire.aprobar_generar`). */
+  bloqueo?: string | null;
 }) {
   const [abierto, setAbierto] = useState(false);
   const [previo, setPrevio] = useState<PrevioArchivoDto | null>(null);
@@ -108,6 +128,20 @@ export function PanelGenerar({
   useEffect(() => {
     alTerminar.current = { cargar, alGenerado };
   });
+
+  const alRecibirPrevio = useRef(alPrevio);
+  useEffect(() => {
+    alRecibirPrevio.current = alPrevio;
+  });
+  useEffect(() => {
+    if (previo !== null) alRecibirPrevio.current?.(previo);
+  }, [previo]);
+
+  /** En pantallas angostas el panel taparía la fila: se cierra y la persona lo reabre con «Generar archivo». */
+  const ubicar = (filaId: string) => {
+    alUbicarFila?.(filaId);
+    if (esPantallaAngosta()) setAbierto(false);
+  };
 
   // Sigue el trabajo de generación con el lector de 007b.
   useEffect(() => {
@@ -259,7 +293,14 @@ export function PanelGenerar({
 
           {previo !== null && (
             <>
-              <PrevioArchivo previo={previo} alUbicarFila={alUbicarFila} />
+              <PrevioArchivo
+                previo={previo}
+                libro={libro}
+                alUbicarFila={alUbicarFila ? ubicar : undefined}
+                alExcluir={alExcluir}
+                alRestaurar={alRestaurar}
+                bloqueo={bloqueo}
+              />
 
               <div className="flex flex-wrap items-center gap-3">
                 {puedeGenerar ? (

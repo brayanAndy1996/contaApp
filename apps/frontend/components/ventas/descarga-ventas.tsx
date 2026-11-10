@@ -29,6 +29,7 @@ export function DescargaVentas({
   ultimaPropuesta,
   cargadas,
   alCompletar,
+  bloqueo = null,
 }: {
   clienteId: string;
   periodo: string;
@@ -41,6 +42,8 @@ export function DescargaVentas({
   cargadas: boolean;
   /** El trabajo terminó bien: la pantalla recarga grilla, resumen, correlatividad y propuestas. */
   alCompletar: () => void;
+  /** Motivo del bloqueo por el estado del periodo (012b, P-1, P-9): «Descargar» queda deshabilitado con este texto. */
+  bloqueo?: string | null;
 }) {
   const [trabajoId, setTrabajoId] = useState<string | null>(null);
   const [trabajo, setTrabajo] = useState<TrabajoVista | null>(null);
@@ -96,7 +99,10 @@ export function DescargaVentas({
             ? MENSAJES_CREDENCIALES.noConfigurada
             : r.status === 409 && codigoDe(r.datos) === "cliente_archivado"
               ? M.clienteArchivado
-              : mensajeDeError(r.status, r.datos),
+              : (r.status === 409 || r.status === 403) &&
+                  M.errores[codigoDe(r.datos) ?? ""] !== undefined
+                ? M.errores[codigoDe(r.datos) ?? ""]!
+                : mensajeDeError(r.status, r.datos),
         );
       }
     } catch {
@@ -119,7 +125,8 @@ export function DescargaVentas({
           <button
             type="button"
             onClick={() => void descargar()}
-            disabled={!periodoValido || enviando || activo || espera}
+            disabled={!periodoValido || enviando || activo || espera || bloqueo !== null}
+            title={bloqueo ?? undefined}
             className="rounded bg-black px-4 py-2 text-white disabled:opacity-50"
           >
             {M.descargar}
@@ -165,8 +172,9 @@ export function DescargaVentas({
             <button
               type="button"
               onClick={() => void descargar()}
-              disabled={!periodoValido || enviando}
-              className="rounded border px-3 py-1"
+              disabled={!periodoValido || enviando || bloqueo !== null}
+              title={bloqueo ?? undefined}
+              className="rounded border px-3 py-1 disabled:opacity-50"
             >
               {M.reintentar}
             </button>

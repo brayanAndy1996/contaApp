@@ -49,6 +49,17 @@ export const MENSAJES_ARCHIVO = {
   diferencia: (monto: string) => `Diferencia: ${monto}`,
   erroresOmitidos: (n: number) =>
     n === 1 ? "Y 1 error más que no se muestra." : `Y ${n} errores más que no se muestran.`,
+  erroresVentasAyuda:
+    "Las ventas llegaron así del SIRE: el error se corrige en el sistema de facturación. Para generar este periodo, puedes excluir la venta con un motivo; no irá en el archivo.",
+  excluir: "Excluir",
+  excluirVenta: (comprobante: string) => `Excluir la venta ${comprobante}`,
+  tituloExcluidas: "Ventas excluidas",
+  excluidasAyuda: "Estas ventas no irán en el archivo. Restaurarlas las vuelve a validar.",
+  excluidaMotivo: (motivo: string) => `Motivo: ${motivo}`,
+  restaurar: "Restaurar",
+  restaurarVenta: (comprobante: string) => `Restaurar la venta ${comprobante}`,
+  excluidasOmitidas: (n: number) =>
+    n === 1 ? "Y 1 venta excluida más que no se muestra." : `Y ${n} ventas excluidas más que no se muestran.`,
   tituloAvisos: "Avisos",
   avisosOmitidos: "Los avisos no impiden generar el archivo.",
   tituloResumen: "Resumen de cambios del archivo",
