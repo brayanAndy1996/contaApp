@@ -843,6 +843,7 @@ export default tseslint.config(
       "packages/domain/src/clave-comprobante/**",
       // 016: el parser UBL (montos con Money; conteos y bytes con `Entero` de texto/).
       "packages/domain/src/ubl/**",
+      "packages/domain/src/archivos/**",
     ],
     ignores: ["**/*.spec.ts"],
     rules: {
