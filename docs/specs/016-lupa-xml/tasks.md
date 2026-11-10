@@ -30,9 +30,10 @@ Nivel A (spec P-1) con la lupa del frontend como C por tarea (T15, T16: pruebas 
 | T22 | Pruebas de las correcciones de la ronda 2 (rojo) | tester | sonnet | T21 | ✓ | — | [x] |
 | T23 | Corregir los hallazgos de la ronda 2 | backend | opus | T22 | — | — | [x] |
 | T24 | Prueba manual contra el sistema completo | tester | sonnet | T16, T23 | — | — | [x] |
+| T24a | Defectos de pantalla de T24 (P-1 a P-3): foco de la lupa, error de subida y «Editar» en la lupa | frontend | sonnet | T24 | — | — | [x] |
 | T25 | Verificar CA-1 a CA-18 con evidencia, suites completas y cobertura | tester | sonnet | T24 | — | — | [x] |
 | T26 | Revisión final contra la spec | arquitecto | opus | T25 | — | — | [x] |
-| T27 | Cierre: `tasks.md` y commit (el orquestador actualiza ESTADO) | devops | haiku | T26 | — | — | [ ] |
+| T27 | Cierre: `tasks.md` y commit (el orquestador actualiza ESTADO) | devops | haiku | T26 | — | — | [x] |
 
 Paralelismo: T1 ∥ T2 ∥ T4 ∥ T5 (T3 espera el paquete de T1); T6 ∥ T7. Implementación en cuatro carriles independientes: T8 (`domain`) ∥ T9 (`storage`) ∥ T10 (`shared`) ∥ T11 (`db`). Luego T12 (`apps/worker`) ∥ T13 (`apps/backend`); T14 va tras T13 porque comparten `compras.module.ts` y `app.ts`. El frontend (T15 → T16) corre en paralelo con T11–T14 contra el contrato de `shared` (sus pruebas simulan la API) y T17 con T15–T16. Las rondas y sus correcciones van en serie (T18 → T20 → T21 → T23): la ronda 2 debe ver las correcciones de la 1. Si una ronda no deja fallos, se saltan sus dos tareas de corrección (se marcan `[x]` «sin hallazgos»).
 
@@ -221,11 +222,14 @@ Defectos de servidor: **ninguno.**
 
 Observaciones (sin tarea): (a) los avisos salen dos veces en regiones `role="alert"`/`aria-live` («Sugerencia aceptada.», «La sugerencia cambió…», «Otra persona cambió esta compra…»), como la observación (f) de 015 T11. (b) «XML subido por 01920000 el …»: la pantalla muestra el id corto del autor (CA-16 pide autor); `subidoPor` es solo un uuid en el DTO, igual que en 015 el autor del Historial. (c) Con la lupa abierta, Enter abre el diálogo «Aceptar sugerencias» (hay que pulsar «Aceptar» otra vez), aunque la ayuda de la lupa dice «Enter acepta la sugerencia» y CA-15 «Enter acepta»; con una sugerencia exacta única podría aceptarla directo. (d) En estado «Pendiente» la lupa no ofrece «Subir XML» (sí en `sin_solicitar` y `no_disponible`). (e) `documento_xml_obtencion` de F001-6008 sigue en `no_encontrado` tras subirle el XML: sin efecto visible (la lupa mira `documento_xml` y la planificación omite lo guardado). (f) El texto de `transitorio` «se volverá a intentar» sigue tras agotar los 3 reintentos de 008; el siguiente intento es el botón o la próxima descarga (que sí lo replanifica, punto 1). No probados: CA-8 concurrencia edición/llegada del XML en paralelo, CA-18 con 500 ítems y los casos de unidad (ISO-8859-1, nota de crédito, `currencyID` mezclado), que cubren las suites de T25.
 
+## T24a · [x] Defectos de pantalla de T24 (frontend · sonnet)
+- **Resultado**: hecha (`1152b76`): P-1 (el foco vuelve a la raíz de la lupa tras «Obtener XML» o «Reintentar»), P-2 (el selector limpia el error y el aviso de la subida anterior al rechazar un archivo) y P-3 («Editar» en la lupa, que cierra la lupa y abre la fila en edición en la grilla).
+
 ## T25 · [x] Verificar criterios (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (CA-1 a CA-18 y casos reales), los informes de T18, T21 y T24.
 - **Hacer**: suites completas (`pnpm test`, `test:aislamiento`, `ci:db`), los `cobertura:*` de 016 y los de siempre; por cada CA, la prueba o el comando que lo demuestra (`archivo:línea`) o «falta».
 - **Hecho cuando**: tabla CA → evidencia en la sección «Resultado» de esta tarea; cobertura ≥ 90 % en `ubl/`, `storage`, `db/xml` y los módulos XML de backend y worker; ningún adversarial abierto. Commit `docs(016): verificación de criterios`.
-- **Resultado**: **los 18 CA cumplidos**, sin adversarial abierto. Decisiones del 2026-11-10 aplicadas: CA-15 «edita» = botón «Editar» de la lupa (cierra la lupa y abre la fila en edición en la grilla, T24a); «Enter acepta» = Enter abre la aceptación y un segundo Enter la confirma (la ayuda ya lo dice); encolado del worker por `encolar_xml_obtener` (0037); H-016-8 corregido en 0038. Se agregó una prueba (`compras-xml-concurrencia.spec.ts`, «descartada entre la lectura y el bloqueo») para cubrir la rama de carrera de `reevaluar.ts`; no se tocó producción.
+- **Resultado**: hecha (`3d21a9f`): **los 18 CA cumplidos**, sin adversarial abierto. Decisiones del 2026-11-10 aplicadas: CA-15 «edita» = botón «Editar» de la lupa (cierra la lupa y abre la fila en edición en la grilla, T24a); «Enter acepta» = Enter abre la aceptación y un segundo Enter la confirma (la ayuda ya lo dice); encolado del worker por `encolar_xml_obtener` (0037); H-016-8 corregido en 0038. Se agregó una prueba (`compras-xml-concurrencia.spec.ts`, «descartada entre la lectura y el bloqueo») para cubrir la rama de carrera de `reevaluar.ts`; no se tocó producción.
 
 Suites y comandos (de a uno, rama `spec/016-lupa-xml`, mocks, PG 17 y Redis nativos, BD `contapp` existente sin recrear):
 
@@ -315,7 +319,31 @@ Notas para ESTADO:
 - P-9 está cerrada: no queda abierta.
 - La fila 016 de ESTADO dice nivel B. La spec es **A** (P-1).
 
-## T27 · [ ] Cierre (devops · haiku)
+## T27 · [x] Cierre (devops · haiku)
 - **Contexto (leer solo esto)**: este `tasks.md`, `git status`.
 - **Hacer**: marcar las tareas, `Estado: hecha` en `spec.md` con la fecha y los CA en `[x]` según T25 y T26.
 - **Hecho cuando**: `git status` limpio salvo lo ajeno. Commit `docs(016): cierre`.
+- **Resultado**: hecha (commit `docs(016): cierre`): T24a, T25 y T27 en `[x]` con sus commits (`1152b76`, `3d21a9f`); `spec.md` en «hecha (2026-11-10)» con CA-1 a CA-18 y los casos reales en `[x]`. Después de T26 hubo `9c0123f` (`test(016): ramas de transformar.ts al aceptar con XML`): pruebas de ramas de `transformar.ts` al aceptar con XML. `storage` compilado; `lint` 10/10 y `typecheck` 17/17 OK, sin fallos ni advertencias.
+
+## Texto para ESTADO
+
+Para pegar en `docs/specs/ESTADO.md`. Lo aplica el orquestador; devops no toca ese archivo.
+
+- **Estado 016**: hecha (2026-11-10). Nivel de riesgo **A** (P-1), con la lupa del frontend en C. La fila 016 de ESTADO dice nivel B: corregir a A.
+- **Migraciones**: 016 usa 0035 a 0038. 012b parte de la 0039 (si 012b llega antes a `main`, 016 renumera sus cuatro migraciones).
+- **Observaciones no bloqueantes** (la spec destino va entre corchetes):
+  1. [018] Los avisos salen dos veces en regiones `role="alert"`/`aria-live`: «Sugerencia aceptada.», «La sugerencia cambió…», «Otra persona cambió esta compra…» (T24 (a), como 015 T11 (f)).
+  2. [017] «XML subido por» muestra el id corto del autor: `subidoPor` es solo un uuid en el DTO, como el autor del Historial de 015.
+  3. [lupa de ventas] En «Pendiente» la lupa no ofrece «Subir XML» (T24 (d)). Agregarlo cuando se reutilice el modal.
+  4. [real] `documento_xml_obtencion` sigue en `no_encontrado` tras subir el XML (T24 (e)). Hoy no tiene efecto visible: la lupa mira `documento_xml` y la planificación omite lo guardado. El proveedor real debe dejar la obtención coherente.
+  5. [real] El texto de `transitorio` («se volverá a intentar») sigue visible después de agotar los reintentos de 008 (T24 (f)).
+  6. [012b] Si 012b llega antes a `main`, 016 renumera **cuatro** migraciones (0035 a 0038) y las dos funciones de 0037 y 0038 conservan su nombre.
+  7. [mantenimiento] El trigger `compra_version_worker_acotado` (0038) reconoce la compra creada en la misma transacción por `xmin = pg_current_xact_id()`. Si algún día el worker inserta compras dentro de un `SAVEPOINT`, falla cerrado (42501) y hay que ajustarlo.
+  8. [pruebas] En local, `planes.spec.ts` falla con una BD sucia de corridas anteriores (estudios sin suscripción), y bajo `turbo` en paralelo agotan el tiempo `seed-arranque`, `seed-r2b.adv` y una de `diccionario`. Pasan solas y en BD limpia (T25).
+  9. [despliegue] Hay que dejar `XML_SIMULADO_EN_REGLAS=0` en producción (el código ya lo toma así por defecto) y escribir el adaptador S3 de `StorageProvider`.
+- **Notas que se cierran**: [014/016] (D-6), [016] `ResumenXml` redondeado, [016] parser tolerante, [016] choque de `compra_hallazgo` (P-2) y [016] lupa y «Subir XML» deshabilitados. [011/013] queda ampliada a `ubl/`. P-9 está cerrada.
+- **Notas que se abren**:
+  - [lupa de ventas] Spec corta que reutiliza el modal (P-3).
+  - [real] `RealXmlProvider`: rutas de SOL «E…»/«F…», credencial y canal propios (P-7), y observaciones 4 y 5.
+  - [R2] PDF, «Recordar para este proveedor», R-ICB y R-HIS (P-8).
+  - Firma y CDR: sin fuente en R1.
