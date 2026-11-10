@@ -14,7 +14,7 @@ vi.mock("@contapp/db", async (original) => ({
   leerClienteDto: vi.fn(),
   leerDetalleXml: vi.fn(),
   guardarDocumentoXml: vi.fn(),
-  reevaluarCompra: vi.fn(),
+  reevaluarComprobante: vi.fn(),
   fijarObtencion: vi.fn(),
 }));
 vi.mock("./apoyo.js", async (original) => ({
@@ -23,7 +23,7 @@ vi.mock("./apoyo.js", async (original) => ({
 }));
 vi.mock("./escritura.js", async (original) => ({
   ...(await original<typeof import("./escritura.js")>()),
-  entornoDeReglas: vi.fn(),
+  evaluarPorPeriodo: vi.fn(),
 }));
 
 import {
@@ -32,12 +32,12 @@ import {
   guardarDocumentoXml,
   leerClienteDto,
   leerDetalleXml,
-  reevaluarCompra,
+  reevaluarComprobante,
 } from "@contapp/db";
 import { AccesoError } from "../acceso/errores.js";
 import { exigirCliente } from "./apoyo.js";
 import { XmlError } from "./errores-xml.js";
-import { entornoDeReglas } from "./escritura.js";
+import { evaluarPorPeriodo } from "./escritura.js";
 import { XmlComprasService } from "./xml.service.js";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
@@ -105,8 +105,9 @@ beforeEach(() => {
   vi.mocked(leerClienteDto).mockResolvedValue({ id: CLIENTE, ruc: RUC_CLIENTE } as never);
   vi.mocked(leerDetalleXml).mockResolvedValue(previo() as never);
   vi.mocked(guardarDocumentoXml).mockResolvedValue({ id: "d-1", n: 1 });
-  vi.mocked(reevaluarCompra).mockResolvedValue(undefined as never);
-  vi.mocked(entornoDeReglas).mockResolvedValue({ conocidos: [], evaluar: vi.fn() } as never);
+  // H-016-11: el resultado trae a la compra de la URL (siempre en minúsculas) entre las re-evaluadas.
+  vi.mocked(reevaluarComprobante).mockResolvedValue(new Map([[COMPRA.toLowerCase(), {}]]) as never);
+  vi.mocked(evaluarPorPeriodo).mockReturnValue(vi.fn() as never);
   vi.mocked(fijarObtencion).mockResolvedValue(undefined as never);
   storage.guardar.mockImplementation(async () => {
     bitacora.push("archivo");
@@ -139,8 +140,17 @@ describe("XmlComprasService.subir", () => {
       tamano: bytes.length,
       subidoPor: USUARIO,
     });
-    // El id de la compra se normaliza a minúsculas y la re-evaluación va en la misma transacción.
-    expect(vi.mocked(reevaluarCompra).mock.calls[0]?.slice(0, 2)).toEqual([TX, COMPRA.toLowerCase()]);
+    // H-016-11: se re-evalúan todas las compras vivas del comprobante (su identidad, no el id de la URL) en la misma
+    // transacción, con el entorno de cada periodo y bloqueando las filas.
+    expect(reevaluarComprobante).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(reevaluarComprobante).mock.calls[0]).toEqual([
+      TX,
+      CLIENTE,
+      { rucEmisor: "20700000045", tipo: "01", serie: "F001", numero: "2056" },
+      { evaluarDe: vi.mocked(evaluarPorPeriodo).mock.results[0]?.value, bloqueo: "fila" },
+    ]);
+    expect(evaluarPorPeriodo).toHaveBeenCalledWith(TX, CLIENTE);
+    // El id de la compra se normaliza a minúsculas para responder con su detalle.
     expect(detalle.leer).toHaveBeenCalledWith(TX, CLIENTE, "202610", COMPRA.toLowerCase());
     expect(storage.eliminar).not.toHaveBeenCalled();
   });
@@ -201,7 +211,7 @@ describe("XmlComprasService.subir", () => {
     expect(bitacora).toEqual(["archivo", "rollback"]);
     const ruta = (storage.guardar.mock.calls[0] as [string])[0];
     expect(storage.eliminar).toHaveBeenCalledWith(ruta);
-    expect(reevaluarCompra).not.toHaveBeenCalled();
+    expect(reevaluarComprobante).not.toHaveBeenCalled();
   });
 
   it("la compra o el cliente inexistentes son no_encontrado, sin escribir nada", async () => {
@@ -222,8 +232,20 @@ describe("XmlComprasService.subir", () => {
     expect(storage.eliminar).not.toHaveBeenCalled();
   });
 
-  it("si la compra dejó de existir al re-evaluar: no_encontrado, se revierte y el archivo se borra", async () => {
-    vi.mocked(reevaluarCompra).mockRejectedValue(new ComprasReglaError("no_encontrada"));
+  it("si la compra de la URL ya no está viva al re-evaluar el comprobante: no_encontrado, se revierte y el archivo se borra", async () => {
+    // Otras compras del comprobante sí se re-evaluaron, pero la de la URL no está entre ellas.
+    vi.mocked(reevaluarComprobante).mockResolvedValue(new Map([["otra-compra", {}]]) as never);
+    const { svc } = servicio();
+    const e = await capturar(subir(svc));
+    expect(e).toBeInstanceOf(AccesoError);
+    expect(e).toMatchObject({ codigo: "no_encontrado" });
+    expect(bitacora).toEqual(["archivo", "rollback"]);
+    expect(storage.eliminar).toHaveBeenCalledTimes(1);
+    expect(detalle.leer).not.toHaveBeenCalled();
+  });
+
+  it("si la re-evaluación lanza no_encontrada (compra borrada en la carrera): no_encontrado, se revierte y el archivo se borra", async () => {
+    vi.mocked(reevaluarComprobante).mockRejectedValue(new ComprasReglaError("no_encontrada"));
     const { svc } = servicio();
     const e = await capturar(subir(svc));
     expect(e).toBeInstanceOf(AccesoError);

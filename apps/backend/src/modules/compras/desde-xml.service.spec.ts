@@ -13,6 +13,7 @@ vi.mock("@contapp/db", async (original) => ({
   leerClienteDto: vi.fn(),
   listarCompras: vi.fn(),
   guardarDocumentoXml: vi.fn(),
+  reevaluarComprobante: vi.fn(),
 }));
 vi.mock("./apoyo.js", async (original) => ({
   ...(await original<typeof import("./apoyo.js")>()),
@@ -22,6 +23,7 @@ vi.mock("./escritura.js", async (original) => ({
   ...(await original<typeof import("./escritura.js")>()),
   exigirEscritura: vi.fn(),
   entornoDeReglas: vi.fn(),
+  evaluarPorPeriodo: vi.fn(),
 }));
 vi.mock("./acciones.service.js", async (original) => ({
   ...(await original<typeof import("./acciones.service.js")>()),
@@ -29,14 +31,15 @@ vi.mock("./acciones.service.js", async (original) => ({
   respuestaDe: vi.fn(),
 }));
 
-import { guardarDocumentoXml, leerClienteDto, listarCompras } from "@contapp/db";
+import { guardarDocumentoXml, leerClienteDto, listarCompras, reevaluarComprobante } from "@contapp/db";
 import { claveComprobante } from "@contapp/domain";
 import { AccesoError } from "../acceso/errores.js";
 import { altaCompra, respuestaDe } from "./acciones.service.js";
 import { exigirCliente } from "./apoyo.js";
 import { DesdeXmlComprasService } from "./desde-xml.service.js";
 import { XmlError } from "./errores-xml.js";
-import { entornoDeReglas, exigirEscritura } from "./escritura.js";
+import { ComprasError } from "./errores.js";
+import { entornoDeReglas, evaluarPorPeriodo, exigirEscritura } from "./escritura.js";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const USUARIO = "22222222-2222-4222-8222-222222222222";
@@ -103,6 +106,11 @@ beforeEach(() => {
   vi.mocked(altaCompra).mockImplementation((async () => {
     bitacora.push("alta");
     return "compra-nueva";
+  }) as never);
+  vi.mocked(evaluarPorPeriodo).mockReturnValue(vi.fn() as never);
+  vi.mocked(reevaluarComprobante).mockImplementation((async () => {
+    bitacora.push("reevaluar");
+    return new Map();
   }) as never);
   vi.mocked(respuestaDe).mockResolvedValue({ fila: { id: "compra-nueva" }, cuadre: {} } as never);
   storage.guardar.mockImplementation(async () => {
@@ -218,7 +226,15 @@ describe("DesdeXmlComprasService.agregar", () => {
   it("crea la compra y guarda el XML (subido) en una sola transacción: lee el estado, escribe el archivo, la fila y recién entonces el alta", async () => {
     const { svc, withTenant } = servicio();
     await expect(agregar(svc)).resolves.toEqual({ id: "compra-nueva" });
-    expect(bitacora).toEqual(["escritura-leer", "archivo", "fila-xml", "escritura-crear", "alta", "commit"]);
+    expect(bitacora).toEqual(["escritura-leer", "archivo", "fila-xml", "escritura-crear", "alta", "reevaluar", "commit"]);
+    // H-016-11: el XML es del comprobante; se re-evalúan las demás compras vivas del mismo comprobante (no la recién creada).
+    expect(vi.mocked(reevaluarComprobante).mock.calls[0]).toEqual([
+      TX,
+      CLIENTE,
+      { rucEmisor: "20700000045", tipo: "01", serie: "F001", numero: "2056" },
+      { evaluarDe: vi.mocked(evaluarPorPeriodo).mock.results[0]?.value, bloqueo: "fila", excluir: ["compra-nueva"] },
+    ]);
+    expect(evaluarPorPeriodo).toHaveBeenCalledWith(TX, CLIENTE);
     expect(withTenant).toHaveBeenCalledTimes(1);
     const [ruta, bytes] = storage.guardar.mock.calls[0] as [string, Uint8Array];
     expect(ruta.startsWith(`xml/${TENANT}/${CLIENTE}/`)).toBe(true);
@@ -318,23 +334,49 @@ describe("DesdeXmlComprasService.agregar", () => {
     expect(storage.guardar).not.toHaveBeenCalled();
   });
 
-  it("P-6: con un XML real o subido ya vigente la compra se crea igual y el archivo nuevo, que nadie referencia, se borra", async () => {
+  it("H-016-12 (P-6): con un XML real o subido ya guardado responde 409 xml_existente, no crea la compra, revierte y borra el archivo nuevo", async () => {
     vi.mocked(guardarDocumentoXml).mockResolvedValue("existente_no_simulado");
-    await expect(agregar(servicio().svc)).resolves.toEqual({ id: "compra-nueva" });
+    const e = await capturar(agregar(servicio().svc));
+    expect(e).toBeInstanceOf(XmlError);
+    expect(e).toMatchObject({ codigo: "xml_existente" });
+    expect((e as XmlError).getStatus()).toBe(409);
+    expect(altaCompra).not.toHaveBeenCalled();
+    expect(reevaluarComprobante).not.toHaveBeenCalled();
+    expect(respuestaDe).not.toHaveBeenCalled();
+    expect(bitacora).toEqual(["escritura-leer", "archivo", "rollback"]);
     const ruta = (storage.guardar.mock.calls[0] as [string])[0];
     expect(storage.eliminar).toHaveBeenCalledTimes(1);
     expect(storage.eliminar).toHaveBeenCalledWith(ruta);
-    expect(altaCompra).toHaveBeenCalledTimes(1);
   });
 
-  it("si el borrado de ese archivo sobrante falla, el alta igual responde y solo queda un aviso sin ruta", async () => {
+  it("H-016-12: si además la compra ya existe en este periodo manda el 409 duplicado de CA-13, con su id", async () => {
+    vi.mocked(guardarDocumentoXml).mockResolvedValue("existente_no_simulado");
+    vi.mocked(listarCompras).mockResolvedValue(pagina([compraListada(ID(7))]) as never);
+    const e = await capturar(agregar(servicio().svc));
+    expect(e).toBeInstanceOf(ComprasError);
+    expect(e).toMatchObject({ codigo: "duplicado" });
+    expect((e as ComprasError).getStatus()).toBe(409);
+    expect((e as ComprasError).cuerpo).toMatchObject({ id: ID(7) });
+    expect(altaCompra).not.toHaveBeenCalled();
+    expect(storage.eliminar).toHaveBeenCalledTimes(1);
+  });
+
+  it("H-016-12: si el borrado del archivo nuevo falla, el 409 xml_existente sale igual y solo queda un aviso sin ruta", async () => {
     vi.mocked(guardarDocumentoXml).mockResolvedValue("existente_no_simulado");
     storage.eliminar.mockRejectedValue(new Error("storage caído"));
-    await expect(agregar(servicio().svc)).resolves.toEqual({ id: "compra-nueva" });
+    expect(await capturar(agregar(servicio().svc))).toMatchObject({ codigo: "xml_existente" });
+    expect(altaCompra).not.toHaveBeenCalled();
     expect(avisos).toHaveLength(1);
     const ruta = (storage.guardar.mock.calls[0] as [string])[0];
     expect(JSON.stringify(avisos)).not.toContain(ruta);
     expect(JSON.stringify(avisos)).not.toContain("storage caído");
+  });
+
+  it("si la re-evaluación de las demás compras del comprobante falla: se revierte, el error sale tal cual y el archivo se borra", async () => {
+    const fallo = new Error("bd caída");
+    vi.mocked(reevaluarComprobante).mockRejectedValue(fallo);
+    expect(await capturar(agregar(servicio().svc))).toBe(fallo);
+    expect(storage.eliminar).toHaveBeenCalledTimes(1);
   });
 
   it("periodo que no admite escribir: el error de 014 sale tal cual, antes de escribir el archivo", async () => {

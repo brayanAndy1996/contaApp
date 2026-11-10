@@ -21,7 +21,7 @@ vi.mock("@contapp/db", async (original) => ({
   fijarObtencion: vi.fn(),
   guardarDocumentoXml: vi.fn(),
   leerProveedoresConocidos: vi.fn(),
-  reevaluarCompra: vi.fn(),
+  reevaluarComprobante: vi.fn(),
 }));
 
 import {
@@ -31,7 +31,7 @@ import {
   leerDetalleCompra,
   leerProveedoresConocidos,
   leerXmlVigente,
-  reevaluarCompra,
+  reevaluarComprobante,
 } from "@contapp/db";
 import { obtenerXml, type ResultadoObtenerXml } from "./obtener-xml.js";
 
@@ -121,7 +121,8 @@ beforeEach(() => {
   vi.mocked(fijarObtencion).mockResolvedValue(undefined as never);
   vi.mocked(leerProveedoresConocidos).mockResolvedValue([]);
   vi.mocked(guardarDocumentoXml).mockResolvedValue({ id: "d-1", n: 1 });
-  vi.mocked(reevaluarCompra).mockResolvedValue(undefined as never);
+  // H-016-11: el resultado trae a la compra del lote (todas las de las pruebas tienen el mismo id) entre las re-evaluadas.
+  vi.mocked(reevaluarComprobante).mockResolvedValue(new Map([[ID(1), {}]]) as never);
 });
 
 const estadosAnotados = () =>
@@ -189,7 +190,7 @@ describe("obtenerXml: fallos del proveedor", () => {
       expect(estadosAnotados()).toEqual([estado]);
       expect(n.guardar).not.toHaveBeenCalled();
       expect(guardarDocumentoXml).not.toHaveBeenCalled();
-      expect(reevaluarCompra).not.toHaveBeenCalled();
+      expect(reevaluarComprobante).not.toHaveBeenCalled();
     },
   );
 
@@ -255,7 +256,7 @@ describe("obtenerXml: XML inválido o ajeno", () => {
     expect(estadosAnotados()).toEqual(["no_encontrado"]);
     expect(n.guardar).not.toHaveBeenCalled();
     expect(guardarDocumentoXml).not.toHaveBeenCalled();
-    expect(reevaluarCompra).not.toHaveBeenCalled();
+    expect(reevaluarComprobante).not.toHaveBeenCalled();
   });
 });
 
@@ -267,7 +268,7 @@ describe("obtenerXml: guardado y bandera del simulado en reglas (P-4)", () => {
     expect(r.guardados).toBe(1);
     expect(n.guardar).toHaveBeenCalledTimes(1);
     expect(guardarDocumentoXml).toHaveBeenCalledTimes(1);
-    expect(reevaluarCompra).not.toHaveBeenCalled();
+    expect(reevaluarComprobante).not.toHaveBeenCalled();
     expect(leerProveedoresConocidos).not.toHaveBeenCalled();
   });
 
@@ -275,24 +276,31 @@ describe("obtenerXml: guardado y bandera del simulado en reglas (P-4)", () => {
     const n = armar();
     n.obtener.mockResolvedValue(respuesta(XML_MIXTA, "simulado"));
     await n.correr([ID(1)]);
-    expect(reevaluarCompra).not.toHaveBeenCalled();
+    expect(reevaluarComprobante).not.toHaveBeenCalled();
   });
 
-  it("con la bandera encendida el XML simulado re-evalúa la compra en la misma transacción", async () => {
+  it("con la bandera encendida el XML simulado re-evalúa todas las compras vivas del comprobante en la misma transacción (H-016-11)", async () => {
     const n = armar({ enReglas: true });
     n.obtener.mockResolvedValue(respuesta(XML_MIXTA, "simulado"));
     const r = await n.correr([ID(1)]);
     expect(r.guardados).toBe(1);
-    expect(reevaluarCompra).toHaveBeenCalledTimes(1);
-    const [tx, compraId, opciones] = vi.mocked(reevaluarCompra).mock.calls[0] as unknown as [
+    expect(reevaluarComprobante).toHaveBeenCalledTimes(1);
+    const [tx, clienteId, identidad, opciones] = vi.mocked(reevaluarComprobante).mock.calls[0] as unknown as [
       unknown,
       string,
-      { evaluar: unknown },
+      unknown,
+      { evaluarDe: (periodo: string) => Promise<unknown>; bloqueo: string; excluir?: unknown },
     ];
     expect(tx).toBe(TX);
-    expect(compraId).toBe(ID(1));
-    expect(typeof opciones.evaluar).toBe("function");
-    expect(vi.mocked(leerProveedoresConocidos).mock.calls[0]?.slice(1)).toEqual([CLIENTE, PERIODO]);
+    expect(clienteId).toBe(CLIENTE);
+    // La identidad del comprobante (no el id de la compra) y la función acotada del worker, que no hace UPDATE sobre compra.
+    expect(identidad).toEqual({ rucEmisor: "20700000045", tipo: "01", serie: "F001", numero: "2056" });
+    expect(opciones.bloqueo).toBe("funcion");
+    expect(opciones.excluir).toBeUndefined();
+    // Cada compra se evalúa con el historial de proveedores de SU periodo.
+    expect(leerProveedoresConocidos).not.toHaveBeenCalled();
+    expect(typeof (await opciones.evaluarDe("202609"))).toBe("function");
+    expect(vi.mocked(leerProveedoresConocidos).mock.calls[0]?.slice(1)).toEqual([CLIENTE, "202609"]);
   });
 
   it.each(["real", "subido"])(
@@ -301,7 +309,7 @@ describe("obtenerXml: guardado y bandera del simulado en reglas (P-4)", () => {
       const n = armar({ enReglas: false });
       n.obtener.mockResolvedValue(respuesta(XML_MIXTA, origen));
       await n.correr([ID(1)]);
-      expect(reevaluarCompra).toHaveBeenCalledTimes(1);
+      expect(reevaluarComprobante).toHaveBeenCalledTimes(1);
     },
   );
 
@@ -349,7 +357,7 @@ describe("obtenerXml: el XML que otro proceso guardó antes", () => {
     expect(r).toMatchObject({ guardados: 0, omitidos: 1 });
     const ruta = (n.guardar.mock.calls[0] as unknown as [string])[0];
     expect(n.eliminar).toHaveBeenCalledWith(ruta);
-    expect(reevaluarCompra).not.toHaveBeenCalled();
+    expect(reevaluarComprobante).not.toHaveBeenCalled();
   });
 
   it("si el borrado del archivo sobrante falla, el trabajo igual termina bien", async () => {
@@ -362,10 +370,11 @@ describe("obtenerXml: el XML que otro proceso guardó antes", () => {
 });
 
 describe("obtenerXml: la compra dejó de aplicar al re-evaluar", () => {
-  it("no_encontrada: revierte la transacción, borra el archivo de storage, cuenta omitido y sigue con la siguiente compra", async () => {
-    vi.mocked(reevaluarCompra)
-      .mockRejectedValueOnce(new ComprasReglaError("no_encontrada"))
-      .mockResolvedValueOnce(undefined as never);
+  it("la compra del lote ya no está entre las vivas del comprobante: revierte la transacción, borra el archivo de storage, cuenta omitido y sigue con la siguiente compra", async () => {
+    // La primera compra no figura entre las re-evaluadas (se descartó mientras tanto); la segunda sí.
+    vi.mocked(reevaluarComprobante)
+      .mockResolvedValueOnce(new Map() as never)
+      .mockResolvedValueOnce(new Map([[ID(1), {}]]) as never);
     const n = armar({ enReglas: true });
     n.obtener.mockResolvedValue(respuesta(XML_MIXTA));
     const r = await n.correr([ID(1), ID(2)]);
@@ -379,7 +388,7 @@ describe("obtenerXml: la compra dejó de aplicar al re-evaluar", () => {
   });
 
   it("la excepción sale del callback de withTenant (así la transacción se revierte): no se confirma ni el documento ni la re-evaluación", async () => {
-    vi.mocked(reevaluarCompra).mockRejectedValueOnce(new ComprasReglaError("no_encontrada"));
+    vi.mocked(reevaluarComprobante).mockResolvedValueOnce(new Map() as never);
     const n = armar({ enReglas: true });
     const salidas: Array<"confirmada" | "revertida"> = [];
     n.withTenant.mockImplementation(async (_e, fn) => {
@@ -400,7 +409,7 @@ describe("obtenerXml: la compra dejó de aplicar al re-evaluar", () => {
 
   it("otra regla de compras (no no_encontrada) no se traga: borra el archivo y el trabajo falla con ese error", async () => {
     const regla = new ComprasReglaError("version_desfasada");
-    vi.mocked(reevaluarCompra).mockRejectedValueOnce(regla);
+    vi.mocked(reevaluarComprobante).mockRejectedValueOnce(regla);
     const n = armar({ enReglas: true });
     n.obtener.mockResolvedValue(respuesta(XML_MIXTA));
     await expect(n.correr([ID(1), ID(2)])).rejects.toBe(regla);
