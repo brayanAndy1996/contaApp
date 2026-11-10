@@ -22,9 +22,12 @@ import {
   leerCompra,
   mismosDatos,
   montosDe,
+  conXml,
   type VersionPorEscribir,
+  xmlDeCompras,
 } from "./repositorio";
 import type {
+  CompraConXml,
   CompraLeida,
   DatosVersion,
   Evaluar,
@@ -41,7 +44,7 @@ interface Funciones {
 
 /** Valida la fila contra el estado actual y calcula la versión nueva; devuelve los datos o el código de rechazo. */
 async function calcular(
-  actual: CompraLeida,
+  actual: CompraConXml,
   versionBase: number,
   accion: string,
   parametros: unknown,
@@ -81,8 +84,10 @@ export async function aplicarAccion(
   await bloquearDeshechas(tx, previa.clienteId, previa.periodo, e.usuarioId);
   const actual = await leerCompra(tx, e.compraId, true);
   if (!actual) throw new ComprasReglaError("no_encontrada");
+  // `transformar` recibe el XML vigente leído tras el bloqueo (016): aceptar re-evalúa con el mismo entorno.
+  const xml = (await xmlDeCompras(tx, [actual])).get(actual.id)?.xml ?? null;
   const r = await calcular(
-    actual,
+    conXml(actual, xml),
     e.versionBase,
     e.accion,
     e.parametros,
@@ -162,6 +167,7 @@ export async function aplicarMasiva(
   await bloquearDeshechas(tx, e.clienteId, e.periodo, e.usuarioId);
   const filas = await bloquearCompras(tx, validas, e.clienteId, e.periodo);
 
+  const xmls = await xmlDeCompras(tx, filas);
   const plan: { compra: CompraLeida; datos: DatosVersion }[] = [];
   const descartes: string[] = [];
   const encontradas = new Set<string>();
@@ -174,7 +180,7 @@ export async function aplicarMasiva(
       continue;
     }
     const r = await calcular(
-      compra,
+      conXml(compra, xmls.get(compra.id)?.xml ?? null),
       it.versionBase,
       e.accion,
       e.parametros,

@@ -11,14 +11,17 @@ import {
   type Fila,
   type TxConsulta,
 } from "./errores";
+import { leerXmlVigentesDeCompras } from "../xml/documentos";
 import {
   COLUMNAS_MONTO,
+  type CompraConXml,
   type CompraLeida,
   type DatosVersion,
   type Evaluar,
   type HallazgoNuevo,
   type MontosCompra,
   type VersionFila,
+  type XmlParaEvaluar,
 } from "./tipos";
 
 /** Filas por sentencia: acota el tamaño del parámetro jsonb y mantiene el texto SQL fijo. */
@@ -251,12 +254,17 @@ export async function insertarVersiones(
   return salida;
 }
 
-const SQL_INSERTAR_HALLAZGOS = `insert into compra_hallazgo (compra_id, version_n, regla, sugerencia, lecturas, requiere_confirmacion)
-  select x.compra_id, x.version_n, x.regla, x.sugerencia, x.lecturas, x.requiere_confirmacion
-    from jsonb_to_recordset($1::jsonb) as x(compra_id uuid, version_n int, regla text, sugerencia jsonb, lecturas jsonb,
-      requiere_confirmacion boolean)`;
+const SQL_INSERTAR_HALLAZGOS = `insert into compra_hallazgo (compra_id, version_n, evaluacion_n, regla, sugerencia, lecturas,
+    requiere_confirmacion)
+  select x.compra_id, x.version_n, x.evaluacion_n, x.regla, x.sugerencia, x.lecturas, x.requiere_confirmacion
+    from jsonb_to_recordset($1::jsonb) as x(compra_id uuid, version_n int, evaluacion_n int, regla text, sugerencia jsonb,
+      lecturas jsonb, requiere_confirmacion boolean)`;
 
-/** La compra tal como queda con la versión nueva: es lo que `evaluar` recibe. */
+const SQL_INSERTAR_EVALUACIONES = `insert into compra_evaluacion (compra_id, version_n, n, documento_xml_id)
+  select x.compra_id, x.version_n, x.n, x.documento_xml_id
+    from jsonb_to_recordset($1::jsonb) as x(compra_id uuid, version_n int, n int, documento_xml_id uuid)`;
+
+/** La compra tal como queda con la versión nueva: es lo que `evaluar` recibe (con su XML). */
 export const conVersion = (
   compra: CompraLeida,
   n: number,
@@ -270,25 +278,56 @@ export const conVersion = (
   montos: datos.montos,
 });
 
+/** La fila más su XML vigente (016): lo que reciben `evaluar` y `transformar`. */
+export const conXml = (
+  compra: CompraLeida,
+  xml: XmlParaEvaluar | null,
+): CompraConXml => ({ ...compra, xml });
+
+/** Una evaluación por escribir: la versión, su número de evaluación y el XML con el que se evaluó. */
+export interface EvaluacionPorEscribir {
+  fila: CompraLeida;
+  n: number;
+  xml: { id: string; xml: XmlParaEvaluar } | null;
+}
+
 /**
- * Evalúa cada compra con su versión nueva (en orden) y guarda los hallazgos con `version_n` = esa versión. Si `evaluar` lanza,
- * se propaga y la transacción de quien llama se revierte entera. Los hallazgos de versiones anteriores no se tocan.
+ * Inserta cada evaluación (`compra_evaluacion`), llama a `evaluar` con la fila y su XML (en orden) y guarda los hallazgos con
+ * `version_n` y `evaluacion_n`. Si `evaluar` lanza, se propaga y la transacción de quien llama se revierte entera.
  */
-export async function evaluarYGuardar(
+export async function guardarEvaluaciones(
   tx: TxConsulta,
-  lote: VersionPorEscribir[],
+  lote: EvaluacionPorEscribir[],
   evaluar: Evaluar,
 ): Promise<void> {
+  for (let i = 0; i < lote.length; i += LOTE) {
+    await consultar(tx, SQL_INSERTAR_EVALUACIONES, [
+      JSON.stringify(
+        lote.slice(i, i + LOTE).map((e) => ({
+          compra_id: e.fila.id,
+          version_n: e.fila.version,
+          n: e.n,
+          documento_xml_id: e.xml?.id ?? null,
+        })),
+      ),
+    ]);
+  }
   const hallazgos: {
     compra_id: string;
     version_n: number;
+    evaluacion_n: number;
     hallazgo: HallazgoNuevo;
   }[] = [];
-  for (const p of lote) {
+  for (const e of lote) {
     const encontrados =
-      (await evaluar(conVersion(p.compra, p.n, p.datos))) ?? [];
+      (await evaluar(conXml(e.fila, e.xml?.xml ?? null))) ?? [];
     for (const h of encontrados)
-      hallazgos.push({ compra_id: p.compra.id, version_n: p.n, hallazgo: h });
+      hallazgos.push({
+        compra_id: e.fila.id,
+        version_n: e.fila.version,
+        evaluacion_n: e.n,
+        hallazgo: h,
+      });
   }
   for (let i = 0; i < hallazgos.length; i += LOTE) {
     await consultar(tx, SQL_INSERTAR_HALLAZGOS, [
@@ -296,6 +335,7 @@ export async function evaluarYGuardar(
         hallazgos.slice(i, i + LOTE).map((h) => ({
           compra_id: h.compra_id,
           version_n: h.version_n,
+          evaluacion_n: h.evaluacion_n,
           regla: h.hallazgo.regla,
           sugerencia: h.hallazgo.sugerencia ?? null,
           lecturas: h.hallazgo.lecturas,
@@ -304,6 +344,47 @@ export async function evaluarYGuardar(
       ),
     ]);
   }
+}
+
+/** El XML vigente de cada compra del lote, leído ahora (después de que quien llama bloqueó las filas). */
+export const xmlDeCompras = (tx: TxConsulta, compras: CompraLeida[]) =>
+  leerXmlVigentesDeCompras(
+    tx,
+    compras.map((c) => ({
+      compraId: c.id,
+      clienteId: c.clienteId,
+      tipoDoc: c.tipoDoc,
+      serie: c.serie,
+      numero: c.numero,
+      docNumero: c.docNumero,
+    })),
+  );
+
+/**
+ * Evalúa cada compra con su versión nueva (en orden) en su evaluación 1 (016 D-5) y guarda los hallazgos. Es el único punto de
+ * escritura de versiones: cada versión nueva se evalúa con el XML vigente del comprobante, leído en esta transacción después del
+ * bloqueo de la fila (así una edición y la llegada del XML convergen en cualquier orden, CA-8). Los hallazgos y evaluaciones de
+ * versiones anteriores no se tocan. Si `evaluar` lanza, se propaga y la transacción de quien llama se revierte entera.
+ */
+export async function evaluarYGuardar(
+  tx: TxConsulta,
+  lote: VersionPorEscribir[],
+  evaluar: Evaluar,
+): Promise<void> {
+  if (lote.length === 0) return;
+  const xmls = await xmlDeCompras(
+    tx,
+    lote.map((p) => p.compra),
+  );
+  await guardarEvaluaciones(
+    tx,
+    lote.map((p) => ({
+      fila: conVersion(p.compra, p.n, p.datos),
+      n: 1,
+      xml: xmls.get(p.compra.id) ?? null,
+    })),
+    evaluar,
+  );
 }
 
 /** Escribe un lote de versiones de compras ya bloqueadas: mueve los punteros, inserta, evalúa y guarda los hallazgos. */

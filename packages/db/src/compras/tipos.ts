@@ -79,16 +79,34 @@ export interface HallazgoNuevo {
   requiereConfirmacion: boolean;
 }
 
+/** Origen de un XML guardado (016 D-4): el mock entrega `simulado`, el proveedor real `real` y el usuario `subido`. */
+export type OrigenDocumentoXml = "simulado" | "real" | "subido";
+
+/**
+ * El XML vigente del comprobante tal como lo recibe `evaluar` (016): el `detalle` (`DetalleXml` del dominio) viaja opaco, sin
+ * ruta, hash ni autor. Lo lee `packages/db` dentro de la transacción, después de bloquear la fila.
+ */
+export interface XmlParaEvaluar {
+  origen: OrigenDocumentoXml;
+  detalle: unknown;
+}
+
+/** La fila que recibe `evaluar` (y `transformar`): la compra con su versión más el XML vigente o `null` sin XML (016). */
+export type CompraConXml = CompraLeida & { xml: XmlParaEvaluar | null };
+
 /** Re-evalúa las reglas de una fila con la versión nueva ya escrita (la inyecta el backend o el worker). */
 export type Evaluar = (
-  fila: CompraLeida,
+  fila: CompraConXml,
 ) => Promise<HallazgoNuevo[]> | HallazgoNuevo[];
 
 export type ResultadoTransformar = DatosVersion | { rechazo: string };
 
-/** Calcula los datos de la versión nueva a partir de la vigente (la inyecta el backend: edición, destino, sugerencia). */
+/**
+ * Calcula los datos de la versión nueva a partir de la vigente (la inyecta el backend: edición, destino, sugerencia). Recibe la
+ * fila con su XML vigente (016): aceptar una sugerencia re-evalúa con el mismo entorno que la evaluó.
+ */
 export type Transformar = (
-  actual: CompraLeida,
+  actual: CompraConXml,
   parametros: unknown,
 ) => Promise<ResultadoTransformar> | ResultadoTransformar;
 

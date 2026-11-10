@@ -246,6 +246,20 @@
       "when": 1794063946752,
       "tag": "0034_compra_puntero_vigente",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1794268890328,
+      "tag": "0035_documento_xml",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1794268891370,
+      "tag": "0036_compra_evaluacion",
+      "breakpoints": true
     }
   ]
 }

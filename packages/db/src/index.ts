@@ -273,3 +273,40 @@ export {
   compraPeriodo,
   compraVersion,
 } from "./schema/compras";
+export type {
+  CompraConXml,
+  OrigenDocumentoXml,
+  XmlParaEvaluar,
+} from "./compras/tipos";
+// Spec 016: XML de los comprobantes (guardar con P-6 y leer el vigente), estado de obtención, re-evaluación numerada y lecturas
+// de la lupa. `packages/db` no parsea XML ni toca el storage: recibe el `detalle` del dominio y lo devuelve opaco.
+export {
+  guardarDocumentoXml,
+  leerXmlVigente,
+  normalizarIdentidadXml,
+} from "./xml/documentos";
+export type {
+  EntradaDocumentoXml,
+  IdentidadXml,
+  ResultadoGuardarXml,
+  XmlVigente,
+} from "./xml/documentos";
+export {
+  ESTADOS_OBTENCION,
+  fijarObtencion,
+  leerObtencion,
+  listarPorObtener,
+} from "./xml/obtencion";
+export type {
+  EstadoObtencionXml,
+  FilaPorObtener,
+  ObtencionXml,
+} from "./xml/obtencion";
+export { reevaluarCompra } from "./xml/reevaluar";
+export type { ResultadoReevaluar } from "./xml/reevaluar";
+export { leerDetalleXml } from "./xml/detalle";
+export type { DetalleXmlLeido } from "./xml/detalle";
+export { leerHistorialProveedor, TOPE_HISTORIAL } from "./xml/historial";
+export type { CompraHistorialProveedor } from "./xml/historial";
+export { compraEvaluacion } from "./schema/compras";
+export { documentoXml, documentoXmlObtencion } from "./schema/xml";
