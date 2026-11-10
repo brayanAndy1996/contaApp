@@ -45,6 +45,7 @@ const USUARIO = "22222222-2222-4222-8222-222222222222";
 const CLIENTE = "33333333-3333-4333-8333-333333333333";
 const COMPRA = "0190A000-0000-4000-8000-000000000001";
 const RUC_CLIENTE = "20700000002";
+const RUTA_XML = `xml/${TENANT}/${CLIENTE}/44444444-4444-4444-8444-444444444444.xml`;
 const TX = { tx: true };
 const sesion = { tenantActivo: TENANT, usuarioId: USUARIO } as never;
 const alcance = { tipo: "global" } as never;
@@ -264,7 +265,7 @@ describe("XmlComprasService.descargar", () => {
   const descargar = (svc: XmlComprasService) => svc.descargar(sesion, alcance, CLIENTE, "202610", COMPRA);
   const guardado = (identidad: Record<string, string> = {}) =>
     ({
-      ...previo({ xml: { origen: "subido", ruta: "xml/t/c/u.xml" } }),
+      ...previo({ xml: { origen: "subido", ruta: RUTA_XML } }),
       identidad: { rucEmisor: "20700000045", tipo: "01", serie: "F001", numero: "2056", ...identidad },
     }) as never;
 
@@ -274,7 +275,7 @@ describe("XmlComprasService.descargar", () => {
     const r = await descargar(servicio().svc);
     expect(r.nombre).toBe("20700000045-01-F001-2056.xml");
     expect(Buffer.from(r.bytes).equals(bytesXml())).toBe(true);
-    expect(storage.leer).toHaveBeenCalledWith("xml/t/c/u.xml");
+    expect(storage.leer).toHaveBeenCalledWith(RUTA_XML);
   });
 
   it("el nombre del adjunto solo lleva letras, dígitos, punto y guion", async () => {
