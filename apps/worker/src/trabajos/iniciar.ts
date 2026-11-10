@@ -44,6 +44,7 @@ import { dbGuardada, redisGuardado } from "./guardia.js";
 import { authPurgar } from "./procesadores/auth-purgar.js";
 import { consultarRuc } from "./procesadores/consultar-ruc.js";
 import { descargarPropuesta } from "./procesadores/descargar-propuesta.js";
+import { generarArchivo } from "./procesadores/generar-archivo.js";
 import { kekRotar } from "./procesadores/kek-rotar.js";
 import { obtenerXml } from "./procesadores/obtener-xml.js";
 import {
@@ -95,7 +96,7 @@ export interface DepsTrabajos {
   credencialesSire?: CredencialesSire;
   /** Puerto de `xml.obtener` (016); por defecto el mock. */
   xmlProvider?: XmlProvider;
-  /** Almacenamiento de los XML (016); por defecto el de `STORAGE` (se crea al primer uso). */
+  /** Almacenamiento de los XML (016) y de los ZIP generados (012b); por defecto el de `STORAGE` (se crea al primer uso). */
   storage?: StorageProvider;
   /** `XML_SIMULADO_EN_REGLAS` (016, P-4): si el XML simulado entra en las reglas; apagada por defecto. */
   xmlSimuladoEnReglas?: boolean;
@@ -246,6 +247,7 @@ export async function iniciarTrabajos(
     proceso: deps.proceso ?? randomUUID(),
   });
   const config = new CacheConfig(db, reloj);
+  const storage = deps.storage ?? storagePorDefecto();
   const ejecutor = new Ejecutor({
     db,
     redis,
@@ -267,9 +269,11 @@ export async function iniciarTrabajos(
       "xml.obtener": obtenerXml({
         db,
         xmlProvider: deps.xmlProvider ?? new MockXmlProvider(),
-        storage: deps.storage ?? storagePorDefecto(),
+        storage,
         xmlSimuladoEnReglas: deps.xmlSimuladoEnReglas ?? false,
       }),
+      // 012b: cola `archivos`; sin credenciales. `permiteProvisional` usa el NODE_ENV del proceso (D2).
+      "archivo.generar": generarArchivo({ db, storage, logger }),
       ...(servicio
         ? {
             "credencial.verificar_sol": verificarSol({
