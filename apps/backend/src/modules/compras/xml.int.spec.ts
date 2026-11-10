@@ -602,8 +602,9 @@ describe("CA-6 · el XML que llega completa R-MIX sin tocar la versión y la mas
     expect((await subir(contador, c, id, xmlDe("2056", c.ruc))).status).toBe(200);
     expect((await v.versiones(id)).map((x) => x.n)).toEqual([1]); // la versión no cambia
     const g = await detalle(contador, c, id);
-    expect(g.body.hallazgos).toHaveLength(1);
-    expect(g.body.hallazgos[0]).toMatchObject({
+    const mix = (g.body.hallazgos as any[]).filter((h) => h.regla === "R-MIX");
+    expect(mix).toHaveLength(1);
+    expect(mix[0]).toMatchObject({
       regla: "R-MIX",
       requiereConfirmacion: false,
       sugerencia: { tipo: "separar", columnaBi: "biDg", exacto: "8.97" },

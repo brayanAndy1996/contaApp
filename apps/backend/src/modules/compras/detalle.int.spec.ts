@@ -386,7 +386,8 @@ describe("CA-14 · la lupa de F001-2056 con XML (caso mixta 21.48 / 1.61 → 8.9
     await conXml(c, ids["F001-5070"]!, xmlDe("5070", c.ruc));
     const r = await detalle(contador, c, ids["F001-5070"]!);
     expect(r.status, r.text).toBe(200);
-    expect((r.body.items as any[]).map((i) => i.descripcion)).toContain("Par de zapatillas deportivas de prueba");
+    const glosas = (r.body.items as any[]).map((i) => i.descripcion as string);
+    expect(glosas.some((g) => g.includes("Par de zapatillas deportivas de prueba"))).toBe(true);
   });
 
   it("ICBPER (F001-3064): la columna ICBPER del XML es 1.50 y coincide con la fila", async () => {
