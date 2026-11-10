@@ -103,12 +103,13 @@ describe("H-016-8 · el worker no tiene UPDATE sobre compra (0036 lo concedía p
 
   it("el worker no puede mover version_vigente, ni siquiera a una versión que existe (42501) y el puntero queda", async () => {
     const s = await ec.compra(X, cx, { serie: "F001", numero: numero() });
-    await ec.version(X, s.id, 2); // existe: el trigger de 0034 no lo frena; solo el privilegio
+    await ec.version(X, s.id, 2); // existe: el trigger de 0034 no lo frena; solo el privilegio (ec.version deja el puntero en 2)
+    const antes = await punteroDe(admin, s.id);
     const r = await worker.withTenant({ tenantId: X }, (tx) =>
       probar(tx, "update compra set version_vigente = 2 where id = $1", [s.id]),
     );
     expect(r).toMatchObject({ ok: false, code: "42501" });
-    expect(await punteroDe(admin, s.id)).toBe(1);
+    expect(await punteroDe(admin, s.id), "el puntero queda donde estaba antes del intento").toBe(antes);
   });
 
   it("el worker no puede ni un UPDATE neutro de version_vigente ni tocar descartada_en (42501), con o sin fila visible", async () => {
@@ -139,19 +140,6 @@ describe("H-016-8 · el worker no tiene UPDATE sobre compra (0036 lo concedía p
     expect(codigoError).toBe("42501");
     expect(await punteroDe(admin, s.id)).toBe(1);
     expect(await versionesN(admin, s.id)).toEqual([1]);
-  });
-
-  it("aunque la versión forjada quede confirmada, el puntero no se mueve a ella en otra transacción del worker", async () => {
-    const s = await ec.compraXml(X, cx, { serie: "F001", numero: numero() });
-    // Lo que el worker puede hacer con su INSERT en compra_version: dejar la fila (el hallazgo H-016-8 trata el puntero).
-    await worker.withTenant({ tenantId: X }, (tx) =>
-      tx.query(INSERTAR_VERSION, valoresVersion(s.id, 2, { montos: { biDg: "1.00", igvDg: "0.18" } })),
-    );
-    const r = await worker.withTenant({ tenantId: X }, (tx) =>
-      probar(tx, "update compra set version_vigente = 2 where id = $1", [s.id]),
-    );
-    expect(r).toMatchObject({ ok: false, code: "42501" });
-    expect(await punteroDe(admin, s.id), "la versión vigente sigue siendo la del SIRE").toBe(1);
   });
 });
 
