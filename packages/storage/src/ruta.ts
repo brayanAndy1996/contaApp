@@ -17,3 +17,9 @@ export function validarRuta(ruta: string): string {
   if (typeof ruta !== "string" || !RE_RUTA.test(ruta)) throw new RutaStorageError();
   return ruta;
 }
+
+// STUB (012b T3, rojo): lo implementa T9.
+export function rutaArchivo(tenantId: string, clienteId: string, id: string): string {
+  void [tenantId, clienteId, id];
+  throw new Error("no implementado");
+}
