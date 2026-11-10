@@ -6,20 +6,20 @@
 //  (3) Por compra, SIN transacción abierta (008 D6): `XmlProvider.obtener` con la `referencia` de la versión 1 (solo la usa el
 //      mock) -> `leerUbl` -> `compararIdentidad` (emisor, tipo, serie, número y receptor = RUC del cliente) -> bytes a storage.
 //  (4) Un `withTenant` por compra: `guardarDocumentoXml` y, si el XML entra en las reglas (P-4: el simulado solo con
-//      `XML_SIMULADO_EN_REGLAS`), `reevaluarCompra` (evaluación nueva, sin versión). Un XML rechazado no escribe nada.
+//      `XML_SIMULADO_EN_REGLAS`), `reevaluarComprobante` (evaluación nueva, sin versión, de todas las compras vivas del
+//      comprobante en cualquier periodo; H-016-11). Un XML rechazado no escribe nada.
 // Resultado EXCLUYENTE por compra: guardado | omitido | noEncontrado (`ErrorDatos`, o XML inválido o ajeno) | credencial
 // (`ErrorCredencial`: no invalida la credencial del cliente, el tipo no la usa) | transitorio. Si quedó algún transitorio, lo ya
 // guardado se conserva y al final se lanza `ErrorTransitorio` para que 008 reintente el lote (lo guardado se omite).
 // Nada del XML, de los montos, glosas, razones sociales ni rutas llega a logs, errores ni al `resultado` (solo conteos, D-11).
 import { createHash, randomUUID } from "node:crypto";
 import {
-  ComprasReglaError,
   fijarObtencion,
   guardarDocumentoXml,
   leerDetalleCompra,
   leerProveedoresConocidos,
   leerXmlVigente,
-  reevaluarCompra,
+  reevaluarComprobante,
   type CompraLeida,
   type ContappDb,
   type EstadoObtencionXml,
@@ -238,16 +238,18 @@ export function obtenerXml(d: DepsObtenerXml): Procesador {
           });
           if (r === "existente_no_simulado") return false;
           if (respuesta.origen !== "simulado" || enReglas) {
-            const conocidos = await leerProveedoresConocidos(tx, t.clienteId, periodo);
-            try {
-              await reevaluarCompra(tx, c.id, {
-                evaluar: crearEvaluarCompras(conocidos, { xmlSimuladoEnReglas: enReglas }),
+            // H-016-11: el XML es del comprobante (D-4): se re-evalúan TODAS sus compras vivas del cliente, en cualquier
+            // periodo, cada una con el historial de proveedores de su periodo. Sin UPDATE sobre compra (0038): bloquea con la
+            // función acotada. Si la del lote ya no está viva, no se guarda nada (como antes).
+            const evaluarDe = async (p: string) =>
+              crearEvaluarCompras(await leerProveedoresConocidos(tx, t.clienteId, p), {
+                xmlSimuladoEnReglas: enReglas,
               });
-            } catch (e) {
-              if (e instanceof ComprasReglaError && e.codigo === "no_encontrada")
-                throw new CompraYaNoAplica();
-              throw e;
-            }
+            const reevaluadas = await reevaluarComprobante(tx, t.clienteId, identidadDe(c), {
+              evaluarDe,
+              bloqueo: "funcion",
+            });
+            if (!reevaluadas.has(c.id)) throw new CompraYaNoAplica();
           }
           return true;
         });

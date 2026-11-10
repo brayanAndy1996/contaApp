@@ -222,7 +222,13 @@ export const persistidorCompras: PersistidorLibro<CompraNueva> = {
       tx,
       { clienteId: ctx.clienteId, periodo: ctx.periodo, propuestaId },
       nuevas.map((n) => n.datos),
-      { evaluar: crearEvaluarCompras(conocidos) },
+      // H-016-13: la misma bandera P-4 que `xml.obtener` y el backend, leída en cada descarga; `insertarCompras` pasa a `evaluar`
+      // el XML guardado del comprobante de cada compra nueva.
+      {
+        evaluar: crearEvaluarCompras(conocidos, {
+          xmlSimuladoEnReglas: process.env.XML_SIMULADO_EN_REGLAS === "1",
+        }),
+      },
     );
   },
 

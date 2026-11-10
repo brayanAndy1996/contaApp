@@ -1,8 +1,10 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import {
+  ComprasReglaError,
   guardarDocumentoXml,
   leerClienteDto,
   listarCompras,
+  reevaluarComprobante,
   type Alcance,
   type ContappDb,
   type Tx,
@@ -26,7 +28,7 @@ import { altaCompra, montosDeAgregada, respuestaDe } from "./acciones.service.js
 import { aItems } from "./detalle.js";
 import { datosDeXml, montosParaDestino, type DatosDesdeXml } from "./desde-xml.js";
 import { XmlError } from "./errores-xml.js";
-import { entornoDeReglas, exigir, exigirEscritura } from "./escritura.js";
+import { aErrorHttp, entornoDeReglas, evaluarPorPeriodo, exigir, exigirEscritura } from "./escritura.js";
 import { bytesDeCuerpo, leerXml, rutaNueva, sha256De } from "./xml-entrada.js";
 
 /** Páginas del listado que se recorren al buscar la compra existente (el tope por página de 014). */
@@ -73,7 +75,8 @@ async function buscarExistente(tx: Tx, clienteId: string, periodo: string, d: Da
 /**
  * Agregar una compra desde un XML (spec 016, HU-18, D-8, P-9). `vistaPrevia` parsea y devuelve los campos sin escribir nada ni
  * tocar el storage; `agregar` crea la compra con `agregarCompra` de 014 y guarda el XML (`origen = subido`) en una sola
- * transacción. El destino y, en USD, el tipo de cambio los pone el usuario en la query: nunca salen del XML.
+ * transacción (409 `xml_existente` si el comprobante ya tiene un XML real o subido, P-6) y re-evalúa las demás compras del
+ * comprobante. El destino y, en USD, el tipo de cambio los pone el usuario en la query: nunca salen del XML.
  */
 @Injectable()
 export class DesdeXmlComprasService {
@@ -152,7 +155,7 @@ export class DesdeXmlComprasService {
     const compra = v.data;
     const montos = montosDeAgregada(compra);
     const ctx = contextoDe(sesion);
-    const huella: { ruta: string | null; referenciado: boolean } = { ruta: null, referenciado: false };
+    const huella: { ruta: string | null } = { ruta: null };
     try {
       const fila = await this.db.withTenant(ctx, async (tx) => {
         // Sin bloqueos: cliente (404 / archivado) y estado del periodo (403 / 409) antes de escribir el archivo.
@@ -176,14 +179,27 @@ export class DesdeXmlComprasService {
           detalle: xml,
           subidoPor: ctx.userId,
         });
-        // Con un XML real o subido ya vigente (P-6) la compra se crea igual y se evalúa con ese; el archivo nuevo queda sin uso.
-        huella.referenciado = guardado !== "existente_no_simulado";
+        // H-016-12 (P-6): con un XML real o subido ya guardado para el comprobante no se crea la compra (sus montos saldrían de
+        // un XML que no es el vigente): 409 `xml_existente`, se revierte todo y se borra el archivo nuevo. Si la compra ya existe
+        // en este periodo, manda el 409 `duplicado` de CA-13 (con su id), como sin XML.
+        if (guardado === "existente_no_simulado") {
+          const existente = await buscarExistente(tx, cliente.id, periodo, datos);
+          if (existente !== null) throw aErrorHttp(new ComprasReglaError("duplicado", { ids: [existente] }));
+          throw new XmlError("xml_existente");
+        }
         await exigirEscritura(tx, alcance, permisos, clienteId, periodo, { crear: true, archivado: true });
         const entorno = await entornoDeReglas(tx, cliente.id, periodo);
         const id = await altaCompra(tx, ctx.userId, cliente.id, periodo, compra, montos, entorno);
+        // H-016-11: el XML nuevo es el vigente del comprobante (D-4): se re-evalúan las demás compras vivas del mismo comprobante,
+        // en cualquier periodo (la nueva ya se evaluó con él al crearse).
+        await reevaluarComprobante(
+          tx,
+          cliente.id,
+          { rucEmisor: datos.proveedor.numero, tipo: datos.tipo, serie: datos.serie, numero: datos.numero },
+          { evaluarDe: evaluarPorPeriodo(tx, cliente.id), bloqueo: "fila", excluir: [id] },
+        );
         return (await respuestaDe(tx, cliente.id, periodo, id)).fila;
       });
-      if (huella.ruta !== null && !huella.referenciado) await this.limpiar(huella.ruta);
       return fila;
     } catch (e) {
       if (huella.ruta !== null) await this.limpiar(huella.ruta);

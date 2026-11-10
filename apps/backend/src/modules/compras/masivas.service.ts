@@ -109,6 +109,7 @@ export class MasivasComprasService {
         transformarSugerencia({
           cargarHallazgos: () => leerHallazgosVigentes(tx, items.map((i) => i.compraId.toLowerCase())),
           conocidos: entorno.conocidos,
+          evaluar: entorno.evaluar,
           enMasa: true,
           regla,
           confirmar: false,

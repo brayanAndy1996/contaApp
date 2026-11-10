@@ -163,6 +163,7 @@ export class AccionesComprasService {
         transformarSugerencia({
           cargarHallazgos: () => leerHallazgosVigentes(tx, [id.toLowerCase()]),
           conocidos: entorno.conocidos,
+          evaluar: entorno.evaluar,
           enMasa: false,
           regla,
           confirmar: confirmar === true,

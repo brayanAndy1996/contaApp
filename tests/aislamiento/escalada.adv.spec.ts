@@ -58,6 +58,7 @@ async function capturar(
 }
 
 const FIRMA_ENCOLAR_XML = "encolar_xml_obtener(uuid,text,uuid[],uuid)";
+const FIRMA_BLOQUEAR_REEVALUAR = "bloquear_compras_reevaluar(uuid[])";
 
 describe("ADV escalada desde DATABASE_URL", () => {
   let pool: Pool;
@@ -281,7 +282,8 @@ describe("ADV escalada desde DATABASE_URL", () => {
               coalesce((select array_agg(r.rolname::text order by r.rolname) from pg_roles r
                          where r.oid <> p.proowner and r.rolname like 'contapp\\_%' and has_function_privilege(r.oid, p.oid, 'EXECUTE')), '{}'::text[]) as ejecutan
          from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-        where n.nspname = 'public' and p.proname = 'encolar_xml_obtener'`,
+        where n.nspname = 'public' and p.proname in ('encolar_xml_obtener', 'bloquear_compras_reevaluar')
+        order by p.proname`,
     );
     const vistas = await filasRaw(
       pool,
@@ -301,15 +303,24 @@ describe("ADV escalada desde DATABASE_URL", () => {
     // (devuelven solo UUID; dueño contapp_enumerador; EXECUTE solo contapp_worker).
     // Ajuste de 016 (T12b, migracion 0037; decision del usuario 2026-11-10): se admite exactamente
     // public.encolar_xml_obtener(uuid, text, uuid[], uuid) y nada mas en `public`.
+    // Ajuste de 016 (T23, migracion 0038, H-016-8): se admite ademas public.bloquear_compras_reevaluar(uuid[]) (solo bloquea
+    // compras vivas del estudio; mismo dueño, search_path fijo y EXECUTE solo contapp_worker).
     expect(defs.map((d) => d.f).sort()).toEqual(
       [
         ...FUNCIONES_AUTH.map((n) => `auth.${n}`),
         ...FUNCIONES_SISTEMA.map((n) => `sistema.${n}`),
+        "public.bloquear_compras_reevaluar",
         "public.encolar_xml_obtener",
       ].sort(),
     );
-    expect(defsPublic).toEqual([FIRMA_ENCOLAR_XML]);
+    expect([...defsPublic].sort()).toEqual([FIRMA_BLOQUEAR_REEVALUAR, FIRMA_ENCOLAR_XML]);
     expect(encolarXml).toEqual([
+      {
+        dueno: "contapp_migrator",
+        config: ["search_path=pg_catalog, pg_temp"],
+        publico: false,
+        ejecutan: ["contapp_worker"],
+      },
       {
         dueno: "contapp_migrator",
         config: ["search_path=pg_catalog, pg_temp"],

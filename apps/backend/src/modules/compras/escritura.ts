@@ -48,6 +48,19 @@ export async function entornoDeReglas(tx: Tx, clienteId: string, periodo: string
   return { conocidos, evaluar: (fila) => evaluarDominio(aEvaluable(fila)) };
 }
 
+/** El entorno de reglas de cada periodo (su historial de proveedores), leído una vez por periodo en la transacción. */
+export function evaluarPorPeriodo(tx: Tx, clienteId: string): (periodo: string) => Promise<EvaluarCompra> {
+  const memo = new Map<string, Promise<EvaluarCompra>>();
+  return (periodo) => {
+    let e = memo.get(periodo);
+    if (e === undefined) {
+      e = entornoDeReglas(tx, clienteId, periodo).then((x) => x.evaluar);
+      memo.set(periodo, e);
+    }
+    return e;
+  };
+}
+
 const CODIGOS_PROPIOS: ReadonlySet<string> = new Set<CodigoCompras>([
   "version_obsoleta",
   "fila_excluida",

@@ -4,7 +4,7 @@ import {
   guardarDocumentoXml,
   leerClienteDto,
   leerDetalleXml,
-  reevaluarCompra,
+  reevaluarComprobante,
   type Alcance,
   type ContappDb,
 } from "@contapp/db";
@@ -21,7 +21,7 @@ import { exigirCliente, idDe, periodoDe } from "./apoyo.js";
 import { aplicaXml } from "./detalle.js";
 import { DetalleComprasService } from "./detalle.service.js";
 import { XmlError } from "./errores-xml.js";
-import { aErrorHttp, entornoDeReglas, exigir } from "./escritura.js";
+import { aErrorHttp, evaluarPorPeriodo, exigir } from "./escritura.js";
 import { bytesDeCuerpo, leerXml, rutaNueva, sha256De } from "./xml-entrada.js";
 
 /** El XML guardado de un comprobante, listo para descargar. */
@@ -67,7 +67,8 @@ export class XmlComprasService {
    * HU-22: sube el XML del comprobante de una compra (cuerpo crudo, hasta 1 MiB). Se parsea con el parser del dominio ANTES de
    * tocar BD o storage; dentro de `withTenant` se comprueba la identidad (D-3: 422 `xml_ajeno` con los campos que difieren, sin
    * datos del XML) y P-6 (409 `xml_existente` con uno real o subido), se escribe el archivo, y en la MISMA transacción se inserta
-   * `documento_xml` (que toma el advisory del comprobante) y se re-evalúa la compra sin crear versión (D-5). Se permite en cualquier
+   * `documento_xml` (que toma el advisory del comprobante) y se re-evalúan sin crear versión (D-5) todas las compras vivas del
+   * comprobante, en cualquier periodo (H-016-11). Se permite en cualquier
    * estado del periodo (D-7). Responde con el detalle de la lupa ya completo.
    *
    * Coherencia storage/BD: el archivo se escribe primero y la fila después; si la transacción falla (o P-6 la rechaza dentro de la
@@ -112,12 +113,18 @@ export class XmlComprasService {
         });
         if (guardado === "existente_no_simulado") throw new XmlError("xml_existente");
         huella.referenciado = true;
-        const entorno = await entornoDeReglas(tx, cliente.id, periodo);
+        // H-016-11: el XML es del comprobante (D-4): se re-evalúan TODAS sus compras vivas del cliente, en cualquier periodo,
+        // cada una con el entorno de su periodo. La de la URL tiene que seguir viva (si no, 404 y no queda nada).
+        let reevaluadas;
         try {
-          await reevaluarCompra(tx, compraId, { evaluar: entorno.evaluar });
+          reevaluadas = await reevaluarComprobante(tx, cliente.id, previo.identidad, {
+            evaluarDe: evaluarPorPeriodo(tx, cliente.id),
+            bloqueo: "fila",
+          });
         } catch (e) {
           throw aErrorHttp(e);
         }
+        if (!reevaluadas.has(compraId)) throw new AccesoError("no_encontrado");
         return this.detalle.leer(tx, cliente.id, periodo, compraId);
       });
       return respuesta;

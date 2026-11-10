@@ -242,8 +242,11 @@ const valoresInsertar = (e: NuevoTrabajo): unknown[] => [
 // Candado del estudio (del contexto) y la cola, hasta el fin de la transacción: serializa el CONTEO de pendientes de
 // quienes encolan a la vez. Se toma DESPUÉS del INSERT (como en todos los caminos): ningún encolado espera una fila de
 // otro mientras tiene el candado, así que no hay ciclos de espera entre encolados de un trabajo por transacción.
+// H-016-9: la clave sale del estudio NORMALIZADO (uuid canónico en minúsculas), como `encolar_xml_obtener` (0038): el mismo
+// estudio escrito en mayúsculas en app.tenant_id toma el mismo candado.
 const SQL_BLOQUEAR_PENDIENTES = `select pg_advisory_xact_lock(hashtextextended(
-  'job_registro.pendientes:' || coalesce(current_setting('app.tenant_id', true), '') || ':' || $1::text, 0))`;
+  'job_registro.pendientes:' || coalesce(nullif(current_setting('app.tenant_id', true), '')::uuid::text, '') || ':' || $1::text,
+  0))`;
 
 /**
  * INSERT con tope atómico de pendientes (H-008-2a-3, D8): savepoint, INSERT, candado del estudio y la cola, y conteo
