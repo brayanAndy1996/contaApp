@@ -276,7 +276,12 @@ export function AgregarCompra({
     >
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-base font-medium">{M.formularioAgregar}</h3>
-        <SelectorXml etiqueta={M.subirXml} ocupado={leyendo || ocupado} alElegir={(a) => void leerXml(a)} />
+        <SelectorXml
+          etiqueta={M.subirXml}
+          ocupado={leyendo || ocupado}
+          alElegir={(a) => void leerXml(a)}
+          alRechazar={() => setErrorXml(null)}
+        />
       </div>
       {leyendo && (
         <p role="status" className="text-sm">

@@ -61,6 +61,7 @@ export function LupaCompra({
   alCambiar,
   alCerrar,
   alAvisarDe,
+  alEditar,
   subir,
 }: {
   contexto: ContextoCompras;
@@ -73,6 +74,11 @@ export function LupaCompra({
   alCerrar: () => void;
   /** Aviso de una acción de la fila (la página lo anota para «Deshacer»). */
   alAvisarDe?: (fila: FilaCompraVista) => AlAvisar;
+  /**
+   * «Editar» (P-3): la lupa se cierra y la grilla abre esta compra en edición, con la edición de 015. Sin esta función
+   * no se ofrece el botón.
+   */
+  alEditar?: (id: string) => void;
   /** «Subir XML» (T16): se ofrece cuando el XML no está disponible. */
   subir?: (alSubido: () => void) => ReactNode;
 }) {
@@ -149,6 +155,36 @@ export function LupaCompra({
       }
     })();
     alCerrar();
+  }
+
+  /** El foco se quedó en `body` o en un botón deshabilitado (el que se pulsó ya no actúa): vuelve a la raíz (RF-096). */
+  function recuperarFoco(): void {
+    const el = raiz.current;
+    if (!el) return;
+    const activo = document.activeElement;
+    const perdido =
+      activo === null ||
+      activo === document.body ||
+      (activo instanceof HTMLButtonElement && activo.disabled);
+    // Un foco dentro de otra ventana (aceptar, excluir) o de un campo de la lupa no se toca.
+    if (perdido) el.focus();
+  }
+
+  /** Misma regla que la grilla: sin solo lectura y fuera de las excluidas. */
+  const puedeEditar = fila !== null && alEditar !== undefined && contexto.permisos.clasificar;
+  const motivoSinEditar = bloqueo ?? (fila?.excluida ? M.errores.fila_excluida : null);
+
+  function editar(): void {
+    if (!puedeEditar || motivoSinEditar !== null) return;
+    // Primero se recarga la fila (su versión es la base del `editar`) y luego se cede la edición a la grilla.
+    void (async () => {
+      try {
+        await contexto.recargarFila(compraId);
+      } catch {
+        // La grilla se refresca en la próxima carga.
+      }
+      alEditar?.(compraId);
+    })();
   }
 
   function abrirAceptacion(): void {
@@ -272,6 +308,7 @@ export function LupaCompra({
               compraId={compraId}
               xml={datos.xml}
               alRecargar={recargar}
+              recuperarFoco={recuperarFoco}
               subir={
                 subir?.(recargar) ?? (
                   <SubirXml
@@ -338,6 +375,17 @@ export function LupaCompra({
           <div className="flex flex-wrap items-center gap-2">
             {fila !== null && (
               <AccionesFilaCompras contexto={contexto} fila={fila} alAvisar={avisar} />
+            )}
+            {puedeEditar && (
+              <button
+                type="button"
+                onClick={editar}
+                disabled={motivoSinEditar !== null}
+                title={motivoSinEditar ?? L.editarAyuda}
+                className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+              >
+                {L.editar}
+              </button>
             )}
             {puedeAceptar && (
               <button

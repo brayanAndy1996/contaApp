@@ -37,6 +37,7 @@ export function EstadoXmlLupa({
   xml,
   alRecargar,
   subir,
+  recuperarFoco,
 }: {
   contexto: ContextoCompras;
   compraId: string;
@@ -45,6 +46,11 @@ export function EstadoXmlLupa({
   alRecargar: () => void;
   /** «Subir XML» (T16): se muestra junto a «Reintentar» cuando el XML no está disponible. */
   subir?: ReactNode;
+  /**
+   * RF-096: si el botón que tenía el foco se deshabilitó o desapareció (pidió el XML y el estado cambió), el foco
+   * queda en `body` y Esc y ← → dejan de llegar a la lupa. Quien abre el modal lo devuelve a su raíz.
+   */
+  recuperarFoco?: () => void;
 }) {
   const [ocupado, setOcupado] = useState<"solicitar" | "descargar" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +89,15 @@ export function EstadoXmlLupa({
     });
     return () => control.abort();
   }, [pendiente, clienteId, compraId]);
+
+  // Tras pedir o descargar el XML, y cuando el estado cambia, el botón pulsado puede haberse ido: se recupera el foco.
+  const recuperarRef = useRef(recuperarFoco);
+  useEffect(() => {
+    recuperarRef.current = recuperarFoco;
+  });
+  useEffect(() => {
+    recuperarRef.current?.();
+  }, [ocupado, xml.estado]);
 
   const puedeEscribir = contexto.permisos.clasificar;
   const bloqueo = bloqueoDeXml(contexto);

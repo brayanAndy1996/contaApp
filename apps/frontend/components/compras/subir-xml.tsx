@@ -25,6 +25,7 @@ export function SelectorXml({
   deshabilitado = false,
   titulo,
   alElegir,
+  alRechazar,
 }: {
   etiqueta?: string;
   /** Mientras se envía no se acepta otro archivo. */
@@ -34,6 +35,8 @@ export function SelectorXml({
   titulo?: string;
   /** Recibe el archivo ya comprobado (no vacío, ≤ 1 MiB). */
   alElegir: (archivo: File) => void;
+  /** Se llama cuando el archivo se rechaza aquí (vacío o de más de 1 MiB): quien lo usa limpia su propio error anterior. */
+  alRechazar?: () => void;
 }) {
   const entrada = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +49,7 @@ export function SelectorXml({
     const motivo = validarArchivoXml(archivo);
     if (motivo !== null) {
       setError(motivo);
+      alRechazar?.();
       return;
     }
     setError(null);
@@ -145,6 +149,11 @@ export function SubirXml({
         deshabilitado={bloqueo !== null}
         titulo={bloqueo ?? undefined}
         alElegir={(archivo) => void subir(archivo)}
+        alRechazar={() => {
+          // Un archivo rechazado aquí no llega al servidor: el error y el aviso del envío anterior ya no valen.
+          setError(null);
+          setAviso(null);
+        }}
       />
       <div aria-live="polite">
         {ocupado && <p className="text-sm">{L.subir.subiendo}</p>}

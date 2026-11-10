@@ -40,7 +40,11 @@ export const MENSAJES_LUPA = {
   posicion: (indice: number, cantidad: number) =>
     `Compra ${indice} de ${cantidad}`,
   ayudaTeclado:
-    "← → cambian de compra · Enter acepta la sugerencia · Esc cierra",
+    "← → cambian de compra · Enter abre la aceptación de la sugerencia y un segundo Enter la confirma · Esc cierra",
+  editar: "Editar",
+  editarAyuda: "Cierra el comprobante y abre esta compra en edición en la lista.",
+  editarNoDisponible:
+    "No se pudo abrir la edición: la compra no está en la lista actual o no se puede editar.",
   cargando: "Cargando el comprobante…",
   errorCarga: "No se pudo cargar el comprobante.",
   reintentar: "Reintentar",

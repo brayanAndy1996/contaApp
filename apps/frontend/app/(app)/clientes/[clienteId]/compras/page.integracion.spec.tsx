@@ -527,6 +527,49 @@ describe("/clientes/:id/compras · ensamblado (spec 015 T10)", () => {
       await vi.waitFor(() => expect(lecturas(f, `/${filaVecina.id}`).length).toBeGreaterThan(antesVecina));
     });
 
+    it("feliz: «Editar» en la lupa la cierra y abre esa fila en edición en la grilla (T24a, P-3)", async () => {
+      const extra: Record<string, { status: number; cuerpo: unknown }> = {};
+      for (const f of FILAS_014) extra[rutaDetalle(f.id)] = { status: 200, cuerpo: detalleLupaDe(f) };
+      await montar({ extra });
+      const user = userEvent.setup();
+      await screen.findByText(M.cargaCompleta(4));
+
+      await user.click(
+        within(fila(C_3064_BOLSAS.id)!).getByRole("button", { name: `${M.columnas.lupa} F001-3064` }),
+      );
+      await screen.findByRole("region", { name: L.secciones.cabecera });
+      await user.click(screen.getByRole("button", { name: L.editar }));
+
+      await vi.waitFor(() => expect(screen.queryByRole("dialog", { name: /^Comprobante/ })).toBeNull());
+      const campo = await vi.waitFor(() => {
+        const c = document.querySelector<HTMLInputElement>("input[data-edicion]");
+        expect(c).not.toBeNull();
+        return c!;
+      });
+      expect(campo.closest("[data-fila]")!.getAttribute("data-fila")).toBe(C_3064_BOLSAS.id);
+      expect(document.activeElement).toBe(campo);
+    });
+
+    it("error: «Editar» en la lupa de una compra que ya no existe avisa en la pantalla y no abre edición", async () => {
+      const extra: Record<string, { status: number; cuerpo: unknown }> = {};
+      for (const f of FILAS_014) extra[rutaDetalle(f.id)] = { status: 200, cuerpo: detalleLupaDe(f) };
+      // Al recargar la fila para editar, el servidor dice que ya no existe: sale de la lista y no hay qué editar.
+      extra[`GET ${BASE}/${C_3064_BOLSAS.id}`] = { status: 404, cuerpo: { codigo: "no_encontrada" } };
+      await montar({ extra });
+      const user = userEvent.setup();
+      await screen.findByText(M.cargaCompleta(4));
+
+      await user.click(
+        within(fila(C_3064_BOLSAS.id)!).getByRole("button", { name: `${M.columnas.lupa} F001-3064` }),
+      );
+      await screen.findByRole("region", { name: L.secciones.cabecera });
+      await user.click(screen.getByRole("button", { name: L.editar }));
+
+      expect((await screen.findAllByText(L.editarNoDisponible)).length).toBeGreaterThan(0);
+      expect(document.querySelector("input[data-edicion]")).toBeNull();
+      expect(screen.getByRole("grid", { name: M.tablaCompras })).toBeTruthy();
+    });
+
     it("error: si el detalle de la lupa falla la pantalla sigue y se puede cerrar", async () => {
       await montar({
         extra: {
