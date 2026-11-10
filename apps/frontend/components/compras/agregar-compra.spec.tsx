@@ -165,12 +165,12 @@ describe("AgregarCompra · errores", () => {
 });
 
 describe("AgregarCompra · «Subir XML» y permisos", () => {
-  it("«Subir XML» está deshabilitado y explica que llega con 016", () => {
+  it("«Subir XML» ya está disponible (016): ofrece elegir el archivo", () => {
     instalarFetchCompras();
     montar();
-    const boton = screen.getByRole("button", { name: M.subirXml }) as HTMLButtonElement;
-    expect(boton.disabled).toBe(true);
-    expect(boton.title).toBe(M.subirXmlDeshabilitado);
+    const campo = screen.getByLabelText(M.subirXml) as HTMLInputElement;
+    expect(campo.type).toBe("file");
+    expect(campo.disabled).toBe(false);
   });
 
   it("en solo lectura no hay formulario: solo la explicación", () => {

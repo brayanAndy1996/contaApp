@@ -37,6 +37,8 @@ export interface Llamada {
   headers: Record<string, string>;
   /** Cuerpo JSON ya parseado (o `undefined`). */
   body: unknown;
+  /** Bytes de un cuerpo crudo (`Blob`, `ArrayBuffer` o `Uint8Array`), p. ej. un XML subido; `undefined` si no hay. */
+  bytes?: number;
   credentials: RequestCredentials | undefined;
 }
 
@@ -82,7 +84,14 @@ export function instalarFetchFalso(
           body = init.body;
         }
       }
+      const bytes =
+        init?.body instanceof Blob
+          ? init.body.size
+          : init?.body instanceof ArrayBuffer || ArrayBuffer.isView(init?.body)
+            ? init.body.byteLength
+            : undefined;
       llamadas.push({
+        bytes,
         url,
         ruta,
         method,

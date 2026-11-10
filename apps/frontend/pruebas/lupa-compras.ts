@@ -1,4 +1,11 @@
-import { detalleLupaSchema, type DetalleLupa, type FilaCompraVista } from "@contapp/shared";
+import {
+  detalleLupaSchema,
+  filaCompraVistaSchema,
+  vistaPreviaDesdeXmlSchema,
+  type DetalleLupa,
+  type FilaCompraVista,
+  type VistaPreviaDesdeXml,
+} from "@contapp/shared";
 import { BASE, uuidDe } from "./compras";
 
 // Soporte de las pruebas de la lupa (spec 016, T15): el `DetalleLupa` de una compra de 015 (cabecera, ítems del XML,
@@ -7,6 +14,9 @@ import { BASE, uuidDe } from "./compras";
 
 export const rutaDetalle = (id: string) => `GET ${BASE}/${id}/detalle`;
 export const rutaObtenerXml = (id: string) => `POST ${BASE}/${id}/xml/obtener`;
+export const rutaSubirXml = (id: string) => `POST ${BASE}/${id}/xml`;
+export const RUTA_VISTA_PREVIA = `POST ${BASE}/desde-xml/vista-previa`;
+export const RUTA_DESDE_XML = `POST ${BASE}/desde-xml`;
 export const rutaDescargarXml = (id: string) => `GET ${BASE}/${id}/xml`;
 
 /** Glosa hostil dentro de un XML: debe verse como texto (CA-17). */
@@ -108,3 +118,70 @@ export function detalleSinXml(
 }
 
 export const AUTOR_XML = uuidDe(5, 1);
+
+/** Archivo XML de prueba (el contenido no importa: el servidor está simulado). */
+export const archivoXml = (nombre = "factura.xml", contenido = "<Invoice/>"): File =>
+  new File([contenido], nombre, { type: "text/xml" });
+
+/** Vista previa de «Agregar desde XML» (F001-2056, PEN). Se valida con `vistaPreviaDesdeXmlSchema`. */
+export function vistaPreviaDe(parcial: Partial<VistaPreviaDesdeXml> = {}): VistaPreviaDesdeXml {
+  return vistaPreviaDesdeXmlSchema.parse({
+    tipo: "01",
+    serie: "F001",
+    numero: "2056",
+    proveedor: { tipo: "6", numero: "20700000045", razonSocial: "PRUEBA PROVEEDOR MIXTO S.A.C." },
+    fecha: "2026-10-05",
+    moneda: "PEN",
+    montos: { biDg: "8.97", igvDg: "1.61", noGravado: "12.51", isc: "0.00", icbper: "0.00" },
+    items: [
+      {
+        descripcion: GLOSA_HOSTIL,
+        cantidad: "1",
+        unidad: "NIU",
+        precioUnitario: "8.97",
+        valor: "8.97",
+        afectacion: "10",
+        igv: "1.61",
+        isc: "0.00",
+        icbper: "0.00",
+      },
+    ],
+    existente: null,
+    requiereTipoCambio: false,
+    ...parcial,
+  });
+}
+
+/** Fila que devuelve el alta desde XML (201). */
+export const filaDesdeXml = (parcial: Partial<FilaCompraVista> = {}): FilaCompraVista =>
+  filaCompraVistaSchema.parse({
+    id: uuidDe(3, 9),
+    origen: "agregada",
+    tipo: "01",
+    serie: "F001",
+    numero: "2056",
+    proveedor: { tipo: "6", numero: "20700000045", razonSocial: "PRUEBA PROVEEDOR MIXTO S.A.C." },
+    fecha: "2026-10-05",
+    moneda: "PEN",
+    tipoCambio: null,
+    version: 1,
+    montos: {
+      biDg: "8.97",
+      igvDg: "1.61",
+      biDgng: "0.00",
+      igvDgng: "0.00",
+      biDng: "0.00",
+      igvDng: "0.00",
+      noGravado: "12.51",
+      isc: "0.00",
+      icbper: "0.00",
+      otrosTributos: "0.00",
+      total: "23.09",
+    },
+    excluida: false,
+    motivo: null,
+    clasificada: true,
+    proveedorNuevo: true,
+    hallazgos: [],
+    ...parcial,
+  });

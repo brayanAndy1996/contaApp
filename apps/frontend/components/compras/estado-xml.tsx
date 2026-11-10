@@ -173,6 +173,8 @@ export function EstadoXmlLupa({
             {ocupado === "descargar" ? L.xml.descargando : L.xml.descargar}
           </button>
         </div>
+        {/* P-6: un XML simulado se puede reemplazar subiendo el real; con uno real o subido el servidor da 409. */}
+        {xml.origen === "simulado" && puedeEscribir && subir}
         {xml.avisoMoneda !== undefined && (
           <p role="note" className="rounded border border-amber-300 bg-amber-50 p-2 text-sm">
             {L.xml.avisoMoneda(xml.avisoMoneda.monedaXml, xml.avisoMoneda.monedaFila)}
@@ -191,6 +193,7 @@ export function EstadoXmlLupa({
       <div className="flex flex-wrap items-center gap-3">
         <p className="text-sm">{L.xml.sinSolicitar}</p>
         {botonObtener(L.xml.obtener)}
+        {puedeEscribir && subir}
       </div>
     );
   } else {

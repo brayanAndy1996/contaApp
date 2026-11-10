@@ -21,7 +21,8 @@ import { AccionesFilaCompras } from "./acciones-fila-compras";
 import { AceptarSugerencias } from "./aceptar-sugerencia";
 import { CabeceraLupaCompra } from "./cabecera-lupa";
 import { ComparacionXml } from "./comparacion-xml";
-import { EstadoXmlLupa } from "./estado-xml";
+import { EstadoXmlLupa, bloqueoDeXml } from "./estado-xml";
+import { SubirXml } from "./subir-xml";
 import { HistorialCompra } from "./historial-compra";
 import { ItemsXml } from "./items-xml";
 
@@ -271,7 +272,16 @@ export function LupaCompra({
               compraId={compraId}
               xml={datos.xml}
               alRecargar={recargar}
-              subir={subir?.(recargar)}
+              subir={
+                subir?.(recargar) ?? (
+                  <SubirXml
+                    contexto={contexto}
+                    compraId={compraId}
+                    bloqueo={bloqueoDeXml(contexto)}
+                    alSubido={recargar}
+                  />
+                )
+              }
             />
             <ItemsXml items={datos.items} hayXml={hayXml} />
             <ComparacionXml filas={datos.comparacion} hayXml={hayXml} />
