@@ -425,6 +425,10 @@ export class EscenarioCompras extends EscenarioVentas {
     try {
       await c.query("SET session_replication_role = replica");
       for (const tabla of [
+        // Spec 012b (T4): versiones de archivo (inmutables por trigger), exclusiones y estado del periodo de ventas.
+        "archivo_generado",
+        "venta_exclusion",
+        "venta_periodo",
         // Spec 016 (T5): las tablas de XML y de evaluacion numerada (0035 y 0036). Si aun no existen, `.catch` las ignora.
         "documento_xml_obtencion",
         "compra_evaluacion",

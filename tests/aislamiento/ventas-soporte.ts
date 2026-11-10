@@ -208,6 +208,10 @@ export class EscenarioVentas extends EscenarioTrabajos {
     try {
       await c.query("SET session_replication_role = replica");
       for (const tabla of [
+        // Spec 012b (T4): versiones de archivo (inmutables por trigger), exclusiones y estado del periodo de ventas.
+        "archivo_generado",
+        "venta_exclusion",
+        "venta_periodo",
         "venta_salto_justificado",
         "venta",
         "propuesta_diferencia",
