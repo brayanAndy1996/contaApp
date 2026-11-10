@@ -1,0 +1,349 @@
+# Tareas 016 · Lupa del comprobante y XML
+
+Leyenda: rol `arquitecto` · `backend` · `frontend` · `tester` · `adversario` · `devops` | modelo `opus` · `sonnet` · `haiku` | `TDD` pruebas primero | `ADV` ronda adversarial | `∥` puede ir en paralelo con las indicadas (no comparten archivos) | estado `[ ]` pendiente · `[~]` en curso · `[x]` hecha
+
+Nivel A (spec P-1) con la lupa del frontend como C por tarea (T15, T16: pruebas mínimas, sin TDD ni ADV). Flujo 04 §1.3: andamiaje → pruebas primero (rojo) → implementar (verde) → cobertura → atacar (2 rondas) → corregir (con pruebas del tester) → prueba manual → verificar → revisión de Opus → cerrar. Rama `spec/016-lupa-xml`. CA, D y P = `spec.md`; contratos y decisiones = `plan.md`.
+
+| #   | Tarea | Rol | Modelo | Depende de | TDD | ADV | Estado |
+| --- | ----- | --- | ------ | ---------- | --- | --- | ------ |
+| T1  | Andamiaje: `packages/storage`, `fast-xml-parser` en `domain`, variables y `.gitignore` | devops | haiku | — | — | — | [x] |
+| T2  | Pruebas del parser UBL y del dominio: CA-1 a CA-5, mapeo, identidad, lotes, evaluar con XML (rojo) | tester | sonnet | — ∥ T1 | ✓ | — | [x] |
+| T3  | Pruebas de `packages/storage` (rojo) | tester | sonnet | T1 ∥ T2, T4, T5 | ✓ | — | [x] |
+| T4  | Pruebas de los esquemas de `shared/xml` (rojo) | tester | sonnet | — ∥ T2, T3, T5 | ✓ | — | [x] |
+| T5  | Pruebas de BD: tablas, RLS, backfill, evaluación numerada, re-evaluación concurrente (rojo) | tester | sonnet | — ∥ T2–T4 | ✓ | — | [x] |
+| T6  | Pruebas del worker: catálogo, `xml.obtener`, lotes tras la descarga: CA-6, CA-10, CA-11 (rojo) | tester | sonnet | T4 ∥ T7 | ✓ | — | [x] |
+| T7  | Pruebas HTTP: detalle, obtener, subir, descargar, desde XML, aceptar y masiva con XML (rojo) | tester | sonnet | T4 ∥ T6 | ✓ | — | [x] |
+| T8  | Parser UBL, `aResumenXml`, identidad, lotes, `crearEvaluarCompras` con XML y lint | backend | opus | T1, T2 | ✓ | — | [x] |
+| T9  | `packages/storage`: puerto, `MockStorage`, `LocalStorage` | backend | sonnet | T1, T3 ∥ T8, T10, T11 | ✓ | — | [x] |
+| T10 | Esquemas y DTOs de `shared/xml` | backend | sonnet | T4 ∥ T8, T9, T11 | ✓ | — | [x] |
+| T11 | Migraciones 0035–0036, esquema drizzle, `packages/db/src/xml/` y evaluación numerada en 014 | backend | opus | T5 ∥ T8–T10 | ✓ | — | [x] |
+| T12 | Worker: `xml.obtener`, procesador, storage y lotes tras la descarga | backend | sonnet | T6, T8, T9, T11 ∥ T13 | ✓ | — | [x] |
+| T13 | Backend de lectura: detalle, descargar XML, obtener y módulo de storage | backend | sonnet | T7, T8, T9, T10, T11 ∥ T12 | ✓ | — | [x] |
+| T14 | Backend de escritura: subir XML, agregar desde XML, XML en aceptar y masiva | backend | sonnet | T13 | ✓ | — | [x] |
+| T15 | Lupa: modal, cabecera, ítems, comparación, historial, acciones y teclado (nivel C) | frontend | sonnet | T10 ∥ T11–T14 | — | — | [x] |
+| T16 | Subir XML en la lupa y «Agregar desde XML» (nivel C) | frontend | sonnet | T15 | — | — | [x] |
+| T17 | Cobertura ≥ 90 %: `ubl/`, `storage`, módulos XML de backend y worker, en CI | devops | haiku | T12, T14 ∥ T15, T16 | — | — | [x] |
+| T18 | Ronda adversarial 1: parser y subida (caja negra, luego blanca; ≤ 15 pruebas) | adversario | opus | T12, T14, T17 | — | ✓ | [x] |
+| T19 | Pruebas de las correcciones de la ronda 1 (rojo) | tester | sonnet | T18 | ✓ | — | [x] |
+| T20 | Corregir los hallazgos de la ronda 1 | backend | opus | T19 | — | — | [x] |
+| T21 | Ronda adversarial 2: re-evaluación y aceptación en bloque (≤ 15 pruebas) | adversario | opus | T20 | — | ✓ | [x] |
+| T22 | Pruebas de las correcciones de la ronda 2 (rojo) | tester | sonnet | T21 | ✓ | — | [x] |
+| T23 | Corregir los hallazgos de la ronda 2 | backend | opus | T22 | — | — | [x] |
+| T24 | Prueba manual contra el sistema completo | tester | sonnet | T16, T23 | — | — | [x] |
+| T24a | Defectos de pantalla de T24 (P-1 a P-3): foco de la lupa, error de subida y «Editar» en la lupa | frontend | sonnet | T24 | — | — | [x] |
+| T25 | Verificar CA-1 a CA-18 con evidencia, suites completas y cobertura | tester | sonnet | T24 | — | — | [x] |
+| T26 | Revisión final contra la spec | arquitecto | opus | T25 | — | — | [x] |
+| T27 | Cierre: `tasks.md` y commit (el orquestador actualiza ESTADO) | devops | haiku | T26 | — | — | [x] |
+
+Paralelismo: T1 ∥ T2 ∥ T4 ∥ T5 (T3 espera el paquete de T1); T6 ∥ T7. Implementación en cuatro carriles independientes: T8 (`domain`) ∥ T9 (`storage`) ∥ T10 (`shared`) ∥ T11 (`db`). Luego T12 (`apps/worker`) ∥ T13 (`apps/backend`); T14 va tras T13 porque comparten `compras.module.ts` y `app.ts`. El frontend (T15 → T16) corre en paralelo con T11–T14 contra el contrato de `shared` (sus pruebas simulan la API) y T17 con T15–T16. Las rondas y sus correcciones van en serie (T18 → T20 → T21 → T23): la ronda 2 debe ver las correcciones de la 1. Si una ronda no deja fallos, se saltan sus dos tareas de corrección (se marcan `[x]` «sin hallazgos»).
+
+Escalamientos: T8 y T11 nacen en `opus` (dinero, parser hostil, RLS y orden de bloqueo; 04 §3.2). T12 o T14 pasan a `opus` si fallan 2 veces (re-evaluación concurrente). T1 y T17 pasan a `sonnet` si `haiku` falla una vez. T18 y T21 son `opus` por regla. T20 y T23 en `opus` porque tocan parser y re-evaluación. Si T24 encuentra defectos de pantalla se añade T24a (frontend · sonnet) con el precedente de 015 T12; si T26 encuentra defectos, T26a (pruebas en rojo) y T26b (corrección), como 014 T22a/T22b.
+
+Reglas comunes:
+
+- Un commit por tarea (Conventional Commits `test(016): …`, `feat(016): …`, `fix(016): …`, `chore(016): …`) con el trailer `Co-Authored-By` del modelo que la ejecutó. Las tareas ∥ hacen commit una tras otra. Sin push del subagente: el orquestador lo hace.
+- **Nunca** agregar al índice `docs/explorador/`, `.codex/` ni `AGENTS.md` ajenos: `git add <rutas>` explícitas, nunca `-A` ni `.`.
+- **Nunca** imprimir ni commitear secretos ni el contenido de `.env`. Las pruebas usan canarios (cadenas únicas en glosas, razón social y montos) que se buscan en respuestas, logs, errores y `resultado`. Ningún `console.log` ni mensaje con XML, montos, glosas, razones sociales ni rutas de storage (D-11).
+- Checks: responder solo fallos (`archivo:línea · mensaje`) o «OK» + conteo. Correr solo las pruebas del paquete afectado; las suites completas en T25.
+- El tester no toca código de producción; backend y frontend no editan `*.spec.ts` ajenos; solo T18 y T21 escriben `*.adv.spec.ts` / `*.adv.int.spec.ts`. Las pruebas de las correcciones las escribe el tester, no quien corrige. El frontend (nivel C) escribe sus propias pruebas mínimas.
+- Migraciones: 016 usa **0035** y **0036**; confirmar con `ls packages/db/migrations` y el diario antes de crear; nunca editar una aplicada. Si 012b llega antes a `main`, renumerar las de 016 (plan, «Archivos»). Las pruebas de 002–015 siguen en verde.
+- Montos: cadenas decimales / `Money`; ningún `number` para dinero en `ubl/`, repositorios, DTOs ni pantallas. Toda consulta de negocio dentro de `withTenant()`; nunca desactivar RLS. `apps/backend` nunca importa `@contapp/sunat`. Adaptadores en `mock` (`XML_PROVIDER=mock`, `STORAGE=mock`).
+- Dependencias nuevas con versión exacta y ≥ 2 semanas publicadas: solo `fast-xml-parser` 5.11.2 en `domain` (T1, ya está en el lockfile por el backend).
+- P-9 (USD en «agregar desde XML») decidida (a): en USD se pide el tipo de cambio además del destino; T7, T14 y T16 cubren PEN y USD (plan, «Decisión P-9»). Una ambigüedad nueva que cambie la spec no se decide: `requiere usuario` y se informa al orquestador.
+
+## T1 · [x] Andamiaje (devops · haiku)
+- **Contexto (leer solo esto)**: `plan.md` (Archivos; Storage), `packages/crypto/{package.json,tsconfig.json,tsconfig.build.json,vitest.config.mts}` (modelo de paquete), `packages/domain/package.json`, `apps/backend/package.json` (línea de `fast-xml-parser`), `eslint.config.mjs` (solo `POLITICAS` y las líneas que nombran `storage`), `.env.example`, `.gitignore`, `pnpm-workspace.yaml`.
+- **Hacer**: crear `packages/storage` (`@contapp/storage`, depende solo de `@contapp/shared`; scripts `build`, `typecheck`, `lint`, `test`, `test:cobertura`; `src/index.ts` vacío exportable) y confirmar que la política de límites de `eslint.config.mjs` le aplica (solo `shared`). `pnpm --filter @contapp/domain add --save-exact fast-xml-parser@5.11.2`. Agregar a `.env.example` `STORAGE=mock`, `STORAGE_DIR=./storage` y `XML_SIMULADO_EN_REGLAS=1` (con comentario: por defecto el código la toma como `0`); `storage/` en `.gitignore`.
+- **Hecho cuando**: `pnpm install --frozen-lockfile`, `typecheck`, `lint` y `build` OK; el lockfile solo cambia en el importador de `domain` (ninguna versión nueva). Commit `chore(016): paquete storage y dependencias`.
+- **Resultado**: hecha (`fc119ec`): `packages/storage` con dependencia solo de `shared`, `fast-xml-parser` 5.11.2 exacta en `domain`, variables en `.env.example`; el patrón de `.gitignore` se acotó en `0f48d2f` (ignoraba `apps/backend/src/modules/storage/`).
+
+## T2 · [x] Pruebas del parser UBL y del dominio, rojo (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (D-1, D-2, D-3, D-6, D-7, P-4, P-5; CA-1 a CA-6, CA-9, CA-10, CA-16), `plan.md` (Contratos: Dominio, Parser seguro), `fixtures/xml/*.xml`, `packages/domain/src/reglas/tipos.ts` (`ResumenXml`), `packages/domain/src/compras/evaluar.ts`, `packages/domain/src/dinero/index.ts` (`redondearSunat`), `packages/domain/src/texto/codificar.ts`, `packages/sunat/src/mock/ubl-sintetico.ts` (solo la forma que genera).
+- **Hacer**: `packages/domain/src/ubl/*.spec.ts` y `compras/{obtencion,evaluar-xml}.spec.ts`. Casos: los cinco fixtures con sus montos de CA-3 a CA-5; 2056 re-codificado en ISO-8859-1 con otros prefijos de espacio de nombres (generado en la prueba con `codificar`); el UBL sintético de 009 con y sin ISC; nota de crédito negativa; `currencyID` mezclado → `monedaUnica = false`; 3 decimales → `redondearSunat`; totales fuera de NUMERIC(14,2) y sin `PayableAmount` ni `TaxInclusiveAmount`; 9995/9996 no suman; glosa > 500 recortada y con `<script>` intacta como texto. Seguridad (CA-1, CA-2): XXE a `file:///etc/passwd`, entidad externa HTTP, «billion laughs», `<!DOCTYPE` dentro de un comentario, UTF-16, byte NUL, codificación no admitida, 1 MiB + 1, 2.001 ítems, profundidad 33; cada uno `xml_invalido` en < 100 ms y el mensaje no contiene el canario de la entrada. `compararIdentidad` (RUC, serie con minúsculas, número con ceros, receptor). `planificarObtencionXml` (orden con hallazgos primero, lotes de 100, omite guardados, `pendiente`, `no_encontrado`, `credencial`). `crearEvaluarCompras` con XML: R-MIX exacto 8.97 / 12.51 sin confirmación (CA-6), R-ISC 770.00 (CA-7), PEN con XML USD → sin sugerencias del XML (CA-9), simulado con la bandera apagada = como sin XML (CA-16).
+- **Hecho cuando**: las pruebas compilan contra las firmas del plan y fallan por «no implementado»; las demás de `domain` siguen verdes. Commit `test(016): parser UBL y dominio en rojo`.
+- **Resultado**: hecha (`ecebad1`, más `633cf9d`: exports de `ubl` en la lista cerrada de `domain` y margen de tiempo bajo cobertura): pruebas del parser y del dominio en rojo.
+
+## T3 · [x] Pruebas de `packages/storage`, rojo (tester · sonnet)
+- **Contexto (leer solo esto)**: `plan.md` (Storage), `packages/storage/package.json` (de T1), `packages/sunat/src/mock/ruta-fixture.spec.ts` (modelo de pruebas de rutas).
+- **Hacer**: `packages/storage/src/*.spec.ts`: ida y vuelta en `MockStorage` y `LocalStorage` (directorio temporal), `rutaXml` con uuid; rechazo de `..`, ruta absoluta, NUL, barras invertidas, nombre libre y enlace simbólico que sale de la raíz; `leer` de lo inexistente lanza un error propio sin la ruta; `eliminar` idempotente; escritura atómica (no queda archivo parcial si falla); `mock` en producción sin `PERMITIR_ADAPTADORES_MOCK` no arranca.
+- **Hecho cuando**: fallan por «no implementado». Commit `test(016): storage en rojo`.
+- **Resultado**: hecha (`1e31251`): pruebas de `MockStorage`, `LocalStorage`, `rutaXml` y la guarda de producción en rojo.
+
+## T4 · [x] Pruebas de `shared/xml`, rojo (tester · sonnet)
+- **Contexto (leer solo esto)**: `plan.md` (Contratos: HTTP, `DetalleCompraDto`), `packages/shared/src/xml/origen.ts`, `packages/shared/src/compras/{esquemas,respuestas}.ts` (forma de hallazgos, `agregarCompraSchema`, `FilaCompraVista`).
+- **Hacer**: `packages/shared/src/xml/*.spec.ts`: `origenDocumentoXmlSchema`; `detalleCompraSchema` (montos solo como cadenas decimales, `xml` como unión discriminada con sus cuatro estados y códigos, `items` ≤ 2.000, glosa ≤ 500); `vistaPreviaDesdeXmlSchema`; destino de `desde-xml`; códigos `xml_invalido`, `xml_incompleto`, `xml_ajeno {campos}`, `xml_existente`. `origenXmlSchema` no cambia.
+- **Hecho cuando**: fallan por «no implementado»; las de `shared` existentes siguen verdes. Commit `test(016): esquemas de XML en rojo`.
+- **Resultado**: hecha (`eb1f109`): pruebas de los esquemas de `shared/xml` en rojo.
+
+## T5 · [x] Pruebas de BD, rojo (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (D-4, D-5, D-10; CA-6, CA-8, CA-10), `plan.md` (Contratos: BD, packages/db, orden de bloqueo), `tests/aislamiento/compras-soporte.ts`, `tests/aislamiento/compras-tablas.spec.ts` y `compras-versiones.spec.ts` (modelo; no repetir), `packages/db/src/compras/repositorio.ts` (`evaluarYGuardar`, `escribirVersiones`), `packages/db/src/compras/lectura.ts` (líneas de `compra_hallazgo`).
+- **Hacer**: `tests/aislamiento/compras-xml-{tablas,evaluacion,concurrencia}.spec.ts` y `packages/db/src/xml/*.spec.ts`. Catálogo: RLS `FORCE`, grants (sin `UPDATE`/`DELETE` salvo `documento_xml_obtencion`), CHECK de `origen`/`subido_por`/`tamano`, FK compuestas, otro estudio no ve nada. Backfill: hallazgos sembrados antes de 0036 quedan en la evaluación 1. Evaluación numerada: re-evaluar la misma versión inserta `n = 2` sin choque; vigentes = última; listado `con_hallazgos` y detalle las usan; versión nueva → evaluación 1 con el XML vigente. `guardarDocumentoXml`: P-6 (simulado → subido sí; subido → 409), `n` correlativo con dos subidas simultáneas. Concurrencia (CA-8): edición y llegada del XML en ambos órdenes y 10 rondas → la versión final evaluada con XML; sin interbloqueos con masiva y deshacer.
+- **Hecho cuando**: fallan por «no implementado»; las de 002–015 siguen verdes. Commit `test(016): BD de XML y evaluación numerada en rojo`.
+- **Resultado**: hecha (`c07aa93`, ajustes `6b75918`, `0425626`, `ece18c7` y `f2d5775`): catálogo, RLS, backfill, evaluación numerada, P-6 y concurrencia en rojo.
+
+## T6 · [x] Pruebas del worker, rojo (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (D-7, D-11, P-4, P-7; CA-6, CA-10, CA-11, CA-17), `plan.md` (Cola y worker), `packages/queue/src/catalogo.ts` (`CLIENTE_CONSULTAR_RUC` como modelo), `packages/queue/src/catalogo-013.spec.ts` (modelo), `apps/worker/src/trabajos/procesadores/{consultar-ruc.int.spec.ts,descargar-propuesta.int.spec.ts}` (modelo), `packages/sunat/src/mock/xml-provider.mock.ts` (centinelas e `inyectar`), `apps/worker/src/trabajos/persistidores/tipos.ts`.
+- **Hacer**: `packages/queue/src/catalogo-016.spec.ts` (forma exacta de `xml.obtener`: cola `xml`, canal `ninguno`, credencial `null`, 1–100 uuid). `apps/worker/src/trabajos/procesadores/obtener-xml{,.int}.spec.ts`: CA-10 (tras la descarga de fixtures se encolan lotes, primero con hallazgos; repetir no duplica trabajos ni `documento_xml`; el registro del mock no muestra lo ya guardado), CA-11 (centinelas 8, 7, 9 → `no_encontrado`, reintento de 008, `credencial` sin reintento y sin tocar la credencial del cliente), CA-6 con `XML_SIMULADO_EN_REGLAS=1` (evaluación nueva con R-MIX exacto, versión intacta) y con `0` (sin evaluación), XML inyectado hostil o ajeno → no se guarda nada en storage ni BD, `resultado` solo con conteos y sin canarios.
+- **Hecho cuando**: fallan por «no implementado». Commit `test(016): worker de XML en rojo`.
+- **Resultado**: hecha (`3dc8644`): catálogo de `xml.obtener`, CA-6, CA-10 y CA-11 del worker en rojo.
+
+## T7 · [x] Pruebas HTTP, rojo (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (D-3, D-6, D-7, D-8, D-9, D-11, P-6, P-9; CA-2, CA-6 a CA-9, CA-12 a CA-18), `plan.md` (Contratos: HTTP y `DetalleCompraDto`), `apps/backend/src/modules/compras/{lectura,acciones,masivas}.int.spec.ts` (modelo y soporte; no repetir), `apps/backend/src/modules/importacion/importacion.adv.int.spec.ts` (cuerpo crudo).
+- **Hacer**: `apps/backend/src/modules/compras/{detalle,xml,desde-xml}.int.spec.ts`. Detalle de F001-2056 con cabecera, ítems, comparación y explicación de R-MIX (CA-14) y < 500 ms p95 con 500 ítems (CA-18); `xml` en sus cuatro estados; subir el mismo comprobante (CA-12), ajeno por cada campo (422 con el campo), no XML, 1 MiB + 1 → 413 sin nada en storage ni BD (CA-2), P-6 (simulado → subido 200; subido → 409); descarga con `attachment` y `nosniff`; aislamiento 404 en las cuatro rutas (CA-17); obtener → 202 e idempotente; desde XML: vista previa sin escribir, alta con destino, 409 `duplicado {id}` (CA-13), USD (F001-4062) con tipo de cambio → 201 con el TC guardado, USD sin TC o PEN con TC → 400 sin nada en storage ni BD, vista previa con `requiereTipoCambio` (P-9); masiva acepta R-MIX tras el XML y no ofrece las de un XML en otra moneda (CA-6, CA-9); aceptar una sugerencia evaluada antes del XML que ya no sale → 409 `revisar_de_nuevo` (CA-8); acciones desde la lupa con los mismos 409/422 de 014 (CA-15); ningún log contiene canarios (CA-17).
+- **Hecho cuando**: fallan por «no implementado» (404 de ruta inexistente o módulo ausente). Commit `test(016): API de detalle y XML en rojo`.
+- **Resultado**: hecha (`818d5cf`, ajustes `e537f1f` y `2bf126f`): detalle, subir, descargar, obtener, desde XML (PEN y USD), aceptar y masiva en rojo.
+
+## T8 · [x] Parser UBL y dominio (backend · opus)
+- **Contexto (leer solo esto)**: `plan.md` (Dominio, Parser seguro), `spec.md` (D-1, D-2, D-3, D-6), las pruebas de T2, `packages/domain/src/reglas/{tipos,entrada}.ts` (solo `ResumenXml` y `leerXml`), `packages/domain/src/compras/evaluar.ts`, `packages/domain/src/dinero/index.ts`, `packages/domain/src/texto/codificar.ts`, `eslint.config.mjs` (bloque «Dinero» y `GLOBALES_IO_DOMINIO`), `packages/domain/vitest.cobertura.config.mts`.
+- **Hacer**: `packages/domain/src/ubl/` según el plan (escaneo antes de todo, `decodificar` puro, `fast-xml-parser` con las opciones del plan, mapeo con `Money`), `compras/obtencion.ts`, `CompraEvaluable.xml` y la bandera en `crearEvaluarCompras`; exportar desde `src/index.ts` (si suma exports públicos, avisar al tester para la lista de `ronda2b.adv.spec.ts`). Ampliar el lint de dinero y «sin IO» a `ubl/` y la cobertura a `src/ubl/**`.
+- **Hecho cuando**: las pruebas de T2 pasan; `pnpm --filter @contapp/domain test`, `typecheck` y `lint` limpios; `pnpm cobertura:dominio` ≥ 90 % por archivo. Commit `feat(016): parser UBL y XML en las reglas`.
+- **Resultado**: hecha (`dd1f540`, más `d6dab3f`: `xml: null` = sin XML): parser UBL, `aResumenXml`, identidad, lotes y XML en `crearEvaluarCompras`; lint de dinero y «sin IO» ampliado a `ubl/`.
+
+## T9 · [x] `packages/storage` (backend · sonnet)
+- **Contexto (leer solo esto)**: `plan.md` (Storage), las pruebas de T3, `packages/sunat/src/mock/ruta-fixture.ts` (modelo de rutas seguras), `apps/worker/src/adaptadores/adaptadores.module.ts` (cómo se elige un adaptador y la guarda de producción).
+- **Hacer**: puerto, `MockStorage`, `LocalStorage` (temporal + `rename`, `realpath` dentro de la raíz), `rutaXml`, `crearStorage(env)`.
+- **Hecho cuando**: las pruebas de T3 pasan; `test`, `typecheck` y `lint` del paquete limpios. Commit `feat(016): storage mock y local`.
+- **Resultado**: hecha (`1dba2a0`): puerto, `MockStorage`, `LocalStorage` atómico con `realpath`, `rutaXml` y `crearStorage`.
+
+## T10 · [x] Esquemas de `shared/xml` (backend · sonnet)
+- **Contexto (leer solo esto)**: `plan.md` (Contratos: HTTP y `DetalleCompraDto`), las pruebas de T4, `packages/shared/src/xml/origen.ts`, `packages/shared/src/compras/{esquemas,respuestas,index}.ts`.
+- **Hacer**: `origenDocumentoXmlSchema`, `detalleCompraSchema`, `vistaPreviaDesdeXmlSchema`, destino y códigos; exportar.
+- **Hecho cuando**: las pruebas de T4 pasan; `test`, `typecheck`, `lint` y `build` de `shared` limpios. Commit `feat(016): esquemas de detalle y XML`.
+- **Resultado**: hecha (`a22d4ed`): `detalleCompraSchema`, vista previa, destino y códigos de XML en `shared`.
+
+## T11 · [x] Migraciones y repositorios de XML (backend · opus)
+- **Contexto (leer solo esto)**: `plan.md` (Archivos: migraciones; Contratos: BD, packages/db, orden de bloqueo), `spec.md` (D-4, D-5, D-10), las pruebas de T5, `packages/db/migrations/{0032_compra,0033_compra_hallazgo_periodo,0034_compra_puntero_vigente}.sql` y `meta/_journal.json`, `packages/db/src/schema/compras.ts`, `packages/db/src/compras/{repositorio,lectura,versiones,periodo}.ts`.
+- **Hacer**: confirmar que 0035 sigue libre; `0035_documento_xml.sql` y `0036_compra_evaluacion.sql` (con backfill y cambio de la única de `compra_hallazgo`), esquema drizzle y diario; `packages/db/src/xml/` según el plan; `evaluarYGuardar` inserta la evaluación 1 y pasa el XML vigente leído tras el bloqueo; lecturas de hallazgos vigentes por la última evaluación. Respetar el orden de bloqueo del plan.
+- **Hecho cuando**: las pruebas de T5 pasan; `pnpm test:aislamiento` y `pnpm --filter @contapp/db test` verdes (002–015 incluidas); `pnpm cobertura:db` ≥ 90 %. Commit `feat(016): documento_xml y evaluación numerada`.
+- **Resultado**: hecha (`f7f4a32`): migraciones 0035 y 0036, esquema drizzle, `packages/db/src/xml/` y evaluación numerada en `evaluarYGuardar`.
+
+## T12 · [x] Worker de XML (backend · sonnet)
+- **Contexto (leer solo esto)**: `plan.md` (Cola y worker), `spec.md` (D-7, D-11, P-4, P-7), las pruebas de T6, `packages/queue/src/catalogo.ts`, `apps/worker/src/trabajos/procesadores/{consultar-ruc,descargar-propuesta}.ts`, `apps/worker/src/trabajos/persistidores/{tipos,compras}.ts`, `apps/worker/src/trabajos/iniciar.ts` (mapa de procesadores), `apps/worker/src/adaptadores/adaptadores.module.ts`, `apps/backend/src/modules/trabajos/encolador.ts` (modelo de encolar + publicar).
+- **Hacer**: `XML_OBTENER` en el catálogo; `obtener-xml.ts`; `encolar-xml.ts`; `trasConfirmar` opcional en `PersistidorLibro`, su llamada en `descargar-propuesta.ts` y su implementación en compras; storage y bandera P-4 en el worker.
+- **Hecho cuando**: las pruebas de T6 pasan; las de 013 y 014 del worker siguen verdes; `test`, `typecheck` y `lint` de `queue` y `worker` limpios. Commit `feat(016): obtención de XML en el worker`.
+- **Resultado**: hecha (`6a2c4d2`) con T12a (`d232075` rojo, `6c97e3f`, `00ea4bc`): `xml.obtener`, lotes tras la descarga con `trasConfirmar` y encolado por la función acotada `encolar_xml_obtener` de la 0037 (decisión del usuario (a) del 2026-11-10).
+
+## T13 · [x] Backend de lectura (backend · sonnet)
+- **Contexto (leer solo esto)**: `plan.md` (Contratos: HTTP, `DetalleCompraDto`, Storage), `spec.md` (D-6, D-8, D-9, D-11), las pruebas de T7 (bloques de detalle, descarga, obtener y aislamiento), `apps/backend/src/modules/compras/{compras.controller,compras.service,compras.module,historial.service,vistas}.ts`, `apps/backend/src/modules/trabajos/encolador.ts`.
+- **Hacer**: `detalle.controller.ts`, `detalle.service.ts` (comparación por columna con regla y explicación, aviso de moneda, historial del proveedor), `GET xml` con las cabeceras del plan, `POST xml/obtener` (fija `pendiente` y encola interactivo), `modules/storage/storage.module.ts`.
+- **Hecho cuando**: las pruebas de T7 de lectura, descarga, obtener y aislamiento pasan, CA-18 incluido; las de 014 siguen verdes. Commit `feat(016): detalle del comprobante y descarga del XML`.
+- **Resultado**: hecha (`be54470`): `GET detalle`, `GET xml` con adjunto y `nosniff`, `POST xml/obtener` y el módulo de storage del backend.
+
+## T14 · [x] Backend de escritura (backend · sonnet)
+- **Contexto (leer solo esto)**: `plan.md` (Contratos: HTTP; Decisiones), `spec.md` (D-3, D-5, D-7, D-8, P-6), las pruebas de T7 (subir, desde XML, aceptar y masiva), `apps/backend/src/app.ts` (cuerpo crudo de importación), `apps/backend/src/modules/compras/{escritura,transformar,acciones.service,masivas.service}.ts`, lo creado en T13.
+- **Hacer**: cuerpo crudo de 1 MiB para las rutas XML; `xml.service.ts` (parsear, identidad, P-6, storage, `guardarDocumentoXml` y `reevaluarCompra` en una transacción, borrar el archivo si falla); `desde-xml.service.ts` (vista previa sin escribir; alta con `agregarCompra` de 014 y el XML en una transacción; `tipoCambio` de la query validado con `agregarCompraSchema`, P-9); XML vigente en el entorno de aceptar y de la masiva.
+- **Hecho cuando**: todas las pruebas de T7 pasan, USD incluido; las de 014 siguen verdes; `test`, `typecheck` y `lint` del backend limpios. Commit `feat(016): subir XML y agregar desde XML`.
+- **Resultado**: hecha (`f36f3c3`): cuerpo crudo de 1 MiB, subir XML con P-6, agregar desde XML con P-9 y XML vigente en aceptar y masiva.
+
+## T15 · [x] Lupa (frontend · sonnet; nivel C)
+- **Contexto (leer solo esto)**: `plan.md` (Frontend; `DetalleCompraDto`), `spec.md` (D-6, D-8, D-9, P-8; CA-9, CA-11, CA-14 a CA-17), `apps/frontend/AGENTS.md`, `packages/shared/src/xml/*` (de T10), `apps/frontend/lib/{compras,montos-compras,trabajos}.ts`, `apps/frontend/components/compras/{grilla-compras,historial-compra,aceptar-sugerencia,acciones-fila-compras,excluir-compra}.tsx`, `apps/frontend/pruebas/compras.ts`.
+- **Hacer**: `lib/lupa-compras.ts`, `lupa-compra.tsx`, `cabecera-lupa.tsx`, `items-xml.tsx`, `comparacion-xml.tsx`, `estado-xml.tsx`; habilitar la lupa en `grilla-compras.tsx` pasando el orden de la grilla; teclado ← → Enter Esc; acciones de 015 y deshabilitadas según `soloLectura`; sin PDF ni «Recordar».
+- **Hecho cuando**: un caso feliz y uno de error por comportamiento pasan (abrir con XML, navegar, aceptar con 409, estados del XML, simulado/subido, aviso de moneda, `<script>` como texto); la prueba estática de montos de 015 cubre los archivos nuevos; `test`, `typecheck` y `lint` del frontend limpios. Commit `feat(016): lupa del comprobante`.
+- **Resultado**: hecha (`8b3d825`): modal de la lupa con cabecera, ítems, comparación, historial, acciones de 015 y teclado.
+
+## T16 · [x] Subir XML y agregar desde XML (frontend · sonnet; nivel C)
+- **Contexto (leer solo esto)**: `plan.md` (Frontend), `spec.md` (CA-12, CA-13), `lib/lupa-compras.ts` y `estado-xml.tsx` (de T15), `apps/frontend/components/compras/agregar-compra.tsx`.
+- **Hacer**: `subir-xml.tsx` (arrastrar o elegir, tope en el navegador, mensajes de `xml_ajeno` con el campo, `xml_invalido`, `xml_existente`); usarlo en la lupa (completa el modal sin recargar) y en «Agregar compra» (vista previa, prellenado, solo destino, 409 con enlace a la existente; en USD pide también el tipo de cambio, P-9).
+- **Hecho cuando**: un caso feliz y uno de error por flujo pasan, más USD con tipo de cambio y USD sin él (no envía); `test`, `typecheck` y `lint` limpios. Commit `feat(016): subir XML y agregar desde XML`.
+- **Resultado**: hecha (`7d08f2b`): `subir-xml.tsx` en la lupa y «Agregar desde XML» con tipo de cambio en USD.
+
+## T17 · [x] Cobertura en CI (devops · haiku)
+- **Contexto (leer solo esto)**: `package.json` (scripts `cobertura:*`), `.github/workflows/ci.yml` (pasos de cobertura), `packages/domain/vitest.cobertura.config.mts`, `apps/backend/vitest.cobertura.config.mts` y `apps/worker/vitest.cobertura-cola.config.mts` (modelos), `packages/storage/package.json`.
+- **Hacer**: `cobertura:storage` (umbral 90 % por archivo, sin servicios: va en el job de `cobertura:dominio`); `vitest.cobertura-xml.config.mts` en backend (`detalle*`, `xml*`, `desde-xml*` de `modules/compras`) y en worker (`obtener-xml.ts`, `encolar-xml.ts`) con el script raíz `cobertura:xml` en el job con Postgres y Redis; confirmar que `src/ubl/**` está en la de `domain` y `src/xml/**` en la de `db`.
+- **Hecho cuando**: los cuatro comandos corren en local con ≥ 90 % (o se informa el archivo bajo el umbral, sin bajarlo); `ci.yml` válido. Commit `ci(016): cobertura de XML y storage`.
+- **Resultado**: hecha (`feaa192`) con T17a (`0b1c3b4`, pruebas para cubrir ramas) y `0e0ae70` (compilar `storage` antes de backend y worker en CI): `cobertura:storage` y `cobertura:xml` ≥ 90 % sin bajar umbrales.
+
+## T18 · [x] Ronda adversarial 1: parser y subida (adversario · opus)
+- **Contexto (leer solo esto)**: `spec.md` (D-1 a D-4, D-8, D-11; CA-1, CA-2, CA-12, CA-17), `plan.md` (Parser seguro, Storage, HTTP), 04 §2.3 (catálogo), las pruebas de T2, T3 y T7 (para no repetir); en caja blanca, `packages/domain/src/ubl/`, `packages/storage/src/`, `apps/backend/src/modules/compras/{xml,desde-xml}.service.ts`, `app.ts`.
+- **Hacer**: caja negra y luego blanca, ≤ 15 pruebas. Parser: entidades en todas sus formas (parámetro, anidadas, en atributos, `<!doctype` en minúsculas, tras BOM), declaración de codificación engañosa, CDATA y comentarios con montos falsos, `TaxTotal` y `LegalMonetaryTotal` duplicados o en orden inverso, prefijos distintos para el mismo espacio, montos `1e3`, `-0`, `0.005`, `0.015`, con coma o espacios, `currencyID` ausente, ítems al tope exacto. Subida: `Content-Encoding: gzip` y cuerpo fragmentado para saltar el tope, tipos de contenido raros, `xml_ajeno` con ceros y minúsculas, receptor con DNI, dos subidas simultáneas (P-6), `compraId` ajeno, ruta de storage manipulada, glosa con HTML, canarios en logs. No escribe código de producción.
+- **Hecho cuando**: cada prueba pasa (la defensa aguanta) o falla con un hallazgo `H-016-n` (severidad, archivo y línea de la causa); informe al orquestador para «Hallazgos adversariales abiertos» de `ESTADO.md`.
+- **Resultado**: hecha (`a241bc0`): 7 hallazgos, H-016-1 a H-016-7 (autocerradas fuera del tope, totales duplicados, raíz y tipo, negativos, declaración XML, ruta de `GET xml`).
+
+## T19 · [x] Pruebas de las correcciones de la ronda 1, rojo (tester · sonnet)
+- **Contexto (leer solo esto)**: el informe de T18, los `*.adv*.spec.ts` que fallan, `spec.md` (las D citadas en cada hallazgo).
+- **Hacer**: una prueba propia (no adversarial) por hallazgo que fija el comportamiento correcto según la spec; si un hallazgo pide cambiar la spec, `requiere usuario`.
+- **Hecho cuando**: las pruebas fallan por el defecto, no por sintaxis. Commit `test(016): correcciones de la ronda 1 en rojo`.
+- **Resultado**: hecha (`70598b2`): una prueba en rojo por hallazgo de la ronda 1.
+
+## T20 · [x] Corregir la ronda 1 (backend · opus)
+- **Contexto (leer solo esto)**: el informe de T18, las pruebas de T19, los archivos citados en cada hallazgo.
+- **Hacer**: corregir la causa sin tocar pruebas.
+- **Hecho cuando**: T19 y los `*.adv*` de T18 en verde; suites de `domain`, `storage` y backend de compras verdes; cobertura ≥ 90 % sin cambios de umbral. Commit `fix(016): hallazgos de la ronda 1`.
+- **Resultado**: hecha (`aeb5c5d`, más `e698151`): H-016-1 a H-016-7 corregidos; decisión técnica (d) del 2026-11-10.
+
+## T21 · [x] Ronda adversarial 2: re-evaluación y aceptación en bloque (adversario · opus)
+- **Contexto (leer solo esto)**: `spec.md` (D-5, D-6, D-7, P-2, P-4; CA-6 a CA-9, CA-16), `plan.md` (BD, orden de bloqueo, Decisiones), 014 `spec.md` (D-9, D-14, D-15), las pruebas de T5, T6 y T7 (para no repetir); en caja blanca, `packages/db/src/xml/`, `packages/db/src/compras/repositorio.ts`, `apps/worker/src/trabajos/procesadores/obtener-xml.ts`, `apps/backend/src/modules/compras/{escritura,transformar,masivas.service,xml.service}.ts`.
+- **Hacer**: ≤ 15 pruebas. Re-evaluación: llegada del XML contra edición, deshacer, rehacer, masiva y descarga repetida (en ambos órdenes, varias rondas); dos llegadas del mismo XML (worker y subida); bandera P-4 cambiada entre evaluar y aceptar; periodo `revisado`/`generado` durante la llegada; XML de una versión descartada y vuelta a agregar; interbloqueos con el advisory por comprobante. Aceptación en bloque: 5.000 filas mezclando hallazgos previos al XML, XML en otra moneda, notas de crédito, simulados con la bandera apagada y filas cambiadas por otro; lo aplicado coincide con lo que la lupa mostraba o es 409/rechazo, nunca un monto distinto. Regresión de la ronda 1.
+- **Hecho cuando**: igual que T18 (`H-016-n` continúa la numeración).
+- **Resultado**: hecha (`67b9187`): 6 hallazgos, H-016-8 a H-016-13 (UPDATE del worker en `compra`, candado del tope, aceptar sin re-evaluar, re-evaluación de una sola fila, desde XML sobre un XML real, bandera en la descarga).
+
+## T22 · [x] Pruebas de las correcciones de la ronda 2, rojo (tester · sonnet)
+- **Contexto (leer solo esto)**: el informe de T21, los `*.adv*` que fallan, `spec.md` (las D citadas).
+- **Hacer** y **Hecho cuando**: como T19. Commit `test(016): correcciones de la ronda 2 en rojo`.
+- **Resultado**: hecha (`0e5ab7c`, `c976c82`; ajuste `4e851e8`): una prueba en rojo por hallazgo de la ronda 2.
+
+## T23 · [x] Corregir la ronda 2 (backend · opus)
+- **Contexto (leer solo esto)**: el informe de T21, las pruebas de T22, los archivos citados.
+- **Hacer** y **Hecho cuando**: como T20, más `pnpm test:aislamiento` verde. Commit `fix(016): hallazgos de la ronda 2`.
+- **Resultado**: hecha (`9b7172b`, unitarias `f868abf`): H-016-8 a H-016-13 corregidos, con la migración 0038; decisión técnica (e) del 2026-11-10.
+
+## T24 · [x] Prueba manual contra el sistema completo (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (CA-6, CA-9 a CA-16), `docs/specs/015-compras-frontend/tasks.md` (T11, como modelo), `README` o scripts `servicios:up` y `dev` del `package.json` raíz.
+- **Hacer**: con `servicios:up`, mocks y `XML_SIMULADO_EN_REGLAS=1`: descargar 202610 del cliente de fixtures, ver encolarse los XML, abrir la lupa de F001-2056 y F001-1040 (aceptar R-MIX y R-ISC), navegar con el teclado, centinelas 7, 8 y 9 con «Reintentar» y «Subir XML», subir uno ajeno, agregar desde XML (nuevo en PEN, nuevo en USD con tipo de cambio y duplicado), descargar el XML, F001-4062; repetir con la bandera en `0`. Anotar cada defecto con pasos y archivo probable.
+- **Hecho cuando**: informe de pasos con resultado; los defectos de pantalla van a T24a y los de servidor al orquestador. Sin commit si no hay cambios.
+- **Resultado**: hecho con **3 defectos de pantalla** (P-1 a P-3, para T24a) y **ninguno de servidor**. Entorno: sin Docker (`servicios:up` no aplica); PostgreSQL 17 y Redis nativos, BD nueva `contapp_t24` (`db:migrate` dos veces y `db:seed`; borrada al terminar con `dropdb`, la BD `contapp` no se tocó) y Redis `/9` (vaciado); backend `:4124`, worker y `next build && next start :3124`; adaptadores `mock`, `STORAGE=local` con `STORAGE_DIR` en el scratchpad. `NODE_ENV=development` solo en backend y worker (con él `next build` falla). Dos corridas: `XML_SIMULADO_EN_REGLAS=1` con el cliente «Compras Prueba SAC» (RUC 20700000002, estudio A; usuarios `ua` Dueño y `uab` asistente) y `=0` con otro cliente del mismo RUC en el estudio B (usuario `ub`), para tener las fixtures intactas; entre una y otra se reinició backend y worker con la bandera nueva (comprobado en `/proc/<pid>/environ`). Chromium con Playwright (1440×900); scripts, capturas, logs y `STORAGE_DIR` en el scratchpad (`.../scratchpad/t24/`), nada en el repo salvo este archivo. Los procesos lanzados se detuvieron. XML de prueba derivados de la fixture 5070 (ajenos por RUC, serie, número y receptor; USD; nuevo en PEN y en USD con canarios; `<!DOCTYPE`, «billion laughs», no-XML y de más de 1 MiB).
+
+| # | Punto | Resultado | Evidencia |
+|---|---|---|---|
+| 1 | CA-10 descarga y encolado (`=1`) | OK | 202610: «5 nuevas, 0 distintas»; `job_registro`: `xml.obtener` `programado` `{guardados:5, omitidos:0, noEncontrados:0, credencial:0, transitorios:0, invalidos:0}` (solo conteos); 5 filas `documento_xml` `simulado` y 5 archivos en `STORAGE_DIR/xml/{tenant}/{cliente}/{uuid}.xml`. Repetir la descarga: «0 nuevas, 0 distintas», `documento_xml` 10 → 10, 0 comprobantes con `n` repetido y un solo lote nuevo (el de F001-6007, transitorio); los 5 ya guardados no se volvieron a pedir. «Primero las filas con hallazgos» no se distingue por pantalla: las 5 tenían R-NEW. |
+| 2 | CA-6 y CA-16 (`=1`): evaluación nueva sin versión nueva | OK | `compra_evaluacion`: n=1 sin XML y n=2 con XML en las 5 filas, `version_vigente` sigue en 1; R-GP aparece solo con XML (F001-5070, glosa «zapatilla»); sin error de clave única. |
+| 3 | CA-14 lupa de F001-2056 | OK | Cabecera (RUC, razón social, «Proveedor nuevo», tipo, serie-número, fecha, moneda, TC «—», origen «Física»), «XML simulado», ítems con «Gravado (10)» y «Exonerado (20)», comparación con filas resaltadas y texto «Difiere · R-MIX» (BI 21.48 → 8.97, no gravado 0.00 → 12.51) y la explicación; total y IGV «Coinciden». |
+| 4 | CA-6 aceptar R-MIX (`=1`, lupa) | OK | «Aceptar sugerencias» → diálogo → «Aceptar» (sin confirmar: exacto `requiereConfirmacion=false`): v2 con DG 8.97, IGV 1.61, no gravado 12.51, total 23.09; los hallazgos vigentes quedan en R-NEW. |
+| 5 | CA-7 aceptar R-ISC (`=1`, lupa, F001-1040 en «Sin IGV») | OK | R-ISC «mover 770.00» respaldado por el XML; tras aceptar: DG 0.00, ISC 770.00, total 770.00 (v2). |
+| 6 | CA-15 teclado | OK, con la observación (c) | Abrir con Enter desde el botón: foco dentro del modal; ← → recorren 2056 → 3064 → 4062 → 5070 (en el último no pasa de largo) y ← vuelve; Esc cierra y devuelve el foco al botón «Ver comprobante»; 40 Tab seguidos: 0 fuera del diálogo. |
+| 7 | CA-15 acciones desde la lupa | OK, salvo P-3 | Clasificar 3064 como DNG: v2, DG 0.00 / DNG 100.00, al cerrar la grilla lo muestra «DNG · Clasificada». Excluir 5070 con motivo (200, `compra_version` 2 `excluir`) y restaurar desde «Excluidas» (v3 `restaurar`). 409 con otra sesión (clasificó 4062 mientras la lupa estaba abierta): «Otra persona cambió esta compra. Se recargó la fila: revisa y repite.», la lupa sigue abierta y su detalle se recargó. Periodo `revisado` con `uab` (asistente): «Acciones», «Aceptar sugerencias» deshabilitados y Enter no abre nada; subir XML sigue permitido (D-7). |
+| 8 | CA-11 centinelas 7, 8 y 9 (`=1` y `=0`) | OK | Compras agregadas F001-6007/6008/6009; la lupa ofrece «Obtener XML» (`sin_solicitar`) y «Subir XML». 6008: «XML no disponible · SUNAT no entregó el XML de este comprobante.» con «Reintentar» (`no_encontrado`, `intentos` 1 → 2, un solo intento por trabajo). 6009: «No se pudo obtener el XML con la credencial del cliente.» (`credencial`, un solo intento, sin reintento de 008). 6007: «Pendiente» y luego «No se pudo obtener el XML ahora; se volverá a intentar.»; `job_registro` `error` `sunat_no_responde`, `intentos=3`, `max_intentos=4` (3 reintentos con backoff, 008 CA-8). Ningún texto con la causa interna. |
+| 9 | CA-12 subir XML | OK | F001-6008 (centinela 8) y F001-6009: el XML del mismo comprobante completa la lupa sin recargar la página («XML subido por … el 2026-11-10 06:15 UTC», ítems, comparación; ninguna petición nueva del listado); `documento_xml` `n=1` `subido`. Otro RUC, serie, número o receptor: 422 `xml_ajeno` `campos:["ruc"]`, `["serie"]`, `["numero"]`, `["receptor"]` (UI: «no coincide el RUC del emisor», etc.). No-XML, `<!DOCTYPE` con XXE y «billion laughs»: 422 `xml_invalido` sin repetir contenido (UI: «El archivo no es un XML válido.»); más de 1 MiB: la pantalla no envía («pesa más de 1 MiB») y la API da 413 `solicitud_demasiado_grande`. Tras todos los rechazos, 0 filas `subido`. Subir sobre uno `subido`: 409 `xml_existente`; sobre un `simulado`: se acepta (P-6). |
+| 10 | CA-9 PEN con XML USD y USD con XML USD | OK | F001-6012 (PEN) con XML USD: «La moneda del XML (USD) no coincide con la de la fila (PEN). Se muestran sin convertir.»; solo R-NEW; la masiva la rechaza (`revisar_de_nuevo` con R-MIX y R-ISC, `no_masiva` con R-NEW) y la versión no cambia. F001-4062 (USD, TC 3.300) se compara sin convertir: 0.15 / 0.03 / 0.18 «Coincide». |
+| 11 | CA-13 agregar desde XML | OK | Vista previa (nuevo en PEN F001-5072): prellena tipo, serie-número, fecha, moneda, proveedor, montos e ítems y pide solo el destino; no escribe (0 compras y 0 `documento_xml` nuevos). PEN: `POST desde-xml?destino=DG` 201, `origen=agregada` con su XML `subido`. USD F001-4064: el diálogo pide el tipo de cambio y «Agregar compra» queda deshabilitado hasta tenerlo; con 3.300: 201, USD, TC 3.300. API: USD sin TC, TC 0.000, PEN con TC, sin destino o destino inválido: 400 `solicitud_invalida` sin guardar nada (compras 10 → 10, `documento_xml` 8 → 8). Duplicado (XML de F001-3064): la vista previa avisa «Este comprobante ya está en la propuesta» y deshabilita «Agregar»; «Ubicar la compra existente» resalta la fila; por API 409 `duplicado` con el id. |
+| 12 | Ronda 2: «Agregar desde XML» con un XML guardado | OK | Con un XML `subido` guardado de F001-6008 y la compra descartada: 409 `xml_existente` (UI: «Este comprobante ya tiene un XML guardado.»); compras y `documento_xml` sin cambio. Con la compra viva manda `duplicado`. |
+| 13 | Ronda 2: aceptar con la bandera cambiada entre evaluar y aceptar | OK | F001-2056 editada a 21.48 con `=1`: R-MIX exacto 8.97 (`requiereConfirmacion=false`). Con la lupa abierta se reinició con `=0` y se pulsó «Aceptar»: 409 `revisar_de_nuevo` («La sugerencia cambió. Se recargó la fila: revísala.»), la versión no cambió. (Un primer intento dio 200 porque el reinicio no había matado el proceso anterior —mi error de arranque, pids de subshell—; repetido con la bandera comprobada en `/proc`.) |
+| 14 | Descargar el XML | OK | `GET …/xml`: 200, `Content-Type: application/xml`, `Content-Disposition: attachment; filename="20700000011-01-F001-6008.xml"`, `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`; desde la lupa baja `20700000053-01-F001-3064.xml` (6.050 bytes) idéntico a la fixture; un comprobante sin XML da 404. |
+| 15 | CA-16 con la bandera en `0` | OK | Con el cliente del estudio B: descarga «5 nuevas, 0 distintas», 5 `simulado` y solo evaluación n=1 (sin evaluación nueva). F001-2056: lupa con «XML simulado» y su comparación, pero R-MIX solo estimado (`requiereConfirmacion=true`, sugerencia `separar` sin `exacto`) y F001-1040 con R-ISC con confirmación, ambos `masiva=false`. Subir el XML (queda `subido`, vigente el último) crea la evaluación n=2: R-MIX exacto y R-ISC `masiva=true`; aceptarlos deja 2056 en DG 8.97 / IGV 1.61 / no gravado 12.51 y 1040 en DG 0.00 / ISC 770.00. Los centinelas se repitieron por pantalla, y «agregar desde XML» (PEN, USD, duplicado, `xml_existente`), los ajenos y la masiva por API, con el mismo resultado que con `=1`. |
+| 16 | CA-17 aislamiento y no-encolado | OK | `GET detalle`, `GET xml` y subida con un `compraId` de otro cliente (`a2`) o de otro estudio (`ub` con el cliente de A): 404 igual que un id inexistente; `GET detalle` de una compra sin XML responde `sin_solicitar` en 18–24 ms y no crea trabajo ni fila de obtención. |
+| 17 | Canarios y secretos | OK | XML subido con razón social `<![CDATA[<img src=x onerror=window.__pwn=1>]]>` y glosa `=1+1 <![CDATA[<script>window.__pwn=2</script>]]>`: se ven como texto en la grilla, la lupa, el Historial y la vista previa; `window.__pwn` indefinido, 0 `<img>`, 0 `<script>`, 0 atributos `on*` inyectados, 0 diálogos del navegador, consola sin errores salvo los 4xx provocados (los 422 y 409 de las pruebas); las 13 respuestas `/api` del barrido son `application/json`; el `.xlsx` guarda el texto como cadena (0 fórmulas). Barrido de `backend.log`, `worker.log` y `front.log` por `CLAVEPRUEBA`, `CSECPRUEBA`, `USUPRUEBA`, `CIDPRUEBA`, `onerror`, `__pwn`, `=1+1`, `<Invoice`, razones sociales, glosas, `8.97`, `770.00`, `12.51` y rutas de storage: 0 coincidencias (solo líneas `FiltroErrores` con el código); `job_registro.resultado` y `parametros` sin canarios, credenciales, montos ni rutas. Las rutas de storage son uuid, nunca el nombre del archivo subido. |
+
+Defectos de pantalla (no corregidos; para T24a):
+- **P-1 · tras «Obtener XML» o «Reintentar» el foco se pierde y Esc y ← → dejan de funcionar.** Reproducir: abrir la lupa de una compra sin XML (F001-6007 o 6009), enfocar «Reintentar» (o «Obtener XML») y pulsar Enter; al terminar `document.activeElement` es `BODY` (fuera del modal) y Esc no cierra, ← → no navegan; el siguiente Tab vuelve a entrar. Es un problema de teclado y de lector de pantalla (RF-096). Causa probable: el botón se desmonta o se deshabilita mientras el estado pasa a «Pendiente» y nadie devuelve el foco: `apps/frontend/components/compras/estado-xml.tsx` (`botonObtener`, ~línea 135) y `lupa-compra.tsx` (`alTeclear` solo recibe teclas con el foco dentro de `raiz`, línea ~215). Corregir devolviendo el foco a la raíz del modal (`raiz.current?.focus()`) cuando el botón deja de existir.
+- **P-2 · un error del servidor se queda visible junto al aviso de tamaño.** Reproducir: en la lupa de F001-6009 subir `no-es-xml.txt` («El archivo no es un XML válido.») y después un archivo de más de 1 MiB: salen a la vez «El archivo pesa más de 1 MiB: no se envió.» y el error anterior. Causa: `SelectorXml.recibir` (`components/compras/subir-xml.tsx`, líneas ~44-52) pone su error local pero no avisa al padre, cuyo `error` del servidor (línea ~118) solo se limpia al enviar. Corrección: llamar a un `alRechazar`/limpiar el error del padre cuando el selector rechaza un archivo.
+- **P-3 · la lupa no permite editar montos (CA-15 dice «se acepta, edita, clasifica y excluye»).** El menú «Acciones» de la lupa trae solo «Clasificar como DG/DGNG/DNG», «Aceptar sugerencias» y «Excluir» (`components/compras/lupa-compra.tsx` y `acciones-fila-compras.tsx`); editar sigue siendo solo por celda en la grilla (y el dato que pide R-MIX sin XML en el diálogo de aceptar). Decidir con el orquestador si basta (entonces CA-15 se acota en la spec) o si T24a añade la edición con las rutas de 014 y sus 409/422.
+
+Defectos de servidor: **ninguno.**
+
+Observaciones (sin tarea): (a) los avisos salen dos veces en regiones `role="alert"`/`aria-live` («Sugerencia aceptada.», «La sugerencia cambió…», «Otra persona cambió esta compra…»), como la observación (f) de 015 T11. (b) «XML subido por 01920000 el …»: la pantalla muestra el id corto del autor (CA-16 pide autor); `subidoPor` es solo un uuid en el DTO, igual que en 015 el autor del Historial. (c) Con la lupa abierta, Enter abre el diálogo «Aceptar sugerencias» (hay que pulsar «Aceptar» otra vez), aunque la ayuda de la lupa dice «Enter acepta la sugerencia» y CA-15 «Enter acepta»; con una sugerencia exacta única podría aceptarla directo. (d) En estado «Pendiente» la lupa no ofrece «Subir XML» (sí en `sin_solicitar` y `no_disponible`). (e) `documento_xml_obtencion` de F001-6008 sigue en `no_encontrado` tras subirle el XML: sin efecto visible (la lupa mira `documento_xml` y la planificación omite lo guardado). (f) El texto de `transitorio` «se volverá a intentar» sigue tras agotar los 3 reintentos de 008; el siguiente intento es el botón o la próxima descarga (que sí lo replanifica, punto 1). No probados: CA-8 concurrencia edición/llegada del XML en paralelo, CA-18 con 500 ítems y los casos de unidad (ISO-8859-1, nota de crédito, `currencyID` mezclado), que cubren las suites de T25.
+
+## T24a · [x] Defectos de pantalla de T24 (frontend · sonnet)
+- **Resultado**: hecha (`1152b76`): P-1 (el foco vuelve a la raíz de la lupa tras «Obtener XML» o «Reintentar»), P-2 (el selector limpia el error y el aviso de la subida anterior al rechazar un archivo) y P-3 («Editar» en la lupa, que cierra la lupa y abre la fila en edición en la grilla).
+
+## T25 · [x] Verificar criterios (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (CA-1 a CA-18 y casos reales), los informes de T18, T21 y T24.
+- **Hacer**: suites completas (`pnpm test`, `test:aislamiento`, `ci:db`), los `cobertura:*` de 016 y los de siempre; por cada CA, la prueba o el comando que lo demuestra (`archivo:línea`) o «falta».
+- **Hecho cuando**: tabla CA → evidencia en la sección «Resultado» de esta tarea; cobertura ≥ 90 % en `ubl/`, `storage`, `db/xml` y los módulos XML de backend y worker; ningún adversarial abierto. Commit `docs(016): verificación de criterios`.
+- **Resultado**: hecha (`3d21a9f`): **los 18 CA cumplidos**, sin adversarial abierto. Decisiones del 2026-11-10 aplicadas: CA-15 «edita» = botón «Editar» de la lupa (cierra la lupa y abre la fila en edición en la grilla, T24a); «Enter acepta» = Enter abre la aceptación y un segundo Enter la confirma (la ayuda ya lo dice); encolado del worker por `encolar_xml_obtener` (0037); H-016-8 corregido en 0038. Se agregó una prueba (`compras-xml-concurrencia.spec.ts`, «descartada entre la lectura y el bloqueo») para cubrir la rama de carrera de `reevaluar.ts`; no se tocó producción.
+
+Suites y comandos (de a uno, rama `spec/016-lupa-xml`, mocks, PG 17 y Redis nativos, BD `contapp` existente sin recrear):
+
+| Comando | Resultado |
+|---|---|
+| `pnpm --filter @contapp/storage build` (antes de todo) · `pnpm typecheck` · `pnpm lint` | OK (17/17 y 10/10 tareas, 0 advertencias) |
+| Unitarias: frontend / backend / `packages/db` / `packages/domain` | 70 archivos·730 pruebas / 87·1.088 / 52·753 / 98·2.247 (la de `cobertura:dominio`): todas verdes. Con `pnpm test` en paralelo (turbo) fallaron por tiempo agotado de 5 s bajo carga `seed-arranque.spec.ts`, `seed-r2b.adv.spec.ts` (db) y una de `diccionario.spec.ts` (domain); cada una pasa sola y el resto de paquetes pasó (sunat 262, shared 1.555, queue 395, storage 114, crypto 291, limites 329, worker 337) |
+| `cobertura:dominio` | OK: 98 archivos·2.247 pruebas; `ubl/` 99,24 % sentencias · 97,48 % ramas · 100 % funciones y líneas |
+| `cobertura:storage` | OK: 114 pruebas; 98,47 % · 93,65 % ramas (`local.ts` 92,3 %, `index.ts` 92,85 %) |
+| `cobertura:sunat` | OK: 262 pruebas |
+| `cobertura:db` | 2.811 de 2.812 pruebas; **única falla `planes.spec.ts` «todo estudio existente tiene suscripcion»**: 109 estudios «Estudio t005…» de pruebas anteriores sin suscripción en la BD local (tenants sucios; el CI parte de BD limpia). Cobertura medida con `--coverage.reportOnFailure`: total 97,63 % · 91,66 % ramas; `src/xml` 99,12 % · 93,61 % ramas · 100 % funciones y líneas (`reevaluar.ts` 92,85 % ramas tras la prueba nueva; antes 82,14 %) |
+| `cobertura:cola` | OK: 126 archivos·1.821 pruebas; 99,23 % |
+| `cobertura:xml` (backend y worker; umbral 90 % por archivo) | OK: backend 32 archivos·834 pruebas, 98,78 % sentencias · 98,03 % ramas (los dos únicos archivos con filas parciales, ≥ 91 % en ramas; el resto 100 %); worker 40·440, 100 % (`obtener-xml.ts`, `encolar-xml.ts`) |
+| `pnpm test:aislamiento` | 2.044 de 2.045; **solo `planes.spec.ts`** (la misma causa); los 62 archivos restantes, incluidos `compras-xml-*` y `trabajos-encolar-xml`, verdes |
+| `pnpm --filter @contapp/backend test:int` / `@contapp/worker test:int` | OK: 88 archivos·2.180 pruebas / 24·248 |
+| `git diff --stat main...HEAD` | 193 archivos, +41.234 −190: parser UBL (`domain/ubl`), `packages/storage`, `db/xml` y migraciones 0035–0038, catálogo de `queue`, `shared/xml`, módulos XML de backend y worker, lupa y «Agregar desde XML» del frontend, pruebas, configs de cobertura y CI, y los documentos de 016. Nada de ventas, auth ni otras specs: alcance coherente con la spec |
+
+| CA | Evidencia | Resultado |
+|---|---|---|
+| CA-1 | `packages/domain/src/ubl/seguridad.spec.ts:51` (XXE, HTTP, «billion laughs», `<!doctype`, CDATA, UTF-16, NUL; < 100 ms, sin repetir contenido) · `ronda1.adv.spec.ts` · `apps/backend/src/modules/compras/xml.int.spec.ts:226` (422 `xml_invalido`) · T24 punto 9 | Cumplido |
+| CA-2 | `seguridad.spec.ts:121` (1 MiB + 1, 2.001 ítems, profundidad 33, bomba de 50.000 niveles) · `seguridad.spec.ts:156` (sin rastro) · `xml.int.spec.ts:226` · `xml.adv.int.spec.ts:99` (gzip y cuerpo fragmentado) · `desde-xml.int.spec.ts:389` (nada en storage ni BD) · `packages/storage/src/*.spec.ts` | Cumplido |
+| CA-3 | `ubl/leer.spec.ts:20` (F001-2056: 8.97 / 1.61 / 12.51 / 23.09) · `leer.spec.ts:79` (ISO-8859-1 y prefijos distintos) | Cumplido |
+| CA-4 | `ubl/leer.spec.ts:20` (F001-1040: 0.00 / ISC 770.00 / 770.00 sin error) · `ubl/bordes.spec.ts` | Cumplido |
+| CA-5 | `ubl/leer.spec.ts:20` (ICBPER 1.50 e IGV 18.00 de 3064; USD 0.15 / 0.03 / 0.18 de 4062) · `leer.spec.ts:210` (nota de crédito en negativo, `currencyID` mezclado → `monedaUnica = false`, `redondearSunat`) · `domain/src/compras/evaluar-xml.spec.ts:107` (R-GP con la glosa de la zapatilla de 5070) · `pnpm lint` (sin `number` en dinero) | Cumplido |
+| CA-6 | `evaluar-xml.spec.ts` · `xml.int.spec.ts:594` · `detalle.int.spec.ts:353` · `apps/worker/.../obtener-xml.int.spec.ts:610` · `tests/aislamiento/compras-xml-evaluacion.spec.ts:572` (versión sin cambio, sin error de clave única) · T24 puntos 2 y 4 | Cumplido |
+| CA-7 | `evaluar-xml.spec.ts:83` · `xml.int.spec.ts:633` · `compras-xml-evaluacion.spec.ts:572` · T24 punto 5 (DG 0.00, ISC 770.00) | Cumplido |
+| CA-8 | `tests/aislamiento/compras-xml-concurrencia.spec.ts:192` (5 rondas en ambos órdenes) · `xml.int.spec.ts:651` y `:696` (409 `revisar_de_nuevo`) · `reevaluacion.ronda2.int.spec.ts:131` · `reevaluacion.adv.int.spec.ts` · T24 punto 13 | Cumplido |
+| CA-9 | `detalle.int.spec.ts:402` · `xml.int.spec.ts:713` (la masiva no la ofrece) · `lupa-compra.spec.tsx:336` · `evaluar-xml.spec.ts` · T24 punto 10 (F001-4062 sin convertir) | Cumplido |
+| CA-10 | `apps/worker/.../obtener-xml.int.spec.ts:224` · `domain/.../obtencion.spec.ts:67` (primero los de hallazgos, omite lo guardado) · `worker/src/trabajos/encolar-xml.int.spec.ts:80` · `tests/aislamiento/trabajos-encolar-xml.spec.ts:683` (dedupe) · T24 punto 1 (repetir la descarga: 10 → 10 filas) | Cumplido |
+| CA-11 | `obtener-xml.int.spec.ts:471` (centinelas 8, 7 y 9; el de credencial no reintenta) · `detalle.int.spec.ts:232` · `lupa-compra.spec.tsx:336` y `:454` («Subir XML» y «Reintentar») · `lupa-correcciones.spec.tsx:81` (P-1) · T24 punto 8 | Cumplido |
+| CA-12 | `xml.int.spec.ts:109`, `:191` (`xml_ajeno` con el campo), `:226` · `xml.adv.int.spec.ts` · `subir-xml.spec.tsx:44` y `:72` · `lupa-correcciones.spec.tsx:148` (P-2) · T24 punto 9 | Cumplido |
+| CA-13 | `desde-xml.int.spec.ts:94`, `:204`, `:287` (USD con TC, F001-4062), `:316` (400 sin guardar), `:351` (409 `duplicado` con id) · `desde-xml.service.spec.ts` · `agregar-desde-xml.spec.tsx:50`, `:102`, `:176` · T24 puntos 11 y 12 | Cumplido |
+| CA-14 | `detalle.int.spec.ts:304` · `lupa-compra.spec.tsx:104` (cabecera, ítems con afectación, comparación resaltada, explicación de R-MIX) · T24 punto 3 | Cumplido |
+| CA-15 | `xml.int.spec.ts:740` (mismos 409 y 422) · `lupa-compra.spec.tsx:199` (← →, Esc), `:265` (aceptar con 409/422; Enter abre y Enter confirma), `:311` (revisado sin permiso: deshabilitadas) · `lupa-correcciones.spec.tsx:201` y `:263` («Editar») y `:324` (ayuda de teclado) · `page.integracion.spec.tsx` («Editar» cierra la lupa y abre la fila en edición; al cerrar, la grilla muestra el cambio) · T24 puntos 6 y 7 | Cumplido (con las decisiones del 2026-11-10) |
+| CA-16 | `detalle.int.spec.ts:232` y `:288` (origen subido con quién y cuándo) · `evaluar-xml.spec.ts` · `compras-bandera.spec.ts` y `.adv.spec.ts` (worker) · `reevaluacion.adv.int.spec.ts:102` (bandera cambiada entre evaluar y aceptar) · `lupa-compra.spec.tsx:339` («XML simulado», «XML real», «XML subido por … el …») · T24 puntos 2 y 15 | Cumplido; el autor sale como id corto (T24 observación b), sin nombre |
+| CA-17 | `xml.int.spec.ts:364` (adjunto, `nosniff`, `no-store`), `:515` (404 igual que inexistente en las cuatro rutas), `:560` (sin XML ni montos en logs ni `resultado`) · `detalle-privacidad.int.spec.ts:27` · `detalle.int.spec.ts:438` y `lupa-compra.spec.tsx:175` (`<script>` como texto) · `tests/aislamiento/compras-xml-lectura.spec.ts` y `hu40-api.int.spec.ts` · T24 puntos 16 y 17 | Cumplido |
+| CA-18 | `detalle.int.spec.ts:468` (500 ítems, p95 < 500 ms en 30 lecturas; con el archivo borrado del storage el detalle responde) | Cumplido |
+
+Casos reales: San Juan ISC (CA-4, CA-7), mixta 21.48 / 1.61 → 8.97 + 12.51 (CA-3, CA-6), redondeo USD (CA-5, CA-9), zapatilla (CA-5) e ICBPER (CA-5) cubiertos; boleta 291 no aplica.
+
+Pendientes ajenos a T25 (para el orquestador): `tasks.md` aún muestra `[ ]` en T18 a T23, que ya tienen sus commits; las observaciones (a), (d), (e) y (f) de T24 siguen sin tarea (avisos duplicados en `aria-live`, sin «Subir XML» en «Pendiente», obtención en `no_encontrado` tras subir). No se probó por pantalla CA-8 ni CA-18 (los cubren las suites).
+
+## T26 · [x] Revisión final (arquitecto · opus)
+- **Contexto (leer solo esto)**: `spec.md`, `plan.md`, la tabla de T25, `git diff main...spec/016-lupa-xml --stat` y los archivos que la tabla marque dudosos, `docs/03-arquitectura.md` §7.2.
+- **Hacer**: verificar cada CA con su evidencia, ratificar o rechazar los desvíos del plan (cuerpo crudo en vez de multipart, `trasConfirmar`), actualizar 03 §7.2 (el `GET` del detalle no encola; D-8) y dejar las notas para ESTADO (lupa de ventas, proveedor real, P-9 si sigue abierta).
+- **Hecho cuando**: lista de lo que falta (vacía o convertida en T26a/T26b) y desvíos ratificados en `plan.md`. Commit `docs(016): revisión final`.
+- **Resultado**: **aprobada, sin defectos bloqueantes** (no hacen falta T26a ni T26b). Revisión sobre `3d21a9f`. Se repasaron la tabla de T25, los informes de T18, T21 y T24, y el código dudoso: migraciones 0035 a 0038, `transformar.ts`, `desde-xml.service.ts`, `app.ts` (cuerpo crudo), `obtener-xml.ts`, `puertos.ts` y `ubl/leer.ts`. Se comprobaron al azar 15 de las citas `archivo:línea` de T25: todas apuntan al `describe` del CA que dicen. Se volvieron a correr `domain` `ubl/`, `evaluar-xml` y `obtencion` (241 pruebas) y la lupa del frontend (`lupa-compra`, `lupa-correcciones`, `subir-xml` y `agregar-desde-xml`: 63 pruebas), todas en verde. Las decisiones tomadas durante la implementación se registraron en `spec.md`: «Decisiones del usuario (2026-11-10)», (a) a (c), y «Decisiones técnicas del orquestador (2026-11-10)», (d) a (h). Los desvíos se ratificaron en `plan.md` («Desvíos ratificados») y 03 §7.2 quedó al día (D-8: el `GET` del detalle no encola).
+
+| CA | Dictamen |
+|---|---|
+| CA-1, CA-2 | Cumplido. Antes de parsear se aplican el tope de 1 MiB, el escaneo de `<!DOCTYPE`/`<!ENTITY`/NUL, la profundidad y los ítems (las autocerradas cuentan, H-016-1). El 413 llega antes del controlador. Sin rastro en storage ni BD. |
+| CA-3 a CA-5 | Cumplido con las cifras de los fixtures. Los montos van con `Money`; el lint de dinero cubre `ubl/`. Monedas fuera de PEN/USD → `xml_invalido` (h). |
+| CA-6, CA-7, CA-16 | Cumplido. Hay evaluación numerada sin versión nueva, y la bandera P-4 rige en backend, worker y descarga (H-016-13). Excepción: el autor sale como id corto (observación 2). |
+| CA-8 | Cumplido, y reforzado por (e): aceptar re-evalúa con el XML vigente y la bandera actual, y la llegada del XML re-evalúa todo el comprobante. |
+| CA-9 | Cumplido: D-6 sin conversión. La nota [014/016] queda cerrada. |
+| CA-10, CA-11 | Cumplido con `encolar_xml_obtener` (a). El worker no tiene `INSERT` en `job_registro` ni `UPDATE` en `compra` (0038). |
+| CA-12, CA-13 | Cumplido. Identidad D-3 con el receptor; el mock lo recibe (f). P-9. «Desde XML» con un XML real o subido → 409 `xml_existente` (e). |
+| CA-14, CA-17, CA-18 | Cumplido. El detalle no re-parsea; hay 404 uniforme; `attachment`, `nosniff` y `no-store`. `GET xml` valida el prefijo de la ruta (H-016-7). |
+| CA-15 | Cumplido con las decisiones del usuario (b) («Editar» abre la fila en la grilla) y (c) (Enter abre y Enter confirma). |
+
+Comprobaciones transversales:
+- **Capas**: `apps/frontend` solo importa `@contapp/shared` (65 imports). `apps/backend` no importa `@contapp/sunat` ni `crypto/descifrado`. `domain/ubl` no tiene IO: `TextDecoder` está prohibido, solo usa `fast-xml-parser`. `packages/storage` depende solo de `shared`.
+- **Dinero**: ningún monto pasa por `number` en los archivos nuevos. Los `number` que hay son conteos, índices o estados HTTP.
+- **`innerHTML`**: ninguno en el código de producción del diff (tampoco `dangerouslySetInnerHTML`). Los canarios `<script>` y `onerror` se ven como texto (T24, punto 17).
+- **RLS**: las tres tablas nuevas tienen `ENABLE` + `FORCE` y `tenant_isolation`. Solo inserción, salvo `documento_xml_obtencion` (`UPDATE` por columnas). Las funciones `SECURITY DEFINER` son de `contapp_migrator` (sin BYPASSRLS), tienen `search_path` fijo, `EXECUTE` solo a `contapp_worker` y toman el estudio de `app.tenant_id`.
+- **Secretos y XML fuera de los logs**: los únicos `Logger.warn` dicen «No se pudo borrar un archivo de XML sin fila en la BD», sin ruta. El `resultado` lleva solo conteos. Barrido de logs en T24 (punto 17) y prueba en `xml.int.spec.ts:560`.
+- **Migraciones 0035 a 0038**: idempotentes por el diario (`db:migrate` dos veces en T24). 0037 y 0038 además son repetibles sentencia a sentencia; 0035 y 0036 siguen la convención de drizzle de 0032 a 0034 (ver `plan.md`).
+
+Observaciones no bloqueantes (para ESTADO, con la spec que las recoge):
+1. [018] Los avisos salen dos veces en regiones `role="alert"`/`aria-live`: «Sugerencia aceptada.», «La sugerencia cambió…», «Otra persona cambió esta compra…» (T24 (a), como 015 T11 (f)).
+2. [017] «XML subido por» muestra el id corto del autor: `subidoPor` es solo un uuid en el DTO, como el autor del Historial de 015.
+3. [lupa de ventas] En «Pendiente» la lupa no ofrece «Subir XML» (T24 (d)). Agregarlo cuando se reutilice el modal.
+4. [real] `documento_xml_obtencion` sigue en `no_encontrado` tras subir el XML (T24 (e)). Hoy no tiene efecto visible: la lupa mira `documento_xml` y la planificación omite lo guardado. El proveedor real debe dejar la obtención coherente.
+5. [real] El texto de `transitorio` («se volverá a intentar») sigue visible después de agotar los reintentos de 008 (T24 (f)).
+6. [012b] Si 012b llega antes a `main`, 016 renumera **cuatro** migraciones (0035 a 0038) y las dos funciones de 0037 y 0038 conservan su nombre.
+7. [mantenimiento] El trigger `compra_version_worker_acotado` (0038) reconoce la compra creada en la misma transacción por `xmin = pg_current_xact_id()`. Si algún día el worker inserta compras dentro de un `SAVEPOINT`, falla cerrado (42501) y hay que ajustarlo.
+8. [pruebas] En local, `planes.spec.ts` falla con una BD sucia de corridas anteriores (estudios sin suscripción), y bajo `turbo` en paralelo agotan el tiempo `seed-arranque`, `seed-r2b.adv` y una de `diccionario`. Pasan solas y en BD limpia (T25).
+9. [despliegue] Hay que dejar `XML_SIMULADO_EN_REGLAS=0` en producción (el código ya lo toma así por defecto) y escribir el adaptador S3 de `StorageProvider`.
+
+Notas para ESTADO:
+- Notas que se cierran: [014/016] (D-6), [016] `ResumenXml` redondeado, [016] parser tolerante, [016] choque de `compra_hallazgo` (P-2) y [016] lupa y «Subir XML» deshabilitados. [011/013] queda ampliada a `ubl/`.
+- Notas que se abren:
+  - [lupa de ventas] Spec corta que reutiliza el modal (P-3).
+  - [real] `RealXmlProvider`: rutas de SOL «E…»/«F…», credencial y canal propios (P-7) y observaciones 4 y 5.
+  - [R2] PDF, «Recordar para este proveedor», R-ICB y R-HIS (P-8).
+  - Firma y CDR: sin fuente en R1.
+- P-9 está cerrada: no queda abierta.
+- La fila 016 de ESTADO dice nivel B. La spec es **A** (P-1).
+
+## T27 · [x] Cierre (devops · haiku)
+- **Contexto (leer solo esto)**: este `tasks.md`, `git status`.
+- **Hacer**: marcar las tareas, `Estado: hecha` en `spec.md` con la fecha y los CA en `[x]` según T25 y T26.
+- **Hecho cuando**: `git status` limpio salvo lo ajeno. Commit `docs(016): cierre`.
+- **Resultado**: hecha (commit `docs(016): cierre`): T24a, T25 y T27 en `[x]` con sus commits (`1152b76`, `3d21a9f`); `spec.md` en «hecha (2026-11-10)» con CA-1 a CA-18 y los casos reales en `[x]`. Después de T26 hubo `9c0123f` (`test(016): ramas de transformar.ts al aceptar con XML`): pruebas de ramas de `transformar.ts` al aceptar con XML. `storage` compilado; `lint` 10/10 y `typecheck` 17/17 OK, sin fallos ni advertencias.
+
+## Texto para ESTADO
+
+Para pegar en `docs/specs/ESTADO.md`. Lo aplica el orquestador; devops no toca ese archivo.
+
+- **Estado 016**: hecha (2026-11-10). Nivel de riesgo **A** (P-1), con la lupa del frontend en C. La fila 016 de ESTADO dice nivel B: corregir a A.
+- **Migraciones**: 016 usa 0035 a 0038. 012b parte de la 0039 (si 012b llega antes a `main`, 016 renumera sus cuatro migraciones).
+- **Observaciones no bloqueantes** (la spec destino va entre corchetes):
+  1. [018] Los avisos salen dos veces en regiones `role="alert"`/`aria-live`: «Sugerencia aceptada.», «La sugerencia cambió…», «Otra persona cambió esta compra…» (T24 (a), como 015 T11 (f)).
+  2. [017] «XML subido por» muestra el id corto del autor: `subidoPor` es solo un uuid en el DTO, como el autor del Historial de 015.
+  3. [lupa de ventas] En «Pendiente» la lupa no ofrece «Subir XML» (T24 (d)). Agregarlo cuando se reutilice el modal.
+  4. [real] `documento_xml_obtencion` sigue en `no_encontrado` tras subir el XML (T24 (e)). Hoy no tiene efecto visible: la lupa mira `documento_xml` y la planificación omite lo guardado. El proveedor real debe dejar la obtención coherente.
+  5. [real] El texto de `transitorio` («se volverá a intentar») sigue visible después de agotar los reintentos de 008 (T24 (f)).
+  6. [012b] Si 012b llega antes a `main`, 016 renumera **cuatro** migraciones (0035 a 0038) y las dos funciones de 0037 y 0038 conservan su nombre.
+  7. [mantenimiento] El trigger `compra_version_worker_acotado` (0038) reconoce la compra creada en la misma transacción por `xmin = pg_current_xact_id()`. Si algún día el worker inserta compras dentro de un `SAVEPOINT`, falla cerrado (42501) y hay que ajustarlo.
+  8. [pruebas] En local, `planes.spec.ts` falla con una BD sucia de corridas anteriores (estudios sin suscripción), y bajo `turbo` en paralelo agotan el tiempo `seed-arranque`, `seed-r2b.adv` y una de `diccionario`. Pasan solas y en BD limpia (T25).
+  9. [despliegue] Hay que dejar `XML_SIMULADO_EN_REGLAS=0` en producción (el código ya lo toma así por defecto) y escribir el adaptador S3 de `StorageProvider`.
+- **Notas que se cierran**: [014/016] (D-6), [016] `ResumenXml` redondeado, [016] parser tolerante, [016] choque de `compra_hallazgo` (P-2) y [016] lupa y «Subir XML» deshabilitados. [011/013] queda ampliada a `ubl/`. P-9 está cerrada.
+- **Notas que se abren**:
+  - [lupa de ventas] Spec corta que reutiliza el modal (P-3).
+  - [real] `RealXmlProvider`: rutas de SOL «E…»/«F…», credencial y canal propios (P-7), y observaciones 4 y 5.
+  - [R2] PDF, «Recordar para este proveedor», R-ICB y R-HIS (P-8).
+  - Firma y CDR: sin fuente en R1.

@@ -11,8 +11,9 @@
 //     accion, operacion_id null, usuario_id null, creada_en); unico (compra_id, n); solo SELECT/INSERT.
 //   compra_operacion(id, tenant_id, cliente_id, periodo, usuario_id, tipo, estado vigente|deshecha|caducada, referencia_id null,
 //     creada_en, deshecha_en null); SELECT/INSERT y UPDATE solo de (estado, deshecha_en).
-//   compra_hallazgo(id, tenant_id, compra_id, version_n, regla, sugerencia jsonb, lecturas jsonb, requiere_confirmacion,
-//     creada_en); unico (compra_id, version_n, regla); solo SELECT/INSERT.
+//   compra_hallazgo(id, tenant_id, compra_id, version_n, evaluacion_n, regla, sugerencia jsonb, lecturas jsonb,
+//     requiere_confirmacion, creada_en); unico (compra_id, version_n, evaluacion_n, regla) (016 P-2); solo SELECT/INSERT.
+//     Cada hallazgo cuelga de una `compra_evaluacion` (compra, version_n, n): las siembras la crean antes (n = 1).
 //   compra_periodo(tenant_id, cliente_id, periodo, estado abierto|revisado|generado, marcado_por null, marcado_en null);
 //     PK (tenant_id, cliente_id, periodo); SELECT/INSERT y UPDATE de (estado, marcado_por, marcado_en); sin DELETE.
 //   Las cinco: RLS ENABLE + FORCE con tenant_isolation, dueno contapp_migrator, sin DELETE ni TRUNCATE para los roles de la app.
@@ -205,6 +206,7 @@ describe("0032 y 0033 · columnas y tipos (D-1)", () => {
       "tenant_id",
       "compra_id",
       "version_n",
+      "evaluacion_n",
       "regla",
       "sugerencia",
       "lecturas",
@@ -342,7 +344,11 @@ describe("0032 y 0033 · aislamiento por estudio (CA-13)", () => {
   it("el otro estudio y la consulta sin contexto ven 0 filas de las cinco tablas; el propio estudio ve las suyas", async () => {
     const c = await ec.compra(X, cx, { propuestaId: propX });
     await admin.query(
-      "insert into compra_hallazgo (tenant_id, compra_id, version_n, regla, sugerencia, lecturas, requiere_confirmacion) values ($1, $2, 1, 'R-X', '{}', '{}', false)",
+      "insert into compra_evaluacion (tenant_id, compra_id, version_n, n) values ($1, $2, 1, 1) on conflict do nothing",
+      [X, c.id],
+    );
+    await admin.query(
+      "insert into compra_hallazgo (tenant_id, compra_id, version_n, evaluacion_n, regla, sugerencia, lecturas, requiere_confirmacion) values ($1, $2, 1, 1, 'R-X', '{}', '{}', false)",
       [X, c.id],
     );
     await ec.operacion(X, cx, { usuarioId: ux });
@@ -1281,14 +1287,26 @@ describe("0032 · version 1 inmutable y tablas de solo insercion (RNF-052, D-1, 
     }
   });
 
-  it("compra_hallazgo: unico por (compra_id, version_n, regla); una regla distinta o otra version entran", async () => {
+  it("compra_hallazgo: unico por (compra_id, version_n, evaluacion_n, regla); una regla distinta, otra version o otra evaluacion entran", async () => {
     const c = await ec.compra(X, cx, { propuestaId: propX });
+    // 016 P-2: el hallazgo cuelga de su evaluacion; la version 2 y las evaluaciones (v1: 1 y 2, v2: 1) se siembran antes.
+    await ec.version(X, c.id, 2);
+    for (const [vn, n] of [
+      [1, 1],
+      [1, 2],
+      [2, 1],
+    ] as const)
+      await admin.query(
+        "insert into compra_evaluacion (tenant_id, compra_id, version_n, n) values ($1, $2, $3, $4)",
+        [X, c.id, vn, n],
+      );
     const INS =
-      "insert into compra_hallazgo (compra_id, version_n, regla, sugerencia, lecturas, requiere_confirmacion) values ($1, $2, $3, $4::jsonb, $5::jsonb, $6)";
+      "insert into compra_hallazgo (compra_id, version_n, evaluacion_n, regla, sugerencia, lecturas, requiere_confirmacion) values ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7)";
     const w = dbs.contapp_worker;
-    const v = (n: number, regla: string) => [
+    const v = (n: number, regla: string, evaluacionN = 1) => [
       c.id,
       n,
+      evaluacionN,
       regla,
       JSON.stringify({ destino: "DNG" }),
       JSON.stringify({ biDg: "1000.00" }),
@@ -1310,6 +1328,16 @@ describe("0032 · version 1 inmutable y tablas de solo insercion (RNF-052, D-1, 
       ok: true,
       rowCount: 1,
     });
+    // La misma regla en la evaluacion siguiente de la misma version entra (la clave incluye evaluacion_n); repetida, no.
+    expect(
+      await intentar(w, { tenantId: X }, INS, v(1, "R-ISC", 2)),
+    ).toEqual({ ok: true, rowCount: 1 });
+    await w.withTenant({ tenantId: X }, (tx) =>
+      tx.query(INS, v(1, "R-ISC", 2)),
+    );
+    expect(
+      codigo(await intentar(w, { tenantId: X }, INS, v(1, "R-ISC", 2))),
+    ).toBe("23505");
   });
 });
 

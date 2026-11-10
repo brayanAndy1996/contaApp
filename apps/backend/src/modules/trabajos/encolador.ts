@@ -62,6 +62,24 @@ export class Encolador {
   }
 
   /**
+   * Como `encolar`, pero ejecuta `antes(tx)` en la MISMA transacción, antes de encolar: lo que `antes` valide o escriba (el
+   * estado `pendiente` del XML de 016, por ejemplo) y el trabajo se confirman juntos o ninguno. Si `antes` lanza, o `encolar`
+   * rechaza (cola llena, parámetros), no queda nada escrito. La publicación sigue siendo posterior al commit.
+   */
+  async encolarCon(
+    ctx: ContextoEncolar,
+    e: EntradaEncolar,
+    antes: (tx: Tx) => Promise<void>,
+  ): Promise<ResultadoEncolar> {
+    const r = await this.db.withTenant(ctx, async (tx) => {
+      await antes(tx);
+      return encolar(tx, e);
+    });
+    if (r.nuevo) await this.publicar(ctx.tenantId, r.trabajo, e);
+    return r;
+  }
+
+  /**
    * Encola muchos trabajos del mismo tipo (misma cola), de `TAMANO_LOTE` en `TAMANO_LOTE`, cada lote en su propia
    * `withTenant`, y publica la pista y el evento de cada lote tras su commit. Nunca lanza: un lote que falla (cola llena,
    * cliente inexistente, BD) deja sus trabajos como omitidos y se sigue con el resto sin propagar nada.

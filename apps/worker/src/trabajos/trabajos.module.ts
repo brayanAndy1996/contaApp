@@ -4,6 +4,7 @@
 import {
   Inject,
   Injectable,
+  Logger,
   Module,
   Optional,
   type OnApplicationBootstrap,
@@ -15,6 +16,7 @@ import {
   crearKeyUnwrapperAnterior,
 } from "@contapp/crypto/descifrado";
 import { createDb, type ContappDb } from "@contapp/db";
+import { crearStorage } from "@contapp/storage";
 import {
   ADAPTADORES,
   crearAdaptadores,
@@ -84,6 +86,9 @@ export class TrabajosService
       sireApi: adaptadores.sireApiClient,
       consultaRuc: adaptadores.consultaRuc,
       solAuth: adaptadores.solAuth,
+      xmlProvider: adaptadores.xmlProvider,
+      storage: crearStorage(env, new Logger("Storage")),
+      xmlSimuladoEnReglas: env.XML_SIMULADO_EN_REGLAS === "1",
       kek: llavesDesdeEntorno(env),
     });
   }

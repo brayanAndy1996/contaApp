@@ -2,8 +2,9 @@
 // `sire.propuesta.descargar` es común: baja la propuesta, compara con lo guardado y deja el encabezado y las diferencias;
 // cada libro solo aporta lo suyo (validar sus filas, leer lo existente e insertar las nuevas). 014 agrega el de compras
 // en `index.ts` sin tocar nada común.
-import type { FilaComplementable, Tx } from "@contapp/db";
+import type { ContappDb, FilaComplementable, Tx } from "@contapp/db";
 import type { ExistenteComplemento } from "@contapp/domain";
+import type { RedisEncolado } from "../encolar-xml.js";
 
 export type LibroSire = "compras" | "ventas";
 
@@ -14,6 +15,18 @@ export interface ContextoPersistidor {
   clienteId: string;
   /** AAAAMM. */
   periodo: string;
+}
+
+/**
+ * Contexto de `trasConfirmar` (spec 016): el del periodo más lo que hace falta para encolar trabajos nuevos después del commit
+ * de la descarga (el estudio, el usuario que la pidió, la BD y, si el worker la tiene, la conexión a Redis para publicar).
+ */
+export interface ContextoTras extends ContextoPersistidor {
+  tenantId: string;
+  usuarioId: string;
+  db: Pick<ContappDb, "withTenant">;
+  redis?: RedisEncolado;
+  prefijo?: string;
 }
 
 /**
@@ -45,6 +58,11 @@ export interface PersistidorLibro<D = unknown> {
     propuestaId: string,
     nuevas: readonly FilaPreparada<D>[],
   ): Promise<void>;
+  /**
+   * Opcional (016). La descarga lo llama UNA vez, DESPUÉS del commit, con la propuesta creada. Su fallo no hace fallar la
+   * descarga ni cambia su `resultado`: el procesador solo registra un código. Compras encola ahí los lotes de XML.
+   */
+  trasConfirmar?(ctx: ContextoTras, propuestaId: string): Promise<void>;
 }
 
 /** Un persistidor por libro; el libro sin el suyo da `libro_no_soportado`. */

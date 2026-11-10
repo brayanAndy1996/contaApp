@@ -1,7 +1,7 @@
 // Spec 014 (T16): el cálculo de la versión nueva de cada acción, sin BD. La integración con HTTP y BD la cubren los
 // `*.int.spec.ts` de este módulo; aquí los rechazos y las ramas que solo se alcanzan con una fila armada a mano.
 import { describe, expect, it, vi } from "vitest";
-import type { CompraLeida, HallazgoGuardadoCompra } from "@contapp/db";
+import type { CompraConXml, HallazgoGuardadoCompra } from "@contapp/db";
 import {
   montosACadenas,
   montosDeDominio,
@@ -14,7 +14,7 @@ import {
 
 const CERO = { biDg: "0.00", igvDg: "0.00", biDgng: "0.00", igvDgng: "0.00", biDng: "0.00", igvDng: "0.00", noGravado: "0.00", isc: "0.00", icbper: "0.00", otrosTributos: "0.00", total: "0.00" };
 const ID = "0190a000-0000-7000-8000-0000000000a1";
-const compra = (o: Partial<CompraLeida> = {}): CompraLeida => ({
+const compra = (o: Partial<CompraConXml> = {}): CompraConXml => ({
   id: ID,
   clienteId: "c",
   periodo: "202610",
@@ -35,6 +35,7 @@ const compra = (o: Partial<CompraLeida> = {}): CompraLeida => ({
   motivo: null,
   clasificada: false,
   montos: { ...CERO, biDg: "100.00", igvDg: "18.00", total: "118.00" },
+  xml: null,
   ...o,
 });
 

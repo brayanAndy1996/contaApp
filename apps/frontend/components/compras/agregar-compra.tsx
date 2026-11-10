@@ -13,14 +13,22 @@ import {
   agregarCompra,
   type ContextoCompras,
 } from "../../lib/compras";
+import {
+  MENSAJES_LUPA as L,
+  mensajeDeErrorXml,
+  vistaPreviaDesdeXml,
+  type VistaPreviaDesdeXml,
+} from "../../lib/lupa-compras";
 import { conMiles, sumar, validarMonto } from "../../lib/montos-compras";
 import type { AlAvisar } from "./accion-compras";
+import { AgregarDesdeXml } from "./agregar-desde-xml";
+import { SelectorXml } from "./subir-xml";
 
 // Diálogo «Agregar compra» (spec 015, D-11, P-7, HU-18, CA-11). Comprobante, proveedor, fecha, moneda, tipo de
 // cambio (obligatorio solo en USD) y las 10 columnas de monto con el total en vivo (`sumar`, solo informativo: el
 // servidor lo recalcula). Todo se valida con `agregarCompraSchema` de shared antes de enviar. 409 `duplicado` avisa
-// «Ya existe en la propuesta» con un enlace que ubica la fila existente (también si está excluida). «Subir XML» queda
-// deshabilitado hasta el detalle del comprobante (016). Los montos son cadenas; no se convierten a número.
+// «Ya existe en la propuesta» con un enlace que ubica la fila existente (también si está excluida). «Subir XML» (016, T16)
+// lee el XML con la vista previa del servidor y pasa a `AgregarDesdeXml` (solo destino; en USD, tipo de cambio). Los montos son cadenas; no se convierten a número.
 
 type Campo =
   | "tipo"
@@ -96,6 +104,9 @@ export function AgregarCompra({
   const [error, setError] = useState<string | null>(null);
   const [duplicada, setDuplicada] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  const [desdeXml, setDesdeXml] = useState<{ archivo: File; vista: VistaPreviaDesdeXml } | null>(null);
+  const [leyendo, setLeyendo] = useState(false);
+  const [errorXml, setErrorXml] = useState<string | null>(null);
   const primero = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -123,6 +134,35 @@ export function AgregarCompra({
         </button>
       </div>
     );
+  }
+
+  if (desdeXml !== null) {
+    return (
+      <AgregarDesdeXml
+        contexto={contexto}
+        archivo={desdeXml.archivo}
+        vista={desdeXml.vista}
+        alAgregar={alAgregar}
+        alQuitar={() => setDesdeXml(null)}
+        alCancelar={alCancelar}
+        alUbicarExistente={alUbicarExistente}
+        alAvisar={alAvisar}
+      />
+    );
+  }
+
+  async function leerXml(archivo: File): Promise<void> {
+    if (leyendo) return;
+    setErrorXml(null);
+    setLeyendo(true);
+    try {
+      const r = await vistaPreviaDesdeXml(contexto.clienteId, contexto.periodo, archivo);
+      if (r.ok) setDesdeXml({ archivo, vista: r.datos });
+      else if (r.status !== 401) setErrorXml(mensajeDeErrorXml(r, "cliente"));
+    } catch {
+      setErrorXml(MENSAJES.errorGeneral);
+    }
+    setLeyendo(false);
   }
 
   const poner = (campo: Campo | ColumnaMontoCompra) => (valor: string) => {
@@ -236,19 +276,23 @@ export function AgregarCompra({
     >
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-base font-medium">{M.formularioAgregar}</h3>
-        <button
-          type="button"
-          disabled
-          title={M.subirXmlDeshabilitado}
-          aria-describedby="agregar-compra-xml"
-          className="rounded border px-3 py-1 text-sm opacity-50"
-        >
-          {M.subirXml}
-        </button>
+        <SelectorXml
+          etiqueta={M.subirXml}
+          ocupado={leyendo || ocupado}
+          alElegir={(a) => void leerXml(a)}
+          alRechazar={() => setErrorXml(null)}
+        />
       </div>
-      <p id="agregar-compra-xml" className="text-xs text-gray-600">
-        {M.subirXmlDeshabilitado}
-      </p>
+      {leyendo && (
+        <p role="status" className="text-sm">
+          {L.subir.leyendo}
+        </p>
+      )}
+      {errorXml && (
+        <p role="alert" className="text-sm text-red-600">
+          {errorXml}
+        </p>
+      )}
 
       <div className="flex flex-wrap gap-3">
         {texto("tipo", { ancho: "w-20", modo: "numeric", ref: true })}

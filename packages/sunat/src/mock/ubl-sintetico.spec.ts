@@ -56,4 +56,17 @@ describe("generarUblSintetico", () => {
     expect(f).toThrow("tipoCambio");
     expect(f).not.toThrow("3,30");
   });
+  it("con rucReceptor el receptor es ese RUC (tipo 6); sin él queda sin identificar", () => {
+    const con = generarUblSintetico(COMP, { ...REF, rucReceptor: "20700000002" });
+    expect(con).toContain('<cbc:AdditionalAccountID>6</cbc:AdditionalAccountID>');
+    expect(con).toMatch(/<cac:AccountingCustomerParty>[\s\S]*?<cbc:ID schemeID="6">20700000002<\/cbc:ID>/);
+    const sin = generarUblSintetico(COMP, REF);
+    expect(sin).toMatch(/<cac:AccountingCustomerParty>[\s\S]*?<cbc:ID schemeID="0">-<\/cbc:ID>/);
+  });
+
+  it("un rucReceptor mal formado lanza error sin eco del valor", () => {
+    const f = (): string => generarUblSintetico(COMP, { ...REF, rucReceptor: "2070<x>" });
+    expect(f).toThrow("rucReceptor");
+    expect(f).not.toThrow("2070");
+  });
 });

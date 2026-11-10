@@ -1,10 +1,11 @@
 import "reflect-metadata";
-import type { INestApplication } from "@nestjs/common";
+import { Logger, type INestApplication } from "@nestjs/common";
 import { NestFactory, Reflector } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { json, raw } from "express";
 import type { ContappDb } from "@contapp/db";
 import { PREFIJO_POR_DEFECTO } from "@contapp/queue";
+import { crearStorage, type StorageProvider } from "@contapp/storage";
 import { AppModule } from "./app.module.js";
 import { FiltroErrores } from "./comun/filtro-errores.js";
 import { leerEntorno, type EnvCrudo } from "./config/entorno.js";
@@ -44,6 +45,8 @@ export interface OpcionesApp {
    * con Redis caído la app arranca, las lecturas responden y encolar no espera.
    */
   redis?: { url?: string; prefijo?: string };
+  /** Storage de XML (016): por defecto `crearStorage(env)` (`STORAGE=mock|local`, `STORAGE_DIR`). */
+  storage?: StorageProvider;
 }
 
 const REDIS_POR_DEFECTO = "redis://localhost:6379";
@@ -83,6 +86,19 @@ const RUTAS_IMPORTACION_VENTAS = [
   "/clientes/:clienteId/periodos/:periodo/ventas/importar/confirmar",
 ];
 
+/**
+ * XML de comprobantes (016, D-1, P-5): subir el XML de una compra y agregar desde XML reciben el archivo crudo de hasta 1 MiB
+ * exactos. Con un byte más, el analizador responde 413 por `Content-Length` (o al pasar el límite, si el cuerpo viene
+ * fragmentado) antes de llegar al controlador, sin guardar nada. Se lee como bytes con CUALQUIER `Content-Type` (el plan nombra
+ * `application/xml`, `text/xml` y `application/octet-stream`): el que decide qué es un XML válido es el parser, así un cuerpo JSON
+ * o de otro tipo es `xml_invalido` (422) y no pasa por el analizador JSON global (16 kB) para dar un 413 engañoso.
+ */
+export const LIMITE_ARCHIVO_XML = "1mb";
+const RUTAS_XML = [
+  "/clientes/:clienteId/periodos/:periodo/compras/:compraId/xml",
+  "/clientes/:clienteId/periodos/:periodo/compras/desde-xml",
+];
+
 /** `TRUST_PROXY`: un entero es el número de saltos de confianza; si no, la lista o alias de Express. */
 export function confianzaProxy(valor: string): string | number {
   return /^\d{1,3}$/.test(valor) ? Number(valor) : valor;
@@ -113,6 +129,7 @@ export async function crearApp(o: OpcionesApp = {}): Promise<INestApplication> {
         url: o.redis?.url ?? env.REDIS_URL ?? REDIS_POR_DEFECTO,
         prefijo: o.redis?.prefijo ?? PREFIJO_POR_DEFECTO,
       },
+      storage: o.storage ?? crearStorage(env, new Logger("Storage")),
     }),
     // El analizador de cuerpo se registra a mano: solo JSON y con límite propio.
     { bodyParser: false },
@@ -130,6 +147,7 @@ export async function crearApp(o: OpcionesApp = {}): Promise<INestApplication> {
   app.use(RUTAS_MASIVAS, json({ limit: LIMITE_JSON_MASIVAS }));
   app.use(RUTAS_IMPORTACION, raw({ type: "application/octet-stream", limit: LIMITE_ARCHIVO_IMPORTACION }));
   app.use(RUTAS_IMPORTACION_VENTAS, raw({ type: "application/octet-stream", limit: LIMITE_ARCHIVO_VENTAS }));
+  app.use(RUTAS_XML, raw({ type: (req) => req.method === "POST", limit: LIMITE_ARCHIVO_XML }));
   app.useBodyParser("json", { limit: LIMITE_JSON });
 
   const reflector = app.get(Reflector);

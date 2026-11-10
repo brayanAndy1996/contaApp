@@ -93,6 +93,8 @@ describe("T13b · ronda adversarial 2b", () => {
       "resumirVentas", "validarFilaVenta",
       // 013 (T22b, D26): el cuadre exacto de una venta, público para calcularlo al leer.
       "cuadraVenta",
+      // 016 (T2, T8): parser UBL, resumen para las reglas, identidad y plan de obtención de XML (ubl/, compras/obtencion).
+      "UblError", "aResumenXml", "compararIdentidad", "leerUbl", "planificarObtencionXml",
     ].sort();
     expect(Object.keys(Publico).sort()).toEqual(esperados);
 

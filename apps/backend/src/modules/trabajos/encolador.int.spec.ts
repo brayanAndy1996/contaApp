@@ -16,6 +16,7 @@
 //    lecturas de BD responden y `Encolador.encolar` termina en menos de 5 s con el trabajo `en_cola` (los errores de
 //    Redis no se propagan; el reconciliador repone al volver).
 import { randomUUID } from "node:crypto";
+import { fijarObtencion } from "@contapp/db";
 import {
   ClienteDesconocidoError,
   ParametrosInvalidosError,
@@ -182,6 +183,84 @@ describe("CA-1 · encolar crea la fila y publica después del commit", () => {
     } finally {
       obs.cerrar();
     }
+  });
+});
+
+describe("T17a · encolarCon: lo que escribe antes(tx) y el trabajo se confirman juntos o ninguno", () => {
+  const identidad = () => ({
+    rucEmisor: "20700000011",
+    tipo: "01",
+    serie: "F001",
+    numero: String(900_000 + (n += 1)),
+  });
+  const obtenciones = async (): Promise<number> =>
+    (
+      await b.sql(
+        "select count(*)::int as n from documento_xml_obtencion where cliente_id = $1",
+        [cliente],
+      )
+    )[0].n;
+  const pendientesRedis = () =>
+    b.redis.zcard(b.claves.pend("sire", E.tenantId));
+
+  it("camino feliz: el estado de obtención y el trabajo quedan, y Redis recibe la pista tras el commit", async () => {
+    const id = identidad();
+    const e = entrada();
+    const antesObt = await obtenciones();
+    const { trabajo, nuevo } = await encolador().encolarCon(ctx(), e, (tx) =>
+      fijarObtencion(tx, cliente, id, "pendiente"),
+    );
+    expect(nuevo).toBe(true);
+    expect(await obtenciones()).toBe(antesObt + 1);
+    expect((await b.fila(trabajo.id)).estado).toBe("en_cola");
+    expect(await enRedis(trabajo.id)).not.toBeNull();
+  });
+
+  it("si antes lanza después de escribir: no queda el estado, ni fila de trabajo, ni nada en Redis", async () => {
+    const id = identidad();
+    const antesObt = await obtenciones();
+    const antesFilas = await filas();
+    const zset = await pendientesRedis();
+    const fallo = new Error("el comprobante no admite XML");
+    await expect(
+      encolador().encolarCon(ctx(), entrada(), async (tx) => {
+        await fijarObtencion(tx, cliente, id, "pendiente");
+        throw fallo;
+      }),
+    ).rejects.toBe(fallo);
+    expect(await obtenciones()).toBe(antesObt);
+    expect(await filas()).toBe(antesFilas);
+    expect(await pendientesRedis()).toBe(zset);
+  });
+
+  it("si encolar rechaza (parámetros inválidos) tras escribir: el estado que dejó antes también se revierte", async () => {
+    const id = identidad();
+    const antesObt = await obtenciones();
+    const antesFilas = await filas();
+    const zset = await pendientesRedis();
+    await expect(
+      encolador().encolarCon(
+        ctx(),
+        entrada({ parametros: { n: "no-es-numero" } }),
+        (tx) => fijarObtencion(tx, cliente, id, "pendiente"),
+      ),
+    ).rejects.toBeInstanceOf(ParametrosInvalidosError);
+    expect(await obtenciones()).toBe(antesObt);
+    expect(await filas()).toBe(antesFilas);
+    expect(await pendientesRedis()).toBe(zset);
+  });
+
+  it("si encolar rechaza (cliente de otro estudio) tras escribir: tampoco queda nada", async () => {
+    const id = identidad();
+    const antesObt = await obtenciones();
+    await expect(
+      encolador().encolarCon(
+        ctx(),
+        entrada({ clienteId: clienteAjeno }),
+        (tx) => fijarObtencion(tx, cliente, id, "pendiente"),
+      ),
+    ).rejects.toBeInstanceOf(ClienteDesconocidoError);
+    expect(await obtenciones()).toBe(antesObt);
   });
 });
 

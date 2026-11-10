@@ -242,8 +242,11 @@ const valoresInsertar = (e: NuevoTrabajo): unknown[] => [
 // Candado del estudio (del contexto) y la cola, hasta el fin de la transacción: serializa el CONTEO de pendientes de
 // quienes encolan a la vez. Se toma DESPUÉS del INSERT (como en todos los caminos): ningún encolado espera una fila de
 // otro mientras tiene el candado, así que no hay ciclos de espera entre encolados de un trabajo por transacción.
+// H-016-9: la clave sale del estudio NORMALIZADO (uuid canónico en minúsculas), como `encolar_xml_obtener` (0038): el mismo
+// estudio escrito en mayúsculas en app.tenant_id toma el mismo candado.
 const SQL_BLOQUEAR_PENDIENTES = `select pg_advisory_xact_lock(hashtextextended(
-  'job_registro.pendientes:' || coalesce(current_setting('app.tenant_id', true), '') || ':' || $1::text, 0))`;
+  'job_registro.pendientes:' || coalesce(nullif(current_setting('app.tenant_id', true), '')::uuid::text, '') || ':' || $1::text,
+  0))`;
 
 /**
  * INSERT con tope atómico de pendientes (H-008-2a-3, D8): savepoint, INSERT, candado del estudio y la cola, y conteo
@@ -295,6 +298,42 @@ export async function trabajoVivoPorClave(
 ): Promise<TrabajoVistaDb | null> {
   const r = await consultar(tx, SQL_VIVO_POR_CLAVE, [claveDedupe]);
   return r.rows.length === 0 ? null : aVista(r.rows[0]!);
+}
+
+// Spec 016 (T12b): el worker no tiene INSERT en job_registro (0018); encola `xml.obtener` con la función acotada de 0037.
+const SQL_ENCOLAR_XML = `select id, nuevo from public.encolar_xml_obtener($1::uuid, $2::text, $3::uuid[], $4::uuid)`;
+const SQL_VISTA_POR_ID = `select ${COLUMNAS_VISTA} from job_registro where id = $1`;
+
+export interface LoteXml {
+  clienteId: string;
+  /** AAAAMM. */
+  periodo: string;
+  /** 1..100 ids de compra, ascendentes y únicos (forma canónica del catálogo). */
+  compraIds: readonly string[];
+  creadoPor: string | null;
+}
+
+/**
+ * Encola un lote `xml.obtener` (programado) en el estudio del contexto con `public.encolar_xml_obtener` (rol contapp_worker).
+ * La función decide tipo, cola, canal, prioridad, RUC, max_intentos, clave de dedupe y tope; aquí solo se relee la vista del
+ * trabajo creado o del vivo con la misma clave (`nuevo` = false). Errores como TrabajosRepoError con su SQLSTATE: 22023
+ * lote inválido, 42501 sin estudio o sin EXECUTE, 23503 cliente o creador ajeno, 53400 cola llena.
+ */
+export async function encolarLoteXml(
+  tx: TxConsulta,
+  e: LoteXml,
+): Promise<{ trabajo: TrabajoVistaDb; nuevo: boolean }> {
+  const r = await consultar(tx, SQL_ENCOLAR_XML, [
+    e.clienteId,
+    e.periodo,
+    [...e.compraIds],
+    e.creadoPor,
+  ]);
+  const f = r.rows[0];
+  if (f === undefined) throw new TrabajosRepoError("desconocido");
+  const v = await consultar(tx, SQL_VISTA_POR_ID, [f.id]);
+  if (v.rows.length === 0) throw new TrabajosRepoError("desconocido");
+  return { trabajo: aVista(v.rows[0]!), nuevo: f.nuevo === true };
 }
 
 const SQL_CONTAR_PENDIENTES = `select count(*) as n from job_registro where cola = $1 and estado = 'en_cola'`;

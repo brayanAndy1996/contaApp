@@ -24,6 +24,7 @@ import {
   restaurarCompraSchema,
   type AccionCompraRespuesta,
   type CalcularRespuesta,
+  type AgregarCompra,
   type CuadreCompra,
 } from "@contapp/shared";
 import { AccesoError } from "../acceso/errores.js";
@@ -162,6 +163,7 @@ export class AccionesComprasService {
         transformarSugerencia({
           cargarHallazgos: () => leerHallazgosVigentes(tx, [id.toLowerCase()]),
           conocidos: entorno.conocidos,
+          evaluar: entorno.evaluar,
           enMasa: false,
           regla,
           confirmar: confirmar === true,
@@ -213,49 +215,12 @@ export class AccionesComprasService {
     const v = agregarCompraSchema.safeParse(cuerpo);
     if (!v.success) throw new AccesoError("solicitud_invalida");
     const c = v.data;
-    let montos: MontosCompra;
-    try {
-      const vacia = MontosComprobante.desde(c.moneda, { total: "0.00" });
-      montos = montosACadenas(aplicarEdicion(vacia, c.montos as CambiosMontos).montos);
-    } catch (e) {
-      throw aSolicitudInvalida(e);
-    }
-    const docNumero = c.proveedor.numero.toUpperCase();
+    const montos = montosDeAgregada(c);
     const ctx = contextoDe(sesion);
     return this.db.withTenant(ctx, async (tx) => {
       await exigirEscritura(tx, alcance, permisos, clienteId, periodo, { crear: true, archivado: true });
       const entorno = await entornoDeReglas(tx, clienteId, periodo);
-      let id: string;
-      try {
-        ({ id } = await agregarCompra(
-          tx,
-          {
-            clienteId,
-            periodo,
-            usuarioId: ctx.userId,
-            accion: "agregada",
-            identidad: {
-              clave: claveComprobante(
-                { tipo: c.tipo, serie: c.serie, numero: c.numero },
-                { tipo: c.proveedor.tipo, numero: docNumero },
-              ),
-              tipoDoc: c.tipo,
-              serie: c.serie,
-              numero: c.numero,
-              docTipo: c.proveedor.tipo,
-              docNumero,
-              razonSocial: c.proveedor.razonSocial,
-              fecha: c.fecha,
-              moneda: c.moneda,
-              tipoCambio: c.tipoCambio ?? null,
-            },
-            montos,
-          },
-          { evaluar: entorno.evaluar },
-        ));
-      } catch (e) {
-        throw aErrorHttp(e);
-      }
+      const id = await altaCompra(tx, ctx.userId, clienteId, periodo, c, montos, entorno);
       return respuestaDe(tx, clienteId, periodo, id);
     });
   }
@@ -344,8 +309,65 @@ export class AccionesComprasService {
   }
 }
 
+/** Las columnas de la compra agregada: el cuerpo ya validado aplicado sobre una fila en cero. Un monto que el dominio no acepta es 400. */
+export function montosDeAgregada(c: AgregarCompra): MontosCompra {
+  try {
+    const vacia = MontosComprobante.desde(c.moneda, { total: "0.00" });
+    return montosACadenas(aplicarEdicion(vacia, c.montos as CambiosMontos).montos);
+  } catch (e) {
+    throw aSolicitudInvalida(e);
+  }
+}
+
+/**
+ * Alta de la compra `agregada` en versión 1 dentro de la transacción de quien llama (D-7; también «agregar desde XML», 016).
+ * Devuelve el id; el comprobante repetido es 409 `duplicado` con el id de la existente.
+ */
+export async function altaCompra(
+  tx: Tx,
+  usuarioId: string,
+  clienteId: string,
+  periodo: string,
+  c: AgregarCompra,
+  montos: MontosCompra,
+  entorno: EntornoReglas,
+): Promise<string> {
+  const docNumero = c.proveedor.numero.toUpperCase();
+  try {
+    const { id } = await agregarCompra(
+      tx,
+      {
+        clienteId,
+        periodo,
+        usuarioId,
+        accion: "agregada",
+        identidad: {
+          clave: claveComprobante(
+            { tipo: c.tipo, serie: c.serie, numero: c.numero },
+            { tipo: c.proveedor.tipo, numero: docNumero },
+          ),
+          tipoDoc: c.tipo,
+          serie: c.serie,
+          numero: c.numero,
+          docTipo: c.proveedor.tipo,
+          docNumero,
+          razonSocial: c.proveedor.razonSocial,
+          fecha: c.fecha,
+          moneda: c.moneda,
+          tipoCambio: c.tipoCambio ?? null,
+        },
+        montos,
+      },
+      { evaluar: entorno.evaluar },
+    );
+    return id;
+  } catch (e) {
+    throw aErrorHttp(e);
+  }
+}
+
 /** La fila tal como quedó (versión vigente, hallazgos re-evaluados) y su cuadre. */
-async function respuestaDe(tx: Tx, clienteId: string, periodo: string, compraId: string): Promise<AccionCompraRespuesta> {
+export async function respuestaDe(tx: Tx, clienteId: string, periodo: string, compraId: string): Promise<AccionCompraRespuesta> {
   const d = exigir(await leerDetalleCompra(tx, clienteId, periodo, compraId));
   return { fila: aFilaVista(d.compra, d.proveedorNuevo, d.hallazgos), cuadre: cuadreDe(d.compra) };
 }

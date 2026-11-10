@@ -13,6 +13,7 @@ export { ErrorPropuesta } from "./errores.js";
 export type { DetalleErrorPropuesta } from "./errores.js";
 export type {
   ContextoPersistidor,
+  ContextoTras,
   FilaPreparada,
   LibroSire,
   PersistidorLibro,

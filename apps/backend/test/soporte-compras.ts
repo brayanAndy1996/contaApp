@@ -10,7 +10,8 @@
 //    razon_social, fecha, moneda, tipo_cambio, origen, version_vigente, descartada_*)`.
 //  - `compra_version(tenant_id, compra_id, n, bi_dg, igv_dg, bi_dgng, igv_dgng, bi_dng, igv_dng, no_gravado, isc, icbper,
 //    otros_tributos, total, excluida, motivo, clasificada, accion, operacion_id, usuario_id, creada_en)`.
-//  - `compra_hallazgo(tenant_id, compra_id, version_n, regla, sugerencia jsonb, lecturas jsonb, requiere_confirmacion)`.
+//  - `compra_evaluacion(tenant_id, compra_id, version_n, n)` (016 P-2: se siembra la n = 1 antes de cada hallazgo).
+//  - `compra_hallazgo(tenant_id, compra_id, version_n, evaluacion_n, regla, sugerencia jsonb, lecturas jsonb, requiere_confirmacion)`.
 //  - `compra_operacion(tenant_id, cliente_id, periodo, usuario_id, tipo, estado, referencia_id, creada_en, deshecha_en)`.
 //  - `compra_periodo(tenant_id, cliente_id, periodo, estado, marcado_por, marcado_en)`.
 //  - `accion` de la versión 1: `original` (SIRE) o `agregada` (a mano), como en `ACCIONES_VERSION` de `@contapp/shared`.
@@ -376,8 +377,12 @@ const SQL_VERSION = `insert into compra_version (tenant_id, compra_id, n, bi_dg,
     no_gravado, isc, icbper, otros_tributos, total, excluida, motivo, clasificada, accion, usuario_id)
   values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`;
 
-const SQL_HALLAZGO = `insert into compra_hallazgo (tenant_id, compra_id, version_n, regla, sugerencia, lecturas, requiere_confirmacion)
-  values ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7)`;
+// 016 P-2: el hallazgo cuelga de una evaluación numerada (`compra_evaluacion`); las siembras usan la evaluación n = 1.
+const SQL_EVALUACION = `insert into compra_evaluacion (tenant_id, compra_id, version_n, n)
+  values ($1, $2, $3, 1) on conflict do nothing`;
+
+const SQL_HALLAZGO = `insert into compra_hallazgo (tenant_id, compra_id, version_n, evaluacion_n, regla, sugerencia, lecturas, requiere_confirmacion)
+  values ($1, $2, $3, 1, $4, $5::jsonb, $6::jsonb, $7)`;
 
 const COLS_VERSION_SELECT = `v.id, v.compra_id, v.n::int as n, v.bi_dg::text as "biDg", v.igv_dg::text as "igvDg",
   v.bi_dgng::text as "biDgng", v.igv_dgng::text as "igvDgng", v.bi_dng::text as "biDng", v.igv_dng::text as "igvDng",
@@ -483,6 +488,7 @@ export async function abrirBancoCompras(): Promise<BancoCompras> {
         await poner(n, actual, { ...estado, accion: x.accion ?? "editar" });
       }
       for (const h of o.hallazgos ?? []) {
+        await c.query(SQL_EVALUACION, [tenantId, id, n]);
         await c.query(SQL_HALLAZGO, [
           tenantId,
           id,
@@ -585,9 +591,10 @@ export async function abrirBancoCompras(): Promise<BancoCompras> {
       }
       for (const h of hallazgos) {
         const s = aHallazgoSembrado(h);
+        await sql(SQL_EVALUACION, [tenantId, fila.id, 1]);
         await sql(
-          `insert into compra_hallazgo (tenant_id, compra_id, version_n, regla, sugerencia, lecturas, requiere_confirmacion)
-           values ($1, $2, 1, $3, $4::jsonb, $5::jsonb, $6)`,
+          `insert into compra_hallazgo (tenant_id, compra_id, version_n, evaluacion_n, regla, sugerencia, lecturas, requiere_confirmacion)
+           values ($1, $2, 1, 1, $3, $4::jsonb, $5::jsonb, $6)`,
           [
             tenantId,
             fila.id,
@@ -741,6 +748,7 @@ export async function abrirBancoCompras(): Promise<BancoCompras> {
           // Un DELETE estático por tabla, de la hija a la madre; ventas y propuestas las limpia `v.cerrar()`.
           const borrar = [
             "delete from compra_hallazgo where tenant_id = any($1::uuid[])",
+            "delete from compra_evaluacion where tenant_id = any($1::uuid[])",
             "delete from compra_version where tenant_id = any($1::uuid[])",
             "delete from compra_operacion where tenant_id = any($1::uuid[])",
             "delete from compra where tenant_id = any($1::uuid[])",

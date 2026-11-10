@@ -6,6 +6,7 @@ import {
   detalleCompraSchema,
   diferenciaComprasSchema,
   errorDuplicadoSchema,
+  errorXmlSchema,
   errorFilaCambiadaSchema,
   errorRequiereDatoSchema,
   errorVersionObsoletaSchema,
@@ -19,6 +20,7 @@ import {
   type AgregarCompra,
   type CalcularCompra,
   type CalcularRespuesta,
+  type CampoXmlAjeno,
   type ClasificarCompra,
   type CodigoRechazoMasiva,
   type CuadreCompra,
@@ -341,7 +343,6 @@ export const MENSAJES_COMPRAS = {
   formularioAgregar: "Agregar compra",
   agregar: "Agregar",
   subirXml: "Subir XML",
-  subirXmlDeshabilitado: "Disponible con el detalle del comprobante (016)",
   compraAgregada: "Compra agregada.",
   datosInvalidos: "Revisa los datos de la compra.",
   tipoCambioObligatorio: "El tipo de cambio es obligatorio en USD.",
@@ -506,17 +507,19 @@ export interface ErrorCompras {
   ids?: string[];
   /** 409 `duplicado`: la compra existente. */
   id?: string;
+  /** 422 `xml_ajeno` (016): los campos de identidad que no coinciden. */
+  campos?: CampoXmlAjeno[];
 }
 
 export type ResultadoCompras<T> =
   | { ok: true; status: number; datos: T }
   | ErrorCompras;
 
-interface Esquema<T> {
+export interface Esquema<T> {
   safeParse(valor: unknown): { success: boolean; data?: T };
 }
 
-function falla(status: number, datos: unknown): ErrorCompras {
+export function falla(status: number, datos: unknown): ErrorCompras {
   const error: ErrorCompras = {
     ok: false,
     status,
@@ -531,20 +534,22 @@ function falla(status: number, datos: unknown): ErrorCompras {
   if (cambiada.success) error.ids = cambiada.data.ids;
   const duplicado = errorDuplicadoSchema.safeParse(datos);
   if (duplicado.success) error.id = duplicado.data.id;
+  const xml = errorXmlSchema.safeParse(datos);
+  if (xml.success && xml.data.codigo === "xml_ajeno") error.campos = xml.data.campos;
   return error;
 }
 
-const respuestaInvalida = (status: number): ErrorCompras => ({
+export const respuestaInvalida = (status: number): ErrorCompras => ({
   ok: false,
   status,
   codigo: "respuesta_invalida",
   mensaje: MENSAJES.errorGeneral,
 });
 
-async function pedir<T>(
+export async function pedir<T>(
   ruta: string,
   esquema: Esquema<T>,
-  opciones: { method?: string; body?: unknown } = {},
+  opciones: { method?: string; body?: unknown; cuerpoCrudo?: Blob } = {},
 ): Promise<ResultadoCompras<T>> {
   let r;
   try {
@@ -560,7 +565,7 @@ async function pedir<T>(
   return { ok: true, status: r.status, datos: analizado.data };
 }
 
-const esquemaTrabajo: Esquema<{ trabajoId: string }> = {
+export const esquemaTrabajo: Esquema<{ trabajoId: string }> = {
   safeParse(valor) {
     const id = (valor as { trabajoId?: unknown } | null)?.trabajoId;
     return typeof id === "string" && id !== ""
@@ -602,7 +607,10 @@ const esquemaDiferencias: Esquema<DiferenciaComprasDto[]> = {
 const base = (clienteId: string, periodo: string): string =>
   `/clientes/${encodeURIComponent(clienteId)}/periodos/${encodeURIComponent(periodo)}/compras`;
 
-const rutaDe = (clienteId: string, periodo: string, compraId: string): string =>
+/** Ruta del listado de compras de un cliente y periodo (016: las rutas `desde-xml` cuelgan de aquí). */
+export const rutaCompras = base;
+
+export const rutaDe = (clienteId: string, periodo: string, compraId: string): string =>
   `${base(clienteId, periodo)}/${encodeURIComponent(compraId)}`;
 
 /** Query del listado: solo manda lo que tiene valor; los textos viajan codificados por `URLSearchParams`. */

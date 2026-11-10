@@ -23,15 +23,18 @@ import {
   type ConexionBull,
   type PayloadSistema,
 } from "@contapp/queue/worker";
+import { crearStorage, type StorageProvider } from "@contapp/storage";
 import {
   MockConsultaRuc,
   MockSireApiClient,
   MockSireAuth,
   MockSolAuth,
+  MockXmlProvider,
   type ConsultaRuc,
   type SireApiClient,
   type SireAuth,
   type SolAuth,
+  type XmlProvider,
 } from "@contapp/sunat";
 import { randomUUID } from "node:crypto";
 import type { Redis } from "ioredis";
@@ -42,6 +45,7 @@ import { authPurgar } from "./procesadores/auth-purgar.js";
 import { consultarRuc } from "./procesadores/consultar-ruc.js";
 import { descargarPropuesta } from "./procesadores/descargar-propuesta.js";
 import { kekRotar } from "./procesadores/kek-rotar.js";
+import { obtenerXml } from "./procesadores/obtener-xml.js";
 import {
   verificarSire,
   verificarSol,
@@ -89,6 +93,12 @@ export interface DepsTrabajos {
   /** Puerto de `credencial.verificar_sol`; por defecto el mock. */
   solAuth?: SolAuth;
   credencialesSire?: CredencialesSire;
+  /** Puerto de `xml.obtener` (016); por defecto el mock. */
+  xmlProvider?: XmlProvider;
+  /** Almacenamiento de los XML (016); por defecto el de `STORAGE` (se crea al primer uso). */
+  storage?: StorageProvider;
+  /** `XML_SIMULADO_EN_REGLAS` (016, P-4): si el XML simulado entra en las reglas; apagada por defecto. */
+  xmlSimuladoEnReglas?: boolean;
   kek?: LlavesKek;
   logger?: LoggerTrabajos;
   proceso?: string;
@@ -118,6 +128,17 @@ const ESPERA_BUCLES_MS = 5_000;
 
 /** Procesador de `prueba.eco` (solo NODE_ENV=test): no hace nada y termina bien. */
 const eco: Procesador = async () => ({ ok: true });
+
+/** Storage por defecto: el de `STORAGE`, creado al primer uso (así un worker sin XML no exige configurarlo). */
+function storagePorDefecto(): StorageProvider {
+  let real: StorageProvider | undefined;
+  const dar = (): StorageProvider => (real ??= crearStorage(process.env));
+  return {
+    guardar: (ruta, bytes) => dar().guardar(ruta, bytes),
+    leer: (ruta) => dar().leer(ruta),
+    eliminar: (ruta) => dar().eliminar(ruta),
+  };
+}
 
 class SinCredencialesSireError extends Error {
   readonly codigo = "credenciales_sire_no_configuradas";
@@ -239,6 +260,15 @@ export async function iniciarTrabajos(
       "sire.propuesta.descargar": descargarPropuesta({
         db,
         sireApi: deps.sireApi ?? new MockSireApiClient(),
+        redis,
+        prefijo,
+        logger,
+      }),
+      "xml.obtener": obtenerXml({
+        db,
+        xmlProvider: deps.xmlProvider ?? new MockXmlProvider(),
+        storage: deps.storage ?? storagePorDefecto(),
+        xmlSimuladoEnReglas: deps.xmlSimuladoEnReglas ?? false,
       }),
       ...(servicio
         ? {

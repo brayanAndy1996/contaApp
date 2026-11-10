@@ -3,7 +3,9 @@ node_modules/
 .env.*
 !.env.example
 secrets/
-storage/
+# Carpetas de archivos locales de STORAGE_DIR (spec 016); el código de storage sí va en git
+/storage/
+/apps/*/storage/
 dist/
 .next/
 .turbo/

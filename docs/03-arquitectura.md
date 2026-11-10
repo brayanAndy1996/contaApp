@@ -194,9 +194,10 @@ sequenceDiagram
 ```
 
 ### 7.2 Lupa (modal de detalle)
-1. `GET /api/comprobantes/:id/detalle` → cabecera, comparación SIRE vs XML, hallazgos, sugerencia e historial del proveedor.
-2. Si el XML no está en storage → responde `xml: "pendiente"` y encola `xml.obtener` interactivo; el modal se actualiza por SSE.
-3. Acciones → `POST /api/comprobantes/:id/acciones` con `{ tipo: aceptar | editar | clasificar | excluir | recordar }`. Cada una crea una **versión nueva** de la fila (la original nunca cambia) y un registro de auditoría.
+Rutas bajo `/clientes/:clienteId/periodos/:periodo/compras/:compraId` (spec 016, D-8). Por ahora solo compras; la lupa de ventas reutiliza el modal en una spec posterior.
+1. `GET …/detalle` → cabecera, ítems del XML, comparación SIRE vs XML por columna, hallazgos vigentes, historial del proveedor y estado del XML (`disponible | pendiente | no_disponible | sin_solicitar`). **Solo lectura**: no encola y no re-parsea, porque lee el `DetalleXml` guardado en `documento_xml`.
+2. Sin XML, la lupa ofrece «Obtener XML» o «Reintentar» (`POST …/xml/obtener` encola `xml.obtener` interactivo; idempotente) y «Subir XML» (`POST …/xml`, cuerpo crudo de 1 MiB como máximo). El modal sigue el trabajo por SSE. Tras la descarga de la propuesta, el worker encola los lotes que faltan (`encolar_xml_obtener`). `GET …/xml` descarga el XML guardado como adjunto.
+3. Acciones → las rutas de compras de 014 (aceptar, clasificar, excluir y restaurar). «Editar» abre la fila en edición en la grilla. Cada una crea una **versión nueva** de la fila (la original nunca cambia). Guardar o cambiar el XML **no** crea versión: inserta una evaluación numerada (`compra_evaluacion`). «Recordar para este proveedor» es R2.
 
 ### 7.3 Generar archivo de reemplazo
 1. `POST /…/archivos` → el backend corre la **prevalidación** (`domain.prevalidar`) en línea; si hay errores, responde 422 con la lista de filas.

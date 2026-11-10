@@ -3,7 +3,9 @@
 // las llamadas a `domain` (cambiarDestino, aplicarEdicion, aceptarSugerenciaGuardada); un monto o destino que el dominio no
 // acepta es `solicitud_invalida`, un defecto de programa se propaga.
 import type {
+  CompraConXml,
   CompraLeida,
+  EvaluarCompra,
   HallazgoGuardadoCompra,
   MontosCompra,
   ProveedorConocido,
@@ -19,6 +21,7 @@ import {
   type CambiosMontos,
 } from "@contapp/domain";
 import type { DatoSugerencia, DestinoCompra } from "@contapp/shared";
+import { aEvaluable } from "./evaluable.js";
 
 /** La fila vigente en el dominio (`Money` en su moneda). */
 export const montosDeDominio = (c: Pick<CompraLeida, "moneda" | "montos">): MontosComprobante =>
@@ -65,6 +68,11 @@ export interface ContextoSugerencia {
   /** Los hallazgos vigentes de las filas de la petición; se piden UNA vez, cuando las filas ya están bloqueadas. */
   cargarHallazgos: () => Promise<Map<string, HallazgoGuardadoCompra[]>>;
   conocidos: ProveedorConocido[];
+  /**
+   * Las reglas con el entorno ACTUAL de la petición (bandera P-4 incluida): con XML, aceptar re-evalúa con ellas (H-016-10). Sin
+   * ellas, una fila con XML no se acepta (`revisar_de_nuevo`): no hay con qué contrastar.
+   */
+  evaluar?: EvaluarCompra;
   enMasa: boolean;
   regla: string;
   confirmar: boolean;
@@ -73,17 +81,53 @@ export interface ContextoSugerencia {
   alPedirDato?: (dato: "gravado" | "destino") => void;
 }
 
+/** JSON canónico (claves ordenadas): compara lo guardado en jsonb (que reordena las claves) con lo que da `evaluar`. */
+function canonico(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(canonico).join(",")}]`;
+  if (typeof v === "object" && v !== null) {
+    const o = v as Record<string, unknown>;
+    return `{${Object.keys(o)
+      .filter((k) => o[k] !== undefined)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${canonico(o[k])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(v ?? null);
+}
+
+const firma = (h: { sugerencia: unknown; lecturas: unknown; requiereConfirmacion: boolean }): string =>
+  canonico({ sugerencia: h.sugerencia ?? null, lecturas: h.lecturas ?? {}, requiereConfirmacion: h.requiereConfirmacion });
+
+/**
+ * H-016-10 y H-016-11: con un XML en el comprobante, lo que la lupa mostró (el hallazgo guardado) tiene que ser lo que dan HOY
+ * las reglas con el XML vigente (leído tras el bloqueo) y la bandera P-4 actual. Si el XML vigente cambió o la bandera cambió
+ * desde la evaluación, el resultado difiere y no se aplica. Sin XML (ni antes ni ahora: un XML guardado no se borra) el entorno
+ * de 016 no cambió y basta el contraste de 014.
+ */
+async function sigueVigente(
+  actual: CompraConXml,
+  guardado: HallazgoGuardadoCompra,
+  evaluar: EvaluarCompra | undefined,
+): Promise<boolean> {
+  if (actual.xml === null) return true;
+  if (evaluar === undefined) return false;
+  const hoy = ((await evaluar(actual)) ?? []).find((h) => h.regla === guardado.regla);
+  return hoy !== undefined && firma(hoy) === firma(guardado);
+}
+
 /**
  * Aceptar la sugerencia GUARDADA de la versión base (D-4, DU-22). Los hallazgos se leen cuando `packages/db` ya bloqueó las
- * filas (la transformación se llama después del bloqueo), así que no pueden cambiar entre la lectura y la escritura.
+ * filas (la transformación se llama después del bloqueo), así que no pueden cambiar entre la lectura y la escritura. Con XML, la
+ * sugerencia además se contrasta con una evaluación nueva en el entorno actual (`sigueVigente`): si difiere, `revisar_de_nuevo`.
  */
 export function transformarSugerencia(ctx: ContextoSugerencia): TransformarCompra {
   let hallazgos: Map<string, HallazgoGuardadoCompra[]> | null = null;
   return async (actual) => {
     hallazgos ??= await ctx.cargarHallazgos();
+    const guardado = hallazgos.get(actual.id)?.find((h) => h.regla === ctx.regla);
     const r = aceptarSugerenciaGuardada({
-      compra: actual,
-      hallazgo: hallazgos.get(actual.id)?.find((h) => h.regla === ctx.regla),
+      compra: aEvaluable(actual),
+      hallazgo: guardado,
       proveedoresConocidos: ctx.conocidos,
       confirmar: ctx.confirmar,
       dato: ctx.dato,
@@ -93,6 +137,7 @@ export function transformarSugerencia(ctx: ContextoSugerencia): TransformarCompr
       if (r.rechazo === "requiere_dato" && r.dato !== undefined) ctx.alPedirDato?.(r.dato);
       return { rechazo: r.rechazo };
     }
+    if (guardado === undefined || !(await sigueVigente(actual, guardado, ctx.evaluar))) return { rechazo: "revisar_de_nuevo" };
     return {
       montos: r.montos,
       excluida: r.excluir ? true : actual.excluida,

@@ -95,6 +95,18 @@ export interface PropsGrillaCompras {
   alCalcular?: (id: string, cambios: CambiosFila) => Promise<ResultadoCompras<CalcularRespuesta>>;
   renderAcciones: (fila: FilaCompraVista) => ReactNode;
   alAbrirHistorial: (id: string) => void;
+  /**
+   * Abre la lupa (016) de la fila con el orden actual de la grilla (ids de todas las filas, sección por sección), para
+   * que ← → la recorran igual. Sin esta función la lupa queda deshabilitada.
+   */
+  alAbrirLupa?: (id: string, orden: readonly string[]) => void;
+  /**
+   * Pide abrir esta compra en edición (P-3, «Editar» de la lupa): la grilla lleva la fila a la vista y abre su primera
+   * celda de monto, con la misma regla de `puedeEditar`. Se responde por `alAtenderEdicion`.
+   */
+  edicionPedida?: string | null;
+  /** La grilla atendió `edicionPedida`: `true` si la fila quedó abierta en edición, `false` si no se pudo. */
+  alAtenderEdicion?: (abierta: boolean) => void;
 }
 
 type Item =
@@ -163,6 +175,9 @@ export function GrillaCompras({
   alCalcular,
   renderAcciones,
   alAbrirHistorial,
+  alAbrirLupa,
+  edicionPedida,
+  alAtenderEdicion,
 }: PropsGrillaCompras) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const enfocarRef = useRef(false);
@@ -371,6 +386,24 @@ export function GrillaCompras({
     );
     return true;
   }
+
+  // «Editar» desde la lupa (P-3): se abre la fila pedida en su primera celda de monto, sin duplicar la edición de 015.
+  // Mientras la lista carga se espera; si la fila no está o no se puede editar, se avisa al padre.
+  const atenderEdicion = useRef<() => void>(() => undefined);
+  atenderEdicion.current = () => {
+    if (edicionPedida == null || cargando) return;
+    const r = filasTabla.findIndex((row) => row.id === edicionPedida);
+    const c = todas.findIndex((col) => esColumnaEditable(col.id));
+    let abierta = false;
+    if (r >= 0 && c >= 0 && !edicionRef.current?.guardando) {
+      abierta = empezarEdicion(r, c);
+      if (abierta) irA(r, c);
+    }
+    alAtenderEdicion?.(abierta);
+  };
+  useEffect(() => {
+    atenderEdicion.current();
+  }, [edicionPedida, cargando, filasTabla]);
 
   function cancelarEdicion() {
     const ed = edicionRef.current;
@@ -823,15 +856,27 @@ export function GrillaCompras({
     if (id === "lupa") {
       return (
         <div key={id} {...comun} className={`${CELDA} items-center`}>
-          <button
-            type="button"
-            disabled
-            title={M.lupaDeshabilitada}
-            aria-label={`${M.columnas.lupa}: ${M.lupaDeshabilitada}`}
-            className="rounded border px-1 text-gray-500"
-          >
-            <span aria-hidden="true">🔍</span>
-          </button>
+          {alAbrirLupa ? (
+            <button
+              type="button"
+              onClick={() => alAbrirLupa(f.id, datos.map((d) => d.id))}
+              tabIndex={esActiva ? 0 : -1}
+              aria-label={`${M.columnas.lupa} ${comprobante}`}
+              className="rounded border px-1"
+            >
+              <span aria-hidden="true">🔍</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled
+              title={M.lupaDeshabilitada}
+              aria-label={`${M.columnas.lupa}: ${M.lupaDeshabilitada}`}
+              className="rounded border px-1 text-gray-500"
+            >
+              <span aria-hidden="true">🔍</span>
+            </button>
+          )}
         </div>
       );
     }

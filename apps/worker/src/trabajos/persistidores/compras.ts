@@ -10,12 +10,19 @@ import {
   leerEstadoPeriodo,
   leerExistentesCompras,
   leerProveedoresConocidos,
+  listarPorObtener,
   tipoCambioConEscala,
   type CompraNueva,
   type MontosCompra,
 } from "@contapp/db";
-import { Money, TipoCambio, claveComprobante } from "@contapp/domain";
+import {
+  Money,
+  TipoCambio,
+  claveComprobante,
+  planificarObtencionXml,
+} from "@contapp/domain";
 import { ErrorDatos, type FilaPropuestaSire } from "@contapp/sunat";
+import { encolarLotesXml } from "../encolar-xml.js";
 import { crearEvaluarCompras } from "./compras-evaluar.js";
 import { ErrorPropuesta } from "./errores.js";
 import type {
@@ -215,7 +222,38 @@ export const persistidorCompras: PersistidorLibro<CompraNueva> = {
       tx,
       { clienteId: ctx.clienteId, periodo: ctx.periodo, propuestaId },
       nuevas.map((n) => n.datos),
-      { evaluar: crearEvaluarCompras(conocidos) },
+      // H-016-13: la misma bandera P-4 que `xml.obtener` y el backend, leída en cada descarga; `insertarCompras` pasa a `evaluar`
+      // el XML guardado del comprobante de cada compra nueva.
+      {
+        evaluar: crearEvaluarCompras(conocidos, {
+          xmlSimuladoEnReglas: process.env.XML_SIMULADO_EN_REGLAS === "1",
+        }),
+      },
+    );
+  },
+
+  /**
+   * Spec 016 (CA-10): tras CADA descarga confirmada se piden los XML que falten, en lotes de 100 con prioridad `programado` y las
+   * filas con hallazgos primero. Lo guardado y lo ya pedido o definitivamente fallido no se vuelve a pedir.
+   */
+  async trasConfirmar(ctx) {
+    const lotes = await ctx.db.withTenant({ tenantId: ctx.tenantId }, async (tx) =>
+      planificarObtencionXml(await listarPorObtener(tx, ctx.clienteId, ctx.periodo)),
+    );
+    if (lotes.length === 0) return;
+    await encolarLotesXml(
+      {
+        db: ctx.db,
+        ...(ctx.redis === undefined ? {} : { redis: ctx.redis }),
+        ...(ctx.prefijo === undefined ? {} : { prefijo: ctx.prefijo }),
+      },
+      {
+        tenantId: ctx.tenantId,
+        clienteId: ctx.clienteId,
+        usuarioId: ctx.usuarioId,
+        periodo: ctx.periodo,
+        lotes,
+      },
     );
   },
 };

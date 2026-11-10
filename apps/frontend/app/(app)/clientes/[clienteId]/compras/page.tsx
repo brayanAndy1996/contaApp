@@ -32,6 +32,7 @@ import {
   calcularSoloLectura,
 } from "../../../../../components/compras/estado-periodo";
 import { HistorialCompra } from "../../../../../components/compras/historial-compra";
+import { LupaCompra } from "../../../../../components/compras/lupa-compra";
 import { ExportarCompras } from "../../../../../components/compras/exportar-compras";
 import {
   FiltrosListado,
@@ -65,6 +66,7 @@ import {
 } from "../../../../../lib/compras";
 import type { CambiosFila } from "../../../../../lib/edicion-compras";
 import { useFilasCompras } from "../../../../../lib/filas-compras";
+import { MENSAJES_LUPA } from "../../../../../lib/lupa-compras";
 import { useSecuencia } from "../../../../../lib/secuencia";
 
 // Compras del periodo de un cliente (spec 015, D-1, D-12 a D-16; RF-060, RF-068, RF-069, RF-071). El periodo
@@ -246,6 +248,10 @@ function Compras() {
   );
 
   const [historialId, setHistorialId] = useState<string | null>(null);
+  /** Lupa abierta (016): la compra y el orden que tenía la grilla al abrirla, para que ← → la recorran. */
+  const [lupa, setLupa] = useState<{ id: string; orden: readonly string[] } | null>(null);
+  /** Compra que la lupa pidió abrir en edición (P-3): la grilla la atiende y esto se limpia. */
+  const [editarPedida, setEditarPedida] = useState<string | null>(null);
   const [agregando, setAgregando] = useState(false);
   /** Compra que hay que ubicar (duplicado o recién agregada): se espera a verla en la lista de la vista actual. */
   const [porUbicar, setPorUbicar] = useState<string | null>(null);
@@ -286,6 +292,8 @@ function Compras() {
   function cambiarPeriodo(valor: string) {
     setAviso(null);
     setHistorialId(null);
+    setLupa(null);
+    setEditarPedida(null);
     setAgregando(false);
     setPorUbicar(null);
     setResaltadas(new Set());
@@ -621,6 +629,12 @@ function Compras() {
                   />
                 )}
                 alAbrirHistorial={setHistorialId}
+                alAbrirLupa={(id, orden) => setLupa({ id, orden })}
+                edicionPedida={editarPedida}
+                alAtenderEdicion={(abierta) => {
+                  setEditarPedida(null);
+                  if (!abierta) alAvisar(MENSAJES_LUPA.editarNoDisponible, "error");
+                }}
               />
             </div>
           </section>
@@ -649,6 +663,22 @@ function Compras() {
                 }}
               />
             </div>
+          )}
+          {lupa !== null && (
+            <LupaCompra
+              key={`lupa|${clienteId}|${periodo}`}
+              contexto={contexto}
+              filas={filas}
+              orden={lupa.orden}
+              compraId={lupa.id}
+              alCambiar={(id) => setLupa({ ...lupa, id })}
+              alCerrar={() => setLupa(null)}
+              alAvisarDe={avisarDeFila}
+              alEditar={(id) => {
+                setLupa(null);
+                setEditarPedida(id);
+              }}
+            />
           )}
           {historialId !== null && (
             <div

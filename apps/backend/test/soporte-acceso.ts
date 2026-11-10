@@ -162,6 +162,22 @@ export async function abrirBanco(cupo?: object, extra: Record<string, unknown> =
         // 007b: crear un cliente encola `cliente.consultar_ruc` (job_registro referencia cliente y membresía) y puede
         // dejar credenciales; sin borrarlos antes, `delete from cliente`/`membresia`/`tenant` fallan (FK) y el estudio
         // queda huérfano sin suscripción, lo que rompe `planes.spec.ts` de aislamiento.
+        // 013/014/016: propuestas, ventas, compras (con su evaluación numerada) y XML cuelgan de cliente; de la hija a la madre.
+        for (const tabla of [
+          "compra_hallazgo",
+          "compra_evaluacion",
+          "compra_version",
+          "compra_operacion",
+          "compra",
+          "compra_periodo",
+          "documento_xml",
+          "documento_xml_obtencion",
+          "venta_salto_justificado",
+          "venta",
+          "propuesta_diferencia",
+          "propuesta",
+        ])
+          await intentar(`delete from ${tabla} where tenant_id = $1`, [t]);
         await intentar("delete from job_registro where tenant_id = $1", [t]);
         await intentar("delete from credencial where tenant_id = $1", [t]);
         await intentar("delete from asignacion where tenant_id = $1", [t]);

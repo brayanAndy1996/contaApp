@@ -72,6 +72,13 @@ const VERSION_VIGENTE_LATERAL = `(select * from compra_version x where x.tenant_
 const VERSION_UNO_LATERAL = `(select * from compra_version x where x.tenant_id = c.tenant_id and x.compra_id = c.id
     and x.n = 1 offset 0)`;
 
+/**
+ * Número de la última evaluación de la versión vigente de `c` (016 D-5): los hallazgos vigentes son los suyos. Búsqueda por el
+ * índice único `(tenant_id, compra_id, version_n, n)` recorrido al revés.
+ */
+const ULTIMA_EVALUACION = `(select max(e.n) from compra_evaluacion e where e.tenant_id = c.tenant_id and e.compra_id = c.id
+    and e.version_n = c.version_vigente)`;
+
 /** Número con ceros a la izquierda para ordenar «999» antes de «1000» (el número tiene hasta 15 caracteres). */
 const NUMERO_ORDEN = `lpad(c.numero, 20, '0') collate "C"`;
 const SERIE_ORDEN = `c.serie collate "C"`;
@@ -88,7 +95,8 @@ select * from (
     (not v.clasificada and not exists (select 1 from conocidos k where k.doc_tipo = c.doc_tipo and k.doc_numero = c.doc_numero))
       as proveedor_nuevo, ${SERIE_ORDEN} as orden_serie, ${NUMERO_ORDEN} as orden_numero,
     c.fecha as orden_fecha,
-    exists (select 1 from compra_hallazgo z where z.compra_id = c.id and z.version_n = c.version_vigente) as con_hallazgos
+    exists (select 1 from compra_hallazgo z where z.tenant_id = c.tenant_id and z.compra_id = c.id
+      and z.version_n = c.version_vigente and z.evaluacion_n = ${ULTIMA_EVALUACION}) as con_hallazgos
   from compra c cross join lateral ${VERSION_VIGENTE_LATERAL} v
   where c.cliente_id = $1 and c.periodo = $2 and c.descartada_en is null
     and (case when $3::text = 'excluidas' then v.excluida else not v.excluida end)
@@ -134,8 +142,9 @@ export async function leerOrigenesCompras(
 export const escaparLike = (q: string): string => q.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 const SQL_HALLAZGOS = `select h.compra_id, h.regla, h.sugerencia, h.lecturas, h.requiere_confirmacion
-  from compra_hallazgo h join compra c on c.tenant_id = h.tenant_id and c.id = h.compra_id and c.version_vigente = h.version_n
-  where h.compra_id = any($1::uuid[])
+  from compra c join compra_hallazgo h on h.tenant_id = c.tenant_id and h.compra_id = c.id and h.version_n = c.version_vigente
+    and h.evaluacion_n = ${ULTIMA_EVALUACION}
+  where c.id = any($1::uuid[])
   order by h.compra_id, array_position(array['R-ISC','R-MIX','R-RED','R-NEW','R-GP'], h.regla::text)`;
 
 const aHallazgo = (f: Fila): HallazgoGuardadoFila => ({
@@ -146,7 +155,7 @@ const aHallazgo = (f: Fila): HallazgoGuardadoFila => ({
   requiereConfirmacion: f.requiere_confirmacion,
 });
 
-/** Los hallazgos de la versión vigente de cada compra, en el orden de las reglas de 011. */
+/** Los hallazgos vigentes de cada compra (los de la última evaluación de su versión vigente), en el orden de las reglas de 011. */
 export async function leerHallazgosVigentes(
   tx: TxConsulta,
   compraIds: string[],

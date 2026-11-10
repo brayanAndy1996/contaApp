@@ -39,6 +39,9 @@ jobs:
       - name: Cobertura de @contapp/domain (90 % por archivo)
         run: pnpm cobertura:dominio
 
+      - name: Cobertura de @contapp/storage (90 % por archivo)
+        run: pnpm cobertura:storage
+
       - name: Cobertura de @contapp/sunat (90 % por archivo)
         run: pnpm cobertura:sunat
 
@@ -116,6 +119,12 @@ jobs:
 
       - name: Cobertura de 008 cola (umbral 90 % por archivo)
         run: pnpm cobertura:cola
+        env:
+          CORREO_PROVIDER: consola
+          APP_ORIGIN: http://localhost:3000
+
+      - name: Cobertura de 016 XML en backend y worker (umbral 90 % por archivo)
+        run: pnpm cobertura:xml
         env:
           CORREO_PROVIDER: consola
           APP_ORIGIN: http://localhost:3000

@@ -23,6 +23,7 @@ import { cliente } from "./clientes";
 import { id, tenantIdPorDefecto } from "./comun";
 import { tenant } from "./plataforma";
 import { propuesta } from "./propuestas";
+import { documentoXml } from "./xml";
 
 // Monto en soles o en la moneda del comprobante: NUMERIC(14,2), nunca doble precisión (CLAUDE.md).
 const monto = (nombre: string) => numeric(nombre, { precision: 14, scale: 2 }).notNull();
@@ -190,7 +191,42 @@ export const compraOperacion = pgTable(
   ],
 );
 
-// Hallazgos de las reglas de una versión: solo inserción. Los de una fila son los de su versión vigente.
+// Spec 016 (D-5, P-2), migración 0036_compra_evaluacion. Evaluación numerada de una versión: cada versión nueva nace con la
+// evaluación 1 y la llegada de un XML agrega la n + 1 de la versión vigente, sin crear versión ni mover el puntero. Solo
+// inserción. `documento_xml_id` es el XML vigente con el que se evaluó (nulo: sin XML).
+export const compraEvaluacion = pgTable(
+  "compra_evaluacion",
+  {
+    id: id(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .default(tenantIdPorDefecto)
+      .references(() => tenant.id),
+    compraId: uuid("compra_id").notNull(),
+    versionN: integer("version_n").notNull(),
+    n: integer("n").notNull(),
+    documentoXmlId: uuid("documento_xml_id"),
+    creadaEn: timestamp("creada_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // También sirve para buscar la última evaluación de una versión (recorrido inverso del índice).
+    unique("compra_evaluacion_version_n_unique").on(t.tenantId, t.compraId, t.versionN, t.n),
+    foreignKey({
+      name: "compra_evaluacion_version_fk",
+      columns: [t.tenantId, t.compraId, t.versionN],
+      foreignColumns: [compraVersion.tenantId, compraVersion.compraId, compraVersion.n],
+    }),
+    foreignKey({
+      name: "compra_evaluacion_documento_xml_fk",
+      columns: [t.tenantId, t.documentoXmlId],
+      foreignColumns: [documentoXml.tenantId, documentoXml.id],
+    }),
+    check("compra_evaluacion_n_positivo", sql`${t.n} >= 1`),
+  ],
+);
+
+// Hallazgos de las reglas de una evaluación de una versión: solo inserción. Los vigentes de una fila son los de la última
+// evaluación de su versión vigente (016 D-5).
 export const compraHallazgo = pgTable(
   "compra_hallazgo",
   {
@@ -201,6 +237,8 @@ export const compraHallazgo = pgTable(
       .references(() => tenant.id),
     compraId: uuid("compra_id").notNull(),
     versionN: integer("version_n").notNull(),
+    // 016: la evaluación de la versión a la que pertenece (0036 la agrega con DEFAULT 1 para las filas existentes y lo quita).
+    evaluacionN: integer("evaluacion_n").notNull(),
     regla: text("regla").notNull(),
     sugerencia: jsonb("sugerencia"),
     lecturas: jsonb("lecturas").notNull(),
@@ -208,13 +246,19 @@ export const compraHallazgo = pgTable(
     creadaEn: timestamp("creada_en", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    unique("compra_hallazgo_compra_version_regla_unique").on(t.tenantId, t.compraId, t.versionN, t.regla),
+    unique("compra_hallazgo_evaluacion_regla_unique").on(t.tenantId, t.compraId, t.versionN, t.evaluacionN, t.regla),
     foreignKey({
       name: "compra_hallazgo_compra_fk",
       columns: [t.tenantId, t.compraId],
       foreignColumns: [compra.tenantId, compra.id],
     }),
+    foreignKey({
+      name: "compra_hallazgo_evaluacion_fk",
+      columns: [t.tenantId, t.compraId, t.versionN, t.evaluacionN],
+      foreignColumns: [compraEvaluacion.tenantId, compraEvaluacion.compraId, compraEvaluacion.versionN, compraEvaluacion.n],
+    }),
     check("compra_hallazgo_version_positiva", sql`${t.versionN} >= 1`),
+    check("compra_hallazgo_evaluacion_positiva", sql`${t.evaluacionN} >= 1`),
   ],
 );
 
