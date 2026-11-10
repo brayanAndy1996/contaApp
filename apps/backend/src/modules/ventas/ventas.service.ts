@@ -79,6 +79,8 @@ function aVentaDto(f: VentaFila): VentaDto {
     otros: f.otros,
     total: f.total,
     cuadra: cuadraVenta(f, f.moneda),
+    // T10/T13 (012b) leen la exclusión vigente; hasta entonces ninguna venta sale excluida.
+    exclusion: null,
   };
 }
 
