@@ -1,6 +1,6 @@
 # Spec 017 · Auditoría y notificaciones en la app
 
-Estado: **aprobada** (2026-11-11; el usuario eligió la opción recomendada en P-1 a P-7, ver «Decisiones del usuario»). Rama `spec/017-auditoria-notif`. Plan: `plan.md` · tareas: `tasks.md`.
+Estado: **implementada** (2026-11-11; el usuario eligió la opción recomendada en P-1 a P-7, ver «Decisiones del usuario»). Rama `spec/017-auditoria-notif`. Plan: `plan.md` · tareas: `tasks.md`.
 Nivel de riesgo: **B**, según el tablero, con ronda adversarial en tres puntos concretos (D-16). Por §2.1: (1) no, porque no calcula montos ni genera archivos; (2) sí, porque una notificación o una fila de auditoría mal filtrada muestra datos de otro cliente, usuario o estudio; (3) sí, porque una acción que no se audita no la nota nadie; (4) parcial, porque son muchos puntos de captura y hay carreras entre el hecho y el aviso. Con (2) y (3), la tabla de §2.1 da **A**; el usuario eligió **B** con una ronda adversarial dirigida (P-1, D-16).
 Cubre: RF-150, RF-152, RF-160 (sin buzón), RF-026 (filtro de notificaciones), RNF-001, RNF-004, RNF-021 (auditoría) · HU-10 (notificación), parte de HU-40 · notas [017] de ESTADO (notificador real, «quién marcó revisado», «XML subido por», autor del Historial).
 
@@ -47,22 +47,22 @@ Que el estudio tenga un registro de solo agregado de quién hizo qué (RF-150/15
 - D-16 **Adversarial acotado (nivel B).** Una ronda sobre (a) aislamiento y visibilidad de notificaciones y auditoría, (b) inmutabilidad y actor no falsificable y (c) ausencia de secretos en `datos` y `params`.
 
 ## Criterios de aceptación
-- [ ] CA-1 (catálogo, RF-150): cada acción de D-3 deja exactamente una fila en `auditoria`, en la misma transacción, con actor, cliente, entidad y `datos` según D-5. Hay una prueba por acción.
-- [ ] CA-2 (falla cerrado): si el INSERT de auditoría falla (simulado), la acción se revierte y no queda ni la acción ni el registro.
-- [ ] CA-3 (solo agregado, RF-152): con los roles del backend y del worker, el INSERT directo, el UPDATE, el DELETE y el TRUNCATE sobre `auditoria` dan `permission denied`. Con el dueño de la tabla, el UPDATE y el DELETE los rechaza el trigger.
-- [ ] CA-4 (actor): un `usuarioId` que llega en el cuerpo o la consulta se ignora y el actor es el de la sesión. Las acciones del worker registran `trabajo_id` y `creado_por`.
-- [ ] CA-5 (filas, D-4): una masiva de 300 compras deja una fila `compra.operacion` con `filas = 300`, y una consulta probada devuelve el antes → después de cada compra desde `compra_version`.
-- [ ] CA-6 (sin secretos): tras guardar, verificar, invalidar y descifrar credenciales con valores centinela, ningún valor centinela aparece en `auditoria`, `notificacion`, logs ni respuestas.
-- [ ] CA-7 (aislamiento, RNF-001/HU-40): con dos estudios, ni la API ni el SQL directo con la sesión de A devuelven auditoría o notificaciones de B.
-- [ ] CA-8 (HU-10): un `ErrorCredencial` crea una notificación `credencial_invalida` para cada destinatario de P-4. Si la transacción se revierte, no la crea. Un fallo repetido con la credencial aún inválida no crea otra. Tras reemplazar la credencial, una nueva invalidación sí la crea. Si el worker muere después del commit y antes del aviso, la notificación existe.
-- [ ] CA-9 (trabajo terminado): se notifica según P-3, una vez por trabajo, aunque haya reintentos.
-- [ ] CA-10 (plan): se notifica según P-5, una vez por cruce de umbral, y vuelve a avisar solo si el uso baja del umbral y lo cruza otra vez.
-- [ ] CA-11 (visibilidad, RF-026): un Asistente desasignado del cliente deja de ver y de contar su notificación. Leer o marcar como leída una notificación ajena da 404 y no la cambia.
-- [ ] CA-12 (API): el orden, el cursor, el conteo y «leer todas» funcionan, y marcar como leída es idempotente. El SSE solo avisa al destinatario y sin contenido.
-- [ ] CA-13 (autor, D-12): las cuatro pantallas muestran el nombre. Un miembro desactivado sale «(inactivo)». Un id de otro estudio sale «Usuario desconocido».
-- [ ] CA-14 (consulta, P-2): solo con `auditoria.ver` (Dueño y Administrador); sin el permiso da 403. Incluye los descifrados de 003.
-- [ ] CA-15 (retención): las notificaciones siguen P-7 y la auditoría no se purga.
-- [ ] CA-16 (frontend, nivel C): la campana muestra el conteo, el panel marca como leída y navega, y el texto sale en español sin códigos crudos.
+- [x] CA-1 (catálogo, RF-150): cada acción de D-3 deja exactamente una fila en `auditoria`, en la misma transacción, con actor, cliente, entidad y `datos` según D-5. Hay una prueba por acción.
+- [x] CA-2 (falla cerrado): si el INSERT de auditoría falla (simulado), la acción se revierte y no queda ni la acción ni el registro.
+- [x] CA-3 (solo agregado, RF-152): con los roles del backend y del worker, el INSERT directo, el UPDATE, el DELETE y el TRUNCATE sobre `auditoria` dan `permission denied`. Con el dueño de la tabla, el UPDATE y el DELETE los rechaza el trigger.
+- [x] CA-4 (actor): un `usuarioId` que llega en el cuerpo o la consulta se ignora y el actor es el de la sesión. Las acciones del worker registran `trabajo_id` y `creado_por`.
+- [x] CA-5 (filas, D-4): una masiva de 300 compras deja una fila `compra.operacion` con `filas = 300`, y una consulta probada devuelve el antes → después de cada compra desde `compra_version`.
+- [x] CA-6 (sin secretos): tras guardar, verificar, invalidar y descifrar credenciales con valores centinela, ningún valor centinela aparece en `auditoria`, `notificacion`, logs ni respuestas.
+- [x] CA-7 (aislamiento, RNF-001/HU-40): con dos estudios, ni la API ni el SQL directo con la sesión de A devuelven auditoría o notificaciones de B.
+- [x] CA-8 (HU-10): un `ErrorCredencial` crea una notificación `credencial_invalida` para cada destinatario de P-4. Si la transacción se revierte, no la crea. Un fallo repetido con la credencial aún inválida no crea otra. Tras reemplazar la credencial, una nueva invalidación sí la crea. Si el worker muere después del commit y antes del aviso, la notificación existe.
+- [x] CA-9 (trabajo terminado): se notifica según P-3, una vez por trabajo, aunque haya reintentos.
+- [x] CA-10 (plan): se notifica según P-5, una vez por cruce de umbral, y vuelve a avisar solo si el uso baja del umbral y lo cruza otra vez.
+- [x] CA-11 (visibilidad, RF-026): un Asistente desasignado del cliente deja de ver y de contar su notificación. Leer o marcar como leída una notificación ajena da 404 y no la cambia.
+- [x] CA-12 (API): el orden, el cursor, el conteo y «leer todas» funcionan, y marcar como leída es idempotente. El SSE solo avisa al destinatario y sin contenido.
+- [x] CA-13 (autor, D-12): las cuatro pantallas muestran el nombre. Un miembro desactivado sale «(inactivo)». Un id de otro estudio sale «Usuario desconocido».
+- [x] CA-14 (consulta, P-2): solo con `auditoria.ver` (Dueño y Administrador); sin el permiso da 403. Incluye los descifrados de 003.
+- [x] CA-15 (retención): las notificaciones siguen P-7 y la auditoría no se purga.
+- [x] CA-16 (frontend, nivel C): la campana muestra el conteo, el panel marca como leída y navega, y el texto sale en español sin códigos crudos.
 - [ ] Casos reales aplicables: ninguno.
 
 ## Casos de abuso que se prueban

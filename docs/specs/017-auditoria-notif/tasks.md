@@ -26,7 +26,7 @@ Nivel B con una ronda adversarial dirigida (P-1, D-16); las pantallas son nivel 
 | T18 | Prueba manual contra el sistema completo | tester | sonnet | T13, T17 | — | — | [x] |
 | T19 | Verificar CA-1 a CA-16 con evidencia, suites completas, cobertura y p95 | tester | sonnet | T18 | — | — | [x] |
 | T20 | Revisión final contra la spec | arquitecto | sonnet | T19 | — | — | [x] |
-| T21 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza ESTADO) | devops | haiku | T20 | — | — | [ ] |
+| T21 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza ESTADO) | devops | haiku | T20 | — | — | [x] |
 
 Paralelismo: T1 ∥ T2 ∥ T3; luego T4 ∥ T5 (los dos contra los esquemas de T1). Implementación: T6 (`shared`) ∥ T7 (`db`: migraciones); T8 tras los dos. Luego tres carriles: T9 (`apps/worker`, `packages/queue`) ∥ T10 (`apps/backend/src/modules/{notificaciones,auditoria,trabajos,planes,importacion,clientes,acceso}`, `app.module.ts`) ∥ T11 (`apps/backend/src/modules/{compras,archivos}`). El frontend (T12 → T13) corre en paralelo con T7–T11 contra el contrato de `shared` (sus pruebas simulan la API); T14 con T12–T13. La ronda y su corrección van en serie (T15 → T16 → T17). Si la ronda no deja fallos, T16 y T17 se marcan `[x]` «sin hallazgos».
 
@@ -251,7 +251,7 @@ Observaciones (sin tarea): (a) La lupa y el historial de compras muestran la fec
 - **Hecho cuando**: aprobado o lista de defectos con tareas nuevas. Commit `docs(017): revisión final`.
 - **Resultado de T20** (2026-11-11, arquitecto): **aprobada, sin T20a ni T20b**. CA-1 a CA-16 con evidencia en la tabla de T19; el worker no tiene ningún grant de tabla sobre `auditoria`, `notificacion` ni `plan_aviso` (solo `EXECUTE` de `notificaciones_de_esta_transaccion` y `notificacion_purgar`), `contapp_registrador` sin miembros, y los `datos` de 0042/0045 coinciden con la lista blanca. Desvíos ratificados en `plan.md` («Desvíos ratificados»). Arreglo de prueba: el centinela «4062» de `generar-archivo.int.spec.ts:315` pasa a `F001-4062`; el archivo da 40/40.
 
-## T21 · [ ] Cierre (devops · haiku)
+## T21 · [x] Cierre (devops · haiku)
 - **Contexto (leer solo esto)**: `tasks.md`, `spec.md` (cabecera y criterios).
 - **Hacer**: marcar tareas y CA, estado de la spec a «verificada», y dejar al orquestador las notas para ESTADO: purga de auditoría a 5 años (D-7), filtros RF-151, correo RF-161/162 y buzón crítico en R2, y las tres notas [017] cerradas.
 - **Hecho cuando**: `git status` limpio salvo lo ajeno a 017. Commit `docs(017): cierre`.
