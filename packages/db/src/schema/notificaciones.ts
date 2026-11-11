@@ -51,6 +51,7 @@ export const notificacion = pgTable(
       sql`jsonb_typeof(${t.params}) = 'object' AND pg_column_size(${t.params}) <= 1024`,
     ),
     check("notificacion_clave_largo", sql`char_length(${t.claveDedupe}) BETWEEN 1 AND 200`),
+    check("notificacion_creada_en_ms", sql`${t.creadaEn} = date_trunc('milliseconds', ${t.creadaEn})`),
   ],
 );
 

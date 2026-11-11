@@ -68,6 +68,7 @@ export const auditoria = pgTable(
     ),
     check("auditoria_accion_valida", sql`${t.accion} IN (${lista(ACCIONES_AUDITORIA_BD)})`),
     check("auditoria_entidad_formato", sql`${t.entidad} ~ '^[a-z][a-z_]{0,62}$'`),
+    check("auditoria_ocurrida_en_ms", sql`${t.ocurridaEn} = date_trunc('milliseconds', ${t.ocurridaEn})`),
     check(
       "auditoria_datos_objeto",
       sql`jsonb_typeof(${t.datos}) = 'object' AND pg_column_size(${t.datos}) <= 4096`,
