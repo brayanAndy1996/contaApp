@@ -54,8 +54,8 @@ describe("resumenVentasSchema", () => {
 
 describe("estado del periodo de ventas reutiliza las formas de 014", () => {
   it("estadoPeriodoRespuestaSchema acepta {estado, por, en}", () => {
-    expect(estadoPeriodoRespuestaSchema.safeParse({ estado: "revisado", por: null, en: null }).success).toBe(true);
-    expect(estadoPeriodoRespuestaSchema.safeParse({ estado: "generado", por: null, en: null }).success).toBe(true);
+    expect(estadoPeriodoRespuestaSchema.safeParse({ estado: "revisado", por: null, autor: null, en: null }).success).toBe(true);
+    expect(estadoPeriodoRespuestaSchema.safeParse({ estado: "generado", por: null, autor: null, en: null }).success).toBe(true);
   });
 
   it("reabrirPeriodoSchema admite revisado y generado, no abierto", () => {

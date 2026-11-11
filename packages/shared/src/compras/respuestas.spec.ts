@@ -70,6 +70,7 @@ const version = {
   accion: "original",
   operacionId: null,
   usuarioId: null,
+  autor: null,
   creadaEn: "2026-11-06T12:00:00.000Z",
   excluida: false,
   motivo: null,
@@ -221,5 +222,39 @@ describe("masivas, deshacer, descarga y errores con datos", () => {
     expect(ok(errorFilaCambiadaSchema, { codigo: "fila_cambiada", ids: ["x"] })).toBe(false);
     expect(ok(errorDuplicadoSchema, { codigo: "duplicado", id: randomUUID() })).toBe(true);
     expect(ok(errorDuplicadoSchema, { codigo: "duplicado" })).toBe(false);
+  });
+});
+
+// Spec 017 · T1 (rojo). Autor con nombre en el Historial (D-12, CA-13): junto a `usuarioId` viaja `autor` ({id, nombre, activo});
+// el id se conserva. La versión 1 (la trajo el SIRE) no tiene autor: `usuarioId: null` y `autor: null`.
+describe("versionCompraVistaSchema · autor (017)", () => {
+  const ana = { id: randomUUID(), nombre: "Ana Pérez", activo: true };
+  it("conserva usuarioId y trae el autor con nombre", () => {
+    const v = { ...version, accion: "clasificar", usuarioId: ana.id, autor: ana };
+    const r = versionCompraVistaSchema.safeParse(v);
+    expect(r.success).toBe(true);
+    expect(r.data).toMatchObject({ usuarioId: ana.id, autor: ana });
+  });
+  it("la versión original no tiene autor (null)", () => {
+    const r = versionCompraVistaSchema.safeParse(version);
+    expect(r.success).toBe(true);
+    expect(r.data).toMatchObject({ usuarioId: null, autor: null });
+  });
+  it("un autor inactivo y uno desconocido (nombre null) son válidos", () => {
+    expect(ok(versionCompraVistaSchema, { ...version, usuarioId: ana.id, autor: { ...ana, activo: false } })).toBe(true);
+    expect(ok(versionCompraVistaSchema, { ...version, usuarioId: ana.id, autor: { id: ana.id, nombre: null, activo: false } })).toBe(true);
+  });
+  it("exige la clave autor y rechaza un autor mal formado", () => {
+    const sinAutor: Record<string, unknown> = { ...version };
+    delete sinAutor.autor;
+    expect(ok(versionCompraVistaSchema, sinAutor)).toBe(false);
+    expect(ok(versionCompraVistaSchema, { ...version, autor: { id: "x", nombre: "Ana", activo: true } })).toBe(false);
+    expect(ok(versionCompraVistaSchema, { ...version, autor: ana.id })).toBe(false);
+  });
+  it("el detalle lleva el autor en cada versión", () => {
+    const v = { ...version, accion: "editar", usuarioId: ana.id, autor: ana };
+    const r = detalleCompraSchema.safeParse({ original: version, vigente: fila, versiones: [version, v], hallazgos: [] });
+    expect(r.success).toBe(true);
+    expect(r.data?.versiones[1]).toMatchObject({ autor: ana });
   });
 });

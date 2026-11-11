@@ -403,10 +403,12 @@ describe("detalleLupaSchema · xml como unión discriminada", () => {
   });
 
   it("disponible admite quién y cuándo lo subió, y el aviso de moneda", () => {
+    const subidoPor = randomUUID();
     const completo = {
       estado: "disponible",
       origen: "subido",
-      subidoPor: randomUUID(),
+      subidoPor,
+      autor: { id: subidoPor, nombre: "Ana Pérez", activo: true },
       subidoEn: "2026-11-09T10:00:00.000Z",
       avisoMoneda: { monedaXml: "USD", monedaFila: "PEN" },
     };
@@ -471,5 +473,36 @@ describe("detalleLupaSchema · xml como unión discriminada", () => {
     ) as { xml: Record<string, unknown> };
     expect(r.xml).not.toHaveProperty("ruta");
     expect(r.xml).not.toHaveProperty("sha256");
+  });
+});
+
+// Spec 017 · T1 (rojo). Autor con nombre en «XML subido por» (D-12, CA-13): `subidoPor` conserva el id y, cuando existe, se agrega
+// `autor` ({id, nombre, activo}). Un XML simulado o real (no subido) no lleva ni `subidoPor` ni `autor`.
+describe("detalleLupaSchema · xml.autor (017)", () => {
+  const xml = (valor: unknown) => detalleLupaSchema.safeParse(detalle({ xml: valor }));
+  const subidoPor = randomUUID();
+  const subido = { estado: "disponible", origen: "subido", subidoPor, subidoEn: "2026-11-09T10:00:00.000Z" };
+
+  it("conserva subidoPor y trae el autor con nombre", () => {
+    const autor = { id: subidoPor, nombre: "Ana Pérez", activo: true };
+    const r = xml({ ...subido, autor });
+    expect(r.success).toBe(true);
+    expect(r.data?.xml).toMatchObject({ subidoPor, autor });
+  });
+
+  it("acepta un autor inactivo o desconocido (nombre null)", () => {
+    expect(xml({ ...subido, autor: { id: subidoPor, nombre: "Ana Pérez", activo: false } }).success).toBe(true);
+    expect(xml({ ...subido, autor: { id: subidoPor, nombre: null, activo: false } }).success).toBe(true);
+  });
+
+  it("un XML sin quien lo subió (simulado o real) no necesita autor", () => {
+    expect(xml({ estado: "disponible", origen: "real" }).success).toBe(true);
+    expect(xml({ estado: "disponible", origen: "simulado" }).success).toBe(true);
+  });
+
+  it("rechaza un autor mal formado", () => {
+    expect(xml({ ...subido, autor: { id: "x", nombre: "Ana", activo: true } }).success).toBe(false);
+    expect(xml({ ...subido, autor: { id: subidoPor, nombre: "Ana" } }).success).toBe(false);
+    expect(xml({ ...subido, autor: subidoPor }).success).toBe(false);
   });
 });

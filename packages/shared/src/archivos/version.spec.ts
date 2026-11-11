@@ -16,11 +16,13 @@ const resumen = {
   filasSinConvertir: [],
 };
 
+const generador = randomUUID();
 const version = (extra: Record<string, unknown> = {}) => ({
   id: randomUUID(),
   version: 1,
   generadoEn: "2026-11-10T12:00:00.000Z",
-  generadoPor: randomUUID(),
+  generadoPor: generador,
+  autor: { id: generador, nombre: "Ana Pérez", activo: true },
   formato: { id: "provisional-rce", version: "1" },
   provisional: true,
   nombreZip: "CONTAPP-PROVISIONAL-20123456789-202610.zip",
@@ -99,5 +101,27 @@ describe("versionArchivoSchema", () => {
       const resto = Object.fromEntries(Object.entries(version()).filter(([c]) => c !== k));
       expect(ok(resto), `sin ${k}`).toBe(false);
     }
+  });
+});
+
+// Spec 017 · T1 (rojo). Autor con nombre en las versiones de archivo (D-12, CA-13): `generadoPor` conserva el id y se agrega
+// `autor` ({id, nombre, activo}), siempre presente porque quien genera es un usuario.
+describe("versionArchivoSchema · autor (017)", () => {
+  it("conserva generadoPor y trae el autor con nombre", () => {
+    const r = versionArchivoSchema.safeParse(version());
+    expect(r.success).toBe(true);
+    expect(r.data).toMatchObject({ generadoPor: generador, autor: { id: generador, nombre: "Ana Pérez", activo: true } });
+  });
+  it("acepta un generador desactivado o desconocido (nombre null)", () => {
+    expect(ok(version({ autor: { id: generador, nombre: "Ana Pérez", activo: false } }))).toBe(true);
+    expect(ok(version({ autor: { id: generador, nombre: null, activo: false } }))).toBe(true);
+  });
+  it("exige autor y lo valida", () => {
+    const sin: Record<string, unknown> = version();
+    delete sin.autor;
+    expect(ok(sin)).toBe(false);
+    expect(ok(version({ autor: null }))).toBe(false);
+    expect(ok(version({ autor: { id: "x", nombre: "Ana", activo: true } }))).toBe(false);
+    expect(ok(version({ autor: generador }))).toBe(false);
   });
 });
