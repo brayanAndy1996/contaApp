@@ -6,7 +6,8 @@
 //    `permiteProvisional` (D2); si la clave no se pasa, `process.env.NODE_ENV`. `ahora` es el reloj de `generadoEn` del ZIP.
 //  - Los rechazos de negocio son `ErrorArchivo` (subclase de `ErrorDatos`, sin reintento; 008 los deja en `datos_invalidos`):
 //    el código fino va en `detalle`, nunca con datos de una fila: `parametros_invalidos`, `cliente_archivado`,
-//    `estado_invalido`, `resumen_cambiado`, `prevalidacion_fallida` y `formato_no_oficial`. Un rechazo no deja rastro: se lanza
+//    `estado_invalido`, `resumen_cambiado`, `prevalidacion_fallida`, `formato_no_oficial` y `resumen_fuera_de_rango` (un impacto
+//    en IGV que no cabe en NUMERIC(14,2): el 422 del previo; H-012b-2). Un rechazo no deja rastro: se lanza
 //    dentro de la transacción (el estado vuelve atrás), antes de guardar nada en storage.
 //  - Un fallo inesperado (p. ej. de BD tras `storage.guardar`) se propaga tal cual, tras borrar el ZIP (mejor esfuerzo; si no
 //    se puede, se registra solo un código).
@@ -40,7 +41,6 @@ import {
   compraLeidaAFila,
   generarTxt,
   permiteProvisional,
-  prepararArchivo,
   ventaAFila,
   type ArchivoPreparado,
   type AvisoArchivo,
@@ -56,6 +56,7 @@ import { rutaArchivo, sha256Hex, type StorageProvider } from "@contapp/storage";
 import { ErrorDatos, empaquetar } from "@contapp/sunat";
 import type { Procesador, TrabajoEnCurso } from "../ejecutor.js";
 import { registrar, type LoggerTrabajos } from "../registro.js";
+import { prepararSinDesborde } from "./desborde-resumen.js";
 
 export type DetalleErrorArchivo =
   | "parametros_invalidos"
@@ -63,13 +64,17 @@ export type DetalleErrorArchivo =
   | "estado_invalido"
   | "resumen_cambiado"
   | "prevalidacion_fallida"
-  | "formato_no_oficial";
+  | "formato_no_oficial"
+  | "resumen_fuera_de_rango";
 
 export class ErrorArchivo extends ErrorDatos {
   constructor(readonly detalle: DetalleErrorArchivo) {
     super();
   }
 }
+
+/** El desborde del impacto en IGV es un error de datos (sin reintento ni rastro), como el 422 del previo (H-012b-2). */
+const fueraDeRango = (): Error => new ErrorArchivo("resumen_fuera_de_rango");
 
 export interface DepsGenerarArchivo {
   db: Pick<ContappDb, "withTenant">;
@@ -142,14 +147,10 @@ async function prepararCompras(
   const filas = await leerFilasReemplazo(tx, t.clienteId, cabecera.periodo, compraLeidaAFila);
   const reglas = contextoReglas(await leerProveedoresConocidos(tx, t.clienteId, cabecera.periodo));
   const vigente = filas.vigente.map((f) => f.fila);
-  const preparado = prepararArchivo({
-    libro: "compras",
-    cabecera,
-    original: filas.original.map((f) => f.fila),
-    vigente,
-    reglas,
-    permitirProvisional,
-  });
+  const preparado = prepararSinDesborde(
+    { libro: "compras", cabecera, original: filas.original.map((f) => f.fila), vigente, reglas, permitirProvisional },
+    fueraDeRango,
+  );
   const avisosFilas = filas.vigente.filter((f) => f.fila.estado !== "excluida").flatMap((f) => f.avisos);
   return { preparado, vigente, avisosFilas };
 }
@@ -170,14 +171,10 @@ async function prepararVentas(
     hasta: j.hasta,
     comentario: j.comentario,
   }));
-  const preparado = prepararArchivo({
-    libro: "ventas",
-    cabecera,
-    original: filas.original,
-    vigente: filas.vigente,
-    saltos,
-    permitirProvisional,
-  });
+  const preparado = prepararSinDesborde(
+    { libro: "ventas", cabecera, original: filas.original, vigente: filas.vigente, saltos, permitirProvisional },
+    fueraDeRango,
+  );
   return { preparado, vigente: filas.vigente, avisosFilas: [] };
 }
 

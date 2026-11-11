@@ -23,7 +23,6 @@ import {
   DineroError,
   erroresDeFilaVenta,
   permiteProvisional,
-  prepararArchivo,
   ventaAFila,
   type ArchivoPreparado,
   type AvisoArchivo,
@@ -46,6 +45,10 @@ import { exigirCliente } from "../compras/apoyo.js";
 import { ComprasError } from "../compras/errores.js";
 import { exigir } from "../compras/escritura.js";
 import { aRespuestaEstado } from "../compras/periodo.service.js";
+import { prepararSinDesborde } from "./desborde.js";
+
+/** Una suma que no cabe en NUMERIC(14,2) es un error controlado (como en el resumen de 013 y 014), nunca un 500 (H-012b-2). */
+const fueraDeRango = (): Error => new ComprasError("resumen_fuera_de_rango");
 
 /** Lo que un previo necesita de la petición: el alcance del actor y el cliente, periodo y libro de la ruta. */
 export interface EntradaPrevio {
@@ -124,14 +127,17 @@ async function prepararCompras(tx: Tx, e: EntradaPrevio, cabecera: CabeceraTxt, 
   // Un aviso por razón social recortada, solo de las filas que van al TXT (las excluidas no).
   const avisosAdaptador = vigente.filter((f: FilaReemplazo) => f.estado !== "excluida").flatMap((f) => porFila.get(f.id) ?? []);
   const conocidos = await leerProveedoresConocidos(tx, e.clienteId, e.periodo);
-  const preparado = prepararArchivo({
-    libro: "compras",
-    cabecera,
-    original,
-    vigente,
-    reglas: { proveedoresConocidos: conocidos, proveedoresIsc: [], diccionario: DICCIONARIO_GLOSAS_BASE },
-    permitirProvisional: permitir,
-  });
+  const preparado = prepararSinDesborde(
+    {
+      libro: "compras",
+      cabecera,
+      original,
+      vigente,
+      reglas: { proveedoresConocidos: conocidos, proveedoresIsc: [], diccionario: DICCIONARIO_GLOSAS_BASE },
+      permitirProvisional: permitir,
+    },
+    fueraDeRango,
+  );
   // En compras nada se excluye por error (la zapatilla cuenta en `resumen.excluidas`): D12 es solo de ventas del SIRE.
   return { preparado, avisosAdaptador, excluible: () => false, excluidas: [], excluidasOmitidas: 0 };
 }
@@ -145,7 +151,10 @@ async function prepararVentas(tx: Tx, e: EntradaPrevio, cabecera: CabeceraTxt, p
     hasta: j.hasta,
     comentario: j.comentario,
   }));
-  const preparado = prepararArchivo({ libro: "ventas", cabecera, original, vigente, saltos, permitirProvisional: permitir });
+  const preparado = prepararSinDesborde(
+    { libro: "ventas", cabecera, original, vigente, saltos, permitirProvisional: permitir },
+    fueraDeRango,
+  );
   const filas = new Map(vigente.map((f) => [f.id, f] as const));
   // D12: es excluible la venta del SIRE (no manual, no excluida) que tiene algún error de su propia fila, la misma regla con la
   // que `excluir` decide; así la pantalla no ofrece «Excluir» donde la API respondería 409 `no_excluible`.
@@ -195,8 +204,9 @@ export async function calcularPrevio(
   try {
     filas = e.libro === "compras" ? await prepararCompras(tx, e, cabecera, permitir) : await prepararVentas(tx, e, cabecera, permitir);
   } catch (err) {
-    // Una suma que no cabe en NUMERIC(14,2) es un error controlado (como en el resumen de 014), nunca un 500.
-    if (err instanceof DineroError) throw new ComprasError("resumen_fuera_de_rango");
+    // Una suma que no cabe en NUMERIC(14,2) es un error controlado (como en el resumen de 014), nunca un 500. El desborde del
+    // impacto en IGV del dominio (EntradaPrevalidacionInvalidaError, D22) lo traduce `prepararSinDesborde`.
+    if (err instanceof DineroError) throw fueraDeRango();
     throw err;
   }
   const { preparado } = filas;

@@ -76,16 +76,13 @@ export function accesoDe(req: PeticionAcceso): readonly [Alcance, ReadonlySet<st
 }
 
 /**
- * Estado del periodo de ventas para ESCRIBIR (012b, D5, P-9). Sin fila equivale a `abierto` y no se crea una por escribir: se lee
- * sin bloquear y, si la fila existe (estado distinto de `abierto` o con marca), se vuelve a leer con `FOR SHARE` para que revisar,
- * reabrir y generar esperen a la escritura en curso; la decisión se toma sobre el valor leído con el bloqueo. Con el advisory del
- * libro ya tomado, generar (que lo toma también) queda serializado con la escritura en todos los casos.
+ * Estado del periodo de ventas para ESCRIBIR (012b, D5, P-9; ronda 1, H-012b-1). Como las escrituras de compras (014,
+ * `exigirEscritura`): con `bloquear`, la fila de `venta_periodo` se crea `abierto` si falta y se lee `FOR SHARE` ANTES de decidir,
+ * de modo que revisar, reabrir y generar (`FOR UPDATE`) esperan a la escritura en curso, o la escritura ve su resultado. Sin
+ * `bloquear` (encolar la descarga: el worker lo repite bajo el bloqueo) solo se lee y no se crea nada.
  */
 async function estadoParaEscribir(tx: Tx, clienteId: string, periodo: string, bloquear: boolean): Promise<EstadoPeriodoVentas> {
-  const actual = await leerEstadoPeriodoVentas(tx, clienteId, periodo);
-  const existe = actual.estado !== "abierto" || actual.marcadoPor !== null;
-  if (!bloquear || !existe) return actual.estado;
-  return (await leerEstadoPeriodoVentas(tx, clienteId, periodo, { compartido: true })).estado;
+  return (await leerEstadoPeriodoVentas(tx, clienteId, periodo, bloquear ? { compartido: true } : {})).estado;
 }
 
 /**
