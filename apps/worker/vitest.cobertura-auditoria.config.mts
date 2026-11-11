@@ -47,6 +47,10 @@ export default defineConfig({
       "apps/worker/src/trabajos/ejecutor*.spec.ts",
       "apps/worker/src/trabajos/notificador*.spec.ts",
       "packages/queue/src/eventos*.spec.ts",
+      // eventos.ts lo cubren también los specs de bordes, despachador y reconciliador de queue (T14a).
+      "packages/queue/src/bordes.spec.ts",
+      "packages/queue/src/despachador.spec.ts",
+      "packages/queue/src/reconciliador.spec.ts",
     ],
     exclude: ["**/node_modules/**"],
     // Las suites con BD y Redis comparten recursos: nada en paralelo.
