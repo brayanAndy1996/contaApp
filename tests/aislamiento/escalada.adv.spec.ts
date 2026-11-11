@@ -353,7 +353,8 @@ describe("ADV escalada desde DATABASE_URL", () => {
       [FIRMA_BLOQUEAR_REEVALUAR, FIRMA_ENCOLAR_XML, ...FUNCIONES_017.filter((f) => !f.firma.startsWith("interno.")).map((f) => f.firma)].sort(),
     );
     // Cada SECURITY DEFINER de 017: existe, dueño esperado, search_path fijo, sin EXECUTE para PUBLIC.
-    expect(props017).toEqual(
+    // El orden de la consulta depende de la colación de la BD (CI y local difieren con `_`): se ordena aquí igual que lo esperado.
+    expect([...props017].sort((a, b) => (a.firma < b.firma ? -1 : 1))).toEqual(
       [...FUNCIONES_017]
         .sort((a, b) => (a.firma < b.firma ? -1 : 1))
         .map((f) => ({
