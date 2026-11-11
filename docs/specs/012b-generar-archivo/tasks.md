@@ -31,7 +31,7 @@ Nivel A (spec) con las pantallas como C por tarea (T14, T15: pruebas mínimas, s
 | T23 | Prueba manual contra el sistema completo | tester | sonnet | T15, T22 | — | — | [x] |
 | T24 | Verificar CA-1 a CA-16 con evidencia, suites completas y cobertura | tester | sonnet | T23 | — | — | [x] |
 | T25 | Revisión final contra la spec y 03 §7.3 | arquitecto | opus | T24 | — | — | [x] |
-| T26 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza ESTADO) | devops | haiku | T25 | — | — | [ ] |
+| T26 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza ESTADO) | devops | haiku | T25 | — | — | [x] |
 
 Paralelismo: T1 ∥ T2 ∥ T3 ∥ T4; luego T5 ∥ T6 (los dos contra los esquemas de T2). Implementación en cuatro carriles independientes: T7 (`domain`) ∥ T8 (`shared`) ∥ T9 (`storage`) ∥ T10 (`db`). Luego T11 (`apps/worker`) ∥ T12 (`apps/backend/src/modules/archivos` y `app.module.ts`) ∥ T13 (`apps/backend/src/modules/ventas`). El frontend (T14 → T15) corre en paralelo con T9–T13 contra el contrato de `shared` (sus pruebas simulan la API); T16 con T14–T15. Las rondas y sus correcciones van en serie (T17 → T19 → T20 → T22): la ronda 2 debe ver las correcciones de la 1. Si una ronda no deja fallos, se saltan sus dos tareas de corrección (se marcan `[x]` «sin hallazgos»).
 
@@ -299,7 +299,8 @@ Observaciones (sin tarea): (a) la lista de versiones de la pantalla solo muestra
 
   **Para 03 §7.3** (pendiente, texto propuesto): (1) `GET …/{compras|ventas}/archivos/previo` arma en una foto de solo lectura, con `prepararArchivo` de `domain` (la misma composición que el worker), errores, avisos, resumen, formato, estado y la **huella** (`sha256` del canon de las filas; no incluye estado, avisos ni motivos). (2) `POST …/archivos` `{estadoVisto, huella}` comprueba cliente, estado, formato, huella (409 `resumen_cambiado`) y prevalidación (422) y encola `archivo.generar` (cola `archivos`, sin credenciales). (3) El worker, en UNA `withTenant`: advisory del libro → compare-and-set del estado a `generado` → filas → huella y prevalidación otra vez → `generarTxt` (si el TXT es idéntico a la última versión, la devuelve, P-5) → `empaquetar` → storage `archivos/{tenant}/{cliente}/{id}.zip` → `INSERT` en `archivo_generado` (inmutable, versión = máx + 1). Si falla, el estado vuelve atrás y el ZIP se borra solo si la versión no se confirmó. (4) Las versiones se listan y descargan con el SHA-256 verificado; reabrir no borra versiones.
 
-## T26 · [ ] Cierre (devops · haiku)
+## T26 · [x] Cierre (devops · haiku)
 - **Contexto (leer solo esto)**: este `tasks.md`, `git status`.
 - **Hacer**: marcar las tareas, `Estado: hecha` en `spec.md` con la fecha y los CA en `[x]` según T24 y T25.
 - **Hecho cuando**: `git status` limpio salvo lo ajeno. Commit `docs(012b): cierre`.
+- **Resultado** (2026-11-11): cierre hecho. `docs/03-arquitectura.md` §7.3 con el texto propuesto (se conservan el punto R2 y la nota de formatos, que el texto no menciona); `spec.md` en «Estado: hecha» con CA-1 a CA-16 y casos reales en `[x]` según T24 y T25; `docs/specs/ESTADO.md` sin tocar. Sin marcar (no se inventaron): T1 a T22 siguen `[ ]` en la tabla y en sus encabezados, aunque el branch tiene commit para cada una (`git log main..HEAD`); T16a y T23a no tienen fila en esta hoja (sus commits son `d669424` y `8aa50e2`).

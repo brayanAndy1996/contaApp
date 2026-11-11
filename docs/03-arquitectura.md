@@ -200,9 +200,13 @@ Rutas bajo `/clientes/:clienteId/periodos/:periodo/compras/:compraId` (spec 016,
 3. Acciones → las rutas de compras de 014 (aceptar, clasificar, excluir y restaurar). «Editar» abre la fila en edición en la grilla. Cada una crea una **versión nueva** de la fila (la original nunca cambia). Guardar o cambiar el XML **no** crea versión: inserta una evaluación numerada (`compra_evaluacion`). «Recordar para este proveedor» es R2.
 
 ### 7.3 Generar archivo de reemplazo
-1. `POST /…/archivos` → el backend corre la **prevalidación** (`domain.prevalidar`) en línea; si hay errores, responde 422 con la lista de filas.
-2. Si pasa, encola `archivo.generar` → el worker arma el TXT con `domain.generarTxt` (formatos versionados en `packages/domain/src/formatos`, que repite la prevalidación), lo comprime en ZIP y calcula el hash con `packages/sunat/src/formatos`, y lo guarda en storage con su versión. Los formatos viven en `domain` porque el backend los necesita para prevalidar y no puede importar `sunat` (spec 012, D2).
-3. (R2) `sire.reemplazo.enviar` → ticket → `sire.ticket.consultar` cada N minutos hasta el estado final.
+1. `GET …/{compras|ventas}/archivos/previo` arma en una foto de solo lectura, con `prepararArchivo` de `domain` (la misma composición que el worker), errores, avisos, resumen, formato, estado y la **huella** (`sha256` del canon de las filas; no incluye estado, avisos ni motivos).
+2. `POST …/archivos` `{estadoVisto, huella}` comprueba cliente, estado, formato, huella (409 `resumen_cambiado`) y prevalidación (422) y encola `archivo.generar` (cola `archivos`, sin credenciales).
+3. El worker, en UNA `withTenant`: advisory del libro → compare-and-set del estado a `generado` → filas → huella y prevalidación otra vez → `generarTxt` (si el TXT es idéntico a la última versión, la devuelve, P-5) → `empaquetar` → storage `archivos/{tenant}/{cliente}/{id}.zip` → `INSERT` en `archivo_generado` (inmutable, versión = máx + 1). Si falla, el estado vuelve atrás y el ZIP se borra solo si la versión no se confirmó.
+4. Las versiones se listan y descargan con el SHA-256 verificado; reabrir no borra versiones.
+5. (R2) `sire.reemplazo.enviar` → ticket → `sire.ticket.consultar` cada N minutos hasta el estado final.
+
+Los formatos viven en `domain` porque el backend los necesita para prevalidar y no puede importar `sunat` (spec 012, D2).
 
 ## 8. Modelo de datos (resumen)
 
