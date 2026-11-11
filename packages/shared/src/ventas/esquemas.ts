@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { MONEDAS } from "../clientes/esquemas.js";
+import type { ExclusionVenta } from "./exclusion.js";
 
 // Esquemas y DTOs de ventas (spec 013). Reglas duras: los montos viajan SIEMPRE como cadenas decimales
 // (nunca `number`; el frontend no suma ni compara) y las claves desconocidas se descartan (z.object).
@@ -193,6 +194,8 @@ export interface VentaDto extends MontosVentaDto {
   tipoCambio: string | null;
   /** D26: Σ de las siete columnas = total (tolerancia 0.00), calculado al leer; una venta manual siempre cuadra. */
   cuadra: boolean;
+  /** D12: la exclusión vigente (la venta no entra al TXT) o null. */
+  exclusion: ExclusionVenta | null;
 }
 
 export type AvisoLecturaVentas = "todas_limitada";

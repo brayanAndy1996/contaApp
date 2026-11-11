@@ -12,7 +12,7 @@ import {
   igvCuadra,
   verificarCuadre,
 } from "../dinero/index";
-import type { Money, ResultadoCuadre } from "../dinero/index";
+import type { Cuadrable, Moneda, Money, ResultadoCuadre } from "../dinero/index";
 import { PARES_DESTINO } from "../reglas/entrada";
 import type { OrigenUsd } from "../reglas/index";
 import type { FilaCopia } from "./entrada";
@@ -62,30 +62,33 @@ function enRango<T>(calcular: () => T): T | null {
 }
 
 /** verificarCuadre con TOLERANCIA_CUADRE; `null` (no cuadra) si Σ o total − Σ salen de rango. */
-function cuadreDe(m: MontosComprobante): ResultadoCuadre | null {
+function cuadreDe(m: Cuadrable): ResultadoCuadre | null {
   return enRango(() => verificarCuadre(m, TOLERANCIA_CUADRE));
 }
 
-/** Solo `null` es «sin TC» (Ratificación 8); una fila PEN con TC tampoco se descarta en silencio. */
-function tipoCambioFila(f: FilaCopia): ErrorPrevalidacion[] {
+/**
+ * Solo `null` es «sin TC» (Ratificación 8); una fila PEN con TC tampoco se descarta en silencio. La
+ * usan compras y ventas (012b).
+ */
+export function erroresTipoCambio(filaId: string, moneda: Moneda, tipoCambio: string | null): ErrorPrevalidacion[] {
   const error = (codigo: "USD_SIN_TC" | "TC_INVALIDO", explicacion: string) => [
-    crearError({ filaId: f.id, codigo, campo: "tipoCambio", explicacion }),
+    crearError({ filaId, codigo, campo: "tipoCambio", explicacion }),
   ];
-  if (f.montos.moneda === "PEN") return f.tipoCambio === null ? [] : error("TC_INVALIDO", TC_EN_PEN);
-  if (f.tipoCambio === null) return error("USD_SIN_TC", USD_SIN_TC);
-  return tipoCambioDe(f.tipoCambio) === null ? error("TC_INVALIDO", TC_INVALIDO) : [];
+  if (moneda === "PEN") return tipoCambio === null ? [] : error("TC_INVALIDO", TC_EN_PEN);
+  if (tipoCambio === null) return error("USD_SIN_TC", USD_SIN_TC);
+  return tipoCambioDe(tipoCambio) === null ? error("TC_INVALIDO", TC_INVALIDO) : [];
 }
 
-/** CUADRE con `diferencia = total − Σ` en la moneda de la fila (tolerancia 0.00). */
-function cuadreFila(f: FilaCopia): ErrorPrevalidacion[] {
-  const c = cuadreDe(f.montos);
+/** CUADRE con `diferencia = total − Σ` en la moneda de la fila (tolerancia 0.00). Compras y ventas (012b). */
+export function erroresCuadre(filaId: string, montos: Cuadrable): ErrorPrevalidacion[] {
+  const c = cuadreDe(montos);
   if (c === null) {
-    return [crearError({ filaId: f.id, codigo: "CUADRE", campo: "total", explicacion: CUADRE_FUERA_DE_RANGO })];
+    return [crearError({ filaId, codigo: "CUADRE", campo: "total", explicacion: CUADRE_FUERA_DE_RANGO })];
   }
   if (c.cuadra) return [];
   return [
     crearError({
-      filaId: f.id,
+      filaId,
       codigo: "CUADRE",
       campo: "total",
       explicacion: cuadre(c.sumaComponentes, c.total),
@@ -164,7 +167,12 @@ function origenFila(f: FilaCopia): Aritmetica {
 export function validarAritmetica(f: FilaCopia): Aritmetica {
   const origen = origenFila(f);
   return {
-    errores: [...tipoCambioFila(f), ...cuadreFila(f), ...igvFila(f), ...origen.errores],
+    errores: [
+      ...erroresTipoCambio(f.id, f.montos.moneda, f.tipoCambio),
+      ...erroresCuadre(f.id, f.montos),
+      ...igvFila(f),
+      ...origen.errores,
+    ],
     origen: origen.origen,
   };
 }

@@ -641,7 +641,12 @@ export function GrillaCompras({
   useEffect(() => {
     if (!resaltadas || resaltadas.size === 0) return;
     const i = items.findIndex((x) => x.tipo === "fila" && resaltadas.has(x.fila.original.id));
-    if (i >= 0) filasVirtuales.scrollToIndex(i, { align: "center" });
+    if (i < 0) return;
+    filasVirtuales.scrollToIndex(i, { align: "center" });
+    // Además de mover la ventana interna, la grilla (65vh) se centra en la página: si no, la fila queda fuera de la
+    // pantalla aunque el virtualizador ya la haya colocado (T23a, P-1). jsdom no trae `scrollIntoView`.
+    const grilla = scrollRef.current;
+    if (grilla && typeof grilla.scrollIntoView === "function") grilla.scrollIntoView({ block: "center" });
     // Al cambiar lo resaltado o la cantidad de filas (la compra ubicada puede llegar con una carga nueva); el
     // virtualizador y `items` se leen del último pintado.
   }, [resaltadas, items.length]);

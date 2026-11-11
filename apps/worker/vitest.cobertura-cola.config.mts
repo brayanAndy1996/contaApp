@@ -41,6 +41,7 @@ const proyecto = (
   name: string,
   include: string[],
   exclude: string[] = ["**/node_modules/**"],
+  env: Record<string, string> = {},
 ) => ({
   resolve: { alias },
   test: {
@@ -51,6 +52,7 @@ const proyecto = (
     // Las suites con BD y Redis comparten recursos: nada en paralelo.
     fileParallelism: false,
     testTimeout: 30_000,
+    env,
   },
 });
 
@@ -80,6 +82,9 @@ export default defineConfig({
         "worker-int",
         ["apps/worker/src/trabajos/**/*.int.spec.ts"],
         ["**/node_modules/**", "**/cierre-*.adv.int.spec.ts"],
+        // 012b T24: la instrumentación v8 encarece generar 20.000 filas (6,4 s); la prueba de rendimiento de
+        // generar-archivo.int.spec.ts multiplica su límite por 3 con esta marca (como vitest.cobertura-archivos).
+        { CONTAPP_COBERTURA: "1" },
       ),
       proyecto(
         "backend-unit",

@@ -7,8 +7,10 @@ import type { Money, Moneda } from "../dinero/index";
 import type { CabeceraTxt, Libro } from "../formatos/tipos";
 import { esMoneyReal, esMontosReal } from "../reglas/entrada";
 import type { ResumenXml } from "../reglas/index";
+import { COLUMNAS_VENTA } from "../ventas/columnas";
+import type { ColumnaVenta } from "../ventas/columnas";
 import { EntradaPrevalidacionInvalidaError } from "./errores";
-import type { EstadoFila } from "./tipos";
+import type { ErrorPrevalidacion, EstadoFila, EstadoFilaVenta } from "./tipos";
 
 // ---------------------------------------------------------------- copias internas
 export interface ComprobanteCopia {
@@ -41,11 +43,38 @@ export interface FilaCopia {
   readonly xml: ResumenXml | null;
 }
 
+/** Copia de una fila de ventas (012b). `contraparte.tipo` es `null` en el consumidor final. */
+export interface FilaVentaCopia {
+  readonly id: string;
+  readonly estado: EstadoFilaVenta;
+  readonly comprobante: ComprobanteCopia;
+  readonly contraparte: { readonly tipo: string | null; readonly numero: string };
+  readonly fechaEmision: string;
+  /** La de las ocho columnas (todas en la misma). */
+  readonly moneda: Moneda;
+  readonly montos: Readonly<Record<ColumnaVenta, Money>>;
+  readonly tipoCambio: string | null;
+}
+
+/** Fila de cualquiera de los dos libros, tal como la validan y la serializan prevalidar y generarTxt. */
+export type FilaTxt = FilaCopia | FilaVentaCopia;
+
+/** Solo las copias de ventas tienen `contraparte`. */
+export function esVentaCopia(f: FilaTxt): f is FilaVentaCopia {
+  return "contraparte" in f;
+}
+
+/** Moneda de la fila (en compras, la de sus montos). */
+export function monedaDe(f: FilaTxt): Moneda {
+  return esVentaCopia(f) ? f.moneda : f.montos.moneda;
+}
+
 // ---------------------------------------------------------------- gramáticas
 const ID_FILA = /^[A-Za-z0-9_-]{1,64}$/;
 const PERIODO = /^[0-9]{4}(0[1-9]|1[0-2])$/;
 const ESTADOS: readonly string[] = Object.freeze(["original", "modificada", "agregada", "excluida"] satisfies EstadoFila[]);
-const LIBROS: readonly string[] = Object.freeze(["compras"] satisfies Libro[]);
+const ESTADOS_VENTA: readonly string[] = Object.freeze(["original", "agregada", "excluida"] satisfies EstadoFilaVenta[]);
+const LIBROS: readonly string[] = Object.freeze(["compras", "ventas"] satisfies Libro[]);
 
 const CLAVES_FILA = ["id", "estado", "comprobante", "proveedor", "fechaEmision", "montos", "tipoCambio", "origenUsd", "xml"];
 const REQUERIDAS_FILA = ["id", "estado", "comprobante", "proveedor", "fechaEmision", "montos", "tipoCambio", "origenUsd"];
@@ -57,6 +86,8 @@ const CLAVES_ORIGEN = ["montos", "tipoCambio"];
 const MONTOS_XML = ["gravado", "igv", "noGravado", "isc", "icbper", "total"];
 const CLAVES_XML = ["proveedor", "comprobante", "moneda", ...MONTOS_XML, "glosas"];
 const CLAVES_CABECERA = ["rucDeclarante", "periodo", "libro"];
+const CLAVES_FILA_VENTA = ["id", "estado", "comprobante", "contraparte", "fechaEmision", "montos", "tipoCambio"];
+const REQUERIDAS_CONTRAPARTE = ["numero"];
 
 export function invalida(): never {
   throw new EntradaPrevalidacionInvalidaError();
@@ -98,6 +129,19 @@ export function leerArreglo(a: unknown): unknown[] {
 export function compararTexto(a: string, b: string): -1 | 0 | 1 {
   if (a < b) return -1;
   return a > b ? 1 : 0;
+}
+
+/**
+ * Orden de los errores: `filaId: null` primero; luego filaId, código y campo (`null` primero), por
+ * unidades de código. Ids y nombres de campo nunca son "", así que `null` → "" los deja primero. Lo usan
+ * prevalidar y erroresDeFilaVenta (012b), así que las dos listas salen en el mismo orden.
+ */
+export function compararErrores(a: ErrorPrevalidacion, b: ErrorPrevalidacion): -1 | 0 | 1 {
+  return (
+    compararTexto(a.filaId ?? "", b.filaId ?? "") ||
+    compararTexto(a.codigo, b.codigo) ||
+    compararTexto(a.campo ?? "", b.campo ?? "")
+  );
 }
 
 function texto(x: unknown): string {
@@ -199,18 +243,75 @@ function leerFila(o: unknown): FilaCopia {
   });
 }
 
+function leerContraparte(o: unknown): { readonly tipo: string | null; readonly numero: string } {
+  const v = leerObjeto(o, CLAVES_DOC, REQUERIDAS_CONTRAPARTE);
+  const tipo = v.get("tipo");
+  return Object.freeze({ tipo: tipo === undefined ? null : texto(tipo), numero: texto(v.get("numero")) });
+}
+
+/** Las ocho columnas, todas Money reales y en la misma moneda. */
+function leerMontosVenta(o: unknown): { moneda: Moneda; montos: Readonly<Record<ColumnaVenta, Money>> } {
+  const v = leerObjeto(o, COLUMNAS_VENTA);
+  const montos = {} as Record<ColumnaVenta, Money>;
+  for (const c of COLUMNAS_VENTA) {
+    const m = v.get(c);
+    if (!esMoneyReal(m)) invalida();
+    montos[c] = m;
+  }
+  const moneda = montos.total.moneda;
+  if (COLUMNAS_VENTA.some((c) => montos[c].moneda !== moneda)) invalida();
+  return { moneda, montos: Object.freeze(montos) };
+}
+
+function leerFilaVenta(o: unknown): FilaVentaCopia {
+  const v = leerObjeto(o, CLAVES_FILA_VENTA);
+  const id = v.get("id");
+  const estado = v.get("estado");
+  if (typeof id !== "string" || !ID_FILA.test(id)) invalida();
+  if (typeof estado !== "string" || !ESTADOS_VENTA.includes(estado)) invalida();
+  const comprobante = leerComprobante(v.get("comprobante"));
+  const contraparte = leerContraparte(v.get("contraparte"));
+  const fechaEmision = texto(v.get("fechaEmision"));
+  const { moneda, montos } = leerMontosVenta(v.get("montos"));
+  const tipoCambio = leerTipoCambio(v.get("tipoCambio"));
+  return Object.freeze({
+    id: id as string,
+    estado: estado as EstadoFilaVenta,
+    comprobante,
+    contraparte,
+    fechaEmision,
+    moneda,
+    montos,
+    tipoCambio,
+  });
+}
+
 // ---------------------------------------------------------------- API interna
-/** Filas copiadas y congeladas (ids únicos), en el orden recibido. */
-export function leerFilas(filas: unknown): readonly FilaCopia[] {
+function leerUnicas<T extends { readonly id: string }>(filas: unknown, leer: (o: unknown) => T): readonly T[] {
   const ids = new Set<string>();
-  const copias: FilaCopia[] = [];
+  const copias: T[] = [];
   for (const o of leerArreglo(filas)) {
-    const f = leerFila(o);
+    const f = leer(o);
     if (ids.has(f.id)) invalida();
     ids.add(f.id);
     copias.push(f);
   }
   return Object.freeze(copias);
+}
+
+/** Filas de compras copiadas y congeladas (ids únicos), en el orden recibido. */
+export function leerFilas(filas: unknown): readonly FilaCopia[] {
+  return leerUnicas(filas, leerFila);
+}
+
+/** Filas de ventas copiadas y congeladas (ids únicos), en el orden recibido (012b). */
+export function leerFilasVenta(filas: unknown): readonly FilaVentaCopia[] {
+  return leerUnicas(filas, leerFilaVenta);
+}
+
+/** Filas del libro de la cabecera: las del otro libro son forma imposible (012b). */
+export function leerFilasDe(libro: Libro, filas: unknown): readonly FilaTxt[] {
+  return libro === "ventas" ? leerFilasVenta(filas) : leerFilas(filas);
 }
 
 /**

@@ -65,6 +65,9 @@ export default defineConfig({
           exclude: ["**/node_modules/**"],
           fileParallelism: false,
           testTimeout: 30_000,
+          // 012b: la instrumentación v8 encarece generar 20.000 filas; la prueba de rendimiento de
+          // generar-archivo.int.spec.ts multiplica su límite por 3 con esta marca (como vitest.cobertura-cola).
+          env: { CONTAPP_COBERTURA: "1" },
         },
       },
     ],

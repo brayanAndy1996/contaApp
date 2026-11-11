@@ -46,7 +46,22 @@ export const aVenta = (f: Fila): VentaFila => ({
   total: f.total,
   creadaPor: f.creada_por,
   creadaEn: f.creada_en,
+  // Las columnas `exclusion_*` solo vienen en las lecturas que unen la exclusión vigente (no en el RETURNING de las escrituras).
+  exclusion:
+    f.exclusion_motivo == null
+      ? null
+      : { motivo: f.exclusion_motivo, por: f.exclusion_por, en: f.exclusion_en },
 });
+
+/**
+ * Spec 012b (D12): columnas de `venta` más su exclusión vigente (`exclusion_motivo`, `exclusion_por`, `exclusion_en`, nulas si no
+ * hay). El único parcial de `venta_exclusion` deja a lo sumo una vigente por venta: la unión no duplica filas.
+ */
+export const DESDE_VENTA_CON_EXCLUSION = `venta left join lateral (
+    select x.motivo as exclusion_motivo, x.excluida_por as exclusion_por, x.excluida_en as exclusion_en
+      from venta_exclusion x where x.tenant_id = venta.tenant_id and x.venta_id = venta.id and x.restaurada_en is null
+  ) ex on true`;
+export const COLUMNAS_VENTA_CON_EXCLUSION = `${COLUMNAS_VENTA}, exclusion_motivo, exclusion_por, exclusion_en`;
 
 // Filtros opcionales: un parámetro nulo desactiva su condición. `q` ya llega con %, _ y \ escapados (escape '\').
 const DONDE = `cliente_id = $1 and periodo = $2
@@ -59,9 +74,11 @@ const DONDE = `cliente_id = $1 and periodo = $2
 
 const SQL_CONTAR = `select count(*)::int as n from venta where ${DONDE}`;
 
-const SQL_PAGINA = `select ${COLUMNAS_VENTA} from venta where ${DONDE} ${ORDEN} limit $8::int offset $9::int`;
+const SQL_PAGINA = `select ${COLUMNAS_VENTA_CON_EXCLUSION} from ${DESDE_VENTA_CON_EXCLUSION}
+  where ${DONDE} ${ORDEN} limit $8::int offset $9::int`;
 
-const SQL_TODAS_DEL_PERIODO = `select ${COLUMNAS_VENTA} from venta where cliente_id = $1 and periodo = $2 ${ORDEN}`;
+const SQL_TODAS_DEL_PERIODO = `select ${COLUMNAS_VENTA_CON_EXCLUSION} from ${DESDE_VENTA_CON_EXCLUSION}
+  where cliente_id = $1 and periodo = $2 ${ORDEN}`;
 
 const SQL_EXISTENTES = `select clave, origen, to_char(fecha, 'YYYY-MM-DD') as fecha, moneda,
     coalesce(tipo_cambio::text, '') as tipo_cambio, tipo_doc_contraparte, doc_contraparte,

@@ -12,7 +12,13 @@ export type CodigoVentas =
   | "filas_con_errores"
   | "archivo_invalido"
   | "columnas_faltantes"
-  | "archivo_demasiado_grande";
+  | "archivo_demasiado_grande"
+  | "periodo_revisado"
+  | "periodo_generado"
+  | "estado_invalido"
+  | "no_excluible"
+  | "ya_excluida"
+  | "no_excluida";
 
 const ESTADO: Record<CodigoVentas, number> = {
   // D9: la clave (tipo, serie, número) ya está en el periodo, también contra una fila del SIRE.
@@ -35,6 +41,16 @@ const ESTADO: Record<CodigoVentas, number> = {
   archivo_invalido: HttpStatus.BAD_REQUEST,
   columnas_faltantes: HttpStatus.BAD_REQUEST,
   archivo_demasiado_grande: HttpStatus.PAYLOAD_TOO_LARGE,
+  // 012b D5, P-9: el periodo está revisado y quien escribe no tiene `sire.aprobar_generar`.
+  periodo_revisado: HttpStatus.FORBIDDEN,
+  // 012b D5: el periodo ya generó su archivo; nadie escribe hasta reabrirlo.
+  periodo_generado: HttpStatus.CONFLICT,
+  // 012b P-1: el estado esperado del periodo no es el vigente (revisar desde algo que no es `abierto`, reabrir un `abierto`).
+  estado_invalido: HttpStatus.CONFLICT,
+  // 012b D12: solo se excluye una venta del SIRE con al menos un error de su propia fila.
+  no_excluible: HttpStatus.CONFLICT,
+  ya_excluida: HttpStatus.CONFLICT,
+  no_excluida: HttpStatus.CONFLICT,
 };
 
 /**

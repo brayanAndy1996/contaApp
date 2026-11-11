@@ -35,7 +35,16 @@ export type VentaFila = VentaNueva & {
   numeroN: number | null;
   creadaPor: string | null;
   creadaEn: Date;
+  /** Spec 012b (D12): la exclusión vigente de la venta; `null` si nunca se excluyó o se restauró. */
+  exclusion: ExclusionLeida | null;
 };
+
+/** La exclusión vigente de una venta, como la lleva `VentaFila` (sin el motivo en logs ni errores). */
+export interface ExclusionLeida {
+  motivo: string;
+  por: string;
+  en: Date;
+}
 
 /** Contexto de una inserción de filas del SIRE o de una importación. */
 export interface ContextoInsercionVentas {
@@ -96,4 +105,43 @@ export interface Justificado {
   creadaEn: Date;
   revertidoPor: string | null;
   revertidoEn: Date | null;
+}
+
+// Spec 012b (P-1, P-9): estado del periodo de ventas, igual al de compras (014). Sin fila equivale a `abierto`.
+export type EstadoPeriodoVentas = "abierto" | "revisado" | "generado";
+
+export interface EstadoPeriodoVenta {
+  estado: EstadoPeriodoVentas;
+  marcadoPor: string | null;
+  marcadoEn: Date | null;
+}
+
+// Spec 012b (P-8, D12): exclusión de una venta del SIRE con error.
+export interface DatosExcluirVenta {
+  clienteId: string;
+  periodo: string;
+  ventaId: string;
+  /** De 1 a 200 caracteres (CHECK de la tabla). */
+  motivo: string;
+  usuarioId: string;
+}
+
+/** Una exclusión vigente (las cerradas no se devuelven). */
+export interface ExclusionVenta {
+  id: string;
+  ventaId: string;
+  motivo: string;
+  excluidaPor: string;
+  excluidaEn: Date;
+  restauradaPor: null;
+  restauradaEn: null;
+}
+
+/** Una venta excluida, para la lista del previo (comprobante y motivo). */
+export interface ExcluidaVenta {
+  ventaId: string;
+  tipo: string;
+  serie: string;
+  numero: string;
+  motivo: string;
 }

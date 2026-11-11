@@ -31,6 +31,7 @@ describe("VentaDto.cuadra (T22b, D26)", () => {
       otros: "0.00",
       total: "118.00",
       cuadra: true,
+      exclusion: null,
     };
     expect(v.cuadra).toBe(true);
   });

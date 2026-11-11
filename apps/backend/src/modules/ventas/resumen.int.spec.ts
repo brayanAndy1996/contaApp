@@ -111,6 +111,8 @@ describe("CA-9 · resumen por tipo con las filas del contribuyente de prueba", (
       },
       sinConvertir: [{ clave: "01|F002|2", moneda: "USD" }],
       avisos: ["usd_sin_tipo_cambio"],
+      estado: "abierto", // 012b: estado del periodo de ventas
+      excluidas: 0, // 012b: cantidad de ventas excluidas (no suman)
     });
     // Montos como cadenas con sus ceros, nunca number.
     expect(r.text).toContain('"total":"1784.30"');
@@ -220,6 +222,8 @@ describe("CA-9 · resumen por tipo con las filas del contribuyente de prueba", (
       total: { cantidad: 0, ...CERO },
       sinConvertir: [],
       avisos: [],
+      estado: "abierto",
+      excluidas: 0,
     });
   });
 

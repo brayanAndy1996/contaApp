@@ -14,3 +14,4 @@ export * from "./importacion/index.js";
 export * from "./xml/index.js";
 export * from "./compras/index.js";
 export * from "./ventas/index.js";
+export * from "./archivos/index.js";

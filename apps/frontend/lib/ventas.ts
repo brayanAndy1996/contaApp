@@ -1,22 +1,35 @@
-import type {
-  CorrelatividadVentasDto,
-  DiferenciaVentasDto,
-  PaginaVentasDto,
-  PropuestaVentasDto,
-  ResumenVentasDto,
-  SaltoJustificarInput,
-  TamanoPaginaVentas,
-  VentaAgregarInput,
-  VentaDto,
-  VistaPreviaVentas,
-  MotivoFilaVenta,
-  MotivoAdvertenciaVenta,
+import {
+  estadoPeriodoRespuestaSchema,
+  exclusionVentaSchema,
+  type EstadoPeriodoRespuesta,
+  type ExcluirVentaInput,
+  type ReabrirPeriodo,
+  type ResumenVentasVista,
+  type CorrelatividadVentasDto,
+  type DiferenciaVentasDto,
+  type PaginaVentasDto,
+  type PropuestaVentasDto,
+  type ResumenVentasDto,
+  type SaltoJustificarInput,
+  type TamanoPaginaVentas,
+  type VentaAgregarInput,
+  type VentaDto,
+  type VistaPreviaVentas,
+  type MotivoFilaVenta,
+  type MotivoAdvertenciaVenta,
 } from "@contapp/shared";
 import { MENSAJES } from "./acceso";
 import { api, type RespuestaApi } from "./api";
 
 // Cliente HTTP y textos de la pantalla de ventas (spec 013, D14). Solo envía y recibe lo del contrato de
 // `@contapp/shared`. Los montos son SIEMPRE cadenas del servidor: aquí no se convierten, suman ni comparan.
+
+/**
+ * `GET …/ventas/resumen` (013 + 012b): suma `estado` y `excluidas`. Los dos son opcionales aquí para tolerar un
+ * servidor anterior a 012b: sin `estado`, el periodo se trata como `abierto`.
+ */
+export type ResumenVentasConEstado = ResumenVentasDto &
+  Partial<Pick<ResumenVentasVista, "estado" | "excluidas">>;
 
 export type {
   CorrelatividadVentasDto,
@@ -166,6 +179,47 @@ export const MENSAJES_VENTAS = {
     monto_invalido: "Un monto no es válido.",
     celda_peligrosa: "La fila contiene una fórmula o un carácter no permitido.",
   } satisfies Record<MotivoFilaVenta, string>,
+  // Spec 012b: estado del periodo de ventas (P-1, P-9), excluir y restaurar (P-8, D12) y errores de escritura.
+  soloLectura: {
+    generado: "El periodo ya está generado: reábrelo para modificar las ventas.",
+    revisadoSinAprobar:
+      "El periodo está revisado: solo quien puede aprobar y generar modifica las ventas.",
+  },
+  estadoPeriodo: {
+    abierto: "Abierto",
+    revisado: "Revisado",
+    generado: "Generado",
+  },
+  excluidas: (n: number) =>
+    n === 1 ? "1 venta excluida del archivo." : `${n} ventas excluidas del archivo.`,
+  excluir: "Excluir",
+  excluirVenta: "Excluir venta",
+  excluirComprobante: (clave: string) => `Excluir venta ${clave}`,
+  avisoExcluir:
+    "La venta no irá en el archivo: el RVIE no la declarará aunque SUNAT la tenga registrada. Puedes restaurarla después.",
+  motivoExclusion: "Motivo (obligatorio, hasta 200 caracteres)",
+  motivoExclusionInvalido: "Escribe un motivo de 1 a 200 caracteres en una sola línea.",
+  ventaExcluida: "Venta excluida del archivo.",
+  restaurar: "Restaurar",
+  confirmarRestaurar: (clave: string) =>
+    `¿Restaurar la venta ${clave}? Volverá a validarse y a incluirse en el archivo.`,
+  ventaRestaurada: "Venta restaurada.",
+  errorRestaurar: "No se pudo restaurar la venta.",
+  noSeUbico: "No se encontró la venta en la lista del periodo.",
+  marcaExcluida: "Excluida",
+  motivoDeExclusion: (motivo: string) => `Motivo: ${motivo}`,
+  errores: {
+    periodo_generado: "El periodo ya está generado: reábrelo para modificarlo.",
+    periodo_revisado:
+      "El periodo está revisado: solo quien puede aprobar y generar lo modifica.",
+    cliente_archivado: "El cliente está archivado y es de solo lectura.",
+    estado_invalido: "El estado del periodo cambió. Se recargó la pantalla.",
+    no_excluible:
+      "Esta venta no se puede excluir: solo las ventas del SIRE con un error que bloquea la generación.",
+    ya_excluida: "La venta ya está excluida.",
+    no_excluida: "La venta no está excluida.",
+    solicitud_invalida: "Revisa los datos: la solicitud no es válida.",
+  } as Readonly<Record<string, string>>,
   motivosTrabajo: {
     sunat_no_responde: "SUNAT no responde",
     credencial_invalida: "Credencial inválida",
@@ -191,11 +245,16 @@ export function mensajeDeErrorVentas(
   texto400: string,
 ): string {
   if (status === 400) return texto400;
-  if (status === 403) return MENSAJES.sinPermiso;
+  if (status === 403) {
+    return codigoDe(datos) === "periodo_revisado"
+      ? MENSAJES_VENTAS.errores.periodo_revisado!
+      : MENSAJES.sinPermiso;
+  }
   if (status === 409) {
     const codigo = codigoDe(datos);
     if (codigo === "cliente_archivado") return MENSAJES_VENTAS.clienteArchivado;
     if (codigo === "duplicado") return MENSAJES_VENTAS.ventaDuplicada;
+    if (codigo === "periodo_generado") return MENSAJES_VENTAS.errores.periodo_generado!;
   }
   return MENSAJES.errorGeneral;
 }
@@ -207,7 +266,11 @@ export function mensajeDeErrorImportacionVentas(
 ): string {
   const codigo = codigoDe(datos);
   if (status === 413) return MENSAJES_VENTAS.archivoGrande;
-  if (status === 403) return MENSAJES.sinPermiso;
+  if (status === 403) {
+    return codigo === "periodo_revisado"
+      ? MENSAJES_VENTAS.errores.periodo_revisado!
+      : MENSAJES.sinPermiso;
+  }
   if (status === 422) {
     if (codigo === "layout_no_oficial") return MENSAJES_VENTAS.layoutNoOficial;
     if (codigo === "propuesta_demasiado_grande")
@@ -217,6 +280,8 @@ export function mensajeDeErrorImportacionVentas(
     return MENSAJES_VENTAS.archivoInvalido;
   if (status === 409 && codigo === "cliente_archivado")
     return MENSAJES_VENTAS.clienteArchivado;
+  if (status === 409 && codigo === "periodo_generado")
+    return MENSAJES_VENTAS.errores.periodo_generado!;
   return MENSAJES.errorGeneral;
 }
 
@@ -284,8 +349,8 @@ export const listarVentas = (
 export const obtenerResumenVentas = (
   clienteId: string,
   periodo: string,
-): Promise<RespuestaApi<ResumenVentasDto>> =>
-  api<ResumenVentasDto>(`${base(clienteId, periodo)}/resumen`);
+): Promise<RespuestaApi<ResumenVentasConEstado>> =>
+  api<ResumenVentasConEstado>(`${base(clienteId, periodo)}/resumen`);
 
 export const obtenerCorrelatividad = (
   clienteId: string,
@@ -376,3 +441,132 @@ export const confirmarImportacion = (
     `${base(clienteId, periodo)}/importar/confirmar`,
     { method: "POST", cuerpoCrudo: archivo },
   );
+
+// ---------------------------------------------------------------------------------------------
+// Spec 012b (T15): estado del periodo de ventas y excluir/restaurar (P-1, P-8, P-9, D12)
+// ---------------------------------------------------------------------------------------------
+
+export interface ErrorEscrituraVentas {
+  ok: false;
+  status: number;
+  /** Código del servidor, `""` si no hubo, o `"respuesta_invalida"` si la respuesta no cumplió el esquema. */
+  codigo: string;
+  mensaje: string;
+}
+
+export type ResultadoVentas<T> =
+  | { ok: true; status: number; datos: T }
+  | ErrorEscrituraVentas;
+
+/** Mensaje visible por código del servidor y, si no se conoce, por estado HTTP. Nunca muestra el cuerpo. */
+export function mensajeDeErrorEscrituraVentas(status: number, datos: unknown): string {
+  const porCodigo = MENSAJES_VENTAS.errores[codigoDe(datos)];
+  if (porCodigo !== undefined) return porCodigo;
+  if (status === 403) return MENSAJES.sinPermiso;
+  if (status === 404) return MENSAJES.noEncontrado;
+  return MENSAJES.errorGeneral;
+}
+
+interface EsquemaVentas<T> {
+  safeParse(valor: unknown): { success: boolean; data?: T };
+}
+
+async function pedirVentas<T>(
+  ruta: string,
+  esquema: EsquemaVentas<T>,
+  opciones: { method?: string; body?: unknown } = {},
+): Promise<ResultadoVentas<T>> {
+  let r;
+  try {
+    r = await api<unknown>(ruta, opciones);
+  } catch {
+    return { ok: false, status: 0, codigo: "respuesta_invalida", mensaje: MENSAJES.errorGeneral };
+  }
+  if (!r.ok) {
+    return {
+      ok: false,
+      status: r.status,
+      codigo: codigoDe(r.datos),
+      mensaje: mensajeDeErrorEscrituraVentas(r.status, r.datos),
+    };
+  }
+  const analizado = esquema.safeParse(r.datos);
+  if (!analizado.success || analizado.data === undefined) {
+    return {
+      ok: false,
+      status: r.status,
+      codigo: "respuesta_invalida",
+      mensaje: MENSAJES.errorGeneral,
+    };
+  }
+  return { ok: true, status: r.status, datos: analizado.data };
+}
+
+/** `POST …/ventas/estado/revisar` (`sire.clasificar`). */
+export const revisarPeriodoVentas = (
+  clienteId: string,
+  periodo: string,
+): Promise<ResultadoVentas<EstadoPeriodoRespuesta>> =>
+  pedirVentas(`${base(clienteId, periodo)}/estado/revisar`, estadoPeriodoRespuestaSchema, {
+    method: "POST",
+  });
+
+/** `POST …/ventas/estado/reabrir {estadoVisto}` (`sire.aprobar_generar`): 409 `estado_invalido` si ya cambió. */
+export const reabrirPeriodoVentas = (
+  clienteId: string,
+  periodo: string,
+  datos: ReabrirPeriodo,
+): Promise<ResultadoVentas<EstadoPeriodoRespuesta>> =>
+  pedirVentas(`${base(clienteId, periodo)}/estado/reabrir`, estadoPeriodoRespuestaSchema, {
+    method: "POST",
+    body: datos,
+  });
+
+/** La venta devuelta por excluir y restaurar: se comprueba su `exclusion`; la pantalla recarga la grilla. */
+const esquemaVentaExcluida: EsquemaVentas<{ id: string }> = {
+  safeParse(valor) {
+    const v = valor as { id?: unknown; exclusion?: unknown } | null;
+    if (typeof v?.id !== "string" || v.id === "") return { success: false };
+    return exclusionVentaSchema.safeParse(v.exclusion ?? null).success
+      ? { success: true, data: { id: v.id } }
+      : { success: false };
+  },
+};
+
+/** `POST …/ventas/:ventaId/excluir {motivo}` (`sire.clasificar`): 200 con la venta y su `exclusion`. */
+export const excluirVenta = (
+  clienteId: string,
+  periodo: string,
+  ventaId: string,
+  datos: ExcluirVentaInput,
+): Promise<ResultadoVentas<{ id: string }>> =>
+  pedirVentas(`${base(clienteId, periodo)}/${encodeURIComponent(ventaId)}/excluir`, esquemaVentaExcluida, {
+    method: "POST",
+    body: datos,
+  });
+
+/** `POST …/ventas/:ventaId/restaurar` (`sire.clasificar`): cuerpo vacío. */
+export const restaurarVenta = (
+  clienteId: string,
+  periodo: string,
+  ventaId: string,
+): Promise<ResultadoVentas<{ id: string }>> =>
+  pedirVentas(`${base(clienteId, periodo)}/${encodeURIComponent(ventaId)}/restaurar`, esquemaVentaExcluida, {
+    method: "POST",
+    body: {},
+  });
+
+/**
+ * Motivo legible por el que las escrituras de ventas están bloqueadas por el estado del periodo, o `null` si no lo
+ * están (P-1, P-9): `generado` bloquea a todos; `revisado` solo a quien no tiene `sire.aprobar_generar`.
+ */
+export function bloqueoPorEstado(
+  estado: "abierto" | "revisado" | "generado",
+  aprobarGenerar: boolean,
+): string | null {
+  if (estado === "generado") return MENSAJES_VENTAS.soloLectura.generado;
+  if (estado === "revisado" && !aprobarGenerar) {
+    return MENSAJES_VENTAS.soloLectura.revisadoSinAprobar;
+  }
+  return null;
+}

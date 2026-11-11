@@ -1,16 +1,17 @@
 // Entrega a 012b (spec 014, D-10, CA-14): las dos listas que la prevalidación necesita para generar el archivo de reemplazo.
 import { consultar, type TxConsulta } from "./errores";
-import {
-  aCompraLeida,
-  COLUMNAS_LEIDA,
-  UNION_ORIGINAL,
-  UNION_VIGENTE,
-} from "./repositorio";
+import { aCompraLeida, COLUMNAS_LEIDA } from "./repositorio";
 import type { CompraLeida } from "./tipos";
 
-const SQL_ORIGINAL = `select ${COLUMNAS_LEIDA} from ${UNION_ORIGINAL}
+// Lateral con `offset 0` (como SQL_LEER_VARIAS): la versión se busca por la única (tenant_id, compra_id, n) de cada compra. Con un
+// join plano y estadísticas vacías el planificador elegía un nested loop sobre `compra_version_operacion_idx` (O(n²): 20.000
+// filas tardaban decenas de segundos, RNF-035). Mismo resultado que UNION_ORIGINAL / UNION_VIGENTE.
+const SQL_ORIGINAL = `select ${COLUMNAS_LEIDA} from compra c
+  join lateral (select * from compra_version v where v.tenant_id = c.tenant_id and v.compra_id = c.id and v.n = 1 offset 0) v on true
   where c.cliente_id = $1 and c.periodo = $2 and c.origen = 'sire' and c.descartada_en is null order by c.clave, c.id`;
-const SQL_VIGENTE = `select ${COLUMNAS_LEIDA} from ${UNION_VIGENTE}
+const SQL_VIGENTE = `select ${COLUMNAS_LEIDA} from compra c
+  join lateral (select * from compra_version v where v.tenant_id = c.tenant_id and v.compra_id = c.id
+    and v.n = c.version_vigente offset 0) v on true
   where c.cliente_id = $1 and c.periodo = $2 and c.descartada_en is null order by c.clave, c.id`;
 
 /**

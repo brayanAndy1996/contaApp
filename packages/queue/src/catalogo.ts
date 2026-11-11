@@ -199,11 +199,42 @@ export const XML_OBTENER: DefinicionTrabajo<ParametrosObtenerXml> = {
     .strict(),
 };
 
+export interface ParametrosGenerarArchivo {
+  periodo: string;
+  libro: "compras" | "ventas";
+  estadoVisto: "abierto" | "revisado";
+  huella: string;
+}
+
+/**
+ * Spec 012b (D2, D4, D6): generación del TXT/ZIP del reemplazo SIRE de un periodo y libro (cola `archivos`, sin canal ni
+ * credencial). Parámetros estrictos: el estado que vio quien pide (nunca `generado`) y la huella del previo (sha256 hex en
+ * minúscula). El entorno (provisional o no) y el formato los decide el worker, nunca el payload. Dos clics con el mismo
+ * previo comparten clave de deduplicación de 008.
+ */
+export const ARCHIVO_GENERAR: DefinicionTrabajo<ParametrosGenerarArchivo> = {
+  tipo: "archivo.generar",
+  cola: "archivos",
+  canal: "ninguno",
+  credencial: null,
+  permiso: "sire.aprobar_generar",
+  idempotente: true,
+  parametros: z
+    .object({
+      periodo: z.string().regex(PERIODO_AAAAMM),
+      libro: z.enum(["compras", "ventas"]),
+      estadoVisto: z.enum(["abierto", "revisado"]),
+      huella: z.string().regex(/^[0-9a-f]{64}$/),
+    })
+    .strict(),
+};
+
 registrarTipo(CLIENTE_CONSULTAR_RUC);
 registrarTipo(CREDENCIAL_VERIFICAR_SOL);
 registrarTipo(CREDENCIAL_VERIFICAR_SIRE);
 registrarTipo(SIRE_PROPUESTA_DESCARGAR);
 registrarTipo(XML_OBTENER);
+registrarTipo(ARCHIVO_GENERAR);
 
 /** Tipo de pruebas: solo existe con NODE_ENV=test (el worker le programa el comportamiento). */
 export const PRUEBA_ECO: DefinicionTrabajo<{ n?: number; rango?: string }> = {

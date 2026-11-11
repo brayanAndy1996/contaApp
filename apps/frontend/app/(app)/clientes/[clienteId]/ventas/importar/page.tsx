@@ -12,10 +12,16 @@ import {
 import { MENSAJES, cargarYo, tiene } from "../../../../../../lib/acceso";
 import { obtenerCliente } from "../../../../../../lib/clientes";
 import {
+  PERMISO_APROBAR_GENERAR,
+  type EstadoPeriodoCompras,
+} from "../../../../../../lib/compras";
+import {
   MENSAJES_VENTAS as M,
   PERIODO_VALIDO,
+  bloqueoPorEstado,
   confirmarImportacion,
   mensajeDeErrorImportacionVentas,
+  obtenerResumenVentas,
   vistaPreviaImportacion,
   type PropuestaVentasDto,
   type VistaPreviaVentas,
@@ -37,6 +43,9 @@ function Importar() {
   const busqueda = useSearchParams();
   const [permiso, setPermiso] = useState<Permiso>("cargando");
   const [archivado, setArchivado] = useState(false);
+  // Estado del periodo (012b, P-1, P-9): con `generado`, o `revisado` sin `sire.aprobar_generar`, no se importa.
+  const [aprobarGenerar, setAprobarGenerar] = useState(false);
+  const [estado, setEstado] = useState<EstadoPeriodoCompras>("abierto");
   const [periodo, setPeriodo] = useState(busqueda.get("periodo") ?? "");
   const periodoValido = PERIODO_VALIDO.test(periodo);
 
@@ -54,6 +63,7 @@ function Importar() {
       if (!vigente) return;
       const puede = tiene(yo, "sire.descargar");
       setPermiso(puede ? "si" : "no");
+      setAprobarGenerar(tiene(yo, PERMISO_APROBAR_GENERAR));
       if (!puede) return;
       const c = await obtenerCliente(clienteId);
       if (vigente && c.ok && c.datos) setArchivado(c.datos.archivado === true);
@@ -65,6 +75,22 @@ function Importar() {
       archivo.current = null; // el archivo se descarta al salir
     };
   }, [clienteId]);
+
+  // El estado sale del resumen del periodo; si no se puede leer, el servidor igual valida al importar.
+  useEffect(() => {
+    setEstado("abierto");
+    if (permiso !== "si" || !periodoValido) return;
+    let vigente = true;
+    void obtenerResumenVentas(clienteId, periodo)
+      .then((r) => {
+        if (vigente && r.ok && r.datos) setEstado(r.datos.estado ?? "abierto");
+      })
+      .catch(() => undefined);
+    return () => {
+      vigente = false;
+    };
+  }, [permiso, clienteId, periodo, periodoValido]);
+  const bloqueo = bloqueoPorEstado(estado, aprobarGenerar);
 
   if (permiso === "cargando") return <main className="p-6">Cargando…</main>;
   if (permiso === "no") {
@@ -205,11 +231,17 @@ function Importar() {
           <button
             type="button"
             onClick={() => void revisar()}
-            disabled={!haySeleccion || !periodoValido || ocupado}
+            disabled={!haySeleccion || !periodoValido || ocupado || bloqueo !== null}
+            title={bloqueo ?? undefined}
             className="rounded bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
           >
             {M.revisarArchivo}
           </button>
+          {bloqueo !== null && (
+            <p role="status" className="text-sm">
+              {bloqueo}
+            </p>
+          )}
         </section>
       )}
 
@@ -270,7 +302,10 @@ function Importar() {
             <button
               type="button"
               onClick={() => void confirmar()}
-              disabled={vista.conError > 0 || vista.validas === 0 || ocupado}
+              disabled={
+                vista.conError > 0 || vista.validas === 0 || ocupado || bloqueo !== null
+              }
+              title={bloqueo ?? undefined}
               className="rounded bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
             >
               {M.confirmarImportacion}

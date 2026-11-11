@@ -18,6 +18,7 @@ import type {
   ResumenComprasVista,
   VistaCompras,
 } from "@contapp/shared";
+import { PanelGenerar } from "../../../../../components/archivos/panel-generar";
 import { AccionesFilaCompras } from "../../../../../components/compras/acciones-fila-compras";
 import { AgregarCompra } from "../../../../../components/compras/agregar-compra";
 import { BarraMasiva } from "../../../../../components/compras/barra-masiva";
@@ -500,6 +501,24 @@ function Compras() {
           en={marca !== null && marca.estado === estado ? marca.en : null}
           alCambiar={alCambiarEstado}
           alRecargar={() =>
+            void cargarResumen().catch(() =>
+              setErrorGeneral(MENSAJES.errorGeneral),
+            )
+          }
+        />
+      )}
+
+      {periodoValido && (
+        <PanelGenerar
+          key={`archivo|${clienteId}|${periodo}`}
+          clienteId={clienteId}
+          periodo={periodo}
+          libro="compras"
+          puedeVer={permisos.ver}
+          puedeGenerar={permisos.aprobarGenerar && !archivado}
+          recarga={resumen}
+          alUbicarFila={(id) => void ubicar(id)}
+          alGenerado={() =>
             void cargarResumen().catch(() =>
               setErrorGeneral(MENSAJES.errorGeneral),
             )

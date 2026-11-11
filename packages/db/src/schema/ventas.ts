@@ -8,6 +8,7 @@ import {
   integer,
   numeric,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -82,6 +83,8 @@ export const venta = pgTable(
       foreignColumns: [membresia.tenantId, membresia.usuarioId],
     }),
     index("venta_lectura_idx").on(t.clienteId, t.periodo, t.tipo, t.serie, t.numeroN),
+    // Spec 012b (0039): destino de la FK compuesta de `venta_exclusion`. Índice único, sin tocar las filas.
+    uniqueIndex("venta_tenant_id_unique").on(t.tenantId, t.id),
     check("venta_periodo_formato", sql`${t.periodo} ~ '^[0-9]{4}(0[1-9]|1[0-2])$'`),
     check("venta_origen_valido", sql`${t.origen} IN ('sire', 'manual')`),
     check("venta_moneda_valida", sql`${t.moneda} IN ('PEN', 'USD')`),
@@ -158,6 +161,93 @@ export const ventaSaltoJustificado = pgTable(
     check(
       "venta_salto_justificado_reversion_completa",
       sql`(${t.revertidoPor} IS NULL) = (${t.revertidoEn} IS NULL)`,
+    ),
+  ],
+);
+
+// Spec 012b (P-1, P-9, D5): estado del periodo de ventas, igual a `compra_periodo` (sin fila equivale a `abierto`). RLS, grants
+// (UPDATE solo de estado y marca) y el trigger `periodo_worker_acotado` del worker están en 0039_venta_periodo_exclusion.
+export const ventaPeriodo = pgTable(
+  "venta_periodo",
+  {
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .default(tenantIdPorDefecto)
+      .references(() => tenant.id),
+    clienteId: uuid("cliente_id").notNull(),
+    periodo: char("periodo", { length: 6 }).notNull(),
+    estado: text("estado").notNull(),
+    marcadoPor: uuid("marcado_por"),
+    marcadoEn: timestamp("marcado_en", { withTimezone: true }),
+  },
+  (t) => [
+    primaryKey({ name: "venta_periodo_pk", columns: [t.tenantId, t.clienteId, t.periodo] }),
+    foreignKey({
+      name: "venta_periodo_cliente_fk",
+      columns: [t.tenantId, t.clienteId],
+      foreignColumns: [cliente.tenantId, cliente.id],
+    }),
+    foreignKey({
+      name: "venta_periodo_marcado_por_fk",
+      columns: [t.tenantId, t.marcadoPor],
+      foreignColumns: [membresia.tenantId, membresia.usuarioId],
+    }),
+    check("venta_periodo_periodo_formato", sql`${t.periodo} ~ '^[0-9]{4}(0[1-9]|1[0-2])$'`),
+    check("venta_periodo_estado_valido", sql`${t.estado} IN ('abierto', 'revisado', 'generado')`),
+  ],
+);
+
+// Spec 012b (P-8, D12): exclusión de una venta del SIRE con error. Solo inserción; restaurar cierra la vigente escribiendo
+// `restaurada_*` (el registro se conserva). Una sola vigente por venta. RLS, grants y triggers en 0039_venta_periodo_exclusion.
+export const ventaExclusion = pgTable(
+  "venta_exclusion",
+  {
+    id: id(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .default(tenantIdPorDefecto)
+      .references(() => tenant.id),
+    clienteId: uuid("cliente_id").notNull(),
+    periodo: char("periodo", { length: 6 }).notNull(),
+    ventaId: uuid("venta_id").notNull(),
+    motivo: text("motivo").notNull(),
+    excluidaPor: uuid("excluida_por").notNull(),
+    excluidaEn: timestamp("excluida_en", { withTimezone: true }).notNull().defaultNow(),
+    restauradaPor: uuid("restaurada_por"),
+    restauradaEn: timestamp("restaurada_en", { withTimezone: true }),
+  },
+  (t) => [
+    foreignKey({
+      name: "venta_exclusion_cliente_fk",
+      columns: [t.tenantId, t.clienteId],
+      foreignColumns: [cliente.tenantId, cliente.id],
+    }),
+    foreignKey({
+      name: "venta_exclusion_venta_fk",
+      columns: [t.tenantId, t.ventaId],
+      foreignColumns: [venta.tenantId, venta.id],
+    }),
+    foreignKey({
+      name: "venta_exclusion_excluida_por_fk",
+      columns: [t.tenantId, t.excluidaPor],
+      foreignColumns: [membresia.tenantId, membresia.usuarioId],
+    }),
+    foreignKey({
+      name: "venta_exclusion_restaurada_por_fk",
+      columns: [t.tenantId, t.restauradaPor],
+      foreignColumns: [membresia.tenantId, membresia.usuarioId],
+    }),
+    // Una sola exclusión vigente por venta (dos a la vez: una entra, la otra 23505 o nada con ON CONFLICT).
+    uniqueIndex("venta_exclusion_vigente_unique")
+      .on(t.tenantId, t.ventaId)
+      .where(sql`${t.restauradaEn} IS NULL`),
+    index("venta_exclusion_cliente_periodo_idx").on(t.clienteId, t.periodo),
+    check("venta_exclusion_periodo_formato", sql`${t.periodo} ~ '^[0-9]{4}(0[1-9]|1[0-2])$'`),
+    check("venta_exclusion_motivo_largo", sql`char_length(${t.motivo}) BETWEEN 1 AND 200`),
+    // Restaurar escribe quién y cuándo juntos.
+    check(
+      "venta_exclusion_restauracion_completa",
+      sql`(${t.restauradaPor} IS NULL) = (${t.restauradaEn} IS NULL)`,
     ),
   ],
 );

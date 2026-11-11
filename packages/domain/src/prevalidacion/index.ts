@@ -10,7 +10,12 @@ export type {
   ResultadoPrevalidacion,
   ContextoPrevalidacion,
   ResumenCambios,
+  EstadoFilaVenta,
+  FilaReemplazoVenta,
+  ContextoPrevalidacionVentas,
+  ResumenCambiosVentas,
 } from "./tipos";
 export { PrevalidacionError, EntradaPrevalidacionInvalidaError } from "./errores";
 export { prevalidar } from "./prevalidar";
 export { resumirCambios } from "./resumen";
+export { erroresDeFilaVenta } from "./ventas";

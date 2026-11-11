@@ -33,3 +33,12 @@ export class StorageIOError extends Error {
     this.name = "StorageIOError";
   }
 }
+
+/** El contenido leído no coincide con el SHA-256 esperado (alterado o truncado). Mensaje fijo: sin ruta ni hash. */
+export class ArchivoAlteradoError extends Error {
+  readonly codigo = "archivo_alterado";
+  constructor() {
+    super("El archivo almacenado no coincide con su huella");
+    this.name = "ArchivoAlteradoError";
+  }
+}

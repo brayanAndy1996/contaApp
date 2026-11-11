@@ -79,6 +79,7 @@ const COLUMNAS_DTO = [
   "baseGravada",
   "cuadra",
   "docContraparte",
+  "exclusion", // 012b: la exclusión vigente (D12) o null
   "exonerada",
   "fechaEmision",
   "icbper",

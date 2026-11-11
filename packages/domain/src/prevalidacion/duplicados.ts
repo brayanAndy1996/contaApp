@@ -1,8 +1,8 @@
 // Duplicados entre las filas generables (D11, CA-6; plan, Ratificación 10; D20). Clave: tipo de
 // comprobante, serie en mayúsculas ASCII, número sin ceros a la izquierda y documento del proveedor
 // (tipo y número en mayúsculas ASCII). El error va en todas las copias, también en las que tienen error de estructura.
-import { compararTexto } from "./entrada";
-import type { FilaCopia } from "./entrada";
+import { compararTexto, esVentaCopia } from "./entrada";
+import type { FilaTxt } from "./entrada";
 import { crearError } from "./errores";
 import { MAX_IDS_DUPLICADO, duplicado } from "./explicaciones";
 import type { ErrorPrevalidacion } from "./tipos";
@@ -34,12 +34,15 @@ export function claveDuplicado(
   ]);
 }
 
-function clave(f: FilaCopia): string {
-  return claveDuplicado(f.comprobante, f.proveedor);
+/** En ventas el comprobante lo emite el declarante: la contraparte no lo distingue (012b). */
+const SIN_DOCUMENTO = Object.freeze({ tipo: "", numero: "" });
+
+function clave(f: FilaTxt): string {
+  return claveDuplicado(f.comprobante, esVentaCopia(f) ? SIN_DOCUMENTO : f.proveedor);
 }
 
 /** Un error DUPLICADO por copia; su explicación da los ids de las otras copias. */
-export function buscarDuplicados(filas: readonly FilaCopia[]): ErrorPrevalidacion[] {
+export function buscarDuplicados(filas: readonly FilaTxt[]): ErrorPrevalidacion[] {
   const grupos = new Map<string, string[]>();
   for (const f of filas) {
     const k = clave(f);

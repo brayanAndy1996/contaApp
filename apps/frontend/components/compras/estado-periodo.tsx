@@ -10,6 +10,7 @@ import {
   type ContextoCompras,
   type EstadoPeriodoCompras,
   type PermisosCompras,
+  type ResultadoCompras,
 } from "../../lib/compras";
 import { ConfirmarAccion } from "../ventas/confirmar-accion";
 
@@ -47,14 +48,33 @@ type Pendiente =
   | { tipo: "revisar" }
   | { tipo: "reabrir"; estadoVisto: "revisado" | "generado" };
 
+/** Las dos llamadas del estado del periodo: compras por defecto; ventas (012b) pasa las suyas. */
+export interface AccionesEstadoPeriodo {
+  revisar: (
+    clienteId: string,
+    periodo: string,
+  ) => Promise<ResultadoCompras<EstadoPeriodoRespuesta>>;
+  reabrir: (
+    clienteId: string,
+    periodo: string,
+    datos: { estadoVisto: "revisado" | "generado" },
+  ) => Promise<ResultadoCompras<EstadoPeriodoRespuesta>>;
+}
+
+const ACCIONES_COMPRAS: AccionesEstadoPeriodo = {
+  revisar: revisarPeriodoCompras,
+  reabrir: reabrirPeriodoCompras,
+};
+
 export function EstadoPeriodo({
   contexto,
   archivado,
   en,
   alCambiar,
   alRecargar,
+  acciones = ACCIONES_COMPRAS,
 }: {
-  contexto: ContextoCompras;
+  contexto: Pick<ContextoCompras, "clienteId" | "periodo" | "permisos" | "estado">;
   archivado: boolean;
   /** Cuándo se marcó el periodo (de la última respuesta de revisar o reabrir), o `null` si no se sabe. */
   en: string | null;
@@ -62,6 +82,8 @@ export function EstadoPeriodo({
   alCambiar: (respuesta: EstadoPeriodoRespuesta) => void;
   /** 409 `estado_invalido`: el estado de la página quedó viejo y hay que volver a pedirlo. */
   alRecargar: () => void;
+  /** Otro libro (ventas, 012b) con las mismas reglas de estado; sin esto, las de compras. */
+  acciones?: AccionesEstadoPeriodo;
 }) {
   const { clienteId, periodo, permisos, estado } = contexto;
   const [pendiente, setPendiente] = useState<Pendiente | null>(null);
@@ -95,8 +117,8 @@ export function EstadoPeriodo({
     try {
       const r =
         accion.tipo === "revisar"
-          ? await revisarPeriodoCompras(clienteId, periodo)
-          : await reabrirPeriodoCompras(clienteId, periodo, {
+          ? await acciones.revisar(clienteId, periodo)
+          : await acciones.reabrir(clienteId, periodo, {
               estadoVisto: accion.estadoVisto,
             });
       setPendiente(null);

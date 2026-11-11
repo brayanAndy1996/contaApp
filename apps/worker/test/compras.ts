@@ -533,6 +533,7 @@ export async function limpiarCompras(
   try {
     await c.query("SET session_replication_role = replica");
     const borrar = [
+      "delete from archivo_generado where tenant_id = any($1::uuid[])", // 012b
       "delete from compra_hallazgo where tenant_id = any($1::uuid[])",
       "delete from compra_version where tenant_id = any($1::uuid[])",
       "delete from compra_operacion where tenant_id = any($1::uuid[])",

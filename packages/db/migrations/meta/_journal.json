@@ -274,6 +274,20 @@
       "when": 1794286008565,
       "tag": "0038_compra_worker_sin_update",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1794352076991,
+      "tag": "0039_venta_periodo_exclusion",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1794352203926,
+      "tag": "0040_archivo_generado",
+      "breakpoints": true
     }
   ]
 }

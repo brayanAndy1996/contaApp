@@ -27,3 +27,4 @@ export type {
 } from "./complemento/index";
 export * from "./ventas/index";
 export * from "./ubl/index";
+export * from "./archivos/index";

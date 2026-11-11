@@ -6,12 +6,14 @@ import type { StorageProvider } from "./puerto.js";
 
 export type { StorageProvider } from "./puerto.js";
 export {
+  ArchivoAlteradoError,
   ArchivoNoEncontradoError,
   ConfiguracionStorageError,
   RutaStorageError,
   StorageIOError,
 } from "./errores.js";
-export { rutaXml, validarRuta } from "./ruta.js";
+export { rutaArchivo, rutaXml, validarRuta } from "./ruta.js";
+export { leerVerificado, sha256Hex } from "./hash.js";
 export { MockStorage } from "./mock.js";
 export { LocalStorage } from "./local.js";
 
