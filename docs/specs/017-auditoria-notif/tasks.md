@@ -25,7 +25,7 @@ Nivel B con una ronda adversarial dirigida (P-1, D-16); las pantallas son nivel 
 | T17 | Corregir los hallazgos de la ronda | backend | opus | T16 | — | — | [x] |
 | T18 | Prueba manual contra el sistema completo | tester | sonnet | T13, T17 | — | — | [x] |
 | T19 | Verificar CA-1 a CA-16 con evidencia, suites completas, cobertura y p95 | tester | sonnet | T18 | — | — | [x] |
-| T20 | Revisión final contra la spec | arquitecto | sonnet | T19 | — | — | [ ] |
+| T20 | Revisión final contra la spec | arquitecto | sonnet | T19 | — | — | [x] |
 | T21 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza ESTADO) | devops | haiku | T20 | — | — | [ ] |
 
 Paralelismo: T1 ∥ T2 ∥ T3; luego T4 ∥ T5 (los dos contra los esquemas de T1). Implementación: T6 (`shared`) ∥ T7 (`db`: migraciones); T8 tras los dos. Luego tres carriles: T9 (`apps/worker`, `packages/queue`) ∥ T10 (`apps/backend/src/modules/{notificaciones,auditoria,trabajos,planes,importacion,clientes,acceso}`, `app.module.ts`) ∥ T11 (`apps/backend/src/modules/{compras,archivos}`). El frontend (T12 → T13) corre en paralelo con T7–T11 contra el contrato de `shared` (sus pruebas simulan la API); T14 con T12–T13. La ronda y su corrección van en serie (T15 → T16 → T17). Si la ronda no deja fallos, T16 y T17 se marcan `[x]` «sin hallazgos».
@@ -245,10 +245,11 @@ Observaciones (sin tarea): (a) La lupa y el historial de compras muestran la fec
 - **p95 con la auditoría activa** (014, RNF-033/RNF-034, D-15): acción sobre una fila con 5.000 filas (`acciones.int.spec.ts:1519`) p95 = 30,5 ms (límite 300 ms), máximo 32,9 ms; detalle de factura de 500 ítems (`detalle.int.spec.ts:481`) p95 = 20,4 ms (límite 500 ms). Medido con una copia temporal de cada archivo que escribía el valor (ya borrada); las pruebas del repositorio no cambiaron.
 - **Faltantes**: ninguno. `ci:cierre` no se corrió en esta tarea (no estaba en la lista de T19).
 
-## T20 · [ ] Revisión final (arquitecto · sonnet)
+## T20 · [x] Revisión final (arquitecto · sonnet)
 - **Contexto (leer solo esto)**: `spec.md`, `plan.md`, `tasks.md` (Resultados), el diff de la rama contra `main` limitado a migraciones, `packages/db/src/{auditoria,notificaciones}/` y los módulos nuevos.
 - **Hacer**: comprobar cada CA con su evidencia, los privilegios del plan (ningún grant extra al worker), la lista blanca de `datos` y los desvíos; ratificar los desvíos en `plan.md` o abrir T20a/T20b.
 - **Hecho cuando**: aprobado o lista de defectos con tareas nuevas. Commit `docs(017): revisión final`.
+- **Resultado de T20** (2026-11-11, arquitecto): **aprobada, sin T20a ni T20b**. CA-1 a CA-16 con evidencia en la tabla de T19; el worker no tiene ningún grant de tabla sobre `auditoria`, `notificacion` ni `plan_aviso` (solo `EXECUTE` de `notificaciones_de_esta_transaccion` y `notificacion_purgar`), `contapp_registrador` sin miembros, y los `datos` de 0042/0045 coinciden con la lista blanca. Desvíos ratificados en `plan.md` («Desvíos ratificados»). Arreglo de prueba: el centinela «4062» de `generar-archivo.int.spec.ts:315` pasa a `F001-4062`; el archivo da 40/40.
 
 ## T21 · [ ] Cierre (devops · haiku)
 - **Contexto (leer solo esto)**: `tasks.md`, `spec.md` (cabecera y criterios).
