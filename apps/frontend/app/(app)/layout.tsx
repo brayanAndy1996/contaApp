@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Campana } from "../../components/notificaciones/campana";
 import { cargarYo, tiene, type Yo } from "../../lib/acceso";
 import { api, EVENTO_ESTUDIO_DESFASADO } from "../../lib/api";
 import { obtenerSesion, reiniciarSesion, type Sesion } from "../../lib/sesion";
@@ -115,6 +116,7 @@ export default function LayoutApp({ children }: { children: ReactNode }) {
         {tiene(yo, "clientes.ver") && <Link href="/clientes">Clientes</Link>}
         {tiene(yo, "clientes.ver") && <Link href="/trabajos">Trabajos</Link>}
         {tiene(yo, "usuarios.ver") && <Link href="/usuarios">Usuarios</Link>}
+        {sesion && <Campana key={sesion.estudioActivo?.id ?? "sin-estudio"} />}
         {aviso && <p role="status">{aviso}</p>}
         {error && (
           <p role="alert" className="text-red-600">

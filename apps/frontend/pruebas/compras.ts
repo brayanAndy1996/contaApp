@@ -265,6 +265,7 @@ export function versionOriginalDe(fila: FilaCompraVista): VersionCompraVista {
     accion: fila.origen === "agregada" ? "agregada" : "original",
     operacionId: null,
     usuarioId: null,
+    autor: null,
     creadaEn: "2026-10-20T15:00:00.000Z",
     excluida: false,
     motivo: null,

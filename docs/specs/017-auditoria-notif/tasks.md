@@ -17,7 +17,7 @@ Nivel B con una ronda adversarial dirigida (P-1, D-16); las pantallas son nivel 
 | T9  | Worker: notificador real, `trabajoId` en los trabajos y purga | backend | sonnet | T4, T8 ∥ T10, T11 | ✓ | — | [ ] |
 | T10 | Backend: módulos `notificaciones` y `auditoria`, SSE y aviso tras el cupo | backend | sonnet | T5, T8 ∥ T9, T11 | ✓ | — | [ ] |
 | T11 | Backend: `autor` en compras, XML y archivos | backend | sonnet | T5, T8 ∥ T9, T10 | ✓ | — | [ ] |
-| T12 | Campana, panel y página de notificaciones (nivel C) | frontend | sonnet | T6 ∥ T7–T11 | — | — | [ ] |
+| T12 | Campana, panel y página de notificaciones (nivel C) | frontend | sonnet | T6 ∥ T7–T11 | — | — | [x] |
 | T13 | Página de auditoría y autor en las cuatro pantallas (nivel C) | frontend | sonnet | T12 | — | — | [ ] |
 | T14 | Cobertura ≥ 90 % por archivo en CI: `cobertura:auditoria` | devops | haiku | T9, T10, T11 ∥ T12, T13 | — | — | [ ] |
 | T15 | Ronda adversarial dirigida: aislamiento, inmutabilidad y actor, secretos (≤ 15 pruebas) | adversario | opus | T14 | — | ✓ | [ ] |
@@ -105,10 +105,11 @@ Reglas comunes:
 - **Hacer**: resolver los autores por lote (una consulta por respuesta) y agregar `autor` a los DTOs.
 - **Hecho cuando**: `autor.int.spec.ts` de compras y archivos en verde; las pruebas de 014–016 y 012b del backend siguen en verde. Commit `feat(017): autor con nombre en compras, XML y archivos`.
 
-## T12 · [ ] Campana y notificaciones (frontend · sonnet, nivel C)
+## T12 · [x] Campana y notificaciones (frontend · sonnet, nivel C)
 - **Contexto (leer solo esto)**: `spec.md` (D-10, D-11; CA-16), `plan.md` (Contratos: shared, HTTP, Aviso en vivo, Frontend), `apps/frontend/app/(app)/layout.tsx`, `apps/frontend/lib/{api,trabajos}.ts`, `apps/frontend/lib/lupa-compras.ts` (modelo de cliente de API).
 - **Hacer**: `lib/notificaciones.ts`, `components/notificaciones/{campana,panel-notificaciones,texto-notificacion}.tsx`, `app/(app)/notificaciones/page.tsx`, campana en el layout, `trabajoDeMarco` ignora `event: notificacion`. Pruebas mínimas: conteo y «99+», marcar como leída y navegar, texto en español por tipo, tipo desconocido sin código crudo, `params` con `<script>` mostrado como texto, error de red.
 - **Hecho cuando**: `pnpm --filter @contapp/frontend test`, `typecheck` y `lint` en verde. Commit `feat(017): campana y página de notificaciones`.
+- **Resultado**: `lib/notificaciones.ts` (cliente de las 4 rutas validado con `shared`; fila de `tipo` desconocido = genérica; `avisoDeMarco` y un único stream por pestaña con reconexión), `components/notificaciones/{campana,panel-notificaciones,texto-notificacion}.tsx`, `app/(app)/notificaciones/page.tsx` y la campana en el layout (re-montada por estudio). `trabajoDeMarco` ya ignoraba `event: notificacion` (probado). 8 pruebas nuevas en `notificaciones.spec.tsx` (conteo y «99+», marcar leída y navegar, «marcar todas», textos por tipo, desconocido sin código crudo, `<script>` como texto, error de red, aviso). `typecheck` y `lint` en verde tras añadir `autor` a los fixtures `pruebas/{archivos,compras}.ts`. Pendiente fuera de T12: 8 pruebas existentes siguen en rojo por fixtures en línea sin `autor` (efecto de T6): `lib/compras.spec.ts` (reabrir), `components/compras/{estado-periodo,historial-compra}.spec.tsx`, `compras/page.spec.tsx` y `ventas/page.archivo-t15.spec.tsx`; las corrige T13 (autor en pantallas).
 
 ## T13 · [ ] Auditoría y autor en pantallas (frontend · sonnet, nivel C)
 - **Contexto (leer solo esto)**: `spec.md` (D-12, P-2; CA-13, CA-14), `plan.md` (Contratos: shared, Frontend), `apps/frontend/app/(app)/layout.tsx`, `apps/frontend/lib/acceso.ts` (permisos), `apps/frontend/components/compras/{historial-compra,estado-xml,estado-periodo}.tsx`, `apps/frontend/components/archivos/versiones-archivo.tsx`.
