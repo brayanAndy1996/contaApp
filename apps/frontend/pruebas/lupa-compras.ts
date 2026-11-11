@@ -118,6 +118,8 @@ export function detalleSinXml(
 }
 
 export const AUTOR_XML = uuidDe(5, 1);
+/** El autor del XML subido con nombre (D-12); el id se conserva en `subidoPor`. */
+export const AUTOR_XML_DTO = { id: AUTOR_XML, nombre: "Rosa Quispe", activo: true };
 
 /** Archivo XML de prueba (el contenido no importa: el servidor está simulado). */
 export const archivoXml = (nombre = "factura.xml", contenido = "<Invoice/>"): File =>

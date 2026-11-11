@@ -273,9 +273,6 @@ export function etiquetaAfectacion(codigo: string): string {
   return codigo;
 }
 
-/** Quién subió el XML: los 8 primeros caracteres de su id, como el Historial de 015. */
-export const autorCorto = (usuarioId: string): string => usuarioId.slice(0, 8);
-
 // ---------------------------------------------------------------------------------------------
 // Rutas
 // ---------------------------------------------------------------------------------------------

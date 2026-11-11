@@ -46,6 +46,7 @@ describe("HistorialCompra", () => {
                 accion: "sugerencia",
                 operacionId: uuidDe(9, 1),
                 usuarioId: autor,
+                autor: { id: autor, nombre: "Rosa Quispe", activo: true },
                 creadaEn: "2026-10-21T10:30:00.000Z",
                 excluida: false,
                 motivo: null,
@@ -70,7 +71,7 @@ describe("HistorialCompra", () => {
 
     const versiones = screen.getByRole("region", { name: M.versiones });
     expect(versiones.textContent).toContain(M.versionPor(1, "SIRE", "2026-10-20 15:00 UTC"));
-    expect(versiones.textContent).toContain(M.versionPor(2, autor.slice(0, 8), "2026-10-21 10:30 UTC"));
+    expect(versiones.textContent).toContain(M.versionPor(2, "Rosa Quispe", "2026-10-21 10:30 UTC"));
     expect(versiones.textContent).toContain(M.accionesVersion.sugerencia);
     // El detalle trae los hallazgos de la compra tal como llegaron.
     expect(screen.getByText(C_1040_ISC.hallazgos[0]!.explicacion)).toBeTruthy();

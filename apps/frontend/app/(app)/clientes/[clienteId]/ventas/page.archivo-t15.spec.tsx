@@ -399,7 +399,7 @@ describe("Ventas · estado del periodo y escrituras (spec 012b T15, P-1, P-9, CA
       extra: (e) => ({
         [POST_REABRIR]: () => {
           e.resumen = resumenCon({ estado: "abierto", excluidas: 0 });
-          return { status: 200, cuerpo: { estado: "abierto", por: USUARIO_ID, en: EN } };
+          return { status: 200, cuerpo: { estado: "abierto", por: USUARIO_ID, autor: { id: USUARIO_ID, nombre: "Rosa Quispe", activo: true }, en: EN } };
         },
       }),
     });
@@ -461,7 +461,7 @@ describe("Ventas · estado del periodo y escrituras (spec 012b T15, P-1, P-9, CA
           revisiones += 1;
           if (revisiones === 1) {
             e.resumen = resumenCon({ estado: "revisado", excluidas: 0 });
-            return { status: 200, cuerpo: { estado: "revisado", por: USUARIO_ID, en: EN } };
+            return { status: 200, cuerpo: { estado: "revisado", por: USUARIO_ID, autor: { id: USUARIO_ID, nombre: "Rosa Quispe", activo: true }, en: EN } };
           }
           return { status: 409, cuerpo: { codigo: "estado_invalido" } };
         },

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { VersionArchivoDto } from "@contapp/shared";
 import { fechaCorta } from "../../lib/acceso";
+import { Autor } from "../autor";
 import {
   MENSAJES_ARCHIVO as M,
   descargarVersionArchivo,
@@ -72,7 +73,8 @@ export function VersionesArchivo({
           {versiones.map((v) => (
             <li key={v.id} className="flex flex-col gap-1 rounded border p-2">
               <p>
-                <strong>{M.version(v.version)}</strong> · {M.generadoEn(fechaCorta(v.generadoEn))}
+                <strong>{M.version(v.version)}</strong> · {M.generadoEn(fechaCorta(v.generadoEn))}{" "}
+                {M.generadoPor} <Autor autor={v.autor} />
               </p>
               <p>
                 {v.nombreZip} · {M.lineas(v.lineas)}

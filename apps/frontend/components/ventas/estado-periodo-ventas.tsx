@@ -23,6 +23,7 @@ export function EstadoPeriodoVentas({
   aprobarGenerar,
   archivado,
   en,
+  autor,
   alCambiar,
   alRecargar,
 }: {
@@ -36,6 +37,8 @@ export function EstadoPeriodoVentas({
   archivado: boolean;
   /** Cuándo se marcó el periodo, o `null` si no se sabe. */
   en: string | null;
+  /** Quién marcó el periodo (D-12). */
+  autor?: EstadoPeriodoRespuesta["autor"];
   alCambiar: (respuesta: EstadoPeriodoRespuesta) => void;
   /** 409 `estado_invalido`: el estado de la página quedó viejo y hay que volver a pedirlo. */
   alRecargar: () => void;
@@ -50,6 +53,7 @@ export function EstadoPeriodoVentas({
       }}
       archivado={archivado}
       en={en}
+      autor={autor}
       alCambiar={alCambiar}
       alRecargar={alRecargar}
       acciones={ACCIONES_VENTAS}

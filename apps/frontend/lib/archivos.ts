@@ -96,6 +96,7 @@ export const MENSAJES_ARCHIVO = {
   sinVersiones: "Aún no se generó ningún archivo de este periodo.",
   version: (n: number) => `Versión ${n}`,
   generadoEn: (fecha: string) => `Generado el ${fecha}`,
+  generadoPor: "por",
   lineas: (n: number) => (n === 1 ? "1 línea" : `${n} líneas`),
   descargar: "Descargar",
   descargarVersion: (n: number) => `Descargar la versión ${n}`,

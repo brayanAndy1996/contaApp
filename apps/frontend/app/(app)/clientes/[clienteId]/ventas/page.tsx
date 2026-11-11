@@ -131,6 +131,7 @@ function Ventas() {
   const [marca, setMarca] = useState<{
     estado: EstadoPeriodoCompras;
     en: string;
+    autor: EstadoPeriodoRespuesta["autor"];
   } | null>(null);
   const [exclusion, setExclusion] = useState<AccionExclusion | null>(null);
   /** Ventas con un error `excluible` según el último previo que vio el panel (D12). */
@@ -385,7 +386,9 @@ function Ventas() {
   /** El estado del periodo lo cambió esta persona (revisar o reabrir): se guarda y se recarga el resumen. */
   function alCambiarEstado(r: EstadoPeriodoRespuesta) {
     setEstado(r.estado);
-    setMarca(r.en === null ? null : { estado: r.estado, en: r.en });
+    setMarca(
+      r.en === null ? null : { estado: r.estado, en: r.en, autor: r.autor },
+    );
     void cargarResumen().catch(() => setErrorGeneral(MENSAJES.errorGeneral));
   }
 
@@ -626,6 +629,7 @@ function Ventas() {
           aprobarGenerar={permisos.aprobarGenerar}
           archivado={archivado}
           en={marca !== null && marca.estado === estado ? marca.en : null}
+          autor={marca !== null && marca.estado === estado ? marca.autor : null}
           alCambiar={alCambiarEstado}
           alRecargar={() =>
             void cargarResumen().catch(() => setErrorGeneral(MENSAJES.errorGeneral))

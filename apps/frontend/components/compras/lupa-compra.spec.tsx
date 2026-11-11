@@ -22,6 +22,7 @@ import {
 import { contextoDe } from "../../pruebas/contexto-compras";
 import {
   AUTOR_XML,
+  AUTOR_XML_DTO,
   GLOSA_HOSTIL,
   detalleLupaDe,
   detalleMixto,
@@ -344,7 +345,7 @@ describe("Lupa · estado del XML (CA-9, CA-11, CA-16)", () => {
         cuerpo: detalleLupaDe(A, {
           xml:
             origen === "subido"
-              ? { estado: "disponible", origen, subidoPor: AUTOR_XML, subidoEn: "2026-10-21T10:30:00.000Z" }
+              ? { estado: "disponible", origen, subidoPor: AUTOR_XML, autor: AUTOR_XML_DTO, subidoEn: "2026-10-21T10:30:00.000Z" }
               : { estado: "disponible", origen },
         }),
       }),
@@ -362,7 +363,7 @@ describe("Lupa · estado del XML (CA-9, CA-11, CA-16)", () => {
     origen = "subido";
     cleanup();
     montar([A]);
-    expect(await screen.findByText(L.xml.subidoPor("00000005", "2026-10-21 10:30 UTC"))).toBeTruthy();
+    expect(await screen.findByText(L.xml.subidoPor("Rosa Quispe", "2026-10-21 10:30 UTC"))).toBeTruthy();
   });
 
   it("aviso de moneda: PEN con XML en USD muestra el aviso sin convertir; sin discrepancia no hay aviso", async () => {
@@ -426,7 +427,7 @@ describe("Lupa · estado del XML (CA-9, CA-11, CA-16)", () => {
           A,
           vez === 1
             ? { estado: "no_disponible", codigo: "transitorio" }
-            : { estado: "disponible", origen: "subido", subidoPor: AUTOR_XML, subidoEn: "2026-10-21T10:30:00.000Z" },
+            : { estado: "disponible", origen: "subido", subidoPor: AUTOR_XML, autor: AUTOR_XML_DTO, subidoEn: "2026-10-21T10:30:00.000Z" },
         ),
       }),
       [rutaObtenerXml(A.id)]: { status: 409, cuerpo: { codigo: "xml_existente" } },

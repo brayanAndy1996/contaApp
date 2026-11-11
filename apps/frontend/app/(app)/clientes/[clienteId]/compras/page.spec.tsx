@@ -295,7 +295,7 @@ describe("/clientes/:id/compras · página de compras (spec 015 T3)", () => {
             estado.resumen = resumenDe(FILAS_014, {}, "abierto");
             return {
               status: 200,
-              cuerpo: { estado: "abierto", por: USUARIO, en: "2026-11-06T10:00:00.000Z" },
+              cuerpo: { estado: "abierto", por: USUARIO, autor: { id: USUARIO, nombre: "Rosa Quispe", activo: true }, en: "2026-11-06T10:00:00.000Z" },
             };
           },
         }),

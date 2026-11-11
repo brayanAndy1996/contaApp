@@ -3,10 +3,10 @@
 import type { EstadoXml } from "@contapp/shared";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { MENSAJES } from "../../lib/acceso";
+import { etiquetaAutor } from "../../lib/autor";
 import { MENSAJES_COMPRAS as M, type ContextoCompras } from "../../lib/compras";
 import {
   MENSAJES_LUPA as L,
-  autorCorto,
   descargarXml,
   fechaLegibleUtc,
   mensajeDeErrorLupa,
@@ -167,7 +167,7 @@ export function EstadoXmlLupa({
         ? L.xml.simulado
         : xml.origen === "subido"
           ? xml.subidoPor !== undefined && xml.subidoEn !== undefined
-            ? L.xml.subidoPor(autorCorto(xml.subidoPor), fechaLegibleUtc(xml.subidoEn))
+            ? L.xml.subidoPor(etiquetaAutor(xml.autor), fechaLegibleUtc(xml.subidoEn))
             : L.xml.subido
           : L.xml.real;
     cuerpo = (

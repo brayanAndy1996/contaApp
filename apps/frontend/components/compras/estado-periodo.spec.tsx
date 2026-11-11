@@ -1,6 +1,7 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Autor } from "@contapp/shared";
 import type { ContextoCompras, PermisosCompras } from "../../lib/compras";
 import { reiniciarSesion } from "../../lib/sesion";
 import {
@@ -33,12 +34,13 @@ const LECTURA: PermisosCompras = {
 const POST_REVISAR = `POST ${BASE}/estado/revisar`;
 const POST_REABRIR = `POST ${BASE}/estado/reabrir`;
 const USUARIO = "00000000-0000-4000-8000-0000000000a1";
+const AUTOR: Autor = { id: USUARIO, nombre: "Rosa Quispe", activo: true };
 const EN = "2026-11-05T15:30:00.000Z";
 
 function montar(
   estado: ContextoCompras["estado"],
   permisos: PermisosCompras,
-  o: { archivado?: boolean; en?: string | null } = {},
+  o: { archivado?: boolean; en?: string | null; autor?: Autor | null } = {},
 ) {
   const alCambiar = vi.fn();
   const alRecargar = vi.fn();
@@ -58,6 +60,7 @@ function montar(
       contexto={contexto}
       archivado={archivado}
       en={o.en ?? null}
+      autor={o.autor ?? null}
       alCambiar={alCambiar}
       alRecargar={alRecargar}
     />,
@@ -95,7 +98,7 @@ describe("EstadoPeriodo (spec 015 T3, D-13, CA-13)", () => {
       extra: {
         [POST_REVISAR]: {
           status: 200,
-          cuerpo: { estado: "revisado", por: USUARIO, en: EN },
+          cuerpo: { estado: "revisado", por: USUARIO, autor: AUTOR, en: EN },
         },
       },
     });
@@ -111,9 +114,19 @@ describe("EstadoPeriodo (spec 015 T3, D-13, CA-13)", () => {
     await confirmar(user);
 
     await vi.waitFor(() => expect(alCambiar).toHaveBeenCalledTimes(1));
-    expect(alCambiar).toHaveBeenCalledWith({ estado: "revisado", por: USUARIO, en: EN });
+    expect(alCambiar).toHaveBeenCalledWith({ estado: "revisado", por: USUARIO, autor: AUTOR, en: EN });
     expect(f.de(POST_REVISAR)).toHaveLength(1);
     expect(await screen.findByText(M.periodoRevisado)).toBeTruthy();
+  });
+
+  it("muestra quién marcó el periodo con su nombre (D-12), nunca el id", () => {
+    montar("revisado", TODOS, { en: EN, autor: AUTOR });
+    expect(screen.getByText("Rosa Quispe")).toBeTruthy();
+    expect(document.body.textContent).toContain("Marcado el");
+    expect(document.body.textContent).not.toContain(USUARIO.slice(0, 8));
+    cleanup();
+    montar("revisado", TODOS, { en: EN, autor: { ...AUTOR, nombre: null, activo: false } });
+    expect(screen.getByText("Usuario desconocido")).toBeTruthy();
   });
 
   it("cancelar la confirmación no llama al servidor", async () => {
@@ -134,7 +147,7 @@ describe("EstadoPeriodo (spec 015 T3, D-13, CA-13)", () => {
         extra: {
           [POST_REABRIR]: {
             status: 200,
-            cuerpo: { estado: "abierto", por: USUARIO, en: EN },
+            cuerpo: { estado: "abierto", por: USUARIO, autor: AUTOR, en: EN },
           },
         },
       });
