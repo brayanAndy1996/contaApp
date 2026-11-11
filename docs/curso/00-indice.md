@@ -11,6 +11,7 @@ No necesitas leerlo todo de una vez. Cada módulo se sostiene solo y enlaza a lo
 - Cómo se ejecutan los trabajos pesados (descargas SIRE, buzones SOL) sin bloquear la pantalla del usuario.
 - Cómo se protegen las claves SOL y las sesiones de los usuarios.
 - Cómo se manejan los montos y cómo se prueba que todo lo anterior funciona.
+- Cómo se prevalida un periodo y se genera el archivo SIRE (TXT y ZIP) con versiones inmutables.
 
 ## Cómo usar este curso
 
@@ -19,7 +20,7 @@ No necesitas leerlo todo de una vez. Cada módulo se sostiene solo y enlaza a lo
 3. **Haz los ejercicios.** Las soluciones están escondidas en un bloque desplegable; intenta primero sin mirar.
 4. **Sigue las rutas de archivo.** Cada fragmento de código indica de dónde sale, por ejemplo `packages/db/src/with-tenant.ts:182`. Ábrelo en tu editor para ver el contexto completo. Cuando un fragmento está recortado, el módulo lo dice.
 
-> Las rutas y números de línea corresponden al estado del repositorio cuando se escribió el curso (spec 008 terminada). Si el código cambia, busca el nombre de la función con `Ctrl+Shift+F` en tu editor.
+> Las rutas y números de línea de los módulos 01 a 09 corresponden al estado del repositorio con la spec 008 terminada; el módulo 10, a las specs 012 y 012b terminadas. Si el código cambia, busca el nombre de la función con `Ctrl+Shift+F` en tu editor.
 
 ## Mapa de módulos
 
@@ -35,17 +36,19 @@ No necesitas leerlo todo de una vez. Cada módulo se sostiene solo y enlaza a lo
 | 07 | [Seguridad, cifrado y sesiones](07-seguridad-cifrado-y-sesiones.md) | KEK/DEK para las claves SOL, Argon2id para contraseñas, cookies de sesión y CSRF. |
 | 08 | [Dinero y dominio](08-dinero-y-dominio.md) | `Money`, `decimal.js`, redondeo, IGV y por qué nunca se usa `number` para soles. |
 | 09 | [Pruebas y calidad](09-pruebas-y-calidad.md) | TDD, pruebas adversariales, cobertura, lint y CI. |
+| 10 | [Prevalidación y archivo SIRE](10-prevalidacion-y-archivo-sire.md) | Qué bloquea un periodo, formatos TXT versionados, ZIP con SHA-256, el trabajo `archivo.generar` y la descarga de versiones. |
 
 ## Orden recomendado
 
 ```text
 00 → 01 → 02 → 03 ─┬─► 04 → 05 → 06
-                   └─► 07 → 08 → 09
+                   └─► 07 → 08 → 09 → 10
 ```
 
 - **Ruta mínima (2–3 horas):** 01, 02 y 03. Con eso entiendes dónde vive cada dato y quién puede verlo.
 - **Ruta de trabajos en segundo plano:** 04, 05 y 06, en ese orden (Redis es la base de BullMQ y del SSE).
 - **Ruta de seguridad y negocio:** 07, 08 y 09. Se pueden leer en cualquier orden después de 03.
+- **Ruta del archivo SIRE:** 10, después de 05 (cola) y 08 (dinero).
 
 ## Cómo correr los ejemplos
 
@@ -67,7 +70,7 @@ Desde la raíz del repo (en PowerShell o en la terminal de tu editor):
 ```bash
 pnpm install          # instala dependencias de todas las apps y paquetes
 pnpm build            # compila packages/* (turbo respeta el orden de dependencias)
-pnpm db:migrate       # aplica las migraciones 0000…0021 a la base de datos
+pnpm db:migrate       # aplica todas las migraciones (0000…0040) a la base de datos
 pnpm db:seed          # carga datos de ejemplo (estudios, usuarios, clientes)
 ```
 
@@ -136,7 +139,7 @@ Antes de empezar el módulo 02, verifica:
 - [ ] `node -v` muestra `v24.x`.
 - [ ] `pnpm -v` muestra `10.x`.
 - [ ] `psql -h localhost -U postgres -d contapp -c "select version();"` muestra PostgreSQL 17.
-- [ ] `psql -h localhost -U postgres -d contapp -c "select count(*) from drizzle.__drizzle_migrations;"` devuelve 22 (las migraciones 0000 a 0021).
+- [ ] `psql -h localhost -U postgres -d contapp -c "select count(*) from drizzle.__drizzle_migrations;"` devuelve 41 (las migraciones 0000 a 0040, incluida la 0033b).
 - [ ] (Para 04–06) `redis-cli ping` responde `PONG`.
 
 ## Cómo está escrito cada módulo
@@ -201,7 +204,9 @@ Ordenado alfabéticamente. La columna "Módulo" indica dónde se explica a fondo
 | **DEK** | *Data Encryption Key*: llave que cifra una credencial concreta (clave SOL). Va guardada cifrada con la KEK. | 07 |
 | **Drizzle** | ORM y generador de migraciones de TypeScript que usa ContApp para definir tablas y aplicar migraciones. | 02 |
 | **Estudio (tenant)** | Cada estudio contable cliente de ContApp. Es la unidad de aislamiento: sus datos nunca se ven desde otro estudio. | 03 |
+| **Formato TXT versionado** | Definición, como dato, de la estructura del archivo SIRE (campos, separador, codificación, nombre), con `vigenteDesde` y `oficial`. Hoy solo hay formatos provisionales. | 10 |
 | **Guard** | Pieza de NestJS que decide, antes de ejecutar un endpoint, si la petición pasa (sesión válida, permiso, cliente visible). | 06 |
+| **Huella** | SHA-256 del contenido canónico de las filas de un periodo. Garantiza que se genera exactamente lo que se vio en el previo. | 10 |
 | **Idempotente** | Operación que puede repetirse sin cambiar el resultado. Clave para reintentos: descargar dos veces el mismo periodo no debe duplicar nada. | 05 |
 | **Índice** | Estructura que permite a PostgreSQL encontrar filas rápido, como el índice alfabético de un archivador. Un índice único además impide duplicados. | 02 |
 | **Job (trabajo)** | Una tarea en segundo plano: descargar una propuesta SIRE, revisar un buzón SOL. Se registra en la tabla `job_registro`. | 05 |
@@ -215,12 +220,14 @@ Ordenado alfabéticamente. La columna "Módulo" indica dónde se explica a fondo
 | **NUMERIC(14,2)** | Tipo de PostgreSQL para montos exactos: hasta 14 dígitos, 2 decimales. Nunca `float`. | 02, 08 |
 | **Outbox** | Patrón: primero se guarda el trabajo en la BD (commit) y solo después se avisa a Redis. Si Redis falla, nada se pierde: un reconciliador repone. | 05 |
 | **pnpm** | Gestor de paquetes de Node.js, rápido y estricto con las dependencias. Maneja los *workspaces* del monorepo. | 01 |
+| **Prevalidación** | Revisión del periodo completo antes de generar el archivo: decide si es apto y lista los errores (bloquean) y los avisos (no bloquean). | 10 |
 | **Prueba adversarial** | Prueba escrita por alguien que intenta romper el sistema (fugas entre estudios, carreras, entradas maliciosas). Archivos `*.adv.spec.ts`. | 09 |
 | **Puerto** | Interfaz que describe qué necesita el sistema de afuera (por ejemplo, `SireAuth.obtenerToken`), sin decir cómo se hace. | 01 |
 | **Redis** | Base de datos en memoria, muy rápida, usada para colas, locks, cupos y mensajes en tiempo real. | 04 |
 | **RLS (Row Level Security)** | Función de PostgreSQL que filtra filas automáticamente según una política; en ContApp, según el estudio activo. | 03 |
 | **Rol de base de datos** | "Usuario" de PostgreSQL con permisos concretos: `contapp_backend`, `contapp_worker`, etc. | 02 |
 | **SECURITY DEFINER** | Función SQL que se ejecuta con los permisos de su dueño, no de quien la llama. Sirve para dar acceso controlado a algo puntual. | 02 |
+| **SHA-256** | Huella digital de un archivo: si cambia un byte, cambia toda. Se guarda la del TXT y la del ZIP de cada versión. | 10 |
 | **SSE (Server-Sent Events)** | Canal HTTP abierto por el que el servidor empuja eventos al navegador (por ejemplo, "tu trabajo terminó"). | 06 |
 | **Transacción** | Grupo de operaciones que se aplican todas o ninguna, como un asiento contable que debe cuadrar completo. | 02 |
 | **TDD** | *Test-Driven Development*: primero se escribe la prueba que falla y luego el código que la hace pasar. | 09 |
@@ -241,7 +248,7 @@ Ordenado alfabéticamente. La columna "Módulo" indica dónde se explica a fondo
 
 1. La DEK cifra una credencial concreta; la KEK es la llave maestra que cifra las DEK. Así, cambiar la KEK no obliga a volver a cifrar cada clave SOL, solo a "re-envolver" sus DEK (módulo 07).
 2. El [03 · RLS y withTenant](03-rls-y-withtenant.md), después de repasar roles en el [02](02-postgresql.md).
-3. 22 (de `0000_roles` a `0021_trabajos_ronda2`), si corriste `pnpm db:migrate` con el repo al día.
+3. 41 (de `0000_roles` a `0040_archivo_generado`), si corriste `pnpm db:migrate` con el repo al día.
 
 </details>
 

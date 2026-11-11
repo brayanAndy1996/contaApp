@@ -1,6 +1,6 @@
 # 09 · Pruebas y calidad: cómo se construye ContApp sin romperlo
 
-> Módulo anterior: [08-dinero-y-dominio.md](08-dinero-y-dominio.md) · Índice: [00-indice.md](00-indice.md)
+> Módulo anterior: [08-dinero-y-dominio.md](08-dinero-y-dominio.md) · Siguiente: [10-prevalidacion-y-archivo-sire.md](10-prevalidacion-y-archivo-sire.md) · Índice: [00-indice.md](00-indice.md)
 
 ## Lo que aprenderás
 
