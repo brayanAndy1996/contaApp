@@ -335,3 +335,46 @@ describe("CA-6 · sin secretos en auditoria (D-5): guardar, verificar, invalidar
     expect(volcado).toContain("credencial.guardada"); // el control no es vacuo: las filas existen
   });
 });
+
+// =================================================================================================
+describe("listarAuditoria · cursor con precision de milisegundos frente a filas con microsegundos (D-6, P-2, CA-12)", () => {
+  // `antes.en` es un Date (ms) y la columna tiene us. Las filas que caen en el mismo ms que la ultima de una pagina no deben
+  // saltarse ni repetirse. Las filas se insertan con el superusuario porque el DEFAULT trunca a ms: es la peor entrada posible.
+  it.each([1, 2, 3, 4, 7])(
+    "con limite %i, la union de las paginas es exactamente el conjunto sembrado, sin huecos ni duplicados",
+    async (limite) => {
+      const Z = (await ec.estudio()).id;
+      const uz = await ec.usuarioDe(Z);
+      const r = await admin.query(
+        `with base as (select date_trunc('milliseconds', now()) - interval '2 hours' as t),
+              mismo_ms as (select base.t + g * interval '100 microseconds' as en from base, generate_series(1, 8) g),
+              otros_ms as (select base.t + g * interval '5 milliseconds' as en from base, unnest(array[-1, 1]) g),
+              todos as (select en from mismo_ms union all select en from otros_ms)
+         insert into auditoria (tenant_id, ocurrida_en, actor_tipo, accion, entidad, datos)
+         select $1, en, 'sistema', 'cliente.creado', 'cliente', '{}'::jsonb from todos
+         returning id`,
+        [Z],
+      );
+      const sembradas = new Set<string>(r.rows.map((x) => x.id as string));
+      expect(sembradas.size, "siembra: 8 filas dentro de un mismo ms y 2 en ms vecinos").toBe(10);
+
+      const vistas: string[] = [];
+      let antes: { en: Date; id: string } | undefined;
+      for (let i = 0; i < 100; i++) {
+        const pagina = await ec.comoBackend(Z, uz, (tx) => listarAuditoria(tx, antes ? { antes, limite } : { limite }));
+        if (pagina.length === 0) break;
+        expect(pagina.length).toBeLessThanOrEqual(limite);
+        vistas.push(...pagina.map((f) => f.id));
+        const ult = pagina[pagina.length - 1]!;
+        antes = { en: new Date(ult.ocurridaEn), id: ult.id }; // igual que el servicio: el cursor viaja como Date
+      }
+      expect(new Set(vistas).size, "sin repetidas").toBe(vistas.length);
+      const propias = vistas.filter((id) => sembradas.has(id));
+      expect(
+        [...sembradas].filter((id) => !propias.includes(id)).length,
+        "filas sembradas que ninguna pagina entrego (saltadas por el cursor en ms)",
+      ).toBe(0);
+      expect(propias).toHaveLength(sembradas.size);
+    },
+  );
+});

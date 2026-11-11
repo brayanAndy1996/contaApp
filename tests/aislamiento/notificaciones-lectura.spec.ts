@@ -113,6 +113,49 @@ describe("listarNotificaciones: orden, cursor y maximo de 50 (CA-12)", () => {
 });
 
 // =================================================================================================
+describe("listarNotificaciones: cursor con precision de milisegundos frente a filas con microsegundos (CA-12)", () => {
+  // `antes.en` es un Date (ms) y `creada_en` tiene us. Las filas del mismo ms que la ultima de una pagina no deben saltarse ni
+  // repetirse. Se insertan con el superusuario porque el DEFAULT trunca a ms: es la peor entrada posible para el cursor.
+  it.each([1, 2, 3, 4, 7])(
+    "con limite %i, la union de las paginas es exactamente el conjunto sembrado, sin huecos ni duplicados",
+    async (limite) => {
+      const u = await usuario();
+      const r = await admin.query(
+        `with base as (select date_trunc('milliseconds', now()) - interval '2 hours' as t),
+              mismo_ms as (select base.t + g * interval '100 microseconds' as en from base, generate_series(1, 8) g),
+              otros_ms as (select base.t + g * interval '5 milliseconds' as en from base, unnest(array[-1, 1]) g),
+              todos as (select en from mismo_ms union all select en from otros_ms)
+         insert into notificacion (tenant_id, usuario_id, tipo, params, clave_dedupe, creada_en)
+         select $1, $2, 'trabajo_terminado', '{"tipoTrabajo":"prueba.eco","estado":"completado","motivo":null}'::jsonb,
+                'us:' || $3 || ':' || row_number() over (order by en), en
+           from todos
+         returning id`,
+        [X, u.id, randomUUID()],
+      );
+      const sembradas = new Set<string>(r.rows.map((x) => x.id as string));
+      expect(sembradas.size, "siembra: 8 filas dentro de un mismo ms y 2 en ms vecinos").toBe(10);
+
+      const vistas: string[] = [];
+      let antes: { en: Date; id: string } | undefined;
+      for (let i = 0; i < 100; i++) {
+        const pagina = await listar(u, GLOBAL, antes ? { antes, limite } : { limite });
+        if (pagina.length === 0) break;
+        expect(pagina.length).toBeLessThanOrEqual(limite);
+        vistas.push(...pagina.map((x) => x.id));
+        const ult = pagina[pagina.length - 1];
+        antes = { en: ult.creadaEn, id: ult.id }; // igual que el servicio: el cursor viaja como Date
+      }
+      expect(new Set(vistas).size, "sin repetidas").toBe(vistas.length);
+      expect(
+        [...sembradas].filter((id) => !vistas.includes(id)).length,
+        "filas sembradas que ninguna pagina entrego (saltadas por el cursor en ms)",
+      ).toBe(0);
+      expect(vistas).toHaveLength(sembradas.size);
+    },
+  );
+});
+
+// =================================================================================================
 describe("contarNoLeidas: solo no leidas, con tope (CA-12)", () => {
   it("cuenta las no leidas propias y visibles", async () => {
     const u = await usuario();

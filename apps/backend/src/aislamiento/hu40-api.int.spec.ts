@@ -1908,17 +1908,29 @@ describe("HU-40 por API · 017 · las pruebas no son vacías (notificaciones y a
       expect(ids.filter((id) => ajenoSembrado.notifDueno.includes(id) || ajenoSembrado.notifAsistente.includes(id))).toEqual([]);
       expect((await pedir(d, "/notificaciones/no-leidas")).body.noLeidas).toBeGreaterThanOrEqual(propio.notifDueno.length);
 
-      // Auditoría: recorre las páginas (las sesiones de la prueba la engrosan) y encuentra solo filas del propio estudio.
+      // Auditoría: recorre las páginas hasta hallar todo lo sembrado. Las sesiones del arnés engrosan `sesion.ingreso` (miles en
+      // una base local reutilizada) y lo sembrado es más viejo, así que no se fija un número de páginas: se pagina hasta
+      // encontrarlo, con un tope alto que falla con mensaje claro si el cursor no avanza o la lista no termina.
+      const esperados = new Set([...propio.auditoria, ...propio.descifrado]);
+      const TOPE_PAGINAS = 400; // 400 x 50 = 20.000 filas
       let cursor: string | null = null;
       const vistos: string[] = [];
-      for (let i = 0; i < 10; i++) {
+      const vistosSet = new Set<string>();
+      let paginas = 0;
+      do {
         const r: Resp = await pedir(d, `/auditoria${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`);
         expect(r.status, r.text).toBe(200);
-        vistos.push(...(r.body.items as any[]).map((x) => x.id));
+        const ids = (r.body.items as any[]).map((x) => x.id as string);
+        vistos.push(...ids);
+        ids.forEach((id) => vistosSet.add(id));
         cursor = r.body.siguiente;
-        if (!cursor) break;
-      }
-      expect(vistos).toEqual(expect.arrayContaining([...propio.auditoria, ...propio.descifrado]));
+        paginas++;
+      } while (cursor && paginas < TOPE_PAGINAS && ![...esperados].every((id) => vistosSet.has(id)));
+      expect(
+        [...esperados].filter((id) => !vistosSet.has(id)),
+        `filas sembradas no halladas tras ${paginas} páginas (${vistos.length} filas; ${cursor ? "quedaban más" : "lista agotada"})`,
+      ).toEqual([]);
+      expect(vistos.length, "el cursor no repite filas").toBe(vistosSet.size);
       expect(vistos.filter((id) => ajenoSembrado.auditoria.includes(id) || ajenoSembrado.descifrado.includes(id))).toEqual([]);
 
       const a = await abrirSesion(mio.asistente, mio.tenantId);
