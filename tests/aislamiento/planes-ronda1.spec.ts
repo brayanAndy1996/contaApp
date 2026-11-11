@@ -177,6 +177,19 @@ describe("D14 · auth.prueba_origen: una prueba por cuenta, en la BD", () => {
       await c.query("alter table membresia disable trigger user");
       await c.query("delete from suscripcion where tenant_id = $1", [f.tenant_id]);
       await c.query("delete from membresia where tenant_id = $1", [f.tenant_id]);
+      // 017: notificacion, plan_aviso y auditoria (FK a tenant; auditoria es inmutable) se borran con `replica`; luego se vuelve a
+      // `origin` porque esta prueba comprueba el SET NULL de la FK de auth.prueba_origen. Un SAVEPOINT tolera que falten (rojo).
+      for (const tabla of ["notificacion", "plan_aviso", "auditoria"]) {
+        await c.query("savepoint limpieza");
+        try {
+          await c.query("set local session_replication_role = replica");
+          await c.query(`delete from ${tabla} where tenant_id = $1`, [f.tenant_id]);
+          await c.query("release savepoint limpieza");
+        } catch {
+          await c.query("rollback to savepoint limpieza");
+        }
+        await c.query("set local session_replication_role = origin");
+      }
       await c.query("delete from tenant where id = $1", [f.tenant_id]);
       const tras = (await c.query("select usuario_id, tenant_id from auth.prueba_origen where usuario_id = $1", [cuenta.id]))
         .rows;

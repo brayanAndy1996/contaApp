@@ -386,6 +386,7 @@ export async function abrirHarness(opciones: OpcionesHarness = {}): Promise<Harn
       correo.liberar();
       for (const id of usuarios) {
         await sql("delete from auth.sesion where usuario_id = $1", [id]).catch(() => undefined);
+        await sql("delete from notificacion where usuario_id = $1", [id]).catch(() => undefined); // 017 (T2)
         await sql("delete from auth.token_recuperacion where usuario_id = $1", [id]).catch(() => undefined);
         await sql("delete from auth.usuario_contrasena where usuario_id = $1", [id]).catch(() => undefined);
         await sql("delete from membresia where usuario_id = $1", [id]).catch(() => undefined);

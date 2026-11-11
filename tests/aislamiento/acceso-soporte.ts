@@ -169,6 +169,11 @@ export class EscenarioAcceso {
       ).rows.map((x) => x.id as string);
       const t = this.estudios;
       const pasos: Array<[string, unknown[]]> = [
+        // Spec 017 (T2): los triggers crean filas de notificacion, plan_aviso y auditoria (inmutable: solo `replica` la borra) en casi
+        // cualquier prueba; con FK a tenant, sin borrarlas antes el estudio no se borra y queda sin suscripcion (lección de 016).
+        ["delete from notificacion where tenant_id = any($1::uuid[]) or usuario_id = any($2::uuid[])", [t, usuarios]],
+        ["delete from plan_aviso where tenant_id = any($1::uuid[])", [t]],
+        ["delete from auditoria where tenant_id = any($1::uuid[])", [t]],
         ["delete from asignacion where tenant_id = any($1::uuid[])", [t]],
         ["delete from invitacion where tenant_id = any($1::uuid[])", [t]],
         ["delete from auth.sesion where usuario_id = any($1::uuid[])", [usuarios]],
