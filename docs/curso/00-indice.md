@@ -139,7 +139,7 @@ Antes de empezar el módulo 02, verifica:
 - [ ] `node -v` muestra `v24.x`.
 - [ ] `pnpm -v` muestra `10.x`.
 - [ ] `psql -h localhost -U postgres -d contapp -c "select version();"` muestra PostgreSQL 17.
-- [ ] `psql -h localhost -U postgres -d contapp -c "select count(*) from drizzle.__drizzle_migrations;"` devuelve 41 (las migraciones 0000 a 0040, incluida la 0033b).
+- [ ] `psql -h localhost -U postgres -d contapp -c "select count(*) from drizzle.__drizzle_migrations;"` devuelve 41 (las migraciones 0000 a 0040).
 - [ ] (Para 04–06) `redis-cli ping` responde `PONG`.
 
 ## Cómo está escrito cada módulo
