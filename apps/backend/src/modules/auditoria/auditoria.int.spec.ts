@@ -6,7 +6,7 @@
 //  - 200 `{ items, siguiente }`: del estudio de la sesión, por `(ocurrida_en, id)` desc, a lo sumo 50; `siguiente` es un cursor OPACO
 //    (texto) o `null` en la última página. Un cursor mal formado, o una consulta con claves (`usuarioId`, `tenantId`, `clienteId`,
 //    `limite`), es 400 `{ codigo: "solicitud_invalida" }`.
-//  - Cada item es exactamente `{ id, ocurridaEn, accion, actor, cliente, entidad, entidadId, datos }`, sin `tenantId` ni `usuarioId`:
+//  - Cada item es exactamente `{ id, ocurridaEn, accion, actor, cliente, entidad, entidadId, datos, objetivo }`, sin `tenantId` ni `usuarioId`:
 //      actor   = { tipo: "usuario" | "trabajo" | "sistema", autor: { id, nombre, activo } | null, trabajoId: uuid | null }
 //                (usuario: autor de la sesión; trabajo: autor = quien lanzó el trabajo; sistema: autor null y trabajoId null).
 //                `autor` sigue D-12: miembro activo = su nombre; desactivado = su nombre con activo false; un id que no es miembro del
@@ -173,7 +173,7 @@ describe("P-2 · la lista: forma, orden y descifrados", () => {
     const mias = de(r.items, [sistema.id, deTrabajo.id, deUsuario.id]);
     expect(mias.map((x) => x.id)).toEqual([sistema.id, deTrabajo.id, deUsuario.id]); // más nueva primero
     for (const x of mias) {
-      expect(Object.keys(x).sort()).toEqual(["accion", "actor", "cliente", "datos", "entidad", "entidadId", "id", "ocurridaEn"]);
+      expect(Object.keys(x).sort()).toEqual(["accion", "actor", "cliente", "datos", "entidad", "entidadId", "id", "objetivo", "ocurridaEn"]);
       expect(Object.keys(x.actor).sort()).toEqual(["autor", "tipo", "trabajoId"]);
     }
     const [s, t, u] = mias;
@@ -213,7 +213,7 @@ describe("P-2 · la lista: forma, orden y descifrados", () => {
       datos: { tipo: "sire_api", motivo: "sire.propuesta.descargar", resultado: "ok" },
     });
     expect(x.ocurridaEn).toBe(d.creadaEn);
-    expect(Object.keys(x).sort()).toEqual(["accion", "actor", "cliente", "datos", "entidad", "entidadId", "id", "ocurridaEn"]);
+    expect(Object.keys(x).sort()).toEqual(["accion", "actor", "cliente", "datos", "entidad", "entidadId", "id", "objetivo", "ocurridaEn"]);
   });
 });
 

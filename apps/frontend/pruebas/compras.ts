@@ -307,6 +307,9 @@ export function resumenDe(
     conIgv: { n: conIgv.length, casilleros: suma(conIgv) },
     sinIgv: { n: sinIgv.length, casilleros: suma(sinIgv) },
     filasSinConvertir: [],
+    por: null,
+    autor: null,
+    en: null,
     ...parcial,
   };
 }

@@ -153,9 +153,28 @@ describe("resumenComprasSchema", () => {
     conIgv: { n: 2, casilleros: montos() },
     sinIgv: { n: 1, casilleros: montos() },
     filasSinConvertir: ["a"],
+    por: null,
+    autor: null,
+    en: null,
   };
   it("acepta original, vigente y diferencia, con y sin IGV con su cantidad", () => {
     expect(ok(resumenComprasSchema, resumen)).toBe(true);
+  });
+  // Spec 017 · T18a-servidor (P-1): el resumen trae el mismo bloque de estado que revisar/reabrir (`por`, `autor`, `en`).
+  it("trae por, autor y en: null mientras nadie marcó el periodo, o quien lo marcó y cuándo", () => {
+    expect(ok(resumenComprasSchema, resumen)).toBe(true);
+    const marcado = { ...resumen, estado: "revisado", por: randomUUID(), autor: { id: randomUUID(), nombre: "Ana", activo: true }, en: "2026-11-11T15:30:00.000Z" };
+    expect(resumenComprasSchema.safeParse(marcado).data).toMatchObject({ por: marcado.por, autor: marcado.autor, en: marcado.en });
+  });
+  it("exige por, autor y en, y rechaza formas ajenas", () => {
+    for (const k of ["por", "autor", "en"] as const) {
+      const resto: Record<string, unknown> = { ...resumen };
+      delete resto[k];
+      expect(ok(resumenComprasSchema, resto), k).toBe(false);
+    }
+    expect(ok(resumenComprasSchema, { ...resumen, por: "no-uuid" })).toBe(false);
+    expect(ok(resumenComprasSchema, { ...resumen, en: "ayer" })).toBe(false);
+    expect(ok(resumenComprasSchema, { ...resumen, autor: { id: randomUUID(), activo: true } })).toBe(false);
   });
   it("rechaza una cantidad negativa o un estado desconocido", () => {
     expect(ok(resumenComprasSchema, { ...resumen, conIgv: { n: -1, casilleros: montos() } })).toBe(false);

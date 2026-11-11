@@ -45,6 +45,7 @@ const fila = (n: number, extra: Record<string, unknown> = {}) => ({
   entidad: "cliente",
   entidadId: CLIENTE,
   datos: { origen: "manual" },
+  objetivo: null,
   ...extra,
 });
 

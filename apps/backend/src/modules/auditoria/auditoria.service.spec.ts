@@ -8,9 +8,17 @@ vi.mock("@contapp/db", async (original) => ({
   listarAuditoria: vi.fn(),
   resolverAutores: vi.fn(),
   leerClientesPorIds: vi.fn(),
+  resolverUsuariosDeEntidades: vi.fn(),
 }));
 
-import { leerClientesPorIds, listarAuditoria, MAX_PAGINA_AUDITORIA, resolverAutores, type FilaAuditoria } from "@contapp/db";
+import {
+  leerClientesPorIds,
+  listarAuditoria,
+  MAX_PAGINA_AUDITORIA,
+  resolverAutores,
+  resolverUsuariosDeEntidades,
+  type FilaAuditoria,
+} from "@contapp/db";
 import { AccesoError } from "../acceso/errores.js";
 import { AuditoriaService } from "./auditoria.service.js";
 import { codificarCursor } from "../notificaciones/cursor.js";
@@ -49,6 +57,8 @@ describe("AuditoriaService.listar", () => {
     vi.mocked(listarAuditoria).mockReset();
     vi.mocked(resolverAutores).mockReset();
     vi.mocked(leerClientesPorIds).mockReset();
+    vi.mocked(resolverUsuariosDeEntidades).mockReset();
+    vi.mocked(resolverUsuariosDeEntidades).mockResolvedValue({ membresias: new Map(), invitaciones: new Map() });
     vi.mocked(resolverAutores).mockResolvedValue(new Map([[USUARIO, { id: USUARIO, nombre: "Ana", activo: true }]]));
     vi.mocked(leerClientesPorIds).mockResolvedValue(new Map([[CLIENTE, { id: CLIENTE, ruc: "20123456789", razonSocial: "Acme SAC" }]]));
   });
@@ -67,6 +77,7 @@ describe("AuditoriaService.listar", () => {
       entidad: "cliente",
       entidadId: CLIENTE,
       datos: { campo: "razonSocial" },
+      objetivo: null,
     });
     expect(JSON.stringify(r)).not.toContain("usuarioId");
     expect(withTenant).toHaveBeenCalledWith({ tenantId: TENANT, userId: USUARIO }, expect.any(Function));
@@ -149,6 +160,88 @@ describe("AuditoriaService.listar", () => {
     ]);
     const r = await servicio().listar(SESION, undefined);
     expect(r.items.map((i) => i.id)).toEqual([fila(2).id]);
+  });
+
+  // Spec 017 · T18a-servidor (P-4): `objetivo` = el usuario afectado, resuelto por lote (un solo resolverAutores por página).
+  describe("objetivo", () => {
+    const OBJ = "0190a000-0000-7000-8000-0000000000e1";
+    const MEMBRESIA = "0190a000-0000-7000-8000-0000000000e2";
+    const INVITACION = "0190a000-0000-7000-8000-0000000000e3";
+    const baja = { id: OBJ, nombre: "Beto", activo: false };
+    const sujeto = (accion: string, extra: Partial<FilaAuditoria> = {}) =>
+      fila(10, { accion, clienteId: null, entidad: "membresia", entidadId: MEMBRESIA, datos: {}, ...extra });
+
+    beforeEach(() => {
+      vi.mocked(resolverAutores).mockResolvedValue(
+        new Map([
+          [USUARIO, { id: USUARIO, nombre: "Ana", activo: true }],
+          [OBJ, baja],
+        ]),
+      );
+      vi.mocked(resolverUsuariosDeEntidades).mockResolvedValue({
+        membresias: new Map([[MEMBRESIA, OBJ]]),
+        invitaciones: new Map([[INVITACION, OBJ]]),
+      });
+    });
+
+    it.each(["miembro.alta", "miembro.rol_cambiado", "miembro.desactivado", "miembro.reactivado", "miembro.eliminado"])(
+      "%s: el usuario de la membresía, con la forma del autor",
+      async (accion) => {
+        vi.mocked(listarAuditoria).mockResolvedValue([sujeto(accion)]);
+        const r = await servicio().listar(SESION, undefined);
+        expect(r.items[0]!.objetivo).toEqual(baja);
+        expect(resolverUsuariosDeEntidades).toHaveBeenCalledWith(tx, { membresias: [MEMBRESIA], invitaciones: [] });
+      },
+    );
+
+    it.each(["asignacion.agregada", "asignacion.quitada", "asignacion.tipo_cambiado"])("%s: el usuarioId de los datos", async (accion) => {
+      vi.mocked(listarAuditoria).mockResolvedValue([sujeto(accion, { entidad: "asignacion", clienteId: CLIENTE, datos: { usuarioId: OBJ, tipo: "responsable" } })]);
+      const r = await servicio().listar(SESION, undefined);
+      expect(r.items[0]!.objetivo).toEqual(baja);
+    });
+
+    it.each(["invitacion.creada", "invitacion.revocada", "invitacion.modificada"])("%s: quien aceptó la invitación", async (accion) => {
+      vi.mocked(listarAuditoria).mockResolvedValue([sujeto(accion, { entidad: "invitacion", entidadId: INVITACION })]);
+      const r = await servicio().listar(SESION, undefined);
+      expect(r.items[0]!.objetivo).toEqual(baja);
+      expect(resolverUsuariosDeEntidades).toHaveBeenCalledWith(tx, { membresias: [], invitaciones: [INVITACION] });
+    });
+
+    it("una invitación sin aceptar, una membresía eliminada o un usuarioId inválido dan objetivo null", async () => {
+      vi.mocked(resolverUsuariosDeEntidades).mockResolvedValue({ membresias: new Map(), invitaciones: new Map() });
+      vi.mocked(listarAuditoria).mockResolvedValue([
+        sujeto("invitacion.creada", { entidad: "invitacion", entidadId: INVITACION }),
+        sujeto("miembro.eliminado"),
+        sujeto("asignacion.quitada", { entidad: "asignacion", datos: { usuarioId: "no-es-uuid" } }),
+        sujeto("asignacion.agregada", { entidad: "asignacion", datos: {} }),
+      ]);
+      const r = await servicio().listar(SESION, undefined);
+      expect(r.items.map((i) => i.objetivo)).toEqual([null, null, null, null]);
+    });
+
+    it("un usuario que ya no se resuelve como autor da objetivo null, no el id crudo", async () => {
+      vi.mocked(resolverAutores).mockResolvedValue(new Map());
+      vi.mocked(listarAuditoria).mockResolvedValue([sujeto("miembro.alta")]);
+      const r = await servicio().listar(SESION, undefined);
+      expect(r.items[0]!.objetivo).toBeNull();
+      expect(JSON.stringify(r)).not.toContain(OBJ);
+    });
+
+    it("las demás acciones tienen objetivo null y no consultan membresías ni invitaciones", async () => {
+      vi.mocked(listarAuditoria).mockResolvedValue([fila(1), fila(2, { accion: "cliente.editado", datos: { cambios: { zona: ["A", "B"] } } })]);
+      const r = await servicio().listar(SESION, undefined);
+      expect(r.items.map((i) => i.objetivo)).toEqual([null, null]);
+      expect(resolverUsuariosDeEntidades).not.toHaveBeenCalled();
+      expect(r.items[1]!.datos).toEqual({ cambios: { zona: ["A", "B"] } });
+    });
+
+    it("resuelve los autores del actor y los objetivos en UNA consulta, sin repetir ids", async () => {
+      vi.mocked(listarAuditoria).mockResolvedValue([sujeto("miembro.alta"), sujeto("miembro.reactivado"), fila(1)]);
+      await servicio().listar(SESION, undefined);
+      expect(resolverAutores).toHaveBeenCalledTimes(1);
+      const ids = vi.mocked(resolverAutores).mock.calls[0]![1];
+      expect([...new Set(ids)].sort()).toEqual([OBJ, USUARIO].sort());
+    });
   });
 
   it.each([

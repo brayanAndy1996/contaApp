@@ -12,7 +12,7 @@ import { VentasError } from "./errores.js";
 const PERMISO_APROBAR_GENERAR = "sire.aprobar_generar";
 
 /** `{ estado, por, autor, en }`: quién (id y autor con nombre) y cuándo marcó el periodo (`null` mientras nadie lo haya marcado). */
-async function aRespuestaEstado(tx: Tx, e: EstadoPeriodoVenta): Promise<EstadoPeriodoRespuesta> {
+export async function aRespuestaEstado(tx: Tx, e: EstadoPeriodoVenta): Promise<EstadoPeriodoRespuesta> {
   const autores = await autoresDe(tx, [e.marcadoPor]);
   return {
     estado: e.estado,

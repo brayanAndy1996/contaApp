@@ -424,3 +424,41 @@ describe("D-11 · permisos del resumen", () => {
     expect((await v.sinSesion("GET", `${base(c.id)}/resumen`)).status).toBe(401);
   });
 });
+
+// Spec 017 · T18a-servidor (P-1): el resumen trae el mismo bloque de estado que revisar y reabrir (`por`, `autor`, `en`), de modo
+// que «Marcado por X» no se pierde al recargar ni al abrirlo otro usuario.
+describe("P-1 · el resumen dice quién marcó el periodo y cuándo", () => {
+  it("abierto y sin marcar: por, autor y en son null", async () => {
+    const c = await nuevoCliente();
+    const r = await resumen(lectura, c);
+    expect(r.status, r.text).toBe(200);
+    expect(r.body).toMatchObject({ estado: "abierto", por: null, autor: null, en: null });
+    expect(resumenComprasSchema.safeParse(r.body).success, r.text).toBe(true);
+  });
+
+  it("revisado: otro usuario ve por, autor con nombre y en, iguales a los de la respuesta de revisar", async () => {
+    const c = await nuevoCliente();
+    await v.b.c.p.b.sql("update usuario set nombre = 'Carlos Contador' where id = $1", [contador.id]);
+    const marca = await v.llamar(contador, "POST", `${base(c.id)}/estado/revisar`, {});
+    expect(marca.status, marca.text).toBe(200);
+    const r = await resumen(lectura, c);
+    expect(r.status, r.text).toBe(200);
+    expect(r.body.estado).toBe("revisado");
+    expect(r.body.por).toBe(contador.id);
+    expect(r.body.autor).toEqual({ id: contador.id, nombre: "Carlos Contador", activo: true });
+    expect(r.body.en).toBe(marca.body.en);
+    expect(Object.keys(r.body.autor).sort()).toEqual(["activo", "id", "nombre"]);
+    expect(resumenComprasSchema.safeParse(r.body).success, r.text).toBe(true);
+  });
+
+  it("quien marcó y se desactivó conserva su nombre con activo false", async () => {
+    const c = await nuevoCliente();
+    const baja = await v.b.c.p.b.miembro(E.tenantId, "contador", { sesion: false });
+    await v.b.c.p.b.sql("update usuario set nombre = 'Beto Baja' where id = $1", [baja.id]);
+    await v.estadoPeriodo(E.tenantId, c.id, PERIODO, "revisado", baja.id);
+    await v.b.c.p.b.sql("update membresia set desactivada_en = now() where usuario_id = $1 and tenant_id = $2", [baja.id, E.tenantId]);
+    const r = await resumen(contador, c);
+    expect(r.status, r.text).toBe(200);
+    expect(r.body.autor).toEqual({ id: baja.id, nombre: "Beto Baja", activo: false });
+  });
+});

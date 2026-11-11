@@ -21,6 +21,7 @@ import type { SesionResuelta } from "../auth/auth.service.js";
 import { DB } from "../auth/inyeccion.js";
 import { contextoDe } from "../clientes/contexto.js";
 import { exigirCliente, periodoDe } from "./apoyo.js";
+import { respuestaEstado } from "./periodo.service.js";
 import { ComprasError } from "./errores.js";
 
 /** Compras por lote al leer el periodo (DU-20): acota la memoria sin tope de filas. */
@@ -66,7 +67,8 @@ export class ResumenComprasService {
     // Una foto: todas las lecturas del periodo ven el mismo instante (H-014-2).
     return this.db.withTenant({ ...contextoDe(sesion), foto: true }, async (tx) => {
       await exigirCliente(tx, clienteId, alcance, false);
-      const { estado } = await leerEstadoPeriodo(tx, clienteId, periodo);
+      // P-1 (017): el mismo bloque que revisar y reabrir (`estado`, `por`, `autor`, `en`), con el autor resuelto en esta transacción.
+      const bloqueEstado = await respuestaEstado(tx, await leerEstadoPeriodo(tx, clienteId, periodo));
       let original = cero();
       let vigente = cero();
       let conIgv = cero();
@@ -93,7 +95,7 @@ export class ResumenComprasService {
           if (lote.length < TAMANO_LOTE) break;
         }
         return {
-          estado,
+          ...bloqueEstado,
           casilleros: { original: cadenas(original), vigente: cadenas(vigente), diferencia: cadenas(restar(vigente, original)) },
           conIgv: { n: nConIgv, casilleros: cadenas(conIgv) },
           sinIgv: { n: nSinIgv, casilleros: cadenas(sinIgv) },

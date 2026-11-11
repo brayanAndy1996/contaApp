@@ -337,12 +337,14 @@ export {
   leerCambiosDeOperacion,
   listarAuditoria,
   MAX_PAGINA_AUDITORIA,
+  resolverUsuariosDeEntidades,
 } from "./auditoria";
 export type {
   ActorTipoAuditoria,
   CambioDeCompra,
   FilaAuditoria,
   OpcionesAuditoria,
+  UsuariosDeEntidades,
   VersionCompraAuditada,
 } from "./auditoria";
 export {

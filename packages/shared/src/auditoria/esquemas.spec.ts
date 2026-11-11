@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { ACCIONES_AUDITORIA } from "./acciones.js";
-import { filaAuditoriaSchema, paginaAuditoriaSchema } from "./esquemas.js";
+import { cambiosClienteAuditoriaSchema, filaAuditoriaSchema, paginaAuditoriaSchema } from "./esquemas.js";
 import * as raiz from "../index.js";
 
 // Spec 017 · T1 (rojo). Fila y página de la consulta de auditoría (P-2, CA-14; plan, Contratos: shared y HTTP).
@@ -20,7 +20,8 @@ const fila = (extra: Record<string, unknown> = {}) => ({
   cliente: { id: randomUUID(), ruc: "20100070970", razonSocial: "SAN JUAN SAC" },
   entidad: "cliente",
   entidadId: randomUUID(),
-  datos: { cambios: { razonSocial: ["VIEJA SAC", "SAN JUAN SAC"] } },
+  datos: { cambios: { razon_social: ["VIEJA SAC", "SAN JUAN SAC"] } },
+  objetivo: null,
   ...extra,
 });
 const ok = (v: unknown) => filaAuditoriaSchema.safeParse(v).success;
@@ -77,6 +78,55 @@ describe("filaAuditoriaSchema", () => {
     expect(r.success).toBe(true);
     expect(r.data as Record<string, unknown>).not.toHaveProperty("tenantId");
     expect(r.data as Record<string, unknown>).not.toHaveProperty("usuarioId");
+  });
+});
+
+// Spec 017 · T18a-servidor (P-4). `objetivo`: el autor AFECTADO por miembro.*, asignacion.* e invitacion.* (misma forma que
+// `actor.autor`, D-12), o null cuando el sujeto no es otro usuario o no se conoce. Nunca lleva el correo de una invitación (D-5).
+describe("filaAuditoriaSchema · objetivo", () => {
+  it("acepta un autor (activo, inactivo o desconocido) o null", () => {
+    expect(ok(fila({ objetivo: null }))).toBe(true);
+    expect(ok(fila({ accion: "miembro.rol_cambiado", objetivo: autor }))).toBe(true);
+    expect(ok(fila({ objetivo: { id: randomUUID(), nombre: "Baja Pérez", activo: false } }))).toBe(true);
+    expect(ok(fila({ objetivo: { id: randomUUID(), nombre: null, activo: false } }))).toBe(true);
+  });
+
+  it("es obligatorio (null o autor) y no admite formas ajenas", () => {
+    const sinObjetivo: Record<string, unknown> = fila();
+    delete sinObjetivo.objetivo;
+    expect(ok(sinObjetivo)).toBe(false);
+    expect(ok(fila({ objetivo: "Ana" }))).toBe(false);
+    expect(ok(fila({ objetivo: { id: "no-uuid", nombre: "Ana", activo: true } }))).toBe(false);
+    expect(ok(fila({ objetivo: { id: randomUUID(), activo: true } }))).toBe(false);
+  });
+
+  it("descarta el correo de una invitación aunque llegue en el objetivo", () => {
+    const r = filaAuditoriaSchema.safeParse(fila({ objetivo: { ...autor, correo: "x@y.pe", email: "x@y.pe" } }));
+    expect(r.success).toBe(true);
+    expect(JSON.stringify(r.data)).not.toContain("x@y.pe");
+    expect(r.data?.objetivo).toEqual(autor);
+  });
+});
+
+// `datos.cambios` de `cliente.editado`: { columna: [antes, despues] } con las columnas de datos y de perfil fiscal que fija el trigger.
+describe("cambiosClienteAuditoriaSchema", () => {
+  it("acepta pares [antes, después] de texto, booleano o null", () => {
+    expect(cambiosClienteAuditoriaSchema.safeParse({ razon_social: ["VIEJA SAC", "NUEVA SAC"] }).success).toBe(true);
+    expect(cambiosClienteAuditoriaSchema.safeParse({ ventas_exoneradas: [false, true], regimen: [null, "RER"] }).success).toBe(true);
+  });
+
+  it("rechaza un valor suelto, un par de otro largo o un objeto anidado", () => {
+    expect(cambiosClienteAuditoriaSchema.safeParse({ razon_social: "NUEVA SAC" }).success).toBe(false);
+    expect(cambiosClienteAuditoriaSchema.safeParse({ razon_social: ["A"] }).success).toBe(false);
+    expect(cambiosClienteAuditoriaSchema.safeParse({ razon_social: ["A", "B", "C"] }).success).toBe(false);
+    expect(cambiosClienteAuditoriaSchema.safeParse({ razon_social: [{ x: 1 }, "B"] }).success).toBe(false);
+  });
+
+  it("la fila cliente.editado conserva datos.cambios tal como llega", () => {
+    const cambios = { zona: ["LIMA", "ICA"], razon_social: ["VIEJA SAC", "NUEVA SAC"] };
+    const r = filaAuditoriaSchema.safeParse(fila({ datos: { cambios } }));
+    expect(r.data?.datos).toEqual({ cambios });
+    expect(cambiosClienteAuditoriaSchema.safeParse((r.data?.datos as { cambios: unknown }).cambios).success).toBe(true);
   });
 });
 
