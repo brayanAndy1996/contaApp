@@ -41,7 +41,7 @@ async function notificar(
   await admin.pool.query(
     `insert into notificacion (id, tenant_id, usuario_id, tipo, params, clave_dedupe, creada_en, leida_en)
      values ($1, $2, $3, 'trabajo_terminado', '{"tipoTrabajo":"prueba.eco","estado":"completado","motivo":null}'::jsonb, $4,
-             now() - make_interval(days => $5::int, mins => 5), case when $6::boolean then now() else null end)`,
+             date_trunc('milliseconds', now() - make_interval(days => $5::int, mins => 5)), case when $6::boolean then now() else null end)`,
     [id, tenantId, usuarioId, `purga:${id}`, diasAtras, leida],
   );
   return id;
@@ -102,7 +102,7 @@ describe("CA-15: auth.purgar y las notificaciones", () => {
     try {
       await c.query("SET session_replication_role = replica"); // el trigger de inmutabilidad solo lo salta este modo
       await c.query(
-        "update auditoria set ocurrida_en = now() - interval '2000 days' where tenant_id = $1",
+        "update auditoria set ocurrida_en = date_trunc('milliseconds', now() - interval '2000 days') where tenant_id = $1",
         [T],
       );
     } finally {

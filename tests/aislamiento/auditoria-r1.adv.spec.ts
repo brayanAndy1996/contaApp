@@ -123,7 +123,9 @@ describe("(b) actor e inmutabilidad: toda escritura de una acción de D-3 deja s
     expect(
       deAsignacion.map((x) => ({ accion: x.accion, datos: x.datos, actor: x.usuario_id })),
       "el cambio de colaborador a responsable no dejó ninguna fila en auditoria",
-    ).toContainEqual(expect.objectContaining({ datos: { tipo: "responsable", usuarioId: u }, actor: ux }));
+    ).toContainEqual({ accion: "asignacion.tipo_cambiado", datos: { de: "colaborador", a: "responsable", usuarioId: u }, actor: ux });
+    // Contrato de T16 (0045): exactamente una fila para el cambio.
+    expect(deAsignacion.filter((x) => x.accion === "asignacion.tipo_cambiado")).toHaveLength(1);
   });
 
   it("H-017-1 · cambiar de responsable con `anterior: 'colaborador'` deja rastro del responsable degradado", async () => {

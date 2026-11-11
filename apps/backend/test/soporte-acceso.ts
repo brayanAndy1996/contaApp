@@ -171,6 +171,9 @@ export async function abrirBanco(cupo?: object, extra: Record<string, unknown> =
         // su DELETE audita `asignacion.quitada` y dejaría una fila nueva que bloquea el borrado del estudio.
         for (const tabla of ["archivo_generado", "venta_exclusion", "venta_periodo", "asignacion", "notificacion", "plan_aviso", "auditoria"])
           await intentar(`delete from ${tabla} where tenant_id = $1`, [t]);
+        // 0045: el DELETE de `cliente` y de `membresia` audita y recalcula `plan_aviso` (filas con FK al estudio): también van con
+        // `replica`, que salta esos triggers; fuera de ese modo el estudio ya no se podría borrar.
+        for (const tabla of ["membresia", "cliente"]) await intentar(`delete from ${tabla} where tenant_id = $1`, [t]);
         await intentar("set local session_replication_role = origin");
         for (const tabla of [
           "compra_hallazgo",
@@ -191,8 +194,6 @@ export async function abrirBanco(cupo?: object, extra: Record<string, unknown> =
         await intentar("delete from credencial where tenant_id = $1", [t]);
         await intentar("delete from asignacion where tenant_id = $1", [t]);
         await intentar("delete from invitacion where tenant_id = $1", [t]);
-        await intentar("delete from membresia where tenant_id = $1", [t]);
-        await intentar("delete from cliente where tenant_id = $1", [t]);
       }
       await intentar("alter table membresia enable trigger user");
       await c.query("commit").catch(() => c.query("rollback"));

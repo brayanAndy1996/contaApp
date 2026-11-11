@@ -171,7 +171,8 @@ export async function abrirBancoPlanes(cupo?: object, extra: Record<string, unkn
       // 017: notificacion, plan_aviso y auditoria (FK a tenant; auditoria es inmutable) se borran antes, con `replica` en esta
       // conexión (se restablece al terminar). Cada una por separado: si la tabla aún no existe, no aborta la limpieza.
       await intentar("set session_replication_role = replica");
-      for (const tabla of ["asignacion", "notificacion", "plan_aviso", "auditoria"]) {
+      // 0045: `membresia` y `cliente` también (su DELETE audita y recalcula `plan_aviso`), y van antes de `plan_aviso` y `auditoria`.
+      for (const tabla of ["asignacion", "membresia", "cliente", "notificacion", "plan_aviso", "auditoria"]) {
         // `asignacion` va aquí: su DELETE audita `asignacion.quitada` y dejaría una fila nueva que bloquea el borrado del estudio.
         for (const t of ts) await intentar(`delete from ${tabla} where tenant_id = $1`, [t]);
       }
@@ -184,8 +185,6 @@ export async function abrirBancoPlanes(cupo?: object, extra: Record<string, unkn
           await q("delete from auth.sesion where tenant_activo = $1", [t]);
           await q("delete from asignacion where tenant_id = $1", [t]);
           await q("delete from invitacion where tenant_id = $1", [t]);
-          await q("delete from membresia where tenant_id = $1", [t]);
-          await q("delete from cliente where tenant_id = $1", [t]);
           await q("delete from suscripcion where tenant_id = $1", [t]);
         }
         await q("alter table membresia enable trigger user");

@@ -39,10 +39,11 @@ describe("H-017-1 · un cambio de tipo de asignación por la API no llega a la a
     expect(promocion.status, promocion.text).toBe(200);
     expect((await b.sql("select tipo from asignacion where cliente_id = $1 and usuario_id = $2", [c, m.id]))[0].tipo).toBe("responsable");
 
+    // Contrato de T16 (0045): el cambio de tipo es exactamente UNA fila `asignacion.tipo_cambiado` con `datos {de, a, usuarioId}`.
     const despues = await asignacionesAuditadas(c, m.id);
     expect(
-      despues.filter((x) => x.datos.tipo === "responsable").map((x) => x.actor.autor?.id),
+      despues.filter((x) => x.accion === "asignacion.tipo_cambiado").map((x) => [x.datos, x.actor.autor?.id]),
       "la promoción a responsable (quien recibe los avisos de credencial, P-4) no dejó fila",
-    ).toEqual([E.titular.id]);
+    ).toEqual([[{ de: "colaborador", a: "responsable", usuarioId: m.id }, E.titular.id]]);
   }, 30_000);
 });
