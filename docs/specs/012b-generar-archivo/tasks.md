@@ -29,7 +29,7 @@ Nivel A (spec) con las pantallas como C por tarea (T14, T15: pruebas mínimas, s
 | T21 | Pruebas de las correcciones de la ronda 2 (rojo) | tester | sonnet | T20 | ✓ | — | [ ] |
 | T22 | Corregir los hallazgos de la ronda 2 | backend | opus | T21 | — | — | [ ] |
 | T23 | Prueba manual contra el sistema completo | tester | sonnet | T15, T22 | — | — | [x] |
-| T24 | Verificar CA-1 a CA-16 con evidencia, suites completas y cobertura | tester | sonnet | T23 | — | — | [ ] |
+| T24 | Verificar CA-1 a CA-16 con evidencia, suites completas y cobertura | tester | sonnet | T23 | — | — | [x] |
 | T25 | Revisión final contra la spec y 03 §7.3 | arquitecto | opus | T24 | — | — | [ ] |
 | T26 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza ESTADO) | devops | haiku | T25 | — | — | [ ] |
 
@@ -206,10 +206,54 @@ Defectos de servidor: **ninguno.**
 
 Observaciones (sin tarea): (a) la lista de versiones de la pantalla solo muestra versión, fecha, nombre del ZIP y líneas; el usuario que generó y los SHA-256 están en la API (`generadoPor`, `sha256Zip`) pero no en pantalla, y todas las versiones llevan el mismo nombre de ZIP (`CONTAPP-PROVISIONAL-…-RCE.zip`), sin el número de versión, así que al descargar dos el navegador las renombra. (b) Los errores y avisos de ventas muestran los códigos técnicos (`CUADRE`, `SALTO_CORRELATIVIDAD`, `USD_SIN_TC`) sin traducir. (c) En el reintento tras reabrir el `resultado` del trabajo pasa de `nueva:true` a `nueva:false` (mismo `archivoId`), coherente con la decisión. (d) Un ZIP ausente en storage da el mismo 500 `archivo_alterado` que uno alterado. (e) R-GP (zapatilla) sale en la lupa y la grilla pero no en el previo del panel: el plan no lee `documento_xml` para el previo, así que solo salen R-ISC y R-NEW. (f) No se ejercitó de extremo a extremo CA-11 (razón social de 101 caracteres): `agregar` limita la razón social a 100 y las fixtures no traen nombres largos; lo cubren las pruebas de dominio. Tampoco se probó a mano CA-7 con una edición concurrente a la generación (lo cubren T17 y T20), ni el aislamiento por RLS entre estudios con `ub` (lo cubre `test:aislamiento` en T24). (g) El «Importar propuesta» de ventas se ve como un `span` con `aria-disabled` (no un botón) con `revisado` y un asistente; con el periodo `revisado` la API devuelve 403.
 
-## T24 · [ ] Verificar criterios (tester · sonnet)
+## T24 · [x] Verificar criterios (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (CA-1 a CA-16 y casos reales), los informes de T17, T20 y T23.
 - **Hacer**: suites completas (`pnpm test`, `test:aislamiento`, `ci:db`), `cobertura:archivos`, `cobertura:dominio`, `cobertura:storage`, `cobertura:db` y los de siempre; por cada CA, la prueba o el comando que lo demuestra (`archivo:línea`) o «falta».
 - **Hecho cuando**: tabla CA → evidencia en la sección «Resultado» de esta tarea; cobertura ≥ 90 % en `domain/archivos`, `storage`, `db/archivos`, `db/ventas/exclusion.ts`, el módulo de archivos del backend, `ventas/{estado,exclusion}.service.ts` y `generar-archivo.ts`; ningún adversarial abierto. Commit `docs(012b): verificación de criterios`.
+- **Resultado**: **CA-1 a CA-16 cumplidos**, con una duda menor en CA-11 (ventas, ver abajo). Ningún adversarial abierto (los `*.adv*` de las rondas 1 y 2 corren dentro de las suites de abajo, todos en verde). Entorno: PostgreSQL 17 y Redis nativos, BD `contapp` con 0039 y 0040 aplicadas, adaptadores `mock`, una suite a la vez.
+
+  Suites (2026-11-11; registros en el scratchpad `.../t24/`):
+
+  | Comando | Resultado |
+  |---|---|
+  | build `shared`, `storage`, `db`, `domain`, `sunat`, `queue` | OK |
+  | `pnpm typecheck` y `pnpm lint` | OK (17 y 10 tareas) |
+  | frontend (`vitest run`) | OK · 77 archivos, 770 pruebas |
+  | `cobertura:dominio` | OK · 108 archivos, 2442 pruebas; `archivos/*` y `prevalidacion/ventas.ts` al 100 % por archivo |
+  | `cobertura:storage` | OK · 7 archivos, 192 pruebas; 98,65 % sentencias, 100 % líneas |
+  | `cobertura:db` | **1 fallo ajeno**: `planes.spec.ts` «todo estudio existente tiene suscripcion» (136 estudios de fixtures sucios en la BD local; no se recreó la BD, instrucción del orquestador). Sin esa prueba (`--exclude '**/planes.spec.ts'`): 127 archivos, 2903 pruebas OK, 97,75 % / 91,82 % ramas; `db/archivos` 100/92,85; `ventas/exclusion.ts` 100 % |
+  | `test:aislamiento` | 68 de 69 archivos OK, 2231 pruebas; solo falla el mismo `planes.spec.ts` (tenants sucios) |
+  | `cobertura:cola` y `cobertura:xml` | **fallaron la primera vez** (ver «Cambio de configuración»); con la corrección: cola 136 archivos / 1988 pruebas OK; xml backend 841 OK y xml worker 49 archivos / 547 OK |
+  | `cobertura:archivos` | OK · backend 16 archivos / 325 pruebas, módulo `archivos` 97,63 % y `ventas/{estado,exclusion}.service.ts` ≥ 97 %; worker 5 archivos / 85 pruebas, `generar-archivo.ts` 95,96 % sentencias, 91,54 % ramas, 99,03 % líneas |
+  | `worker test:int` | OK · 29 archivos, 318 pruebas (incluye CA-13 sin instrumentar, límite estricto de 5 s) |
+  | `backend test:int` | OK · 98 archivos, 2532 pruebas |
+  | `git diff --stat main...HEAD` | 188 archivos: dominio, shared, storage, db (0039 y 0040), queue, backend `archivos` y `ventas`, worker, frontend (panel, ventas, estado del periodo), `tests/aislamiento`, configs de cobertura, `ci.yml`, `package.json` y los 3 documentos de la spec. Nada fuera de 012b (los cambios en `compras/*` son T14 y el arreglo de P-1/P-2 de T23a). Coherente con la spec y el plan |
+
+  **Cambio de configuración (única edición de esta tarea, sin producción).** `cobertura:cola` y `cobertura:xml` del worker incluyen `generar-archivo.int.spec.ts` en su proyecto `worker-int`; con la instrumentación v8 «compras: 20.000 filas» tarda 6,4 s y no cumple el 5 s de CA-13 (falla en `generar-archivo.int.spec.ts:954`; `cobertura:archivos` ya multiplicaba el límite por 3 con `CONTAPP_COBERTURA=1`, la prueba lo prevé en su línea ~935). Se añadió `env: { CONTAPP_COBERTURA: "1" }` al proyecto `worker-int` en `apps/worker/vitest.cobertura-cola.config.mts` y `apps/worker/vitest.cobertura-xml.config.mts`. El límite estricto sigue en `worker test:int` y `ci:db` (verde) y en la prueba manual (2,38 s, T23 punto 25). Sin esto el paso de CI de `cobertura:cola` y `cobertura:xml` fallaba.
+
+  **CA → evidencia → resultado** (los números de línea son el `describe` o la prueba; «T23 n» es la fila de la prueba manual):
+
+  | CA | Evidencia | Resultado |
+  |---|---|---|
+  | CA-1 | `apps/backend/src/modules/archivos/previo.int.spec.ts:120` (apto=false, error IGV de F001-2056 con `filaId`, aviso R-ISC de F001-1040 sin bloquear); `packages/domain/src/archivos/preparar.spec.ts:57`; pantalla: `apps/frontend/components/archivos/panel-generar.spec.tsx:95` (enlace a la fila y «Generar» bloqueado); T23 1 | cumplido |
+  | CA-2 | `generar.int.spec.ts:129` (202 `{ trabajoId }`); worker `generar-archivo.int.spec.ts:239` (versión 1, `provisional`, hashes, periodo `generado`, ruta del ZIP, TXT sin la zapatilla); `descarga.int.spec.ts:86` (SHA-256 = `sha256_zip`); `previo.int.spec.ts:194`; `preparar.spec.ts:96`; T23 2 y 3 | cumplido |
+  | CA-3 | `generar.int.spec.ts:525` (422 `prevalidacion_fallida`, no encola); worker `generar-archivo.int.spec.ts:529` y `:1029` (falla sin reintento, estado atrás, sin versión ni ZIP); pantalla `panel-generar.spec.tsx:190` (recarga el previo, P-10); T23 13 | cumplido |
+  | CA-4 | `generar.int.spec.ts:235` (400 con `permitirProvisional`/`registro`) y `:436` (422 `formato_no_oficial`); `previo.int.spec.ts:284`; worker `generar-archivo.int.spec.ts:585` (el worker directo también se niega); T23 10 y 22 | cumplido |
+  | CA-5 | `preparar.spec.ts:118`; `previo.int.spec.ts:194`; `versiones.int.spec.ts:131` (la versión guarda los mismos valores); `tests/aislamiento/archivos-versiones.spec.ts:125`; T23 2 | cumplido |
+  | CA-6 | `generar.int.spec.ts:361` (409 `estado_invalido`) y `:408` (editar con `generado` da 409; reabrir, corregir, versión 2); `descarga.int.spec.ts:86` (v1 con su hash); worker `:614`; `tests/aislamiento/archivos-concurrencia.spec.ts:595` y `:735`; T23 4 y 5 | cumplido |
+  | CA-7 | `generar.int.spec.ts:202` (dos clics, un trabajo); worker `generar-archivo.int.spec.ts:719` (reintento tras el commit devuelve la misma versión, numeración); `archivos-concurrencia.spec.ts:311` (dos generaciones, una versión) y `:595` (edición concurrente en ambos órdenes); `versiones.int.spec.ts:179` (numeración por cliente, periodo y libro); T23 7 y 12 | cumplido |
+  | CA-8 | `generar.int.spec.ts:473` (409 `resumen_cambiado`); worker `generar-archivo.int.spec.ts:800` (falla con ese código y el estado vuelve atrás); T23 11 y 13 | cumplido |
+  | CA-9 | `generar.int.spec.ts:308` (403 y 404); `descarga.int.spec.ts:179` (otro estudio, cliente o libro: 404; asistente asignado descarga); `previo.int.spec.ts:553` y `versiones.int.spec.ts:222`; botón: `panel-generar.spec.tsx:209`; BD: `tests/aislamiento/archivos-tablas.spec.ts:185` (RLS forzada y grants) y `:538` (nadie actualiza ni borra); T23 8, 9 y 24 | cumplido |
+  | CA-10 | `previo.int.spec.ts:417` (aviso «Falta B001-291», apto) y `:484` (`CUADRE`, `excluible`); worker `generar-archivo.int.spec.ts:341` (RVIE provisional); `apps/backend/src/modules/ventas/estado-periodo.int.spec.ts:139` (reabrir) y `:317` (matriz escrituras × estado × permiso: 409 `periodo_generado`, 403 `periodo_revisado`, permitido con `sire.aprobar_generar`); `ventas/page.archivo-t15.spec.tsx:150` y `:376`; `tests/aislamiento/ventas-periodo.spec.ts`; T23 14, 15, 18, 19 y 20 | cumplido |
+  | CA-11 | `packages/domain/src/archivos/adaptadores.spec.ts:65` (100 exactos no cambia, 101 sale con 100 y `RAZON_SOCIAL_RECORTADA`, emoji en la posición 100 sin partir el par, `|` y NBSP en el borde); `versiones.int.spec.ts` (el aviso llega a la versión) | cumplido para compras. **Duda menor**: D7 dice «vale para compras y ventas», pero `ventaAFila` (`adaptadores.ts`) no lleva razón social (la fila de ventas no la tiene), así que en ventas no hay nada que recortar; para T25 confirmar que el texto de D7 se lee así. No se probó de extremo a extremo (T23 f) |
+  | CA-12 | `descarga.int.spec.ts:128` (alterado: 500 `archivo_alterado` sin bytes) y `:80` (cabeceras: `application/zip`, `attachment; filename`, `nosniff`, `no-store`); `apps/backend/src/aislamiento/hu40-api.int.spec.ts:1569` (cobertura de rutas); T23 3 y 23 | cumplido |
+  | CA-13 | worker `generar-archivo.int.spec.ts:940` (20.000 filas en compras y ventas < 5 s; `test:int` sin instrumentar) y `:990` (`resultado` de cinco campos y logs sin datos); `generar-archivo.spec.ts:73` (no pide credenciales); `desborde*.spec.ts` (resumen ≤ 4 KB); T23 25, 27 y 28 (2,38 s; 0 coincidencias en logs y `job_registro`) | cumplido |
+  | CA-14 | worker `generar-archivo.int.spec.ts:681` (`nueva: false`, mismo `archivoId`, periodo `generado`); `archivos-concurrencia.spec.ts:735`; `archivos-versiones.spec.ts:561`; T23 6 y 7 | cumplido |
+  | CA-15 | `apps/backend/src/modules/ventas/exclusion.int.spec.ts:107`, `:135` (`excluidas = 2`, impacto de la descuadrada, USD en `filasSinConvertir`) y `:265` (restaurar, registro con quién excluyó y restauró); worker `generar-archivo.int.spec.ts:424` (TXT sin sus líneas, versión con `excluidas = 2`); `preparar.spec.ts:285`; `ventas-resumen.spec.ts:69`; `ventas/page.archivo-t15.spec.tsx:197` («Excluida» en la grilla); `tests/aislamiento/ventas-exclusion.spec.ts:772`; RF-056 sin ellas: T23 16 y 17 | cumplido |
+  | CA-16 | `exclusion.int.spec.ts:338` (400), `:387` (403 y 404), `:469` (409 `no_excluible`, `ya_excluida`, `no_excluida`, `cliente_archivado`), `:549` (concurrencia: una sola vigente) y `:311`/`:324` (409 `resumen_cambiado`); BD: `tests/aislamiento/ventas-exclusion.spec.ts:525` (una vigente), `:590` (cerrar una vez, nunca cambiar ni borrar), `:309` (el worker solo lee), `:732` (aislamiento); `archivos-concurrencia.spec.ts:400`; T23 21 | cumplido |
+  | Casos reales | mixta y San Juan (CA-1, CA-2), zapatilla (CA-2), boleta 291 (CA-10), redondeo USD (`ventas-resumen.spec.ts:106`), venta del SIRE descuadrada excluida (CA-15) | cubiertos |
+
+  Fuera de las pruebas automáticas (ya anotado en T23): CA-11 no se ejercitó a mano y la concurrencia de CA-7 no se probó con la pantalla; ambos los cubren las pruebas de arriba. No se agregaron pruebas nuevas: no faltó ninguna.
 
 ## T25 · [ ] Revisión final (arquitecto · opus)
 - **Contexto (leer solo esto)**: `spec.md`, `plan.md`, la tabla de T24, `git diff main...spec/012b-generar-archivo --stat` y los archivos que la tabla marque dudosos, `docs/03-arquitectura.md` §7.3.

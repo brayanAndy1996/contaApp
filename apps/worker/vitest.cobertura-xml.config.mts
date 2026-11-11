@@ -42,6 +42,7 @@ const proyecto = (
   name: string,
   include: string[],
   exclude: string[] = ["**/node_modules/**"],
+  env: Record<string, string> = {},
 ) => ({
   resolve: { alias },
   test: {
@@ -52,6 +53,7 @@ const proyecto = (
     // Las suites con BD y Redis comparten recursos: nada en paralelo.
     fileParallelism: false,
     testTimeout: 30_000,
+    env,
   },
 });
 
@@ -73,6 +75,8 @@ export default defineConfig({
         "worker-int",
         ["apps/worker/src/trabajos/**/*.int.spec.ts"],
         ["**/node_modules/**", "**/cierre-*.adv.int.spec.ts"],
+        // 012b T24: ver vitest.cobertura-cola.config.mts (límite de rendimiento de generar-archivo bajo v8).
+        { CONTAPP_COBERTURA: "1" },
       ),
     ],
     coverage: {
