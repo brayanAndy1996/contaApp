@@ -9,15 +9,21 @@
 //    `estado_invalido`, `resumen_cambiado`, `prevalidacion_fallida`, `formato_no_oficial` y `resumen_fuera_de_rango` (un impacto
 //    en IGV que no cabe en NUMERIC(14,2): el 422 del previo; H-012b-2). Un rechazo no deja rastro: se lanza
 //    dentro de la transacción (el estado vuelve atrás), antes de guardar nada en storage.
-//  - Un fallo inesperado (p. ej. de BD tras `storage.guardar`) se propaga tal cual, tras borrar el ZIP (mejor esfuerzo; si no
-//    se puede, se registra solo un código).
+//  - Un fallo inesperado (p. ej. de BD tras `storage.guardar`) se propaga tal cual. El ZIP se borra solo si, en una conexión
+//    nueva, se confirma que su versión NO existe (H-012b-3: el COMMIT pudo ocurrir aunque su acuse se perdiera); si existe o no
+//    se puede comprobar, se conserva (mejor un ZIP sin fila que una versión sin descarga). Si el borrado falla, solo un código.
 //  - `resultado` = exactamente `{ archivoId, version, nueva, lineas, provisional }` (D6).
 //
-// Secuencia, en UNA `withTenant` (D4): cliente activo -> advisory `propuesta:{libro}:{periodo}:{cliente}` -> compare-and-set del
-// estado del periodo (`estadoVisto` -> `generado`, `FOR UPDATE`; si no pasa y el periodo ya está `generado` con la última versión
-// de la misma huella, devuelve esa versión: reintento tras el commit) -> filas (y proveedores conocidos o justificados) ->
+// Secuencia, en UNA `withTenant` (D4): versión de ESTE trabajo (H-012b-4, H-012b-6: si ya la tiene, por su `trabajo_id` o por
+// el `resultado` que dejó al devolver una existente, la devuelve sin tocar el estado ni comparar huellas) -> cliente activo ->
+// advisory `propuesta:{libro}:{periodo}:{cliente}` -> compare-and-set del estado del periodo (`estadoVisto` -> `generado`,
+// `FOR UPDATE`; si no pasa y el periodo ya está `generado` con la última versión de la misma huella, devuelve esa versión:
+// segundo de dos trabajos con el mismo previo) -> filas (y proveedores conocidos o justificados) ->
 // `prepararArchivo` -> formato, huella y aptitud -> `generarTxt` -> TXT idéntico a la última versión (P-5): devuelve esa ->
 // `empaquetar` -> `storage.guardar` -> `insertarVersion` (máx + 1; el trigger exige el periodo `generado` por quien genera).
+// Cuando el trabajo termina devolviendo una versión que no creó (P-5 o el segundo del mismo previo), deja ese `resultado` en
+// `job_registro` dentro de la misma transacción (columna del ejecutor de 008, que el worker ya escribe): así su reintento la
+// encuentra aunque el acuse a 008 se pierda o el periodo se reabra (H-012b-4, H-012b-6).
 // Nada de filas, montos, razones sociales, motivos, bytes ni rutas llega a logs, errores ni `resultado` (D10).
 import { randomUUID } from "node:crypto";
 import {
@@ -26,6 +32,7 @@ import {
   fijarEstadoPeriodoVentas,
   insertarVersion,
   leerEstadoPeriodo,
+  leerVersion,
   leerEstadoPeriodoVentas,
   leerFilasReemplazo,
   leerFilasReemplazoVentas,
@@ -98,6 +105,16 @@ export interface ResultadoGenerarArchivo {
 
 // El cliente sigue activo (no archivado) en el estudio de la transacción; RLS deja fuera a los de otro estudio.
 const SQL_CLIENTE_ACTIVO = "select archivado_at is null as activo from cliente where id = $1::uuid";
+
+// La versión que creó este trabajo (`trabajo_id` es único por estudio; se filtra además por cliente, periodo y libro).
+const SQL_VERSION_DEL_TRABAJO = `select id from archivo_generado
+  where trabajo_id = $1::uuid and cliente_id = $2::uuid and periodo = $3 and libro = $4`;
+// La versión existente que este trabajo devolvió (P-5 o segundo del mismo previo) y dejó en su `resultado`.
+const SQL_RESULTADO_DEL_TRABAJO = "select resultado->>'archivoId' as archivo_id from job_registro where id = $1::uuid";
+const SQL_FIJAR_RESULTADO = "update job_registro set resultado = $2::jsonb where id = $1::uuid";
+// ¿Se confirmó la versión de este intento? (su id es también el nombre del ZIP; H-012b-3).
+const SQL_VERSION_CONFIRMADA = "select 1 from archivo_generado where id = $1::uuid and trabajo_id = $2::uuid";
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const resultadoDe = (v: VersionArchivo, nueva: boolean): ResultadoGenerarArchivo => ({
   archivoId: v.id,
@@ -200,6 +217,51 @@ function impactos(
   };
 }
 
+/**
+ * La versión que este trabajo ya entregó en un intento confirmado: la que insertó (por `trabajo_id`) o la existente que devolvió
+ * (por su `resultado` en `job_registro`). `null` si no entregó ninguna.
+ */
+async function versionDelTrabajo(
+  tx: Tx,
+  t: TrabajoEnCurso,
+  periodo: string,
+  libro: ParametrosGenerarArchivo["libro"],
+): Promise<VersionArchivo | null> {
+  const filtro = { clienteId: t.clienteId, periodo, libro };
+  const propia = await tx.query<{ id: string }>(SQL_VERSION_DEL_TRABAJO, [t.id, t.clienteId, periodo, libro]);
+  const insertada = propia.rows[0]?.id;
+  if (insertada !== undefined) return leerVersion(tx, insertada, filtro);
+  const previo = await tx.query<{ archivo_id: string | null }>(SQL_RESULTADO_DEL_TRABAJO, [t.id]);
+  const devuelta = previo.rows[0]?.archivo_id;
+  return typeof devuelta === "string" && UUID.test(devuelta) ? leerVersion(tx, devuelta, filtro) : null;
+}
+
+/** Devuelve una versión que este trabajo no creó y lo deja en su `resultado`, en la misma transacción (ver arriba). */
+async function devolverExistente(tx: Tx, t: TrabajoEnCurso, v: VersionArchivo): Promise<ResultadoGenerarArchivo> {
+  const r = resultadoDe(v, false);
+  await tx.query(SQL_FIJAR_RESULTADO, [t.id, JSON.stringify(r)]);
+  return r;
+}
+
+/**
+ * H-012b-3: ¿quedó confirmada la versión `archivoId` de este trabajo? Se pregunta en una `withTenant` NUEVA (la del trabajo
+ * pudo caer después del COMMIT). `true` si existe, `false` si de verdad no, y `null` si no se pudo comprobar.
+ */
+async function versionConfirmada(
+  db: DepsGenerarArchivo["db"],
+  t: TrabajoEnCurso,
+  archivoId: string,
+): Promise<boolean | null> {
+  try {
+    return await db.withTenant({ tenantId: t.tenantId }, async (tx) => {
+      const r = await tx.query(SQL_VERSION_CONFIRMADA, [archivoId, t.id]);
+      return r.rows.length > 0;
+    });
+  } catch {
+    return null;
+  }
+}
+
 export function generarArchivo(d: DepsGenerarArchivo): Procesador {
   const ahora = d.ahora ?? (() => new Date());
   return async ({ trabajo: t }) => {
@@ -212,9 +274,14 @@ export function generarArchivo(d: DepsGenerarArchivo): Procesador {
     const permitirProvisional = permiteProvisional(nodeEnv);
     const cabecera: CabeceraTxt = { rucDeclarante: t.ruc, periodo, libro };
 
-    let guardada: string | null = null;
+    let guardada: { id: string; ruta: string } | null = null;
     try {
       return await d.db.withTenant({ tenantId: t.tenantId }, async (tx): Promise<ResultadoGenerarArchivo> => {
+        // (0) Reintento de un trabajo que ya entregó su versión (H-012b-4): la devuelve tal cual, ANTES del compare-and-set,
+        // sin comparar huellas y sin tocar el estado del periodo aunque se haya reabierto (H-012b-6, decisión del usuario).
+        const entregada = await versionDelTrabajo(tx, t, periodo, libro);
+        if (entregada !== null) return resultadoDe(entregada, false);
+
         // (1) Cliente activo.
         const cliente = await tx.query<{ activo: boolean }>(SQL_CLIENTE_ACTIVO, [t.clienteId]);
         if (cliente.rows[0]?.activo !== true) throw new ErrorArchivo("cliente_archivado");
@@ -228,13 +295,16 @@ export function generarArchivo(d: DepsGenerarArchivo): Procesador {
             ? await fijarEstadoPeriodo(tx, t.clienteId, periodo, estadoVisto, "generado", usuario)
             : await fijarEstadoPeriodoVentas(tx, t.clienteId, periodo, estadoVisto, "generado", usuario);
         if (fijado === null) {
-          // D6: reintento tras un commit sin acuse (o el segundo de dos trabajos con el mismo previo).
+          // Otra ejecución de este mismo trabajo pudo confirmar mientras se esperaba el advisory.
+          const propia = await versionDelTrabajo(tx, t, periodo, libro);
+          if (propia !== null) return resultadoDe(propia, false);
+          // D6: el segundo de dos trabajos con el mismo previo.
           const estado =
             libro === "compras"
               ? await leerEstadoPeriodo(tx, t.clienteId, periodo)
               : await leerEstadoPeriodoVentas(tx, t.clienteId, periodo);
           const ultima = estado.estado === "generado" ? await ultimaVersion(tx, t.clienteId, periodo, libro) : null;
-          if (ultima !== null && ultima.huella === huella) return resultadoDe(ultima, false);
+          if (ultima !== null && ultima.huella === huella) return devolverExistente(tx, t, ultima);
           throw new ErrorArchivo("estado_invalido");
         }
 
@@ -263,14 +333,14 @@ export function generarArchivo(d: DepsGenerarArchivo): Procesador {
           ultima.formatoId === txt.formato.id &&
           ultima.formatoVersion === txt.formato.version
         ) {
-          return resultadoDe(ultima, false);
+          return devolverExistente(tx, t, ultima);
         }
 
-        // (7) ZIP -> storage -> versión. Si algo falla desde aquí, el `catch` de afuera borra el ZIP.
+        // (7) ZIP -> storage -> versión. Si algo falla desde aquí, el `catch` de afuera decide si el ZIP es huérfano.
         const id = randomUUID();
         const ruta = rutaArchivo(t.tenantId, t.clienteId, id);
         const paquete = empaquetar(txt.bytes, { nombreTxt: txt.nombreTxt, nombreZip: txt.nombreZip }, ahora());
-        guardada = ruta;
+        guardada = { id, ruta };
         await d.storage.guardar(ruta, paquete.zip);
         const resumen = preparado.resumen;
         const version = await insertarVersion(tx, {
@@ -301,9 +371,10 @@ export function generarArchivo(d: DepsGenerarArchivo): Procesador {
         return resultadoDe(version, true);
       });
     } catch (e) {
-      const huerfano = guardada as string | null;
-      if (huerfano !== null) {
-        await d.storage.eliminar(huerfano).catch(() => {
+      const zip = guardada as { id: string; ruta: string } | null;
+      // Solo es huérfano si se confirma que su versión no existe; ante la duda se conserva (H-012b-3).
+      if (zip !== null && (await versionConfirmada(d.db, t, zip.id)) === false) {
+        await d.storage.eliminar(zip.ruta).catch(() => {
           // Queda sin fila que lo apunte: nadie lo ve. Solo el código, nunca la ruta.
           if (d.logger !== undefined)
             registrar(d.logger, "warn", { evento: "archivo_huerfano", codigo: "zip_no_borrado" });
