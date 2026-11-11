@@ -1,6 +1,6 @@
 # Spec 017 · Auditoría y notificaciones en la app
 
-Estado: **implementada** (2026-11-11; el usuario eligió la opción recomendada en P-1 a P-7, ver «Decisiones del usuario»). Rama `spec/017-auditoria-notif`. Plan: `plan.md` · tareas: `tasks.md`.
+Estado: hecha (2026-11-11). Aprobada el 2026-11-11 (el usuario eligió la opción recomendada en P-1 a P-7, ver «Decisiones del usuario»). Rama `spec/017-auditoria-notif`. Plan: `plan.md` · tareas: `tasks.md`.
 Nivel de riesgo: **B**, según el tablero, con ronda adversarial en tres puntos concretos (D-16). Por §2.1: (1) no, porque no calcula montos ni genera archivos; (2) sí, porque una notificación o una fila de auditoría mal filtrada muestra datos de otro cliente, usuario o estudio; (3) sí, porque una acción que no se audita no la nota nadie; (4) parcial, porque son muchos puntos de captura y hay carreras entre el hecho y el aviso. Con (2) y (3), la tabla de §2.1 da **A**; el usuario eligió **B** con una ronda adversarial dirigida (P-1, D-16).
 Cubre: RF-150, RF-152, RF-160 (sin buzón), RF-026 (filtro de notificaciones), RNF-001, RNF-004, RNF-021 (auditoría) · HU-10 (notificación), parte de HU-40 · notas [017] de ESTADO (notificador real, «quién marcó revisado», «XML subido por», autor del Historial).
 
