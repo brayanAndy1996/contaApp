@@ -25,11 +25,11 @@ import { api, type RespuestaApi } from "./api";
 // `@contapp/shared`. Los montos son SIEMPRE cadenas del servidor: aquí no se convierten, suman ni comparan.
 
 /**
- * `GET …/ventas/resumen` (013 + 012b): suma `estado` y `excluidas`. Los dos son opcionales aquí para tolerar un
+ * `GET …/ventas/resumen` (013 + 012b): suma `estado`, `excluidas` y (017) `autor` y `en` de quien marcó el periodo. Son opcionales aquí para tolerar un
  * servidor anterior a 012b: sin `estado`, el periodo se trata como `abierto`.
  */
 export type ResumenVentasConEstado = ResumenVentasDto &
-  Partial<Pick<ResumenVentasVista, "estado" | "excluidas">>;
+  Partial<Pick<ResumenVentasVista, "estado" | "excluidas" | "autor" | "en">>;
 
 export type {
   CorrelatividadVentasDto,

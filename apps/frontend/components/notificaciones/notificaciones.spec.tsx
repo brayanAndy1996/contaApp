@@ -158,14 +158,14 @@ describe("texto de la notificación", () => {
         tipo: "plan_limite",
         params: { recurso: "rucs", umbral: 90, usado: 9, limite: 10 },
       }),
-    ).toBe("Estás por llegar al límite de RUC de tu plan (9 de 10).");
+    ).toBe("Estás por llegar al límite de tu plan: usas 9 de 10 RUC.");
     expect(
       textoNotificacion({
         ...base,
         tipo: "plan_limite",
         params: { recurso: "usuarios", umbral: 100, usado: 5, limite: 5 },
       }),
-    ).toBe("Llegaste al límite de usuarios de tu plan (5 de 5).");
+    ).toBe("Llegaste al límite de tu plan: usas 5 de 5 usuarios.");
     expect(textoNotificacion(notificacionDeFila(trabajo)!)).toBe(
       "La descarga de la propuesta del SIRE terminó con error: SUNAT no responde.",
     );

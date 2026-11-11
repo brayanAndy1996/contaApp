@@ -52,11 +52,15 @@ export function textoNotificacion(n: NotificacionVista): string {
         : `${tarea}${de} terminó con error.`;
     }
     case "plan_limite": {
+      // La unidad va junto a la cifra («usas 9 de 10 RUC»). Si el aviso del 90 % llega ya con el plan lleno (p. ej. 5 de 5
+      // usuarios, junto al del 100 %), no dice «estás por llegar»: dice que se superó el 90 %.
       const recurso = RECURSOS[n.params.recurso] ?? "recursos";
       const { usado, limite, umbral } = n.params;
-      return umbral >= 100
-        ? `Llegaste al límite de ${recurso} de tu plan (${usado} de ${limite}).`
-        : `Estás por llegar al límite de ${recurso} de tu plan (${usado} de ${limite}).`;
+      const uso = `usas ${usado} de ${limite} ${recurso}`;
+      if (umbral >= 100) return `Llegaste al límite de tu plan: ${uso}.`;
+      return usado >= limite
+        ? `Superaste el 90 % del límite de tu plan: ${uso}.`
+        : `Estás por llegar al límite de tu plan: ${uso}.`;
     }
     default:
       return MENSAJES_NOTIFICACIONES.genericoTexto;

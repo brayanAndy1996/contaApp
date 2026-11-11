@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { reiniciarSesion } from "../../lib/sesion";
@@ -86,6 +86,20 @@ describe("(app)/layout · menú de estudio", () => {
       [B.id, B.nombre],
     ]);
     await vi.waitFor(() => expect(selector.value).toBe(A.id));
+  });
+
+  it("T18a P-7: la barra superior parte en líneas (no desborda a 390 px) y la campana está en ella", async () => {
+    instalarFetchFalso(rutas());
+    render(
+      <LayoutApp>
+        <p>contenido</p>
+      </LayoutApp>,
+    );
+    await screen.findByLabelText("Estudio");
+    const barra = screen.getByRole("navigation");
+    expect(barra.className).toContain("flex-wrap");
+    expect(await screen.findByRole("button", { name: /^Notificaciones/ })).toBeTruthy();
+    expect(within(barra).getByRole("button", { name: /^Notificaciones/ })).toBeTruthy();
   });
 
   it("al cambiar de estudio hace POST con tenantId y X-CSRF-Token", async () => {

@@ -162,6 +162,12 @@ function Compras() {
     if (r.ok) {
       setResumen(r.datos);
       setEstado(r.datos.estado);
+      // P-1: quién marcó y cuándo viene del resumen, así que sobrevive a recargar y a verlo otra persona.
+      setMarca(
+        r.datos.en === null
+          ? null
+          : { estado: r.datos.estado, en: r.datos.en, autor: r.datos.autor },
+      );
     } else {
       falla(r.status, r.mensaje);
     }

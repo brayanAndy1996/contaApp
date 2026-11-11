@@ -82,7 +82,7 @@ describe("configuracion/auditoria", () => {
                     accion: "credencial.descifrada",
                     actor: { tipo: "trabajo", autor: null, trabajoId: U1 },
                     cliente: null,
-                    datos: { periodo: "202610", de: "abierto", a: "revisado" },
+                    datos: { periodo: "202610", tipo: "sol" },
                   }),
                 ],
                 siguiente: "cursor-2",
@@ -116,7 +116,7 @@ describe("configuracion/auditoria", () => {
     expect(within(tabla).getByText("Distribuidora Andina SAC")).toBeTruthy();
     expect(within(tabla).getByText("Proceso automático")).toBeTruthy();
     expect(within(tabla).getByText("Descifró una credencial")).toBeTruthy();
-    expect(within(tabla).getByText("Periodo: 202610 · De: abierto · A: revisado")).toBeTruthy();
+    expect(within(tabla).getByText("Periodo: 202610")).toBeTruthy();
     // Ningún código de acción ni id crudo en pantalla.
     expect(tabla.textContent).not.toContain("cliente.creado");
     expect(tabla.textContent).not.toContain(U1);

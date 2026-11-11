@@ -97,14 +97,14 @@ export default function LayoutApp({ children }: { children: ReactNode }) {
 
   return (
     <>
-      <nav className="flex items-center gap-3 border-b px-6 py-3 text-sm">
-        <label className="flex items-center gap-2">
+      <nav className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-4 py-3 text-sm sm:px-6">
+        <label className="flex min-w-0 max-w-full items-center gap-2">
           Estudio
           <select
             value={sesion?.estudioActivo?.id ?? ""}
             onChange={(e) => void cambiarEstudio(e.target.value)}
             disabled={estudios.length === 0}
-            className="rounded border px-2 py-1"
+            className="min-w-0 max-w-full rounded border px-2 py-1"
           >
             {estudios.map((e) => (
               <option key={e.id} value={e.id}>

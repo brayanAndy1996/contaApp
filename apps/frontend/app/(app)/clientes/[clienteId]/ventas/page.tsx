@@ -235,6 +235,16 @@ function Ventas() {
       setResumen(r.datos);
       // Un servidor anterior a 012b no manda el estado: el periodo cuenta como abierto.
       setEstado(r.datos.estado ?? "abierto");
+      // P-1: quién marcó y cuándo viene del resumen, así que sobrevive a recargar y a verlo otra persona.
+      setMarca(
+        r.datos.estado && r.datos.en
+          ? {
+              estado: r.datos.estado,
+              en: r.datos.en,
+              autor: r.datos.autor ?? null,
+            }
+          : null,
+      );
     } else falla(r.status, r.datos);
     // `sResumen` es estable (solo envuelve un ref).
   }, [clienteId, periodo, falla]);

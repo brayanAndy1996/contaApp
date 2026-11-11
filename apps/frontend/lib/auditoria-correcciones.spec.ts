@@ -23,21 +23,29 @@ describe("textoAccion · acciones de la ronda R1", () => {
   });
 
   it("los cuatro textos son distintos entre sí y de los de asignar, quitar, dar de alta y borrar ya existentes", () => {
-    const nuevos = ["asignacion.tipo_cambiado", "miembro.eliminado", "cliente.eliminado", "invitacion.modificada"].map(textoAccion);
-    const previos = ["asignacion.agregada", "asignacion.quitada", "miembro.alta", "miembro.desactivado", "cliente.archivado", "invitacion.revocada"].map(textoAccion);
+    const nuevos = ["asignacion.tipo_cambiado", "miembro.eliminado", "cliente.eliminado", "invitacion.modificada"].map((a) => textoAccion(a));
+    const previos = ["asignacion.agregada", "asignacion.quitada", "miembro.alta", "miembro.desactivado", "cliente.archivado", "invitacion.revocada"].map((a) => textoAccion(a));
     expect(new Set([...nuevos, ...previos]).size).toBe(nuevos.length + previos.length);
   });
 });
 
 describe("textoDetalle · datos de las acciones de la ronda R1", () => {
-  it("cambio de tipo de asignación: «De: responsable · A: colaborador», sin el id del usuario", () => {
-    const detalle = textoDetalle({ de: "responsable", a: "colaborador", usuarioId: "5f6c1d7e-0000-4000-8000-000000000001" });
-    expect(detalle).toBe("De: responsable · A: colaborador");
+  it("cambio de tipo de asignación: «Tipo: Responsable → Colaborador», sin el id del usuario", () => {
+    const detalle = textoDetalle({
+      accion: "asignacion.tipo_cambiado",
+      datos: { de: "responsable", a: "colaborador", usuarioId: "5f6c1d7e-0000-4000-8000-000000000001" },
+    });
+    expect(detalle).toBe("Tipo: Responsable → Colaborador");
   });
 
-  it("baja de un miembro: «Rol: contador»; cliente eliminado: sin detalle; invitación modificada: solo el cambio de rol, no la lista de campos", () => {
-    expect(textoDetalle({ rol: "contador" })).toBe("Rol: contador");
-    expect(textoDetalle({})).toBe("");
-    expect(textoDetalle({ campos: ["correo", "rol"], de: "lectura", a: "contador" })).toBe("De: lectura · A: contador");
+  it("baja de un miembro: «Rol: Contador»; cliente eliminado: sin detalle; invitación modificada: solo el cambio de rol, no la lista de campos", () => {
+    expect(textoDetalle({ accion: "miembro.eliminado", datos: { rol: "contador" } })).toBe("Rol: Contador");
+    expect(textoDetalle({ accion: "cliente.eliminado", datos: {} })).toBe("");
+    expect(
+      textoDetalle({
+        accion: "invitacion.modificada",
+        datos: { campos: ["correo", "rol"], de: "lectura", a: "contador" },
+      }),
+    ).toBe("Rol: Lectura → Contador");
   });
 });

@@ -478,6 +478,32 @@ describe("Ventas · estado del periodo y escrituras (spec 012b T15, P-1, P-9, CA
     expect(await screen.findByText(MENSAJES_COMPRAS.periodoRevisado)).toBeTruthy();
   });
 
+  it("T18a P-1: el «Marcado el … por …» sale del resumen, también al recargar o al verlo otra persona", async () => {
+    await montar({
+      estado: "revisado",
+      extra: (e) => {
+        e.resumen = resumenCon({
+          estado: "revisado",
+          excluidas: 0,
+          por: USUARIO_ID,
+          autor: { id: USUARIO_ID, nombre: "Rosa Quispe", activo: true },
+          en: EN,
+        });
+        return {};
+      },
+    });
+    const seccion = await esperarEstado(M.estadoPeriodo.revisado);
+    await vi.waitFor(() =>
+      expect(seccion.textContent).toMatch(/Marcado el .* por Rosa Quispe/),
+    );
+  });
+
+  it("T18a P-1: un periodo abierto sin marca no muestra «Marcado por»", async () => {
+    await montar({ estado: "abierto" });
+    const seccion = await esperarEstado(M.estadoPeriodo.abierto);
+    expect(seccion.textContent).not.toContain("Marcado el");
+  });
+
   it("el 409 periodo_generado de una escritura se explica con el motivo del estado", async () => {
     await montar({
       extra: () => ({
