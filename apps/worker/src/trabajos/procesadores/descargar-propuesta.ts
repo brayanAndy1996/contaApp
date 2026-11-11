@@ -82,7 +82,7 @@ export function descargarPropuesta(
     const hash = hashContenido(libro, periodo, preparadas);
     const ctx = { clienteId: t.clienteId, periodo };
 
-    const resultado = await d.db.withTenant({ tenantId: t.tenantId }, async (tx) => {
+    const resultado = await d.db.withTenant({ tenantId: t.tenantId, trabajoId: t.id }, async (tx) => {
       const aplicado = await aplicarComplemento(tx, {
         clienteId: t.clienteId,
         periodo,
@@ -118,6 +118,7 @@ export function descargarPropuesta(
           {
             ...ctx,
             tenantId: t.tenantId,
+            trabajoId: t.id,
             usuarioId,
             db: d.db,
             ...(d.redis === undefined ? {} : { redis: d.redis }),

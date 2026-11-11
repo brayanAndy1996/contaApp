@@ -4,6 +4,7 @@
 // TrabajosRepoError 22023 sin borrar nada. No crea filas en job_registro. Los logs llevan solo conteos.
 import {
   estudiosIds,
+  purgarNotificaciones,
   purgarTerminados,
   purgarAuth,
   TrabajosRepoError,
@@ -21,12 +22,15 @@ export const RETENCIONES_D16: Readonly<RetencionesAuth> = {
   limiteDias: 1,
 };
 export const TRABAJOS_DIAS = 90;
+/** P-7: las notificaciones se conservan 90 días (leídas o no); la auditoría no se purga. */
+export const NOTIFICACIONES_DIAS = 90;
 const DIA_MS = 86_400_000;
 
 export interface OpcionesAuthPurgar {
   db: Pick<ContappDb, "withTenant" | "withSistema">;
   retenciones?: RetencionesAuth;
   trabajosDias?: number;
+  notificacionesDias?: number;
   reloj?: Reloj;
   logger?: LoggerTrabajos;
 }
@@ -37,6 +41,7 @@ export interface ResultadoAuthPurgar {
   intentos: number;
   limites: number;
   trabajos: number;
+  notificaciones: number;
 }
 
 const diasValidos = (n: unknown): boolean =>
@@ -47,12 +52,14 @@ export async function authPurgar(
 ): Promise<ResultadoAuthPurgar> {
   const ret = o.retenciones ?? RETENCIONES_D16;
   const trabajosDias = o.trabajosDias ?? TRABAJOS_DIAS;
+  const notificacionesDias = o.notificacionesDias ?? NOTIFICACIONES_DIAS;
   const dias = [
     ret.sesionDias,
     ret.tokenDias,
     ret.intentoDias,
     ret.limiteDias,
     trabajosDias,
+    notificacionesDias,
   ];
   // Mismo código que el RAISE de auth.purgar (22023, invalid_parameter_value), antes de abrir ninguna transacción.
   if (!dias.every(diasValidos)) throw new TrabajosRepoError("22023");
@@ -65,12 +72,16 @@ export async function authPurgar(
   }));
   const corte = new Date(ahora.getTime() - trabajosDias * DIA_MS);
   let trabajos = 0;
+  let notificaciones = 0;
   for (const tenantId of estudios) {
-    trabajos += await o.db.withTenant({ tenantId }, (tx) =>
-      purgarTerminados(tx, corte),
-    );
+    const r = await o.db.withTenant({ tenantId }, async (tx) => ({
+      trabajos: await purgarTerminados(tx, corte),
+      notificaciones: await purgarNotificaciones(tx, notificacionesDias),
+    }));
+    trabajos += r.trabajos;
+    notificaciones += r.notificaciones;
   }
-  const r = { ...conteos, trabajos };
+  const r = { ...conteos, trabajos, notificaciones };
   registrar(logger, "info", { evento: "auth_purgar_terminado", ...r });
   return r;
 }

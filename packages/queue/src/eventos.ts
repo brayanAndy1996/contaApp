@@ -3,7 +3,12 @@
 // lleva RUC, parámetros, resultado ni tenantId. Se publica después del commit y sus errores no se
 // propagan (el panel se resincroniza con GET /trabajos).
 import type { TrabajoFila } from "@contapp/db";
-import { eventoTrabajoSchema, trabajoVistaSchema, type EventoTrabajo } from "@contapp/shared";
+import {
+  avisoNotificacionSchema,
+  eventoTrabajoSchema,
+  trabajoVistaSchema,
+  type EventoTrabajo,
+} from "@contapp/shared";
 import { crearClaves } from "./claves.js";
 import { registrarFallo, type ClienteRedis } from "./tipos.js";
 
@@ -79,5 +84,36 @@ export async function publicarEvento(
     );
   } catch {
     registrarFallo("no se pudo publicar el evento de trabajo");
+  }
+}
+
+/**
+ * Aviso en vivo de notificaciones nuevas (017, D-9): PUBLISH eventos:{tenantId} de `{ evento: "notificacion",
+ * destinatarios }` y nada más. Se llama después del commit; sin destinatarios, con un id que no es uuid o con más de 200
+ * no publica; nunca lanza (la campana se pone al día al recargar) y no deja el mensaje del error.
+ */
+export async function publicarAvisoNotificacion(
+  redis: Pick<ClienteRedis, "publish">,
+  tenantId: string,
+  destinatarios: readonly string[],
+  opciones: { prefijo?: string } = {},
+): Promise<void> {
+  try {
+    const unicos = [...new Set(destinatarios)];
+    if (unicos.length === 0) return;
+    const r = avisoNotificacionSchema.safeParse({
+      evento: "notificacion",
+      destinatarios: unicos,
+    });
+    if (!r.success) {
+      registrarFallo("aviso de notificación inválido; no se publica");
+      return;
+    }
+    await redis.publish(
+      crearClaves(opciones.prefijo).eventos(tenantId),
+      JSON.stringify(r.data),
+    );
+  } catch {
+    registrarFallo("no se pudo publicar el aviso de notificación");
   }
 }

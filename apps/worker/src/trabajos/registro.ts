@@ -53,28 +53,10 @@ export function camposTrabajo(t: {
   return { tenant_id: t.tenantId, job_id: t.id, tipo: t.tipo };
 }
 
-/** Aviso de credencial rechazada por SUNAT (CA-9). El canal real llega en 017. */
-export interface AvisoCredencialInvalida {
-  tenantId: string;
-  clienteId: string;
-  tipo: "sol" | "sire_api";
-  trabajoId: string;
-}
-
+/**
+ * Puerto del aviso en vivo (017, D-9). La notificación ya quedó guardada en la transacción del hecho; esto solo avisa
+ * a los destinatarios (ids de usuario, sin contenido) después del commit. No debe rechazar nunca.
+ */
 export interface Notificador {
-  credencialInvalida(aviso: AvisoCredencialInvalida): Promise<void>;
-}
-
-/** Adaptador hasta 017: log estructurado sin secretos (solo ids y el tipo de credencial). */
-export class NotificadorLog implements Notificador {
-  constructor(private readonly logger: LoggerTrabajos = loggerConsola) {}
-
-  async credencialInvalida(a: AvisoCredencialInvalida): Promise<void> {
-    registrar(this.logger, "warn", {
-      evento: "aviso_credencial_invalida",
-      cliente_id: a.clienteId,
-      credencial: a.tipo,
-      trabajo_id: a.trabajoId,
-    });
-  }
+  avisar(tenantId: string, usuarioIds: string[]): Promise<void>;
 }

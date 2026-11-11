@@ -22,7 +22,7 @@ import {
   planificarObtencionXml,
 } from "@contapp/domain";
 import { ErrorDatos, type FilaPropuestaSire } from "@contapp/sunat";
-import { encolarLotesXml } from "../encolar-xml.js";
+import { ctxTenant, encolarLotesXml } from "../encolar-xml.js";
 import { crearEvaluarCompras } from "./compras-evaluar.js";
 import { ErrorPropuesta } from "./errores.js";
 import type {
@@ -237,7 +237,7 @@ export const persistidorCompras: PersistidorLibro<CompraNueva> = {
    * filas con hallazgos primero. Lo guardado y lo ya pedido o definitivamente fallido no se vuelve a pedir.
    */
   async trasConfirmar(ctx) {
-    const lotes = await ctx.db.withTenant({ tenantId: ctx.tenantId }, async (tx) =>
+    const lotes = await ctx.db.withTenant(ctxTenant(ctx), async (tx) =>
       planificarObtencionXml(await listarPorObtener(tx, ctx.clienteId, ctx.periodo)),
     );
     if (lotes.length === 0) return;
@@ -249,6 +249,7 @@ export const persistidorCompras: PersistidorLibro<CompraNueva> = {
       },
       {
         tenantId: ctx.tenantId,
+        ...(ctx.trabajoId === undefined ? {} : { trabajoId: ctx.trabajoId }),
         clienteId: ctx.clienteId,
         usuarioId: ctx.usuarioId,
         periodo: ctx.periodo,
