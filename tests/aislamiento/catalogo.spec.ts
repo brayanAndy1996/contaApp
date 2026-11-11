@@ -14,6 +14,11 @@ const POLITICAS_PERMITIDAS = [
   "auth_definer_update",
 ];
 
+// Spec 017 (T2, D-13): auditoria, notificacion y plan_aviso tienen tenant_id y RLS forzada, pero NO la politica `tenant_isolation`
+// FOR ALL: auditoria solo se lee (FOR SELECT), notificacion se lee y solo cambia `leida_en` (SELECT y UPDATE por usuario) y plan_aviso
+// no da acceso a la app. Su detalle (cmd, grants, triggers) lo prueban auditoria-tablas.spec.ts y notificaciones-tablas.spec.ts.
+const TABLAS_017 = ["auditoria", "notificacion", "plan_aviso"];
+
 let pool: Pool;
 beforeAll(() => {
   pool = abrirPool();
@@ -70,6 +75,7 @@ describe("CA-3 catalogo de RLS", () => {
     const pols = await politicas();
     const sin: string[] = [];
     for (const t of tablas) {
+      if (TABLAS_017.includes(t.tabla)) continue; // politicas propias de 017 (ver arriba)
       const p = pols.find((x) => x.tablename === t.tabla && x.policyname === "tenant_isolation");
       // Ajuste de 006 (T1, plan "BD"): `suscripcion` es la unica con tenant_isolation FOR SELECT (sin WITH CHECK): el
       // estudio la lee pero ninguna escritura pasa por RLS aunque alguien le concediera UPDATE al backend (CA-1).
@@ -90,7 +96,10 @@ describe("CA-3 catalogo de RLS", () => {
     // Ajuste de 008 (T3, plan "BD"): job_registro admite ademas UNA politica FOR DELETE (la del worker, solo estados
     // terminales); su nombre lo elige T7. El detalle (rol, filas que alcanza) lo comprueba trabajos.spec.ts.
     const raras = pols.filter(
-      (p) => !POLITICAS_PERMITIDAS.includes(p.policyname) && !(p.tablename === "job_registro" && p.cmd === "DELETE"),
+      (p) =>
+        !POLITICAS_PERMITIDAS.includes(p.policyname) &&
+        !(p.tablename === "job_registro" && p.cmd === "DELETE") &&
+        !TABLAS_017.includes(p.tablename),
     );
     expect(raras.map((p) => `${p.tablename}.${p.policyname}`)).toEqual([]);
     for (const p of pols.filter((x) => x.policyname === "membresia_por_usuario")) {
@@ -169,6 +178,16 @@ describe("CA-3 catalogo de RLS", () => {
     expect(nombres).toContain("suscripcion");
     expect(nombres).not.toContain("plan");
     expect(nombres).not.toContain("admin_plataforma");
+  });
+
+  // Spec 017 (T2, D-13, rojo hasta 0041/0043): las tres tablas nuevas entran al catalogo con RLS ENABLE y FORCE.
+  it("auditoria, notificacion y plan_aviso (017) estan en el catalogo de tablas con tenant_id, con RLS ENABLE y FORCE", async () => {
+    const tablas = await tablasConTenantId();
+    for (const t of TABLAS_017) {
+      const fila = tablas.find((x) => x.tabla === t);
+      expect(fila, `${t} en el catalogo`).toBeDefined();
+      expect({ rls: fila!.rls, forzada: fila!.forzada }, t).toEqual({ rls: true, forzada: true });
+    }
   });
 
   it("tenant_id es uuid NOT NULL en toda tabla de negocio", async () => {

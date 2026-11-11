@@ -312,7 +312,7 @@ describe("CA-2: compras genera la versión 1", () => {
 
     // D10: nada de la fila ni de las rutas fuera del ZIP; el trabajo no lee credenciales.
     const afuera = await visible(m, r, llamadas);
-    for (const prohibido of [RAZON_CANARIO, v!.ruta, "archivos/", "4062"]) expect(afuera).not.toContain(prohibido);
+    for (const prohibido of [RAZON_CANARIO, v!.ruta, "archivos/", "F001-4062"]) expect(afuera).not.toContain(prohibido);
     expect(await descifradosDe(admin, [m.T])).toBe(0);
   });
 

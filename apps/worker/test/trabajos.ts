@@ -421,6 +421,13 @@ export class Escenario {
       // Sin disparadores: el trigger del último Dueño impediría borrar la membresía de un Dueño de prueba.
       await c.query("SET session_replication_role = replica");
       const pasos: Array<[string, unknown[]]> = [
+        // Spec 017 (T2): notificacion, plan_aviso y auditoria (inmutable; con `replica` se borra) antes de usuario y tenant.
+        [
+          "delete from notificacion where tenant_id = any($1::uuid[]) or usuario_id = any($2::uuid[])",
+          [t, this.usuarios],
+        ],
+        ["delete from plan_aviso where tenant_id = any($1::uuid[])", [t]],
+        ["delete from auditoria where tenant_id = any($1::uuid[])", [t]],
         ["delete from job_registro where tenant_id = any($1::uuid[])", [t]],
         [
           "delete from auditoria_descifrado where tenant_id = any($1::uuid[])",

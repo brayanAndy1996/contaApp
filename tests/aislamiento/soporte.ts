@@ -21,6 +21,8 @@ export interface Tx {
 export interface ContextoTenant {
   tenantId: string;
   userId?: string;
+  /** Spec 017: fija `app.trabajo_id` (actor `trabajo` de la auditoria). Solo lo usa el worker. */
+  trabajoId?: string;
 }
 export interface ContappDb {
   withTenant<T>(ctx: ContextoTenant, fn: (tx: Tx) => Promise<T>): Promise<T>;

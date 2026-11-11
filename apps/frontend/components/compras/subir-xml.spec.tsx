@@ -6,7 +6,7 @@ import { MENSAJES_LUPA as L, TOPE_XML_BYTES } from "../../lib/lupa-compras";
 import { reiniciarSesion } from "../../lib/sesion";
 import { C_2056_MIXTA, MENSAJES_COMPRAS as M, instalarFetchCompras, type OpcionesCompras } from "../../pruebas/compras";
 import { contextoDe } from "../../pruebas/contexto-compras";
-import { AUTOR_XML, archivoXml, detalleLupaDe, detalleSinXml, rutaDetalle, rutaSubirXml } from "../../pruebas/lupa-compras";
+import { AUTOR_XML, AUTOR_XML_DTO, archivoXml, detalleLupaDe, detalleSinXml, rutaDetalle, rutaSubirXml } from "../../pruebas/lupa-compras";
 import { LupaCompra } from "./lupa-compra";
 
 // Spec 016 · T16 (nivel C; CA-12, D-3, P-6): «Subir XML» dentro de la lupa. Un caso feliz (completa el modal sin
@@ -44,7 +44,7 @@ function montar(contexto = contextoDe()) {
 describe("Subir XML en la lupa · caso feliz (CA-12)", () => {
   it("envía el XML como cuerpo crudo y la lupa se completa sin recargar la página", async () => {
     const subido = detalleLupaDe(A, {
-      xml: { estado: "disponible", origen: "subido", subidoPor: AUTOR_XML, subidoEn: "2026-10-20T15:00:00.000Z" },
+      xml: { estado: "disponible", origen: "subido", subidoPor: AUTOR_XML, autor: AUTOR_XML_DTO, subidoEn: "2026-10-20T15:00:00.000Z" },
     });
     let hecho = false;
     const f = instalar({
@@ -59,7 +59,7 @@ describe("Subir XML en la lupa · caso feliz (CA-12)", () => {
     expect(await screen.findByText(L.xml.noDisponible)).toBeTruthy();
     await usuario.upload(screen.getByLabelText(L.subir.boton), archivoXml("factura.xml", "<Invoice>12345</Invoice>"));
 
-    expect(await screen.findByText(L.xml.subidoPor(AUTOR_XML.slice(0, 8), "2026-10-20 15:00 UTC"))).toBeTruthy();
+    expect(await screen.findByText(L.xml.subidoPor("Rosa Quispe", "2026-10-20 15:00 UTC"))).toBeTruthy();
     expect(f.de(SUBIR)).toHaveLength(1);
     expect(f.de(SUBIR)[0]!.bytes).toBe("<Invoice>12345</Invoice>".length);
     expect(f.de(SUBIR)[0]!.headers["content-type"]).toBe("application/octet-stream");

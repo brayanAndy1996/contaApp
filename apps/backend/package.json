@@ -16,7 +16,8 @@
     "test:cobertura": "vitest run --config vitest.cobertura.config.mts --coverage",
     "test:cobertura:acceso": "vitest run --config vitest.cobertura-acceso.config.mts --coverage",
     "test:cobertura:xml": "vitest run --config vitest.cobertura-xml.config.mts --coverage",
-    "test:cobertura:archivos": "vitest run --config vitest.cobertura-archivos.config.mts --coverage"
+    "test:cobertura:archivos": "vitest run --config vitest.cobertura-archivos.config.mts --coverage",
+    "test:cobertura:auditoria": "vitest run --config vitest.cobertura-auditoria.config.mts --coverage"
   },
   "dependencies": {
     "@contapp/crypto": "workspace:*",

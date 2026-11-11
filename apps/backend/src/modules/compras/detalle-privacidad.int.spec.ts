@@ -43,6 +43,6 @@ describe("CA-17 · el detalle no filtra la ruta de storage, el hash ni el tenant
     for (const prohibido of [E.tenantId, ruta, hash, "sha256", "tenantId", "ruta", "storage"]) {
       expect(r.text, prohibido).not.toContain(prohibido);
     }
-    expect(Object.keys(r.body.xml).sort()).toEqual(["estado", "origen", "subidoEn", "subidoPor"]);
+    expect(Object.keys(r.body.xml).sort()).toEqual(["autor", "estado", "origen", "subidoEn", "subidoPor"]); // 017 D-12: `autor` se agrega junto al id
   });
 });

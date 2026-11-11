@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { estadoPeriodoSchema, MOTIVO_EXCLUSION_MAX, montoDecimalSchema, sinControles } from "../compras/esquemas.js";
+import { estadoPeriodoRespuestaSchema, MOTIVO_EXCLUSION_MAX, montoDecimalSchema, sinControles } from "../compras/esquemas.js";
 
 // Spec 012b (D12, P-8). Excluir y restaurar ventas del SIRE con error de fila; `exclusion` en `VentaDto`; resumen con estado.
 
@@ -29,13 +29,16 @@ const montosResumenSchema = z.object({
 });
 const cantidad = z.number().int().min(0);
 
-/** `GET …/ventas/resumen`: la forma de `ResumenVentasDto` (013) más `estado` y `excluidas` (cantidad; no suman). */
+/**
+ * `GET …/ventas/resumen`: la forma de `ResumenVentasDto` (013) más `excluidas` (cantidad; no suman) y el bloque de estado de
+ * revisar y reabrir (`estadoPeriodoRespuestaSchema`, spec 017 P-1): `estado`, `por`, `autor` y `en`.
+ */
 export const resumenVentasSchema = z.object({
   porTipo: z.array(montosResumenSchema.extend({ tipo: z.string(), cantidad })),
   total: montosResumenSchema.extend({ cantidad }),
   sinConvertir: z.array(z.object({ clave: z.string(), moneda: z.string() })),
   avisos: z.array(z.literal("usd_sin_tipo_cambio")),
-  estado: estadoPeriodoSchema,
+  ...estadoPeriodoRespuestaSchema.shape,
   excluidas: cantidad,
 });
 export type ResumenVentasVista = z.infer<typeof resumenVentasSchema>;

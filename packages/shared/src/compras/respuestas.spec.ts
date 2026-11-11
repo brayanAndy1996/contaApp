@@ -70,6 +70,7 @@ const version = {
   accion: "original",
   operacionId: null,
   usuarioId: null,
+  autor: null,
   creadaEn: "2026-11-06T12:00:00.000Z",
   excluida: false,
   motivo: null,
@@ -152,9 +153,28 @@ describe("resumenComprasSchema", () => {
     conIgv: { n: 2, casilleros: montos() },
     sinIgv: { n: 1, casilleros: montos() },
     filasSinConvertir: ["a"],
+    por: null,
+    autor: null,
+    en: null,
   };
   it("acepta original, vigente y diferencia, con y sin IGV con su cantidad", () => {
     expect(ok(resumenComprasSchema, resumen)).toBe(true);
+  });
+  // Spec 017 · T18a-servidor (P-1): el resumen trae el mismo bloque de estado que revisar/reabrir (`por`, `autor`, `en`).
+  it("trae por, autor y en: null mientras nadie marcó el periodo, o quien lo marcó y cuándo", () => {
+    expect(ok(resumenComprasSchema, resumen)).toBe(true);
+    const marcado = { ...resumen, estado: "revisado", por: randomUUID(), autor: { id: randomUUID(), nombre: "Ana", activo: true }, en: "2026-11-11T15:30:00.000Z" };
+    expect(resumenComprasSchema.safeParse(marcado).data).toMatchObject({ por: marcado.por, autor: marcado.autor, en: marcado.en });
+  });
+  it("exige por, autor y en, y rechaza formas ajenas", () => {
+    for (const k of ["por", "autor", "en"] as const) {
+      const resto: Record<string, unknown> = { ...resumen };
+      delete resto[k];
+      expect(ok(resumenComprasSchema, resto), k).toBe(false);
+    }
+    expect(ok(resumenComprasSchema, { ...resumen, por: "no-uuid" })).toBe(false);
+    expect(ok(resumenComprasSchema, { ...resumen, en: "ayer" })).toBe(false);
+    expect(ok(resumenComprasSchema, { ...resumen, autor: { id: randomUUID(), activo: true } })).toBe(false);
   });
   it("rechaza una cantidad negativa o un estado desconocido", () => {
     expect(ok(resumenComprasSchema, { ...resumen, conIgv: { n: -1, casilleros: montos() } })).toBe(false);
@@ -221,5 +241,39 @@ describe("masivas, deshacer, descarga y errores con datos", () => {
     expect(ok(errorFilaCambiadaSchema, { codigo: "fila_cambiada", ids: ["x"] })).toBe(false);
     expect(ok(errorDuplicadoSchema, { codigo: "duplicado", id: randomUUID() })).toBe(true);
     expect(ok(errorDuplicadoSchema, { codigo: "duplicado" })).toBe(false);
+  });
+});
+
+// Spec 017 · T1 (rojo). Autor con nombre en el Historial (D-12, CA-13): junto a `usuarioId` viaja `autor` ({id, nombre, activo});
+// el id se conserva. La versión 1 (la trajo el SIRE) no tiene autor: `usuarioId: null` y `autor: null`.
+describe("versionCompraVistaSchema · autor (017)", () => {
+  const ana = { id: randomUUID(), nombre: "Ana Pérez", activo: true };
+  it("conserva usuarioId y trae el autor con nombre", () => {
+    const v = { ...version, accion: "clasificar", usuarioId: ana.id, autor: ana };
+    const r = versionCompraVistaSchema.safeParse(v);
+    expect(r.success).toBe(true);
+    expect(r.data).toMatchObject({ usuarioId: ana.id, autor: ana });
+  });
+  it("la versión original no tiene autor (null)", () => {
+    const r = versionCompraVistaSchema.safeParse(version);
+    expect(r.success).toBe(true);
+    expect(r.data).toMatchObject({ usuarioId: null, autor: null });
+  });
+  it("un autor inactivo y uno desconocido (nombre null) son válidos", () => {
+    expect(ok(versionCompraVistaSchema, { ...version, usuarioId: ana.id, autor: { ...ana, activo: false } })).toBe(true);
+    expect(ok(versionCompraVistaSchema, { ...version, usuarioId: ana.id, autor: { id: ana.id, nombre: null, activo: false } })).toBe(true);
+  });
+  it("exige la clave autor y rechaza un autor mal formado", () => {
+    const sinAutor: Record<string, unknown> = { ...version };
+    delete sinAutor.autor;
+    expect(ok(versionCompraVistaSchema, sinAutor)).toBe(false);
+    expect(ok(versionCompraVistaSchema, { ...version, autor: { id: "x", nombre: "Ana", activo: true } })).toBe(false);
+    expect(ok(versionCompraVistaSchema, { ...version, autor: ana.id })).toBe(false);
+  });
+  it("el detalle lleva el autor en cada versión", () => {
+    const v = { ...version, accion: "editar", usuarioId: ana.id, autor: ana };
+    const r = detalleCompraSchema.safeParse({ original: version, vigente: fila, versiones: [version, v], hallazgos: [] });
+    expect(r.success).toBe(true);
+    expect(r.data?.versiones[1]).toMatchObject({ autor: ana });
   });
 });

@@ -112,6 +112,9 @@ describe("CA-9 · resumen por tipo con las filas del contribuyente de prueba", (
       sinConvertir: [{ clave: "01|F002|2", moneda: "USD" }],
       avisos: ["usd_sin_tipo_cambio"],
       estado: "abierto", // 012b: estado del periodo de ventas
+      por: null, // 017 P-1: quién y cuándo marcó el periodo (nadie todavía)
+      autor: null,
+      en: null,
       excluidas: 0, // 012b: cantidad de ventas excluidas (no suman)
     });
     // Montos como cadenas con sus ceros, nunca number.
@@ -223,6 +226,9 @@ describe("CA-9 · resumen por tipo con las filas del contribuyente de prueba", (
       sinConvertir: [],
       avisos: [],
       estado: "abierto",
+      por: null,
+      autor: null,
+      en: null,
       excluidas: 0,
     });
   });

@@ -22,7 +22,6 @@ import {
   fijarConfig,
   limpiarPrefijo,
   minimoTx,
-  notificadorEspia,
   nuevoPrefijo,
   opcionesBull,
   ProcesadorProgramable,
@@ -33,6 +32,13 @@ import {
   type ClientePrueba,
   type ProcesoWorker,
 } from "../../test/trabajos.js";
+import {
+  avisados,
+  limpiarFilas017,
+  notificacionesDe,
+  notificadorEspia,
+  ordenados,
+} from "../../test/notificaciones.js";
 
 // Spec 008, T5 (rojo; integración con PostgreSQL, Redis y BullMQ reales): el ejecutor del worker y el ensamblado del módulo de
 // trabajos. CA-8, CA-9, CA-14, CA-15, CA-4 (reintentos) y D6. Requiere REDIS_URL, DATABASE_URL y MIGRATIONS_DATABASE_URL.
@@ -62,9 +68,10 @@ import {
 //   completado | reintento (`en_cola`, `intentos + 1`, `disponible_desde = ahora + base·2^(n−1) ± 20 %`, se vuelve a `publicar`) |
 //   error con motivo (`sunat_no_responde`, `datos_invalidos`, `portal_cambio`, `credencial_invalida`); (5) libera cupos y deja el lock
 //   del RUC con PX = espera_ruc_ms; (6) publica el evento del nuevo estado en `eventos:{tenantId}` (después del commit).
-//   Con `ErrorCredencial`, en la MISMA transacción del cambio de estado: `marcarCredencialInvalida` y, solo si cambió, llama una vez a
-//   `Notificador.credencialInvalida({ tenantId, clienteId, tipo, trabajoId })` (después del commit; si el notificador falla, el
-//   trabajo igual queda en error).
+//   Con `ErrorCredencial`, en la MISMA transacción del cambio de estado: `marcarCredencialInvalida`.
+//   017 (D-9): el puerto es `Notificador.avisar(tenantId, usuarioIds)`; el ejecutor lo llama tras el commit con los usuarios a los
+//   que esa transacción les creó una notificación (`destinatariosNuevos`), una vez por trabajo terminado y sin esperarlo. Si el
+//   notificador falla, el trabajo igual queda en error. Las notificaciones mismas las inserta la BD (ver notificador.int.spec.ts).
 
 vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
 
@@ -96,6 +103,7 @@ afterAll(async () => {
     procesos.map((p) => p.detener({ esperaMs: 1000 }).catch(() => undefined)),
   );
   await restaurarConfig(admin).catch(() => undefined);
+  await limpiarFilas017(admin, e?.estudios ?? []).catch(() => undefined);
   await e?.limpiar();
   for (const p of prefijos)
     await limpiarPrefijo(redis, p).catch(() => undefined);
@@ -443,6 +451,7 @@ describe("CA-9: credencial inválida", () => {
     const notificador = notificadorEspia();
     const m = await mundo({ notificador });
     try {
+      const dueno = await e.usuario(m.T, "dueno");
       const c2 = await e.cliente(m.T);
       await e.asignar(m.T, c2.id, m.usuario);
       const cred1 = await e.credencial(m.T, m.c.id, "sol");
@@ -490,13 +499,29 @@ describe("CA-9: credencial inválida", () => {
       expect(await e.credencialEstado(c2.id)).toMatchObject({
         estado: "configurada",
       });
-      expect(notificador.llamadas).toHaveLength(1);
-      expect(notificador.llamadas[0]).toMatchObject({
-        tenantId: m.T,
-        clienteId: m.c.id,
-        tipo: "sol",
-        trabajoId: errores[0].id,
+      // 017: una notificación `credencial_invalida` al Dueño (el cliente no tiene responsable) y un solo aviso con ese
+      // destinatario por el trabajo que falló; los cancelados no avisan.
+      const cred = await notificacionesDe(admin, m.T, {
+        tipo: "credencial_invalida",
       });
+      expect(cred).toHaveLength(1);
+      expect(cred[0]).toMatchObject({
+        usuario_id: dueno,
+        cliente_id: m.c.id,
+        trabajo_id: errores[0].id,
+        params: { credencial: "sol" },
+      });
+      await esperarHasta(
+        () =>
+          notificador.llamadas.filter((l) => l.usuarioIds.includes(dueno))
+            .length >= 1,
+        "aviso al Dueño",
+      );
+      expect(
+        notificador.llamadas.filter((l) => l.usuarioIds.includes(dueno)),
+        "un solo aviso por la credencial",
+      ).toHaveLength(1);
+      expect(notificador.llamadas.every((l) => l.tenantId === m.T)).toBe(true);
 
       // Un trabajo nuevo del mismo cliente también se cancela sin ejecutarse.
       const nuevo = await m.encolar(m.c, 5, { tipo: "prueba.credencial_sol" });
@@ -547,7 +572,12 @@ describe("CA-9: credencial inválida", () => {
         motivo: "credencial_invalida",
       });
       expect((await e.credencialEstado(m.c.id))?.estado).toBe("invalida");
+      await esperarHasta(() => notificador.llamadas.length >= 1, "aviso");
       expect(notificador.llamadas).toHaveLength(1);
+      expect(
+        await notificacionesDe(admin, m.T, { tipo: "trabajo_terminado" }),
+        "la notificación existe aunque el aviso falle (CA-8)",
+      ).toHaveLength(1);
     } finally {
       await m.cerrar();
     }
@@ -568,7 +598,12 @@ describe("CA-9: credencial inválida", () => {
         { timeoutMs: 20_000 },
       );
       expect((await e.credencialEstado(m.c.id))?.estado).toBe("configurada");
-      expect(notificador.llamadas).toHaveLength(0);
+      // 017: no hay aviso de credencial (la credencial no se marcó); sí el de trabajo terminado, solo al creador.
+      expect(
+        await notificacionesDe(admin, m.T, { tipo: "credencial_invalida" }),
+      ).toHaveLength(0);
+      await esperarHasta(() => notificador.llamadas.length >= 1, "aviso");
+      expect(avisados(notificador.llamadas)).toEqual(ordenados([m.usuario]));
     } finally {
       await m.cerrar();
     }

@@ -26,6 +26,7 @@ import { Encolador } from "../trabajos/encolador.js";
 import { aDiferenciaDto, aPropuestaDto, exigirCliente, idDe, periodoDe } from "./apoyo.js";
 import { codificarCursor, decodificarCursor } from "./cursor.js";
 import { ComprasError } from "./errores.js";
+import { autoresDe } from "./autor.js";
 import { aDetalleVista, aFilaListada } from "./vistas.js";
 
 const LIMITE_POR_OMISION = 200;
@@ -118,10 +119,12 @@ export class ComprasService {
     const compraId = idDe(compraCruda);
     const leido = await this.db.withTenant(contextoDe(sesion), async (tx) => {
       await exigirCliente(tx, clienteId, alcance, false);
-      return leerDetalleCompra(tx, clienteId, periodo, compraId);
+      const detalle = await leerDetalleCompra(tx, clienteId, periodo, compraId);
+      // D-12: los autores del Historial se resuelven por lote, en la misma transacción.
+      return detalle === null ? null : { detalle, autores: await autoresDe(tx, detalle.versiones.map((v) => v.usuarioId)) };
     });
     if (leido === null) throw new AccesoError("no_encontrado");
-    return aDetalleVista(leido);
+    return aDetalleVista(leido.detalle, leido.autores);
   }
 
   /** DU-19: historial de descargas de compras del periodo, la más reciente primero. */

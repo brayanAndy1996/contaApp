@@ -295,7 +295,7 @@ describe("/clientes/:id/compras · página de compras (spec 015 T3)", () => {
             estado.resumen = resumenDe(FILAS_014, {}, "abierto");
             return {
               status: 200,
-              cuerpo: { estado: "abierto", por: USUARIO, en: "2026-11-06T10:00:00.000Z" },
+              cuerpo: { estado: "abierto", por: USUARIO, autor: { id: USUARIO, nombre: "Rosa Quispe", activo: true }, en: "2026-11-06T10:00:00.000Z" },
             };
           },
         }),
@@ -314,6 +314,29 @@ describe("/clientes/:id/compras · página de compras (spec 015 T3)", () => {
       // El estado de la pantalla pasó a «Abierto»: ahora se ofrece marcar como revisado.
       expect(await screen.findByRole("button", { name: M.marcarRevisado })).toBeTruthy();
       expect(boton(M.reabrir)).toBeNull();
+    });
+
+    it("T18a P-1: el «Marcado el … por …» sale del resumen, también al recargar; sin marca no se muestra", async () => {
+      await montar({
+        estado: {
+          estado: "revisado",
+          resumen: resumenDe(
+            FILAS_014,
+            { por: USUARIO, autor: { id: USUARIO, nombre: "Rosa Quispe", activo: true }, en: "2026-11-06T10:00:00.000Z" },
+            "revisado",
+          ),
+        },
+      });
+      const seccion = await screen.findByRole("region", { name: "Estado del periodo" });
+      await vi.waitFor(() => expect(seccion.textContent).toMatch(/Marcado el .* por Rosa Quispe/));
+      cleanup();
+      vi.unstubAllGlobals();
+      reiniciarSesion();
+
+      await montar({ estado: { resumen: resumenDe(FILAS_014, {}, "abierto") } });
+      const abierto = await screen.findByRole("region", { name: "Estado del periodo" });
+      await vi.waitFor(() => expect(abierto.textContent).toContain(M.estado.abierto));
+      expect(abierto.textContent).not.toContain("Marcado el");
     });
 
     it("error: 409 estado_invalido avisa y recarga el estado real del periodo", async () => {

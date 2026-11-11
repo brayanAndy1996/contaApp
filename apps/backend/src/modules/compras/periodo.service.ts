@@ -1,18 +1,29 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { fijarEstadoPeriodo, type Alcance, type ContappDb, type EstadoPeriodoCompra, type EstadoPeriodoCompras } from "@contapp/db";
+import { fijarEstadoPeriodo, type Alcance, type ContappDb, type EstadoPeriodoCompra, type EstadoPeriodoCompras, type Tx } from "@contapp/db";
 import type { EstadoPeriodoRespuesta, ReabrirPeriodo } from "@contapp/shared";
 import type { SesionResuelta } from "../auth/auth.service.js";
 import { DB } from "../auth/inyeccion.js";
 import { contextoDe } from "../clientes/contexto.js";
 import { AccesoError } from "../acceso/errores.js";
 import { exigirCliente, periodoDe } from "./apoyo.js";
+import { autoresDe, autorDe, type Autores } from "./autor.js";
 import { ComprasError } from "./errores.js";
 
 const PERMISO_APROBAR_GENERAR = "sire.aprobar_generar";
 
-/** `{ estado, por, en }`: quién y cuándo marcó el periodo (`null` mientras nadie lo haya marcado). */
-export function aRespuestaEstado(e: EstadoPeriodoCompra): EstadoPeriodoRespuesta {
-  return { estado: e.estado, por: e.marcadoPor, en: e.marcadoEn === null ? null : e.marcadoEn.toISOString() };
+/** `{ estado, por, autor, en }`: quién (id y autor con nombre) y cuándo marcó el periodo (`null` mientras nadie lo haya marcado). */
+export function aRespuestaEstado(e: EstadoPeriodoCompra, autores?: Autores): EstadoPeriodoRespuesta {
+  return {
+    estado: e.estado,
+    por: e.marcadoPor,
+    ...(autores === undefined ? {} : { autor: autorDe(autores, e.marcadoPor) }),
+    en: e.marcadoEn === null ? null : e.marcadoEn.toISOString(),
+  } as EstadoPeriodoRespuesta;
+}
+
+/** Lo mismo con el autor resuelto en la transacción dada (una consulta, D-12). */
+export async function respuestaEstado(tx: Tx, e: EstadoPeriodoCompra): Promise<EstadoPeriodoRespuesta> {
+  return aRespuestaEstado(e, await autoresDe(tx, [e.marcadoPor]));
 }
 
 /**
@@ -59,7 +70,7 @@ export class PeriodoComprasService {
       await exigirCliente(tx, clienteId, alcance, true);
       for (const origen of desde) {
         const nuevo = await fijarEstadoPeriodo(tx, clienteId, periodo, origen, hacia, ctx.userId);
-        if (nuevo !== null) return aRespuestaEstado(nuevo);
+        if (nuevo !== null) return respuestaEstado(tx, nuevo);
       }
       throw new ComprasError("estado_invalido");
     });

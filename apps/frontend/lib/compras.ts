@@ -129,7 +129,7 @@ export const MENSAJES_COMPRAS = {
     `¿Reabrir el periodo ${estado === "generado" ? "generado" : "revisado"}? Volverá a quedar abierto para modificarlo.`,
   periodoRevisado: "Periodo marcado como revisado.",
   periodoReabierto: "Periodo reabierto.",
-  estadoPor: (fecha: string) => `Marcado el ${fecha}`,
+  estadoPorAutor: (fecha: string) => `Marcado el ${fecha} por`,
 
   // Descarga (D-12).
   descargar: "Descargar",
@@ -366,6 +366,7 @@ export const MENSAJES_COMPRAS = {
   versiones: "Versiones",
   versionPor: (n: number, usuario: string, fecha: string) =>
     `Versión ${n} · ${usuario} · ${fecha}`,
+  autorSire: "SIRE",
   accionesVersion: {
     original: "Original del SIRE",
     agregada: "Agregada a mano",

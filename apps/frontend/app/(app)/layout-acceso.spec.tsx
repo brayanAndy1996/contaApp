@@ -78,6 +78,16 @@ describe("(app)/layout · menú por permisos (005)", () => {
     expect(clientes.getAttribute("href")).toBe("/clientes");
   });
 
+  it("Auditoría (017, CA-14): el enlace aparece solo con auditoria.ver", async () => {
+    await montar({ status: 200, cuerpo: yoDe("admin", ["auditoria.ver"]) });
+    const enlace = await screen.findByRole("link", { name: "Auditoría" });
+    expect(enlace.getAttribute("href")).toBe("/configuracion/auditoria");
+    cleanup();
+    await montar({ status: 200, cuerpo: yoDe("asistente", ["clientes.ver"]) });
+    expect(await screen.findByRole("link", { name: "Clientes" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Auditoría" })).toBeNull();
+  });
+
   it("Asistente (sin usuarios.ver): muestra Clientes y oculta Usuarios", async () => {
     await montar({ status: 200, cuerpo: yoDe("asistente") });
     expect(await screen.findByRole("link", { name: "Clientes" })).toBeTruthy();

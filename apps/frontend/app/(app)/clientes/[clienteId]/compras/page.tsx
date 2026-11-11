@@ -103,6 +103,7 @@ function Compras() {
   const [marca, setMarca] = useState<{
     estado: EstadoPeriodoCompras;
     en: string;
+    autor: EstadoPeriodoRespuesta["autor"];
   } | null>(null);
   const [propuestas, setPropuestas] = useState<PropuestaComprasDto[] | null>(
     null,
@@ -161,6 +162,12 @@ function Compras() {
     if (r.ok) {
       setResumen(r.datos);
       setEstado(r.datos.estado);
+      // P-1: quién marcó y cuándo viene del resumen, así que sobrevive a recargar y a verlo otra persona.
+      setMarca(
+        r.datos.en === null
+          ? null
+          : { estado: r.datos.estado, en: r.datos.en, autor: r.datos.autor },
+      );
     } else {
       falla(r.status, r.mensaje);
     }
@@ -311,7 +318,9 @@ function Compras() {
   /** El servidor cambió el estado (revisar o reabrir): se guarda y se recarga el resumen del periodo. */
   function alCambiarEstado(r: EstadoPeriodoRespuesta) {
     setEstado(r.estado);
-    setMarca(r.en === null ? null : { estado: r.estado, en: r.en });
+    setMarca(
+      r.en === null ? null : { estado: r.estado, en: r.en, autor: r.autor },
+    );
     void cargarResumen().catch(() => setErrorGeneral(MENSAJES.errorGeneral));
   }
 
@@ -499,6 +508,7 @@ function Compras() {
           contexto={contexto}
           archivado={archivado}
           en={marca !== null && marca.estado === estado ? marca.en : null}
+          autor={marca !== null && marca.estado === estado ? marca.autor : null}
           alCambiar={alCambiarEstado}
           alRecargar={() =>
             void cargarResumen().catch(() =>

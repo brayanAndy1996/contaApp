@@ -48,7 +48,7 @@ export type { MotivoPlataforma } from "./auth/errores";
 // Spec 005: repositorios de acceso (todos con la `tx` de withTenant como primer argumento).
 export { clienteVisible, filtroAlcance } from "./acceso/alcance";
 export type { Alcance } from "./acceso/alcance";
-export { leerCliente, listarClientes } from "./acceso/clientes";
+export { leerCliente, leerClientesPorIds, listarClientes } from "./acceso/clientes";
 export type { ClienteLeido, ClienteListado } from "./acceso/clientes";
 export {
   bloquearMiembro,
@@ -328,3 +328,36 @@ export { insertarVersion, ultimaVersion } from "./archivos/versiones";
 export type { LibroArchivo, NuevaVersionArchivo, VersionArchivo } from "./archivos/versiones";
 export { leerVersion, listarVersiones } from "./archivos/lectura";
 export { archivoGenerado } from "./schema/archivos";
+
+// Spec 017 (T7): tablas de auditoría y notificaciones (RLS, grants, triggers y funciones en 0041–0043). Los repositorios son de T8.
+export { auditoria } from "./schema/auditoria";
+export { notificacion, planAviso } from "./schema/notificaciones";
+// Spec 017: auditoría, notificaciones, autores y origen de alta (todos con la `tx` de withTenant como primer argumento).
+export {
+  leerCambiosDeOperacion,
+  listarAuditoria,
+  MAX_PAGINA_AUDITORIA,
+  resolverUsuariosDeEntidades,
+} from "./auditoria";
+export type {
+  ActorTipoAuditoria,
+  CambioDeCompra,
+  FilaAuditoria,
+  OpcionesAuditoria,
+  UsuariosDeEntidades,
+  VersionCompraAuditada,
+} from "./auditoria";
+export {
+  contarNoLeidas,
+  destinatariosNuevos,
+  listarNotificaciones,
+  marcarLeida,
+  marcarLeidasHasta,
+  MAX_PAGINA_NOTIFICACIONES,
+  purgarNotificaciones,
+  TOPE_NO_LEIDAS,
+} from "./notificaciones";
+export type { FilaNotificacion, OpcionesNotificaciones, TipoNotificacion } from "./notificaciones";
+export { resolverAutores } from "./acceso/autores";
+export type { AutorResuelto } from "./acceso/autores";
+export { marcarOrigenImportacion } from "./clientes/origen";

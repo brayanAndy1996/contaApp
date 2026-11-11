@@ -23,6 +23,8 @@ export interface DepsEncolarXml {
 
 export interface EntradaEncolarXml {
   tenantId: string;
+  /** Trabajo que pide los lotes (017): su actor `trabajo` queda en la auditoría de lo que encola. */
+  trabajoId?: string;
   clienteId: string;
   /** Usuario que pidió la descarga: queda como `creado_por` de los lotes. */
   usuarioId: string;
@@ -42,6 +44,15 @@ export interface ResultadoEncolarXml {
 const canonico = (ids: readonly string[]): string[] =>
   [...new Set(ids.map((x) => x.toLowerCase()))].sort();
 
+/** Contexto de BD: con `trabajoId` la auditoría de lo que escriba queda con el actor `trabajo` (017). */
+export const ctxTenant = (c: {
+  tenantId: string;
+  trabajoId?: string;
+}): { tenantId: string; trabajoId?: string } =>
+  c.trabajoId === undefined
+    ? { tenantId: c.tenantId }
+    : { tenantId: c.tenantId, trabajoId: c.trabajoId };
+
 /** SQLSTATE con el que `encolar_xml_obtener` rechaza un lote por cola llena. */
 const COLA_LLENA = "53400";
 
@@ -59,7 +70,7 @@ export async function encolarLotesXml(
     };
     let r;
     try {
-      r = await d.db.withTenant({ tenantId: e.tenantId }, (tx) =>
+      r = await d.db.withTenant(ctxTenant(e), (tx) =>
         encolarLoteXml(tx, entrada),
       );
     } catch (error) {

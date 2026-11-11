@@ -35,12 +35,12 @@ import {
   fijarConfig,
   limpiarPrefijo,
   minimoTx,
-  notificadorEspia,
   nuevoPrefijo,
   registrarTiposDePrueba,
   restaurarConfig,
   volcarPrefijo,
 } from "../../../test/trabajos.js";
+import { notificadorEspia } from "../../../test/notificaciones.js";
 
 // Spec 007b, T5 (rojo; integración con PostgreSQL y Redis reales y mocks de SolAuth/SireAuth): procesadores
 // `credencial.verificar_sol` y `credencial.verificar_sire` (D6; CA-5, CA-6). Se encolan como lo hace el backend

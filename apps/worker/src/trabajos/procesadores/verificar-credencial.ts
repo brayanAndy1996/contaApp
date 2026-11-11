@@ -10,6 +10,7 @@
 //      (el despachador no cancela estos tipos), así que el ejecutor no marca nada: lo hace este procesador.
 import type { Secreto } from "@contapp/crypto/descifrado";
 import {
+  destinatariosNuevos,
   estadoCredenciales,
   marcarCredencialInvalida,
   marcarCredencialVerificada,
@@ -26,12 +27,15 @@ import {
 import type { ServicioCredenciales } from "../../credenciales/descifrar-credencial.js";
 import { CredencialNoEncontradaError } from "../../credenciales/errores.js";
 import type { Procesador } from "../ejecutor.js";
+import type { Notificador } from "../registro.js";
 
 export const MOTIVO_VERIFICAR = "credencial.verificar";
 
 export interface DepsVerificarCredencial {
   db: Pick<ContappDb, "withTenant">;
   servicio: ServicioCredenciales;
+  /** 017: avisa en vivo (tras el commit) a quien recibe la notificación de la credencial invalidada. Opcional. */
+  notificador?: Notificador;
 }
 
 interface Ubicada {
@@ -47,7 +51,7 @@ async function ubicar(
   t: Ctx,
   tipos: readonly TipoCredencial[],
 ): Promise<Record<TipoCredencial, Ubicada | null>> {
-  return d.db.withTenant({ tenantId: t.tenantId }, async (tx) => {
+  return d.db.withTenant({ tenantId: t.tenantId, trabajoId: t.id }, async (tx) => {
     const filas = await estadoCredenciales(tx, t.clienteId);
     const r: Record<TipoCredencial, Ubicada | null> = {
       sol: null,
@@ -92,20 +96,31 @@ async function cerrar(
     await llamar();
   } catch (e) {
     if (clasificarError(e).clase === "credencial") {
-      await d.db.withTenant({ tenantId: t.tenantId }, (tx) =>
-        marcarCredencialInvalida(
-          tx,
-          t.clienteId,
-          tipo,
-          "credencial_invalida",
-          undefined,
-          version,
-        ),
+      const destinatarios = await d.db.withTenant(
+        { tenantId: t.tenantId, trabajoId: t.id },
+        async (tx) => {
+          await marcarCredencialInvalida(
+            tx,
+            t.clienteId,
+            tipo,
+            "credencial_invalida",
+            undefined,
+            version,
+          );
+          // La notificación la guarda la BD en esta transacción; solo si hay a quién avisar en vivo se lee (017, D-9).
+          return d.notificador === undefined ? [] : destinatariosNuevos(tx);
+        },
       );
+      // Tras el commit, sin esperarlo y sin que su fallo cambie el desenlace (la campana se pone al día al recargar).
+      const notificador = d.notificador;
+      if (notificador !== undefined && destinatarios.length > 0)
+        void Promise.resolve()
+          .then(() => notificador.avisar(t.tenantId, destinatarios))
+          .catch(() => undefined);
     }
     throw e;
   }
-  await d.db.withTenant({ tenantId: t.tenantId }, (tx) =>
+  await d.db.withTenant({ tenantId: t.tenantId, trabajoId: t.id }, (tx) =>
     marcarCredencialVerificada(tx, t.clienteId, tipo, version),
   );
   return { ok: true };

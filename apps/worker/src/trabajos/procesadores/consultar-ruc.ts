@@ -15,7 +15,7 @@ export interface DepsConsultarRuc {
 export function consultarRuc(d: DepsConsultarRuc): Procesador {
   return async ({ trabajo }) => {
     const datos = await d.consultaRuc.consultar(trabajo.ruc);
-    await d.db.withTenant({ tenantId: trabajo.tenantId }, (tx) =>
+    await d.db.withTenant({ tenantId: trabajo.tenantId, trabajoId: trabajo.id }, (tx) =>
       completarDatosRuc(tx, trabajo.clienteId, {
         razonSocial: datos.razonSocial,
         estado: datos.estado,

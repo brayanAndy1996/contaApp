@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Campana } from "../../components/notificaciones/campana";
 import { cargarYo, tiene, type Yo } from "../../lib/acceso";
 import { api, EVENTO_ESTUDIO_DESFASADO } from "../../lib/api";
 import { obtenerSesion, reiniciarSesion, type Sesion } from "../../lib/sesion";
@@ -96,14 +97,14 @@ export default function LayoutApp({ children }: { children: ReactNode }) {
 
   return (
     <>
-      <nav className="flex items-center gap-3 border-b px-6 py-3 text-sm">
-        <label className="flex items-center gap-2">
+      <nav className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-4 py-3 text-sm sm:px-6">
+        <label className="flex min-w-0 max-w-full items-center gap-2">
           Estudio
           <select
             value={sesion?.estudioActivo?.id ?? ""}
             onChange={(e) => void cambiarEstudio(e.target.value)}
             disabled={estudios.length === 0}
-            className="rounded border px-2 py-1"
+            className="min-w-0 max-w-full rounded border px-2 py-1"
           >
             {estudios.map((e) => (
               <option key={e.id} value={e.id}>
@@ -115,6 +116,10 @@ export default function LayoutApp({ children }: { children: ReactNode }) {
         {tiene(yo, "clientes.ver") && <Link href="/clientes">Clientes</Link>}
         {tiene(yo, "clientes.ver") && <Link href="/trabajos">Trabajos</Link>}
         {tiene(yo, "usuarios.ver") && <Link href="/usuarios">Usuarios</Link>}
+        {tiene(yo, "auditoria.ver") && (
+          <Link href="/configuracion/auditoria">Auditoría</Link>
+        )}
+        {sesion && <Campana key={sesion.estudioActivo?.id ?? "sin-estudio"} />}
         {aviso && <p role="status">{aviso}</p>}
         {error && (
           <p role="alert" className="text-red-600">

@@ -15,6 +15,7 @@ import type { SesionResuelta } from "../auth/auth.service.js";
 import { DB } from "../auth/inyeccion.js";
 import { contextoDe } from "../clientes/contexto.js";
 import { exigirCliente, idDe } from "../compras/apoyo.js";
+import { autoresDe, autorDe, type Autores } from "../compras/autor.js";
 import { exigir } from "../compras/escritura.js";
 import { STORAGE } from "../storage/storage.module.js";
 import { Encolador } from "../trabajos/encolador.js";
@@ -31,12 +32,13 @@ export interface ZipDescargable {
   bytes: Uint8Array;
 }
 
-function aVersionDto(v: VersionArchivo): VersionArchivoDto {
+function aVersionDto(v: VersionArchivo, autores: Autores): VersionArchivoDto {
   return {
     id: v.id,
     version: v.version,
     generadoEn: v.generadoEn.toISOString(),
     generadoPor: v.generadoPor,
+    autor: autorDe(autores, v.generadoPor)!,
     formato: { id: v.formatoId, version: v.formatoVersion },
     provisional: v.provisional,
     nombreZip: v.nombreZip,
@@ -150,7 +152,10 @@ export class ArchivosService {
     const periodo = periodoArchivoDe(periodoCrudo);
     return this.db.withTenant(contextoDe(sesion), async (tx) => {
       await exigirCliente(tx, clienteId, alcance, false);
-      return (await listarVersiones(tx, clienteId, periodo, libro)).map(aVersionDto);
+      const filas = await listarVersiones(tx, clienteId, periodo, libro);
+      // D-12: una sola consulta de autores por respuesta.
+      const autores = await autoresDe(tx, filas.map((f) => f.generadoPor));
+      return filas.map((f) => aVersionDto(f, autores));
     });
   }
 

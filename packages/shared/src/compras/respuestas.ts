@@ -1,9 +1,10 @@
 import { z } from "zod";
+import { autorSchema } from "../autor.js";
 import {
   COLUMNAS_MONTO_COMPRA,
   columnaMontoCompraSchema,
   destinoCompraSchema,
-  estadoPeriodoSchema,
+  estadoPeriodoRespuestaSchema,
   montoDecimalSchema,
   MONEDAS_COMPRA,
   reglaCompraSchema,
@@ -93,6 +94,7 @@ export const versionCompraVistaSchema = z.object({
   accion: z.enum(ACCIONES_VERSION),
   operacionId: z.uuid().nullable(),
   usuarioId: z.uuid().nullable(),
+  autor: autorSchema.nullable(),
   creadaEn: fechaIso,
   excluida: z.boolean(),
   motivo: z.string().nullable(),
@@ -145,9 +147,12 @@ export type CalcularRespuesta = z.infer<typeof calcularRespuestaSchema>;
 
 const casillerosSchema = montosCompraSchema;
 
-/** GET …/compras/resumen (D-8). */
+/**
+ * GET …/compras/resumen (D-8). Spec 017 (P-1): además del `estado`, el mismo bloque que devuelven revisar y reabrir
+ * (`estadoPeriodoRespuestaSchema`): `por` (id), `autor` (con nombre, D-12) y `en` (ISO), `null` mientras nadie haya marcado el periodo.
+ */
 export const resumenComprasSchema = z.object({
-  estado: estadoPeriodoSchema,
+  ...estadoPeriodoRespuestaSchema.shape,
   casilleros: z.object({ original: casillerosSchema, vigente: casillerosSchema, diferencia: casillerosSchema }),
   conIgv: z.object({ n: entero, casilleros: casillerosSchema }),
   sinIgv: z.object({ n: entero, casilleros: casillerosSchema }),

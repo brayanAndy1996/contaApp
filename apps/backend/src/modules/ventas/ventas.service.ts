@@ -40,6 +40,7 @@ import { DB } from "../auth/inyeccion.js";
 import { contextoDe } from "../clientes/contexto.js";
 import { Encolador } from "../trabajos/encolador.js";
 import { aPropuestaDto, aVentaDto, exigirCliente, exigirEscrituraVentas, idDe, periodoDe } from "./apoyo.js";
+import { aRespuestaEstado } from "./estado.service.js";
 import { VentasError } from "./errores.js";
 
 /** SQLSTATE `unique_violation`: la clave (tipo, serie, número) ya está en el periodo (D9). */
@@ -125,11 +126,12 @@ export class VentasService {
     periodoCrudo: string,
   ): Promise<ResumenVentasVista> {
     const periodo = periodoDe(periodoCrudo);
-    const { todas, estado } = await this.db.withTenant(contextoDe(sesion), async (tx) => {
+    const { todas, bloqueEstado } = await this.db.withTenant(contextoDe(sesion), async (tx) => {
       await exigirCliente(tx, clienteId, alcance, false);
       return {
         todas: await leerFilasVentas(tx, clienteId, periodo),
-        estado: (await leerEstadoPeriodoVentas(tx, clienteId, periodo)).estado,
+        // P-1 (017): el mismo bloque que revisar y reabrir (`estado`, `por`, `autor`, `en`).
+        bloqueEstado: await aRespuestaEstado(tx, await leerEstadoPeriodoVentas(tx, clienteId, periodo)),
       };
     });
     // 012b D12, RF-056: las excluidas no suman; se cuentan aparte.
@@ -156,7 +158,7 @@ export class VentasService {
         total: { ...r.total },
         sinConvertir: r.sinConvertir.map((s) => ({ clave: s.clave, moneda: s.moneda })),
         avisos: [...r.avisos],
-        estado,
+        ...bloqueEstado,
         excluidas: todas.length - filas.length,
       };
     } catch (e) {

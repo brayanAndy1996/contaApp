@@ -253,7 +253,7 @@ async function versionConfirmada(
   archivoId: string,
 ): Promise<boolean | null> {
   try {
-    return await db.withTenant({ tenantId: t.tenantId }, async (tx) => {
+    return await db.withTenant({ tenantId: t.tenantId, trabajoId: t.id }, async (tx) => {
       const r = await tx.query(SQL_VERSION_CONFIRMADA, [archivoId, t.id]);
       return r.rows.length > 0;
     });
@@ -276,7 +276,7 @@ export function generarArchivo(d: DepsGenerarArchivo): Procesador {
 
     let guardada: { id: string; ruta: string } | null = null;
     try {
-      return await d.db.withTenant({ tenantId: t.tenantId }, async (tx): Promise<ResultadoGenerarArchivo> => {
+      return await d.db.withTenant({ tenantId: t.tenantId, trabajoId: t.id }, async (tx): Promise<ResultadoGenerarArchivo> => {
         // (0) Reintento de un trabajo que ya entregó su versión (H-012b-4): la devuelve tal cual, ANTES del compare-and-set,
         // sin comparar huellas y sin tocar el estado del periodo aunque se haya reabierto (H-012b-6, decisión del usuario).
         const entregada = await versionDelTrabajo(tx, t, periodo, libro);

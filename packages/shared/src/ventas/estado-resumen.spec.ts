@@ -11,13 +11,16 @@ import { resumenVentasSchema } from "./index.js";
 //    `estado` ("abierto"|"revisado"|"generado") y `excluidas` (entero >= 0, cantidad; las excluidas NO suman).
 const monto = (v = "0.00") => ({ baseGravada: v, igv: v, exonerada: v, inafecta: v, isc: v, icbper: v, otros: v, total: v });
 
-const resumen = (extra: Record<string, unknown> = {}) => ({
+const resumen = (extra: Record<string, unknown> = {}): Record<string, unknown> => ({
   porTipo: [{ tipo: "01", cantidad: 2, ...monto("100.00") }],
   total: { cantidad: 2, ...monto("100.00") },
   sinConvertir: [{ clave: "F001-5", moneda: "USD" }],
   avisos: ["usd_sin_tipo_cambio"],
   estado: "abierto",
   excluidas: 0,
+  por: null,
+  autor: null,
+  en: null,
   ...extra,
 });
 
@@ -52,10 +55,30 @@ describe("resumenVentasSchema", () => {
   });
 });
 
+// Spec 017 · T18a-servidor (P-1): el resumen trae el bloque de estado de revisar/reabrir (`por`, `autor`, `en`).
+describe("resumenVentasSchema · quién marcó el periodo", () => {
+  it("acepta null mientras nadie lo marcó, o el autor con su fecha", () => {
+    expect(ok(resumen())).toBe(true);
+    const marcado = resumen({ estado: "revisado", por: "0190a000-0000-7000-8000-0000000000b1", autor: { id: "0190a000-0000-7000-8000-0000000000b1", nombre: null, activo: false }, en: "2026-11-11T15:30:00.000Z" });
+    expect(resumenVentasSchema.safeParse(marcado).data).toEqual(marcado);
+  });
+
+  it("exige por, autor y en, y rechaza formas ajenas", () => {
+    for (const k of ["por", "autor", "en"] as const) {
+      const resto = resumen();
+      delete resto[k];
+      expect(ok(resto), k).toBe(false);
+    }
+    expect(ok(resumen({ por: "no-uuid" }))).toBe(false);
+    expect(ok(resumen({ en: "ayer" }))).toBe(false);
+    expect(ok(resumen({ autor: { id: "no-uuid", nombre: "Ana", activo: true } }))).toBe(false);
+  });
+});
+
 describe("estado del periodo de ventas reutiliza las formas de 014", () => {
   it("estadoPeriodoRespuestaSchema acepta {estado, por, en}", () => {
-    expect(estadoPeriodoRespuestaSchema.safeParse({ estado: "revisado", por: null, en: null }).success).toBe(true);
-    expect(estadoPeriodoRespuestaSchema.safeParse({ estado: "generado", por: null, en: null }).success).toBe(true);
+    expect(estadoPeriodoRespuestaSchema.safeParse({ estado: "revisado", por: null, autor: null, en: null }).success).toBe(true);
+    expect(estadoPeriodoRespuestaSchema.safeParse({ estado: "generado", por: null, autor: null, en: null }).success).toBe(true);
   });
 
   it("reabrirPeriodoSchema admite revisado y generado, no abierto", () => {

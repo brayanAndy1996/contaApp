@@ -6,7 +6,8 @@ import type { SesionResuelta } from "../auth/auth.service.js";
 import { DB } from "../auth/inyeccion.js";
 import { contextoDe } from "../clientes/contexto.js";
 import { exigirCliente, idDe, periodoDe } from "./apoyo.js";
-import { aDetalleLupa } from "./detalle.js";
+import { autoresDe } from "./autor.js";
+import { aDetalleLupa, conAutorXml } from "./detalle.js";
 
 /**
  * Detalle de la lupa (spec 016, D-8, CA-18): solo lectura. No encola, no escribe y no re-parsea el XML: lee el `detalle` jsonb
@@ -44,6 +45,7 @@ export class DetalleComprasService {
       docTipo: leido.compra.docTipo,
       docNumero: leido.compra.docNumero,
     });
-    return detalleLupaSchema.parse(aDetalleLupa(leido, historial));
+    const autores = await autoresDe(tx, [leido.xml?.subidoPor ?? null]);
+    return detalleLupaSchema.parse(conAutorXml(aDetalleLupa(leido, historial), autores));
   }
 }

@@ -60,6 +60,30 @@ async function capturar(
 const FIRMA_ENCOLAR_XML = "encolar_xml_obtener(uuid,text,uuid[],uuid)";
 const FIRMA_BLOQUEAR_REEVALUAR = "bloquear_compras_reevaluar(uuid[])";
 
+// Spec 017 (T7, migraciones 0041-0043): SECURITY DEFINER admitidas, por firma (regprocedure) y dueño esperado. Todas con
+// search_path = pg_catalog, pg_temp y sin EXECUTE para PUBLIC (se verifica abajo, una por una).
+const REGISTRADOR = "contapp_registrador";
+const MIGRATOR = "contapp_migrator";
+const FUNCIONES_017: { firma: string; dueno: string }[] = [
+  ...[
+    "sesion", "invitacion", "membresia", "asignacion", "cliente", "credencial", "propuesta", "compra_operacion", "venta", "xml",
+    "periodo", "archivo",
+  ].map((n) => ({ firma: `auditoria_capturar_${n}()`, dueno: MIGRATOR })),
+  { firma: "auditoria_registrar(uuid,text,uuid,text,uuid,jsonb,uuid)", dueno: MIGRATOR },
+  { firma: "auditoria_descifrado_listar(timestamp with time zone,uuid,integer)", dueno: MIGRATOR },
+  { firma: "interno.auditoria_insertar(uuid,text,uuid,uuid,text,uuid,text,uuid,jsonb)", dueno: REGISTRADOR },
+  { firma: "interno.membresia_via(uuid,uuid,text)", dueno: MIGRATOR },
+  { firma: "interno.notificar(uuid,uuid[],text,uuid,uuid,jsonb,text)", dueno: REGISTRADOR },
+  { firma: "interno.uso_plan(uuid)", dueno: MIGRATOR },
+  { firma: "notificacion_credencial_invalida()", dueno: MIGRATOR },
+  { firma: "notificacion_trabajo_terminado()", dueno: MIGRATOR },
+  { firma: "notificacion_purgar(integer)", dueno: REGISTRADOR },
+  { firma: "notificaciones_de_esta_transaccion()", dueno: REGISTRADOR },
+  { firma: "plan_aviso_disparar()", dueno: MIGRATOR },
+  { firma: "plan_aviso_recalcular(uuid)", dueno: REGISTRADOR },
+];
+const nombre017 = (f: string) => (f.includes(".") && f.indexOf(".") < f.indexOf("(") ? f : `public.${f}`).replace(/\(.*$/, "");
+
 describe("ADV escalada desde DATABASE_URL", () => {
   let pool: Pool;
   let backend: ContappDb;
@@ -274,6 +298,15 @@ describe("ADV escalada desde DATABASE_URL", () => {
           where p.prosecdef and n.nspname = 'public'`,
       )
     ).map((d) => d.f);
+    const props017 = await filasRaw(
+      pool,
+      null,
+      `select f.firma, pg_get_userbyid(p.proowner) as dueno, p.prosecdef, p.proconfig as config,
+              has_function_privilege('public', p.oid, 'EXECUTE') as publico
+         from unnest(array[${FUNCIONES_017.map((f) => `'${f.firma}'`).join(", ")}]::text[]) as f(firma)
+         left join pg_proc p on p.oid::regprocedure::text = f.firma
+        order by f.firma`,
+    );
     const encolarXml = await filasRaw(
       pool,
       null,
@@ -303,6 +336,8 @@ describe("ADV escalada desde DATABASE_URL", () => {
     // (devuelven solo UUID; dueño contapp_enumerador; EXECUTE solo contapp_worker).
     // Ajuste de 016 (T12b, migracion 0037; decision del usuario 2026-11-10): se admite exactamente
     // public.encolar_xml_obtener(uuid, text, uuid[], uuid) y nada mas en `public`.
+    // Ajuste de 017 (T7, migraciones 0041-0043): se admiten las 24 de FUNCIONES_017 (captura de auditoria, registro y lectura de
+    // auditoria, notificaciones y aviso del plan); contapp_migrator o contapp_registrador como dueño.
     // Ajuste de 016 (T23, migracion 0038, H-016-8): se admite ademas public.bloquear_compras_reevaluar(uuid[]) (solo bloquea
     // compras vivas del estudio; mismo dueño, search_path fijo y EXECUTE solo contapp_worker).
     expect(defs.map((d) => d.f).sort()).toEqual(
@@ -311,9 +346,25 @@ describe("ADV escalada desde DATABASE_URL", () => {
         ...FUNCIONES_SISTEMA.map((n) => `sistema.${n}`),
         "public.bloquear_compras_reevaluar",
         "public.encolar_xml_obtener",
+        ...FUNCIONES_017.map((f) => nombre017(f.firma)),
       ].sort(),
     );
-    expect([...defsPublic].sort()).toEqual([FIRMA_BLOQUEAR_REEVALUAR, FIRMA_ENCOLAR_XML]);
+    expect([...defsPublic].sort()).toEqual(
+      [FIRMA_BLOQUEAR_REEVALUAR, FIRMA_ENCOLAR_XML, ...FUNCIONES_017.filter((f) => !f.firma.startsWith("interno.")).map((f) => f.firma)].sort(),
+    );
+    // Cada SECURITY DEFINER de 017: existe, dueño esperado, search_path fijo, sin EXECUTE para PUBLIC.
+    // El orden de la consulta depende de la colación de la BD (CI y local difieren con `_`): se ordena aquí igual que lo esperado.
+    expect([...props017].sort((a, b) => (a.firma < b.firma ? -1 : 1))).toEqual(
+      [...FUNCIONES_017]
+        .sort((a, b) => (a.firma < b.firma ? -1 : 1))
+        .map((f) => ({
+          firma: f.firma,
+          dueno: f.dueno,
+          prosecdef: true,
+          config: ["search_path=pg_catalog, pg_temp"],
+          publico: false,
+        })),
+    );
     expect(encolarXml).toEqual([
       {
         dueno: "contapp_migrator",

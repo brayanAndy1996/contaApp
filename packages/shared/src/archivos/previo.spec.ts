@@ -48,7 +48,7 @@ const previo = (extra: Record<string, unknown> = {}) => ({
   excluidas: [],
   excluidasOmitidas: 0,
   formato: { id: "provisional-rce", version: "1", oficial: false },
-  estado: { estado: "abierto", por: null, en: null },
+  estado: { estado: "abierto", por: null, autor: null, en: null },
   huella: HUELLA,
   ultimaVersion: null,
   reabiertoTrasUltima: false,
@@ -66,6 +66,7 @@ describe("previoArchivoSchema: forma general", () => {
   });
 
   it("acepta un previo con errores, avisos, excluidas, estado marcado y última versión (mixta, San Juan, boleta 291)", () => {
+    const porId = randomUUID();
     const p = previo({
       apto: false,
       generable: false,
@@ -78,7 +79,7 @@ describe("previoArchivoSchema: forma general", () => {
       ],
       excluidas: [{ filaId: randomUUID(), comprobante: "F001-1", motivo: "Llegó mal del SIRE" }],
       excluidasOmitidas: 2,
-      estado: { estado: "revisado", por: randomUUID(), en: "2026-11-10T10:00:00.000Z" },
+      estado: { estado: "revisado", por: porId, autor: { id: porId, nombre: "Ana Pérez", activo: true }, en: "2026-11-10T10:00:00.000Z" },
       ultimaVersion: { version: 2, generadoEn: "2026-11-09T10:00:00.000Z" },
       reabiertoTrasUltima: true,
     });
@@ -202,7 +203,7 @@ describe("previoArchivoSchema: huella, estado, formato y última versión", () =
 
   it("el estado del periodo es abierto, revisado o generado, con por y en nullables", () => {
     for (const estado of ["abierto", "revisado", "generado"]) {
-      expect(ok(previo({ estado: { estado, por: null, en: null } })), estado).toBe(true);
+      expect(ok(previo({ estado: { estado, por: null, autor: null, en: null } })), estado).toBe(true);
     }
     expect(ok(previo({ estado: { estado: "cerrado", por: null, en: null } }))).toBe(false);
     expect(ok(previo({ estado: { estado: "revisado", por: "no-uuid", en: null } }))).toBe(false);
@@ -219,5 +220,26 @@ describe("previoArchivoSchema: huella, estado, formato y última versión", () =
     for (const k of ["apto", "generable", "reabiertoTrasUltima"]) {
       for (const v of ["true", 1, null]) expect(ok(previo({ [k]: v })), `${k}=${String(v)}`).toBe(false);
     }
+  });
+});
+
+// Spec 017 · T1 (rojo). Autor con nombre en «revisado por» del previo (D-12, CA-13): `estado.por` conserva el id y se agrega
+// `estado.autor` ({id, nombre, activo} o null si nadie marcó el periodo).
+describe("previoArchivoSchema · estado.autor (017)", () => {
+  const por = randomUUID();
+  const en = "2026-11-10T10:00:00.000Z";
+  const conEstado = (estado: Record<string, unknown>) => previo({ estado });
+  it("conserva por y trae el autor", () => {
+    const r = previoArchivoSchema.safeParse(conEstado({ estado: "revisado", por, autor: { id: por, nombre: "Ana Pérez", activo: true }, en }));
+    expect(r.success).toBe(true);
+    expect(r.data?.estado).toMatchObject({ por, autor: { id: por, nombre: "Ana Pérez", activo: true } });
+  });
+  it("acepta un autor inactivo o desconocido (nombre null)", () => {
+    expect(ok(conEstado({ estado: "revisado", por, autor: { id: por, nombre: "Ana Pérez", activo: false }, en }))).toBe(true);
+    expect(ok(conEstado({ estado: "revisado", por, autor: { id: por, nombre: null, activo: false }, en }))).toBe(true);
+  });
+  it("exige la clave autor y rechaza un autor mal formado", () => {
+    expect(ok(conEstado({ estado: "revisado", por, en }))).toBe(false);
+    expect(ok(conEstado({ estado: "revisado", por, autor: { id: "x", nombre: "Ana", activo: true }, en }))).toBe(false);
   });
 });

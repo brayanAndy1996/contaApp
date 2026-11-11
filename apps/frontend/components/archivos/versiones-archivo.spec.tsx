@@ -115,6 +115,19 @@ describe("VersionesArchivo (spec 012b T14)", () => {
     expect(screen.getByText(M.reabiertoTrasUltima)).toBeTruthy();
   });
 
+  it("muestra quién generó la versión con su nombre (D-12), «(inactivo)» o desconocido, nunca el id", () => {
+    const id = versionDe(1).generadoPor;
+    montar(false, [
+      versionDe(3),
+      versionDe(2, { autor: { id, nombre: "Ana Torres", activo: false } }),
+      versionDe(1, { autor: { id, nombre: null, activo: false } }),
+    ]);
+    expect(screen.getByText("Ana Torres")).toBeTruthy();
+    expect(screen.getByText("Ana Torres (inactivo)")).toBeTruthy();
+    expect(screen.getByText("Usuario desconocido")).toBeTruthy();
+    expect(document.body.textContent).not.toContain(id.slice(0, 8));
+  });
+
   it("sin versiones lo dice y no avisa de reapertura", () => {
     montar(true, []);
     expect(screen.getByText(M.sinVersiones)).toBeTruthy();

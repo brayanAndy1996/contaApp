@@ -1,5 +1,6 @@
 // Detalle de la lupa (spec 016, D-6, D-9, plan «DetalleCompraDto»): de lo leído de la BD al DTO. Puro: sin IO. Se arma del
 // `detalle` jsonb guardado (CA-18): nunca se re-parsea el XML. Los montos salen como cadenas decimales (`Money`), nunca `number`.
+import { autorDe, type Autores } from "./autor.js";
 import type { CompraHistorialProveedor, DetalleXmlLeido, XmlVigente } from "@contapp/db";
 import { Money, type DetalleXml, type Moneda } from "@contapp/domain";
 import {
@@ -125,6 +126,13 @@ const origenSerie = (serie: string): "E" | "F" | null => {
   const inicial = serie.charAt(0).toUpperCase();
   return inicial === "E" || inicial === "F" ? inicial : null;
 };
+
+/** D-12: agrega `autor` al XML subido por una persona (el simulado o el real no tienen `subidoPor` ni `autor`). */
+export function conAutorXml(dto: DetalleLupa, autores: Autores): DetalleLupa {
+  const xml = dto.xml;
+  if (xml.estado !== "disponible" || xml.subidoPor === undefined) return dto;
+  return { ...dto, xml: { ...xml, autor: autorDe(autores, xml.subidoPor)! } };
+}
 
 /** El DTO de la lupa (`detalleLupaSchema`). Ni la ruta de storage, ni el hash, ni el tenant salen. */
 export function aDetalleLupa(d: DetalleXmlLeido, historial: readonly CompraHistorialProveedor[]): DetalleLupa {

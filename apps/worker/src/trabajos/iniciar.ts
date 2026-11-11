@@ -41,6 +41,7 @@ import type { Redis } from "ioredis";
 import { crearServicioCredenciales } from "../credenciales/descifrar-credencial.js";
 import { Ejecutor, type Procesador } from "./ejecutor.js";
 import { dbGuardada, redisGuardado } from "./guardia.js";
+import { NotificadorEventos } from "./notificador.js";
 import { authPurgar } from "./procesadores/auth-purgar.js";
 import { consultarRuc } from "./procesadores/consultar-ruc.js";
 import { descargarPropuesta } from "./procesadores/descargar-propuesta.js";
@@ -53,7 +54,6 @@ import {
 } from "./procesadores/verificar-credencial.js";
 import {
   loggerConsola,
-  NotificadorLog,
   registrar,
   type LoggerTrabajos,
   type Notificador,
@@ -248,6 +248,8 @@ export async function iniciarTrabajos(
   });
   const config = new CacheConfig(db, reloj);
   const storage = deps.storage ?? storagePorDefecto();
+  const notificador =
+    deps.notificador ?? new NotificadorEventos(redis, { prefijo, logger });
   const ejecutor = new Ejecutor({
     db,
     redis,
@@ -280,11 +282,13 @@ export async function iniciarTrabajos(
               db,
               servicio,
               solAuth: deps.solAuth ?? new MockSolAuth(),
+              notificador,
             }),
             "credencial.verificar_sire": verificarSire({
               db,
               servicio,
               sireAuth,
+              notificador,
             }),
           }
         : {}),
@@ -292,7 +296,7 @@ export async function iniciarTrabajos(
     },
     config,
     tokens,
-    notificador: deps.notificador ?? new NotificadorLog(logger),
+    notificador,
     logger,
     latidoMs: intervalos.latidoMs,
   });

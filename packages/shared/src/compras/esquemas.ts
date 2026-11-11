@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { autorSchema } from "../autor.js";
 
 // Spec 014 (plan, Contratos: HTTP). Cuerpos de las acciones de compras. Los montos viajan siempre como
 // cadenas decimales de NUMERIC(14,2): ningún esquema acepta un `number` para dinero. `z.object` descarta
@@ -163,6 +164,7 @@ export const estadoPeriodoSchema = z.enum(ESTADOS_PERIODO_COMPRAS);
 export const estadoPeriodoRespuestaSchema = z.object({
   estado: estadoPeriodoSchema,
   por: z.uuid().nullable(),
+  autor: autorSchema.nullable(),
   en: z.iso.datetime().nullable(),
 });
 export type EstadoPeriodoRespuesta = z.infer<typeof estadoPeriodoRespuestaSchema>;

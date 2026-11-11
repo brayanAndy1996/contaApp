@@ -210,6 +210,42 @@ describe("P-1 · marcar revisado y reabrir el periodo de ventas", () => {
   });
 });
 
+// Spec 017 · T18a-servidor (P-1): el resumen de ventas trae el bloque de estado de revisar y reabrir (`por`, `autor`, `en`).
+describe("P-1 (017) · el resumen de ventas dice quién marcó el periodo y cuándo", () => {
+  it("abierto y sin marcar: por, autor y en son null", async () => {
+    const c = await v.cliente(E, { responsable: contador.id, colaboradores: [lectura.id] });
+    const r = await getOk(lectura, c, "/resumen");
+    expect(r.body).toMatchObject({ estado: "abierto", por: null, autor: null, en: null });
+    expect(cumple("resumenVentasSchema", r.body), r.text).toBe(true);
+  });
+
+  it("revisado: otro usuario, o tras recargar, ve por, autor con nombre y en iguales a los de revisar", async () => {
+    const e = await escenario();
+    await v.b.c.p.b.sql("update usuario set nombre = 'Carlos Contador' where id = $1", [contador.id]);
+    const marca = await post(contador, e.c, "/estado/revisar");
+    expect(marca.status, marca.text).toBe(200);
+    for (const quien of [lectura, contador]) {
+      const r = await getOk(quien, e.c, "/resumen");
+      expect(r.body.estado).toBe("revisado");
+      expect(r.body.por).toBe(contador.id);
+      expect(r.body.autor).toEqual({ id: contador.id, nombre: "Carlos Contador", activo: true });
+      expect(r.body.en).toBe(marca.body.en);
+      expect(Object.keys(r.body.autor).sort()).toEqual(["activo", "id", "nombre"]);
+      expect(cumple("resumenVentasSchema", r.body), r.text).toBe(true);
+    }
+  });
+
+  it("quien marcó y se desactivó conserva su nombre con activo false", async () => {
+    const c = await v.cliente(E, { responsable: contador.id });
+    const baja = await v.b.c.p.b.miembro(E.tenantId, "contador", { sesion: false });
+    await v.b.c.p.b.sql("update usuario set nombre = 'Beto Baja' where id = $1", [baja.id]);
+    await A.estadoVentas(E.tenantId, c.id, PERIODO, "revisado", baja.id);
+    await v.b.c.p.b.sql("update membresia set desactivada_en = now() where usuario_id = $1 and tenant_id = $2", [baja.id, E.tenantId]);
+    const r = await getOk(contador, c, "/resumen");
+    expect(r.body.autor).toEqual({ id: baja.id, nombre: "Beto Baja", activo: false });
+  });
+});
+
 describe("P-1 · permisos, alcance y cliente archivado de revisar y reabrir", () => {
   it("la lectura no revisa ni reabre (403 permiso_denegado); el asistente no asignado recibe 404", async () => {
     const e = await escenario("revisado");

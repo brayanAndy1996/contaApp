@@ -290,7 +290,7 @@ describe("escrituras y errores con datos", () => {
       extra: {
         [`POST ${BASE}/estado/reabrir`]: {
           status: 200,
-          cuerpo: { estado: "abierto", por: null, en: null },
+          cuerpo: { estado: "abierto", por: null, autor: null, en: null },
         },
       },
     });

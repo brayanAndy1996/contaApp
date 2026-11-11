@@ -360,15 +360,16 @@ describe("estadoPeriodoSchema (D-9)", () => {
 
   it("respuesta de revisar y reabrir: estado, quién y cuándo", () => {
     const por = randomUUID();
-    expect(datos(estadoPeriodoRespuestaSchema, { estado: "revisado", por, en: "2026-11-06T12:00:00.000Z" })).toEqual({
+    expect(datos(estadoPeriodoRespuestaSchema, { estado: "revisado", por, autor: { id: por, nombre: "Ana Pérez", activo: true }, en: "2026-11-06T12:00:00.000Z" })).toEqual({
       estado: "revisado",
       por,
+      autor: { id: por, nombre: "Ana Pérez", activo: true },
       en: "2026-11-06T12:00:00.000Z",
     });
   });
 
   it("un periodo abierto desde la primera descarga todavía no tiene autor ni fecha", () => {
-    expect(ok(estadoPeriodoRespuestaSchema, { estado: "abierto", por: null, en: null })).toBe(true);
+    expect(ok(estadoPeriodoRespuestaSchema, { estado: "abierto", por: null, autor: null, en: null })).toBe(true);
   });
 
   it.each([
@@ -384,5 +385,26 @@ describe("estadoPeriodoSchema (D-9)", () => {
 describe("montoDecimalSchema: bigint", () => {
   it("rechaza un bigint", () => {
     expect(ok(montoDecimalSchema, 10n)).toBe(false);
+  });
+});
+
+// Spec 017 · T1 (rojo). Autor con nombre en «revisado por» (014 D-13, 017 D-12, CA-13): junto a `por` viaja `autor`
+// ({id, nombre, activo} o null mientras nadie haya marcado); el id se conserva.
+describe("estadoPeriodoRespuestaSchema · autor (017)", () => {
+  const por = randomUUID();
+  const en = "2026-11-06T12:00:00.000Z";
+  it("conserva por y trae el autor con nombre", () => {
+    const r = estadoPeriodoRespuestaSchema.safeParse({ estado: "revisado", por, autor: { id: por, nombre: "Ana Pérez", activo: true }, en });
+    expect(r.success).toBe(true);
+    expect(r.data).toMatchObject({ por, autor: { id: por, nombre: "Ana Pérez", activo: true } });
+  });
+  it("un miembro desactivado y un id ajeno (nombre null) son válidos", () => {
+    expect(ok(estadoPeriodoRespuestaSchema, { estado: "revisado", por, autor: { id: por, nombre: "Ana Pérez", activo: false }, en })).toBe(true);
+    expect(ok(estadoPeriodoRespuestaSchema, { estado: "revisado", por, autor: { id: por, nombre: null, activo: false }, en })).toBe(true);
+  });
+  it("exige la clave autor y rechaza un autor mal formado", () => {
+    expect(ok(estadoPeriodoRespuestaSchema, { estado: "revisado", por, en })).toBe(false);
+    expect(ok(estadoPeriodoRespuestaSchema, { estado: "revisado", por, autor: { id: por, nombre: "Ana" }, en })).toBe(false);
+    expect(ok(estadoPeriodoRespuestaSchema, { estado: "revisado", por, autor: por, en })).toBe(false);
   });
 });

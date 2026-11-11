@@ -23,6 +23,8 @@ export interface ContextoPersistidor {
  */
 export interface ContextoTras extends ContextoPersistidor {
   tenantId: string;
+  /** Trabajo de descarga en curso: los `withTenant` que abra el gancho llevan su actor `trabajo` (017). */
+  trabajoId?: string;
   usuarioId: string;
   db: Pick<ContappDb, "withTenant">;
   redis?: RedisEncolado;

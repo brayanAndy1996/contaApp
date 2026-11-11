@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { EstadoPeriodoRespuesta } from "@contapp/shared";
+import type { Autor as AutorDto, EstadoPeriodoRespuesta } from "@contapp/shared";
 import { fechaCorta } from "../../lib/acceso";
 import {
   MENSAJES_COMPRAS as M,
@@ -12,6 +12,7 @@ import {
   type PermisosCompras,
   type ResultadoCompras,
 } from "../../lib/compras";
+import { Autor } from "../autor";
 import { ConfirmarAccion } from "../ventas/confirmar-accion";
 
 // Estado del periodo (spec 015, D-13; RF-071, 014 D-9, DU-23; CA-13). Insignia `abierto` / `revisado` /
@@ -70,6 +71,7 @@ export function EstadoPeriodo({
   contexto,
   archivado,
   en,
+  autor = null,
   alCambiar,
   alRecargar,
   acciones = ACCIONES_COMPRAS,
@@ -78,6 +80,8 @@ export function EstadoPeriodo({
   archivado: boolean;
   /** Cuándo se marcó el periodo (de la última respuesta de revisar o reabrir), o `null` si no se sabe. */
   en: string | null;
+  /** Quién marcó el periodo (D-12), con nombre; sin él se muestra «Usuario desconocido». */
+  autor?: AutorDto | null;
   /** El servidor cambió el estado: la página lo guarda y recarga el resumen. */
   alCambiar: (respuesta: EstadoPeriodoRespuesta) => void;
   /** 409 `estado_invalido`: el estado de la página quedó viejo y hay que volver a pedirlo. */
@@ -151,7 +155,9 @@ export function EstadoPeriodo({
           {M.estado[estado]}
         </span>
         {en !== null && estado !== "abierto" && (
-          <span className="text-sm">{M.estadoPor(fechaCorta(en))}</span>
+          <span className="text-sm">
+            {M.estadoPorAutor(fechaCorta(en))} <Autor autor={autor} />
+          </span>
         )}
         {puedeRevisar && (
           <button

@@ -175,7 +175,7 @@ describe("CA-1 · previo de compras sin corregir (mixta 21.48/1.61 y San Juan IS
   it("estado inicial: abierto, sin marca, sin versiones y sin reapertura", async () => {
     const { c } = await compras();
     const r = await previoOk(contador, c);
-    expect(r.body.estado).toEqual({ estado: "abierto", por: null, en: null });
+    expect(r.body.estado).toEqual({ estado: "abierto", por: null, autor: null, en: null }); // 017 D-12: `autor` junto a `por`
     expect(r.body.ultimaVersion).toBeNull();
     expect(r.body.reabiertoTrasUltima).toBe(false);
   });

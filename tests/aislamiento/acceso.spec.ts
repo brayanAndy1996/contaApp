@@ -488,11 +488,20 @@ describe("trigger membresia_ultimo_dueno: catalogo (D10, RF-028)", () => {
     expect(sp, "search_path fijo").toBeDefined();
   });
 
-  it("es el unico trigger de usuario de membresia", async () => {
+  it("los unicos triggers de usuario de membresia son los esperados (ultimo dueño, auditoria 017 y aviso del plan 017)", async () => {
     const r = await consulta(
-      "select t.tgname from pg_trigger t where t.tgrelid = to_regclass('public.membresia') and not t.tgisinternal order by 1",
+      `select t.tgname, p.proname, (t.tgtype & 2) = 0 as despues
+         from pg_trigger t join pg_proc p on p.oid = t.tgfoid
+        where t.tgrelid = to_regclass('public.membresia') and not t.tgisinternal order by 1`,
     );
-    expect(r.map((x) => x.tgname)).toEqual(["membresia_ultimo_dueno"]);
+    // membresia_ultimo_dueno (005) sigue siendo el unico que protege el ultimo dueño; 017 (0042, 0043) agrega auditoria y aviso, y la
+    // ronda R1 (T16/T17: baja de membresia auditada y con plan_aviso recalculado) puede sumar triggers propios con esas mismas funciones.
+    expect(r.filter((x) => x.tgname === "membresia_ultimo_dueno")).toHaveLength(1);
+    const de017 = r.filter((x) => x.tgname !== "membresia_ultimo_dueno");
+    expect(de017.map((x) => x.tgname)).toEqual(expect.arrayContaining(["auditoria_membresia", "plan_aviso_alta", "plan_aviso_cambio"]));
+    for (const t of de017) expect(["auditoria_capturar_membresia", "plan_aviso_disparar"], t.tgname).toContain(t.proname);
+    // Los de 017 no pueden vetar ni alterar la fila: son AFTER.
+    for (const t of de017) expect(t.despues, t.tgname).toBe(true);
   });
 });
 

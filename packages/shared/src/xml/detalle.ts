@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { autorSchema } from "../autor.js";
 import {
   MONEDAS_COMPRA,
   montoDecimalSchema,
@@ -92,6 +93,7 @@ export const estadoXmlSchema = z.discriminatedUnion("estado", [
     estado: z.literal("disponible"),
     origen: origenDocumentoXmlSchema,
     subidoPor: z.uuid().optional(),
+    autor: autorSchema.optional(),
     subidoEn: z.iso.datetime().optional(),
     avisoMoneda: avisoMonedaSchema.optional(),
   }),

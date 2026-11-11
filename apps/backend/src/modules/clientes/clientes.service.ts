@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import {
   AccesoReglaError,
   archivarCliente,
@@ -29,6 +29,7 @@ import type { SesionResuelta } from "../auth/auth.service.js";
 import { DB } from "../auth/inyeccion.js";
 import { AccesoError } from "../acceso/errores.js";
 import { CUPO_RUCS, type CupoRucs } from "../planes/cupo/cupo-rucs.js";
+import { destinatariosPendientes, NOTIFICADOR, type Notificador } from "../notificaciones/notificador.js";
 import { Encolador } from "../trabajos/encolador.js";
 import { contextoDe } from "./contexto.js";
 import { encolarConsultasRuc } from "./consulta-ruc.js";
@@ -82,6 +83,7 @@ export class ClientesService {
     @Inject(DB) private readonly db: Pick<ContappDb, "withTenant">,
     @Inject(CUPO_RUCS) private readonly cupo: CupoRucs,
     @Inject(Encolador) private readonly encolador: Pick<Encolador, "encolarLote">,
+    @Optional() @Inject(NOTIFICADOR) private readonly notificador?: Notificador,
   ) {}
 
   listar(sesion: SesionResuelta, alcance: Alcance, query: unknown): Promise<ClienteDto[]> {
@@ -105,6 +107,7 @@ export class ClientesService {
   async crear(sesion: SesionResuelta, cuerpo: unknown): Promise<ClienteDto> {
     const datos = parsear(clienteCrearSchema, cuerpo);
     const ctx = contextoDe(sesion);
+    let avisar: string[] = [];
     const dto = await traducir(() =>
       this.db.withTenant(ctx, async (tx) => {
         const bloqueados = await bloquearMiembros(tx, [
@@ -125,9 +128,13 @@ export class ClientesService {
         if (datos.responsableId !== undefined) {
           noNulo(await asignar(tx, { clienteId: id, usuarioId: datos.responsableId, tipo: "responsable" }));
         }
-        return noNulo(await leerClienteDto(tx, id));
+        const creado = noNulo(await leerClienteDto(tx, id));
+        avisar = await destinatariosPendientes(this.notificador, tx);
+        return creado;
       }),
     );
+    // Spec 017 (D-9): aviso en vivo de lo que la transacción notificó (p. ej. el 90 % de RUCs), solo tras el commit.
+    await this.notificador?.avisar(ctx.tenantId, avisar);
     // Tras el commit y sin propagar su fallo (D1): si no se encola, el cliente queda con la razón social provisional.
     await encolarConsultasRuc(this.encolador, ctx, [dto.id]);
     return dto;
@@ -165,7 +172,8 @@ export class ClientesService {
    */
   async reactivar(sesion: SesionResuelta, clienteId: string): Promise<ClienteDto> {
     const ctx = contextoDe(sesion);
-    return traducir(() =>
+    let avisar: string[] = [];
+    const dto = await traducir(() =>
       this.db.withTenant(ctx, async (tx) => {
         const bloqueados = await bloquearMiembros(tx, [sesion.usuarioId]);
         exigirActor(bloqueados.get(sesion.usuarioId.toLowerCase()) ?? null, "clientes.archivar");
@@ -173,8 +181,12 @@ export class ClientesService {
         if (!actual.archivado) return actual;
         await this.cupo.reservar(tx, ctx.tenantId, 1);
         await reactivarCliente(tx, clienteId);
-        return noNulo(await leerClienteDto(tx, clienteId));
+        const reactivado = noNulo(await leerClienteDto(tx, clienteId));
+        avisar = await destinatariosPendientes(this.notificador, tx);
+        return reactivado;
       }),
     );
+    await this.notificador?.avisar(ctx.tenantId, avisar);
+    return dto;
   }
 }

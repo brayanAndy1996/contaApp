@@ -91,7 +91,7 @@ async function arrancarWorker(procesadores: Record<string, Procesador>) {
     prefijo,
     procesadores,
     logger: silencio,
-    notificador: { credencialInvalida: async () => undefined },
+    notificador: { avisar: async () => undefined },
     intervalos: { despachadorMs: 20, reconciliadorMs: 500, latidoMs: 200 },
   });
   const detener = async () => {

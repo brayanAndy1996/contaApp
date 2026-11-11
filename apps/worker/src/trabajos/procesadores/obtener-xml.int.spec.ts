@@ -36,13 +36,13 @@ import {
   fijarConfig,
   limpiarPrefijo,
   minimoTx,
-  notificadorEspia,
   nuevoPrefijo,
   restaurarConfig,
   rucNuevo,
   volcarPrefijo,
   type ProcesoWorker,
 } from "../../../test/trabajos.js";
+import { notificacionesDe, notificadorEspia } from "../../../test/notificaciones.js";
 import {
   EMISORES,
   NUMEROS_FIXTURE,
@@ -517,7 +517,10 @@ describe("CA-11: fallos del proveedor (centinelas 8, 7 y 9)", () => {
     expect(p.xml.mock.registro()).toMatchObject([{ resultado: "error", clase: "credencial" }]);
     expect(await e.credencialEstado(m.c.id, "sol")).toEqual(antes.sol);
     expect(await e.credencialEstado(m.c.id, "sire_api")).toEqual(antes.sire);
-    expect(notificador.llamadas, "no hay aviso de credencial inválida").toEqual([]);
+    expect(
+      await notificacionesDe(admin, m.T, { tipo: "credencial_invalida" }),
+      "no hay aviso de credencial inválida",
+    ).toEqual([]);
     expect(await contarDocumentos(admin, m.c.id)).toBe(0);
     expect(await obtencionesDe(admin, m.c.id)).toMatchObject([{ numero: "1009", estado: "credencial" }]);
   });

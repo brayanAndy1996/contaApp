@@ -13,6 +13,16 @@ const aislamiento = fileURLToPath(
   new URL("../../tests/aislamiento", import.meta.url),
 );
 
+// 017 (T14): umbral de 90 % por archivo para auditoría, notificaciones, autor y origen. Se fija por glob
+// (no como `perFile` global) para no cambiar la medición del resto de `src`.
+const porArchivo = {
+  perFile: true,
+  lines: 90,
+  statements: 90,
+  functions: 90,
+  branches: 90,
+};
+
 export default defineConfig({
   test: {
     // Las suites con BD comparten la misma base: nada en paralelo.
@@ -55,6 +65,10 @@ export default defineConfig({
         statements: 90,
         functions: 90,
         branches: 90,
+        "src/auditoria/**/*.ts": porArchivo,
+        "src/notificaciones/**/*.ts": porArchivo,
+        "src/acceso/autores.ts": porArchivo,
+        "src/clientes/origen.ts": porArchivo,
       },
     },
   },

@@ -7,11 +7,13 @@
 //      intentos + 1, backoff) | error con motivo. Clasificación con `clasificarError` (sunat) y decisión con
 //      `decidirTrasError` (queue) usando la `config_sistema` VIGENTE. Con `ErrorCredencial`, en la misma transacción,
 //      `marcarCredencialInvalida`.
-//  (5) Tras el commit: avisa al Notificador (una vez, solo si la credencial cambió; sin esperarlo), libera cupos y
+//  (5) Tras el commit: avisa al Notificador (017: solo a los destinatarios de las notificaciones que guardó la propia
+//      transacción de cierre, `destinatariosNuevos`; sin esperarlo), libera cupos y
 //      ejec, deja el lock del RUC con PX = espera_ruc_ms, vuelve a publicar el reintento y publica el evento. Después
 //      del evento no hace nada más (Ratificaciones de T5/T6 (6)).
 // Nada de lo que lanza el procesador llega a la BD, a Redis, a los eventos ni a los logs: solo códigos.
 import {
+  destinatariosNuevos,
   leerTrabajo,
   marcarCredencialInvalida,
   transicionar,
@@ -104,7 +106,8 @@ type Desenlace =
 
 interface Final {
   fila: TrabajoFila;
-  credencialCambio: boolean;
+  /** Usuarios con una notificación nueva guardada por esta transacción (017, D-9). */
+  destinatarios: string[];
 }
 
 /** Fila con el dueño de esta ejecución (`ejec:{jobId}` = `ejecucion`, H-008-1b-3). */
@@ -274,19 +277,10 @@ export class Ejecutor {
       });
       return;
     }
-    // (5) Tras el commit. El aviso sale en cuanto la credencial quedó marcada, sin esperarlo: un canal lento o caído
-    // no retiene el lock ni los cupos, y su fallo solo se registra (el trabajo ya quedó en error).
-    if (final.credencialCambio && def?.credencial) {
-      this.avisar(
-        {
-          tenantId: fila.tenantId,
-          clienteId: fila.clienteId,
-          tipo: def.credencial,
-          trabajoId: fila.id,
-        },
-        campos,
-      );
-    }
+    // (5) Tras el commit. El aviso sale en cuanto la notificación quedó guardada, sin esperarlo: un canal lento o caído
+    // no retiene el lock ni los cupos, y su fallo solo se registra (el hecho y la notificación ya están confirmados).
+    if (final.destinatarios.length > 0)
+      this.avisar(fila.tenantId, final.destinatarios, campos);
     await liberarArriendos(redis, this.k, propia, cfg.esperaRucMs);
     if (final.fila.estado === "en_cola") {
       await publicar(
@@ -330,17 +324,18 @@ export class Ejecutor {
   }
 
   private avisar(
-    aviso: Parameters<Notificador["credencialInvalida"]>[0],
+    tenantId: string,
+    destinatarios: string[],
     campos: ReturnType<typeof camposTrabajo>,
   ): void {
     const fallo = () =>
       registrar(this.d.logger, "warn", {
         evento: "notificador_fallo",
         ...campos,
-        codigo: "credencial_invalida",
+        codigo: "aviso_fallido",
       });
     try {
-      void this.d.notificador.credencialInvalida(aviso).catch(fallo);
+      void this.d.notificador.avisar(tenantId, destinatarios).catch(fallo);
     } catch {
       fallo();
     }
@@ -462,39 +457,43 @@ export class Ejecutor {
     def: DefinicionTrabajo | null,
     versionCred: string | null | undefined,
   ): Promise<Final | null> {
-    return this.d.db.withTenant({ tenantId: fila.tenantId }, async (tx) => {
-      const campos =
-        d.hacia === "completado"
-          ? { resultado: d.resultado ?? null }
-          : d.hacia === "en_cola"
-            ? { intentos: d.intentos, disponibleDesde: d.disponibleDesde }
-            : { motivo: d.motivo };
-      // Solo la ejecución vigente cierra el trabajo: si ya se volvió a lanzar (intento consumido), pierde (H-008-1b-3).
-      if (
-        !(await transicionar(tx, fila.id, "ejecutando", d.hacia, campos, {
-          intentos: fila.intentos,
-        }))
-      )
-        return null;
-      let credencialCambio = false;
-      if (
-        d.hacia === "error" &&
-        d.motivo === "credencial_invalida" &&
-        def?.credencial
-      ) {
-        // Sin marcar una credencial reemplazada mientras corría el trabajo (H-008-1b-5): solo si la fila sigue siendo
-        // la versión que el trabajo vio al empezar (H-008-2a-4).
-        credencialCambio = await marcarCredencialInvalida(
-          tx,
-          fila.clienteId,
-          def.credencial,
-          "credencial_invalida",
-          fila.id,
-          versionCred,
-        );
-      }
-      const actual = await leerTrabajo(tx, fila.id);
-      return actual === null ? null : { fila: actual, credencialCambio };
-    });
+    return this.d.db.withTenant(
+      { tenantId: fila.tenantId, trabajoId: fila.id },
+      async (tx) => {
+        const campos =
+          d.hacia === "completado"
+            ? { resultado: d.resultado ?? null }
+            : d.hacia === "en_cola"
+              ? { intentos: d.intentos, disponibleDesde: d.disponibleDesde }
+              : { motivo: d.motivo };
+        // Solo la ejecución vigente cierra el trabajo: si ya se volvió a lanzar (intento consumido), pierde (H-008-1b-3).
+        if (
+          !(await transicionar(tx, fila.id, "ejecutando", d.hacia, campos, {
+            intentos: fila.intentos,
+          }))
+        )
+          return null;
+        if (
+          d.hacia === "error" &&
+          d.motivo === "credencial_invalida" &&
+          def?.credencial
+        ) {
+          // Sin marcar una credencial reemplazada mientras corría el trabajo (H-008-1b-5): solo si la fila sigue siendo
+          // la versión que el trabajo vio al empezar (H-008-2a-4).
+          await marcarCredencialInvalida(
+            tx,
+            fila.clienteId,
+            def.credencial,
+            "credencial_invalida",
+            fila.id,
+            versionCred,
+          );
+        }
+        // Las notificaciones las insertan los triggers de la BD en esta misma transacción (D-9): se leen antes del commit.
+        const destinatarios = await destinatariosNuevos(tx);
+        const actual = await leerTrabajo(tx, fila.id);
+        return actual === null ? null : { fila: actual, destinatarios };
+      },
+    );
   }
 }

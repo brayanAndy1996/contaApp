@@ -288,6 +288,41 @@
       "when": 1794352203926,
       "tag": "0040_archivo_generado",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1794399791193,
+      "tag": "0041_auditoria",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1794399796494,
+      "tag": "0042_auditoria_capturas",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1794399797399,
+      "tag": "0043_notificacion",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1794402472053,
+      "tag": "0044_auditoria_notificacion_ms",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1794416058787,
+      "tag": "0045_auditoria_ronda_r1",
+      "breakpoints": true
     }
   ]
 }

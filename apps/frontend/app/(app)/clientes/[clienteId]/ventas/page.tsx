@@ -131,6 +131,7 @@ function Ventas() {
   const [marca, setMarca] = useState<{
     estado: EstadoPeriodoCompras;
     en: string;
+    autor: EstadoPeriodoRespuesta["autor"];
   } | null>(null);
   const [exclusion, setExclusion] = useState<AccionExclusion | null>(null);
   /** Ventas con un error `excluible` según el último previo que vio el panel (D12). */
@@ -234,6 +235,16 @@ function Ventas() {
       setResumen(r.datos);
       // Un servidor anterior a 012b no manda el estado: el periodo cuenta como abierto.
       setEstado(r.datos.estado ?? "abierto");
+      // P-1: quién marcó y cuándo viene del resumen, así que sobrevive a recargar y a verlo otra persona.
+      setMarca(
+        r.datos.estado && r.datos.en
+          ? {
+              estado: r.datos.estado,
+              en: r.datos.en,
+              autor: r.datos.autor ?? null,
+            }
+          : null,
+      );
     } else falla(r.status, r.datos);
     // `sResumen` es estable (solo envuelve un ref).
   }, [clienteId, periodo, falla]);
@@ -385,7 +396,9 @@ function Ventas() {
   /** El estado del periodo lo cambió esta persona (revisar o reabrir): se guarda y se recarga el resumen. */
   function alCambiarEstado(r: EstadoPeriodoRespuesta) {
     setEstado(r.estado);
-    setMarca(r.en === null ? null : { estado: r.estado, en: r.en });
+    setMarca(
+      r.en === null ? null : { estado: r.estado, en: r.en, autor: r.autor },
+    );
     void cargarResumen().catch(() => setErrorGeneral(MENSAJES.errorGeneral));
   }
 
@@ -626,6 +639,7 @@ function Ventas() {
           aprobarGenerar={permisos.aprobarGenerar}
           archivado={archivado}
           en={marca !== null && marca.estado === estado ? marca.en : null}
+          autor={marca !== null && marca.estado === estado ? marca.autor : null}
           alCambiar={alCambiarEstado}
           alRecargar={() =>
             void cargarResumen().catch(() => setErrorGeneral(MENSAJES.errorGeneral))

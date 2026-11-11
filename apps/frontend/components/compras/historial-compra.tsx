@@ -7,6 +7,7 @@ import {
   obtenerDetalleCompra,
   type ContextoCompras,
 } from "../../lib/compras";
+import { etiquetaAutor } from "../../lib/autor";
 import { conMiles, iguales } from "../../lib/montos-compras";
 import { comprobanteDe } from "./accion-compras";
 
@@ -141,7 +142,7 @@ export function HistorialCompra({
                   <p>
                     {M.versionPor(
                       ver.n,
-                      ver.usuarioId ? ver.usuarioId.slice(0, 8) : "SIRE",
+                      ver.usuarioId ? etiquetaAutor(ver.autor) : M.autorSire,
                       fechaLegible(ver.creadaEn),
                     )}
                   </p>

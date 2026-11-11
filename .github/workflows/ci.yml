@@ -135,6 +135,12 @@ jobs:
           CORREO_PROVIDER: consola
           APP_ORIGIN: http://localhost:3000
 
+      - name: Cobertura de 017 auditoría y notificaciones en backend y worker (umbral 90 % por archivo)
+        run: pnpm cobertura:auditoria
+        env:
+          CORREO_PROVIDER: consola
+          APP_ORIGIN: http://localhost:3000
+
       - name: Cobertura de packages/db (umbral 90 %)
         run: pnpm cobertura:db
 

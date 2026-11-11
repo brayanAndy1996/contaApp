@@ -23,7 +23,6 @@ import {
   esperarHasta,
   fijarConfig,
   limpiarPrefijo,
-  notificadorEspia,
   nuevoPrefijo,
   ProcesadorProgramable,
   registrarTiposDePrueba,
@@ -31,6 +30,7 @@ import {
   suscribirEventos,
   volcarPrefijo,
 } from "../../test/trabajos.js";
+import { notificadorEspia } from "../../test/notificaciones.js";
 
 // Spec 008, T5 (rojo; integración con PostgreSQL y Redis reales): sin fugas de secretos (CA-16, RNF-004, RNF-083). Un client_secret, una
 // clave SOL y un token SIRE canario no aparecen en logs, en job_registro (parámetros, resultado, motivo), en Redis (claves y valores,
@@ -244,7 +244,14 @@ describe("CA-16: canarios de secretos ausentes de logs, job_registro, Redis, eve
       }
 
       // Notificador.
-      expect(notificador.llamadas).toHaveLength(1);
+      // 017: un aviso por cada trabajo interactivo terminado (6), todos al creador; ninguno lleva contenido.
+      await esperarHasta(
+        () => notificador.llamadas.length >= 6,
+        "un aviso por trabajo terminado",
+      );
+      expect(notificador.llamadas).toHaveLength(6);
+      for (const l of notificador.llamadas)
+        expect(l).toEqual({ tenantId: T, usuarioIds: [usuario] });
       for (const s of TODOS)
         expect(volcado(notificador.llamadas)).not.toContain(s);
 

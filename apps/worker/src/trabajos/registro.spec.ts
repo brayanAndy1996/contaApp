@@ -1,9 +1,9 @@
-// Unitarias de logs y avisos (T10, CA-16).
+// Unitarias de logs (T10, CA-16). Spec 017 · T4: el test de `NotificadorLog` se fue con la clase; lo que lo reemplaza
+// (`NotificadorEventos`, el puerto `avisar`) está en notificador.spec.ts.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   camposTrabajo,
   loggerConsola,
-  NotificadorLog,
   registrar,
 } from "./registro.js";
 
@@ -43,35 +43,5 @@ describe("registro", () => {
       job_id: "j",
       tipo: "a.b",
     });
-  });
-
-  it("NotificadorLog registra el aviso solo con ids (por defecto en consola)", async () => {
-    const warn = vi.fn();
-    await new NotificadorLog({
-      info: vi.fn(),
-      warn,
-      error: vi.fn(),
-    }).credencialInvalida({
-      tenantId: "t",
-      clienteId: "c",
-      tipo: "sol",
-      trabajoId: "j",
-    });
-    expect(warn).toHaveBeenCalledWith({
-      evento: "aviso_credencial_invalida",
-      cliente_id: "c",
-      credencial: "sol",
-      trabajo_id: "j",
-    });
-    const consola = vi
-      .spyOn(console, "warn")
-      .mockImplementation(() => undefined);
-    await new NotificadorLog().credencialInvalida({
-      tenantId: "t",
-      clienteId: "c",
-      tipo: "sire_api",
-      trabajoId: "j",
-    });
-    expect(consola).toHaveBeenCalledTimes(1);
   });
 });

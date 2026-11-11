@@ -73,6 +73,7 @@ const listarOk = async (...args: Parameters<typeof listar>) => {
 };
 
 const CLAVES_DTO = [
+  "autor", // 017 D-12: junto a `generadoPor`
   "avisos",
   "bytesZip",
   "formato",
