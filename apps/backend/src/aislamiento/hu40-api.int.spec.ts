@@ -11,6 +11,11 @@
 // de eventos de B desde A dan 404/409 (o 200 sin datos de B), nunca un dato ni un efecto en B. El stream se prueba con
 // `node:http` y mensajes reales en `eventos:{tenantId}` (Redis base 15, prefijo propio). Rojo hasta T11.
 //
+// 017 (T5) agrega las 5 rutas de notificaciones y auditoría (`GET /notificaciones`, `GET /notificaciones/no-leidas`,
+// `POST /notificaciones/leidas`, `POST /notificaciones/:id/leida` y `GET /auditoria`): cada estudio tiene sus notificaciones (del Dueño y
+// de la asistente), su auditoría y un descifrado sembrados por SQL; los ids de B y sus razones sociales son marcas de fuga. Un usuario
+// de A, con los ids, el usuarioId o el tenantId de B en URL, consulta o cuerpo, recibe 404/400/403 o su propia lista, y las notificaciones
+// y la auditoría de B quedan intactas. Rojo hasta T10 (rutas) y T7 (tablas): hasta entonces los casos nuevos fallan, los demás no.
 // 006 (T3) agrega los casos de `/registro/*`, `GET /plan/uso` y las 6 rutas `/plataforma/*` (CA-8): los usuarios de A
 // (ninguno super-admin) con IDs, tokens y correos de B. Rojo hasta T7 (uso), T8 (registro) y T9 (plataforma).
 import { createHash, randomBytes, randomUUID } from "node:crypto";
@@ -31,6 +36,13 @@ import {
   type RedisPrueba,
 } from "../../test/soporte-trabajos.js";
 import { rucConPrefijo, xlsxConDatos } from "../../test/soporte-importacion.js";
+import {
+  borrarPorId,
+  type OpcionesNotif,
+  sembrarAuditoria,
+  sembrarDescifrado,
+  sembrarNotificacion,
+} from "../../test/soporte-notificaciones.js";
 import { csvVentas, fila as filaVenta } from "../../test/soporte-ventas.js";
 import {
   abrirHarness,
@@ -103,6 +115,8 @@ interface Caso {
   /** La respuesta repite lo que el atacante envió (correo): no cuenta como fuga. */
   eco?: boolean;
   construir(c: Contexto): Pet[];
+  /** Preparación asíncrona previa a las peticiones (p. ej. tomar una instantánea de lo que no debe cambiar). */
+  antes?(c: Contexto): Promise<void>;
   /** Comprobaciones propias del caso, tras las peticiones. */
   extra?(c: Contexto, respuestas: Resp[]): Promise<void>;
   /** Limpieza propia del caso (se ejecuta siempre). */
@@ -120,6 +134,15 @@ const clientesCreados: string[] = [];
 /** Redis de las pruebas de `/trabajos`: base 15 y prefijo propio (la app recibe la misma URL y prefijo). */
 const prefijoRedis = nuevoPrefijo();
 let redis: RedisPrueba;
+/** 017: lo que se sembró en cada estudio (notificaciones, auditoría y descifrado) y el error de la siembra, si falló. */
+interface SembradoAvisos {
+  notifDueno: string[];
+  notifAsistente: string[];
+  auditoria: string[];
+  descifrado: string[];
+}
+const sembradoAvisos = new Map<string, SembradoAvisos>();
+let falloSiembraAvisos: string | null = null;
 
 const todos = (...n: number[]): Esperado => ({ dueno: n, asistente: n });
 const E404: Esperado = { dueno: [404], asistente: [403, 404] };
@@ -215,6 +238,36 @@ async function prepararEstudio(
     invitacionCorreo,
     tokenHash,
   };
+}
+
+/**
+ * 017: siembra por SQL las notificaciones (del Dueño y de la asistente, con y sin cliente, una de un cliente que la asistente no tiene
+ * asignado), la auditoría (de usuario, de trabajo y de sistema) y un descifrado del estudio. Sus ids pasan a ser marcas de fuga.
+ */
+async function sembrarAvisos(r: Recursos): Promise<SembradoAvisos> {
+  const q = (texto: string, valores?: unknown[]) => h.sql(texto, valores);
+  const notif = async (usuarioId: string, o: Omit<OpcionesNotif, "tenantId" | "usuarioId">) =>
+    (await sembrarNotificacion(q, { tenantId: r.tenantId, usuarioId, ...o })).id;
+  const notifDueno = [
+    await notif(r.dueno.id, { tipo: "credencial_invalida", clienteId: r.clientes[0], hace: 600 }),
+    await notif(r.dueno.id, { tipo: "plan_limite", hace: 500 }),
+    await notif(r.dueno.id, { tipo: "trabajo_terminado", clienteId: r.clientes[1], hace: 400 }),
+  ];
+  const notifAsistente = [
+    await notif(r.asistente.id, { tipo: "credencial_invalida", clienteId: r.clientes[0], hace: 300 }),
+    await notif(r.asistente.id, { tipo: "trabajo_terminado", clienteId: r.clientes[0], hace: 200 }),
+    await notif(r.asistente.id, { tipo: "credencial_invalida", clienteId: r.clientes[1], hace: 100 }), // cliente que no tiene asignado
+  ];
+  const auditoria = [
+    (await sembrarAuditoria(q, { tenantId: r.tenantId, usuarioId: r.dueno.id, clienteId: r.clientes[0], accion: "cliente.editado", datos: { cambios: { razon_social: ["VIEJA SAC", "NUEVA SAC"] } }, hace: 900 })).id,
+    (await sembrarAuditoria(q, { tenantId: r.tenantId, actorTipo: "trabajo", usuarioId: r.asistente.id, clienteId: r.clientes[0], accion: "propuesta.cargada", entidad: "propuesta", entidadId: randomUUID(), datos: { libro: "compras", periodo: "202610", fuente: "sire", filasRecibidas: 3 }, hace: 800 })).id,
+    (await sembrarAuditoria(q, { tenantId: r.tenantId, accion: "miembro.alta", entidad: "membresia", datos: { rol: "asistente", via: "otro" }, hace: 700 })).id,
+  ];
+  const descifrado = [(await sembrarDescifrado(q, { tenantId: r.tenantId, clienteId: r.clientes[0], hace: 850 })).id];
+  const sembrado = { notifDueno, notifAsistente, auditoria, descifrado };
+  sembradoAvisos.set(r.tenantId, sembrado);
+  r.ids.push(...notifDueno, ...notifAsistente, ...auditoria, ...descifrado);
+  return sembrado;
 }
 
 /** Marcadores: todo lo que existe en `de` y no en `contra` (los usuarios de ambos, como uAB, no cuentan). */
@@ -515,6 +568,159 @@ function casosArchivos(): Caso[] {
     caso("POST", "ventas", "/estado/reabrir", () => "/estado/reabrir", () => ({ estadoVisto: "revisado" })),
     caso("POST", "ventas", "/:ventaId/excluir", () => `/${randomUUID()}/excluir`, () => ({ motivo: "Intruso HU40" })),
     caso("POST", "ventas", "/:ventaId/restaurar", () => `/${randomUUID()}/restaurar`, () => ({})),
+  ];
+}
+
+
+/**
+ * 017 (T5): las 5 rutas de notificaciones y auditoría. El estudio y el usuario salen de la sesión: ningún `usuarioId`, `tenantId` ni id
+ * de B en la URL, la consulta o el cuerpo cambia lo que se ve o se toca. Las notificaciones de B (de su Dueño y de su asistente) y la
+ * auditoría de B (con un descifrado) están sembradas y sus ids y razones sociales son marcas de fuga: desde A no aparecen nunca. Las
+ * rutas con ids ajenos dan el mismo 404 (y la de otro usuario del propio estudio también); la consulta y el cuerpo estrictos dan 400; la
+ * auditoría exige `auditoria.ver` (la asistente recibe 403 antes de cualquier validación). Las notificaciones de otros usuarios y la
+ * auditoría de ambos estudios quedan como estaban. Una ruta nueva de estas sin caso rompe «toda ruta tiene caso».
+ * Rojo: las rutas (T10) y las tablas (T7) aún no existen.
+ */
+function casosNotificaciones(): Caso[] {
+  const futuro = () => new Date(Date.now() + 3_600_000).toISOString();
+  const ESTRICTO: Esperado = { dueno: [200, 400], asistente: [200, 400] };
+  /** Notificaciones de ambos estudios que NO son del actor: ni su estado ni su existencia cambian. */
+  const fotoDeOtros = async (c: Contexto): Promise<string> =>
+    JSON.stringify(
+      await h.sql(
+        `select id, usuario_id, leida_en::text as leida_en from notificacion
+          where tenant_id = any($1::uuid[]) and usuario_id <> $2 order by id`,
+        [[c.mio.tenantId, c.ajeno.tenantId], c.yo.id],
+      ),
+    );
+  const conteoAuditoria = async (c: Contexto): Promise<string> =>
+    JSON.stringify(
+      await h.sql("select tenant_id, count(*)::int as n from auditoria where tenant_id = any($1::uuid[]) group by tenant_id order by tenant_id", [
+        [c.mio.tenantId, c.ajeno.tenantId],
+      ]),
+    );
+  let fotoAntes = "";
+  let auditoriaAntes = "";
+  const registrarAntes = async (c: Contexto): Promise<void> => {
+    fotoAntes = await fotoDeOtros(c);
+    auditoriaAntes = await conteoAuditoria(c);
+  };
+  const intactas = async (c: Contexto): Promise<void> => {
+    expect(await fotoDeOtros(c), "las notificaciones de otros usuarios cambiaron").toBe(fotoAntes);
+    expect(await conteoAuditoria(c), "la auditoría cambió").toBe(auditoriaAntes);
+  };
+  const estados = (rs: Resp[]) => rs.map((r) => r.status);
+  const ajenos = (c: Contexto): SembradoAvisos => sembradoAvisos.get(c.ajeno.tenantId)!;
+  const propios = (c: Contexto): SembradoAvisos => sembradoAvisos.get(c.mio.tenantId)!;
+
+  return [
+    {
+      ruta: "GET /notificaciones",
+      esperado: ESTRICTO,
+      construir: (c) => [
+        { ruta: "/notificaciones" },
+        { ruta: `/notificaciones?tenantId=${c.ajeno.tenantId}` },
+        { ruta: `/notificaciones?usuarioId=${c.ajeno.dueno.id}&clienteId=${c.ajeno.clientes[0]}` },
+        { ruta: `/notificaciones?cursor=${c.ajeno.dueno.id}` },
+      ],
+      antes: registrarAntes,
+      extra: async (c, respuestas) => {
+        expect(falloSiembraAvisos, "la siembra de 017 falló (¿tablas de T7?)").toBeNull();
+        expect(estados(respuestas)).toEqual([200, 400, 400, 400]);
+        const ids = (respuestas[0]!.body.items as any[]).map((x) => x.id);
+        expect(ids.filter((id) => ajenos(c).notifDueno.includes(id) || ajenos(c).notifAsistente.includes(id))).toEqual([]);
+        // Solo las del actor: ni las del otro usuario de su propio estudio.
+        const delOtro = c.yo.rol === "dueno" ? propios(c).notifAsistente : propios(c).notifDueno;
+        expect(ids.filter((id) => delOtro.includes(id))).toEqual([]);
+        await intactas(c);
+      },
+    },
+    {
+      ruta: "GET /notificaciones/no-leidas",
+      esperado: ESTRICTO,
+      construir: (c) => [
+        { ruta: "/notificaciones/no-leidas" },
+        { ruta: `/notificaciones/no-leidas?tenantId=${c.ajeno.tenantId}` },
+        { ruta: `/notificaciones/no-leidas?usuarioId=${c.ajeno.asistente.id}` },
+      ],
+      antes: registrarAntes,
+      extra: async (c, respuestas) => {
+        expect(estados(respuestas)).toEqual([200, 400, 400]);
+        // La cuenta es la de SUS no leídas visibles (el asistente solo ve el cliente que tiene asignado), nunca la de B.
+        const f = await h.sql(
+          `select count(*)::int as n from notificacion
+            where tenant_id = $1 and usuario_id = $2 and leida_en is null
+              and ($3::boolean or cliente_id is null or cliente_id = $4)`,
+          [c.mio.tenantId, c.yo.id, c.yo.rol === "dueno", c.mio.clientes[0]],
+        );
+        expect(respuestas[0]!.body).toEqual({ noLeidas: Math.min(f[0].n, 100) });
+        await intactas(c);
+      },
+    },
+    {
+      ruta: "POST /notificaciones/leidas",
+      esperado: ESTRICTO,
+      construir: (c) => [
+        { metodo: "POST", ruta: "/notificaciones/leidas", cuerpo: { hasta: futuro() } },
+        { metodo: "POST", ruta: "/notificaciones/leidas", cuerpo: { hasta: futuro(), usuarioId: c.ajeno.dueno.id, tenantId: c.ajeno.tenantId } },
+        { metodo: "POST", ruta: "/notificaciones/leidas", cuerpo: { hasta: futuro(), usuarioId: c.ajeno.asistente.id } },
+        { metodo: "POST", ruta: "/notificaciones/leidas", cuerpo: { hasta: futuro(), clienteId: c.ajeno.clientes[0] } },
+      ],
+      antes: registrarAntes,
+      extra: async (c, respuestas) => {
+        expect(estados(respuestas)).toEqual([200, 400, 400, 400]);
+        // Solo marca las suyas: ninguna de las demás (B ni el otro usuario de su estudio) cambia.
+        const f = await h.sql(
+          "select count(*)::int as n from notificacion where tenant_id = $1 and usuario_id = $2 and leida_en is null and ($3::boolean or cliente_id is null or cliente_id = $4)",
+          [c.mio.tenantId, c.yo.id, c.yo.rol === "dueno", c.mio.clientes[0]],
+        );
+        expect(f[0].n).toBe(0);
+        await intactas(c);
+      },
+    },
+    {
+      ruta: "POST /notificaciones/:id/leida",
+      esperado: todos(404),
+      construir: (c) => {
+        const delOtro = c.yo.rol === "dueno" ? propios(c).notifAsistente : propios(c).notifDueno;
+        return [
+          ...ajenos(c).notifDueno,
+          ...ajenos(c).notifAsistente,
+          ...delOtro, // de otro usuario del propio estudio: el mismo 404
+          randomUUID(),
+        ].map((id) => ({ metodo: "POST" as const, ruta: `/notificaciones/${id}/leida`, cuerpo: {} }));
+      },
+      antes: registrarAntes,
+      extra: async (c, respuestas) => {
+        expect(falloSiembraAvisos, "la siembra de 017 falló (¿tablas de T7?)").toBeNull();
+        for (const r of respuestas) expect(r.body).toEqual({ codigo: "no_encontrado" });
+        await intactas(c);
+      },
+    },
+    {
+      ruta: "GET /auditoria",
+      esperado: { dueno: [200, 400], asistente: [403] },
+      construir: (c) => [
+        { ruta: "/auditoria" },
+        { ruta: `/auditoria?tenantId=${c.ajeno.tenantId}` },
+        { ruta: `/auditoria?usuarioId=${c.ajeno.dueno.id}&clienteId=${c.ajeno.clientes[0]}` },
+        { ruta: `/auditoria?cursor=${c.ajeno.tenantId}` },
+      ],
+      antes: registrarAntes,
+      extra: async (c, respuestas) => {
+        expect(falloSiembraAvisos, "la siembra de 017 falló (¿tablas de T7?)").toBeNull();
+        if (c.yo.rol === "asistente") {
+          // Sin `auditoria.ver`: 403 antes de validar nada y sin datos.
+          expect(estados(respuestas)).toEqual([403, 403, 403, 403]);
+          for (const r of respuestas) expect(r.body).toEqual({ codigo: "permiso_denegado" });
+        } else {
+          expect(estados(respuestas)).toEqual([200, 400, 400, 400]);
+          const ids = (respuestas[0]!.body.items as any[]).map((x) => x.id);
+          expect(ids.filter((id) => ajenos(c).auditoria.includes(id) || ajenos(c).descifrado.includes(id))).toEqual([]);
+        }
+        await intactas(c);
+      },
+    },
   ];
 }
 
@@ -1050,6 +1256,7 @@ const CASOS: Caso[] = [
   },
   ...casosCompras(),
   ...casosArchivos(),
+  ...casosNotificaciones(),
   {
     // 007b (T4): importación. La plantilla no lleva datos de nadie; la vista previa y la confirmación toman el estudio de la
     // sesión: un responsable de B en el archivo no existe para A y no se crea nada.
@@ -1526,11 +1733,23 @@ beforeAll(async () => {
   B = await prepararEstudio(s.tenantB, "B");
   await calcularMarcadores(A, B);
   await calcularMarcadores(B, A);
+  // 017: si las tablas de T7 aún no existen, la siembra falla y solo fallan los casos nuevos (los demás no la necesitan).
+  try {
+    await sembrarAvisos(A);
+    await sembrarAvisos(B);
+  } catch (e) {
+    falloSiembraAvisos = e instanceof Error ? e.message : String(e);
+  }
   registradas = enumerarRutas();
 });
 
 async function limpiar(): Promise<void> {
   if (!h) return;
+  // 017: los estudios del seed no se borran; se quitan las filas sembradas (la auditoría solo cede en modo `replica`).
+  const todos = [...sembradoAvisos.values()];
+  await borrarPorId("notificacion", todos.flatMap((x) => [...x.notifDueno, ...x.notifAsistente]));
+  await borrarPorId("auditoria", todos.flatMap((x) => x.auditoria));
+  await borrarPorId("auditoria_descifrado", todos.flatMap((x) => x.descifrado));
   const filas = await h
     .sql("select id from usuario where nombre like $1", [`HU40 _ % ${sufijo}`])
     .catch(() => [] as { id: string }[]);
@@ -1669,6 +1888,53 @@ describe("HU-40 por API · las pruebas no son vacías (controles con datos propi
   });
 });
 
+describe("HU-40 por API · 017 · las pruebas no son vacías (notificaciones y auditoría propias)", () => {
+  it("cada estudio ve sus notificaciones y su auditoría, nunca las del otro; la asistente ve las suyas y no la auditoría", async () => {
+    expect(falloSiembraAvisos, "la siembra de 017 falló (¿tablas de T7?)").toBeNull();
+    for (const [mio, ajeno] of [
+      [A, B],
+      [B, A],
+    ] as const) {
+      const propio = sembradoAvisos.get(mio.tenantId)!;
+      const ajenoSembrado = sembradoAvisos.get(ajeno.tenantId)!;
+      const d = await abrirSesion(mio.dueno, mio.tenantId);
+      const pedir = (s: Sesion, ruta: string) => h.pedir({ ruta, cookie: s.cookie, csrf: s.csrf, estudio: mio.tenantId });
+
+      const notif = await pedir(d, "/notificaciones");
+      expect(notif.status, notif.text).toBe(200);
+      const ids = (notif.body.items as any[]).map((x) => x.id);
+      expect(ids).toEqual(expect.arrayContaining(propio.notifDueno)); // las suyas, también la de un cliente que no tiene asignado
+      expect(ids.filter((id) => propio.notifAsistente.includes(id))).toEqual([]);
+      expect(ids.filter((id) => ajenoSembrado.notifDueno.includes(id) || ajenoSembrado.notifAsistente.includes(id))).toEqual([]);
+      expect((await pedir(d, "/notificaciones/no-leidas")).body.noLeidas).toBeGreaterThanOrEqual(propio.notifDueno.length);
+
+      // Auditoría: recorre las páginas (las sesiones de la prueba la engrosan) y encuentra solo filas del propio estudio.
+      let cursor: string | null = null;
+      const vistos: string[] = [];
+      for (let i = 0; i < 10; i++) {
+        const r: Resp = await pedir(d, `/auditoria${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`);
+        expect(r.status, r.text).toBe(200);
+        vistos.push(...(r.body.items as any[]).map((x) => x.id));
+        cursor = r.body.siguiente;
+        if (!cursor) break;
+      }
+      expect(vistos).toEqual(expect.arrayContaining([...propio.auditoria, ...propio.descifrado]));
+      expect(vistos.filter((id) => ajenoSembrado.auditoria.includes(id) || ajenoSembrado.descifrado.includes(id))).toEqual([]);
+
+      const a = await abrirSesion(mio.asistente, mio.tenantId);
+      const suyas = await pedir(a, "/notificaciones");
+      expect(suyas.status, suyas.text).toBe(200);
+      const idsA = (suyas.body.items as any[]).map((x) => x.id);
+      expect(idsA).toEqual(expect.arrayContaining(propio.notifAsistente.slice(0, 2))); // las de su cliente asignado
+      expect(idsA).not.toContain(propio.notifAsistente[2]); // la del cliente que no tiene asignado
+      expect(idsA.filter((id) => propio.notifDueno.includes(id))).toEqual([]);
+      const aud = await pedir(a, "/auditoria");
+      expect(aud.status).toBe(403);
+      expect(aud.body).toEqual({ codigo: "permiso_denegado" });
+    }
+  });
+});
+
 const COMBOS = [
   {
     nombre: "Dueño de A contra B",
@@ -1728,6 +1994,7 @@ for (const combo of COMBOS) {
 
         const ajenoAntes = await instantanea(ajeno, true);
         const propioAntes = await instantanea(mio, false);
+        if (caso.antes) await caso.antes(c);
         expect(
           ajenoAntes.cliente,
           "instantánea vacía: la prueba sería vacía",
