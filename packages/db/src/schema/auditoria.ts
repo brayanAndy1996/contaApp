@@ -3,21 +3,28 @@ import { check, index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm
 import { id, tenantIdPorDefecto } from "./comun";
 import { tenant } from "./plataforma";
 
-/** Catálogo cerrado de acciones (D-3) más `credencial.descifrada` (solo la vista, D-6) y `sunat.envio` (reservada, R2). */
+/**
+ * Catálogo cerrado de acciones (D-3), las 4 de la ronda adversarial R1 (0045: H-017-1 y H-017-2), `credencial.descifrada` (solo la
+ * vista, D-6) y `sunat.envio` (reservada, R2).
+ */
 export const ACCIONES_AUDITORIA_BD = [
   "sesion.ingreso",
   "invitacion.creada",
   "invitacion.revocada",
+  "invitacion.modificada",
   "miembro.alta",
   "miembro.rol_cambiado",
   "miembro.desactivado",
   "miembro.reactivado",
+  "miembro.eliminado",
   "asignacion.agregada",
   "asignacion.quitada",
+  "asignacion.tipo_cambiado",
   "cliente.creado",
   "cliente.editado",
   "cliente.archivado",
   "cliente.reactivado",
+  "cliente.eliminado",
   "credencial.guardada",
   "credencial.verificada",
   "credencial.invalidada",
