@@ -5,21 +5,21 @@ import { renderizar, type Alcance } from "../acceso/alcance";
 import { consultar, type TxConsulta } from "../acceso/errores";
 import { visibleNotificacion } from "./lectura";
 
-const SQL_MARCAR = `update notificacion set leida_en = now()
- where id = $1::uuid and leida_en is null
-   and usuario_id = nullif(current_setting('app.user_id', true), '')::uuid
-returning id`;
-
-const SQL_EXISTE = `select 1 as ok from notificacion
- where id = $1::uuid and usuario_id = nullif(current_setting('app.user_id', true), '')::uuid`;
+const PROPIA = sql`n.usuario_id = nullif(current_setting('app.user_id', true), '')::uuid`;
 
 /**
  * Marca como leída una notificación propia. Idempotente: `true` si es del usuario del contexto (aunque ya estuviera leída, y
- * entonces `leida_en` conserva su primer valor); `false` si es ajena, de otro estudio o no existe, sin cambiar nada.
+ * entonces `leida_en` conserva su primer valor); `false` si es ajena, de otro estudio o no existe, sin cambiar nada. Con `alcance`
+ * (CA-11) una notificación de un cliente que el alcance ya no deja ver cuenta como inexistente: `false` y sin cambios.
  */
-export async function marcarLeida(tx: TxConsulta, id: string): Promise<boolean> {
-  if ((await consultar(tx, SQL_MARCAR, [id])).length > 0) return true;
-  return (await consultar(tx, SQL_EXISTE, [id])).length > 0;
+export async function marcarLeida(tx: TxConsulta, id: string, alcance?: Alcance): Promise<boolean> {
+  const visible = alcance === undefined ? sql`true` : visibleNotificacion(alcance);
+  const marcar = renderizar(sql`update notificacion n set leida_en = now()
+ where n.id = ${id}::uuid and n.leida_en is null and ${PROPIA} and ${visible}
+returning n.id`);
+  if ((await consultar(tx, marcar.texto, marcar.valores)).length > 0) return true;
+  const existe = renderizar(sql`select 1 as ok from notificacion n where n.id = ${id}::uuid and ${PROPIA} and ${visible}`);
+  return (await consultar(tx, existe.texto, existe.valores)).length > 0;
 }
 
 /** Marca las propias, visibles y no leídas con `creadaEn <= hasta`. Devuelve cuántas marcó. */

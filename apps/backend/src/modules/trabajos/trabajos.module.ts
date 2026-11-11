@@ -1,5 +1,6 @@
 import { Module, type DynamicModule } from "@nestjs/common";
 import { AuthModule } from "../auth/auth.module.js";
+import { NOTIFICADOR, NotificadorRedis } from "../notificaciones/notificador.js";
 import { Encolador } from "./encolador.js";
 import {
   OPCIONES_REDIS,
@@ -26,8 +27,10 @@ export class TrabajosModule {
         TrabajosService,
         StreamService,
         Encolador,
+        // Spec 017: aviso en vivo de notificaciones nuevas (comparte la conexión Redis de este módulo).
+        { provide: NOTIFICADOR, useClass: NotificadorRedis },
       ],
-      exports: [Encolador],
+      exports: [Encolador, NOTIFICADOR],
     };
   }
 }

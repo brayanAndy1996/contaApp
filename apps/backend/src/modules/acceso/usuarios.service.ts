@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import {
   bloquearMiembros,
   cambiarRol,
@@ -19,6 +19,11 @@ import {
   type Rol,
 } from "@contapp/shared";
 import { DB } from "../auth/inyeccion.js";
+import {
+  destinatariosPendientes,
+  NOTIFICADOR,
+  type Notificador,
+} from "../notificaciones/notificador.js";
 import { CUPO_USUARIOS, type CupoUsuarios } from "./cupo/cupo-usuarios.js";
 import { idDeRuta, parsearCuerpo, traducirUltimoDueno } from "./entrada.js";
 import { AccesoError } from "./errores.js";
@@ -94,6 +99,7 @@ export class UsuariosService {
   constructor(
     @Inject(DB) private readonly db: Pick<ContappDb, "withTenant">,
     @Inject(CUPO_USUARIOS) private readonly cupo: CupoUsuarios,
+    @Optional() @Inject(NOTIFICADOR) private readonly notificador?: Notificador,
   ) {}
 
   async listar(l: Llamante): Promise<MiembroRespuesta[]> {
@@ -162,14 +168,20 @@ export class UsuariosService {
   ): Promise<EstadoMiembro> {
     // Sin chequeo de "uno mismo": quien llama está activo, así que reactivarse no cambia nada.
     const objetivoId = idDeRuta(idRuta);
-    return this.mutar(l, objetivoId, async (tx, actorRol, objetivo) => {
+    let avisar: string[] = [];
+    const estadoNuevo = await this.mutar(l, objetivoId, async (tx, actorRol, objetivo) => {
       const rolObjetivo = objetivo.rol as Rol;
       if (!puedeGestionar(actorRol, rolObjetivo, rolObjetivo))
         throw new AccesoError("permiso_denegado");
       if (objetivo.activo) return objetivo;
       await this.cupo.alReactivar(tx, l.tenantId);
-      return (await reactivar(tx, objetivoId)) as MiembroEstado;
+      const reactivado = (await reactivar(tx, objetivoId)) as MiembroEstado;
+      avisar = await destinatariosPendientes(this.notificador, tx);
+      return reactivado;
     });
+    // Spec 017 (D-9): aviso en vivo tras el commit (el 90 % o el 100 % de usuarios que cruzó la reactivación).
+    await this.notificador?.avisar(l.tenantId, avisar);
+    return estadoNuevo;
   }
 
   /**

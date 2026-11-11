@@ -48,7 +48,7 @@ export type { MotivoPlataforma } from "./auth/errores";
 // Spec 005: repositorios de acceso (todos con la `tx` de withTenant como primer argumento).
 export { clienteVisible, filtroAlcance } from "./acceso/alcance";
 export type { Alcance } from "./acceso/alcance";
-export { leerCliente, listarClientes } from "./acceso/clientes";
+export { leerCliente, leerClientesPorIds, listarClientes } from "./acceso/clientes";
 export type { ClienteLeido, ClienteListado } from "./acceso/clientes";
 export {
   bloquearMiembro,

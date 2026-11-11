@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import {
   AuthRepoError,
   bloquearMiembro,
@@ -43,6 +43,11 @@ import {
   hashToken,
   tokenConFormatoValido,
 } from "../auth/sesion/token.js";
+import {
+  destinatariosPendientes,
+  NOTIFICADOR,
+  type Notificador,
+} from "../notificaciones/notificador.js";
 import { CUPO_USUARIOS, type CupoUsuarios } from "./cupo/cupo-usuarios.js";
 import {
   idDeRuta,
@@ -116,6 +121,7 @@ export class InvitacionesService {
     @Inject(COMUNES) private readonly comunes: ReadonlySet<string>,
     @Inject(APP_ORIGIN) private readonly appOrigin: string,
     @Inject(CUPO_USUARIOS) private readonly cupo: CupoUsuarios,
+    @Optional() @Inject(NOTIFICADOR) private readonly notificador?: Notificador,
   ) {}
 
   async listar(l: Llamante): Promise<InvitacionRespuesta[]> {
@@ -134,6 +140,7 @@ export class InvitacionesService {
     const correo = correoDeEntrada(entrada.correo);
     if (!FORMA_CORREO.test(correo)) throw new AccesoError("solicitud_invalida");
     const token = generarToken();
+    let avisar: string[] = [];
     const creada = await this.enTenant(l, async (tx) => {
       await this.exigirGestor(tx, l, null, entrada.rol);
       // RLS: solo los miembros de este estudio; no revela cuentas de otros estudios (CA-2).
@@ -141,13 +148,17 @@ export class InvitacionesService {
       if (miembros.some((m) => m.correo === correo))
         throw new AccesoError("ya_es_miembro");
       await this.cupo.alInvitar(tx, l.tenantId);
-      return crearInvitacion(tx, {
+      const invitacion = await crearInvitacion(tx, {
         correo,
         rol: entrada.rol,
         invitadoPor: l.usuarioId,
         tokenHash: hashToken(token),
       });
+      avisar = await destinatariosPendientes(this.notificador, tx);
+      return invitacion;
     });
+    // Spec 017 (D-9): aviso en vivo tras el commit (el 90 % o el 100 % de usuarios que cruzó la invitación).
+    await this.notificador?.avisar(l.tenantId, avisar);
     this.cola.encolar(mensajeInvitacion(correo, this.appOrigin, token));
     return creada;
   }

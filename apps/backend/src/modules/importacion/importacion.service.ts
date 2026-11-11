@@ -1,4 +1,4 @@
-import { HttpException, Inject, Injectable } from "@nestjs/common";
+import { HttpException, Inject, Injectable, Optional } from "@nestjs/common";
 import { cifrarCredencial } from "@contapp/crypto";
 import {
   asignar,
@@ -6,6 +6,7 @@ import {
   crearCliente,
   guardarSobre,
   listarMiembros,
+  marcarOrigenImportacion,
   rucsExistentes,
   type ContappDb,
   type MiembroEstado,
@@ -28,6 +29,7 @@ import { encolarConsultasRuc } from "../clientes/consulta-ruc.js";
 import { contextoDe } from "../clientes/contexto.js";
 import { KEY_WRAPPER, type ObtenerKeyWrapper } from "../credenciales/key-wrapper.js";
 import { CUPO_RUCS, type CupoRucs } from "../planes/cupo/cupo-rucs.js";
+import { destinatariosPendientes, NOTIFICADOR, type Notificador } from "../notificaciones/notificador.js";
 import { Encolador } from "../trabajos/encolador.js";
 import { leerCsv } from "./lector-csv.js";
 import { leerXlsx } from "./lector-xlsx.js";
@@ -128,6 +130,7 @@ export class ImportacionService {
     @Inject(CUPO_RUCS) private readonly cupo: CupoRucs,
     @Inject(KEY_WRAPPER) private readonly obtenerWrapper: ObtenerKeyWrapper,
     @Inject(Encolador) private readonly encolador: Pick<Encolador, "encolarLote">,
+    @Optional() @Inject(NOTIFICADOR) private readonly notificador?: Notificador,
   ) {}
 
   /** No escribe nada: valida el archivo contra el estudio y devuelve lo que `confirmar` haría. */
@@ -168,10 +171,13 @@ export class ImportacionService {
     }
 
     // 3. Transacción: solo SQL.
+    let avisar: string[] = [];
     const { creados, noImportadas } = await this.db.withTenant(ctx, async (tx) => {
       const ids = [sesion.usuarioId, ...candidatas.flatMap((c) => (c.responsableId === null ? [] : [c.responsableId]))];
       const bloqueados = await bloquearMiembros(tx, ids);
       exigirActor(bloqueados.get(sesion.usuarioId.toLowerCase()) ?? null, conClaves);
+      // Spec 017 (D-3): la auditoría de `cliente.creado` de esta transacción lleva `origen: importacion`.
+      await marcarOrigenImportacion(tx);
       const libres = await this.cupo.libres(tx, ctx.tenantId);
 
       // Revalidación con lo que hay ahora y con los responsables bloqueados (rol y estado actuales).
@@ -214,8 +220,11 @@ export class ImportacionService {
         ...revalidadas.filter((f) => f.estado === "error").map((f) => noImportada(f, f.motivos[0] as Motivo)),
         ...aCrear.slice(n).map((f) => noImportada(f, { codigo: "cupo_rucs" })),
       ].sort((a, b) => a.n - b.n);
+      avisar = await destinatariosPendientes(this.notificador, tx);
       return { creados, noImportadas };
     });
+    // Spec 017 (D-9): aviso en vivo tras el commit (el 90 % o el 100 % de RUCs que cruzó la importación).
+    await this.notificador?.avisar(ctx.tenantId, avisar);
 
     // 4. Tras el commit y sin propagar su fallo: las consultas de RUC (reserva del 50 % de la cola).
     const lote = await encolarConsultasRuc(this.encolador, ctx, creados);

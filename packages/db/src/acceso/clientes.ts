@@ -58,3 +58,23 @@ export async function leerCliente(
     ? null
     : { id: f.id, ruc: f.ruc, razonSocial: f.razon_social };
 }
+
+const SQL_LEER_VARIOS =
+  "select id, ruc, razon_social from cliente where id = any($1::uuid[])";
+
+/**
+ * Varios clientes del estudio del contexto en una consulta (sin alcance: la usa la auditoría, solo de Dueño y Administrador).
+ * Un id que no es del estudio no aparece en el mapa.
+ */
+export async function leerClientesPorIds(
+  tx: TxConsulta,
+  ids: readonly string[],
+): Promise<Map<string, ClienteLeido>> {
+  const unicos = [...new Set(ids)];
+  const mapa = new Map<string, ClienteLeido>();
+  if (unicos.length === 0) return mapa;
+  for (const f of await consultar(tx, SQL_LEER_VARIOS, [unicos])) {
+    mapa.set(f.id, { id: f.id, ruc: f.ruc, razonSocial: f.razon_social });
+  }
+  return mapa;
+}

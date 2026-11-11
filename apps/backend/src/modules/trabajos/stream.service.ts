@@ -5,7 +5,11 @@ import {
   type OnModuleDestroy,
 } from "@nestjs/common";
 import { listarClientes, type ContappDb } from "@contapp/db";
-import { eventoTrabajoSchema, type EventoTrabajo } from "@contapp/shared";
+import {
+  avisoNotificacionSchema,
+  eventoTrabajoSchema,
+  type EventoTrabajo,
+} from "@contapp/shared";
 import { AuthService, type SesionResuelta } from "../auth/auth.service.js";
 import { DB } from "../auth/inyeccion.js";
 import { AccesoError } from "../acceso/errores.js";
@@ -78,6 +82,9 @@ interface Conexion {
 
 const evento = (e: EventoTrabajo): string =>
   `event: trabajo\ndata: ${JSON.stringify(e)}\n\n`;
+
+/** Spec 017 (D-9): el aviso de notificación nueva viaja SIN contenido; el cliente pide el conteo y la lista por HTTP. */
+const MARCO_NOTIFICACION = "event: notificacion\ndata: {}\n\n";
 
 /**
  * SSE de `/trabajos/stream` (CA-6): un suscriptor Redis por proceso, suscrito a `eventos:{tenantId}` mientras haya
@@ -245,6 +252,15 @@ export class StreamService implements OnModuleDestroy {
     try {
       crudo = JSON.parse(texto);
     } catch {
+      return;
+    }
+    // Spec 017: aviso de notificación nueva, solo a las conexiones de los destinatarios (nunca por visibilidad de cliente).
+    const aviso = avisoNotificacionSchema.safeParse(crudo);
+    if (aviso.success) {
+      const destinatarios = new Set(aviso.data.destinatarios.map((d) => d.toLowerCase()));
+      for (const c of conexiones) {
+        if (!c.cerrada && destinatarios.has(c.usuarioId.toLowerCase())) c.res.write(MARCO_NOTIFICACION);
+      }
       return;
     }
     const r = eventoTrabajoSchema.safeParse(crudo);

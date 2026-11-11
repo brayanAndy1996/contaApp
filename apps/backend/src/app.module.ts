@@ -3,12 +3,14 @@ import type { StorageProvider } from "@contapp/storage";
 import { NucleoModule, type DependenciasNucleo } from "./infra/nucleo.module.js";
 import { AccesoModule } from "./modules/acceso/acceso.module.js";
 import { ArchivosModule } from "./modules/archivos/archivos.module.js";
+import { AuditoriaModule } from "./modules/auditoria/auditoria.module.js";
 import { AuthModule } from "./modules/auth/auth.module.js";
 import { ClientesModule } from "./modules/clientes/clientes.module.js";
 import { ComprasModule } from "./modules/compras/compras.module.js";
 import { CredencialesModule } from "./modules/credenciales/credenciales.module.js";
 import { EstudioModule } from "./modules/estudio/estudio.module.js";
 import { ImportacionModule } from "./modules/importacion/importacion.module.js";
+import { NotificacionesModule } from "./modules/notificaciones/notificaciones.module.js";
 import { PlanesModule } from "./modules/planes/planes.module.js";
 import { PlataformaModule } from "./modules/plataforma/plataforma.module.js";
 import { RegistroModule } from "./modules/registro/registro.module.js";
@@ -44,6 +46,9 @@ export class AppModule {
         ArchivosModule,
         VentasModule,
         ComprasModule,
+        // Spec 017: rutas estáticas de `/notificaciones` y `/auditoria`; no chocan con ningún `:id` anterior.
+        NotificacionesModule,
+        AuditoriaModule,
         TrabajosModule.registrar(redis),
         StorageModule.registrar(storage),
       ],

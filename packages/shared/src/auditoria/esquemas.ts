@@ -20,7 +20,8 @@ export const filaAuditoriaSchema = z.object({
   actor: actorAuditoriaSchema,
   cliente: z.object({ id: z.uuid(), ruc: z.string(), razonSocial: z.string() }).nullable(),
   entidad: z.string(),
-  entidadId: z.uuid(),
+  /** Null en lo que no tiene id propio (p. ej. el cambio de estado de un periodo: su clave es cliente + libro + periodo). */
+  entidadId: z.uuid().nullable(),
   datos: z.record(z.string(), z.unknown()),
 });
 export type FilaAuditoria = z.infer<typeof filaAuditoriaSchema>;
