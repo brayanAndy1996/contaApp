@@ -388,7 +388,7 @@ describe("H-012b-4 · el reintento busca primero por `trabajo_id` (antes de comp
       reintento1.error,
       `el reintento falló con ${(reintento1.error as ErrorArchivo | undefined)?.detalle}`,
     ).toBeUndefined();
-    expect(reintento1.resultado).toEqual(t1.resultado);
+    expect(reintento1.resultado).toEqual({ ...t1.resultado, nueva: false });
     expect(reintento1.resultado).toMatchObject({ version: 1, nueva: false });
     expect(await versionesDe(admin, m.c.id)).toHaveLength(2);
   });
