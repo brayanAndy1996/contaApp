@@ -94,15 +94,7 @@ Cinco pasos, y ninguno parsea antes de que pasen los anteriores:
 4. **`fast-xml-parser`** con las entidades apagadas.
 5. **`mapear`**: de etiquetas a montos con `Money` (módulo 08). Nunca `number`: el lint lo prohíbe también en `ubl/` (`eslint.config.mjs:845`).
 
-Los topes, en `packages/domain/src/ubl/escaneo.ts:14-16`:
-
-```ts
-export const TOPE_BYTES: Entero = 1_048_576;
-export const TOPE_ITEMS: Entero = 2_000;
-export const TOPE_PROFUNDIDAD: Entero = 32;
-```
-
-1 MiB, 2.000 ítems y 32 niveles de anidamiento. Una factura real con 500 ítems pesa mucho menos; el tope es para que un archivo hostil se rechace en tiempo proporcional a su tamaño.
+Los topes están en `packages/domain/src/ubl/escaneo.ts:14-16`: `TOPE_BYTES` 1.048.576 (1 MiB), `TOPE_ITEMS` 2.000 y `TOPE_PROFUNDIDAD` 32 niveles de anidamiento. Una factura real con 500 ítems pesa mucho menos; el tope es para que un archivo hostil se rechace en tiempo proporcional a su tamaño.
 
 La primera pasada, `escaneo.ts:94-105`:
 
@@ -212,15 +204,7 @@ Es el mismo principio que los ZIP del módulo 10 (`archivos/{tenant}/{cliente}/{
 | `documento_xml_obtencion` (0035) | Estado de la búsqueda automática por comprobante: `pendiente`, `no_encontrado`, `credencial`, `transitorio`, con intentos | La única de 016 con `UPDATE` (solo de `estado`, `intentos`, `actualizado_en`) |
 | `compra_evaluacion` (0036) | Cada evaluación de reglas de una versión: (compra, versión, `n`, con qué XML) | `SELECT, INSERT` |
 
-`documento_xml` va por **comprobante** (cliente, RUC emisor, tipo, serie, número), no por fila de compra: si descartas la compra y la vuelves a agregar, su XML sigue ahí (D-4). Las tres tienen RLS forzada como todo lo demás (módulo 03). `packages/db/migrations/0035_documento_xml.sql:63-67`:
-
-```sql
-CREATE POLICY tenant_isolation ON public.documento_xml FOR ALL
-  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)
-  WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);--> statement-breakpoint
-REVOKE ALL ON public.documento_xml FROM PUBLIC, contapp_backend, contapp_worker, contapp_platform, contapp_app;--> statement-breakpoint
-GRANT SELECT, INSERT ON public.documento_xml TO contapp_backend, contapp_worker;--> statement-breakpoint
-```
+`documento_xml` va por **comprobante** (cliente, RUC emisor, tipo, serie, número), no por fila de compra: si descartas la compra y la vuelves a agregar, su XML sigue ahí (D-4). Las tres tienen RLS forzada como todo lo demás (módulo 03), y `documento_xml` solo recibe `GRANT SELECT, INSERT` para backend y worker (`packages/db/migrations/0035_documento_xml.sql:63-67`).
 
 **Reemplazo (P-6).** «Subir XML» se acepta si no hay XML o si el vigente es `simulado`. Con uno `real` o `subido`, `409 xml_existente`. El anterior nunca se borra: es un libro de solo inserción.
 
@@ -432,7 +416,7 @@ FROM documento_xml ORDER BY creada_en DESC LIMIT 5;
 
 <details><summary>Soluciones</summary>
 
-1. Porque el escaneo es una pasada simple sobre bytes, más fácil de probar que «saber» si está dentro de un comentario. Rechazar siempre es más seguro que acertar casi siempre: ningún comprobante legítimo de SUNAT trae `<!DOCTYPE` (`escaneo.ts:5`).
+1. Porque la pasada de bytes no intenta interpretar la estructura: busca la marca en cualquier parte (`escaneo.ts:5`). Un escáner que tratara de adivinar qué está «dentro de un comentario» podría equivocarse donde el parser no, que es justo el tipo de desacuerdo que explotan los XML ambiguos (H-016-6). Un comprobante no necesita DTD, así que rechazar siempre no cuesta nada (D-1).
 2. Responde `xml_invalido` (`aLoSumoUno`, `leer.ts:280`). Elegir el primero sería adivinar: el escáner, el parser o un humano podrían leer otro, y un monto mal elegido se vería igual de «exacto» (H-016-2).
 3. No. Se inserta una `compra_evaluacion` con `n + 1` para la versión vigente y sus hallazgos; la versión, `versionBase` y deshacer no cambian (P-2, D-5, CA-6).
 4. Porque el worker no tiene `INSERT` en `job_registro` (0018). La función solo crea un trabajo `xml.obtener` `en_cola` de la cola `xml`, con el estudio de `app.tenant_id`, el dedupe y el tope: mínimo privilegio (decisión del usuario (a), 0037).
