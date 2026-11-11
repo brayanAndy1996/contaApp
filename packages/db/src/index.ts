@@ -332,3 +332,30 @@ export { archivoGenerado } from "./schema/archivos";
 // Spec 017 (T7): tablas de auditoría y notificaciones (RLS, grants, triggers y funciones en 0041–0043). Los repositorios son de T8.
 export { auditoria } from "./schema/auditoria";
 export { notificacion, planAviso } from "./schema/notificaciones";
+// Spec 017: auditoría, notificaciones, autores y origen de alta (todos con la `tx` de withTenant como primer argumento).
+export {
+  leerCambiosDeOperacion,
+  listarAuditoria,
+  MAX_PAGINA_AUDITORIA,
+} from "./auditoria";
+export type {
+  ActorTipoAuditoria,
+  CambioDeCompra,
+  FilaAuditoria,
+  OpcionesAuditoria,
+  VersionCompraAuditada,
+} from "./auditoria";
+export {
+  contarNoLeidas,
+  destinatariosNuevos,
+  listarNotificaciones,
+  marcarLeida,
+  marcarLeidasHasta,
+  MAX_PAGINA_NOTIFICACIONES,
+  purgarNotificaciones,
+  TOPE_NO_LEIDAS,
+} from "./notificaciones";
+export type { FilaNotificacion, OpcionesNotificaciones, TipoNotificacion } from "./notificaciones";
+export { resolverAutores } from "./acceso/autores";
+export type { AutorResuelto } from "./acceso/autores";
+export { marcarOrigenImportacion } from "./clientes/origen";
