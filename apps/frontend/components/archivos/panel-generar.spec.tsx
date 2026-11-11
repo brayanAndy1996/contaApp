@@ -300,3 +300,37 @@ describe("PanelGenerar · pantallas angostas (spec 012b T15)", () => {
     expect(screen.getByRole("complementary", { name: M.titulo })).toBeTruthy();
   });
 });
+
+describe("PanelGenerar · foco al cerrar (spec 012b T23a, P-2)", () => {
+  beforeEach(() => {
+    seguimiento.opciones = null;
+    reiniciarSesion();
+  });
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("feliz: «Cerrar» devuelve el foco al botón «Generar archivo»", async () => {
+    instalarFetchArchivos();
+    montar();
+    const user = userEvent.setup();
+    const panel = await abrir(user);
+    await within(panel).findByText(M.generable);
+
+    await user.click(within(panel).getByRole("button", { name: M.cerrar }));
+    expect(screen.queryByRole("complementary", { name: M.titulo })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: M.abrir }));
+  });
+
+  it("error: aunque el previo no cargó, «Cerrar» también devuelve el foco al botón que abre el panel", async () => {
+    instalarFetchArchivos({ previo: () => ({ status: 500, cuerpo: { codigo: "error_interno" } }) });
+    montar();
+    const user = userEvent.setup();
+    const panel = await abrir(user);
+    await within(panel).findByRole("alert");
+
+    await user.click(within(panel).getByRole("button", { name: M.cerrar }));
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: M.abrir }));
+  });
+});

@@ -68,6 +68,7 @@ export function PrevioArchivo({
             {previo.errores.map((e, i) => (
               <li key={`${e.filaId ?? "periodo"}|${e.codigo}|${i}`} className="rounded border p-2">
                 <p>
+                  {e.comprobante != null && <strong>{e.comprobante} · </strong>}
                   <strong>{e.codigo}</strong>
                   {e.campo ? ` · ${e.campo}` : ""}
                   {e.destino ? ` · ${e.destino}` : ""}
@@ -78,6 +79,7 @@ export function PrevioArchivo({
                   {e.filaId !== null && alUbicarFila && (
                     <button
                       type="button"
+                      aria-label={e.comprobante == null ? undefined : M.ubicarComprobante(e.comprobante)}
                       onClick={() => alUbicarFila(e.filaId!)}
                       className="underline"
                     >
@@ -87,6 +89,7 @@ export function PrevioArchivo({
                   {libro === "ventas" && e.excluible && e.filaId !== null && alExcluir && (
                     <button
                       type="button"
+                      aria-label={e.comprobante == null ? undefined : M.excluirComprobante(e.comprobante)}
                       disabled={bloqueo !== null}
                       title={bloqueo ?? undefined}
                       onClick={() => alExcluir(e.filaId!)}
@@ -111,12 +114,14 @@ export function PrevioArchivo({
           <ul className="flex flex-col gap-1 text-sm">
             {previo.avisos.map((a, i) => (
               <li key={`${a.filaId ?? "periodo"}|${a.codigo}|${i}`}>
+                {a.comprobante != null && <strong>{a.comprobante} · </strong>}
                 <strong>{a.codigo}</strong> · {a.explicacion}
                 {a.filaId !== null && alUbicarFila && (
                   <>
                     {" "}
                     <button
                       type="button"
+                      aria-label={a.comprobante == null ? undefined : M.ubicarComprobante(a.comprobante)}
                       onClick={() => alUbicarFila(a.filaId!)}
                       className="underline"
                     >

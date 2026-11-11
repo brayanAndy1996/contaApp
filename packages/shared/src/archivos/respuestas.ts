@@ -16,6 +16,8 @@ export type CodigoAvisoArchivo = (typeof CODIGOS_AVISO_ARCHIVO)[number];
 
 export const errorPrevioSchema = z.object({
   filaId: z.uuid().nullable(),
+  /** `SERIE-NUMERO` de la fila; `null` si el error no es de una fila; opcional para leer respuestas de un servidor anterior (T23a, P-3). */
+  comprobante: z.string().min(1).nullable().optional(),
   codigo: z.string().min(1),
   campo: z.string().nullable(),
   destino: z.enum(DESTINOS_COMPRA).nullable(),
@@ -28,6 +30,8 @@ export type ErrorPrevioDto = z.infer<typeof errorPrevioSchema>;
 
 export const avisoPrevioSchema = z.object({
   filaId: z.uuid().nullable(),
+  /** `SERIE-NUMERO` de la fila; `null` si el aviso no es de una fila; opcional para leer respuestas de un servidor anterior (T23a, P-3). */
+  comprobante: z.string().min(1).nullable().optional(),
   codigo: z.enum(CODIGOS_AVISO_ARCHIVO),
   explicacion: z.string(),
 });

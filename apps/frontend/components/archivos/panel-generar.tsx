@@ -85,6 +85,7 @@ export function PanelGenerar({
   const [aviso, setAviso] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const secuencia = useSecuencia();
+  const botonAbrir = useRef<HTMLButtonElement>(null);
 
   const cargar = useCallback(async () => {
     const id = secuencia.nueva();
@@ -140,8 +141,14 @@ export function PanelGenerar({
   /** En pantallas angostas el panel taparía la fila: se cierra y la persona lo reabre con «Generar archivo». */
   const ubicar = (filaId: string) => {
     alUbicarFila?.(filaId);
-    if (esPantallaAngosta()) setAbierto(false);
+    if (esPantallaAngosta()) cerrar();
   };
+
+  /** Cierra el panel y devuelve el foco al botón que lo abre (P-2, RF-096); sin desplazar la página. */
+  function cerrar() {
+    setAbierto(false);
+    botonAbrir.current?.focus({ preventScroll: true });
+  }
 
   // Sigue el trabajo de generación con el lector de 007b.
   useEffect(() => {
@@ -221,6 +228,7 @@ export function PanelGenerar({
   return (
     <>
       <button
+        ref={botonAbrir}
         type="button"
         aria-expanded={abierto}
         onClick={() => setAbierto((a) => !a)}
@@ -240,7 +248,7 @@ export function PanelGenerar({
             </div>
             <button
               type="button"
-              onClick={() => setAbierto(false)}
+              onClick={cerrar}
               className="rounded border px-3 py-1 text-sm"
             >
               {M.cerrar}

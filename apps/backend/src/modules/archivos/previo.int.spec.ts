@@ -152,6 +152,17 @@ describe("CA-1 · previo de compras sin corregir (mixta 21.48/1.61 y San Juan IS
     expect((r.body.errores as any[]).some((e) => e.filaId === ids["F001-1040"])).toBe(false);
   });
 
+  it("T23a · cada error y aviso con fila dice su comprobante SERIE-NUMERO; sin fila, null", async () => {
+    const { c } = await compras();
+    const r = await previoOk(contador, c);
+    expect((r.body.errores as any[]).map((e) => e.comprobante)).toEqual(["F001-2056"]);
+    const isc = (r.body.avisos as any[]).find((a) => a.codigo === "R-ISC");
+    expect(isc.comprobante).toBe("F001-1040");
+    for (const a of r.body.avisos as any[]) expect(a.comprobante).toMatch(/^F001-\d+$/);
+    const vacio = await previoOk(contador, await nuevoCliente());
+    expect(vacio.body.errores).toEqual([expect.objectContaining({ codigo: "SIN_FILAS", filaId: null, comprobante: null })]);
+  });
+
   it("el formato es provisional (oficial = false) y viene con id y versión", async () => {
     const { c } = await compras();
     const f = (await previoOk(contador, c)).body.formato;
@@ -479,6 +490,15 @@ describe("CA-10 / D12 · errores de ventas: descuadrada, USD sin tipo de cambio 
     expect(r.body.errores).toHaveLength(1);
     expect(r.body.errores[0]).toMatchObject({ filaId: ids[2], codigo: "CUADRE", campo: "total", diferencia: "1.00", excluible: true });
     expect(r.body.errores[0].explicacion.length).toBeGreaterThan(0);
+  });
+
+  it("T23a · los errores y avisos de ventas llevan el comprobante de la fila (los saltos, que no son de una fila, null)", async () => {
+    const { c } = await ventas([...boletas290y292(), descuadrada("B001", 293)]);
+    const r = await previoOk(contador, c, "ventas");
+    expect(r.body.errores[0].comprobante).toBe("B001-293");
+    const salto = (r.body.avisos as any[]).find((a) => a.codigo === "SALTO_CORRELATIVIDAD");
+    expect(salto.filaId).toBeNull();
+    expect(salto.comprobante).toBeNull();
   });
 
   it("USD sin tipo de cambio: USD_SIN_TC en tipoCambio y excluible", async () => {

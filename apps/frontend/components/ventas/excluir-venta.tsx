@@ -3,6 +3,7 @@
 import { excluirVentaSchema } from "@contapp/shared";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { MENSAJES } from "../../lib/acceso";
+import { useRestaurarFoco } from "../../lib/restaurar-foco";
 import { MENSAJES_VENTAS as M, excluirVenta } from "../../lib/ventas";
 
 // Excluir una venta del SIRE cuyo error bloquea la generación (spec 012b, T15; D12, P-8; CA-15). `alertdialog`
@@ -36,6 +37,7 @@ export function ExcluirVenta({
   const campo = useRef<HTMLInputElement>(null);
   const titulo = clave === null ? M.excluirVenta : M.excluirComprobante(clave);
 
+  useRestaurarFoco();
   useEffect(() => {
     campo.current?.focus();
   }, []);

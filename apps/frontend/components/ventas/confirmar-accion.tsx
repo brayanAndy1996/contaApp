@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useRestaurarFoco } from "../../lib/restaurar-foco";
 import { MENSAJES_VENTAS as M } from "../../lib/ventas";
 
 // Confirmación de una acción que no se deshace sola (spec 013, D23): revertir una justificación o quitar una venta
@@ -20,6 +21,7 @@ export function ConfirmarAccion({
 }) {
   const cancelar = useRef<HTMLButtonElement>(null);
 
+  useRestaurarFoco();
   useEffect(() => {
     cancelar.current?.focus();
   }, []);

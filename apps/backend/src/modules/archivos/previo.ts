@@ -90,9 +90,10 @@ function aResumenDto(r: ArchivoPreparado["resumen"]): ResumenArchivoDto {
   };
 }
 
-function aErrorDto(e: ErrorPrevalidacion, excluible: boolean): ErrorPrevioDto {
+function aErrorDto(e: ErrorPrevalidacion, excluible: boolean, comprobanteDe: ComprobanteDe): ErrorPrevioDto {
   return {
     filaId: e.filaId,
+    comprobante: comprobanteDe(e.filaId),
     codigo: e.codigo,
     campo: e.campo,
     destino: e.destino,
@@ -102,7 +103,22 @@ function aErrorDto(e: ErrorPrevalidacion, excluible: boolean): ErrorPrevioDto {
   };
 }
 
-const aAvisoDto = (a: AvisoArchivo): AvisoPrevioDto => ({ filaId: a.filaId, codigo: a.codigo, explicacion: a.explicacion });
+const aAvisoDto = (a: AvisoArchivo, comprobanteDe: ComprobanteDe): AvisoPrevioDto => ({
+  filaId: a.filaId,
+  comprobante: comprobanteDe(a.filaId),
+  codigo: a.codigo,
+  explicacion: a.explicacion,
+});
+
+/** `SERIE-NUMERO` de la fila del error o aviso; `null` si no hay fila (o no se conoce). */
+type ComprobanteDe = (filaId: string | null) => string | null;
+
+/** Busca el comprobante por id de fila; la fila vigente manda sobre la original. */
+function comprobantesDe(...grupos: ReadonlyArray<ReadonlyArray<{ id: string; comprobante: { serie: string; numero: string } }>>): ComprobanteDe {
+  const mapa = new Map<string, string>();
+  for (const g of grupos) for (const f of g) mapa.set(f.id, comprobante(f.comprobante.serie, f.comprobante.numero));
+  return (filaId) => (filaId === null ? null : (mapa.get(filaId) ?? null));
+}
 
 /** Lo que `packages/db` entrega de una venta → fila de ventas del dominio (`excluida` = exclusión vigente). */
 const filaDeVenta = (v: VentaFila): FilaReemplazoVenta => ventaAFila({ ...v, excluida: v.exclusion !== null });
@@ -111,6 +127,8 @@ interface Filas {
   preparado: ArchivoPreparado;
   /** Avisos del adaptador (razón social recortada) de las filas que van al TXT. */
   avisosAdaptador: AvisoArchivo[];
+  /** Por id de fila: el `SERIE-NUMERO` para nombrar el error o el aviso. */
+  comprobanteDe: ComprobanteDe;
   /** Por id de fila: si el error de esa fila se puede excluir (solo ventas; D12). */
   excluible: (filaId: string | null) => boolean;
   excluidas: ExcluidaPrevioDto[];
@@ -139,7 +157,14 @@ async function prepararCompras(tx: Tx, e: EntradaPrevio, cabecera: CabeceraTxt, 
     fueraDeRango,
   );
   // En compras nada se excluye por error (la zapatilla cuenta en `resumen.excluidas`): D12 es solo de ventas del SIRE.
-  return { preparado, avisosAdaptador, excluible: () => false, excluidas: [], excluidasOmitidas: 0 };
+  return {
+    preparado,
+    avisosAdaptador,
+    comprobanteDe: comprobantesDe(original, vigente),
+    excluible: () => false,
+    excluidas: [],
+    excluidasOmitidas: 0,
+  };
 }
 
 async function prepararVentas(tx: Tx, e: EntradaPrevio, cabecera: CabeceraTxt, permitir: boolean): Promise<Filas> {
@@ -173,6 +198,7 @@ async function prepararVentas(tx: Tx, e: EntradaPrevio, cabecera: CabeceraTxt, p
   return {
     preparado,
     avisosAdaptador: [],
+    comprobanteDe: comprobantesDe(original, vigente),
     excluible,
     excluidas: excluidas
       .slice(0, MAX_ITEMS_PREVIO)
@@ -224,9 +250,9 @@ export async function calcularPrevio(
     apto: resultado.apto,
     generable: motivo === null,
     motivo,
-    errores: resultado.errores.slice(0, MAX_ITEMS_PREVIO).map((x) => aErrorDto(x, filas.excluible(x.filaId))),
+    errores: resultado.errores.slice(0, MAX_ITEMS_PREVIO).map((x) => aErrorDto(x, filas.excluible(x.filaId), filas.comprobanteDe)),
     erroresOmitidos: Math.max(0, resultado.errores.length - MAX_ITEMS_PREVIO),
-    avisos: [...preparado.avisos, ...filas.avisosAdaptador].map(aAvisoDto),
+    avisos: [...preparado.avisos, ...filas.avisosAdaptador].map((a) => aAvisoDto(a, filas.comprobanteDe)),
     resumen: aResumenDto(preparado.resumen),
     excluidas: filas.excluidas,
     excluidasOmitidas: filas.excluidasOmitidas,
