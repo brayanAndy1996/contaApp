@@ -6,29 +6,31 @@ Nivel A (spec) con las pantallas como C por tarea (T14, T15: pruebas mínimas, s
 
 | #   | Tarea | Rol | Modelo | Depende de | TDD | ADV | Estado |
 | --- | ----- | --- | ------ | ---------- | --- | --- | ------ |
-| T1  | Pruebas de dominio: ventas en `prevalidar`/`resumirCambios`/`generarTxt` (con excluidas), `erroresDeFilaVenta`, adaptadores y D7, huella, `prepararArchivo` (rojo) | tester | sonnet | — ∥ T2, T3, T4 | ✓ | — | [ ] |
-| T2  | Pruebas de `shared/archivos`, del estado de ventas y de excluir ventas (rojo) | tester | sonnet | — ∥ T1, T3, T4 | ✓ | — | [ ] |
-| T3  | Pruebas de `packages/storage`: ruta de archivos, hash y lectura verificada (rojo) | tester | sonnet | — ∥ T1, T2, T4 | ✓ | — | [ ] |
-| T4  | Pruebas de BD: `venta_periodo`, `venta_exclusion`, `archivo_generado`, triggers y grants del worker, repositorios, limpiezas (rojo) | tester | sonnet | — ∥ T1–T3 | ✓ | — | [ ] |
-| T5  | Pruebas del worker: catálogo y `archivo.generar` (CA-2 a CA-4, CA-6 a CA-8, CA-13 a CA-15), descarga de ventas con `generado` (rojo) | tester | sonnet | T2 ∥ T6 | ✓ | — | [ ] |
-| T6  | Pruebas HTTP: previo, generar, versiones, descarga, estado, 409/403 y excluir/restaurar de ventas, HU-40 (rojo) | tester | sonnet | T2 ∥ T5 | ✓ | — | [ ] |
-| T7  | Dominio: ventas en prevalidación y TXT (con excluidas), `erroresDeFilaVenta`, adaptadores, huella, `prepararArchivo`, `permiteProvisional` | backend | opus | T1 ∥ T8, T9, T10 | ✓ | — | [ ] |
-| T8  | Esquemas y DTOs de `shared/archivos`, estado y exclusión de ventas | backend | sonnet | T2 ∥ T7, T9, T10 | ✓ | — | [ ] |
-| T9  | `packages/storage`: `rutaArchivo`, gramáticas, `sha256Hex`, `leerVerificado` | backend | sonnet | T3 ∥ T7, T8, T10 | ✓ | — | [ ] |
-| T10 | Migraciones 0039–0040, esquema drizzle, `src/archivos/`, `src/ventas/{periodo,exclusion,filas-reemplazo,lectura}.ts` | backend | opus | T4 ∥ T7–T9 | ✓ | — | [ ] |
-| T11 | Worker: `archivo.generar`, cola `archivos`, descarga de ventas con estado | backend | opus | T5, T7, T9, T10 ∥ T12, T13 | ✓ | — | [ ] |
-| T12 | Backend: módulo `archivos` (previo, generar, versiones, descarga) | backend | sonnet | T6, T7, T8, T9, T10 ∥ T11, T13 | ✓ | — | [ ] |
-| T13 | Backend: estado del periodo de ventas, 409/403 en las escrituras y excluir/restaurar ventas | backend | sonnet | T6, T8, T10 ∥ T11, T12 | ✓ | — | [ ] |
-| T14 | Panel lateral «Generar archivo» en compras (nivel C) | frontend | sonnet | T8 ∥ T9–T13 | — | — | [ ] |
-| T15 | Ventas: estado del periodo, escrituras deshabilitadas, excluir/restaurar y panel (nivel C) | frontend | sonnet | T14 | — | — | [ ] |
-| T16 | Cobertura ≥ 90 % en CI: `cobertura:archivos` y carpetas nuevas | devops | haiku | T11, T12, T13 ∥ T14, T15 | — | — | [ ] |
-| T17 | Ronda adversarial 1: TXT/ZIP, descarga y storage, aislamiento, permisos (excluir incluido) y privilegios del worker (≤ 15 pruebas) | adversario | opus | T16 | — | ✓ | [ ] |
-| T18 | Pruebas de las correcciones de la ronda 1 (rojo) | tester | sonnet | T17 | ✓ | — | [ ] |
-| T19 | Corregir los hallazgos de la ronda 1 | backend | opus | T18 | — | — | [ ] |
-| T20 | Ronda adversarial 2: concurrencia (excluir/restaurar contra generar incluido), estados, huella y cola (≤ 15 pruebas) | adversario | opus | T19 | — | ✓ | [ ] |
-| T21 | Pruebas de las correcciones de la ronda 2 (rojo) | tester | sonnet | T20 | ✓ | — | [ ] |
-| T22 | Corregir los hallazgos de la ronda 2 | backend | opus | T21 | — | — | [ ] |
+| T1  | Pruebas de dominio: ventas en `prevalidar`/`resumirCambios`/`generarTxt` (con excluidas), `erroresDeFilaVenta`, adaptadores y D7, huella, `prepararArchivo` (rojo) | tester | sonnet | — ∥ T2, T3, T4 | ✓ | — | [x] |
+| T2  | Pruebas de `shared/archivos`, del estado de ventas y de excluir ventas (rojo) | tester | sonnet | — ∥ T1, T3, T4 | ✓ | — | [x] |
+| T3  | Pruebas de `packages/storage`: ruta de archivos, hash y lectura verificada (rojo) | tester | sonnet | — ∥ T1, T2, T4 | ✓ | — | [x] |
+| T4  | Pruebas de BD: `venta_periodo`, `venta_exclusion`, `archivo_generado`, triggers y grants del worker, repositorios, limpiezas (rojo) | tester | sonnet | — ∥ T1–T3 | ✓ | — | [x] |
+| T5  | Pruebas del worker: catálogo y `archivo.generar` (CA-2 a CA-4, CA-6 a CA-8, CA-13 a CA-15), descarga de ventas con `generado` (rojo) | tester | sonnet | T2 ∥ T6 | ✓ | — | [x] |
+| T6  | Pruebas HTTP: previo, generar, versiones, descarga, estado, 409/403 y excluir/restaurar de ventas, HU-40 (rojo) | tester | sonnet | T2 ∥ T5 | ✓ | — | [x] |
+| T7  | Dominio: ventas en prevalidación y TXT (con excluidas), `erroresDeFilaVenta`, adaptadores, huella, `prepararArchivo`, `permiteProvisional` | backend | opus | T1 ∥ T8, T9, T10 | ✓ | — | [x] |
+| T8  | Esquemas y DTOs de `shared/archivos`, estado y exclusión de ventas | backend | sonnet | T2 ∥ T7, T9, T10 | ✓ | — | [x] |
+| T9  | `packages/storage`: `rutaArchivo`, gramáticas, `sha256Hex`, `leerVerificado` | backend | sonnet | T3 ∥ T7, T8, T10 | ✓ | — | [x] |
+| T10 | Migraciones 0039–0040, esquema drizzle, `src/archivos/`, `src/ventas/{periodo,exclusion,filas-reemplazo,lectura}.ts` | backend | opus | T4 ∥ T7–T9 | ✓ | — | [x] |
+| T11 | Worker: `archivo.generar`, cola `archivos`, descarga de ventas con estado | backend | opus | T5, T7, T9, T10 ∥ T12, T13 | ✓ | — | [x] |
+| T12 | Backend: módulo `archivos` (previo, generar, versiones, descarga) | backend | sonnet | T6, T7, T8, T9, T10 ∥ T11, T13 | ✓ | — | [x] |
+| T13 | Backend: estado del periodo de ventas, 409/403 en las escrituras y excluir/restaurar ventas | backend | sonnet | T6, T8, T10 ∥ T11, T12 | ✓ | — | [x] |
+| T14 | Panel lateral «Generar archivo» en compras (nivel C) | frontend | sonnet | T8 ∥ T9–T13 | — | — | [x] |
+| T15 | Ventas: estado del periodo, escrituras deshabilitadas, excluir/restaurar y panel (nivel C) | frontend | sonnet | T14 | — | — | [x] |
+| T16 | Cobertura ≥ 90 % en CI: `cobertura:archivos` y carpetas nuevas | devops | haiku | T11, T12, T13 ∥ T14, T15 | — | — | [x] |
+| T16a | Cobertura de `cobertura:archivos` en verde (escalamiento de T16) | backend | sonnet | T16 | — | — | [x] |
+| T17 | Ronda adversarial 1: TXT/ZIP, descarga y storage, aislamiento, permisos (excluir incluido) y privilegios del worker (≤ 15 pruebas) | adversario | opus | T16 | — | ✓ | [x] |
+| T18 | Pruebas de las correcciones de la ronda 1 (rojo) | tester | sonnet | T17 | ✓ | — | [x] |
+| T19 | Corregir los hallazgos de la ronda 1 | backend | opus | T18 | — | — | [x] |
+| T20 | Ronda adversarial 2: concurrencia (excluir/restaurar contra generar incluido), estados, huella y cola (≤ 15 pruebas) | adversario | opus | T19 | — | ✓ | [x] |
+| T21 | Pruebas de las correcciones de la ronda 2 (rojo) | tester | sonnet | T20 | ✓ | — | [x] |
+| T22 | Corregir los hallazgos de la ronda 2 | backend | opus | T21 | — | — | [x] |
 | T23 | Prueba manual contra el sistema completo | tester | sonnet | T15, T22 | — | — | [x] |
+| T23a | Corregir los defectos de pantalla de T23 | frontend | sonnet | T23 | — | — | [x] |
 | T24 | Verificar CA-1 a CA-16 con evidencia, suites completas y cobertura | tester | sonnet | T23 | — | — | [x] |
 | T25 | Revisión final contra la spec y 03 §7.3 | arquitecto | opus | T24 | — | — | [x] |
 | T26 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza ESTADO) | devops | haiku | T25 | — | — | [x] |
@@ -52,111 +54,155 @@ Reglas comunes:
 - Sin dependencias nuevas. Si alguna tarea crea un paquete, lo agrega a la compilación de `ci:db`, `ci:cierre`, los `cobertura:*` y `ci.yml`.
 - P-8 (excluir ventas del SIRE con error, D12), P-9 (`revisado` en ventas como en compras) y P-10 (recargar el previo) están decididas (spec, 2026-11-10). La exclusión de ventas solo vale para ventas de origen SIRE con error de su fila; ampliarla es `requiere usuario`. Una ambigüedad nueva que cambie la spec no se decide: `requiere usuario`.
 
-## T1 · [ ] Pruebas de dominio, rojo (tester · sonnet)
+## T1 · [x] Pruebas de dominio, rojo (tester · sonnet)
+
+- **Resultado** (0cc367e): 182 pruebas de dominio (181 rojas); contrato FilaReemplazoVenta, resumirCambios(…, cabecera), generarTxt de ventas, prepararArchivo, canonHuella h1, adaptadores, permiteProvisional. Decisión del orquestador: si hay errores y además formato no oficial en producción, gana motivo prevalidacion_fallida. RAZON_SOCIAL_RECORTADA lo emite el adaptador.
 - **Contexto (leer solo esto)**: `spec.md` (D1, D2, D5, D6, D7, D12, P-2, P-5, P-6, P-8; CA-1, CA-5, CA-10, CA-11, CA-14, CA-15; casos reales), `plan.md` (Contratos: Dominio), `packages/domain/src/prevalidacion/{tipos,entrada,prevalidar,resumen}.ts` (firmas), `packages/domain/src/formatos/{valores,serializar,provisional-rve}.ts`, `packages/domain/src/ventas/{columnas,layout}.ts`, `packages/domain/src/correlatividad/index.ts` (`analizarCorrelatividad`), `packages/domain/src/compras/fila-reemplazo.ts`, `packages/db/src/compras/tipos.ts` (forma de `CompraLeida`), `apps/backend/src/modules/compras/integracion-012.int.spec.ts:60-110` (modelo del adaptador), `fixtures/` de 009 y 013 que nombra la spec.
 - **Hacer**: `packages/domain/src/archivos/*.spec.ts` y `prevalidacion/ventas*.spec.ts`. Ventas: venta cuadrada apta; descuadrada → `CUADRE` con la explicación de P-6; IGV 18 %/10 % sobre `baseGravada`; USD sin TC; duplicado; `SIN_FILAS`; `reglas` con ventas lanza; filas del otro libro lanzan; `ResumenCambiosVentas` (agregadas = manuales, impacto IGV total exacto, USD convertidas). Excluidas (P-8): una venta `excluida` descuadrada o USD sin TC no se prevalida ni sale en el TXT, cuenta en `excluidas` y resta su IGV del impacto (la USD sin TC va a `filasSinConvertir`); todas excluidas → `SIN_FILAS`; `erroresDeFilaVenta` da los mismos errores que `prevalidar` para esa fila y ninguno para una válida; con una excluida la correlatividad no muestra su número como faltante. `generarTxt` de ventas con el RVIE provisional: una línea por venta, campos en orden, montos con escala, consumidor final `-`. Boleta 291: `prepararArchivo` apto con aviso `SALTO_CORRELATIVIDAD` «Falta B001-291» y sin él si está justificado. Compras: CA-1 (mixta 21.48/1.61 con su error IGV y `filaId`; San Juan con R-ISC sin bloquear), CA-5 (conteos e impacto por destino y total), zapatilla excluida fuera del TXT y contada en el resumen. D7 (CA-11): 100, 101 y emoji en la posición 100; NBSP y `|` en el borde. Huella: determinista, cambia con cualquier campo del TXT o del resumen, con el formato y al excluir o restaurar una venta; no cambia con avisos, con el motivo ni con el orden de entrada. `permiteProvisional`: `production` → falso; el resto → verdadero. Las pruebas de compras de 012 no se tocan.
 - **Hecho cuando**: compilan contra las firmas del plan y fallan por «no implementado»; las demás de `domain` siguen verdes. Commit `test(012b): dominio de generación en rojo`.
 
-## T2 · [ ] Pruebas de `shared`, rojo (tester · sonnet)
+## T2 · [x] Pruebas de `shared`, rojo (tester · sonnet)
+
+- **Resultado** (2f8b793): 58 pruebas de shared (56 rojas); archivos/{esquemas,respuestas,errores}, ventas/exclusion; T8 añade exclusion a VentaDto y borra archivos/pendiente.ts.
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: HTTP), `packages/shared/src/compras/{esquemas,respuestas}.ts` (`estadoPeriodoSchema`, `reabrirPeriodoSchema`, `estadoPeriodoRespuestaSchema`, `resumenComprasSchema` y el esquema de excluir de 014), `packages/shared/src/ventas/` (índice, `VentaDto` y respuestas del resumen).
 - **Hacer**: `packages/shared/src/archivos/*.spec.ts`: `generarArchivoSchema` estricto (`estadoVisto` solo `abierto|revisado`; huella hex de 64; `permitirProvisional`, `registro`, `libro` o cualquier clave extra → rechazo); `previoArchivoSchema` (montos solo como cadenas, `motivo` cerrado, ≤ 1.000 errores, `ultimaVersion` nullable); `versionArchivoSchema` (sin `ruta`, hashes hex de 64); `excluidas[]` y `excluidasOmitidas` (≤ 1.000), `excluible` en cada error; códigos `prevalidacion_fallida`, `formato_no_oficial`, `resumen_cambiado`, `estado_invalido`, `periodo_generado`, `periodo_revisado`, `cliente_archivado`, `archivo_alterado`, `no_excluible`, `ya_excluida`, `no_excluida`. Ventas: el resumen suma `estado` y `excluidas`; `excluirVentaSchema` estricto (motivo 1–200 tras recortar espacios, claves extra → rechazo); cuerpo de restaurar vacío y estricto; `VentaDto.exclusion` `{motivo, por, en}|null`.
 - **Hecho cuando**: fallan por «no implementado»; las de `shared` existentes siguen verdes. Commit `test(012b): esquemas de archivos en rojo`.
 
-## T3 · [ ] Pruebas de `packages/storage`, rojo (tester · sonnet)
+## T3 · [x] Pruebas de `packages/storage`, rojo (tester · sonnet)
+
+- **Resultado** (76eb7fa): 69 pruebas de storage (41 rojas); hash.ts sha256Hex/leerVerificado, rutaArchivo, ArchivoAlteradoError codigo archivo_alterado; validarRuta acepta xml/…xml y archivos/…zip.
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: Storage), `packages/storage/src/{ruta,puerto,errores}.ts`, `packages/storage/src/ruta.spec.ts` (modelo; no repetir).
 - **Hacer**: `rutaArchivo` con tres uuid; `validarRuta` acepta `xml/…xml` y `archivos/…zip` y rechaza mezclas (`archivos/…xml`, `xml/…zip`), `..`, mayúsculas, absolutas, NUL y nombres libres; `MockStorage` y `LocalStorage` guardan y leen un `.zip`; `sha256Hex` de bytes y de texto (UTF-8) contra vectores conocidos; `leerVerificado` devuelve los bytes si coinciden y lanza `ArchivoAlteradoError` (sin ruta ni hash en el mensaje) si se alteró o truncó un byte.
 - **Hecho cuando**: fallan por «no implementado»; las de 016 siguen verdes. Commit `test(012b): storage de archivos en rojo`.
 
-## T4 · [ ] Pruebas de BD, rojo (tester · sonnet)
+## T4 · [x] Pruebas de BD, rojo (tester · sonnet)
+
+- **Resultado** (6a2ef00): 208 pruebas de BD (179+23 rojas); contrato en tests/aislamiento/archivos-soporte.ts: triggers periodo_worker_acotado (42501), archivo_generado y venta_exclusion (23514), grants exactos, repositorios, orden de bloqueo; venta necesita única (tenant_id,id).
 - **Contexto (leer solo esto)**: `spec.md` (D3, D4, D5, D6, D12; CA-6, CA-7, CA-9, CA-16), `plan.md` (Contratos: BD y orden de bloqueo), `packages/db/migrations/{0030_venta,0031_venta_salto_justificado,0033_compra_hallazgo_periodo,0038_compra_worker_sin_update}.sql` (modelo de grants y triggers), `packages/db/src/compras/{periodo,filas-reemplazo}.ts`, `packages/db/src/ventas/{lectura,justificados}.ts`, `tests/aislamiento/{compras-soporte,ventas-soporte,compras-periodo.spec,compras-xml-tablas.spec}.ts` (modelo; no repetir).
 - **Hacer**: `tests/aislamiento/archivos-{tablas,versiones,concurrencia}.spec.ts`, `ventas-{periodo,exclusion}.spec.ts` y `packages/db/src/{archivos,ventas}/*.spec.ts`. Catálogo: RLS `FORCE` en las tres tablas, grants exactos (backend sin `INSERT`/`UPDATE`/`DELETE` en `archivo_generado`; nadie actualiza ni borra, ni el dueño de la migración por el trigger), CHECK de ruta, hashes, huella, nombres e impactos por libro. Triggers con el rol del worker: `compra_periodo`/`venta_periodo` solo `abierto` al insertar y solo `abierto|revisado → generado` (marcar `revisado` o reabrir → 42501); `archivo_generado` exige periodo `generado` por el mismo usuario y `version = max + 1`; el worker puede `SELECT` en `venta_salto_justificado` y `venta_exclusion` y no escribir en ninguna. `venta_exclusion` (D12): CHECK de motivo y de restauración completa; una sola vigente por venta (dos inserciones a la vez → una, la otra 23505); insertar para una venta `manual` o de otro cliente o periodo → rechazo del trigger; cerrar una vigente una vez sí, cerrarla dos veces, cambiar el motivo o borrar → 42501 con el rol del backend; volver a excluir tras restaurar crea otra fila; `excluirVenta`, `restaurarVenta` y la lectura de ventas con `exclusion` y aislamiento (otro estudio → nada). Repositorios: `ultimaVersion`, `insertarVersion`, `listarVersiones`, `leerVersion` con otro estudio, cliente, periodo o libro → nada; numeración independiente por cliente, periodo y libro; `leerFilasReemplazoVentas` (original = SIRE, vigente = todas, `excluida` con exclusión vigente y no tras restaurar) y `leerExcluidasVentas`. Concurrencia: generar contra una escritura de ventas (excluir y restaurar incluidas) y contra una acción de compras en ambos órdenes, sin interbloqueos (10 rondas). Las de 014 y 016 con el rol del worker siguen verdes (descarga con `FOR SHARE`). Actualizar `limpiar` de `tests/aislamiento/{compras,ventas}-soporte.ts` para borrar `archivo_generado`, `venta_exclusion` y `venta_periodo`.
 - **Hecho cuando**: fallan por «no implementado»; las de 002–016 siguen verdes. Commit `test(012b): BD de archivos y estado de ventas en rojo`.
 
-## T5 · [ ] Pruebas del worker, rojo (tester · sonnet)
+## T5 · [x] Pruebas del worker, rojo (tester · sonnet)
+
+- **Resultado** (af5e12b): 121 pruebas del worker y catálogo (109 rojas); contrato generarArchivo, ErrorArchivo con detalle, resultado {archivoId,version,nueva,lineas,provisional}; limpiezas de soporte del worker borran tablas nuevas. Hueco: fila config_sistema para la cola archivos (T10 la añade en migración).
 - **Contexto (leer solo esto)**: `spec.md` (D2, D4, D6, D10, D11, D12; CA-2 a CA-4, CA-6 a CA-8, CA-13 a CA-15), `plan.md` (Cola y worker), `packages/queue/src/catalogo.ts` (`XML_OBTENER` como modelo), `packages/queue/src/catalogo-016.spec.ts` (modelo), `apps/worker/src/trabajos/procesadores/{obtener-xml.int.spec.ts,descargar-propuesta.int.spec.ts}` (modelo), `apps/worker/test/{compras,ventas,xml}.ts`, `packages/sunat/src/formatos/empaquetar.ts` (firma).
 - **Hacer**: `packages/queue/src/catalogo-012b.spec.ts` (forma exacta de `archivo.generar`). `apps/worker/src/trabajos/procesadores/generar-archivo{,.int}.spec.ts`: CA-2 (versión 1, `provisional`, hashes, ZIP en `archivos/{tenant}/{cliente}/{id}.zip`, TXT descomprimido con una línea por fila no excluida), compras y ventas; CA-3 (fila con error tras encolar → error sin reintento, estado anterior, sin versión ni ZIP); CA-4 (`NODE_ENV=production` → no genera, estado intacto); CA-7 (dos trabajos de la misma huella → una versión; reintento tras el commit → misma versión `nueva: false`; numeración por libro); CA-8 (huella cambiada → error, estado anterior); CA-14 (sin cambios → `nueva: false`); CA-15 (ventas con una descuadrada y una USD sin TC excluidas → versión con `excluidas = 2`, TXT sin sus líneas, motivo fuera del TXT, de `resultado` y de logs; restaurada tras encolar → huella distinta, error y estado anterior); cliente archivado → error; falla de `insertarVersion` tras `guardar` → no queda ZIP; CA-13 (`resultado` y logs sin canarios ni rutas; no lee credenciales; 20.000 filas en < 5 s). Descarga de ventas con el periodo `generado` → `ErrorDatos` sin propuesta. Actualizar `limpiar` de `apps/worker/test/{compras,ventas}.ts` para `archivo_generado`, `venta_exclusion` y `venta_periodo` (y `bd.ts`/`despejar-bd.ts` si borran estudios).
 - **Hecho cuando**: fallan por «no implementado». Commit `test(012b): worker de archivos en rojo`.
 
-## T6 · [ ] Pruebas HTTP, rojo (tester · sonnet)
+## T6 · [x] Pruebas HTTP, rojo (tester · sonnet)
+
+- **Resultado** (a5d7c78): 274 pruebas HTTP + 49 HU-40 (12 rutas, controlador por libro con ruta literal); contrato de 013 ampliado (exclusion, estado, excluidas); 11 decisiones de contrato. Decisión del orquestador: si el ZIP falta del storage, igual que alterado (500 archivo_alterado).
 - **Contexto (leer solo esto)**: `spec.md` (D1, D2, D5, D8, D9, D12, P-9; CA-1, CA-3 a CA-6, CA-8 a CA-10, CA-12, CA-15, CA-16), `plan.md` (Contratos: HTTP), `apps/backend/src/modules/compras/{integracion-012,descarga}.int.spec.ts` y `apps/backend/src/modules/ventas/{agregar,descarga}.int.spec.ts` y `apps/backend/src/modules/compras/acciones.int.spec.ts` (excluir y restaurar de 014) (modelo y soporte; no repetir), `apps/backend/test/{soporte-compras,soporte-ventas,soporte-acceso}.ts`, `apps/backend/src/aislamiento/hu40-api.int.spec.ts`.
 - **Hacer**: `apps/backend/src/modules/archivos/{previo,generar,versiones,descarga}.int.spec.ts` y `apps/backend/src/modules/ventas/{estado-periodo,exclusion}.int.spec.ts`. Previo (CA-1, CA-5, CA-10) de compras y ventas; `POST`: 202, 400 con claves extra, 403, 404 (asistente no asignado), 409 `cliente_archivado`, `estado_invalido`, `resumen_cambiado` (CA-8), 422 `formato_no_oficial` (CA-4) y `prevalidacion_fallida` sin encolar ni cambiar estado (CA-3), dos `POST` simultáneos → un trabajo (CA-7); versiones y descarga (bytes con SHA-256 = `sha256Zip`, cabeceras de D8, ZIP alterado → 500 sin bytes, CA-12); aislamiento (CA-9: `archivoId` de otro estudio, cliente, periodo o libro → 404); P-4 (asistente asignado ve previo, versiones y descarga). Compras `generado` → 409 al editar (CA-6). Ventas: revisar y reabrir (409 `estado_invalido` con estado visto viejo); con `generado` descargar, importar, agregar, quitar, justificar, revertir, excluir y restaurar → 409 `periodo_generado`; con `revisado` (P-9) esas mismas → 403 `periodo_revisado` sin `sire.aprobar_generar` y permitidas con él. Excluir (CA-15, CA-16): previo con `excluible`; excluir con motivo → `VentaDto.exclusion`, previo apto con `excluidas[]` (comprobante y motivo), resumen de ventas sin sumarla y con `excluidas`; restaurar → vuelve el error; 400 (sin motivo, > 200, claves extra), 403 sin `sire.clasificar`, 404 `ventaId` ajeno, 409 `no_excluible` (sin error, manual), `ya_excluida`, `no_excluida`, `cliente_archivado`; dos exclusiones simultáneas → una vigente; excluir entre previo y `POST` → 409 `resumen_cambiado`. Casos HU-40 de las ocho rutas nuevas. Actualizar `limpiar` de `apps/backend/test/{soporte-acceso,soporte-compras,soporte-ventas}.ts` (con `venta_exclusion`).
 - **Hecho cuando**: fallan por «no implementado» (404 de ruta inexistente o módulo ausente); «toda ruta tiene caso» de HU-40 en rojo solo por las rutas nuevas. Commit `test(012b): API de archivos y estado de ventas en rojo`.
 
-## T7 · [ ] Dominio (backend · opus)
+## T7 · [x] Dominio (backend · opus)
+
+- **Resultado** (13eae34): dominio de generación (compras y ventas por el mismo camino), 2.435 pruebas, cobertura ≥90 %; eslint domain/src/archivos sin number (orquestador). Título de una prueba de 013 en valores-ventas.spec.ts quedó desactualizado.
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: Dominio; Decisiones), `spec.md` (D1, D2, D6, D7, D12), las pruebas de T1, los archivos de `domain` que cita T1, `eslint.config.mjs` (bloque «Dinero» y `GLOBALES_IO_DOMINIO`), `packages/domain/vitest.cobertura.config.mts`.
 - **Hacer**: `FilaReemplazoVenta` (con `excluida`) y ventas en `prevalidar`/`resumirCambios` (sobrecargas por `cabecera.libro`; excluidas fuera de la prevalidación y contadas) y en `generarTxt` (valores de ventas, sin excluidas, sin `sinGenerarVentas`); `erroresDeFilaVenta`, que `prevalidar` usa por dentro; `src/archivos/` (adaptadores con D7, `canonHuella`, `prepararArchivo`, `permiteProvisional`); exportar desde `src/index.ts` (si suma exports públicos, avisar al tester por la lista cerrada de `ronda2b.adv.spec.ts`); lint y cobertura en `src/archivos/**`.
 - **Hecho cuando**: T1 en verde y las de 012 sin cambios en verde; `test`, `typecheck` y `lint` de `domain` limpios; `pnpm cobertura:dominio` ≥ 90 % por archivo. Commit `feat(012b): ventas en la prevalidación y armado del archivo`.
 
-## T8 · [ ] Esquemas de `shared` (backend · sonnet)
+## T8 · [x] Esquemas de `shared` (backend · sonnet)
+
+- **Resultado** (db90cfd): esquemas de shared; VentaDto.exclusion (backend pone null hasta T10/T13); ResumenVentasDto sin tocar, usar ResumenVentasVista.
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: HTTP), las pruebas de T2, `packages/shared/src/compras/{esquemas,respuestas}.ts`, `packages/shared/src/ventas/index.ts` y sus respuestas.
 - **Hacer**: `packages/shared/src/archivos/` (esquemas, DTOs con `excluidas[]` y `excluible`, y códigos), en `ventas/` `estado` y `excluidas` en el resumen, `excluirVentaSchema`, cuerpo de restaurar y `exclusion` en `VentaDto`; exportar.
 - **Hecho cuando**: T2 en verde; `test`, `typecheck`, `lint` y `build` de `shared` limpios. Commit `feat(012b): esquemas de archivos`.
 
-## T9 · [ ] Storage (backend · sonnet)
+## T9 · [x] Storage (backend · sonnet)
+
+- **Resultado** (8503ca7): storage de archivos; 192 pruebas; cobertura 98,7/94,4.
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: Storage), las pruebas de T3, `packages/storage/src/*.ts` (sin pruebas).
 - **Hacer**: `rutaArchivo`, `validarRuta` con las dos gramáticas, `hash.ts` (`sha256Hex`, `leerVerificado`), `ArchivoAlteradoError`; exportar.
 - **Hecho cuando**: T3 en verde y las de 016 en verde; `test`, `typecheck` y `lint` del paquete limpios; `pnpm cobertura:storage` ≥ 90 %. Commit `feat(012b): storage de archivos generados`.
 
-## T10 · [ ] Migraciones y repositorios (backend · opus)
+## T10 · [x] Migraciones y repositorios (backend · opus)
+
+- **Resultado** (11bdc3b): migraciones 0039–0040 (venta_periodo, venta_exclusion, archivo_generado, triggers acotados del worker, fila archivos en config_sistema), capa de BD; T4 en verde, aislamiento 2227/2228 (planes local); cobertura db 97,8/91,8. restaurarConfig del worker solo repone sire/sol/xml.
 - **Contexto (leer solo esto)**: `plan.md` (Archivos: migraciones; Contratos: BD y orden de bloqueo; Decisiones), `spec.md` (D3, D5, D6, D12), las pruebas de T4, `packages/db/migrations/{0030_venta,0031_venta_salto_justificado,0033_compra_hallazgo_periodo,0035_documento_xml,0038_compra_worker_sin_update}.sql` y `meta/_journal.json`, `packages/db/src/schema/{compras,ventas,index}.ts`, `packages/db/src/compras/{periodo,filas-reemplazo}.ts`, `packages/db/src/ventas/{lectura,tipos,justificados}.ts`, `packages/db/src/propuestas/repositorio.ts` (`bloquearPeriodoLibro`).
 - **Hacer**: confirmar que 0039 sigue libre; `0039_venta_periodo_exclusion.sql` (`venta_periodo` y `venta_exclusion` con RLS, grants y triggers; trigger `periodo_worker_acotado` en las dos tablas de estado; `SELECT` de justificados y exclusiones al worker) y `0040_archivo_generado.sql` (tabla, CHECK, grants, triggers), con funciones `SECURITY INVOKER` o `DEFINER` de dueño `contapp_migrator`, `search_path` fijo y mensajes fijos, repetibles sentencia a sentencia como 0037/0038; esquema drizzle y diario; `src/ventas/{periodo,exclusion,filas-reemplazo}.ts`, `exclusion` en `src/ventas/lectura.ts` y `src/archivos/`; exportar.
 - **Hecho cuando**: T4 en verde; `pnpm test:aislamiento` y `pnpm --filter @contapp/db test` verdes (002–016 incluidas); `db:migrate` dos veces sin error; `pnpm cobertura:db` ≥ 90 % con `src/archivos/**` y `src/ventas/exclusion.ts`. Commit `feat(012b): archivo_generado, estado y exclusión de ventas`.
 
-## T11 · [ ] Worker (backend · opus)
+## T11 · [x] Worker (backend · opus)
+
+- **Resultado** (28a2e9d): worker archivo.generar, catálogo, descarga de ventas bloqueada con generado; 4 defectos de prueba (T5) y leerFilasReemplazo de compras O(n²) con 20.000 filas (T10).
 - **Contexto (leer solo esto)**: `plan.md` (Cola y worker; orden de bloqueo; Dominio: excluidas), `spec.md` (D2, D4, D6, D10, D11, D12), las pruebas de T5, `packages/queue/src/catalogo.ts`, `apps/worker/src/trabajos/procesadores/{obtener-xml,descargar-propuesta}.ts` (modelo), `apps/worker/src/trabajos/persistidores/{compras,ventas}.ts`, `apps/worker/src/trabajos/iniciar.ts`, `apps/worker/src/adaptadores/adaptadores.module.ts`, `packages/sunat/src/formatos/empaquetar.ts`.
 - **Hacer**: `ARCHIVO_GENERAR` en el catálogo; `generar-archivo.ts` con la secuencia del plan en una transacción y el borrado del ZIP si falla; registrar el procesador y la cola `archivos`; el persistidor de ventas lee `venta_periodo` con `FOR SHARE` y rechaza `generado`.
 - **Hecho cuando**: T5 en verde; las de 013, 014 y 016 del worker siguen verdes; `test`, `test:int`, `typecheck` y `lint` de `queue` y `worker` limpios. Commit `feat(012b): generación del archivo en el worker`.
 
-## T12 · [ ] Backend de archivos (backend · sonnet)
+## T12 · [x] Backend de archivos (backend · sonnet)
+
+- **Resultado** (c5562df): módulo archivos (controladores compras/ventas, previo, POST, versiones, descarga con leerVerificado); 590/592 (2 defectos de prueba de T6). Tocó app.module (orden) y filtro-errores.
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: HTTP; Dominio: `prepararArchivo`), `spec.md` (D1, D2, D8, D9, D12), las pruebas de T6 (archivos, aislamiento y HU-40 de archivos), `apps/backend/src/modules/compras/{compras.controller,compras.service,xml.controller,xml.service,errores}.ts` (modelo de guards, `exigirCliente`, descarga con cabeceras), `apps/backend/src/modules/trabajos/encolador.ts`, `apps/backend/src/modules/storage/storage.module.ts`, `apps/backend/src/app.module.ts`.
 - **Hacer**: módulo `archivos` con un controlador por libro sobre el mismo servicio; previo en `withTenant({ foto: true })` con `prepararArchivo` (`reglas` siempre en compras, justificados en ventas), `permiteProvisional(NODE_ENV)`, `excluible` en los errores y `excluidas[]` de `leerExcluidasVentas`; `POST` con el orden de comprobaciones del plan y encolado con el `Encolador`; versiones; descarga con `leerVerificado`.
 - **Hecho cuando**: las pruebas de T6 de archivos, descarga, P-4 y sus casos HU-40 pasan; las de 014 a 016 siguen verdes; `test`, `typecheck` y `lint` del backend limpios. Commit `feat(012b): previo, generación, versiones y descarga`.
 
-## T13 · [ ] Backend de ventas (backend · sonnet)
+## T13 · [x] Backend de ventas (backend · sonnet)
+
+- **Resultado** (cc82c47): estado del periodo de ventas, exigirEscrituraVentas (advisory + venta_periodo), excluir/restaurar; 848 int de ventas, HU-40 en verde. Desvíos aceptados: sin fila de venta_periodo no se crea al escribir (ventana mínima revisar vs escritura en curso; revisar en ronda adversarial); importar valida el archivo antes del estado (422 antes de 403/409); revisar/reabrir rechazan periodos futuros.
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: HTTP, estado y excluir de ventas; BD: `venta_exclusion`; orden de bloqueo), `spec.md` (D5, D12, P-1, P-8, P-9), las pruebas de T6 (estado, 409/403 y exclusión de ventas, HU-40 de ventas), `apps/backend/src/modules/ventas/{ventas.controller,ventas.service,importar-propuesta.service,errores}.ts`, `apps/backend/src/modules/compras/{periodo.service,compras-acciones.controller}.ts` (modelo de revisar, reabrir, excluir y la función de bloqueo de 014).
 - **Hacer**: `estado.service.ts` y las rutas `estado/revisar` y `estado/reabrir`; en cada escritura de ventas, tras `bloquearPeriodoLibro`, leer `venta_periodo` con `FOR SHARE` y aplicar la función de bloqueo de 014 (409 `periodo_generado`; 403 `periodo_revisado` sin `sire.aprobar_generar`, P-9); la descarga y la importación lo comprueban al encolar o confirmar; `exclusion.service.ts` y las rutas `:ventaId/excluir` y `:ventaId/restaurar` con el orden del plan (regla D12 con `erroresDeFilaVenta` bajo el bloqueo, 23505 → `ya_excluida`); `exclusion` en el listado; `estado` y `excluidas` en el resumen (las excluidas no suman).
 - **Hecho cuando**: las pruebas de T6 de ventas (estado, 409/403, exclusión y sus casos HU-40) pasan; las de 013 siguen verdes; `test`, `typecheck` y `lint` del backend limpios. Commit `feat(012b): estado y exclusión de ventas`.
 
-## T14 · [ ] Panel «Generar archivo» en compras (frontend · sonnet; nivel C)
+## T14 · [x] Panel «Generar archivo» en compras (frontend · sonnet; nivel C)
+
+- **Resultado** (2276d6f): panel Generar archivo en compras; 745 pruebas del frontend; supuesto 202 {trabajoId}; el panel tapa la fila en pantalla angosta (revisar en T23).
 - **Contexto (leer solo esto)**: `plan.md` (Frontend), `spec.md` (D1, D2, D5, D9, P-4, P-7; CA-1, CA-9, CA-12), `apps/frontend/AGENTS.md`, `packages/shared/src/archivos/*` (de T8), `apps/frontend/lib/{compras,trabajos}.ts`, `apps/frontend/components/compras/{estado-periodo,grilla-compras}.tsx`, `apps/frontend/app/(app)/clientes/[clienteId]/compras/page.tsx`, `apps/frontend/pruebas/compras.ts`.
 - **Hacer**: `lib/archivos.ts` y `components/archivos/{panel-generar,previo-archivo,versiones-archivo}.tsx`; integrarlos en la página de compras junto a `estado-periodo`; enlaces de error que ubican la fila en la grilla; «Generar» solo con permiso; recarga del previo ante 409 o trabajo en error; «Descargar»; montos como texto; sin `dangerouslySetInnerHTML`.
 - **Hecho cuando**: un caso feliz y uno de error por comportamiento pasan (previo con errores y enlace, generar y seguir el trabajo, 409 `resumen_cambiado` recarga, sin permiso no hay botón, provisional marcado, descarga); la prueba estática de montos cubre los archivos nuevos; `test`, `typecheck` y `lint` del frontend limpios. Commit `feat(012b): panel para generar el archivo de compras`.
 
-## T15 · [ ] Ventas: estado y panel (frontend · sonnet; nivel C)
+## T15 · [x] Ventas: estado y panel (frontend · sonnet; nivel C)
+
+- **Resultado** (590e827): ventas con estado del periodo, escrituras deshabilitadas (incluida importación), excluir/restaurar con motivo, panel de archivo en ventas, ubicar en pantalla angosta cierra el panel; 761 pruebas del frontend.
 - **Contexto (leer solo esto)**: `plan.md` (Frontend; Contratos: excluir ventas), `spec.md` (D5, D12, P-1, P-6, P-8, P-9; CA-10, CA-15), lo creado en T14, `apps/frontend/lib/ventas.ts`, `apps/frontend/components/ventas/{grilla-ventas,agregar-venta,justificar-salto,descarga-ventas,correlatividad-ventas,resumen-ventas,confirmar-accion}.tsx` (`confirmar-accion` es el `alertdialog` de 013 D23, modelo de excluir), `apps/frontend/app/(app)/clientes/[clienteId]/ventas/{page,importar/page}.tsx`, `apps/frontend/components/compras/estado-periodo.tsx`.
 - **Hacer**: `estado-periodo-ventas.tsx` (marcar revisado, reabrir con estado visto) reutilizando el de compras; deshabilitar descargar, importar, agregar, quitar, justificar, revertir, excluir y restaurar con `generado` (y con `revisado` sin `sire.aprobar_generar`) con mensaje; el panel de T14 en ventas con la explicación de P-6 en los errores; `excluir-venta.tsx` (motivo obligatorio, aviso de que la venta no irá en el archivo, «Confirmar»/«Cancelar») desde el error `excluible` y desde la grilla, solo con `sire.clasificar`; la lista de excluidas en el panel y la marca «Excluida» con motivo escapado en la grilla, con «Restaurar»; tras excluir o restaurar, recargar previo, grilla y resumen.
 - **Hecho cuando**: un caso feliz y uno de error por flujo pasan (generar ventas con el aviso de la 291, descuadrada bloquea con la explicación, excluirla con motivo deja el previo apto y la lista, «Cancelar» no llama a la API, restaurar la devuelve, sin motivo no se envía, escrituras deshabilitadas con `generado`, reabrir); `test`, `typecheck` y `lint` limpios. Commit `feat(012b): estado y archivo de ventas`.
 
-## T16 · [ ] Cobertura en CI (devops · haiku)
+## T16 · [x] Cobertura en CI (devops · haiku)
+
+- **Resultado** (a497dfb): cobertura:archivos en CI, queue compilado en auth/acceso/cierre; pendiente: 5 archivos de backend y generar-archivo.ts bajo 90 %, CA-13 >5 s bajo cobertura.
 - **Contexto (leer solo esto)**: `package.json` (scripts `cobertura:*`, `ci:db`, `ci:cierre`), `.github/workflows/ci.yml` (pasos de cobertura), `apps/backend/vitest.cobertura-xml.config.mts` y `apps/worker/vitest.cobertura-xml.config.mts` (modelo), `packages/domain/vitest.cobertura.config.mts`, `packages/db/vitest.cobertura.config.mts`.
 - **Hacer**: `vitest.cobertura-archivos.config.mts` en backend (`modules/archivos/**` y `modules/ventas/{estado,exclusion}.service.ts`) y en worker (`generar-archivo.ts`), con el script raíz `cobertura:archivos` (compila `shared`, `storage`, `db`, `crypto`, `domain`, `sunat` y `queue` antes) en el job con Postgres y Redis; confirmar `src/archivos/**` en `domain` y en `db`; umbral 90 % por archivo.
 - **Hecho cuando**: `cobertura:archivos`, `cobertura:dominio`, `cobertura:storage` y `cobertura:db` corren en local con ≥ 90 % (o se informa el archivo bajo el umbral, sin bajarlo); `ci.yml` válido. Commit `ci(012b): cobertura de archivos`.
 
-## T17 · [ ] Ronda adversarial 1 (adversario · opus)
+## T17 · [x] Ronda adversarial 1 (adversario · opus)
+
+- **Resultado** (39c577f): ronda 1, 7 pruebas, 2 hallazgos: H-012b-1 media (ventana revisar/escritura en ventas, apoyo.ts:86-87), H-012b-2 baja (desborde del impacto da 500 en previo/POST y reintento en worker). Decisiones: ventas como compras (crear fila abierto + FOR SHARE en toda escritura; se ajusta la prueba de T6 que esperaba sin fila); desborde → 422 resumen_fuera_de_rango en backend y ErrorDatos en worker.
 - **Contexto (leer solo esto)**: `spec.md` (D2, D3, D7, D8, D9, D10, D12; CA-4, CA-9, CA-11, CA-12, CA-16; Ataques obligatorios), `plan.md` (Storage, BD, HTTP), 04 §2.3 (catálogos «Formatos TXT/ZIP», «Aislamiento», «Permisos y alcance»), las pruebas de T1 a T6 (para no repetir); en caja blanca, `packages/domain/src/archivos/`, `formatos/valores.ts`, `packages/storage/src/`, `packages/db/migrations/{0039,0040}_*.sql`, `apps/backend/src/modules/archivos/`, `apps/backend/src/modules/ventas/exclusion.service.ts`.
 - **Hacer**: caja negra y luego blanca, ≤ 15 pruebas. TXT/ZIP: razón social con `|`, saltos, ñ, pares sustitutos y NBSP en el borde de 100, campos vacíos, periodo de otro año, consumidor final, montos enormes y negativos (notas de crédito). Descarga: `archivoId`/`clienteId` cruzados entre estudios, libros y periodos, ZIP alterado o truncado, ruta con `../` o un uuid ajeno escrita directo en BD, nombre de archivo hostil. Permisos: asistente contra `POST`, cliente desasignado o archivado con sesión viva, `permitirProvisional`/`registro`/`NODE_ENV` en la petición. Excluir: `ventaId` de otro estudio, cliente o periodo; venta manual o sin error; sin `sire.clasificar` o con `revisado` sin `sire.aprobar_generar`; motivo hostil (HTML, `|`, NUL, 10.000 caracteres) buscado en TXT, ZIP, logs y `resultado`. Privilegios del worker: con el rol `contapp_worker`, intentar reabrir o marcar `revisado`, insertar una versión sin `generado`, con otro usuario o saltando números, leer o escribir otras tablas de 012b, insertar, cerrar o borrar en `venta_exclusion`; con el rol del backend, reabrir una exclusión cerrada o cambiar su motivo. No escribe código de producción.
 - **Hecho cuando**: cada prueba pasa (la defensa aguanta) o falla con un hallazgo `H-012b-n` (severidad, archivo y línea de la causa); informe al orquestador para «Hallazgos adversariales abiertos» de `ESTADO.md`.
 
-## T18 · [ ] Pruebas de las correcciones de la ronda 1, rojo (tester · sonnet)
+## T18 · [x] Pruebas de las correcciones de la ronda 1, rojo (tester · sonnet)
+
+- **Resultado** (5512daa): 11 pruebas de correcciones de ronda 1 (rojas) + ajuste exclusion.int.spec.ts:123 a fila abierto.
 - **Contexto (leer solo esto)**: el informe de T17, los `*.adv*.spec.ts` que fallan, `spec.md` (las D citadas en cada hallazgo).
 - **Hacer**: una prueba propia (no adversarial) por hallazgo que fija el comportamiento correcto según la spec; si un hallazgo pide cambiar la spec, `requiere usuario`.
 - **Hecho cuando**: las pruebas fallan por el defecto, no por sintaxis. Commit `test(012b): correcciones de la ronda 1 en rojo`.
 
-## T19 · [ ] Corregir la ronda 1 (backend · opus)
+## T19 · [x] Corregir la ronda 1 (backend · opus)
+
+- **Resultado** (3352e80): H-012b-1 escrituras de ventas crean y bloquean venta_periodo (FOR SHARE); H-012b-2 desborde traducido (reintento con montos en cero para distinguirlo) a 422 resumen_fuera_de_rango en backend y ErrorArchivo en worker; lógica duplicada backend/worker (desborde.ts y desborde-resumen.ts) — revisar en T25.
 - **Contexto (leer solo esto)**: el informe de T17, las pruebas de T18, los archivos citados en cada hallazgo.
 - **Hacer**: corregir la causa sin tocar pruebas; una migración nueva (0041 en adelante) si hace falta, nunca editar 0039/0040 si ya se aplicaron en otra rama.
 - **Hecho cuando**: T18 y los `*.adv*` de T17 en verde; suites de los paquetes tocados verdes; cobertura ≥ 90 % sin cambios de umbral. Commit `fix(012b): hallazgos de la ronda 1`.
 
-## T20 · [ ] Ronda adversarial 2 (adversario · opus)
+## T20 · [x] Ronda adversarial 2 (adversario · opus)
+
+- **Resultado** (d05a5ba): ronda 2, 12 pruebas, 4 hallazgos: H-012b-3 ALTA (commit confirmado y conexión caída → ZIP borrado), H-012b-4 media (reintento tras P-5 con otra huella falla), H-012b-5 baja (detector de desborde confunde forma imposible en montos), H-012b-6 baja (reintento tardío tras reabrir vuelve a generado; requiere usuario).
 - **Contexto (leer solo esto)**: `spec.md` (D4, D5, D6, D12, P-1, P-2, P-5, P-8; CA-3, CA-6 a CA-8, CA-14 a CA-16; Ataques obligatorios), `plan.md` (orden de bloqueo, Cola y worker), 04 §2.3 («Cola / despachador»), las pruebas de T4 a T6 (para no repetir); en caja blanca, `apps/worker/src/trabajos/procesadores/generar-archivo.ts`, `packages/db/src/{archivos,ventas}/`, `apps/backend/src/modules/{archivos,ventas}/`.
 - **Hacer**: ≤ 15 pruebas. Doble clic y `POST` con huellas distintas a la vez; reintento después del commit; worker que muere tras `storage.guardar`; generar mientras otro edita compras, acepta en bloque, deshace, descarga, importa, agrega, excluye o restaura ventas, reabre o marca revisado (en ambos órdenes, varias rondas); excluir y restaurar la misma venta a la vez y dos veces seguidas; fila mutada entre previo, encolado y worker; XML que llega durante la generación (016 D-7: la huella no cambia, el archivo tampoco); periodo sin filas o con todas excluidas (`SIN_FILAS`, compras y ventas); compras y ventas del mismo periodo a la vez; un estudio con muchos trabajos `archivo.generar` frente a otro. Regresión de la ronda 1.
 - **Hecho cuando**: igual que T17 (`H-012b-n` continúa la numeración).
 
-## T21 · [ ] Pruebas de las correcciones de la ronda 2, rojo (tester · sonnet)
+## T21 · [x] Pruebas de las correcciones de la ronda 2, rojo (tester · sonnet)
+
+- **Resultado** (da8442b): pruebas de correcciones de ronda 2 (H-012b-3..6); si no se puede comprobar el COMMIT, se conserva el ZIP.
 - **Contexto (leer solo esto)**: el informe de T20, los `*.adv*` que fallan, `spec.md` (las D citadas).
 - **Hacer** y **Hecho cuando**: como T18. Commit `test(012b): correcciones de la ronda 2 en rojo`.
 
-## T22 · [ ] Corregir la ronda 2 (backend · opus)
+## T22 · [x] Corregir la ronda 2 (backend · opus)
+
+- **Resultado** (e8f719a): H-012b-3 comprueba la versión antes de borrar el ZIP; H-012b-4/6 búsqueda por trabajo_id (o resultado guardado en job_registro para P-5) antes del CAS; H-012b-5 valida forma de montos (instanceof + sumar). Desborde sigue duplicado backend/worker (domain tiene exports cerrados). Ratificado: el procesador guarda su resultado en job_registro cuando devuelve una versión existente.
 - **Contexto (leer solo esto)**: el informe de T20, las pruebas de T21, los archivos citados.
 - **Hacer** y **Hecho cuando**: como T19, más `pnpm test:aislamiento` verde. Commit `fix(012b): hallazgos de la ronda 2`.
 
@@ -303,4 +349,9 @@ Observaciones (sin tarea): (a) la lista de versiones de la pantalla solo muestra
 - **Contexto (leer solo esto)**: este `tasks.md`, `git status`.
 - **Hacer**: marcar las tareas, `Estado: hecha` en `spec.md` con la fecha y los CA en `[x]` según T24 y T25.
 - **Hecho cuando**: `git status` limpio salvo lo ajeno. Commit `docs(012b): cierre`.
-- **Resultado** (2026-11-11): cierre hecho. `docs/03-arquitectura.md` §7.3 con el texto propuesto (se conservan el punto R2 y la nota de formatos, que el texto no menciona); `spec.md` en «Estado: hecha» con CA-1 a CA-16 y casos reales en `[x]` según T24 y T25; `docs/specs/ESTADO.md` sin tocar. Sin marcar (no se inventaron): T1 a T22 siguen `[ ]` en la tabla y en sus encabezados, aunque el branch tiene commit para cada una (`git log main..HEAD`); T16a y T23a no tienen fila en esta hoja (sus commits son `d669424` y `8aa50e2`).
+- **Resultado** (2026-11-11): cierre hecho. `docs/03-arquitectura.md` §7.3 con el texto propuesto (se conservan el punto R2 y la nota de formatos, que el texto no menciona); `spec.md` en «Estado: hecha» con CA-1 a CA-16 y casos reales en `[x]` según T24 y T25; `docs/specs/ESTADO.md` sin tocar. El orquestador marcó después T1 a T22 `[x]` con el resultado y el commit de cada una, y añadió las filas de T16a (`d669424`) y T23a (`8aa50e2`).
+
+## Tareas añadidas
+
+- **T16a** (d669424): cobertura:archivos en verde; CA-13 límite ×3 solo con CONTAPP_COBERTURA=1. Código muerto/defensivo: permisosDe en controller, catch DineroError en previo; montos fuera de rango por HTTP dieron 500 error_interno en algún caso (pista para la ronda adversarial).
+- **T23a** (8aa50e2): P-1 scrollIntoView en compras, P-2 hook restaurar-foco (también en ConfirmarAccion), P-3 comprobante en errores/avisos del previo (opcional en el esquema); 770 pruebas del frontend.
