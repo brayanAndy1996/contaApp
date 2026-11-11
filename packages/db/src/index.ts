@@ -328,3 +328,7 @@ export { insertarVersion, ultimaVersion } from "./archivos/versiones";
 export type { LibroArchivo, NuevaVersionArchivo, VersionArchivo } from "./archivos/versiones";
 export { leerVersion, listarVersiones } from "./archivos/lectura";
 export { archivoGenerado } from "./schema/archivos";
+
+// Spec 017 (T7): tablas de auditoría y notificaciones (RLS, grants, triggers y funciones en 0041–0043). Los repositorios son de T8.
+export { auditoria } from "./schema/auditoria";
+export { notificacion, planAviso } from "./schema/notificaciones";

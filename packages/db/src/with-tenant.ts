@@ -18,6 +18,11 @@ export interface ContextoTenant {
   /** UUID del usuario que actúa (opcional). */
   userId?: string;
   /**
+   * Spec 017 (CA-4): UUID del trabajo que ejecuta el worker (opcional). Fija `app.trabajo_id`; la auditoría lo toma como actor
+   * `trabajo` solo con el rol contapp_worker y si el trabajo es del estudio (con otro rol se ignora). Validado como `userId`.
+   */
+  trabajoId?: string;
+  /**
    * Lectura consistente (H-014-2): la transacción abre en `REPEATABLE READ READ ONLY`, así que todas sus sentencias ven el
    * mismo instante y no puede escribir ni bloquear filas. Para generar un archivo o un resumen de varias lecturas. Sin esta
    * opción (o en `false`) la transacción es la de siempre, `READ COMMITTED`.
@@ -74,16 +79,23 @@ interface Ajuste {
 /** Abre la transacción de una lectura consistente (ver `ContextoTenant.foto`). */
 const BEGIN_FOTO = "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY";
 
+const SET_TENANT = "SELECT set_config('app.tenant_id', $1, true), set_config('app.user_id', $2, true)";
+
 /** Valida el contexto de withTenant ANTES de abrir conexión. */
 export function ajusteTenant(ctx: unknown): Ajuste {
   if (typeof ctx !== "object" || ctx === null) throw new ContextoInvalidoError();
-  const { tenantId, userId, foto } = ctx as Partial<ContextoTenant>;
+  const { tenantId, userId, trabajoId, foto } = ctx as Partial<ContextoTenant>;
   if (!uuidValido(tenantId)) throw new ContextoInvalidoError();
   if (userId !== undefined && !uuidValido(userId)) throw new ContextoInvalidoError();
+  if (trabajoId !== undefined && !uuidValido(trabajoId)) throw new ContextoInvalidoError();
   if (foto !== undefined && typeof foto !== "boolean") throw new ContextoInvalidoError();
+  const valores = [tenantId.toLowerCase(), userId === undefined ? "" : userId.toLowerCase()];
   return {
-    sql: "SELECT set_config('app.tenant_id', $1, true), set_config('app.user_id', $2, true)",
-    valores: [tenantId.toLowerCase(), userId === undefined ? "" : userId.toLowerCase()],
+    sql:
+      trabajoId === undefined
+        ? SET_TENANT
+        : `${SET_TENANT}, set_config('app.trabajo_id', $3, true)`,
+    valores: trabajoId === undefined ? valores : [...valores, trabajoId.toLowerCase()],
     ...(foto === true ? { inicio: BEGIN_FOTO } : {}),
   };
 }
