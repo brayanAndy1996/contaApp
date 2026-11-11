@@ -1,7 +1,7 @@
 # Spec 017 · Auditoría y notificaciones en la app
 
-Estado: **borrador** (2026-11-11). Falta que el usuario responda P-1 a P-7. Rama `spec/017-auditoria-notif`. Plan y tareas: después de aprobar.
-Nivel de riesgo: **B**, según el tablero, con ronda adversarial en tres puntos concretos (D-16). Por §2.1: (1) no, porque no calcula montos ni genera archivos; (2) sí, porque una notificación o una fila de auditoría mal filtrada muestra datos de otro cliente, usuario o estudio; (3) sí, porque una acción que no se audita no la nota nadie; (4) parcial, porque son muchos puntos de captura y hay carreras entre el hecho y el aviso. Con (2) y (3), la tabla de §2.1 da **A**: ver P-1.
+Estado: **aprobada** (2026-11-11; el usuario eligió la opción recomendada en P-1 a P-7, ver «Decisiones del usuario»). Rama `spec/017-auditoria-notif`. Plan: `plan.md` · tareas: `tasks.md`.
+Nivel de riesgo: **B**, según el tablero, con ronda adversarial en tres puntos concretos (D-16). Por §2.1: (1) no, porque no calcula montos ni genera archivos; (2) sí, porque una notificación o una fila de auditoría mal filtrada muestra datos de otro cliente, usuario o estudio; (3) sí, porque una acción que no se audita no la nota nadie; (4) parcial, porque son muchos puntos de captura y hay carreras entre el hecho y el aviso. Con (2) y (3), la tabla de §2.1 da **A**; el usuario eligió **B** con una ronda adversarial dirigida (P-1, D-16).
 Cubre: RF-150, RF-152, RF-160 (sin buzón), RF-026 (filtro de notificaciones), RNF-001, RNF-004, RNF-021 (auditoría) · HU-10 (notificación), parte de HU-40 · notas [017] de ESTADO (notificador real, «quién marcó revisado», «XML subido por», autor del Historial).
 
 ## Objetivo
@@ -11,13 +11,13 @@ Que el estudio tenga un registro de solo agregado de quién hizo qué (RF-150/15
 - Tabla `auditoria` general, solo de agregado, que se llena en la misma transacción de cada acción del catálogo de D-3.
 - Tabla `notificacion`, el notificador real que reemplaza a `NotificadorLog` de 008, la API de notificaciones del usuario, la campana y la página `notificaciones` en el frontend (nivel C por tarea).
 - Autor con nombre (D-12) en «revisado por» (014/015 D-13), el Historial de 015, «XML subido por» (016) y las versiones de archivo de 012b.
-- La consulta mínima de auditoría que se decida en P-2.
+- La consulta mínima de auditoría de P-2: lista paginada por fecha, sin filtros, solo con `auditoria.ver`.
 - Migraciones desde la **0041**.
 
 ## Fuera de alcance
 - Filtros de auditoría por usuario, cliente, acción y fechas (RF-151) y el historial por cliente de HU-39: **R2**.
 - Mensaje crítico de buzón (RF-160, HU-33): **R2** (los buzones son R2). El catálogo deja el tipo reservado.
-- Correo configurable (RF-161) y resumen diario (RF-162): **R2** (ver P-6). La cola `notificaciones` y `notificacion.enviar` quedan para entonces.
+- Correo configurable (RF-161), correo de cualquier aviso y resumen diario (RF-162): **R2** (P-6). La cola `notificaciones` y `notificacion.enviar` quedan para entonces.
 - Envíos a SUNAT (RF-104): **R2**. El catálogo deja reservada `sunat.envio`.
 - Acceso de soporte del super-admin auditado (RNF-022): **R2**.
 - Purga de auditoría con más de 5 años: tarea de mantenimiento futura (D-7).
@@ -81,11 +81,12 @@ Cada uno con una prueba en CA-3, CA-4, CA-6, CA-7 o CA-11:
 - Specs: 002, 003, 004, 005, 006, 007a, 007b, 008, 012b, 013, 014, 015 y 016 (todas hechas).
 - Externas: ninguna.
 
-## Preguntas para el usuario
-- P-1 Nivel de riesgo. (a) **B con adversarial acotado (D-16)** (Recom.): reutiliza RLS, `filtroAlcance` y `withTenant`, que ya están probados. (b) **A**: TDD y adversarial completos y revisión final del arquitecto, que es lo que da la tabla de §2.1.
-- P-2 Consulta de auditoría en R1. (a) **Lista simple paginada por fecha y sin filtros**, en `configuracion/auditoria` (Recom.): los filtros son RF-151, de R2. (b) No hay pantalla en R1: solo se registra. (c) Los filtros de RF-151 ya en R1.
-- P-3 Qué trabajos avisan al terminar. (a) **Los que lanzó un usuario con prioridad interactiva, al terminar con éxito o con error** (Recom.). Los programados y los lotes de `xml.obtener` no avisan. (b) Solo los que terminan con error. (c) Todos, también los programados.
-- P-4 Quién recibe «credencial inválida». (a) **El responsable del cliente; si no tiene, los Dueños y Administradores** (Recom.). (b) El responsable y los colaboradores. (c) El responsable y, además, siempre los Dueños y Administradores.
-- P-5 «Límite del plan cercano». (a) **Al llegar al 90 % y al 100 % de RUCs o de usuarios, a los Dueños** (Recom.). (b) Al 80 % y al 100 %. (c) Solo al 100 %.
-- P-6 Correo en R1. (a) **No**: solo la app, y el correo es RF-161 en R2 (Recom.). (b) Correo solo para «credencial inválida», sin preferencias por usuario.
-- P-7 Retención y borrado de notificaciones. (a) **Se purgan a los 90 días de creadas, leídas o no, y el usuario no las borra, solo las marca como leídas** (Recom.). (b) Las leídas a los 30 días y las no leídas nunca. (c) Además, el usuario puede borrarlas.
+## Decisiones del usuario (2026-11-11)
+Eligió en todas la opción recomendada:
+- P-1 → (a) **Nivel B** con una ronda adversarial dirigida a aislamiento, inmutabilidad de la auditoría (con actor no falsificable) y secretos (D-16).
+- P-2 → (a) Consulta de auditoría en R1: **lista paginada por fecha, sin filtros**, en `configuracion/auditoria`, solo para Dueño y Administrador (`auditoria.ver`). Los filtros de RF-151 quedan para R2.
+- P-3 → (a) Avisan al terminar, con éxito o con error, **los trabajos que un usuario lanzó desde la pantalla** (prioridad interactiva y `creado_por`). Los programados, los lotes de `xml.obtener` tras la descarga, los de sistema y los cancelados no avisan.
+- P-4 → (a) «Credencial inválida» va al **responsable del cliente**; si el cliente no tiene responsable, a los **Dueños y Administradores** activos.
+- P-5 → (a) Límite del plan: aviso a los **Dueños** al llegar al **90 %** y al **100 %** de RUCs o de usuarios.
+- P-6 → (a) **Sin correo en R1**: solo la app. El correo queda para R2 (RF-161).
+- P-7 → (a) Las notificaciones **se purgan a los 90 días** de creadas, leídas o no. El usuario no las borra, solo las marca como leídas.

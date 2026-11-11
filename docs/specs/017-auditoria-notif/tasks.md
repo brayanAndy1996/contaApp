@@ -1,0 +1,153 @@
+# Tareas 017 · Auditoría y notificaciones en la app
+
+Leyenda: rol `arquitecto` · `backend` · `frontend` · `tester` · `adversario` · `devops` | modelo `opus` · `sonnet` · `haiku` | `TDD` pruebas primero | `ADV` ronda adversarial | `∥` puede ir en paralelo con las indicadas (no comparten archivos) | estado `[ ]` pendiente · `[~]` en curso · `[x]` hecha
+
+Nivel B con una ronda adversarial dirigida (P-1, D-16); las pantallas son nivel C por tarea (T12, T13: pruebas mínimas, sin TDD ni ADV). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → cobertura ≥ 90 % → atacar (1 ronda) → corregir (con pruebas del tester) → prueba manual → verificar → revisión → cerrar. Rama `spec/017-auditoria-notif`. CA, D y P (decididas el 2026-11-11) = `spec.md`; contratos y decisiones = `plan.md`.
+
+| #   | Tarea | Rol | Modelo | Depende de | TDD | ADV | Estado |
+| --- | ----- | --- | ------ | ---------- | --- | --- | ------ |
+| T1  | Pruebas de `shared`: autor, catálogo de auditoría, notificaciones, aviso SSE y DTOs ampliados (rojo) | tester | sonnet | — ∥ T2, T3 | ✓ | — | [ ] |
+| T2  | Pruebas de BD de auditoría: tabla, inmutabilidad, actor, una por acción, falla cerrado, operación, descifrados; limpiezas comunes (rojo) | tester | sonnet | — ∥ T1, T3 | ✓ | — | [ ] |
+| T3  | Pruebas de BD de notificaciones: RLS por usuario, avisos de credencial, trabajo y plan, dedupe, purga, destinatarios, lecturas y autores (rojo) | tester | sonnet | — ∥ T1, T2 | ✓ | — | [ ] |
+| T4  | Pruebas del worker: `trabajoId`, `NotificadorEventos`, CA-8, CA-9, purga y actor `trabajo` (rojo) | tester | sonnet | T1 ∥ T5 | ✓ | — | [ ] |
+| T5  | Pruebas HTTP: notificaciones, auditoría, SSE, autor, secretos y HU-40 (rojo) | tester | sonnet | T1 ∥ T4 | ✓ | — | [ ] |
+| T6  | `shared`: autor, auditoría, notificaciones, aviso y DTOs | backend | sonnet | T1 ∥ T7 | ✓ | — | [ ] |
+| T7  | Migraciones 0041–0043, esquema drizzle y `trabajoId` en `withTenant` | backend | opus | T2, T3 ∥ T6 | ✓ | — | [ ] |
+| T8  | Repositorios de `packages/db`: auditoría, notificaciones, autores y origen | backend | sonnet | T6, T7 | ✓ | — | [ ] |
+| T9  | Worker: notificador real, `trabajoId` en los trabajos y purga | backend | sonnet | T4, T8 ∥ T10, T11 | ✓ | — | [ ] |
+| T10 | Backend: módulos `notificaciones` y `auditoria`, SSE y aviso tras el cupo | backend | sonnet | T5, T8 ∥ T9, T11 | ✓ | — | [ ] |
+| T11 | Backend: `autor` en compras, XML y archivos | backend | sonnet | T5, T8 ∥ T9, T10 | ✓ | — | [ ] |
+| T12 | Campana, panel y página de notificaciones (nivel C) | frontend | sonnet | T6 ∥ T7–T11 | — | — | [ ] |
+| T13 | Página de auditoría y autor en las cuatro pantallas (nivel C) | frontend | sonnet | T12 | — | — | [ ] |
+| T14 | Cobertura ≥ 90 % por archivo en CI: `cobertura:auditoria` | devops | haiku | T9, T10, T11 ∥ T12, T13 | — | — | [ ] |
+| T15 | Ronda adversarial dirigida: aislamiento, inmutabilidad y actor, secretos (≤ 15 pruebas) | adversario | opus | T14 | — | ✓ | [ ] |
+| T16 | Pruebas de las correcciones de la ronda (rojo) | tester | sonnet | T15 | ✓ | — | [ ] |
+| T17 | Corregir los hallazgos de la ronda | backend | opus | T16 | — | — | [ ] |
+| T18 | Prueba manual contra el sistema completo | tester | sonnet | T13, T17 | — | — | [ ] |
+| T19 | Verificar CA-1 a CA-16 con evidencia, suites completas, cobertura y p95 | tester | sonnet | T18 | — | — | [ ] |
+| T20 | Revisión final contra la spec | arquitecto | sonnet | T19 | — | — | [ ] |
+| T21 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza ESTADO) | devops | haiku | T20 | — | — | [ ] |
+
+Paralelismo: T1 ∥ T2 ∥ T3; luego T4 ∥ T5 (los dos contra los esquemas de T1). Implementación: T6 (`shared`) ∥ T7 (`db`: migraciones); T8 tras los dos. Luego tres carriles: T9 (`apps/worker`, `packages/queue`) ∥ T10 (`apps/backend/src/modules/{notificaciones,auditoria,trabajos,planes,importacion,clientes,acceso}`, `app.module.ts`) ∥ T11 (`apps/backend/src/modules/{compras,archivos}`). El frontend (T12 → T13) corre en paralelo con T7–T11 contra el contrato de `shared` (sus pruebas simulan la API); T14 con T12–T13. La ronda y su corrección van en serie (T15 → T16 → T17). Si la ronda no deja fallos, T16 y T17 se marcan `[x]` «sin hallazgos».
+
+Escalamientos: T7 nace en `opus` (RLS, triggers, funciones `SECURITY DEFINER`, grants y actor; 04 §3.2). T8, T9, T10 o T11 pasan a `opus` si fallan 2 veces. T14 pasa a `sonnet` si `haiku` falla una vez (precedente: T16a de 012b). T15 es `opus` por regla; T17 en `opus` porque toca BD y privilegios. Si T18 encuentra defectos de pantalla se añade T18a (frontend · sonnet); si T20 encuentra defectos, T20a (pruebas en rojo) y T20b (corrección), como 014 T22a/T22b.
+
+Reglas comunes:
+
+- Un commit por tarea (Conventional Commits `test(017): …`, `feat(017): …`, `fix(017): …`, `ci(017): …`, `docs(017): …`) con el trailer `Co-Authored-By` del modelo que la ejecutó. Las tareas ∥ hacen commit una tras otra. Sin push del subagente: el orquestador lo hace.
+- **Nunca** agregar al índice `docs/explorador/`, `.codex/` ni `AGENTS.md` ajenos: `git add <rutas>` explícitas, nunca `-A` ni `.`.
+- **Secretos** (CA-6, D-5, D-14): nunca imprimir ni commitear secretos ni `.env`. Las pruebas usan centinelas (clave SOL, `client_secret`, razón social y RUC únicos) que se buscan en `auditoria`, `notificacion`, logs, errores y respuestas. Ningún log con `datos`, `params` ni razones sociales: solo ids y códigos.
+- Checks: responder solo fallos (`archivo:línea · mensaje`) o «OK» + conteo. Correr solo las pruebas del paquete afectado; las suites completas en T19.
+- El tester no toca código de producción; backend y frontend no editan `*.spec.ts` ajenos; solo T15 escribe `*.adv.spec.ts` / `*.adv.int.spec.ts`. Las pruebas de las correcciones las escribe el tester (T16), no quien corrige. El frontend (nivel C) escribe sus propias pruebas mínimas.
+- **Limpiezas de soporte**: los triggers de 017 crean filas de `auditoria`, `notificacion` y `plan_aviso` en casi cualquier prueba. Toda limpieza que borre `tenant` o `usuario` las borra **antes**, por `tenant_id` (y por `usuario_id` en `notificacion`), con `session_replication_role = replica` (el trigger de inmutabilidad bloquea el `DELETE` incluso al superusuario) en una conexión que se destruye al terminar. Sin esto quedan estudios sin suscripción y falla `tests/aislamiento/planes.spec.ts` (lección de 016). Solo T2 cambia las limpiezas comunes; las demás tareas de pruebas las usan.
+- **Worker en pruebas**: toda prueba del worker que encole un trabajo y llame al procesador directo (sin el ejecutor) cancela al terminar sus `job_registro` que sigan `en_cola` (lección de 016), o el despachador de otra suite los toma.
+- **HU-40**: cada ruta nueva (las cuatro de notificaciones y la de auditoría) tiene su caso en `apps/backend/src/aislamiento/hu40-api.int.spec.ts`; la prueba «toda ruta tiene caso» sigue en verde.
+- **Privilegios**: ningún rol de la app recibe `INSERT`, `UPDATE`, `DELETE` ni `TRUNCATE` sobre `auditoria` ni `plan_aviso`, ni `INSERT`/`DELETE` sobre `notificacion`; el worker no recibe ningún grant de tabla nuevo. Toda función nueva es `SECURITY DEFINER` con `SET search_path = pg_catalog, pg_temp`, `REVOKE ALL … FROM PUBLIC` y `EXECUTE` solo a quien el plan nombra. Cualquier otro grant es `requiere usuario`.
+- Migraciones: 017 usa **0041**, **0042** y **0043**; confirmar con `ls packages/db/migrations` y el diario antes de crear; nunca editar una aplicada. Las pruebas de 002–016 siguen en verde (las de 003 sobre `auditoria_descifrado`, sin cambios).
+- Toda consulta en `withTenant()`; nunca desactivar RLS. `apps/backend` nunca importa `@contapp/sunat` ni descifra. Adaptadores en `mock`. Sin dependencias nuevas; si una tarea crea un paquete, lo agrega a la compilación de `ci:db`, `ci:cierre`, los `cobertura:*` y `ci.yml`.
+- P-1 a P-7 están decididas (spec, 2026-11-11). Una ambigüedad nueva que cambie la spec no se decide: `requiere usuario`.
+
+## T1 · [ ] Pruebas de `shared`, rojo (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (D-3, D-8, D-11, D-12; P-2, P-3, P-5; CA-12, CA-13, CA-14, CA-16), `plan.md` (Contratos: shared, HTTP, Aviso en vivo), `packages/shared/src/compras/{esquemas,respuestas}.ts`, `packages/shared/src/xml/detalle.ts`, `packages/shared/src/archivos/respuestas.ts`, `packages/shared/src/trabajos/esquemas.ts`, `packages/shared/src/acceso/permisos.ts` (solo `auditoria.ver`).
+- **Hacer**: `packages/shared/src/{autor,auditoria/esquemas,auditoria/acciones,notificaciones/esquemas}.spec.ts` y casos nuevos en las pruebas de compras, xml y archivos. Casos: `autorSchema` (nombre nulo = desconocido); `ACCIONES_AUDITORIA` igual al catálogo de D-3 más `credencial.descifrada` y `sunat.envio`; `filaAuditoriaSchema`; `notificacionSchema` con `params` discriminado por tipo (rechaza claves extra y `params` de otro tipo); `noLeidasSchema` 0..100; `marcarLeidasSchema` estricto (rechaza `usuarioId`); `avisoNotificacionSchema` (1..200 uuid, sin otras claves); DTOs con `autor` junto al id.
+- **Hecho cuando**: compilan contra las firmas del plan y fallan por módulo o campo ausente; las demás pruebas de `shared` siguen en verde. Commit `test(017): esquemas de auditoría y notificaciones en rojo`.
+
+## T2 · [ ] Pruebas de BD de auditoría y limpiezas, rojo (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (D-1 a D-7, D-13, D-15; CA-1 a CA-5, CA-7, CA-14), `plan.md` (Contratos: BD 0041 y 0042, la tabla de captura, packages/db; Riesgos), `tests/aislamiento/{soporte,acceso-soporte,compras-soporte,archivos-soporte,catalogo.spec}.ts`, `tests/aislamiento/credencial.spec.ts:520-575` (estilo de las pruebas de grants), `packages/db/migrations/0040_archivo_generado.sql` (modelo de trigger de inmutabilidad y de rol acotado), `packages/db/src/schema/{acceso,clientes,credenciales,compras,ventas,xml,archivos,propuestas}.ts` (columnas), `packages/db/src/compras/operaciones.ts` (solo firmas), y las limpiezas que nombra el plan («Archivos», última fila).
+- **Hacer**: `tests/aislamiento/auditoria-{tablas,actor,capturas,operacion}.spec.ts` y `auditoria-soporte.ts`. (a) Catálogo de 002 con `auditoria`, `notificacion` y `plan_aviso` (RLS forzada) y `TABLAS_NEGOCIO` ampliado. (b) CA-3: con backend, worker, `contapp_app` y `contapp_platform`, INSERT, UPDATE, DELETE y TRUNCATE dan `42501`; como dueño y como superusuario, UPDATE, DELETE y TRUNCATE los rechaza el trigger; `auditoria_registrar` sin `EXECUTE` para los roles de la app. (c) CA-4 en SQL: actor `usuario` con `app.user_id`; `trabajo` con `app.trabajo_id` del tenant y `usuario_id = creado_por`; `app.trabajo_id` de otro estudio o inexistente revierte la acción; `app.trabajo_id` con el rol backend se ignora; sin contexto, `sistema`. (d) CA-1: **una prueba por acción** de la tabla del plan, con la acción hecha por el repositorio o la función existente (o SQL con el rol de la app), que comprueba exactamente una fila, actor, `cliente_id`, entidad y las claves exactas de `datos`, más `cliente.creado` con `origen = importacion` tras `marcarOrigenImportacion`. (e) CA-2: un trigger de prueba que hace fallar el INSERT en `auditoria` (creado y quitado en una transacción del superusuario) revierte la acción. (f) CA-5: masiva de 300 compras = una fila `compra.operacion` con `filas = 300`; `leerCambiosDeOperacion` devuelve el antes → después de cada compra; deshacer deja su propia fila. (g) `listarAuditoria`: orden, cursor, ≤ 50 e inclusión de los descifrados como `credencial.descifrada`; CA-7 en SQL con dos estudios. (h) **Limpiezas** de todos los archivos del plan: borrar `notificacion`, `plan_aviso` y `auditoria` antes de `tenant`/`usuario`, en modo `replica`.
+- **Hecho cuando**: las pruebas nuevas fallan por tabla, función o export ausente (no por sintaxis); las suites de 002–016 siguen en verde con las limpiezas nuevas (`pnpm test:aislamiento` sin fallos ajenos a 017 y `planes.spec.ts` en verde). Commit `test(017): auditoría en BD y limpiezas en rojo`.
+
+## T3 · [ ] Pruebas de BD de notificaciones, rojo (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (D-8 a D-10, D-12; P-3, P-4, P-5, P-7; CA-8 a CA-11, CA-13, CA-15), `plan.md` (Contratos: BD 0043, packages/db), `tests/aislamiento/{soporte,acceso-soporte,trabajos-soporte,planes-soporte}.ts`, `packages/db/src/credenciales/estado.ts` (`marcarCredencialInvalida`, `marcarCredencialVerificada`), `packages/db/src/trabajos/registro.ts` (`transicionar`), `packages/db/src/planes/{cupo,uso}.ts`, `packages/db/src/acceso/alcance.ts`.
+- **Hacer**: `tests/aislamiento/notificaciones-{tablas,avisos,plan,lectura}.spec.ts` y `notificaciones-soporte.ts` (no cambia las limpiezas comunes: son de T2). (a) RLS: con backend, otro usuario del estudio y otro estudio no ven ni actualizan; `UPDATE` de otra columna o de `leida_en` a NULL falla; ningún rol de la app hace INSERT ni DELETE; el worker no tiene grants. (b) CA-8: `marcarCredencialInvalida` → una notificación al responsable; sin responsable, a Dueños y Administradores activos (no a desactivados); rollback = ninguna; segunda invalidación con la credencial aún inválida = ninguna nueva; reemplazar la credencial y volver a invalidar = una nueva. (c) CA-9: `ejecutando → completado|error` interactivo con `creado_por` = una al creador; `en_cola` (reintento), `cancelado`, `programado` y sin `creado_por` = ninguna; dos transiciones terminales imposibles, una sola fila. (d) CA-10: al cruzar 90 % y 100 % de RUCs y de usuarios, una a cada Dueño activo; repetir sin bajar = nada; bajar y volver a cruzar = otra; `max_usuarios` NULL = nada; la siembra de 0043 no notifica. (e) `notificaciones_de_esta_transaccion` solo devuelve lo de la transacción en curso; `notificacion_purgar(90)` borra solo lo de más de 90 días del tenant actual y `0` da `22023` (CA-15). (f) Lecturas: `listarNotificaciones` (orden, cursor, ≤ 50), `contarNoLeidas` (tope 100), `marcarLeida` (idempotente; ajena = `false` sin cambios), `marcarLeidasHasta`, y CA-11: un Asistente desasignado deja de ver y de contar la del cliente. (g) `resolverAutores`: activo, «(inactivo)» y desconocido (CA-13).
+- **Hecho cuando**: fallan por tabla, función o export ausente; el resto sigue en verde. Commit `test(017): notificaciones en BD en rojo`.
+
+## T4 · [ ] Pruebas del worker, rojo (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (D-3, D-9, D-14; CA-4, CA-6, CA-8, CA-9, CA-15), `plan.md` (Contratos: Worker, Aviso en vivo), `apps/worker/src/trabajos/{registro,ejecutor}.ts`, `apps/worker/src/trabajos/ejecutor.int.spec.ts` (modelo), `apps/worker/src/trabajos/caida.int.spec.ts` (worker que muere), `apps/worker/src/trabajos/procesadores/auth-purgar.ts`, `apps/worker/test/{trabajos,soporte}.ts`, `packages/queue/src/eventos.ts`.
+- **Hacer**: `apps/worker/src/trabajos/notificador.int.spec.ts`, `notificador.spec.ts`, casos en `procesadores/auth-purgar*.spec.ts` y `packages/queue/src/eventos.spec.ts`. Casos: `ErrorCredencial` en `sire.propuesta.descargar` y `credencial.verificar` → notificación y fila `credencial.invalidada` con actor `trabajo` y `creado_por`; el aviso sale **después** del commit con solo los destinatarios; si el aviso falla o el proceso muere tras el commit, la notificación existe (CA-8); reintentos con `ErrorTransitorio` y luego éxito = una sola `trabajo_terminado` (CA-9); `propuesta.cargada`, `archivo.generado` y `credencial.verificada` del worker con `trabajo_id` (CA-4); `publicarAvisoNotificacion` publica `{evento, destinatarios}` y nunca lanza; centinelas ausentes en logs y en el mensaje (CA-6); `auth.purgar` borra notificaciones de más de 90 días por estudio y lo cuenta en `resultado` (CA-15).
+- **Hecho cuando**: fallan por export o comportamiento ausente; las suites de 008–016 del worker siguen en verde salvo las que dependen de `NotificadorLog`, que esta tarea reescribe contra el puerto nuevo. Las pruebas que encolan y llaman al procesador directo cancelan sus trabajos `en_cola`. Commit `test(017): notificador y actor del worker en rojo`.
+
+## T5 · [ ] Pruebas HTTP, rojo (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (D-10 a D-12; P-2; CA-4, CA-6, CA-7, CA-11 a CA-14), `plan.md` (Contratos: HTTP, Aviso en vivo, shared), `apps/backend/test/{soporte,soporte-acceso,soporte-compras,soporte-xml,soporte-archivos}.ts`, `apps/backend/src/aislamiento/hu40-api.int.spec.ts`, `apps/backend/src/modules/trabajos/stream.service.ts` y una de sus pruebas de stream, `apps/backend/src/modules/compras/detalle.int.spec.ts` (modelo).
+- **Hacer**: `apps/backend/src/modules/notificaciones/notificaciones.int.spec.ts`, `apps/backend/src/modules/auditoria/auditoria.int.spec.ts`, `apps/backend/src/modules/trabajos/stream-notificacion.int.spec.ts`, `apps/backend/src/modules/compras/autor.int.spec.ts`, `apps/backend/src/modules/archivos/autor.int.spec.ts` y casos en `hu40-api.int.spec.ts`. Casos: CA-12 (orden, cursor, ≤ 50, conteo con tope, «leer todas» hasta un instante, leída idempotente 204); CA-11 (ajena, de otro estudio o de cliente desasignado = 404 y sin cambios; no cuenta); CA-14 (Dueño y Administrador 200, Contador, Asistente y Lectura 403; incluye descifrados); CA-4 (`usuarioId` en cuerpo o consulta = 400 y el actor de la fila es el de la sesión); CA-7 por API; SSE: el destinatario recibe `event: notificacion` con `data: {}` y otro usuario del estudio no recibe nada; alta de cliente que cruza el 90 % publica el aviso a los Dueños tras el commit; CA-13 en DTOs (activo, inactivo, desconocido); centinelas ausentes en respuestas y logs (CA-6); HU-40 para las cinco rutas.
+- **Hecho cuando**: fallan por ruta o campo ausente (404 de ruta, campo `autor` ausente); «toda ruta tiene caso» en rojo solo por las rutas nuevas. Commit `test(017): API de notificaciones y auditoría en rojo`.
+
+## T6 · [ ] `shared` (backend · sonnet)
+- **Contexto (leer solo esto)**: `plan.md` (Contratos: shared), las pruebas de T1, los archivos de `shared` que nombra T1.
+- **Hacer**: crear `autor.ts`, `auditoria/`, `notificaciones/` y ampliar los DTOs y `index.ts` según el plan.
+- **Hecho cuando**: `pnpm --filter @contapp/shared test` y `typecheck` en verde. Commit `feat(017): esquemas de auditoría, notificaciones y autor`.
+
+## T7 · [ ] Migraciones 0041–0043 y contexto del worker (backend · opus)
+- **Contexto (leer solo esto)**: `spec.md` (D-1 a D-9, D-13), `plan.md` (Contratos: BD; Decisiones; Riesgos), las pruebas de T2 y T3, `packages/db/migrations/{0006_credencial_rls_y_grants,0018_trabajos_rls,0024_planes_auth,0037_encolar_xml_obtener,0040_archivo_generado}.sql` (grants, funciones `SECURITY DEFINER` y triggers modelo), `packages/db/migrations/meta/_journal.json`, `packages/db/src/schema/{index,comun,archivos}.ts`, `packages/db/src/with-tenant.ts`.
+- **Hacer**: esquema drizzle `schema/{auditoria,notificaciones}.ts` (DDL generado con `drizzle-kit generate`); las tres migraciones con RLS, grants, triggers, funciones y siembra de `plan_aviso`; partes repetibles (`CREATE OR REPLACE`, `DROP … IF EXISTS`, `GRANT`/`REVOKE`); `ContextoTenant.trabajoId` → `app.trabajo_id`.
+- **Hecho cuando**: `pnpm db:migrate` dos veces sin error; las pruebas de T2 y T3 que no dependen de repositorios de T8 en verde; `with-tenant.spec.ts` en verde; 002–016 en verde. Commit `feat(017): auditoría y notificaciones en BD`.
+
+## T8 · [ ] Repositorios de `packages/db` (backend · sonnet)
+- **Contexto (leer solo esto)**: `plan.md` (Contratos: packages/db), las pruebas de T2 y T3, `packages/db/src/acceso/alcance.ts`, `packages/db/src/compras/{lectura,versiones}.ts` (forma de `compra_version`), `packages/db/src/index.ts`.
+- **Hacer**: `src/auditoria/{lectura,cambios,index}.ts`, `src/notificaciones/{lectura,escritura,index}.ts`, `src/acceso/autores.ts`, `src/clientes/origen.ts` y sus exports.
+- **Hecho cuando**: T2 y T3 en verde; `pnpm --filter @contapp/db test` y `typecheck` en verde. Commit `feat(017): repositorios de auditoría, notificaciones y autores`.
+
+## T9 · [ ] Worker (backend · sonnet)
+- **Contexto (leer solo esto)**: `plan.md` (Contratos: Worker, Aviso en vivo), las pruebas de T4, `apps/worker/src/trabajos/{registro,ejecutor,iniciar}.ts`, los procesadores y persistidores que nombra el plan («Archivos»), `packages/queue/src/eventos.ts`.
+- **Hacer**: `Notificador.avisar` y `NotificadorEventos`; borrar `NotificadorLog`; `destinatariosNuevos` dentro de `transicionFinal` y aviso tras el commit; `trabajoId` en cada `withTenant` de un trabajo; `publicarAvisoNotificacion`; purga en `auth.purgar`.
+- **Hecho cuando**: T4 en verde; `pnpm --filter @contapp/worker test` (unitarias e integración del worker) y `pnpm --filter @contapp/queue test` en verde. Commit `feat(017): notificador real y actor del worker`.
+
+## T10 · [ ] Backend: notificaciones, auditoría y SSE (backend · sonnet)
+- **Contexto (leer solo esto)**: `plan.md` (Contratos: HTTP, Aviso en vivo), las pruebas de T5 (salvo `autor.int.spec.ts`), `apps/backend/src/modules/trabajos/{trabajos.controller,stream.service,trabajos.service}.ts`, `apps/backend/src/modules/acceso/guards/decoradores.ts`, `apps/backend/src/modules/planes/cupo/{cupo-rucs,cupo-usuarios-planes}.ts` y sus llamadores, `apps/backend/src/modules/importacion/importacion.service.ts`, `apps/backend/src/app.module.ts`.
+- **Hacer**: módulos `notificaciones` y `auditoria` (controlador, servicio, módulo), `notificador.ts` (publica tras el commit con `destinatariosNuevos`), aviso en `StreamService.recibir` solo a los destinatarios, `marcarOrigenImportacion` en la importación, `autor` en la fila de auditoría con `resolverAutores`.
+- **Hecho cuando**: las pruebas de T5 de notificaciones, auditoría, stream y HU-40 en verde; `pnpm --filter @contapp/backend test` en verde. Commit `feat(017): API de notificaciones y auditoría`.
+
+## T11 · [ ] Backend: autor con nombre (backend · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (D-12, CA-13), `plan.md` (Contratos: shared, `resolverAutores`), `apps/backend/src/modules/compras/{autor.int.spec,historial.service,periodo.service,detalle,vistas}.ts`, `apps/backend/src/modules/archivos/{autor.int.spec,archivos.service}.ts`.
+- **Hacer**: resolver los autores por lote (una consulta por respuesta) y agregar `autor` a los DTOs.
+- **Hecho cuando**: `autor.int.spec.ts` de compras y archivos en verde; las pruebas de 014–016 y 012b del backend siguen en verde. Commit `feat(017): autor con nombre en compras, XML y archivos`.
+
+## T12 · [ ] Campana y notificaciones (frontend · sonnet, nivel C)
+- **Contexto (leer solo esto)**: `spec.md` (D-10, D-11; CA-16), `plan.md` (Contratos: shared, HTTP, Aviso en vivo, Frontend), `apps/frontend/app/(app)/layout.tsx`, `apps/frontend/lib/{api,trabajos}.ts`, `apps/frontend/lib/lupa-compras.ts` (modelo de cliente de API).
+- **Hacer**: `lib/notificaciones.ts`, `components/notificaciones/{campana,panel-notificaciones,texto-notificacion}.tsx`, `app/(app)/notificaciones/page.tsx`, campana en el layout, `trabajoDeMarco` ignora `event: notificacion`. Pruebas mínimas: conteo y «99+», marcar como leída y navegar, texto en español por tipo, tipo desconocido sin código crudo, `params` con `<script>` mostrado como texto, error de red.
+- **Hecho cuando**: `pnpm --filter @contapp/frontend test`, `typecheck` y `lint` en verde. Commit `feat(017): campana y página de notificaciones`.
+
+## T13 · [ ] Auditoría y autor en pantallas (frontend · sonnet, nivel C)
+- **Contexto (leer solo esto)**: `spec.md` (D-12, P-2; CA-13, CA-14), `plan.md` (Contratos: shared, Frontend), `apps/frontend/app/(app)/layout.tsx`, `apps/frontend/lib/acceso.ts` (permisos), `apps/frontend/components/compras/{historial-compra,estado-xml,estado-periodo}.tsx`, `apps/frontend/components/archivos/versiones-archivo.tsx`.
+- **Hacer**: `lib/{auditoria,autor}.ts`, `components/autor.tsx`, `app/(app)/configuracion/auditoria/page.tsx` (tabla, «cargar más», acción en español, enlace solo con `auditoria.ver`), y `Autor` en las cuatro pantallas en lugar del id corto. Pruebas mínimas: página con datos y 403; autor activo, inactivo y desconocido.
+- **Hecho cuando**: `pnpm --filter @contapp/frontend test`, `typecheck` y `lint` en verde; ningún id corto de usuario queda en esas pantallas. Commit `feat(017): consulta de auditoría y autor con nombre`.
+
+## T14 · [ ] Cobertura ≥ 90 % por archivo (devops · haiku)
+- **Contexto (leer solo esto)**: `plan.md` («Archivos», fila de cobertura), `package.json` (scripts `cobertura:*`), `apps/backend/vitest.cobertura-archivos.config.mts`, `apps/worker/vitest.cobertura-archivos.config.mts`, `packages/db/vitest.cobertura.config.mts`, `.github/workflows/ci.yml`.
+- **Hacer**: `cobertura:auditoria` que **compila antes** `shared`, `storage`, `db`, `crypto`, `domain`, `sunat` y `queue` (como `cobertura:archivos`) y corre las configuraciones nuevas de backend (`modules/{notificaciones,auditoria}/**`) y worker (`trabajos/{registro,ejecutor}.ts`); sumar `src/{auditoria,notificaciones}/**` y `src/acceso/autores.ts` a la de `db`; umbral 90 % por archivo; paso nuevo en `ci.yml`.
+- **Hecho cuando**: `pnpm cobertura:auditoria` y `pnpm cobertura:db` en verde desde un árbol sin `dist/`. Si falta cobertura, informa los archivos y líneas (no escribe pruebas). Commit `ci(017): cobertura de auditoría y notificaciones`.
+
+## T15 · [ ] Ronda adversarial dirigida (adversario · opus)
+- **Contexto (leer solo esto)**: `spec.md` (D-2 a D-5, D-8 a D-10, D-16; «Casos de abuso»), `plan.md` (Contratos; Decisiones), `docs/04-metodologia.md` §2.3 (catálogo: aislamiento, permisos y alcance, cifrado); primero caja negra (spec, plan y API), luego caja blanca (`packages/db/migrations/004{1,2,3}_*.sql`, `packages/db/src/{auditoria,notificaciones}/`, `apps/backend/src/modules/{notificaciones,auditoria}/`, `apps/worker/src/trabajos/ejecutor.ts`).
+- **Hacer**: ≤ 15 pruebas en `tests/aislamiento/auditoria-r1.adv.spec.ts`, `apps/backend/src/modules/notificaciones/r1.adv.int.spec.ts` y, si hace falta, `apps/worker/src/trabajos/notificador-r1.adv.int.spec.ts`, sobre (a) aislamiento y visibilidad (otro estudio, otro usuario, cliente desasignado durante la sesión, SSE, conteos como oráculo, `set_config` de otro tenant en la transacción); (b) inmutabilidad y actor (UPDATE/DELETE/TRUNCATE por cualquier camino, `auditoria_registrar` o funciones de aviso llamadas directo, `app.trabajo_id` forjado, actor desde el cuerpo, `ON CONFLICT` o vistas que escriban); (c) secretos en `datos`, `params`, logs, errores y respuestas con centinelas, y la inundación de avisos.
+- **Hecho cuando**: cada prueba que falla es un hallazgo `H-017-n` con severidad y archivo:línea; las que pasan se quedan como regresión. Commit `test(017): ronda adversarial`.
+
+## T16 · [ ] Pruebas de las correcciones, rojo (tester · sonnet)
+- **Contexto (leer solo esto)**: los hallazgos de T15 y sus `*.adv*.spec.ts`, `plan.md` (Contratos).
+- **Hacer**: una prueba de comportamiento por hallazgo (no copia de la adversarial) en `*-correcciones.spec.ts` del paquete afectado.
+- **Hecho cuando**: cada prueba falla por el defecto, no por montaje. Commit `test(017): correcciones de la ronda en rojo`.
+
+## T17 · [ ] Corregir los hallazgos (backend · opus)
+- **Contexto (leer solo esto)**: los hallazgos de T15, las pruebas de T16 y solo los archivos que señalan.
+- **Hacer**: correcciones mínimas; una migración nueva (0044) si hay que cambiar SQL de 0041–0043 ya aplicadas en la rama, nunca editarlas. Un cambio de contrato o de privilegios fuera del plan es `requiere usuario`.
+- **Hecho cuando**: T15 y T16 en verde y las suites de los paquetes tocados en verde. Commit `fix(017): hallazgos de la ronda adversarial`.
+
+## T18 · [ ] Prueba manual (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (CA-8 a CA-16), `plan.md` (Frontend), `docs/specs/016-lupa-xml/tasks.md` (sección de T24, modelo de prueba manual), `docker-compose.yml`, `.env.example`.
+- **Hacer**: `pnpm servicios:up`, migrar, sembrar y levantar backend, worker y frontend con adaptadores `mock`. Recorrer: credencial que el mock rechaza → campana del responsable (y de Dueños/Admin sin responsable); descarga lanzada desde la pantalla → aviso al terminar; cliente que llega al 90 % → aviso al Dueño; marcar leída y «marcar todas»; Asistente desasignado deja de verla; auditoría como Dueño, Administrador (200) y Asistente (sin enlace, 403); autor con nombre, «(inactivo)» y desconocido en las cuatro pantallas.
+- **Hecho cuando**: informe de pasos con resultado y defectos (`archivo` · pantalla · esperado/obtenido) sin datos sensibles. Commit solo si deja notas en `tasks.md`.
+
+## T19 · [ ] Verificar los criterios (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (CA-1 a CA-16), `tasks.md` (Resultados de T1–T18), `package.json` (scripts `ci:*`, `cobertura:*`, `test:aislamiento`).
+- **Hacer**: correr las suites completas (`ci:db`, backend, worker, frontend, `ci:cierre`), `cobertura:auditoria` y `cobertura:db`, y la prueba de p95 de compras de 014 con la auditoría activa (D-15, RNF-034). Tabla CA → evidencia (prueba `archivo:línea` o comando).
+- **Hecho cuando**: cada CA tiene evidencia o queda listado como faltante. Commit `docs(017): verificación de criterios`.
+
+## T20 · [ ] Revisión final (arquitecto · sonnet)
+- **Contexto (leer solo esto)**: `spec.md`, `plan.md`, `tasks.md` (Resultados), el diff de la rama contra `main` limitado a migraciones, `packages/db/src/{auditoria,notificaciones}/` y los módulos nuevos.
+- **Hacer**: comprobar cada CA con su evidencia, los privilegios del plan (ningún grant extra al worker), la lista blanca de `datos` y los desvíos; ratificar los desvíos en `plan.md` o abrir T20a/T20b.
+- **Hecho cuando**: aprobado o lista de defectos con tareas nuevas. Commit `docs(017): revisión final`.
+
+## T21 · [ ] Cierre (devops · haiku)
+- **Contexto (leer solo esto)**: `tasks.md`, `spec.md` (cabecera y criterios).
+- **Hacer**: marcar tareas y CA, estado de la spec a «verificada», y dejar al orquestador las notas para ESTADO: purga de auditoría a 5 años (D-7), filtros RF-151, correo RF-161/162 y buzón crítico en R2, y las tres notas [017] cerradas.
+- **Hecho cuando**: `git status` limpio salvo lo ajeno a 017. Commit `docs(017): cierre`.
