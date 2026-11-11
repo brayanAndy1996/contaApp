@@ -120,7 +120,9 @@ describe("CA-15 · excluir una venta del SIRE con error", () => {
     expect(filas).toEqual([
       expect.objectContaining({ venta_id: ids[2], motivo: MOTIVO, excluida_por: asistente.id, restaurada_por: null, restaurada: false }),
     ]);
-    expect(await A.periodoVentas(c.id)).toBeNull(); // excluir no cambia el estado del periodo
+    // Excluir no cambia el estado del periodo. Como toda escritura de ventas (y como las de compras, 014), toma la fila de
+    // `venta_periodo` (la crea `abierto` si falta) para que «revisar» espere a la escritura (ronda 1, H-012b-1): sin marca.
+    expect(await A.periodoVentas(c.id)).toEqual({ estado: "abierto", marcado_por: null });
   });
 
   it("también excluye la USD sin tipo de cambio y quien tiene sire.aprobar_generar (contador, Dueño)", async () => {
