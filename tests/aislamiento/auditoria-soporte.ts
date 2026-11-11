@@ -28,6 +28,8 @@ import type { Pool } from "pg";
 import { expect } from "vitest";
 import { EscenarioArchivos } from "./archivos-soporte";
 import { abrirAdmin, exportado } from "./auth-soporte";
+import { detalleXml, normalizarIdentidad, rutaDe, type IdentidadXml, type OrigenXml } from "./compras-xml-soporte";
+import type { ClientePrueba } from "./trabajos-soporte";
 import { crearDb, type ContappDb, type ContextoTenant, type Tx } from "./soporte";
 
 export { abrirAdmin, exportado };
@@ -124,6 +126,25 @@ export class EscenarioAuditoria extends EscenarioArchivos {
   ): Promise<T> {
     const ctx: ContextoTenant = { tenantId, ...o };
     return this.worker.withTenant(ctx, fn);
+  }
+
+  /** `documento_xml` sembrado con el superusuario (identidad normalizada, `n` = el siguiente). Devuelve su id. */
+  async xml(tenantId: string, c: ClientePrueba | string, id: IdentidadXml, o: { origen?: OrigenXml; subidoPor?: string | null } = {}): Promise<string> {
+    const clienteId = typeof c === "string" ? c : c.id;
+    const i = normalizarIdentidad(id);
+    const origen = o.origen ?? "real";
+    const ruta = rutaDe(tenantId, clienteId);
+    const r = await this.admin.query(
+      `insert into documento_xml (tenant_id, cliente_id, ruc_emisor, tipo, serie, numero, n, origen, ruta, sha256, tamano, detalle, subido_por)
+       values ($1, $2, $3, $4, $5, $6,
+               (select coalesce(max(n), 0) + 1 from documento_xml
+                 where tenant_id = $1 and cliente_id = $2 and ruc_emisor = $3 and tipo = $4 and serie = $5 and numero = $6),
+               $7, $8, $9, 1234, $10::jsonb, $11)
+       returning id`,
+      [tenantId, clienteId, i.rucEmisor, i.tipo, i.serie, i.numero, origen, ruta, createHash("sha256").update(ruta).digest(),
+        JSON.stringify(detalleXml()), origen === "subido" ? (o.subidoPor ?? null) : null],
+    );
+    return r.rows[0].id as string;
   }
 
   /** Todas las filas de auditoria de un estudio (o de una accion), por (ocurrida_en, id). */

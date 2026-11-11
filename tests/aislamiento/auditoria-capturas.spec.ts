@@ -120,7 +120,7 @@ describe("CA-1 · sesion (login y cambio de estudio, 004)", () => {
     await ec.ea.membresia(Y, u.id, "contador");
     const base = await ec.ea.esc.sesion(u.id, X);
     const { filas, resultado } = await ec.capturar(Y, "sesion.ingreso", async () => {
-      const r = await llamar(app, ROTAR, [sha256(base), sha256(nuevoToken()), Y]);
+      const r = await llamar(app, ROTAR, [base, nuevoToken(), Y]);
       if (!r.ok) throw new Error(`sesion_rotar fallo (${r.code})`);
       return r.rows[0].sesion_id as string;
     });
@@ -170,7 +170,9 @@ describe("CA-1 · acceso (005): invitaciones, miembros y asignaciones", () => {
       datos: { rol: "lectura", via: "otro" },
     });
     // Aceptar una invitacion con una cuenta existente (auth.invitacion_aceptar_existente): el actor es quien acepta.
-    const inv = await ec.ea.invitacion(X, { invitadoPor: ux, rol: "admin" });
+    // El invitador debe ser Dueño o Administrador vigente (si no, la funcion no acepta): un admin propio, no `ux` (contador).
+    const invitador = await ec.ea.miembro(X, "admin");
+    const inv = await ec.ea.invitacion(X, { invitadoPor: invitador.id, rol: "admin" });
     const u = await admin.query("insert into usuario (email, nombre) values ($1, 'Cuenta T2') returning id", [inv.correo]);
     const uid = u.rows[0].id as string;
     const sesion = nuevoToken();
