@@ -337,26 +337,39 @@ describe("CA-6 · sin secretos en auditoria (D-5): guardar, verificar, invalidar
 });
 
 // =================================================================================================
-describe("listarAuditoria · cursor con precision de milisegundos frente a filas con microsegundos (D-6, P-2, CA-12)", () => {
-  // `antes.en` es un Date (ms) y la columna tiene us. Las filas que caen en el mismo ms que la ultima de una pagina no deben
-  // saltarse ni repetirse. Las filas se insertan con el superusuario porque el DEFAULT trunca a ms: es la peor entrada posible.
+describe("auditoria.ocurrida_en en milisegundos: el cursor Date no pierde filas (D-6, P-2, CA-12; CHECK de 0044)", () => {
+  // El cursor viaja como Date (ms). Para que sea exacto, la columna solo admite instantes truncados a ms (CHECK, migracion 0044).
+  it("(a) insertar con el superusuario un instante con microsegundos falla con 23514", async () => {
+    const insertar = (en: string) =>
+      admin.query(
+        `insert into auditoria (tenant_id, ocurrida_en, actor_tipo, accion, entidad, datos)
+         values ($1, $2::timestamptz, 'sistema', 'cliente.creado', 'cliente', '{}'::jsonb)`,
+        [X, en],
+      );
+    await expect(insertar("2026-01-01 00:00:00.123456+00")).rejects.toMatchObject({ code: "23514" });
+    await expect(insertar("2026-01-01 00:00:00.123001+00")).rejects.toMatchObject({ code: "23514" });
+    await expect(insertar("2026-01-01 00:00:00.123+00")).resolves.toBeDefined(); // control: en ms exactos si se acepta
+  });
+
   it.each([1, 2, 3, 4, 7])(
-    "con limite %i, la union de las paginas es exactamente el conjunto sembrado, sin huecos ni duplicados",
+    "(b) con limite %i, la union de las paginas es exactamente lo sembrado (mismo ms y ms vecinos), con desempate por id",
     async (limite) => {
       const Z = (await ec.estudio()).id;
       const uz = await ec.usuarioDe(Z);
       const r = await admin.query(
         `with base as (select date_trunc('milliseconds', now()) - interval '2 hours' as t),
-              mismo_ms as (select base.t + g * interval '100 microseconds' as en from base, generate_series(1, 8) g),
-              otros_ms as (select base.t + g * interval '5 milliseconds' as en from base, unnest(array[-1, 1]) g),
-              todos as (select en from mismo_ms union all select en from otros_ms)
+              instantes as (select base.t as en from base, generate_series(1, 8)
+                            union all select base.t + g * interval '1 millisecond' from base, unnest(array[-1, 1]) g)
          insert into auditoria (tenant_id, ocurrida_en, actor_tipo, accion, entidad, datos)
-         select $1, en, 'sistema', 'cliente.creado', 'cliente', '{}'::jsonb from todos
+         select $1, en, 'sistema', 'cliente.creado', 'cliente', '{}'::jsonb from instantes
          returning id`,
         [Z],
       );
-      const sembradas = new Set<string>(r.rows.map((x) => x.id as string));
-      expect(sembradas.size, "siembra: 8 filas dentro de un mismo ms y 2 en ms vecinos").toBe(10);
+      const sembradas = r.rows.map((x) => x.id as string);
+      expect(sembradas, "siembra: 8 filas con el mismo ms y 2 en ms vecinos").toHaveLength(10);
+      const esperado = (
+        await admin.query("select id from auditoria where id = any($1::uuid[]) order by ocurrida_en desc, id desc", [sembradas])
+      ).rows.map((x) => x.id as string);
 
       const vistas: string[] = [];
       let antes: { en: Date; id: string } | undefined;
@@ -368,13 +381,9 @@ describe("listarAuditoria · cursor con precision de milisegundos frente a filas
         const ult = pagina[pagina.length - 1]!;
         antes = { en: new Date(ult.ocurridaEn), id: ult.id }; // igual que el servicio: el cursor viaja como Date
       }
+      // Las filas de otros orígenes del estudio (si las hubiera) son más nuevas: se compara solo lo sembrado.
+      expect(vistas.filter((id) => sembradas.includes(id))).toEqual(esperado);
       expect(new Set(vistas).size, "sin repetidas").toBe(vistas.length);
-      const propias = vistas.filter((id) => sembradas.has(id));
-      expect(
-        [...sembradas].filter((id) => !propias.includes(id)).length,
-        "filas sembradas que ninguna pagina entrego (saltadas por el cursor en ms)",
-      ).toBe(0);
-      expect(propias).toHaveLength(sembradas.size);
     },
   );
 });
