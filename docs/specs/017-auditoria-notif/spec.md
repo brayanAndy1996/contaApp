@@ -90,3 +90,4 @@ Eligió en todas la opción recomendada:
 - P-5 → (a) Límite del plan: aviso a los **Dueños** al llegar al **90 %** y al **100 %** de RUCs o de usuarios.
 - P-6 → (a) **Sin correo en R1**: solo la app. El correo queda para R2 (RF-161).
 - P-7 → (a) Las notificaciones **se purgan a los 90 días** de creadas, leídas o no. El usuario no las borra, solo las marca como leídas.
+- Preguntas del plan (2026-11-11), recomendada en ambas: si aceptar una invitación cruza el 90 % o el 100 % de usuarios, el aviso se guarda pero **no se empuja en vivo** (la campana lo muestra al recargar); si el super-admin cambia los límites de un plan, **no se avisa al momento**: el aviso sale en el siguiente cambio de uso del estudio.
