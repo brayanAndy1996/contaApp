@@ -4,7 +4,7 @@ import { defineConfig } from "vitest/config";
 
 // Cobertura de 012b (generar el archivo SIRE, DoD A): mide el módulo archivos (previo, generar,
 // versiones y descarga) y el estado y la exclusión de ventas (estado.service.ts y exclusion.service.ts)
-// con sus pruebas de integración en un solo run. Umbral de 90 % por archivo.
+// con sus pruebas de integración y las unitarias de las ramas defensivas (T16a) en un solo run. Umbral de 90 % por archivo.
 const raiz = fileURLToPath(new URL("../..", import.meta.url));
 const ruta = (relativa: string) =>
   fileURLToPath(new URL(relativa, import.meta.url));
@@ -30,9 +30,11 @@ export default defineConfig({
   resolve: { alias },
   test: {
     include: [
-      "apps/backend/src/modules/archivos/**/*.int.spec.ts",
+      "apps/backend/src/modules/archivos/**/*.spec.ts",
       "apps/backend/src/modules/ventas/estado-periodo.int.spec.ts",
+      "apps/backend/src/modules/ventas/estado.service.spec.ts",
       "apps/backend/src/modules/ventas/exclusion.int.spec.ts",
+      "apps/backend/src/modules/ventas/exclusion.service.spec.ts",
     ],
     exclude: ["**/node_modules/**"],
     // Las suites con BD y Redis comparten recursos: nada en paralelo.

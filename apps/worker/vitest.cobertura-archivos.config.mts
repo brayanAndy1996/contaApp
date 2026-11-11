@@ -48,6 +48,9 @@ export default defineConfig({
     fileParallelism: false,
     maxWorkers: 1,
     testTimeout: 30_000,
+    // CA-13 (20.000 filas en menos de 5 s) mantiene su límite estricto en `test:int`; bajo la instrumentación de v8 la misma
+    // ejecución tarda 5,8 a 6,4 s, así que esta config, y solo ella, relaja el límite a 3 veces (ver `generar-archivo.int.spec.ts`).
+    env: { CONTAPP_COBERTURA: "1" },
     coverage: {
       provider: "v8",
       include: ["apps/worker/src/trabajos/procesadores/generar-archivo.ts"],

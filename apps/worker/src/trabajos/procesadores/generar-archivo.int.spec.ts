@@ -881,11 +881,61 @@ describe("cliente archivado y fallos tras guardar el ZIP", () => {
     expect(afuera).not.toContain(`archivos/${m.T}`);
     expect(afuera).not.toContain(almacen.intentosGuardar[0]!);
   });
+
+  // T16a: si ni siquiera se puede borrar el ZIP huérfano, el error que se propaga sigue siendo el de la BD (el que 008 reintenta).
+  describe("el ZIP huérfano no se puede borrar", () => {
+    class AlmacenSinBorrado extends AlmacenEspia {
+      override async eliminar(ruta: string): Promise<void> {
+        this.eliminados.push(ruta);
+        throw new Error(`EIO al borrar ${ruta}`);
+      }
+    }
+    const fallaInsercion = async (almacen: AlmacenEspia, o: OpcionesIntento = {}) => {
+      const m = await mundo();
+      await sembrarComprasBase(admin, m);
+      const p = await parametros(m, "compras");
+      const trabajoId = await encolarGenerar(admin, backend, redis, prefijo, m, p);
+      await sembrarVersion(admin, m, "compras", trabajoId, { periodo: "202609" });
+      return intentar(m, almacen, p, { trabajoId, ...o });
+    };
+
+    it("con logger: avisa solo con el código (nunca la ruta) y propaga el error de la BD", async () => {
+      const almacen = new AlmacenSinBorrado();
+      const { logger, llamadas } = loggerEspia();
+      const r = await fallaInsercion(almacen, { logger: logger as never });
+
+      expect(r.error, "la inserción debía fallar").toBeDefined();
+      expect(r.error).not.toBeInstanceOf(ErrorArchivo);
+      expect(r.error!.message).not.toContain("EIO"); // el error del storage no tapa al de la BD
+      expect(almacen.intentosGuardar).toHaveLength(1);
+      expect(almacen.eliminados).toEqual(almacen.intentosGuardar);
+      const avisos = llamadas.filter((l) => l.metodo === "warn");
+      expect(avisos).toHaveLength(1);
+      expect(volcado(avisos)).toContain("archivo_huerfano");
+      expect(volcado(avisos)).toContain("zip_no_borrado");
+      expect(volcado(llamadas)).not.toContain(almacen.intentosGuardar[0]!);
+    });
+
+    it("sin logger: tampoco falla al borrar y propaga el error de la BD", async () => {
+      const almacen = new AlmacenSinBorrado();
+      const r = await fallaInsercion(almacen);
+      expect(r.error, "la inserción debía fallar").toBeDefined();
+      expect(r.error).not.toBeInstanceOf(ErrorArchivo);
+      expect(r.error!.message).not.toContain("EIO");
+      expect(almacen.eliminados).toEqual(almacen.intentosGuardar);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------------------------------------------
 // CA-13 · rendimiento (RNF-035, D11)
 // ---------------------------------------------------------------------------------------------------------------
+
+// Límite estricto de RNF-035 / D11 en la corrida normal (`test:int`, `ci:db`). La instrumentación de cobertura v8 encarece la
+// misma ejecución (5,8 a 6,4 s con 20.000 filas, frente a menos de 5 s sin ella), así que SOLO `vitest.cobertura-archivos.config.mts`
+// fija `CONTAPP_COBERTURA=1` y el límite se multiplica por 3 allí. El rendimiento real se sigue midiendo sin instrumentar.
+const FACTOR_COBERTURA = process.env.CONTAPP_COBERTURA === "1" ? 3 : 1;
+const LIMITE_MS = 5_000 * FACTOR_COBERTURA;
 
 describe("CA-13 / D11: 20.000 filas se generan en menos de 5 s", () => {
   it("compras: 20.000 filas", async () => {
@@ -901,7 +951,7 @@ describe("CA-13 / D11: 20.000 filas se generan en menos de 5 s", () => {
     const ms = performance.now() - t0;
 
     expect(resultado).toMatchObject({ version: 1, nueva: true, lineas: 20_000 });
-    expect(ms).toBeLessThan(5_000);
+    expect(ms).toBeLessThan(LIMITE_MS);
     expect((await versionesDe(admin, m.c.id))[0]).toMatchObject({ lineas: 20_000 });
   });
 
@@ -919,7 +969,7 @@ describe("CA-13 / D11: 20.000 filas se generan en menos de 5 s", () => {
     const ms = performance.now() - t0;
 
     expect(resultado).toMatchObject({ version: 1, nueva: true, lineas: 20_000 });
-    expect(ms).toBeLessThan(5_000);
+    expect(ms).toBeLessThan(LIMITE_MS);
   });
 });
 
