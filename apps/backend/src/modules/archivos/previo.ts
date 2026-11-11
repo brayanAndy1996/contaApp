@@ -44,7 +44,7 @@ import { sha256Hex } from "@contapp/storage";
 import { exigirCliente } from "../compras/apoyo.js";
 import { ComprasError } from "../compras/errores.js";
 import { exigir } from "../compras/escritura.js";
-import { aRespuestaEstado } from "../compras/periodo.service.js";
+import { respuestaEstado } from "../compras/periodo.service.js";
 import { prepararSinDesborde } from "./desborde.js";
 
 /** Una suma que no cabe en NUMERIC(14,2) es un error controlado (como en el resumen de 013 y 014), nunca un 500 (H-012b-2). */
@@ -221,7 +221,7 @@ export async function calcularPrevio(
   const cliente = exigir(await leerClienteDto(tx, e.clienteId));
   const periodoEstado =
     e.libro === "compras" ? await leerEstadoPeriodo(tx, e.clienteId, e.periodo) : await leerEstadoPeriodoVentas(tx, e.clienteId, e.periodo);
-  const estado = aRespuestaEstado(periodoEstado);
+  const estado = await respuestaEstado(tx, periodoEstado);
   antes?.({ archivado: cliente.archivado, estado });
 
   const cabecera: CabeceraTxt = { rucDeclarante: cliente.ruc, periodo: e.periodo, libro: e.libro };

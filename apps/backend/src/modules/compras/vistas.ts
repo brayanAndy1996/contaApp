@@ -8,6 +8,7 @@ import type {
   VersionHistorialCompra,
 } from "@contapp/db";
 import { detallarHallazgo } from "@contapp/domain";
+import { autorDe, type Autores } from "./autor.js";
 import type {
   DetalleCompra,
   FilaCompraVista,
@@ -52,12 +53,13 @@ export function aFilaVista(c: CompraLeida, proveedorNuevo: boolean, hallazgos: H
 
 export const aFilaListada = (l: CompraListada): FilaCompraVista => aFilaVista(l.compra, l.proveedorNuevo, l.hallazgos);
 
-export function aVersionVista(v: VersionHistorialCompra): VersionCompraVista {
+export function aVersionVista(v: VersionHistorialCompra, autores: Autores): VersionCompraVista {
   return {
     n: v.n,
     accion: v.accion as VersionCompraVista["accion"],
     operacionId: v.operacionId,
     usuarioId: v.usuarioId,
+    autor: autorDe(autores, v.usuarioId),
     creadaEn: v.creadaEn.toISOString(),
     excluida: v.excluida,
     motivo: v.motivo,
@@ -66,8 +68,8 @@ export function aVersionVista(v: VersionHistorialCompra): VersionCompraVista {
   };
 }
 
-export function aDetalleVista(d: DetalleCompraLeido): DetalleCompra {
+export function aDetalleVista(d: DetalleCompraLeido, autores: Autores): DetalleCompra {
   const vigente = aFilaVista(d.compra, d.proveedorNuevo, d.hallazgos);
-  const versiones = d.versiones.map(aVersionVista);
+  const versiones = d.versiones.map((v) => aVersionVista(v, autores));
   return { original: versiones[0]!, vigente, versiones, hallazgos: vigente.hallazgos };
 }

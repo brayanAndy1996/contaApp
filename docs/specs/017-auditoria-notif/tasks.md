@@ -16,7 +16,7 @@ Nivel B con una ronda adversarial dirigida (P-1, D-16); las pantallas son nivel 
 | T8  | Repositorios de `packages/db`: auditoría, notificaciones, autores y origen | backend | sonnet | T6, T7 | ✓ | — | [x] |
 | T9  | Worker: notificador real, `trabajoId` en los trabajos y purga | backend | sonnet | T4, T8 ∥ T10, T11 | ✓ | — | [ ] |
 | T10 | Backend: módulos `notificaciones` y `auditoria`, SSE y aviso tras el cupo | backend | sonnet | T5, T8 ∥ T9, T11 | ✓ | — | [ ] |
-| T11 | Backend: `autor` en compras, XML y archivos | backend | sonnet | T5, T8 ∥ T9, T10 | ✓ | — | [ ] |
+| T11 | Backend: `autor` en compras, XML y archivos | backend | sonnet | T5, T8 ∥ T9, T10 | ✓ | — | [x] |
 | T12 | Campana, panel y página de notificaciones (nivel C) | frontend | sonnet | T6 ∥ T7–T11 | — | — | [x] |
 | T13 | Página de auditoría y autor en las cuatro pantallas (nivel C) | frontend | sonnet | T12 | — | — | [x] |
 | T14 | Cobertura ≥ 90 % por archivo en CI: `cobertura:auditoria` | devops | haiku | T9, T10, T11 ∥ T12, T13 | — | — | [ ] |
@@ -106,10 +106,11 @@ Reglas comunes:
 - **Hacer**: módulos `notificaciones` y `auditoria` (controlador, servicio, módulo), `notificador.ts` (publica tras el commit con `destinatariosNuevos`), aviso en `StreamService.recibir` solo a los destinatarios, `marcarOrigenImportacion` en la importación, `autor` en la fila de auditoría con `resolverAutores`.
 - **Hecho cuando**: las pruebas de T5 de notificaciones, auditoría, stream y HU-40 en verde; `pnpm --filter @contapp/backend test` en verde. Commit `feat(017): API de notificaciones y auditoría`.
 
-## T11 · [ ] Backend: autor con nombre (backend · sonnet)
+## T11 · [x] Backend: autor con nombre (backend · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (D-12, CA-13), `plan.md` (Contratos: shared, `resolverAutores`), `apps/backend/src/modules/compras/{autor.int.spec,historial.service,periodo.service,detalle,vistas}.ts`, `apps/backend/src/modules/archivos/{autor.int.spec,archivos.service}.ts`.
 - **Hacer**: resolver los autores por lote (una consulta por respuesta) y agregar `autor` a los DTOs.
 - **Hecho cuando**: `autor.int.spec.ts` de compras y archivos en verde; las pruebas de 014–016 y 012b del backend siguen en verde. Commit `feat(017): autor con nombre en compras, XML y archivos`.
+- **Resultado**: `compras/autor.ts` nuevo (`autoresDe(tx, ids)` = una llamada a `resolverAutores` por respuesta; `autorDe`). `autor` agregado, con el id conservado, en: estado del periodo de compras (`respuestaEstado` en `periodo.service.ts`, también usado por el previo de archivos) y de ventas (`estado.service.ts`, mismo DTO), versiones del Historial (`vistas.ts` + `compras.service.detalle`, resuelto dentro de la transacción), `xml` disponible subido por persona (`conAutorXml` en `detalle.ts`, usado por `detalle.service`; el XML simulado/real sigue sin `subidoPor` ni `autor`) y versiones de archivo (`archivos.service`). Las funciones puras `aRespuestaEstado`, `aDetalleLupa` y `estadoXml` conservan su firma (`autor` es parámetro opcional / paso aparte) para no tocar sus pruebas unitarias. `tsc` del backend en verde (los 4 archivos), lint en verde; suites `--mode int` de compras, archivos y ventas: 44 archivos / 1304 pruebas en verde (incluye `autor.int` de compras y archivos, `versiones`, `previo`, `detalle-privacidad`, XML y las 8 de 012b/014/016). Pendiente fuera de T11: `ventas/estado.service.spec.ts` (unitaria de 012b, 2 pruebas) queda en rojo: espera `{estado, por, en}` exacto y usa un `tx` falso `{tx:true}`, y el contrato exige `autor` (T6) con una consulta de `membresia`; hay que ajustarla (tester): mockear `resolverAutores` y esperar `autor`.
 
 ## T12 · [x] Campana y notificaciones (frontend · sonnet, nivel C)
 - **Contexto (leer solo esto)**: `spec.md` (D-10, D-11; CA-16), `plan.md` (Contratos: shared, HTTP, Aviso en vivo, Frontend), `apps/frontend/app/(app)/layout.tsx`, `apps/frontend/lib/{api,trabajos}.ts`, `apps/frontend/lib/lupa-compras.ts` (modelo de cliente de API).
