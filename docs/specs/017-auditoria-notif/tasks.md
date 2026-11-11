@@ -24,7 +24,7 @@ Nivel B con una ronda adversarial dirigida (P-1, D-16); las pantallas son nivel 
 | T16 | Pruebas de las correcciones de la ronda (rojo) | tester | sonnet | T15 | ✓ | — | [x] |
 | T17 | Corregir los hallazgos de la ronda | backend | opus | T16 | — | — | [x] |
 | T18 | Prueba manual contra el sistema completo | tester | sonnet | T13, T17 | — | — | [x] |
-| T19 | Verificar CA-1 a CA-16 con evidencia, suites completas, cobertura y p95 | tester | sonnet | T18 | — | — | [ ] |
+| T19 | Verificar CA-1 a CA-16 con evidencia, suites completas, cobertura y p95 | tester | sonnet | T18 | — | — | [x] |
 | T20 | Revisión final contra la spec | arquitecto | sonnet | T19 | — | — | [ ] |
 | T21 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza ESTADO) | devops | haiku | T20 | — | — | [ ] |
 
@@ -212,10 +212,38 @@ Defectos de servidor: P-1, en la parte del contrato (el dato falta en el resumen
 
 Observaciones (sin tarea): (a) La lupa y el historial de compras muestran la fecha en UTC («2026-11-11 17:28 UTC») y la campana y la auditoría en hora de Lima («11/11/26, 12:28 p. m.»). (b) Con 5 de 5 usuarios el aviso del 90 % dice «Estás por llegar…» y llega junto al del 100 %; el texto dice «límite de RUC» y no «RUC». (c) «La descarga de la propuesta del SIRE de X terminó» sale igual para compras y ventas (no dice el libro); el lanzador recibe un aviso de «terminó con error: la credencial es inválida» además del de «credencial inválida». (d) «Descifró una credencial» sale con actor «Sistema» (`auditoria_descifrado` no guarda actor, D-6) y 105 filas por 105 verificaciones en una sola página de auditoría. (e) El correo de invitación en consola (`CORREO_PROVIDER=consola`) deja correo y enlace en `backend.log` (005, ajeno a 017). (f) El aviso de plan por aceptar una invitación no se empuja en vivo (decisión del plan); la campana lo muestra al recargar.
 
-## T19 · [ ] Verificar los criterios (tester · sonnet)
+## T19 · [x] Verificar los criterios (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (CA-1 a CA-16), `tasks.md` (Resultados de T1–T18), `package.json` (scripts `ci:*`, `cobertura:*`, `test:aislamiento`).
 - **Hacer**: correr las suites completas (`ci:db`, backend, worker, frontend, `ci:cierre`), `cobertura:auditoria` y `cobertura:db`, y la prueba de p95 de compras de 014 con la auditoría activa (D-15, RNF-034). Tabla CA → evidencia (prueba `archivo:línea` o comando).
 - **Hecho cuando**: cada CA tiene evidencia o queda listado como faltante. Commit `docs(017): verificación de criterios`.
+
+- **Resultado de T19** (2026-11-11, tester; las suites corridas una a una, sin paralelo):
+
+| CA | Evidencia (prueba o comando) | Resultado |
+| -- | ---------------------------- | --------- |
+| CA-1 | `tests/aislamiento/auditoria-capturas.spec.ts:102, 149, 225, 292` (una por acción, por módulo; 27 pruebas) + `auditoria-tablas.spec.ts` (catálogo) | Cumplido |
+| CA-2 | `tests/aislamiento/auditoria-capturas.spec.ts:585` (INSERT simulado que falla: acción revertida) | Cumplido |
+| CA-3 | `tests/aislamiento/auditoria-tablas.spec.ts:173` (backend, worker, `contapp_app`, `contapp_platform`: permission denied; dueño: trigger) | Cumplido |
+| CA-4 | `tests/aislamiento/auditoria-actor.spec.ts:55, 85, 147, 180`; `apps/worker/src/trabajos/notificador.int.spec.ts:541, 614`; `apps/backend/src/modules/notificaciones/notificaciones.int.spec.ts` | Cumplido |
+| CA-5 | `tests/aislamiento/auditoria-operacion.spec.ts:105` (300 compras = 1 fila, `filas = 300`, antes → después en `compra_version`) | Cumplido |
+| CA-6 | `tests/aislamiento/auditoria-operacion.spec.ts:292`; `apps/backend/src/modules/auditoria/auditoria.int.spec.ts:363`; `apps/worker/src/trabajos/notificador.int.spec.ts:770`; `apps/worker/src/trabajos/secretos.int.spec.ts:117` | Cumplido |
+| CA-7 | `tests/aislamiento/auditoria-operacion.spec.ts:266, 283`; `auditoria-tablas.spec.ts:373`; `notificaciones-tablas.spec.ts:63`; `apps/backend/src/aislamiento/hu40-api.int.spec.ts` (rutas nuevas) | Cumplido |
+| CA-8 | `tests/aislamiento/notificaciones-avisos.spec.ts:63`; `apps/worker/src/trabajos/notificador.int.spec.ts:327` (revierte, dedupe, reemplazo, worker muerto tras commit) | Cumplido |
+| CA-9 | `tests/aislamiento/notificaciones-avisos.spec.ts:190`; `apps/worker/src/trabajos/notificador.int.spec.ts:207` (una por trabajo con reintentos) | Cumplido |
+| CA-10 | `tests/aislamiento/notificaciones-plan.spec.ts:47, 210`; `apps/backend/src/modules/trabajos/stream-notificacion.int.spec.ts:151` | Cumplido |
+| CA-11 | `tests/aislamiento/notificaciones-lectura.spec.ts:191, 249`; `apps/backend/src/modules/notificaciones/notificaciones.int.spec.ts:311` (404 sin cambio) | Cumplido |
+| CA-12 | `apps/backend/src/modules/notificaciones/notificaciones.int.spec.ts:84, 137, 188, 219, 274`; `notificaciones-lectura.spec.ts:50, 116, 168`; `stream-notificacion.int.spec.ts:77` (SSE solo al destinatario y sin contenido) | Cumplido |
+| CA-13 | `apps/backend/src/modules/auditoria/auditoria.int.spec.ts:284`; `compras/autor.int.spec.ts:63, 115, 129`; `archivos/autor.int.spec.ts:105`; `notificaciones-lectura.spec.ts:361`; frontend `components/autor.spec.tsx` («(inactivo)», «Usuario desconocido») | Cumplido |
+| CA-14 | `apps/backend/src/modules/auditoria/auditoria.int.spec.ts:103` (403 sin `auditoria.ver`), `:199` (descifrados de 003) | Cumplido |
+| CA-15 | `tests/aislamiento/notificaciones-lectura.spec.ts:306`; `apps/worker/src/trabajos/procesadores/auth-purgar.int.spec.ts:53, 92` (la auditoría de hace 2.000 días sigue) | Cumplido |
+| CA-16 | `apps/frontend/components/notificaciones/notificaciones.spec.tsx:79-210`, `notificaciones-t18a.spec.tsx`, `configuracion/auditoria/page.spec.tsx` y `page.t18a.spec.tsx`; `lib/auditoria-t18a.spec.ts` (español, sin códigos crudos); prueba manual T18/T18a | Cumplido |
+
+- **Suites** (una a una, sin paralelo): build, `pnpm typecheck` y `pnpm lint` limpios; frontend 828/828; `cobertura:dominio` 2442 (3 todo); `cobertura:storage` 192; `cobertura:sunat` 262; `cobertura:db` 3328/3329; `cobertura:auth` 6046; `cobertura:acceso` 4401; `cobertura:cola` 2063; `cobertura:xml` 858 + 602; `cobertura:archivos` 339 + 85; `cobertura:auditoria` 163 (backend) + 162 (worker); `cobertura:crypto` 1278; `pnpm db:migrate` dos veces y `db:seed` OK; `test:aislamiento` 2491/2492; worker `test:int` 338/338; backend `test:int` 2661/2661 (106 archivos). Todas las `cobertura:*` pasan su umbral por archivo (≥ 90 %) salvo lo dicho abajo.
+- **Fallo conocido, ajeno a 017**: `planes.spec.ts` «todo estudio existente tiene suscripcion» (estudios huérfanos antiguos de la BD local; es el único fallo en `cobertura:db` y en `test:aislamiento`). No se recreó la BD. `cobertura:db` con `--coverage.reportOnFailure`: 97,05 % de sentencias, 91,93 % de ramas.
+- **Intermitentes (no reproducibles, sin cambios de código)**: en la primera corrida de `worker test:int`, `generar-archivo.int.spec.ts` falló por una subcadena «4062» (el centinela de la zapatilla, `generar-archivo.int.spec.ts:315`) hallada en la salida (coincidencia con un valor aleatorio de la salida; no se investigó más); en una segunda corrida del archivo falló una vez CA-13 de 20.000 filas por tiempo y pasó en las dos siguientes; la corrida completa posterior dio 338/338. Ninguno corre con cobertura, así que no es el caso de `CONTAPP_COBERTURA=1`; ninguna config de cobertura nueva lo necesitó. Recomendación para T20: acotar el centinela «4062» (p. ej. `F001-4062`) para quitar la intermitencia.
+- **Cobertura** (sentencias / ramas, por paquete): dominio 99,02 / 97,63; storage 98,65 / 94,36; sunat 100 / 100; db 97,05 / 91,93; auth 98,98 / 97,44; acceso 99,62 / 98,46; cola 98,93 / 97,28; xml 98,8 / 98,14 (backend) y 100 / 100 (worker); archivos 97,87 / 95,48 y 95,96 / 91,54; auditoria 99,34 / 99,28 (backend) y 98,18 / 97,89 (worker); crypto 98,94 / 96,89.
+- **p95 con la auditoría activa** (014, RNF-033/RNF-034, D-15): acción sobre una fila con 5.000 filas (`acciones.int.spec.ts:1519`) p95 = 30,5 ms (límite 300 ms), máximo 32,9 ms; detalle de factura de 500 ítems (`detalle.int.spec.ts:481`) p95 = 20,4 ms (límite 500 ms). Medido con una copia temporal de cada archivo que escribía el valor (ya borrada); las pruebas del repositorio no cambiaron.
+- **Faltantes**: ninguno. `ci:cierre` no se corrió en esta tarea (no estaba en la lista de T19).
 
 ## T20 · [ ] Revisión final (arquitecto · sonnet)
 - **Contexto (leer solo esto)**: `spec.md`, `plan.md`, `tasks.md` (Resultados), el diff de la rama contra `main` limitado a migraciones, `packages/db/src/{auditoria,notificaciones}/` y los módulos nuevos.
