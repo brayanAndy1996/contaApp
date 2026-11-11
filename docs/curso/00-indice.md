@@ -12,6 +12,7 @@ No necesitas leerlo todo de una vez. Cada módulo se sostiene solo y enlaza a lo
 - Cómo se protegen las claves SOL y las sesiones de los usuarios.
 - Cómo se manejan los montos y cómo se prueba que todo lo anterior funciona.
 - Cómo se prevalida un periodo y se genera el archivo SIRE (TXT y ZIP) con versiones inmutables.
+- Cómo funcionan las pantallas de ventas y compras y la lupa del comprobante con su XML.
 
 ## Cómo usar este curso
 
@@ -20,7 +21,7 @@ No necesitas leerlo todo de una vez. Cada módulo se sostiene solo y enlaza a lo
 3. **Haz los ejercicios.** Las soluciones están escondidas en un bloque desplegable; intenta primero sin mirar.
 4. **Sigue las rutas de archivo.** Cada fragmento de código indica de dónde sale, por ejemplo `packages/db/src/with-tenant.ts:182`. Ábrelo en tu editor para ver el contexto completo. Cuando un fragmento está recortado, el módulo lo dice.
 
-> Las rutas y números de línea de los módulos 01 a 09 corresponden al estado del repositorio con la spec 008 terminada; el módulo 10, a las specs 012 y 012b terminadas. Si el código cambia, busca el nombre de la función con `Ctrl+Shift+F` en tu editor.
+> Las rutas y números de línea de los módulos 01 a 09 corresponden al estado del repositorio con la spec 008 terminada; los módulos 10 a 13, a las specs 012 a 016 terminadas. Si el código cambia, busca el nombre de la función con `Ctrl+Shift+F` en tu editor.
 
 ## Mapa de módulos
 
@@ -37,18 +38,21 @@ No necesitas leerlo todo de una vez. Cada módulo se sostiene solo y enlaza a lo
 | 08 | [Dinero y dominio](08-dinero-y-dominio.md) | `Money`, `decimal.js`, redondeo, IGV y por qué nunca se usa `number` para soles. |
 | 09 | [Pruebas y calidad](09-pruebas-y-calidad.md) | TDD, pruebas adversariales, cobertura, lint y CI. |
 | 10 | [Prevalidación y archivo SIRE](10-prevalidacion-y-archivo-sire.md) | Qué bloquea un periodo, formatos TXT versionados, ZIP con SHA-256, el trabajo `archivo.generar` y la descarga de versiones. |
+| 11 | [Ventas y correlatividad](11-ventas-y-correlatividad.md) | Propuesta común del SIRE, ventas inmutables, importación TXT/Excel, grilla y correlatividad (la boleta 291). |
+| 12 | [Compras](12-compras.md) | Versiones por fila, clasificación, sugerencias, deshacer/rehacer, estados del periodo y la grilla tipo Excel. |
+| 13 | [Lupa XML](13-lupa-xml.md) | XML UBL del comprobante: parser seguro, obtención en la cola, re-evaluación de reglas y la lupa en pantalla. |
 
 ## Orden recomendado
 
 ```text
 00 → 01 → 02 → 03 ─┬─► 04 → 05 → 06
-                   └─► 07 → 08 → 09 → 10
+                   └─► 07 → 08 → 09 → 10 → 11 → 12 → 13
 ```
 
 - **Ruta mínima (2–3 horas):** 01, 02 y 03. Con eso entiendes dónde vive cada dato y quién puede verlo.
 - **Ruta de trabajos en segundo plano:** 04, 05 y 06, en ese orden (Redis es la base de BullMQ y del SSE).
 - **Ruta de seguridad y negocio:** 07, 08 y 09. Se pueden leer en cualquier orden después de 03.
-- **Ruta del archivo SIRE:** 10, después de 05 (cola) y 08 (dinero).
+- **Ruta del negocio SIRE:** 10 a 13, después de 05 (cola) y 08 (dinero). El 10 usa datos de ventas y compras: si algo no se entiende, sigue con 11 y 12 y vuelve.
 
 ## Cómo correr los ejemplos
 

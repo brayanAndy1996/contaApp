@@ -1,6 +1,6 @@
 # 10 · Prevalidación y archivo SIRE: del periodo corregido al ZIP
 
-> Módulo anterior: [09-pruebas-y-calidad.md](09-pruebas-y-calidad.md) · Índice: [00-indice.md](00-indice.md)
+> Módulo anterior: [09-pruebas-y-calidad.md](09-pruebas-y-calidad.md) · Siguiente: [11-ventas-y-correlatividad.md](11-ventas-y-correlatividad.md) · Índice: [00-indice.md](00-indice.md)
 >
 > Cubre las specs **012** (núcleo puro: prevalidación, formatos TXT y ZIP) y **012b** (guardado, versiones, descarga y pantalla). Conviene haber leído [03](03-rls-y-withtenant.md), [05](05-bullmq-y-la-cola.md) y [08](08-dinero-y-dominio.md).
 
