@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { autorSchema } from "../autor.js";
 import {
   COLUMNAS_MONTO_COMPRA,
   columnaMontoCompraSchema,
@@ -93,6 +94,7 @@ export const versionCompraVistaSchema = z.object({
   accion: z.enum(ACCIONES_VERSION),
   operacionId: z.uuid().nullable(),
   usuarioId: z.uuid().nullable(),
+  autor: autorSchema.nullable(),
   creadaEn: fechaIso,
   excluida: z.boolean(),
   motivo: z.string().nullable(),

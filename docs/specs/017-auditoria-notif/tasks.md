@@ -11,7 +11,7 @@ Nivel B con una ronda adversarial dirigida (P-1, D-16); las pantallas son nivel 
 | T3  | Pruebas de BD de notificaciones: RLS por usuario, avisos de credencial, trabajo y plan, dedupe, purga, destinatarios, lecturas y autores (rojo) | tester | sonnet | — ∥ T1, T2 | ✓ | — | [ ] |
 | T4  | Pruebas del worker: `trabajoId`, `NotificadorEventos`, CA-8, CA-9, purga y actor `trabajo` (rojo) | tester | sonnet | T1 ∥ T5 | ✓ | — | [ ] |
 | T5  | Pruebas HTTP: notificaciones, auditoría, SSE, autor, secretos y HU-40 (rojo) | tester | sonnet | T1 ∥ T4 | ✓ | — | [ ] |
-| T6  | `shared`: autor, auditoría, notificaciones, aviso y DTOs | backend | sonnet | T1 ∥ T7 | ✓ | — | [ ] |
+| T6  | `shared`: autor, auditoría, notificaciones, aviso y DTOs | backend | sonnet | T1 ∥ T7 | ✓ | — | [x] |
 | T7  | Migraciones 0041–0043, esquema drizzle y `trabajoId` en `withTenant` | backend | opus | T2, T3 ∥ T6 | ✓ | — | [ ] |
 | T8  | Repositorios de `packages/db`: auditoría, notificaciones, autores y origen | backend | sonnet | T6, T7 | ✓ | — | [ ] |
 | T9  | Worker: notificador real, `trabajoId` en los trabajos y purga | backend | sonnet | T4, T8 ∥ T10, T11 | ✓ | — | [ ] |
@@ -73,10 +73,11 @@ Reglas comunes:
 - **Hacer**: `apps/backend/src/modules/notificaciones/notificaciones.int.spec.ts`, `apps/backend/src/modules/auditoria/auditoria.int.spec.ts`, `apps/backend/src/modules/trabajos/stream-notificacion.int.spec.ts`, `apps/backend/src/modules/compras/autor.int.spec.ts`, `apps/backend/src/modules/archivos/autor.int.spec.ts` y casos en `hu40-api.int.spec.ts`. Casos: CA-12 (orden, cursor, ≤ 50, conteo con tope, «leer todas» hasta un instante, leída idempotente 204); CA-11 (ajena, de otro estudio o de cliente desasignado = 404 y sin cambios; no cuenta); CA-14 (Dueño y Administrador 200, Contador, Asistente y Lectura 403; incluye descifrados); CA-4 (`usuarioId` en cuerpo o consulta = 400 y el actor de la fila es el de la sesión); CA-7 por API; SSE: el destinatario recibe `event: notificacion` con `data: {}` y otro usuario del estudio no recibe nada; alta de cliente que cruza el 90 % publica el aviso a los Dueños tras el commit; CA-13 en DTOs (activo, inactivo, desconocido); centinelas ausentes en respuestas y logs (CA-6); HU-40 para las cinco rutas.
 - **Hecho cuando**: fallan por ruta o campo ausente (404 de ruta, campo `autor` ausente); «toda ruta tiene caso» en rojo solo por las rutas nuevas. Commit `test(017): API de notificaciones y auditoría en rojo`.
 
-## T6 · [ ] `shared` (backend · sonnet)
+## T6 · [x] `shared` (backend · sonnet)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: shared), las pruebas de T1, los archivos de `shared` que nombra T1.
 - **Hacer**: crear `autor.ts`, `auditoria/`, `notificaciones/` y ampliar los DTOs y `index.ts` según el plan.
 - **Hecho cuando**: `pnpm --filter @contapp/shared test` y `typecheck` en verde. Commit `feat(017): esquemas de auditoría, notificaciones y autor`.
+- **Resultado**: `src/autor.ts`, `src/auditoria/{acciones,esquemas,index}.ts`, `src/notificaciones/{esquemas,index}.ts` e índice raíz; `autor` agregado a `estadoPeriodoRespuestaSchema`, `versionCompraVistaSchema`, `previoArchivoSchema.estado`, `versionArchivoSchema` (requerido) y `estadoXmlSchema.disponible` (opcional). Extras no pedidos por T1: `marcadasSchema` (respuesta de `POST /notificaciones/leidas`), constantes de tope y tipos. Shared: 41 archivos / 1767 pruebas, typecheck y lint en verde, cobertura 100 % líneas. Roturas de typecheck fuera de shared por `autor` obligatorio (corresponden a T10/T11 y a fixtures del frontend): backend `archivos/archivos.service.ts`, `compras/{periodo.service,vistas}.ts`, `ventas/estado.service.ts`; frontend `pruebas/{archivos,compras}.ts`; worker sin roturas.
 
 ## T7 · [ ] Migraciones 0041–0043 y contexto del worker (backend · opus)
 - **Contexto (leer solo esto)**: `spec.md` (D-1 a D-9, D-13), `plan.md` (Contratos: BD; Decisiones; Riesgos), las pruebas de T2 y T3, `packages/db/migrations/{0006_credencial_rls_y_grants,0018_trabajos_rls,0024_planes_auth,0037_encolar_xml_obtener,0040_archivo_generado}.sql` (grants, funciones `SECURITY DEFINER` y triggers modelo), `packages/db/migrations/meta/_journal.json`, `packages/db/src/schema/{index,comun,archivos}.ts`, `packages/db/src/with-tenant.ts`.

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { autorSchema } from "../autor.js";
 import { DESTINOS_COMPRA, estadoPeriodoSchema, montoDecimalSchema } from "../compras/esquemas.js";
 import { sha256HexSchema } from "./esquemas.js";
 
@@ -67,7 +68,7 @@ export const previoArchivoSchema = z.object({
   excluidas: z.array(excluidaPrevioSchema).max(MAX_ITEMS_PREVIO),
   excluidasOmitidas: entero,
   formato: z.object({ id: z.string(), version: z.string(), oficial: z.boolean() }),
-  estado: z.object({ estado: estadoPeriodoSchema, por: z.uuid().nullable(), en: fechaIso.nullable() }),
+  estado: z.object({ estado: estadoPeriodoSchema, por: z.uuid().nullable(), autor: autorSchema.nullable(), en: fechaIso.nullable() }),
   huella: sha256HexSchema,
   ultimaVersion: z.object({ version: z.number().int().min(1), generadoEn: fechaIso }).nullable(),
   reabiertoTrasUltima: z.boolean(),
@@ -80,6 +81,7 @@ export const versionArchivoSchema = z.object({
   version: z.number().int().min(1),
   generadoEn: fechaIso,
   generadoPor: z.uuid(),
+  autor: autorSchema,
   formato: z.object({ id: z.string(), version: z.string() }),
   provisional: z.boolean(),
   nombreZip: z.string().min(1),
