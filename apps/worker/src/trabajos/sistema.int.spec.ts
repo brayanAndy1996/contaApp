@@ -529,9 +529,11 @@ describe("CA-13: auth.purgar borra solo lo terminado y vencido (D16)", () => {
   it("borra lo vencido según D16 y deja lo vigente; devuelve los conteos", async () => {
     const espia = dbEspiada(worker, { muerto: false });
     const r = await authPurgar({ db: espia.db });
+    // 017 (P-7): se suma `notificaciones` al resultado.
     expect(Object.keys(r).sort()).toEqual([
       "intentos",
       "limites",
+      "notificaciones",
       "sesiones",
       "tokens",
       "trabajos",

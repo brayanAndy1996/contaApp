@@ -21,7 +21,6 @@ import {
   esperarHasta,
   fijarConfig,
   limpiarPrefijo,
-  notificadorEspia,
   nuevoPrefijo,
   ProcesadorProgramable,
   registrarTiposDePrueba,
@@ -29,6 +28,7 @@ import {
   volcarPrefijo,
   type ProcesoWorker,
 } from "../../../test/trabajos.js";
+import { notificadorEspia } from "../../../test/notificaciones.js";
 import { CacheTokenSire, TokenRechazadoError } from "./cache-token.js";
 
 // Spec 008, T5 (rojo; integración con Redis y PostgreSQL reales): token SIRE por RUC (RF-045, D14, CA-11).
@@ -394,6 +394,7 @@ describe("CA-11 y CA-9 con el worker completo", () => {
     return {
       prefijo,
       T,
+      usuario,
       cliente,
       prog,
       p,
@@ -484,7 +485,14 @@ describe("CA-11 y CA-9 con el worker completo", () => {
         intentos: 0,
       });
       expect((await e.credencialEstado(m.cliente.id))?.estado).toBe("invalida");
-      expect(m.notificador.llamadas).toHaveLength(1);
+      // 017: un solo aviso, el del trabajo terminado en error al creador (el cliente no tiene responsable ni Dueños).
+      await esperarHasta(
+        () => m.notificador.llamadas.length >= 1,
+        "aviso del trabajo terminado",
+      );
+      expect(m.notificador.llamadas).toEqual([
+        { tenantId: m.T, usuarioIds: [m.usuario] },
+      ]);
       expect(auth.llamadas, "sin reintento").toBe(1);
       const jobs = await e.volcarJobs();
       expect(jobs).not.toContain(CLAVE_SOL);

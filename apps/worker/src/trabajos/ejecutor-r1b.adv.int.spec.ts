@@ -131,7 +131,7 @@ async function arrancarWorker(
     prefijo,
     procesadores,
     logger,
-    notificador: { credencialInvalida: async () => undefined },
+    notificador: { avisar: async () => undefined },
     intervalos: { despachadorMs: 20, reconciliadorMs: 500, latidoMs: 200 },
   });
   const detener = async () => {
@@ -195,7 +195,7 @@ describe("arriendo vencido con el ejecutor aún vivo (event loop bloqueado más 
             throw new Error("sin token en esta prueba");
           },
         },
-        notificador: { credencialInvalida: async () => undefined },
+        notificador: { avisar: async () => undefined },
         logger: silencio,
         latidoMs: 60_000,
       });

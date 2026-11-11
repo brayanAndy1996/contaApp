@@ -37,6 +37,7 @@ const h = vi.hoisted(() => ({
   ejecutor: {
     deps: null as null | {
       procesadores: Record<string, (c: unknown) => Promise<unknown>>;
+      notificador?: unknown;
     },
     ejecutar: vi.fn(async () => undefined),
     esperar: vi.fn(async () => true),
@@ -208,6 +209,40 @@ describe("iniciarTrabajos (unitarias)", () => {
     ]);
   });
 
+  // Spec 017 · T4 (rojo): el notificador por defecto es el adaptador Redis (`NotificadorEventos`), no el log.
+  it("017: sin `notificador`, el ejecutor avisa por el Redis y el prefijo de las colas (eventos:{tenant})", async () => {
+    const publish = vi.fn(async () => 1);
+    const T = "0190a000-0000-7000-8000-0000000000a1";
+    const U = "0190a000-0000-7000-8000-0000000000b1";
+    const { d } = deps({ redis: { publish } as never, prefijo: "t17i:" });
+    const en = await iniciarTrabajos(d);
+    const notificador = h.ejecutor.deps!.notificador as {
+      avisar(t: string, u: string[]): Promise<void>;
+      credencialInvalida?: unknown;
+    };
+    expect(typeof notificador.avisar).toBe("function");
+    expect(
+      notificador.credencialInvalida,
+      "NotificadorLog ya no es el por defecto",
+    ).toBeUndefined();
+    await notificador.avisar(T, [U]);
+    expect(publish).toHaveBeenCalledTimes(1);
+    const [canal, texto] = publish.mock.calls[0] as unknown as [string, string];
+    expect(canal).toBe(`t17i:eventos:${T}`);
+    expect(JSON.parse(texto)).toEqual({
+      evento: "notificacion",
+      destinatarios: [U],
+    });
+    await en.detener();
+  });
+
+  it("017: un `notificador` inyectado se respeta", async () => {
+    const notificador = { avisar: vi.fn(async () => undefined) };
+    const en = await iniciarTrabajos(deps({ notificador }).d);
+    expect(h.ejecutor.deps!.notificador).toBe(notificador);
+    await en.detener();
+  });
+
   it("un ciclo que falla no detiene el bucle", async () => {
     h.despachador.fallar = true;
     const en = await iniciarTrabajos(deps().d);
@@ -308,14 +343,20 @@ describe("iniciarTrabajos (unitarias)", () => {
     const bd = (
       h.ejecutor.deps as unknown as {
         db: {
-          withTenant: (c: unknown, f: (tx: unknown) => unknown) => Promise<unknown>;
+          withTenant: (
+            c: unknown,
+            f: (tx: unknown) => unknown,
+          ) => Promise<unknown>;
         };
       }
     ).db;
     // Vivo: pasa a la BD de la prueba (un vi.fn que no devuelve promesa).
     expect(bd.withTenant({}, async () => "ok")).toBeUndefined();
     await en.detener({ esperaMs: 40 });
-    expect(h.workers[0]!.cerrar.mock.calls.map((c) => c[0])).toEqual([false, true]);
+    expect(h.workers[0]!.cerrar.mock.calls.map((c) => c[0])).toEqual([
+      false,
+      true,
+    ]);
     expect(h.ejecutor.soltarEnCurso).not.toHaveBeenCalled();
     await expect(bd.withTenant({}, async () => "ok")).rejects.toMatchObject({
       codigo: "proceso_detenido",
@@ -346,10 +387,15 @@ describe("iniciarTrabajos (unitarias)", () => {
 
     const bytes = new Uint8Array([9]);
     await x.storage.guardar("xml/a.xml", bytes);
-    await expect(x.storage.leer("xml/a.xml")).resolves.toEqual(new Uint8Array([1, 2]));
+    await expect(x.storage.leer("xml/a.xml")).resolves.toEqual(
+      new Uint8Array([1, 2]),
+    );
     await x.storage.eliminar("xml/a.xml");
     expect(h.crearStorage).toHaveBeenCalledTimes(1);
-    const real = h.crearStorage.mock.results[0]!.value as Record<"guardar" | "leer" | "eliminar", ReturnType<typeof vi.fn>>;
+    const real = h.crearStorage.mock.results[0]!.value as Record<
+      "guardar" | "leer" | "eliminar",
+      ReturnType<typeof vi.fn>
+    >;
     expect(real.guardar).toHaveBeenCalledWith("xml/a.xml", bytes);
     expect(real.leer).toHaveBeenCalledWith("xml/a.xml");
     expect(real.eliminar).toHaveBeenCalledWith("xml/a.xml");
@@ -362,7 +408,11 @@ describe("iniciarTrabajos (unitarias)", () => {
     const en = await iniciarTrabajos(
       deps({ xmlProvider, storage, xmlSimuladoEnReglas: true } as never).d,
     );
-    expect(h.xml.deps).toMatchObject({ xmlProvider, storage, xmlSimuladoEnReglas: true });
+    expect(h.xml.deps).toMatchObject({
+      xmlProvider,
+      storage,
+      xmlSimuladoEnReglas: true,
+    });
     expect(h.crearStorage).not.toHaveBeenCalled();
     await en.detener();
   });

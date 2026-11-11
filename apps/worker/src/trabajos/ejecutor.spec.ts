@@ -1,6 +1,11 @@
 // Unitarias del ejecutor (T10): ramas que la integración de T5 no alcanza (tipo sin definición o sin procesador,
 // arriendo ocupado, transición perdida, fallo de la transacción final, cierre con tiempo agotado). BD y arriendos
 // dobles; clasificación y decisión reales.
+// Spec 017 · T4 (rojo): el puerto es `Notificador.avisar(tenantId, usuarioIds)`. Contrato que fijan las pruebas del final (T9):
+//  - `transicionFinal` lee `destinatariosNuevos(tx)` (de @contapp/db) en la MISMA transacción de la transición terminal, antes del
+//    commit, y el ejecutor llama `notificador.avisar(tenantId, destinatarios)` DESPUÉS del commit, sin esperarlo y solo si hay.
+//  - Todo `withTenant` de cierre del trabajo lleva `{ tenantId, trabajoId: fila.id }` (el actor `trabajo` de la auditoría sale de ahí).
+//  - Un fallo del Notificador (rechazo, excepción o aviso colgado) solo se registra con códigos: el trabajo ya está cerrado.
 import type { TrabajoFila } from "@contapp/db";
 import { ErrorCredencial, ErrorTransitorio } from "@contapp/sunat";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +16,15 @@ const db = vi.hoisted(() => ({
   fallarTransicion: 0,
   perderTransicion: false,
   perderLectura: false,
+  // 017
+  destinatarios: [] as string[],
+  orden: [] as string[],
+  txs: 0,
+  txActual: null as unknown,
+  ctxActual: null as unknown,
+  txDeTransicion: [] as unknown[],
+  ctxDeTransicion: [] as unknown[],
+  txDeDestinatarios: [] as unknown[],
 }));
 const q = vi.hoisted(() => ({
   ejecucionLibre: true,
@@ -38,6 +52,9 @@ vi.mock("@contapp/db", async (original) => ({
       campos: Record<string, unknown>,
     ) => {
       db.transicionar.push([id, desde, hacia, campos]);
+      db.orden.push("transicionar");
+      db.txDeTransicion.push(db.txActual);
+      db.ctxDeTransicion.push(db.ctxActual);
       if (db.fallarTransicion > 0) {
         db.fallarTransicion -= 1;
         throw new Error("check violation");
@@ -49,6 +66,11 @@ vi.mock("@contapp/db", async (original) => ({
     },
   ),
   marcarCredencialInvalida: vi.fn(async () => true),
+  destinatariosNuevos: vi.fn(async (tx: unknown) => {
+    db.orden.push("destinatarios");
+    db.txDeDestinatarios.push(tx);
+    return [...db.destinatarios];
+  }),
 }));
 
 vi.mock("@contapp/queue", async (original) => ({
@@ -144,14 +166,22 @@ function ejecutor(
     error: (e: EventoLog) => logs.push({ nivel: "error", e }),
   };
   const notificador = {
-    credencialInvalida: vi.fn(
-      (o.notificador ?? (async () => undefined)) as () => Promise<void>,
-    ),
+    avisar: vi.fn(async (...a: unknown[]) => {
+      void a;
+      db.orden.push("aviso");
+      await (o.notificador ?? (async () => undefined))();
+    }),
   };
-  const tx = { query: vi.fn() };
   const ex = new Ejecutor({
     db: {
-      withTenant: async (_c: unknown, fn: (t: unknown) => unknown) => fn(tx),
+      withTenant: async (c: unknown, fn: (t: unknown) => unknown) => {
+        const tx = { query: vi.fn(), n: ++db.txs };
+        db.txActual = tx;
+        db.ctxActual = c;
+        const r = await fn(tx);
+        db.orden.push("commit");
+        return r;
+      },
       withSistema: async () => undefined,
     } as never,
     redis: {} as never,
@@ -178,6 +208,16 @@ beforeEach(() => {
   db.fallarTransicion = 0;
   db.perderTransicion = false;
   db.perderLectura = false;
+  Object.assign(db, {
+    destinatarios: [],
+    orden: [],
+    txs: 0,
+    txActual: null,
+    ctxActual: null,
+    txDeTransicion: [],
+    ctxDeTransicion: [],
+    txDeDestinatarios: [],
+  });
   Object.assign(q, {
     ejecucionLibre: true,
     liberados: [],
@@ -412,40 +452,179 @@ describe("Ejecutor (unitarias)", () => {
     soltar();
     await corriendo;
   });
+
+  // ---- Spec 017 · T4 --------------------------------------------------------------------------------------------------
+  const U1 = "0190a000-0000-7000-8000-0000000000b1";
+  const U2 = "0190a000-0000-7000-8000-0000000000b2";
+
+  it("D-9: lee destinatariosNuevos en la transacción de la transición, antes del commit, y avisa después con (tenantId, destinatarios)", async () => {
+    db.destinatarios = [U1, U2];
+    const f = fila();
+    const { ex, notificador } = ejecutor();
+    await ex.ejecutar("sire", payload(f));
+    expect(notificador.avisar).toHaveBeenCalledTimes(1);
+    expect(notificador.avisar.mock.calls[0], "solo dos argumentos").toEqual([
+      T,
+      [U1, U2],
+    ]);
+    expect(db.txDeDestinatarios).toHaveLength(1);
+    expect(db.txDeDestinatarios[0], "misma transacción que la transición").toBe(
+      db.txDeTransicion[0],
+    );
+    const o = db.orden;
+    const iTransicion = o.indexOf("transicionar");
+    const iDest = o.indexOf("destinatarios");
+    const iCommit = o.indexOf("commit", iDest);
+    const iAviso = o.indexOf("aviso");
+    expect(iTransicion).toBeGreaterThan(-1);
+    expect(iDest).toBeGreaterThan(iTransicion);
+    expect(iCommit).toBeGreaterThan(iDest);
+    expect(iAviso, "el aviso sale tras el commit").toBeGreaterThan(iCommit);
+  });
+
+  it("avisa también al terminar en error (con un ErrorCredencial el aviso lleva a los destinatarios de ambas notificaciones)", async () => {
+    db.destinatarios = [U1];
+    const f = fila();
+    const { ex, notificador } = ejecutor({
+      procesadores: {
+        "unit.eco": async () => {
+          throw new ErrorCredencial();
+        },
+      },
+    });
+    await ex.ejecutar("sire", payload(f));
+    const { marcarCredencialInvalida } = await import("@contapp/db");
+    expect(marcarCredencialInvalida).toHaveBeenCalledTimes(1);
+    expect(notificador.avisar).toHaveBeenCalledTimes(1);
+    expect(notificador.avisar.mock.calls[0]).toEqual([T, [U1]]);
+    expect(db.filas.get(f.id)).toMatchObject({
+      estado: "error",
+      motivo: "credencial_invalida",
+    });
+  });
+
+  it("sin destinatarios nuevos no avisa (programado, sin creador o reintento)", async () => {
+    db.destinatarios = [];
+    const f = fila();
+    const { ex, notificador } = ejecutor();
+    await ex.ejecutar("sire", payload(f));
+    expect(db.txDeDestinatarios).toHaveLength(1);
+    expect(notificador.avisar).not.toHaveBeenCalled();
+  });
+
+  it("un reintento (en_cola) lee los destinatarios en la transacción pero no avisa si no hay", async () => {
+    const f = fila();
+    const { ex, notificador } = ejecutor({
+      procesadores: {
+        "unit.eco": async () => {
+          throw new ErrorTransitorio();
+        },
+      },
+    });
+    await ex.ejecutar("sire", payload(f));
+    expect(db.filas.get(f.id)).toMatchObject({ estado: "en_cola" });
+    expect(notificador.avisar).not.toHaveBeenCalled();
+  });
+
+  it("transición perdida: no avisa", async () => {
+    db.perderTransicion = true;
+    db.destinatarios = [U1];
+    const f = fila();
+    const { ex, notificador } = ejecutor();
+    await ex.ejecutar("sire", payload(f));
+    expect(notificador.avisar).not.toHaveBeenCalled();
+  });
+
+  it("si la transición falla y se reescribe como error_interno, avisa una sola vez, con la segunda transacción", async () => {
+    db.fallarTransicion = 1;
+    db.destinatarios = [U1];
+    const f = fila();
+    const { ex, notificador } = ejecutor();
+    await ex.ejecutar("sire", payload(f));
+    expect(db.transicionar.map((t) => t[2])).toEqual(["completado", "error"]);
+    expect(notificador.avisar).toHaveBeenCalledTimes(1);
+    expect(db.txDeDestinatarios.at(-1)).toBe(db.txDeTransicion.at(-1));
+  });
+
+  it("cada transacción de cierre del trabajo lleva su trabajoId (actor `trabajo` de la auditoría, CA-4)", async () => {
+    db.fallarTransicion = 1; // primer intento y reescritura como error_interno: ambas con el trabajoId
+    const f = fila();
+    const { ex } = ejecutor();
+    await ex.ejecutar("sire", payload(f));
+    expect(db.ctxDeTransicion).toHaveLength(2);
+    for (const c of db.ctxDeTransicion)
+      expect(c).toEqual({ tenantId: T, trabajoId: f.id });
+  });
+
   it.each([
-    ["rechaza", async () => Promise.reject(new Error("canal caído"))],
+    ["rechaza", async () => Promise.reject(new Error("canal caído CANARIO-N"))],
     [
       "lanza en el acto",
       () => {
-        throw new Error("canal caído");
+        throw new Error("canal caído CANARIO-N");
       },
     ],
   ])(
-    "credencial inválida: avisa una vez; si el Notificador %s, solo se registra y el trabajo queda en error",
+    "si el Notificador %s, solo se registra con códigos y el trabajo ya cerrado sigue su curso (arriendos y evento)",
     async (_n, falla) => {
+      db.destinatarios = [U1];
       const f = fila();
       const { ex, logs, notificador } = ejecutor({
         notificador: falla as () => Promise<void>,
-        procesadores: {
-          "unit.eco": async () => {
-            throw new ErrorCredencial();
-          },
-        },
       });
       await ex.ejecutar("sire", payload(f));
-      expect(notificador.credencialInvalida).toHaveBeenCalledWith({
-        tenantId: T,
-        clienteId: C,
-        tipo: "sol",
-        trabajoId: f.id,
-      });
+      expect(notificador.avisar).toHaveBeenCalledTimes(1);
       await vi.waitFor(() =>
         expect(logs.some((l) => l.e.evento === "notificador_fallo")).toBe(true),
       );
-      expect(db.filas.get(f.id)).toMatchObject({
-        estado: "error",
-        motivo: "credencial_invalida",
+      const fallo = logs.find((l) => l.e.evento === "notificador_fallo")!.e;
+      expect(fallo).toMatchObject({
+        tenant_id: T,
+        job_id: f.id,
+        tipo: "unit.eco",
       });
+      expect(
+        JSON.stringify(logs),
+        "CA-6: ni el mensaje ni la causa",
+      ).not.toContain("CANARIO-N");
+      expect(db.filas.get(f.id)).toMatchObject({ estado: "completado" });
+      expect(q.liberados).toHaveLength(1);
+      expect(q.eventos).toHaveLength(1);
     },
   );
+
+  it("no espera al Notificador: un aviso colgado no retiene el cierre del trabajo", async () => {
+    db.destinatarios = [U1];
+    const f = fila();
+    const { ex } = ejecutor({
+      notificador: () => new Promise<void>(() => undefined),
+    });
+    await ex.ejecutar("sire", payload(f));
+    expect(db.filas.get(f.id)).toMatchObject({ estado: "completado" });
+    expect(q.liberados).toHaveLength(1);
+    expect(q.eventos).toHaveLength(1);
+  });
+
+  it("el puerto antiguo `credencialInvalida` ya no se usa", async () => {
+    db.destinatarios = [U1];
+    const f = fila();
+    const { ex, notificador } = ejecutor({
+      procesadores: {
+        "unit.eco": async () => {
+          throw new ErrorCredencial();
+        },
+      },
+    });
+    (notificador as unknown as Record<string, unknown>).credencialInvalida =
+      vi.fn();
+    await ex.ejecutar("sire", payload(f));
+    expect(
+      (
+        notificador as unknown as {
+          credencialInvalida: ReturnType<typeof vi.fn>;
+        }
+      ).credencialInvalida,
+    ).not.toHaveBeenCalled();
+    expect(notificador.avisar).toHaveBeenCalledTimes(1);
+  });
 });
