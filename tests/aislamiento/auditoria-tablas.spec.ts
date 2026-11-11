@@ -141,12 +141,12 @@ describe("CHECKs de auditoria (D-1) y ausencia de FK a usuario, cliente y trabaj
     expect(r.ok ? "ok" : r.code).toBe("23514");
   });
 
-  it("rechaza (23514) una accion fuera del catalogo cerrado y acepta las 27 del catalogo (D-3 + credencial.descifrada + sunat.envio)", async () => {
+  it("rechaza (23514) una accion fuera del catalogo cerrado y acepta las 31 del catalogo (D-3 + 4 de la ronda R1 + credencial.descifrada + sunat.envio)", async () => {
     for (const mala of ["cliente.borrado", "Cliente.creado", "x", ""]) {
       const r = await probar({ accion: mala });
       expect(r.ok ? "ok" : r.code, mala).toBe("23514");
     }
-    expect(ACCIONES_CATALOGO).toHaveLength(27);
+    expect(ACCIONES_CATALOGO).toHaveLength(31);
     for (const accion of ACCIONES_CATALOGO) expect(await probar({ accion }), accion).toEqual({ ok: true });
   });
 

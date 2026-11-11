@@ -53,7 +53,7 @@ describe("filaAuditoriaSchema", () => {
   });
 
   it.each([
-    ["acción fuera del catálogo", { accion: "cliente.eliminado" }],
+    ["acción fuera del catálogo", { accion: "cliente.borrado" }],
     ["tipo de actor desconocido", { actor: { tipo: "robot", autor: null, trabajoId: null } }],
     ["id no es uuid", { id: "1" }],
     ["fecha no es ISO", { ocurridaEn: "ayer" }],

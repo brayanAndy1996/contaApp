@@ -97,11 +97,13 @@ describe("CA-10 · RUCs: 90 % y 100 % del limite efectivo (P-5)", () => {
     // 10 -> 9: el 100 % se rearma, el 90 % sigue alcanzado
     await admin.query("update cliente set archivado_at = now() where id = $1", [ids[0]]);
     expect(await total(e.x)).toBe(4);
+    await en.envejecer(e.x, 25); // el mismo aviso no se repite antes de 24 h (notificaciones-correcciones.spec.ts); aqui ya paso ese dia
     await admin.query("update cliente set archivado_at = null where id = $1", [ids[0]]);
     expect(await en.avisosPlan(e.x, "rucs", 100)).toHaveLength(4);
     expect(await en.avisosPlan(e.x, "rucs", 90)).toHaveLength(2);
     // 10 -> 8 -> 9: el 90 % se rearmo y vuelve a avisar
     await admin.query("update cliente set archivado_at = now() where id = any($1::uuid[])", [[ids[0], ids[1]]]);
+    await en.envejecer(e.x, 25);
     await admin.query("update cliente set archivado_at = null where id = any($1::uuid[])", [[ids[0], ids[1]]]);
     expect(await en.avisosPlan(e.x, "rucs", 90)).toHaveLength(4);
     const claves = (await en.notifs(e.x, { tipo: "plan_limite" })).map((n) => `${n.usuario_id}:${n.clave_dedupe}`);
@@ -243,11 +245,13 @@ describe("CA-10 · usuarios: membresias activas + invitaciones vigentes (P-5)", 
     expect(await en.avisosPlan(e.x, "usuarios", 100)).toHaveLength(2);
     await admin.query("update invitacion set revocada_en = now() where id = $1", [inv.id]); // 9
     expect(await en.avisosPlan(e.x, "usuarios", 100)).toHaveLength(2);
+    await en.envejecer(e.x, 25); // pasado el dia de la ventana de P-5 (ver notificaciones-correcciones.spec.ts)
     await en.ep.ea.invitacion(e.x, { invitadoPor: e.d1 }); // 10 otra vez
     expect(await en.avisosPlan(e.x, "usuarios", 100)).toHaveLength(4);
     expect(await en.avisosPlan(e.x, "usuarios", 90)).toHaveLength(2);
     await admin.query("update membresia set desactivada_en = now() where tenant_id = $1 and usuario_id = $2", [e.x, miembros[0]]); // 9
     expect(await en.avisosPlan(e.x, "usuarios", 100)).toHaveLength(4);
+    await en.envejecer(e.x, 25);
     await admin.query("update membresia set desactivada_en = null where tenant_id = $1 and usuario_id = $2", [e.x, miembros[0]]); // 10
     expect(await en.avisosPlan(e.x, "usuarios", 100)).toHaveLength(6);
     expect(quienes(await en.avisosPlan(e.x, "usuarios", 100))).toEqual([...e.duenos, ...e.duenos, ...e.duenos].sort());

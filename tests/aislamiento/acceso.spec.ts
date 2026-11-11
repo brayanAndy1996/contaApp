@@ -494,15 +494,14 @@ describe("trigger membresia_ultimo_dueno: catalogo (D10, RF-028)", () => {
          from pg_trigger t join pg_proc p on p.oid = t.tgfoid
         where t.tgrelid = to_regclass('public.membresia') and not t.tgisinternal order by 1`,
     );
-    // membresia_ultimo_dueno (005) sigue siendo el unico que protege el ultimo dueño; 017 (0042, 0043) agrega auditoria y aviso.
-    expect(r.map((x) => [x.tgname, x.proname])).toEqual([
-      ["auditoria_membresia", "auditoria_capturar_membresia"],
-      ["membresia_ultimo_dueno", expect.any(String)],
-      ["plan_aviso_alta", "plan_aviso_disparar"],
-      ["plan_aviso_cambio", "plan_aviso_disparar"],
-    ]);
+    // membresia_ultimo_dueno (005) sigue siendo el unico que protege el ultimo dueño; 017 (0042, 0043) agrega auditoria y aviso, y la
+    // ronda R1 (T16/T17: baja de membresia auditada y con plan_aviso recalculado) puede sumar triggers propios con esas mismas funciones.
+    expect(r.filter((x) => x.tgname === "membresia_ultimo_dueno")).toHaveLength(1);
+    const de017 = r.filter((x) => x.tgname !== "membresia_ultimo_dueno");
+    expect(de017.map((x) => x.tgname)).toEqual(expect.arrayContaining(["auditoria_membresia", "plan_aviso_alta", "plan_aviso_cambio"]));
+    for (const t of de017) expect(["auditoria_capturar_membresia", "plan_aviso_disparar"], t.tgname).toContain(t.proname);
     // Los de 017 no pueden vetar ni alterar la fila: son AFTER.
-    for (const t of r.filter((x) => x.tgname !== "membresia_ultimo_dueno")) expect(t.despues, t.tgname).toBe(true);
+    for (const t of de017) expect(t.despues, t.tgname).toBe(true);
   });
 });
 

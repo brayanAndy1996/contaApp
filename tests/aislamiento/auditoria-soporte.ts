@@ -69,8 +69,14 @@ export const ACCIONES_D3 = [
   "archivo.generado",
 ] as const;
 
-/** El CHECK de `accion` admite ademas la vista de descifrados (D-6) y la reservada `sunat.envio` (R2). */
-export const ACCIONES_CATALOGO = [...ACCIONES_D3, "credencial.descifrada", "sunat.envio"] as const;
+/**
+ * Acciones que agrega la ronda adversarial R1 (T16): cambio de tipo de asignacion (H-017-1) y las escrituras que los grants permiten y que
+ * ahora se auditan (H-017-2). Las cubre `auditoria-correcciones.spec.ts`; T17 las agrega al CHECK (0045), a `shared` y al frontend.
+ */
+export const ACCIONES_RONDA_R1 = ["asignacion.tipo_cambiado", "miembro.eliminado", "cliente.eliminado", "invitacion.modificada"] as const;
+
+/** El CHECK de `accion` admite ademas las de la ronda R1, la vista de descifrados (D-6) y la reservada `sunat.envio` (R2). */
+export const ACCIONES_CATALOGO = [...ACCIONES_D3, ...ACCIONES_RONDA_R1, "credencial.descifrada", "sunat.envio"] as const;
 
 export interface FilaAud {
   id: string;

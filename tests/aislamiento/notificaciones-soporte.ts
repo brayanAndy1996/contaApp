@@ -157,6 +157,21 @@ export class EscenarioNotif {
     );
   }
 
+  /**
+   * Hace pasar `horas` para las notificaciones ya creadas de un estudio: les resta ese tiempo a `creada_en` (modo replica: el trigger de
+   * "solo leida_en" y los CHECK de milisegundos siguen valiendo, porque se resta un intervalo entero). Sirve para probar la ventana de
+   * 24 h del aviso de limite (P-5) sin esperar. Conexion propia que se destruye al terminar.
+   */
+  async envejecer(tenantId: string, horas: number): Promise<void> {
+    const c = await this.admin.connect();
+    try {
+      await c.query("SET session_replication_role = replica");
+      await c.query("update notificacion set creada_en = creada_en - make_interval(hours => $2::int) where tenant_id = $1", [tenantId, horas]);
+    } finally {
+      c.release(true);
+    }
+  }
+
   /** `cuantos` clientes de una vez con RUC unico; acepta el pool o una conexion con transaccion abierta. */
   async clientes(
     tenantId: string,

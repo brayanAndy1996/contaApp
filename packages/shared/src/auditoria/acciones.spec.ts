@@ -3,7 +3,8 @@ import { ACCIONES_AUDITORIA, accionAuditoriaSchema } from "./acciones.js";
 
 // Spec 017 · T1 (rojo). Catálogo cerrado de acciones de auditoría (D-3, CA-1; plan, 0041).
 // Contrato fijado por estas pruebas (packages/shared/src/auditoria/acciones.ts):
-//  ACCIONES_AUDITORIA = las 25 acciones de D-3 + `credencial.descifrada` (solo para la vista, D-6) + `sunat.envio` (reservada R2)
+//  ACCIONES_AUDITORIA = las 25 acciones de D-3 + las 4 de la ronda adversarial R1 (T16: H-017-1 y H-017-2) + `credencial.descifrada`
+//  (solo para la vista, D-6) + `sunat.envio` (reservada R2)
 //  accionAuditoriaSchema = z.enum(ACCIONES_AUDITORIA)
 const CATALOGO_D3 = [
   // Sesión
@@ -37,16 +38,18 @@ const CATALOGO_D3 = [
   "periodo.estado_cambiado",
   "archivo.generado",
 ];
+// Ronda adversarial R1 (T16): cambio de tipo de asignación (H-017-1) y escrituras que los grants permiten, ahora auditadas (H-017-2).
+const RONDA_R1 = ["asignacion.tipo_cambiado", "miembro.eliminado", "cliente.eliminado", "invitacion.modificada"];
 const EXTRAS = ["credencial.descifrada", "sunat.envio"];
 
 describe("ACCIONES_AUDITORIA", () => {
-  it("es exactamente el catálogo de D-3 más credencial.descifrada y sunat.envio", () => {
-    expect([...ACCIONES_AUDITORIA].sort()).toEqual([...CATALOGO_D3, ...EXTRAS].sort());
+  it("es exactamente el catálogo de D-3, las 4 de la ronda R1, credencial.descifrada y sunat.envio", () => {
+    expect([...ACCIONES_AUDITORIA].sort()).toEqual([...CATALOGO_D3, ...RONDA_R1, ...EXTRAS].sort());
   });
 
   it("no repite acciones", () => {
     expect(new Set(ACCIONES_AUDITORIA).size).toBe(ACCIONES_AUDITORIA.length);
-    expect(ACCIONES_AUDITORIA).toHaveLength(27);
+    expect(ACCIONES_AUDITORIA).toHaveLength(31);
   });
 
   it("todas son minúsculas con forma entidad.hecho", () => {
@@ -55,11 +58,11 @@ describe("ACCIONES_AUDITORIA", () => {
 });
 
 describe("accionAuditoriaSchema", () => {
-  it.each([...CATALOGO_D3, ...EXTRAS])("acepta %s", (a) => {
+  it.each([...CATALOGO_D3, ...RONDA_R1, ...EXTRAS])("acepta %s", (a) => {
     expect(accionAuditoriaSchema.safeParse(a).success).toBe(true);
   });
 
-  it.each(["cliente.eliminado", "Cliente.creado", "cliente.creado ", "", "sunat", null, 1, undefined])("rechaza %j", (a) => {
+  it.each(["cliente.borrado", "Cliente.creado", "cliente.creado ", "", "sunat", null, 1, undefined])("rechaza %j", (a) => {
     expect(accionAuditoriaSchema.safeParse(a).success).toBe(false);
   });
 });
