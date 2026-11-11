@@ -1,7 +1,7 @@
 import type { ContappDb } from "@contapp/db";
 import { ErrorDatos } from "@contapp/sunat";
 import type { Redis } from "ioredis";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   PERIODO,
   RAZON_CANARIO,
@@ -93,6 +93,17 @@ const prefijos = [prefijo];
 beforeEach(() => {
   prefijo = nuevoPrefijo();
   prefijos.push(prefijo);
+});
+// Las pruebas «directas» encolan el trabajo pero lo ejecutan con el procesador sin pasar por la cola, así que su fila de
+// `job_registro` queda `en_cola`. El reconciliador del worker de una prueba «por la cola» enumera TODOS los estudios (y no
+// mira el prefijo de Redis): al pasar 30 s adopta esos trabajos ajenos y los corre con el almacén de esa prueba (flaky bajo
+// cobertura, que es más lenta). Al terminar cada prueba se cancelan los pendientes de los estudios de este archivo.
+afterEach(async () => {
+  await admin.pool.query(
+    `update job_registro set estado = 'cancelado', terminado_en = now(), actualizado_en = now()
+      where tenant_id = any($1::uuid[]) and estado = 'en_cola'`,
+    [e?.estudios ?? []],
+  );
 });
 
 interface FilaConfig {
