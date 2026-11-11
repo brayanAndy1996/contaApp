@@ -7,13 +7,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@contapp/db", async (original) => ({
   ...(await original<typeof import("@contapp/db")>()),
   fijarEstadoPeriodoVentas: vi.fn(),
+  resolverAutores: vi.fn(),
 }));
 vi.mock("./apoyo.js", async (original) => ({
   ...(await original<typeof import("./apoyo.js")>()),
   exigirCliente: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { fijarEstadoPeriodoVentas, type Alcance } from "@contapp/db";
+import { fijarEstadoPeriodoVentas, resolverAutores, type Alcance } from "@contapp/db";
 import type { SesionResuelta } from "../auth/auth.service.js";
 import { EstadoVentasService } from "./estado.service.js";
 
@@ -31,17 +32,22 @@ function armar() {
 
 beforeEach(() => {
   vi.mocked(fijarEstadoPeriodoVentas).mockReset();
+  vi.mocked(resolverAutores).mockReset();
+  vi.mocked(resolverAutores).mockResolvedValue(new Map());
 });
 
 describe("EstadoVentasService · respuesta del estado", () => {
   it("revisar devuelve quién y cuándo (ISO) cuando la fila trae la marca", async () => {
     const en = new Date("2026-10-05T15:30:00.000Z");
     vi.mocked(fijarEstadoPeriodoVentas).mockResolvedValue({ estado: "revisado", marcadoPor: ACTOR, marcadoEn: en });
+    vi.mocked(resolverAutores).mockResolvedValue(new Map([[ACTOR, { id: ACTOR, nombre: "Ana Pérez", activo: true }]]));
     expect(await armar().revisar(sesion, alcance, CLIENTE, "202610")).toEqual({
       estado: "revisado",
       por: ACTOR,
+      autor: { id: ACTOR, nombre: "Ana Pérez", activo: true },
       en: "2026-10-05T15:30:00.000Z",
     });
+    expect(resolverAutores).toHaveBeenCalledWith(expect.anything(), [ACTOR]);
     expect(fijarEstadoPeriodoVentas).toHaveBeenCalledWith(expect.anything(), CLIENTE, "202610", "abierto", "revisado", ACTOR);
   });
 
@@ -50,6 +56,7 @@ describe("EstadoVentasService · respuesta del estado", () => {
     expect(await armar().reabrir(sesion, alcance, PERMISOS, CLIENTE, "202610", "revisado")).toEqual({
       estado: "abierto",
       por: null,
+      autor: null,
       en: null,
     });
   });
