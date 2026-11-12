@@ -20,7 +20,7 @@ Nivel C (04 §2.1): sin TDD ni ADV. Flujo 04 §1.3: implementar (+ pruebas míni
 | T7a | Foco de «Acciones» tras guardar desde la lupa (RF-096) | frontend | sonnet | T7 | — | — | [x] |
 | T8a | «No se encontró lo que buscas.» una sola vez en compras; listas al cambiar de estudio | frontend | sonnet | T8 | — | — | [x] |
 | T6a, T9a | (Condicional) Defectos de pantalla que encuentre Tn (P-6), una por tarea de flujos | frontend | sonnet | la Tn que lo encuentra | — | — | — |
-| T10 | Job `e2e` en CI, caché de Chromium y artefactos (P-1, P-5) | devops | haiku | T2 ∥ T3–T9 | — | — | [ ] |
+| T10 | Job `e2e` en CI, caché de Chromium y artefactos (P-1, P-5) | devops | haiku | T2 ∥ T3–T9 | — | — | [x] |
 | T11 | Verificar CA-1 a CA-12: estabilidad, higiene, tiempos y CI | tester | sonnet | T4–T10 y las Tna abiertas | — | — | [ ] |
 | T12 | Revisión final contra la spec | arquitecto | sonnet | T11 | — | — | [ ] |
 | T13 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza ESTADO) | devops | haiku | T12 | — | — | [ ] |
@@ -132,10 +132,20 @@ Reglas comunes:
   - **Panel «Generar archivo» tapa columnas a 1440 px (evaluado, no corregido)**: el panel es un cajón `fixed` de 30 rem que se superpone y no sabe nada de la página; evitarlo pide que el panel avise a la página (compras y ventas) para reservar ancho, y eso cambia el ancho que mide la grilla virtualizada (cierre del menú de acciones en `resize`, columnas visibles). No es un arreglo pequeño: queda como observación para una spec de UX de la grilla.
   - **E2E**: archivos afectados (`alta`, `equipo`, `clientes`, `aislamiento`, `lupa`) 38/38 en 23 s; `alta`+`equipo` con `--repeat-each=4` 60/60; suite completa `pnpm e2e --trace off` 86 pasadas (los 4 `test.fail()` de `soporte.e2e.ts` son esperados) en 51 s. Una corrida inicial mostró un `equipo.e2e.ts` «lista abierta» que acabó en `/login` y no se repitió en 4 corridas más; se deja anotado por si reaparece.
 
-## T10 · [ ] CI (devops · haiku)
+## T10 · [x] CI (devops · haiku)
 - **Contexto (leer solo esto)**: `spec.md` (D-9; CA-3, CA-11; P-1, P-5), `plan.md` (Contratos: CI, etiquetas y comandos), `.github/workflows/ci.yml` (jobs `ci` y `aislamiento`), `docker-compose.yml` (servicio `mailpit`), `tests/e2e/README.md`.
 - **Hacer**: `on.workflow_dispatch` y el job `e2e` del plan (condición, servicios, contraseña enmascarada, `pnpm install --frozen-lockfile`, caché de Chromium y `playwright install --with-deps chromium` sin caché o `install-deps chromium` con caché, `pnpm e2e` en los PR y `pnpm e2e && pnpm e2e:volumen` en `main` y a mano, artefacto con `if: failure()` por 7 días, `timeout-minutes: 20`). Completar la sección CI del README, con la nota de que bloquear exige marcar `e2e` como check requerido en la protección de `main`.
 - **Hecho cuando**: el YAML se valida con un parser (`python3 -c 'import yaml…'` o `actionlint` si está); la condición cubre exactamente P-1 y P-5 (tabla de 4 eventos en el Resultado: PR, push a `main`, push a otra rama, `workflow_dispatch`); los jobs `ci` y `aislamiento` no cambian. La corrida real la ve T11 cuando el orquestador hace push. Commit `ci(018): job e2e con Playwright en PR y main`.
+- **Resultado** (2026-11-12): hecha. `ci.yml`: `on.workflow_dispatch` y job `e2e` («E2E de R1 (Playwright, Chromium y Mailpit)», `timeout-minutes: 20`, sin `needs`), con servicios `postgres:17` (trust), `redis:7` y `axllent/mailpit:v1.33.0` (`/mailpit readyz`; puertos 1025 y 8025). Pasos: checkout, pnpm, Node de `.nvmrc`, `DATABASE_URL` de `contapp_app` por corrida con `::add-mask::`, `pnpm install --frozen-lockfile`, versión de Playwright leída de `tests/e2e/package.json` (exige versión exacta), caché de `~/.cache/ms-playwright` con clave `playwright-<versión>-chromium`, `playwright install --with-deps chromium`, `pnpm e2e`, `pnpm e2e:volumen` (solo `push` a `main` y `workflow_dispatch`) y el artefacto `e2e-fallos` (`playwright-report/` y `test-results/`) con `if: failure()` y 7 días. Los jobs `ci` y `aislamiento` no cambian (YAML comparado con HEAD). Un `workflow_dispatch` también lanza `ci` y `aislamiento`, porque no tienen `if`. Condición de P-1 y P-5:
+
+  | Evento | Job `e2e` | `@volumen` |
+  | --- | --- | --- |
+  | `pull_request` | corre | no |
+  | `push` a `main` | corre | sí |
+  | `push` a otra rama | no corre | no |
+  | `workflow_dispatch` | corre | sí |
+
+  YAML validado con PyYAML (`safe_load`) y `yaml-lint` (OK); prettier sin cambios en `ci.yml`. `actionlint` no está instalado y el job no se corrió: lo ve T11. `actions/cache@v4` y `actions/upload-artifact@v4` no se comprobaron contra la última mayor (la sesión no tiene acceso a esos repos). El check requerido de `main` se llama «E2E de R1 (Playwright, Chromium y Mailpit)», no `e2e`.
 
 ## T11 · [ ] Verificar criterios (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (CA-1 a CA-12 y casos reales), `tasks.md` (Resultados de T1–T10 y de las Tna), `tests/e2e/README.md`, `package.json` (raíz, scripts `e2e*`).

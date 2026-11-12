@@ -65,4 +65,16 @@ Las trazas solo contienen datos de fixture.
 
 ## CI
 
-El job `e2e` de `.github/workflows/ci.yml` lo completa la tarea T10 de la spec 018.
+El job `e2e` de `.github/workflows/ci.yml` se llama «E2E de R1 (Playwright, Chromium y Mailpit)». Sus servicios son PostgreSQL 17, Redis 7 y Mailpit (`axllent/mailpit:v1.33.0`, el de `docker-compose.yml`). Cada corrida genera la contraseña de `contapp_app`, y el correo va con `E2E_CORREO=mailpit`.
+
+| Evento                               | `pnpm e2e` | `@volumen` (`pnpm e2e:volumen`) |
+| ------------------------------------ | ---------- | ------------------------------- |
+| `pull_request`                       | sí         | no                              |
+| `push` a `main`                      | sí         | sí                              |
+| `push` a otra rama                   | no         | no                              |
+| `workflow_dispatch` (cualquier rama) | sí         | sí                              |
+
+- Chromium: caché de `~/.cache/ms-playwright` con clave `playwright-<versión>-chromium`, con la versión de `tests/e2e/package.json`. `playwright install --with-deps chromium` corre en cada corrida; con la caché no vuelve a bajar el navegador.
+- `workflow_dispatch` lanza todo el workflow: `ci` y `aislamiento` no tienen `if`, así que también corren.
+- Si la corrida falla, se sube el artefacto `e2e-fallos` (`playwright-report/` y `test-results/`) por 7 días. Las trazas solo tienen datos de fixture.
+- Bloquear el merge exige marcar «E2E de R1 (Playwright, Chromium y Mailpit)» como check requerido en la protección de `main`. Es un ajuste de GitHub, fuera del repo.

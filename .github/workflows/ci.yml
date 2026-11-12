@@ -3,6 +3,7 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -160,3 +161,100 @@ jobs:
 
       - name: Pruebas de cierre de 008 (paso aparte, al final y en serie, con la BD despejada)
         run: pnpm ci:cierre
+
+  e2e:
+    name: E2E de R1 (Playwright, Chromium y Mailpit)
+    # P-1 y P-5: corre en PR y en push a main; en otras ramas, solo a mano (workflow_dispatch).
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MIGRATIONS_DATABASE_URL: postgresql://postgres@localhost:5432/contapp
+      REDIS_URL: redis://localhost:6379
+      E2E_CORREO: mailpit
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: contapp
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      mailpit:
+        image: axllent/mailpit:v1.33.0
+        ports:
+          - 1025:1025
+          - 8025:8025
+        options: >-
+          --health-cmd "/mailpit readyz"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: pnpm (versión de packageManager en package.json)
+        uses: pnpm/action-setup@v6
+
+      - name: Node (versión de .nvmrc)
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Generar DATABASE_URL del rol de app (contraseña por corrida)
+        run: |
+          PASS="$(openssl rand -hex 24)"
+          echo "::add-mask::${PASS}"
+          echo "DATABASE_URL=postgresql://contapp_app:${PASS}@localhost:5432/contapp" >> "$GITHUB_ENV"
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Versión de Playwright (exacta, de tests/e2e/package.json)
+        id: playwright
+        run: |
+          V="$(node -p "require('./tests/e2e/package.json').devDependencies['@playwright/test']")"
+          echo "$V" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "::error::@playwright/test debe fijarse en versión exacta"; exit 1; }
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      - name: Caché de Chromium (por versión de Playwright)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ steps.playwright.outputs.version }}-chromium
+
+      - name: Instalar Chromium y sus dependencias del sistema
+        run: pnpm --filter @contapp/tests-e2e exec playwright install --with-deps chromium
+
+      - name: E2E sin @volumen (compila la pila y la corre)
+        run: pnpm e2e
+
+      - name: E2E @volumen (solo push a main y a mano)
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+        run: pnpm e2e:volumen
+
+      - name: Reporte y trazas de la E2E (solo si falla, 7 días)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-fallos
+          path: |
+            tests/e2e/playwright-report/
+            tests/e2e/test-results/
+          retention-days: 7
