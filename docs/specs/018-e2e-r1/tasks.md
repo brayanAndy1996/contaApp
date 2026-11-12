@@ -28,7 +28,7 @@ Nivel C (04 §2.1): sin TDD ni ADV. Flujo 04 §1.3: implementar (+ pruebas míni
 | T11d | Foco tras Tab en la grilla (`grilla-compras.tsx` `enfocarRef`) y menú «Acciones» de la lupa que se cierra solo | frontend | sonnet | T11b | — | — | [x] |
 | T11e | El evento «terminado» que llega entre el listado y el registro del stream se pierde: el frontend espera el stream abierto antes de listar | frontend | sonnet | T11 | — | — | [x] |
 | T12 | Revisión final contra la spec | arquitecto | sonnet | T11 | — | — | [x] |
-| T13 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza ESTADO) | devops | haiku | T12 | — | — | [ ] |
+| T13 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza ESTADO) | devops | haiku | T12 | — | — | [x] |
 
 Paralelismo: T1 (`apps/frontend`) ∥ T2 (`tests/e2e`, raíz). T3 tras T2; T10 (`ci.yml`) ∥ T3–T9. Los flujos van en paralelo (T4 ∥ T5 ∥ T6 ∥ T7 ∥ T8): cada uno escribe solo sus archivos de `flujos/` y su `soporte/selectores/<area>.ts`. T6, T7 y T8 esperan a T1 porque cuentan avisos por rol. T9 reutiliza los selectores de compras de T6. Una Tna corre en cuanto su Tn la pide; la Tn se cierra cuando su flujo pasa con la corrección.
 
@@ -240,7 +240,15 @@ Reglas comunes:
     - Check requerido en la protección de `main`: «E2E de R1 (Playwright, Chromium y Mailpit)» (P-1).
     - Excepciones de P-6 en 018: T11c (cola) y T11e (stream SSE) corrigieron código de servidor por decisión del usuario.
 
-## T13 · [ ] Cierre (devops · haiku)
+## T13 · [x] Cierre (devops · haiku)
 - **Contexto (leer solo esto)**: `tasks.md`, `spec.md` (cabecera y criterios).
 - **Hacer**: marcar tareas y CA y poner la spec en «verificada». Dejar al orquestador las notas para ESTADO: spec de rendimiento para el Ctrl+Z de la masiva (P-3, con el tiempo medido en T9 y T11), check requerido `e2e` en la protección de `main` (P-1), las notas [018] cerradas y los defectos de servidor escalados, si los hubo.
 - **Hecho cuando**: `git status` limpio salvo lo ajeno a 018. Commit `docs(018): cierre`.
+- **Resultado** (2026-11-12): hecha. `tasks.md`: T13 `[x]` en la tabla y en su sección. `spec.md`: «hecha» (su cabecera indica que CA-3 y CA-11 quedan pendientes de CI); CA-1, 2, 4 (local), 5 a 10 y 12 y los casos reales, marcados según la revisión de T12. CA-3 y CA-11 quedan **pendiente: CI** y sin marcar. `pnpm typecheck` y `pnpm lint --max-warnings=0` de `tests/e2e`: 0 fallos. `tests/e2e/README.md` (90 líneas) sin tocar: T13 no pide recortarlo, y qué quitar es una decisión de diseño (T12 lo dejó a criterio y no bloquea). `docs/specs/ESTADO.md` sin tocar.
+  - **Notas para ESTADO** (las anota el orquestador):
+    1. **Spec de rendimiento (P-3)**: el Ctrl+Z de la masiva sobre 4.850 filas tarda 1.832 ms (T11; 1.308 a 1.854 ms en T9), frente a ~7 s de 015 T11. Dentro del tope de 10 s de CA-9; acelerarlo queda para una spec de rendimiento.
+    2. **Check requerido (P-1)**: en la protección de `main`, «E2E de R1 (Playwright, Chromium y Mailpit)». Lo configura el usuario, fuera del repo.
+    3. **Notas [018] cerradas**: `ESTADO.md` líneas 246 y 247 (base E2E de 015 T11; Ctrl+Z y avisos duplicados, cubiertos por T1, T11 y CA-10) y `016-lupa-xml/tasks.md` líneas 302 y 335 (avisos duplicados, T1).
+    4. **Defectos de servidor**: ninguno abierto. Se corrigieron dentro de 018 por decisión del usuario (excepción a P-6): T11c (despachador, `packages/queue`) y T11e (stream SSE, `apps/backend`). El 401 de la rotación de sesión (T11a) se corrigió en frontend. El 409 `estudio_desfasado` (contrato 004 D12) se declara en la vigilancia; no es un defecto.
+    5. **Sin confirmar**: `lupa.e2e.ts:305` («XML no disponible») pudo tener el mismo evento perdido de T11e. Sin traza, 0 fallos en 27 ejecuciones tras T11e; si reaparece en CI, abrir un defecto con traza.
+    6. **Fuera de 018**: (a) la ficha del cliente no refresca el estado de credenciales tras verificar (próxima spec de clientes); (b) la corrida 465 del CI de la rama falló en `apps/backend/src/modules/compras/lectura.int.spec.ts` CA-15 (2,45 s frente a 2 s bajo cobertura): es un umbral de 014, no de 018; (c) el panel «Generar archivo» tapa columnas a 1440 px (mejora de UX de la grilla).
