@@ -27,7 +27,7 @@ Nivel C (04 §2.1): sin TDD ni ADV. Flujo 04 §1.3: implementar (+ pruebas míni
 | T11c | Carrera del despachador: un trabajo publicado mientras se vacía la lista del estudio queda invisible hasta el reconciliador (decisión del usuario: corregir en 018) | backend | sonnet | T11b | TDD | ADV | [x] |
 | T11d | Foco tras Tab en la grilla (`grilla-compras.tsx` `enfocarRef`) y menú «Acciones» de la lupa que se cierra solo | frontend | sonnet | T11b | — | — | [x] |
 | T11e | El evento «terminado» que llega entre el listado y el registro del stream se pierde: el frontend espera el stream abierto antes de listar | frontend | sonnet | T11 | — | — | [x] |
-| T12 | Revisión final contra la spec | arquitecto | sonnet | T11 | — | — | [ ] |
+| T12 | Revisión final contra la spec | arquitecto | sonnet | T11 | — | — | [x] |
 | T13 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza ESTADO) | devops | haiku | T12 | — | — | [ ] |
 
 Paralelismo: T1 (`apps/frontend`) ∥ T2 (`tests/e2e`, raíz). T3 tras T2; T10 (`ci.yml`) ∥ T3–T9. Los flujos van en paralelo (T4 ∥ T5 ∥ T6 ∥ T7 ∥ T8): cada uno escribe solo sus archivos de `flujos/` y su `soporte/selectores/<area>.ts`. T6, T7 y T8 esperan a T1 porque cuentan avisos por rol. T9 reutiliza los selectores de compras de T6. Una Tna corre en cuanto su Tn la pide; la Tn se cierra cuando su flujo pasa con la corrección.
@@ -219,10 +219,26 @@ Reglas comunes:
   - **Menú «Acciones» (`acciones-fila-compras.tsx`).** Sospecha sostenida por el mecanismo: el menú se cerraba con CUALQUIER `scroll` (captura en `window`), también uno que no movía el botón. El clic de Playwright trae el botón a la vista (desplazando la lupa o la grilla) y el navegador entrega ese `scroll` en el cuadro siguiente, ya abierto el menú, que se cerraba antes de elegir. Criterio nuevo: se guarda la caja del botón al abrir y el `scroll` solo cierra si el botón se movió (> 0,5 px en `top`/`left`); `resize` sigue cerrando. Un criterio de «ancestro del disparador» no bastaba (la lupa y la grilla son ancestros del botón). Pruebas en `acciones-fila-compras.spec.tsx`: scroll que no mueve el botón no cierra (feliz) y scroll que lo mueve cierra (error).
   - **Verificación.** `vitest` del frontend 856/856, `tsc` y `eslint . --max-warnings=0` limpios. E2E (`grilla-compras`, `lupa`, `archivo`, `--repeat-each=10 --workers=4`, `E2E_CORREO=consola`): 249/250; los puntos de esta tarea (`grilla-compras.e2e.ts:133`, `lupa.e2e.ts:163`, `archivo.e2e.ts:137`) 10/10. El único fallo, `lupa.e2e.ts:305` (E-07, «XML no disponible»), no tiene relación con Tab ni con el menú: la lupa seguía en «Pendiente: se está obteniendo el XML.» a los 5 s, es decir, el trabajo del XML no salió de la cola (mismo síntoma que la carrera del despachador de T11b/T11c; la corrida se hizo con `packages/queue` a medio cambiar).
 
-## T12 · [ ] Revisión final (arquitecto · sonnet)
+## T12 · [x] Revisión final (arquitecto · sonnet)
 - **Contexto (leer solo esto)**: `spec.md`, `plan.md`, `tasks.md` (Resultados), el diff de la rama contra `main` limitado a `tests/e2e/soporte/`, `playwright.config.ts`, `.github/workflows/ci.yml`, `turbo.json`, `package.json` y los cambios de `apps/frontend`.
 - **Hacer**: comprobar cada CA con su evidencia, que ninguna prueba se adapte a un defecto, que no haya `fixme` ni reintentos, que las trazas y artefactos no lleven secretos reales y que `apps/frontend` no gane dependencias. Ratificar los desvíos en `plan.md` («Desvíos ratificados») o abrir T12a (pruebas) y T12b (corrección).
 - **Hecho cuando**: aprobado o lista de defectos con tareas nuevas. Commit `docs(018): revisión final`.
+- **Resultado** (2026-11-12): **aprobada, sin tareas nuevas** (no se abre T12a ni T12b). Los desvíos están ratificados en `plan.md`, «Desvíos ratificados». CA-3 y CA-11 quedan pendientes de CI (3 corridas seguidas por `workflow_dispatch`, un PR y `main`; los verifica el orquestador). CA-1, 2, 4 (local), 5 a 10 y 12 tienen evidencia en T11; CA-12 con la observación del README. Sin `fixme`, sin reintentos, sin dependencias nuevas en `apps/frontend`, sin secretos reales en trazas ni artefactos.
+  - **Aceptadas (sin tarea)**:
+    - «Generar archivo» tapa columnas a 1440 px: es de diseño, no rompe un criterio (RNF-071 pide ≥ 1366 px, no una disposición); queda como mejora de UX.
+    - Dos avisos solo con prueba de componente («La sugerencia cambió…» y el error de fila de 015 T11 (f)): usan el mismo `useErrorAnunciado` (`aviso-unico.ts`) que «Sugerencia aceptada.», que sí tiene E2E con `toHaveCount(1)`. Provocarlos exigiría tocar el servidor. Excepción acotada de CA-10.
+    - README de 90 líneas (puede pasar de una página): cumple el contenido de CA-12; T13 puede recortarlo si lo considera, no bloquea.
+    - `actions/cache@v4` y `actions/upload-artifact@v4` sin verificar versión: `cache@v4` corrió en la corrida de dispatch 43162016969; `upload-artifact@v4` solo se ejerce al fallar. Lo comprueba la corrida a propósito de CA-11.
+    - Protección de rama: la configura el usuario, con el check «E2E de R1 (Playwright, Chromium y Mailpit)».
+    - `ZRANGE pend 0 -1` O(N) en cada atención del despachador (T11c): N ≤ `max_pendientes_tenant`. Revisar si ese tope crece.
+    - `SADD` de `contarPendientes` sin `ZADD`: el reconciliador lo repone en ≤ 30 s, sin pérdida permanente.
+  - **Para `ESTADO.md` (notas)**:
+    - Spec de rendimiento: Ctrl+Z de la masiva sobre 4.850 filas tarda 1,3 a 1,9 s (1.832 ms medidos en T11; antes ~7 s), dentro del tope de 10 s. No bloquea; se anota por P-3.
+    - La ficha del cliente no refresca el estado de credenciales tras verificar (defecto de pantalla visto en la E2E; la campana sí avisa). No se corrige en 018: P-6 cubre defectos que impidan un flujo y las pruebas no dependen de ello. Va a una nota para la próxima spec de clientes.
+    - Hipótesis de `lupa.e2e.ts:305` (mismo evento perdido que `archivo.e2e.ts:181`) sin confirmar: nunca hubo traza del fallo; 0 fallos en 27 ejecuciones tras T11e. Si reaparece en las corridas de CI, abrir un defecto con traza.
+    - CI de la rama, corrida 465: `apps/backend/src/modules/compras/lectura.int.spec.ts` CA-15 (listado de 5.000 filas, RNF-031) falló por tiempo, 2,45 s frente a 2 s bajo cobertura. No es de 018 (la rama no toca `compras` en el backend) ni de sus pruebas: es un umbral de tiempo de 014 sensible a la carga del CI. Se anota para 014/rendimiento (subir el umbral bajo cobertura o medir fuera de ella); no se reintenta ni se cambia en 018.
+    - Check requerido en la protección de `main`: «E2E de R1 (Playwright, Chromium y Mailpit)» (P-1).
+    - Excepciones de P-6 en 018: T11c (cola) y T11e (stream SSE) corrigieron código de servidor por decisión del usuario.
 
 ## T13 · [ ] Cierre (devops · haiku)
 - **Contexto (leer solo esto)**: `tasks.md`, `spec.md` (cabecera y criterios).
