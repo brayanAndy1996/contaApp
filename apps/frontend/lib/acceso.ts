@@ -111,5 +111,4 @@ export function usePuede(permiso: string): boolean | undefined {
   return yo === undefined ? undefined : tiene(yo, permiso);
 }
 
-export const fechaCorta = (iso: string): string =>
-  new Date(iso).toLocaleDateString("es-PE", { timeZone: "UTC" });
+export { fechaCorta } from "./fechas";

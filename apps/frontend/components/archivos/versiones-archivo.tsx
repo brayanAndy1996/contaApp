@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import type { VersionArchivoDto } from "@contapp/shared";
-import { fechaCorta } from "../../lib/acceso";
+import { fechaHoraLima } from "../../lib/fechas";
 import { Autor } from "../autor";
 import {
   MENSAJES_ARCHIVO as M,
   descargarVersionArchivo,
+  nombreZipVersion,
   type LibroArchivo,
 } from "../../lib/archivos";
 
@@ -29,6 +30,7 @@ export function VersionesArchivo({
 }) {
   const [descargando, setDescargando] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const ultima = Math.max(0, ...versiones.map((x) => x.version));
 
   async function descargar(v: VersionArchivoDto) {
     if (descargando !== null) return;
@@ -45,7 +47,8 @@ export function VersionesArchivo({
       const url = URL.createObjectURL(r.archivo);
       const enlace = document.createElement("a");
       enlace.href = url;
-      enlace.download = r.nombre;
+      // La versión más reciente conserva el nombre del servidor; las anteriores llevan `_vN` (P-6).
+      enlace.download = v.version === ultima ? r.nombre : nombreZipVersion(r.nombre, v.version);
       enlace.rel = "noopener";
       document.body.appendChild(enlace);
       enlace.click();
@@ -73,11 +76,14 @@ export function VersionesArchivo({
           {versiones.map((v) => (
             <li key={v.id} className="flex flex-col gap-1 rounded border p-2">
               <p>
-                <strong>{M.version(v.version)}</strong> · {M.generadoEn(fechaCorta(v.generadoEn))}{" "}
+                <strong>{M.version(v.version)}</strong> · {M.generadoEn(fechaHoraLima(v.generadoEn))}{" "}
                 {M.generadoPor} <Autor autor={v.autor} />
               </p>
               <p>
                 {v.nombreZip} · {M.lineas(v.lineas)}
+              </p>
+              <p>
+                {M.sha256Zip}: <code className="break-all font-mono text-xs">{v.sha256Zip}</code>
               </p>
               {v.provisional && <p className="font-medium text-amber-900">{M.provisional}</p>}
               <button

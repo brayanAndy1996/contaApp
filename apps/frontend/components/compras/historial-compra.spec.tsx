@@ -1,6 +1,7 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { fechaHoraLima } from "../../lib/fechas";
 import { reiniciarSesion } from "../../lib/sesion";
 import {
   BASE,
@@ -70,8 +71,12 @@ describe("HistorialCompra", () => {
     expect(filaIsc.textContent).toBe(`${M.casilleros.isc}0.00770.00(cambió)`);
 
     const versiones = screen.getByRole("region", { name: M.versiones });
-    expect(versiones.textContent).toContain(M.versionPor(1, "SIRE", "2026-10-20 15:00 UTC"));
-    expect(versiones.textContent).toContain(M.versionPor(2, "Rosa Quispe", "2026-10-21 10:30 UTC"));
+    // Hora de Lima, no UTC (CA-7): 15:00 UTC es 10:00 a. m.; 10:30 UTC, 5:30 a. m.
+    expect(versiones.textContent).toContain(M.versionPor(1, "SIRE", fechaHoraLima("2026-10-20T15:00:00.000Z")));
+    expect(versiones.textContent).toContain(M.versionPor(2, "Rosa Quispe", fechaHoraLima("2026-10-21T10:30:00.000Z")));
+    expect(versiones.textContent).toMatch(/20\/10\/26,? 10:00\s?a\.\s?m\./);
+    expect(versiones.textContent).toMatch(/21\/10\/26,? 5:30\s?a\.\s?m\./);
+    expect(versiones.textContent).not.toContain("UTC");
     expect(versiones.textContent).toContain(M.accionesVersion.sugerencia);
     // El detalle trae los hallazgos de la compra tal como llegaron.
     expect(screen.getByText(C_1040_ISC.hallazgos[0]!.explicacion)).toBeTruthy();

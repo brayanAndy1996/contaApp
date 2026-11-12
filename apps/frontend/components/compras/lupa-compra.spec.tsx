@@ -4,6 +4,7 @@ import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FilaCompraVista } from "@contapp/shared";
 import { MENSAJES } from "../../lib/acceso";
+import { fechaHoraLima } from "../../lib/fechas";
 import { MENSAJES_LUPA as L } from "../../lib/lupa-compras";
 import { reiniciarSesion } from "../../lib/sesion";
 import {
@@ -364,7 +365,10 @@ describe("Lupa · estado del XML (CA-9, CA-11, CA-16)", () => {
     origen = "subido";
     cleanup();
     montar([A]);
-    expect(await screen.findByText(L.xml.subidoPor("Rosa Quispe", "2026-10-21 10:30 UTC"))).toBeTruthy();
+    // 10:30 UTC es 5:30 a. m. en Lima (CA-7).
+    const subido = await screen.findByText(/^XML subido por Rosa Quispe el /);
+    expect(subido.textContent).toBe(L.xml.subidoPor("Rosa Quispe", fechaHoraLima("2026-10-21T10:30:00.000Z")));
+    expect(document.body.textContent).toMatch(/21\/10\/26,? 5:30\s?a\.\s?m\./);
   });
 
   it("aviso de moneda: PEN con XML en USD muestra el aviso sin convertir; sin discrepancia no hay aviso", async () => {

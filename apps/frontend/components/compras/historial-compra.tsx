@@ -8,6 +8,7 @@ import {
   type ContextoCompras,
 } from "../../lib/compras";
 import { etiquetaAutor } from "../../lib/autor";
+import { fechaHoraLima } from "../../lib/fechas";
 import { conMiles, iguales } from "../../lib/montos-compras";
 import { comprobanteDe } from "./accion-compras";
 
@@ -29,10 +30,6 @@ const COLUMNAS_MOSTRADAS = [
   "otrosTributos",
   "total",
 ] as const satisfies readonly (keyof MontosCompra)[];
-
-/** «2026-10-20T15:00:00.000Z» → «2026-10-20 15:00 UTC» (texto, sin objetos de fecha). */
-const fechaLegible = (iso: string): string =>
-  `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
 
 export function HistorialCompra({
   contexto,
@@ -143,7 +140,7 @@ export function HistorialCompra({
                     {M.versionPor(
                       ver.n,
                       ver.usuarioId ? etiquetaAutor(ver.autor) : M.autorSire,
-                      fechaLegible(ver.creadaEn),
+                      fechaHoraLima(ver.creadaEn),
                     )}
                   </p>
                   <p>

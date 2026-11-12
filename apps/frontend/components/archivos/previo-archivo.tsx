@@ -1,7 +1,7 @@
 "use client";
 
 import type { ExcluidaPrevioDto, PrevioArchivoDto } from "@contapp/shared";
-import { MENSAJES_ARCHIVO as M, type LibroArchivo } from "../../lib/archivos";
+import { MENSAJES_ARCHIVO as M, nombreCodigoPrevio, type LibroArchivo } from "../../lib/archivos";
 import { conMiles } from "../../lib/montos-compras";
 
 // Previo del archivo (spec 012b, T14; D1, D5; CA-1, CA-9): errores con enlace que ubica la fila en la grilla,
@@ -69,7 +69,7 @@ export function PrevioArchivo({
               <li key={`${e.filaId ?? "periodo"}|${e.codigo}|${i}`} className="rounded border p-2">
                 <p>
                   {e.comprobante != null && <strong>{e.comprobante} · </strong>}
-                  <strong>{e.codigo}</strong>
+                  <strong>{nombreCodigoPrevio(e.codigo)}</strong>
                   {e.campo ? ` · ${e.campo}` : ""}
                   {e.destino ? ` · ${e.destino}` : ""}
                 </p>
@@ -115,7 +115,7 @@ export function PrevioArchivo({
             {previo.avisos.map((a, i) => (
               <li key={`${a.filaId ?? "periodo"}|${a.codigo}|${i}`}>
                 {a.comprobante != null && <strong>{a.comprobante} · </strong>}
-                <strong>{a.codigo}</strong> · {a.explicacion}
+                <strong>{nombreCodigoPrevio(a.codigo)}</strong> · {a.explicacion}
                 {a.filaId !== null && alUbicarFila && (
                   <>
                     {" "}
