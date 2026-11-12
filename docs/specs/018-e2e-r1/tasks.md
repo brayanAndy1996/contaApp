@@ -1,0 +1,126 @@
+# Tareas 018 · Pruebas E2E de R1
+
+Leyenda: rol `arquitecto` · `backend` · `frontend` · `tester` · `adversario` · `devops` | modelo `opus` · `sonnet` · `haiku` | `TDD` pruebas primero | `ADV` ronda adversarial | `∥` puede ir en paralelo con las indicadas (no comparten archivos) | estado `[ ]` pendiente · `[~]` en curso · `[x]` hecha
+
+Nivel C (04 §2.1): sin TDD ni ADV. Flujo 04 §1.3: implementar (+ pruebas mínimas) → verificar → revisión → cerrar. Aquí «implementar» es escribir la suite E2E, y las correcciones de pantalla llevan su prueba de componente. Rama `spec/018-e2e-r1`. CA, D y P (decididas el 2026-11-12) = `spec.md`; contratos y decisiones = `plan.md`.
+
+| #   | Tarea | Rol | Modelo | Depende de | TDD | ADV | Estado |
+| --- | ----- | --- | ------ | ---------- | --- | --- | ------ |
+| T1  | Avisos únicos en grilla, lupa, archivo y ventas (P-2, CA-10) | frontend | sonnet | — ∥ T2 | — | — | [ ] |
+| T2  | Paquete `tests/e2e`: Playwright, configuración, pila (BD y procesos), `pnpm e2e` y humo | devops | haiku | — ∥ T1 | — | — | [ ] |
+| T3  | Soporte: siembra, sesiones, acciones por API, correo, vigilancia y fixtures | tester | sonnet | T2 ∥ T1, T10 | — | — | [ ] |
+| T4  | Flujos E-01 y E-02: alta, login, invitación y roles | tester | sonnet | T3 ∥ T5–T8 | — | — | [ ] |
+| T5  | Flujos E-03 y E-10: clientes, credenciales, notificaciones y auditoría | tester | sonnet | T3 ∥ T4, T6–T8 | — | — | [ ] |
+| T6  | Flujos E-04 y E-05: descarga y grilla de compras | tester | sonnet | T1, T3 ∥ T4, T5, T7, T8 | — | — | [ ] |
+| T7  | Flujos E-07 y E-08: lupa XML y generar archivo | tester | sonnet | T1, T3 ∥ T4–T6, T8 | — | — | [ ] |
+| T8  | Flujos E-09 y E-11: ventas y aislamiento en la UI | tester | sonnet | T1, T3 ∥ T4–T7 | — | — | [ ] |
+| T9  | Flujo E-06 de volumen (`@volumen`) | tester | sonnet | T6 | — | — | [ ] |
+| T4a–T9a | (Condicional) Defectos de pantalla que encuentre Tn (P-6), una por tarea de flujos | frontend | sonnet | la Tn que lo encuentra | — | — | — |
+| T10 | Job `e2e` en CI, caché de Chromium y artefactos (P-1, P-5) | devops | haiku | T2 ∥ T3–T9 | — | — | [ ] |
+| T11 | Verificar CA-1 a CA-12: estabilidad, higiene, tiempos y CI | tester | sonnet | T4–T10 y las Tna abiertas | — | — | [ ] |
+| T12 | Revisión final contra la spec | arquitecto | sonnet | T11 | — | — | [ ] |
+| T13 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza ESTADO) | devops | haiku | T12 | — | — | [ ] |
+
+Paralelismo: T1 (`apps/frontend`) ∥ T2 (`tests/e2e`, raíz). T3 tras T2; T10 (`ci.yml`) ∥ T3–T9. Los flujos van en paralelo (T4 ∥ T5 ∥ T6 ∥ T7 ∥ T8): cada uno escribe solo sus archivos de `flujos/` y su `soporte/selectores/<area>.ts`. T6, T7 y T8 esperan a T1 porque cuentan avisos por rol. T9 reutiliza los selectores de compras de T6. Una Tna corre en cuanto su Tn la pide; la Tn se cierra cuando su flujo pasa con la corrección.
+
+Escalamientos: T2 y T10 pasan a `sonnet` si `haiku` falla una vez (precedente: T16a de 012b, T14 de 017). Una tarea de flujos que falle 2 veces por intermitencia pasa a `opus`. Un defecto de servidor (respuesta, cola, SSE o BD) no se corrige en 018: se escala al orquestador con pasos, archivo probable y la traza, y la prueba sigue en rojo (no `fixme`, CA-4).
+
+Mapa de escenarios (CA-2): cada archivo tiene el caso feliz y el de error de la tabla de la spec.
+
+| Flujo | Archivo (`tests/e2e/flujos/`) | Tarea |
+| ----- | ----------------------------- | ----- |
+| E-01 | `alta.e2e.ts` | T4 |
+| E-02 | `equipo.e2e.ts` | T4 |
+| E-03 | `clientes.e2e.ts` | T5 |
+| E-04 | `descarga-compras.e2e.ts` | T6 |
+| E-05 | `grilla-compras.e2e.ts` | T6 |
+| E-06 | `volumen.e2e.ts` (`@volumen`) | T9 |
+| E-07 | `lupa.e2e.ts` | T7 |
+| E-08 | `archivo.e2e.ts` | T7 |
+| E-09 | `ventas.e2e.ts` | T8 |
+| E-10 | `notificaciones.e2e.ts` | T5 |
+| E-11 | `aislamiento.e2e.ts` | T8 |
+| — | `humo.e2e.ts` (la pila levanta y `/login` carga) | T2 |
+
+Reglas comunes:
+
+- Un commit por tarea (Conventional Commits `test(018): …`, `feat(018): …`, `fix(018): …`, `ci(018): …`, `docs(018): …`) con el trailer `Co-Authored-By` del modelo que la ejecutó. Las tareas ∥ hacen commit una tras otra. Sin push del subagente: el orquestador lo hace.
+- **Nunca** agregar al índice `docs/explorador/`, `.codex/` ni `AGENTS.md` ajenos: `git add <rutas>` explícitas, nunca `-A` ni `.`. Nunca leer ni imprimir `.env`: el entorno se arma en `soporte/pila/entorno.ts` y nunca se registra.
+- **Sin Docker en el contenedor**: en local se corre con PostgreSQL 17 y Redis nativos y `E2E_CORREO=consola`; Mailpit solo se prueba en el CI (T10, T11). Chromium y Playwright 1.63.0 ya están en `/opt/pw-browsers`.
+- **Higiene (CA-5)**: sin `waitForTimeout`, `setTimeout`, `test.only` ni esperas fijas; solo aserciones web-first; los trabajos de la cola se esperan por el estado en pantalla con un tope de 30 s. Localizadores por rol, etiqueta o texto de `apps/frontend/lib/`; CSS, XPath o `data-testid` solo en `soporte/selectores/<area>.ts`. Cada prueba crea sus propios datos con `siembra`; ninguna depende de otra ni del orden.
+- **Correr mientras se trabaja**: solo el archivo propio, `pnpm --filter @contapp/tests-e2e exec playwright test flujos/<archivo>`; la suite completa, en T11.
+- **Prueba en rojo**: si el flujo falla por la app y no por la prueba, se anota en el Resultado de la tarea (pantalla, paso, esperado y obtenido, archivo probable, sin datos sensibles) y se abre su Tna (pantalla) o se escala (servidor). No se adapta la prueba a un defecto.
+- El tester no toca código de producción. El frontend no edita archivos de `tests/e2e`, salvo un selector roto por su propio cambio. `apps/frontend` no gana dependencias.
+- Checks: responder solo fallos (`archivo:línea · mensaje`) o «OK» + conteo.
+- Adaptadores en `mock`. Centinelas de fixtures (`fixtures/LEEME.md`): RUC y comprobantes que terminan en 7, 8 o 9.
+- P-1 a P-6 están decididas (spec, 2026-11-12). Una ambigüedad nueva que cambie la spec no se decide: `requiere usuario`.
+
+## T1 · [ ] Avisos únicos (frontend · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (P-2, CA-10), `docs/specs/016-lupa-xml/tasks.md` (observación (a) de T24, línea «Observaciones (sin tarea)»), `docs/specs/015-compras-frontend/tasks.md` (observación (f) de T11), `apps/frontend/app/(app)/clientes/[clienteId]/compras/page.tsx`, `apps/frontend/components/compras/{grilla-compras,lupa-compra,aceptar-sugerencia,acciones-fila-compras}.tsx`, `apps/frontend/components/archivos/{panel-generar,previo-archivo}.tsx`, `apps/frontend/components/ventas/{excluir-venta,justificar-salto,resumen-ventas}.tsx`.
+- **Hacer**: buscar con `grep -n 'role="alert"\|role="status"\|aria-live'` las regiones de aviso de esas pantallas y dejar un solo anunciador por aviso: la página o el panel anuncia y el hijo solo muestra el texto sin rol, o al revés, pero no los dos. Casos conocidos: «Sugerencia aceptada.», «La sugerencia cambió…», «Otra persona cambió esta compra…» y el error de fila de 015 T11 (f). Revisar lo mismo en archivo y ventas. Prueba de componente por pantalla corregida (`*.avisos-t1.spec.tsx`): con el aviso visible, `getAllByRole('alert'|'status', { name })` tiene longitud 1.
+- **Hecho cuando**: las pruebas nuevas pasan; `pnpm --filter @contapp/frontend test`, `typecheck`, `lint` y `next build` limpios. Commit `fix(018): un solo aviso por mensaje en compras, lupa, archivo y ventas`.
+
+## T2 · [ ] Paquete y pila (devops · haiku)
+- **Contexto (leer solo esto)**: `spec.md` (D-1, D-2, D-3, D-5, D-7; CA-1, CA-12), `plan.md` (Archivos; Contratos: arranque, entorno de la pila, etiquetas y comandos), `tests/aislamiento/package.json`, `package.json` (raíz), `turbo.json`, `pnpm-workspace.yaml`, `.env.example`, `apps/backend/src/main.ts`, `apps/worker/src/main.ts`, `apps/frontend/next.config.ts`, `eslint.config.*` de la raíz.
+- **Hacer**: `tests/e2e/package.json` (`@contapp/tests-e2e`; `@playwright/test` `1.63.0` exacta; `@contapp/db` y `pg` como en `tests/aislamiento`; scripts `e2e`, `e2e:volumen`, `e2e:build`, `typecheck`, `lint`), `tsconfig.json`, configuración de lint, `playwright.config.ts` (D-7: `retries: 0`, `forbidOnly` en CI, `trace: retain-on-failure`, captura al fallar, sin video, 1440×900, `es-PE`, `America/Lima`, workers 2 en CI y 4 en local, `fullyParallel`, solo `chromium`, `baseURL http://localhost:3210`, reporte HTML y `list`). `soporte/pila/{entorno,bd,procesos,global-setup,global-teardown}.ts` según el plan: crear `contapp_e2e` (falla si ya existe, salvo `E2E_CONSERVAR_BD=1`), `db:migrate` dos veces y `db:seed`, vaciar el índice de Redis, arrancar backend y worker con `node dist/main.js` y el frontend con `next start -p 3210`, salida de cada uno a `<tmp>/<proceso>.log`, esperar listo (plan) con tope de 60 s y, si no, mostrar las últimas 40 líneas del log del proceso que falló; el teardown apaga (SIGTERM y luego SIGKILL a los 10 s), borra el directorio temporal y la BD. Scripts raíz `e2e` y `e2e:volumen`; `turbo.json` `build.env: ["BACKEND_URL"]`. `flujos/humo.e2e.ts`: `/login` muestra el formulario y `GET /api/auth/sesion` da 401. `README.md` (CA-12): con y sin Docker, variables `E2E_*`, `pnpm e2e`, `pnpm e2e:volumen`, abrir una traza (`playwright show-trace`); el CI lo completa T10.
+- **Hecho cuando**: `pnpm e2e` con `E2E_CORREO=consola` compila, pasa el humo y termina con 0; después no quedan procesos (`pgrep -f 'dist/main.js|next start'` vacío) ni la BD `contapp_e2e` (`psql -lqt`); con `E2E_CONSERVAR_BD=1` la BD queda; con el puerto 4210 ocupado falla con un mensaje claro; `pnpm --filter @contapp/tests-e2e typecheck` y `lint` limpios; `pnpm install --frozen-lockfile` pasa con el lockfile nuevo. Commit `feat(018): paquete tests/e2e con Playwright y arranque de la pila`.
+
+## T3 · [ ] Soporte de las pruebas (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (D-4, D-5, D-6, D-8; CA-6), `plan.md` (Contratos: soporte, entorno), `tests/e2e/soporte/pila/entorno.ts`, `tests/aislamiento/soporte.ts` (inserción de estudios, usuarios, membresías y clientes), `apps/backend/test/soporte.ts` (`ipUnica`, `entrar`), `packages/db/src/seed/datos.ts` (solo `contrasenaDesarrollo` y la forma de `credenciales`), `apps/backend/src/infra/correo/consola.ts`, `fixtures/LEEME.md`, `fixtures/rucs-prueba.json`.
+- **Hacer**: `soporte/{siembra,sesiones,api,correo,vigilancia,fixtures}.ts` según el plan. `api.ts`: acciones por API para preparar un flujo sin pasar por la UI que no se prueba (cargar credenciales SOL/SIRE, lanzar la descarga de compras o ventas y esperar el trabajo, generar un archivo). `vigilancia` busca `USUPRUEBA`, `CLAVEPRUEBA`, `CIDPRUEBA` y `CSECPRUEBA` en las respuestas `/api`, en el DOM final y en la consola, y `window.__pwn`. Prueba propia `flujos/soporte.e2e.ts`: estudio con Dueño y sesión abre el panel; el enlace de un correo de recuperación se lee en modo consola; la vigilancia hace fallar una prueba que deja un centinela en el DOM (con `test.fail()`).
+- **Hecho cuando**: `soporte.e2e.ts` pasa solo y con `--repeat-each=3 --workers=4` sin agotar `login_ip`; `typecheck` y `lint` del paquete limpios. Commit `test(018): soporte de siembra, sesiones, correo y vigilancia`.
+
+## T4 · [ ] E-01 y E-02 (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (E-01, E-02; CA-2, CA-6), `tests/e2e/soporte/{fixtures,siembra,sesiones,correo}.ts`, `apps/frontend/app/(publico)/{registro,registro/confirmar,login,invitacion}/page.tsx`, `apps/frontend/app/(app)/usuarios/page.tsx`, `apps/frontend/app/estudios/page.tsx`, `apps/frontend/lib/` (solo los archivos de mensajes de auth y acceso).
+- **Hacer**: `alta.e2e.ts` (registro → enlace por correo → contraseña → panel; logout y login; credenciales erróneas con el mensaje único; enlace ya usado) y `equipo.e2e.ts` (Dueño invita a un asistente → acepta por correo → se le asigna un cliente → solo ve ese; `lectura` sin botones de escritura; usuario en dos estudios cambia de estudio; invitación revocada y usada). Contextos con `X-Forwarded-For` propio (D-4). Selectores en `soporte/selectores/acceso.ts`.
+- **Hecho cuando**: los dos archivos pasan solos y con `--repeat-each=3`; `typecheck` y `lint` limpios; los defectos van al Resultado (y a T4a). Commit `test(018): flujos de alta, login, invitación y roles`.
+
+## T5 · [ ] E-03 y E-10 (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (E-03, E-10; CA-2, CA-6, CA-8), `docs/specs/017-auditoria-notif/tasks.md` (T18: tabla de defectos P-1 a P-8, para CA-8), `tests/e2e/soporte/{fixtures,siembra,sesiones,api}.ts`, `apps/frontend/app/(app)/clientes/{page,nuevo/page,importar/page,[clienteId]/page}.tsx`, `apps/frontend/components/{credenciales-cliente,uso-plan}.tsx`, `apps/frontend/components/notificaciones/{campana,panel-notificaciones}.tsx`, `apps/frontend/app/(app)/configuracion/auditoria/page.tsx`.
+- **Hacer**: `clientes.e2e.ts` (alta con consulta RUC mock; importación CSV con vista previa; SOL/SIRE guardadas sin mostrar la clave y «Verificada»; RUC centinela con clave rechazada → «Inválida» y aviso en la campana; tope del plan Prueba; razón social canario `<img src=x onerror=…>` sin `window.__pwn`) y `notificaciones.e2e.ts` (la campana sube en vivo al terminar una descarga; marcar leída y «marcar todas»; la auditoría lista las acciones con el nombre del autor; asistente sin acceso a la auditoría: mensaje y 403). Una aserción por cada defecto de pantalla de 017 T18 que se vea en el navegador (CA-8). Selectores en `soporte/selectores/{clientes,notificaciones}.ts`.
+- **Hecho cuando**: igual que T4 (Tna = T5a). Commit `test(018): flujos de clientes, credenciales, notificaciones y auditoría`.
+
+## T6 · [ ] E-04 y E-05 (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (E-04, E-05; CA-2, CA-6, CA-8, CA-10), `docs/specs/015-compras-frontend/tasks.md` (T11: los 18 puntos; T12: defectos corregidos, para CA-8), `tests/e2e/soporte/{fixtures,siembra,sesiones,api}.ts`, `apps/frontend/app/(app)/clientes/[clienteId]/compras/page.tsx`, `apps/frontend/components/compras/{descarga-compras,grilla-compras,filtros-compras,barra-masiva,deshacer-compras,agregar-compra,excluir-compra,acciones-fila-compras,estado-periodo,exportar-compras}.tsx`, `apps/frontend/lib/compras.ts` (solo `MENSAJES_COMPRAS`).
+- **Hacer**: `descarga-compras.e2e.ts` (202610 → «En cola» → «5 nuevas» y la grilla se actualiza sola, D-1 de 015; RUC …68 «La descarga falló» con «Reintentar»; sin credenciales, 409) y `grilla-compras.e2e.ts` (filtros y búsqueda; edición con teclado de F001-3064 con cuadre en vivo; clasificar; excluir y restaurar la zapatilla; agregar y duplicado con «Ubicar»; masiva con informe; Ctrl+Z/Ctrl+Y; revisado y reabrir; exportar Excel con `=1+1` como texto (CA-6); IGV que no cuadra; `fila_cambiada` con una segunda sesión; `version_obsoleta`; glosa canario). Cada aviso cuenta 1 por rol (CA-10). Selectores en `soporte/selectores/compras.ts`.
+- **Hecho cuando**: igual que T4 (Tna = T6a). Commit `test(018): flujos de descarga y grilla de compras`.
+
+## T7 · [ ] E-07 y E-08 (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (E-07, E-08; CA-2, CA-8, CA-10), `docs/specs/016-lupa-xml/tasks.md` (T24 y T24a), `docs/specs/012b-generar-archivo/tasks.md` (T23 y T23a), `tests/e2e/soporte/{fixtures,siembra,sesiones,api}.ts`, `apps/frontend/components/compras/{lupa-compra,aceptar-sugerencia,estado-xml,subir-xml}.tsx`, `apps/frontend/components/archivos/{panel-generar,previo-archivo,versiones-archivo}.tsx`.
+- **Hacer**: `lupa.e2e.ts` (abrir con Enter; ←/→/Esc y foco devuelto; aceptar R-MIX 8.97 y R-ISC San Juan 770.00; descargar el XML; centinela 8 «XML no disponible» → «Subir XML»; XML ajeno rechazado, 422) y `archivo.e2e.ts` (previo con error que bloquea y enlace a la fila → corregir → apto → generar → seguir el trabajo → bajar el ZIP: TXT con N líneas y SHA-256 igual al de la API; reabrir y v2; asistente sin «Generar»; periodo `generado` bloquea la edición). Una aserción por defecto de 016 T24a y 012b T23a visible en el navegador (CA-8). Selectores en `soporte/selectores/{lupa,archivo}.ts`; reutiliza `compras.ts` de T6 solo para leer, si ya existe.
+- **Hecho cuando**: igual que T4 (Tna = T7a). Commit `test(018): flujos de lupa XML y generar archivo`.
+
+## T8 · [ ] E-09 y E-11 (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (E-09, E-11; CA-2, CA-7, CA-10), `tests/e2e/soporte/{fixtures,siembra,sesiones,api,vigilancia}.ts`, `apps/frontend/app/(app)/clientes/[clienteId]/ventas/page.tsx`, `apps/frontend/components/ventas/{descarga-ventas,resumen-ventas,excluir-venta,justificar-salto}.tsx`.
+- **Hacer**: `ventas.e2e.ts` (descarga RVIE mock; «Falta B001-291»; excluir la venta descuadrada con motivo; generar ventas sin las excluidas; motivo vacío rechazado; USD sin TC bloquea; motivo canario) y `aislamiento.e2e.ts` (usuario del estudio B abre las URL de cliente, compra, lupa y ZIP de A → «no encontrado», sin datos de A en el DOM ni en las respuestas y con la misma respuesta que un id inexistente; asistente no asignado → 404; tras cambiar de estudio, las listas no se mezclan). Los datos de A se preparan con `api.ts`. Selectores en `soporte/selectores/{ventas,aislamiento}.ts`.
+- **Hecho cuando**: igual que T4 (Tna = T8a). Commit `test(018): flujos de ventas y aislamiento en la UI`.
+
+## T9 · [ ] E-06 volumen (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (E-06; CA-9; P-3, P-5), `docs/specs/015-compras-frontend/tasks.md` (T11: siembra de 5.000 filas), `tests/e2e/soporte/{fixtures,siembra}.ts`, `tests/e2e/soporte/selectores/compras.ts`.
+- **Hacer**: `volumen.e2e.ts` con la etiqueta `@volumen` y `test.setTimeout` propio: 5.000 compras por `siembra.comprasPorSql`; primeras filas visibles en < 2 s; desplazamiento; masiva sobre 4.850; Ctrl+Z ≤ 10 s. Los dos tiempos van como `testInfo.annotations` (`tiempo-primeras-filas`, `tiempo-deshacer-masiva`).
+- **Hecho cuando**: `pnpm e2e:volumen` pasa 3 veces seguidas y anota los tiempos; `pnpm e2e` no lo corre. Commit `test(018): flujo de volumen con 5.000 compras`.
+
+## T4a a T9a · Defectos de pantalla (frontend · sonnet, condicionales)
+- **Contexto (leer solo esto)**: el Resultado de la Tn que la abre (defectos con pantalla, paso, esperado y obtenido, archivo probable) y solo los componentes que nombra.
+- **Hacer**: corregir solo defectos pequeños de pantalla (P-6: textos, roles, foco, estado que no se refresca, aviso que no se ve); con su prueba de componente (`*.tn.spec.tsx`). Si resulta ser de servidor o pide cambiar un contrato, parar y escalar al orquestador.
+- **Hecho cuando**: la prueba de componente y el archivo E2E de la Tn pasan; `pnpm --filter @contapp/frontend test`, `typecheck`, `lint` y `next build` limpios. Commit `fix(018): <defecto> (Tna)`. Si una Tn no encuentra defectos, su Tna no se crea.
+
+## T10 · [ ] CI (devops · haiku)
+- **Contexto (leer solo esto)**: `spec.md` (D-9; CA-3, CA-11; P-1, P-5), `plan.md` (Contratos: CI, etiquetas y comandos), `.github/workflows/ci.yml` (jobs `ci` y `aislamiento`), `docker-compose.yml` (servicio `mailpit`), `tests/e2e/README.md`.
+- **Hacer**: `on.workflow_dispatch` y el job `e2e` del plan (condición, servicios, contraseña enmascarada, `pnpm install --frozen-lockfile`, caché de Chromium y `playwright install --with-deps chromium` sin caché o `install-deps chromium` con caché, `pnpm e2e` en los PR y `pnpm e2e && pnpm e2e:volumen` en `main` y a mano, artefacto con `if: failure()` por 7 días, `timeout-minutes: 20`). Completar la sección CI del README, con la nota de que bloquear exige marcar `e2e` como check requerido en la protección de `main`.
+- **Hecho cuando**: el YAML se valida con un parser (`python3 -c 'import yaml…'` o `actionlint` si está); la condición cubre exactamente P-1 y P-5 (tabla de 4 eventos en el Resultado: PR, push a `main`, push a otra rama, `workflow_dispatch`); los jobs `ci` y `aislamiento` no cambian. La corrida real la ve T11 cuando el orquestador hace push. Commit `ci(018): job e2e con Playwright en PR y main`.
+
+## T11 · [ ] Verificar criterios (tester · sonnet)
+- **Contexto (leer solo esto)**: `spec.md` (CA-1 a CA-12 y casos reales), `tasks.md` (Resultados de T1–T10 y de las Tna), `tests/e2e/README.md`, `package.json` (raíz, scripts `e2e*`).
+- **Hacer**: correr y medir. CA-1 (`pnpm e2e`, procesos y BD al final); CA-3 (tiempos local con 4 workers y del CI); CA-4 (`--repeat-each=3` en local con 0 fallos y 3 corridas seguidas del job en CI, que el orquestador lanza con `workflow_dispatch`; ver con `gh run list --workflow ci.yml`); CA-5 (`grep -rnE "waitForTimeout|setTimeout|test\.only" tests/e2e` vacío; `grep -rnE "locator\(['\"][.#\[/]|xpath=" tests/e2e --include=*.ts` solo en `soporte/selectores/`; cada archivo solo; `--workers=1` y `--workers=4`); CA-6 a CA-10 (prueba `archivo:línea`); CA-11 (corrida en un PR y en `main`; artefacto en una corrida que falle a propósito en una rama con `workflow_dispatch`, revertida después); CA-12 (README, `typecheck`, `lint`). Casos reales: San Juan, mixta 21.48/1.61, boleta 291 y zapatilla, con su prueba. Mailpit solo en CI. Tabla CA → evidencia.
+- **Hecho cuando**: cada CA tiene evidencia o queda listado como faltante. Un fallo intermitente se reabre en su Tn (no se reintenta). Commit `docs(018): verificación de criterios`.
+
+## T12 · [ ] Revisión final (arquitecto · sonnet)
+- **Contexto (leer solo esto)**: `spec.md`, `plan.md`, `tasks.md` (Resultados), el diff de la rama contra `main` limitado a `tests/e2e/soporte/`, `playwright.config.ts`, `.github/workflows/ci.yml`, `turbo.json`, `package.json` y los cambios de `apps/frontend`.
+- **Hacer**: comprobar cada CA con su evidencia, que ninguna prueba se adapte a un defecto, que no haya `fixme` ni reintentos, que las trazas y artefactos no lleven secretos reales y que `apps/frontend` no gane dependencias. Ratificar los desvíos en `plan.md` («Desvíos ratificados») o abrir T12a (pruebas) y T12b (corrección).
+- **Hecho cuando**: aprobado o lista de defectos con tareas nuevas. Commit `docs(018): revisión final`.
+
+## T13 · [ ] Cierre (devops · haiku)
+- **Contexto (leer solo esto)**: `tasks.md`, `spec.md` (cabecera y criterios).
+- **Hacer**: marcar tareas y CA y poner la spec en «verificada». Dejar al orquestador las notas para ESTADO: spec de rendimiento para el Ctrl+Z de la masiva (P-3, con el tiempo medido en T9 y T11), check requerido `e2e` en la protección de `main` (P-1), las notas [018] cerradas y los defectos de servidor escalados, si los hubo.
+- **Hecho cuando**: `git status` limpio salvo lo ajeno a 018. Commit `docs(018): cierre`.
