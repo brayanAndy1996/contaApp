@@ -7,6 +7,7 @@ import http from "node:http";
 import type { INestApplication } from "@nestjs/common";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { crearApp } from "../../app.js";
+import { RecuperacionService } from "./recuperacion.service.js";
 import {
   abrirHarness,
   COOKIE,
@@ -21,6 +22,7 @@ import {
   type Harness,
   type SesionPrueba,
 } from "../../../test/soporte.js";
+import { BAJO_COBERTURA } from "../../../test/tiempos.js";
 
 let h: Harness;
 const sujetos: string[] = []; // sujetos de auth.limite_tasa creados por estas pruebas
@@ -259,33 +261,79 @@ describe("r1b · cuerpos hostiles (16 kB, JSON profundo, __proto__, charset)", (
   });
 });
 
+/**
+ * Comparación de CA-8 (004): la fuga de existencia se da cuando las medianas de "existe" y "no existe" difieren más de
+ * `max(5 ms, 10 %)` de la de "no existe". La usan la prueba de CA-8 y la de inyección (spec 020, D-2), así que la
+ * segunda comprueba la misma comparación y no una copia.
+ */
+function fugaPorTiempo(existe: number[], noExiste: number[]): { fuga: boolean; me: number; mn: number; limite: number } {
+  const [me, mn] = [mediana(existe), mediana(noExiste)];
+  const limite = Math.max(5, 0.1 * mn);
+  return { fuga: Math.abs(me - mn) > limite, me, mn, limite };
+}
+
+/** Bloquea el hilo `ms` ms: `Encolador.encolar` es síncrono, así que la espera cuenta en el tiempo de la petición. */
+function esperaSincrona(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/** N pares intercalados (existe / no existe) de `POST /auth/recuperar`; devuelve los ms de cada lado. */
+async function medirRecuperacion(N: number): Promise<{ existe: number[]; noExiste: number[] }> {
+  const phc = await h.hasher.calcular("Frase-adv-r1b-tiempos-1");
+  const usuarios = [];
+  for (let i = 0; i < N; i++) usuarios.push(await h.crearUsuario({ hash: phc }));
+  const pedir = async (correo: string) => {
+    sujetos.push(claveCorreo(correo).toString("hex"));
+    const r = await h.pedir({ ruta: "/auth/recuperar", cuerpo: { correo }, ip: ip() });
+    expect(r.status).toBe(202);
+    return r.ms;
+  };
+  for (let i = 0; i < 5; i++) await pedir(h.correoInexistente()); // calentamiento
+  const existe: number[] = [];
+  const noExiste: number[] = [];
+  for (let i = 0; i < N; i++) {
+    if (i % 2) {
+      existe.push(await pedir(usuarios[i]!.correo));
+      noExiste.push(await pedir(h.correoInexistente()));
+    } else {
+      noExiste.push(await pedir(h.correoInexistente()));
+      existe.push(await pedir(usuarios[i]!.correo));
+    }
+  }
+  return { existe, noExiste };
+}
+
 describe("r1b · tiempos de la recuperación (CA-8)", () => {
   it("solicitar recuperación tarda lo mismo con correo existente o inexistente (medianas intercaladas)", async () => {
-    const N = 30;
-    const phc = await h.hasher.calcular("Frase-adv-r1b-tiempos-1");
-    const usuarios = [];
-    for (let i = 0; i < N; i++) usuarios.push(await h.crearUsuario({ hash: phc }));
-    const pedir = async (correo: string) => {
-      sujetos.push(claveCorreo(correo).toString("hex"));
-      const r = await h.pedir({ ruta: "/auth/recuperar", cuerpo: { correo }, ip: ip() });
-      expect(r.status).toBe(202);
-      return r.ms;
-    };
-    for (let i = 0; i < 5; i++) await pedir(h.correoInexistente()); // calentamiento
-    const existe: number[] = [];
-    const noExiste: number[] = [];
-    for (let i = 0; i < N; i++) {
-      if (i % 2) {
-        existe.push(await pedir(usuarios[i]!.correo));
-        noExiste.push(await pedir(h.correoInexistente()));
-      } else {
-        noExiste.push(await pedir(h.correoInexistente()));
-        existe.push(await pedir(usuarios[i]!.correo));
-      }
+    // Parte funcional (siempre): cada petición responde 202 (dentro de `medirRecuperacion`).
+    const { existe, noExiste } = await medirRecuperacion(30);
+    const { fuga, me, mn, limite } = fugaPorTiempo(existe, noExiste);
+    if (BAJO_COBERTURA) {
+      console.info(`CA-8 bajo cobertura (no se compara): mediana existe ${me.toFixed(1)} ms, no existe ${mn.toFixed(1)} ms`);
+      return;
     }
-    const [me, mn] = [mediana(existe), mediana(noExiste)];
-    expect(Math.abs(me - mn), `mediana existe ${me.toFixed(1)} ms, no existe ${mn.toFixed(1)} ms`).toBeLessThanOrEqual(
-      Math.max(5, 0.1 * mn),
-    );
+    expect(fuga, `mediana existe ${me.toFixed(1)} ms, no existe ${mn.toFixed(1)} ms (límite ${limite.toFixed(1)} ms)`).toBe(false);
+  });
+
+  // Spec 020 (CA-2, D-2): la comparación sigue detectando la enumeración de cuentas. Se inyectan 20 ms solo en la rama
+  // de cuenta existente: el puerto de la cola de correo solo se llama cuando la cuenta existe. No toca producción.
+  it.skipIf(BAJO_COBERTURA)("la comparación de CA-8 detecta 20 ms añadidos solo cuando la cuenta existe", async () => {
+    const servicio = h.app.get(RecuperacionService, { strict: false }) as unknown as {
+      cola: { encolar: (m: unknown) => void };
+    };
+    const original = servicio.cola;
+    servicio.cola = {
+      encolar: (m) => {
+        esperaSincrona(20);
+        original.encolar(m as never);
+      },
+    };
+    try {
+      const { existe, noExiste } = await medirRecuperacion(30);
+      const { fuga, me, mn, limite } = fugaPorTiempo(existe, noExiste);
+      expect(fuga, `mediana existe ${me.toFixed(1)} ms, no existe ${mn.toFixed(1)} ms (límite ${limite.toFixed(1)} ms)`).toBe(true);
+    } finally {
+      servicio.cola = original;
+    }
   });
 });
