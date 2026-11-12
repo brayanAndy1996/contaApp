@@ -6,7 +6,7 @@ Nivel C (04 §2.1): sin TDD ni ADV. Flujo 04 §1.3: implementar (+ pruebas míni
 
 | #   | Tarea | Rol | Modelo | Depende de | TDD | ADV | Estado |
 | --- | ----- | --- | ------ | ---------- | --- | --- | ------ |
-| T1  | Avisos únicos en grilla, lupa, archivo y ventas (P-2, CA-10) | frontend | sonnet | — ∥ T2 | — | — | [ ] |
+| T1  | Avisos únicos en grilla, lupa, archivo y ventas (P-2, CA-10) | frontend | sonnet | — ∥ T2 | — | — | [x] |
 | T2  | Paquete `tests/e2e`: Playwright, configuración, pila (BD y procesos), `pnpm e2e` y humo | devops | haiku | — ∥ T1 | — | — | [ ] |
 | T3  | Soporte: siembra, sesiones, acciones por API, correo, vigilancia y fixtures | tester | sonnet | T2 ∥ T1, T10 | — | — | [ ] |
 | T4  | Flujos E-01 y E-02: alta, login, invitación y roles | tester | sonnet | T3 ∥ T5–T8 | — | — | [ ] |
@@ -55,10 +55,11 @@ Reglas comunes:
 - Adaptadores en `mock`. Centinelas de fixtures (`fixtures/LEEME.md`): RUC y comprobantes que terminan en 7, 8 o 9.
 - P-1 a P-6 están decididas (spec, 2026-11-12). Una ambigüedad nueva que cambie la spec no se decide: `requiere usuario`.
 
-## T1 · [ ] Avisos únicos (frontend · sonnet)
+## T1 · [x] Avisos únicos (frontend · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (P-2, CA-10), `docs/specs/016-lupa-xml/tasks.md` (observación (a) de T24, línea «Observaciones (sin tarea)»), `docs/specs/015-compras-frontend/tasks.md` (observación (f) de T11), `apps/frontend/app/(app)/clientes/[clienteId]/compras/page.tsx`, `apps/frontend/components/compras/{grilla-compras,lupa-compra,aceptar-sugerencia,acciones-fila-compras}.tsx`, `apps/frontend/components/archivos/{panel-generar,previo-archivo}.tsx`, `apps/frontend/components/ventas/{excluir-venta,justificar-salto,resumen-ventas}.tsx`.
 - **Hacer**: buscar con `grep -n 'role="alert"\|role="status"\|aria-live'` las regiones de aviso de esas pantallas y dejar un solo anunciador por aviso: la página o el panel anuncia y el hijo solo muestra el texto sin rol, o al revés, pero no los dos. Casos conocidos: «Sugerencia aceptada.», «La sugerencia cambió…», «Otra persona cambió esta compra…» y el error de fila de 015 T11 (f). Revisar lo mismo en archivo y ventas. Prueba de componente por pantalla corregida (`*.avisos-t1.spec.tsx`): con el aviso visible, `getAllByRole('alert'|'status', { name })` tiene longitud 1.
 - **Hecho cuando**: las pruebas nuevas pasan; `pnpm --filter @contapp/frontend test`, `typecheck`, `lint` y `next build` limpios. Commit `fix(018): un solo aviso por mensaje en compras, lupa, archivo y ventas`.
+- **Resultado**: hecha. Un solo anunciador por aviso: error local sin `role` si la pantalla lo anuncia (`aviso-unico.ts`), lupa sin `aria-live` propio, «Cargando…» de la grilla sin `role`, panel de archivo sin `aria-live` anidado; ventas ya era único. 5 pruebas `*.avisos-t1.spec.tsx` (11 casos) y 4 specs previas ajustadas; typecheck y lint limpios.
 
 ## T2 · [ ] Paquete y pila (devops · haiku)
 - **Contexto (leer solo esto)**: `spec.md` (D-1, D-2, D-3, D-5, D-7; CA-1, CA-12), `plan.md` (Archivos; Contratos: arranque, entorno de la pila, etiquetas y comandos), `tests/aislamiento/package.json`, `package.json` (raíz), `turbo.json`, `pnpm-workspace.yaml`, `.env.example`, `apps/backend/src/main.ts`, `apps/worker/src/main.ts`, `apps/frontend/next.config.ts`, `eslint.config.*` de la raíz.

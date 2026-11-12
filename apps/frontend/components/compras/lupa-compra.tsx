@@ -408,7 +408,8 @@ export function LupaCompra({
             </button>
           </div>
           {fila === null && <p className="text-sm">{L.sinFila}</p>}
-          <div aria-live="polite">{aviso && <p className="text-sm">{aviso}</p>}</div>
+          {/* Con la pantalla de la grilla, ella anuncia el aviso (role="status"); aquí solo se muestra (018, P-2). */}
+          <div aria-live={alAvisarDe ? undefined : "polite"}>{aviso && <p className="text-sm">{aviso}</p>}</div>
           {verHistorial && (
             <div className="overflow-x-auto">
               <HistorialCompra

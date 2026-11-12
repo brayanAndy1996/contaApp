@@ -255,7 +255,7 @@ export function PanelGenerar({
             </button>
           </div>
 
-          <div aria-live="polite" className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2">
             {carga === "cargando" && (
               <p role="status" className="text-sm">
                 {M.cargando}

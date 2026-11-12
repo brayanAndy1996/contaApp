@@ -22,6 +22,7 @@ import {
   recargarTrasExito,
   type AlAvisar,
 } from "./accion-compras";
+import { useErrorAnunciado } from "./aviso-unico";
 
 // Aceptar sugerencias de una compra (spec 015, D-7, RNF-073). Los hallazgos de la fila se ven como chips con su
 // explicación y un botón «Aceptar» cada uno. Flujo:
@@ -54,6 +55,7 @@ export function AceptarSugerencias({
   const [gravado, setGravado] = useState("");
   const [destino, setDestino] = useState<DestinoCompra>("DG");
   const [error, setError] = useState<string | null>(null);
+  const { avisarError, rolDe } = useErrorAnunciado(alAvisar);
   const [ocupado, setOcupado] = useState(false);
   const comprobante = comprobanteDe(fila);
 
@@ -103,11 +105,11 @@ export function AceptarSugerencias({
         await recargarTrasError(contexto, fila.id, r);
         setPaso({ tipo: "lista" });
         setError(r.mensaje);
-        alAvisar?.(r.mensaje, "error");
+        avisarError(r.mensaje);
       }
     } catch {
       setError(MENSAJES.errorGeneral);
-      alAvisar?.(MENSAJES.errorGeneral, "error");
+      avisarError(MENSAJES.errorGeneral);
     }
     setOcupado(false);
   }
@@ -245,7 +247,7 @@ export function AceptarSugerencias({
       )}
 
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role={rolDe(error)} className="text-sm text-red-600">
           {error}
         </p>
       )}

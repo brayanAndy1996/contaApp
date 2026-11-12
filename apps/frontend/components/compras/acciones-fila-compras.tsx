@@ -31,6 +31,7 @@ import {
   recargarTrasExito,
   type AlAvisar,
 } from "./accion-compras";
+import { useErrorAnunciado } from "./aviso-unico";
 import { AceptarSugerencias } from "./aceptar-sugerencia";
 import { ExcluirCompra } from "./excluir-compra";
 
@@ -78,6 +79,7 @@ export function AccionesFilaCompras({
   const [panel, setPanel] = useState<Panel>(null);
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { avisarError, rolDe } = useErrorAnunciado(alAvisar);
   const menu = useRef<HTMLDivElement>(null);
   const boton = useRef<HTMLButtonElement>(null);
   const comprobante = comprobanteDe(fila);
@@ -123,11 +125,11 @@ export function AccionesFilaCompras({
       } else {
         await recargarTrasError(contexto, fila.id, r);
         setError(r.mensaje);
-        alAvisar?.(r.mensaje, "error");
+        avisarError(r.mensaje);
       }
     } catch {
       setError(MENSAJES.errorGeneral);
-      alAvisar?.(MENSAJES.errorGeneral, "error");
+      avisarError(MENSAJES.errorGeneral);
     }
     setOcupado(false);
   }
@@ -248,7 +250,7 @@ export function AccionesFilaCompras({
       )}
 
       {error && (
-        <p role="alert" className="mt-1 text-xs text-red-600">
+        <p role={rolDe(error)} className="mt-1 text-xs text-red-600">
           {error}
         </p>
       )}

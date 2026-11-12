@@ -1043,7 +1043,11 @@ export function GrillaCompras({
           style={{ height: Math.max(filasVirtuales.getTotalSize(), vacio ? ALTO_FILA : 0), width: anchoTotal }}
         >
           {vacio && (
-            <p role="status" className="sticky left-0 px-3 py-3 text-sm" style={{ width: "min(100%, 480px)" }}>
+            <p
+              role={cargando ? undefined : "status"}
+              className="sticky left-0 px-3 py-3 text-sm"
+              style={{ width: "min(100%, 480px)" }}
+            >
               {cargando ? M.cargando : M.sinCompras}
             </p>
           )}

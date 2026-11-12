@@ -241,7 +241,9 @@ describe("<GrillaCompras />", () => {
     expect(screen.getByRole("status").textContent).toBe(M.sinCompras);
     cleanup();
     montar([], { cargando: true });
-    expect(screen.getByRole("status").textContent).toBe(M.cargando);
+    // «Cargando…» lo anuncia la pantalla (`role="status"` de la lista); la grilla solo lo muestra (018, P-2).
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByText(M.cargando)).toBeTruthy();
     expect(atributo(screen.getByRole("grid"), "aria-busy")).toBe("true");
   });
 });
