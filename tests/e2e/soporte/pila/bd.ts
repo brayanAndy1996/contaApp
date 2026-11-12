@@ -88,6 +88,21 @@ export function ejecutarCliDb(
   });
 }
 
+/**
+ * Quita la espera por RUC entre trabajos (`config_sistema.espera_ruc_ms`, 2 s por defecto). Esa espera es una cortesía
+ * con SUNAT: el lock es por canal y RUC, no por estudio, así que todas las pruebas que usan el RUC de fixture
+ * (20700000002) en paralelo harían cola de a 2 s por trabajo y pasarían del tope de 30 s. Con los mocks no hay a quién
+ * cuidar. Solo toca `contapp_e2e`, antes de arrancar el worker (que lee la configuración al iniciar).
+ */
+export async function quitarEsperaPorRuc(urlMigraciones: string): Promise<void> {
+  const cliente = await conectar(urlMigraciones, "MIGRATIONS_DATABASE_URL");
+  try {
+    await cliente.query("UPDATE public.config_sistema SET espera_ruc_ms = 0");
+  } finally {
+    await cliente.end();
+  }
+}
+
 /** Vacía el índice de Redis de la corrida (solo ese índice: `FLUSHDB`, nunca `FLUSHALL`). */
 export async function vaciarIndiceRedis(urlRedis: string): Promise<void> {
   const redis = new Redis(urlRedis, {

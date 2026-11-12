@@ -5,7 +5,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { borrarBd, crearBd, ejecutarCliDb, vaciarIndiceRedis } from "./bd.js";
+import {
+  borrarBd,
+  crearBd,
+  ejecutarCliDb,
+  quitarEsperaPorRuc,
+  vaciarIndiceRedis,
+} from "./bd.js";
 import {
   PUERTO_BACKEND,
   PUERTO_FRONTEND,
@@ -76,6 +82,7 @@ export default async function globalSetup(): Promise<void> {
     await ejecutarCliDb("migrar", env);
     await ejecutarCliDb("migrar", env);
     await ejecutarCliDb("seed", env);
+    await quitarEsperaPorRuc(config.urlMigraciones);
     await vaciarIndiceRedis(config.urlRedis);
 
     // Next resuelve su binario desde apps/frontend (pnpm lo deja en su node_modules).
