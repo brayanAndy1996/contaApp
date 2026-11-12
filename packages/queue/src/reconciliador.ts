@@ -17,6 +17,7 @@ import { claveLockRuc, horaRedisMs, liberarArriendos } from "./arriendos.js";
 import { definicionDe } from "./catalogo.js";
 import { crearClaves, type ClavesCola } from "./claves.js";
 import { CacheConfig } from "./config.js";
+import { publicar } from "./encolado.js";
 import { publicarEvento, vistaDeFila } from "./eventos.js";
 import {
   ARRIENDO_MS,
@@ -169,6 +170,21 @@ export class Reconciliador {
         config.get(r.fila.cola)?.esperaRucMs ?? 0,
       );
       if (r.hacia === "en_cola") {
+        // ZADD pend + SADD tenants (como `encolar`): sin el ZADD, el cierre de un estudio vacío del despachador no ve
+        // al trabajo re-encolado (T11c).
+        await publicar(
+          this.redis,
+          [
+            {
+              id: r.fila.id,
+              tenantId,
+              cola: r.fila.cola,
+              prioridad: r.fila.prioridad,
+              creadoEn: r.fila.creadoEn,
+            },
+          ],
+          { prefijo: this.prefijo },
+        );
         conPendientes.add(r.fila.cola);
         resumen.reencolados++;
       } else {
