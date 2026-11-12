@@ -16,10 +16,11 @@ const ESPERADOS = [
   "no_excluible",
   "ya_excluida",
   "no_excluida",
+  "resumen_fuera_de_rango",
 ] as const;
 
 describe("códigos de error de archivos", () => {
-  it("la lista cerrada trae exactamente los once códigos del plan", () => {
+  it("la lista cerrada trae exactamente los doce códigos del plan", () => {
     expect([...CODIGOS_ERROR_ARCHIVO]).toEqual([...ESPERADOS]);
   });
 

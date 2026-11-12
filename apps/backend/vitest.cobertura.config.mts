@@ -33,6 +33,8 @@ const proyecto = (
   test: {
     name,
     root: raiz,
+    // Spec 020 (P-4): bajo cobertura las pruebas de tiempo corren pero no comparan (lectura CA-15, auth CA-8).
+    env: { CONTAPP_COBERTURA: "1" },
     include,
     exclude,
     // Las suites con BD comparten la misma base: nada en paralelo.

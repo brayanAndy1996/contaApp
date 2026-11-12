@@ -2,8 +2,8 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { reiniciarSesion } from "../../../lib/sesion";
-import { MENSAJES_ACCESO } from "../../../pruebas/acceso";
-import { crearRouterFalso } from "../../../pruebas/soporte";
+import { MENSAJES_ACCESO, yoDe, type RolPrueba } from "../../../pruebas/acceso";
+import { crearRouterFalso, sesionDe } from "../../../pruebas/soporte";
 import {
   MENSAJES_TRABAJOS as M,
   instalarFetchPanel,
@@ -55,22 +55,58 @@ const RUC = "cliente.consultar_ruc";
 const SOL = "credencial.verificar_sol";
 const SIRE = "credencial.verificar_sire";
 
-const lista = (trabajos: TrabajoPrueba[]): OpcionesPanel["listado"] => () => ({
-  status: 200,
-  cuerpo: trabajos,
-});
+const lista =
+  (trabajos: TrabajoPrueba[]): OpcionesPanel["listado"] =>
+  () => ({
+    status: 200,
+    cuerpo: trabajos,
+  });
 
-function montar(opciones: OpcionesPanel): {
+/** Quien creó los trabajos de `pruebas/trabajos.ts` (`creadoPor.usuarioId`). */
+const CREADOR = "00000000-0000-4000-8000-0000000000a1";
+
+/** Fija rol y usuario de la sesión sobre el `fetch` del panel (el arnés compartido simula un Dueño `u-1`). */
+function conIdentidad(rol: RolPrueba, usuarioId: string): void {
+  const base = globalThis.fetch;
+  const json = (cuerpo: unknown) =>
+    new Response(JSON.stringify(cuerpo), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (entrada: RequestInfo | URL, init?: RequestInit) => {
+      const ruta = typeof entrada === "string" ? entrada : String(entrada);
+      if (ruta === "/api/acceso/yo") return json(yoDe(rol));
+      if (ruta === "/api/auth/sesion") {
+        const sesion = sesionDe({ id: "e-a", nombre: "Estudio Alfa" });
+        return json({
+          ...sesion,
+          usuario: { ...sesion.usuario, id: usuarioId },
+        });
+      }
+      return base(entrada, init);
+    }),
+  );
+}
+
+function montar(
+  opciones: OpcionesPanel,
+  identidad?: { rol: RolPrueba; usuarioId: string },
+): {
   panel: PanelFalso;
   desmontar: () => void;
 } {
   const panel = instalarFetchPanel(opciones);
+  if (identidad) conIdentidad(identidad.rol, identidad.usuarioId);
   const r = render(<Trabajos />);
   return { panel, desmontar: r.unmount };
 }
 
 async function conectado(panel: PanelFalso, n = 1): Promise<ConexionStream> {
-  await vi.waitFor(() => expect(panel.conexiones.length).toBeGreaterThanOrEqual(n));
+  await vi.waitFor(() =>
+    expect(panel.conexiones.length).toBeGreaterThanOrEqual(n),
+  );
   return panel.conexiones[n - 1]!;
 }
 
@@ -196,7 +232,9 @@ describe("/trabajos · panel con SSE (007b)", () => {
       expect(filasDe(M.tipos[RUC])).toHaveLength(0);
       const user = userEvent.setup();
       await user.click(screen.getByRole("button", { name: M.verDetalle }));
-      await vi.waitFor(() => expect(filasDe(M.estados.completado)).toHaveLength(10));
+      await vi.waitFor(() =>
+        expect(filasDe(M.estados.completado)).toHaveLength(10),
+      );
       expect(filasDe(M.estados.en_cola)).toHaveLength(2);
     });
 
@@ -251,13 +289,21 @@ describe("/trabajos · panel con SSE (007b)", () => {
       );
       const c = await conectado(panel);
       act(() => c.cerrar());
-      await vi.waitFor(() => expect(panel.listados()).toBeGreaterThanOrEqual(2), {
-        timeout: 5000,
-      });
-      await vi.waitFor(() => expect(panel.resumenes()).toBeGreaterThanOrEqual(2), {
-        timeout: 5000,
-      });
-      expect(screen.getByText(M.resumen(M.tipos[RUC], "640", "1.000"))).toBeTruthy();
+      await vi.waitFor(
+        () => expect(panel.listados()).toBeGreaterThanOrEqual(2),
+        {
+          timeout: 5000,
+        },
+      );
+      await vi.waitFor(
+        () => expect(panel.resumenes()).toBeGreaterThanOrEqual(2),
+        {
+          timeout: 5000,
+        },
+      );
+      expect(
+        screen.getByText(M.resumen(M.tipos[RUC], "640", "1.000")),
+      ).toBeTruthy();
       expect(screen.queryByText(/ de 100$/)).toBeNull();
     });
 
@@ -317,15 +363,93 @@ describe("/trabajos · panel con SSE (007b)", () => {
       act(() => panel.liberarCabeceras());
       panel.conexiones[0]!.evento(trabajoN(1, SOL, "completado"));
       await vi.waitFor(
-        () => expect(fila(M.tipos[SOL]).textContent).toContain(M.estados.completado),
+        () =>
+          expect(fila(M.tipos[SOL]).textContent).toContain(
+            M.estados.completado,
+          ),
         { timeout: 2000 },
       );
     });
   });
 
+  // DT-7 (spec 020, CA-9): si el stream conecta después del listado, se vuelve a leer el listado una vez.
+  describe("stream que conecta tarde relista (DT-7, CA-9)", () => {
+    it("conecta a los 4 s y un trabajo que cambió entre el listado y la conexión se ve con su estado final", async () => {
+      const { panel } = montar({
+        listado: (vez) =>
+          vez === 1
+            ? { status: 200, cuerpo: [trabajoN(1, SOL, "en_cola")] }
+            : { status: 200, cuerpo: [trabajoN(1, SOL, "completado")] },
+        cabecerasStreamTarde: true,
+      });
+      await vi.waitFor(
+        () =>
+          expect(fila(M.tipos[SOL]).textContent).toContain(M.estados.en_cola),
+        { timeout: 6000 },
+      );
+      expect(panel.listados()).toBe(1);
+      // Pasan los 4 s desde el montaje y recién entonces el stream abre.
+      await new Promise((r) => setTimeout(r, 1000));
+      act(() => panel.liberarCabeceras());
+      await vi.waitFor(
+        () =>
+          expect(fila(M.tipos[SOL]).textContent).toContain(
+            M.estados.completado,
+          ),
+        { timeout: 2000 },
+      );
+      expect(panel.listados()).toBe(2);
+    }, 12000);
+
+    it("con el stream a tiempo no hay segundo listado", async () => {
+      const { panel } = montar({
+        listado: lista([trabajoN(1, SOL, "en_cola")]),
+      });
+      await vi.waitFor(() => fila(M.tipos[SOL]));
+      await conectado(panel);
+      await new Promise((r) => setTimeout(r, 300));
+      expect(panel.listados()).toBe(1);
+    });
+  });
+
+  // DT-3 (spec 020, CA-5; 008 D9): «Cancelar» solo para quien encoló, el Dueño y el Administrador.
+  describe("«Cancelar» según permiso (DT-3)", () => {
+    const cancelar = () => screen.queryByRole("button", { name: "Cancelar" });
+    const en = () => ({ listado: lista([trabajoN(1, SOL, "en_cola")]) });
+
+    it("lo ve quien encoló el trabajo, aunque sea Contador", async () => {
+      montar(en(), { rol: "contador", usuarioId: CREADOR });
+      expect(
+        await screen.findByRole("button", { name: "Cancelar" }),
+      ).toBeTruthy();
+    });
+
+    it.each<RolPrueba>(["admin", "dueno"])(
+      "lo ve el %s aunque no haya encolado",
+      async (rol) => {
+        montar(en(), { rol, usuarioId: "u-otro" });
+        expect(
+          await screen.findByRole("button", { name: "Cancelar" }),
+        ).toBeTruthy();
+      },
+    );
+
+    it.each<RolPrueba>(["contador", "asistente", "lectura"])(
+      "no lo ve el %s que no encoló el trabajo",
+      async (rol) => {
+        montar(en(), { rol, usuarioId: "u-otro" });
+        await vi.waitFor(() => fila(M.tipos[SOL]));
+        await new Promise((r) => setTimeout(r, 100));
+        expect(cancelar()).toBeNull();
+      },
+    );
+  });
+
   describe("eventos del stream (D10, CA-7)", () => {
     it("abre el stream con fetch, X-Estudio y Accept de event-stream (no EventSource)", async () => {
-      const { panel } = montar({ listado: lista([trabajoN(1, SOL, "en_cola")]) });
+      const { panel } = montar({
+        listado: lista([trabajoN(1, SOL, "en_cola")]),
+      });
       const c = await conectado(panel);
       expect(c.headers["x-estudio"]).toBe("e-a");
       expect(c.headers["accept"]).toMatch(/text\/event-stream/);
@@ -334,20 +458,28 @@ describe("/trabajos · panel con SSE (007b)", () => {
 
     it("un evento cambia el estado del trabajo en ≤ 2 s sin tocar los demás", async () => {
       const { panel } = montar({
-        listado: lista([trabajoN(1, SOL, "en_cola"), trabajoN(2, SIRE, "en_cola")]),
+        listado: lista([
+          trabajoN(1, SOL, "en_cola"),
+          trabajoN(2, SIRE, "en_cola"),
+        ]),
       });
       await vi.waitFor(() => fila(M.tipos[SIRE]));
       const c = await conectado(panel);
       c.evento(trabajoN(2, SIRE, "ejecutando"));
       await vi.waitFor(
-        () => expect(fila(M.tipos[SIRE]).textContent).toContain(M.estados.ejecutando),
+        () =>
+          expect(fila(M.tipos[SIRE]).textContent).toContain(
+            M.estados.ejecutando,
+          ),
         { timeout: 2000 },
       );
       expect(fila(M.tipos[SOL]).textContent).toContain(M.estados.en_cola);
     });
 
     it("un evento terminal queda visible con su estado y motivo", async () => {
-      const { panel } = montar({ listado: lista([trabajoN(1, SIRE, "ejecutando")]) });
+      const { panel } = montar({
+        listado: lista([trabajoN(1, SIRE, "ejecutando")]),
+      });
       await vi.waitFor(() => fila(M.tipos[SIRE]));
       const c = await conectado(panel);
       c.evento(trabajoN(1, SIRE, "error", "credencial_invalida"));
@@ -362,7 +494,9 @@ describe("/trabajos · panel con SSE (007b)", () => {
     });
 
     it("un trabajo nuevo (no estaba en la lista) se añade", async () => {
-      const { panel } = montar({ listado: lista([trabajoN(1, SOL, "en_cola")]) });
+      const { panel } = montar({
+        listado: lista([trabajoN(1, SOL, "en_cola")]),
+      });
       await vi.waitFor(() => fila(M.tipos[SOL]));
       const c = await conectado(panel);
       c.evento(trabajoN(7, SIRE, "en_cola"));
@@ -370,7 +504,9 @@ describe("/trabajos · panel con SSE (007b)", () => {
     });
 
     it("un evento partido en varios trozos se aplica una vez completo", async () => {
-      const { panel } = montar({ listado: lista([trabajoN(1, SOL, "en_cola")]) });
+      const { panel } = montar({
+        listado: lista([trabajoN(1, SOL, "en_cola")]),
+      });
       await vi.waitFor(() => fila(M.tipos[SOL]));
       const c = await conectado(panel);
       const texto = `event: trabajo\ndata: ${JSON.stringify(trabajoN(1, SOL, "completado"))}\n\n`;
@@ -378,13 +514,18 @@ describe("/trabajos · panel con SSE (007b)", () => {
       c.enviar(texto.slice(0, corte));
       c.enviar(texto.slice(corte));
       await vi.waitFor(
-        () => expect(fila(M.tipos[SOL]).textContent).toContain(M.estados.completado),
+        () =>
+          expect(fila(M.tipos[SOL]).textContent).toContain(
+            M.estados.completado,
+          ),
         { timeout: 2000 },
       );
     });
 
     it("ignora latidos, JSON roto y eventos fuera de esquema, y sigue aplicando los válidos", async () => {
-      const { panel } = montar({ listado: lista([trabajoN(1, SOL, "en_cola")]) });
+      const { panel } = montar({
+        listado: lista([trabajoN(1, SOL, "en_cola")]),
+      });
       await vi.waitFor(() => fila(M.tipos[SOL]));
       const c = await conectado(panel);
       c.enviar(": latido\n\n");
@@ -392,14 +533,19 @@ describe("/trabajos · panel con SSE (007b)", () => {
       c.enviar('event: trabajo\ndata: {"id":"x","estado":"inventado"}\n\n');
       c.evento(trabajoN(1, SOL, "ejecutando"));
       await vi.waitFor(
-        () => expect(fila(M.tipos[SOL]).textContent).toContain(M.estados.ejecutando),
+        () =>
+          expect(fila(M.tipos[SOL]).textContent).toContain(
+            M.estados.ejecutando,
+          ),
         { timeout: 2000 },
       );
       expect(filasDe(M.tipos[SOL])).toHaveLength(1);
     });
 
     it("300 eventos seguidos se aplican todos (por lotes, sin perder ninguno)", async () => {
-      const { panel } = montar({ listado: lista(varios(1, 300, RUC, "en_cola")) });
+      const { panel } = montar({
+        listado: lista(varios(1, 300, RUC, "en_cola")),
+      });
       await screen.findByText(
         M.resumen(M.tipos[RUC], "0", "300"),
         {},
@@ -430,7 +576,9 @@ describe("/trabajos · panel con SSE (007b)", () => {
     });
 
     it("si el servidor cierra el stream, reconecta en ≤ 5 s y re-sincroniza el listado", async () => {
-      const { panel } = montar({ listado: lista([trabajoN(1, SOL, "en_cola")]) });
+      const { panel } = montar({
+        listado: lista([trabajoN(1, SOL, "en_cola")]),
+      });
       await avanzar(100);
       await avanzar(100);
       expect(panel.conexiones).toHaveLength(1);
@@ -442,7 +590,9 @@ describe("/trabajos · panel con SSE (007b)", () => {
     });
 
     it("si el stream falla a mitad, también reconecta en ≤ 5 s", async () => {
-      const { panel } = montar({ listado: lista([trabajoN(1, SOL, "en_cola")]) });
+      const { panel } = montar({
+        listado: lista([trabajoN(1, SOL, "en_cola")]),
+      });
       await avanzar(100);
       await avanzar(100);
       expect(panel.conexiones).toHaveLength(1);

@@ -60,3 +60,45 @@ export async function corregirMixtaPorApi(
   );
   return fila.id;
 }
+
+/** La grilla de compras (rol `grid`): es el contenedor con desplazamiento de las columnas. */
+export const grillaCompras = (page: Page): Locator =>
+  page.getByRole("grid", { name: "Compras del periodo" });
+
+/** Todas las cabeceras de columna de la grilla (la última en el DOM es la última columna). */
+export const cabecerasGrilla = (page: Page): Locator =>
+  grillaCompras(page).getByRole("columnheader");
+
+export interface Caja {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+/** Caja de un elemento visible; falla si no tiene (nunca devuelve `null`). */
+export async function cajaDe(elemento: Locator): Promise<Caja> {
+  const caja = await elemento.boundingBox();
+  if (caja === null) throw new Error("El elemento no tiene caja.");
+  return caja;
+}
+
+/** Parte compartida de dos cajas, o `null` si no se tocan (el borde común no cuenta como cruce). */
+export function interseccion(a: Caja, b: Caja): Caja | null {
+  const x = Math.max(a.x, b.x);
+  const y = Math.max(a.y, b.y);
+  const derecha = Math.min(a.x + a.width, b.x + b.width);
+  const abajo = Math.min(a.y + a.height, b.y + b.height);
+  if (derecha - x <= 0.5 || abajo - y <= 0.5) return null;
+  return { x, y, width: derecha - x, height: abajo - y };
+}
+
+/** Desplaza la grilla a su extremo derecho (`"fin"`) o al izquierdo (`"inicio"`). */
+export async function desplazarGrilla(
+  page: Page,
+  extremo: "inicio" | "fin",
+): Promise<void> {
+  await grillaCompras(page).evaluate((el, hacia) => {
+    el.scrollLeft = hacia === "fin" ? el.scrollWidth : 0;
+  }, extremo);
+}

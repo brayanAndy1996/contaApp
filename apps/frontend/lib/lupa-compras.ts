@@ -253,10 +253,6 @@ export function mensajeDeErrorLupa(error: ErrorCompras): string {
 // Presentación (texto, sin cálculo)
 // ---------------------------------------------------------------------------------------------
 
-/** «2026-10-20T15:00:00.000Z» → «2026-10-20 15:00 UTC» (texto, sin objetos de fecha). */
-export const fechaLegibleUtc = (iso: string): string =>
-  `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
-
 /** Nombre del tipo de comprobante con su código: «Factura (01)». Un código desconocido se muestra solo. */
 export function etiquetaTipo(tipo: string): string {
   const nombre = MENSAJES_LUPA.tipos[tipo];

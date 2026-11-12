@@ -37,6 +37,7 @@ import {
   type IdsPorNumero,
 } from "../../../test/soporte-compras.js";
 import { forma } from "../../../test/soporte.js";
+import { BAJO_COBERTURA, medirMediana } from "../../../test/tiempos.js";
 
 vi.setConfig({ testTimeout: 180_000, hookTimeout: 120_000 });
 
@@ -472,18 +473,29 @@ describe("D-13 · búsqueda `q`: prefijo de RUC, razón social o serie-número, 
 });
 
 describe("CA-15 · listado de 5.000 filas en menos de 2 s en el servidor", () => {
-  it("limite=5000 devuelve las 5.000 filas ordenadas y sin cursor en menos de 2 s", async () => {
+  it("limite=5000 devuelve las 5.000 filas ordenadas y sin cursor en menos de 2 s (mediana de 3 lecturas)", async () => {
     const c = await nuevoCliente();
-    await v.sembrarVolumen(E.tenantId, c.id, 5000, { usuarioId: u() });
+    const sembradas = await v.sembrarVolumen(E.tenantId, c.id, 5000, { usuarioId: u() });
+    // Parte funcional (siempre, también bajo cobertura): filas, orden y cursor.
     const r = await leer(contador, c, "?limite=5000");
     expect(r.status, r.text.slice(0, 200)).toBe(200);
     expect(r.body.filas).toHaveLength(5000);
+    expect(ids(r)).toEqual(sembradas);
     expect(r.body.siguiente).toBeNull();
-    expect(r.ms, "listado de 5.000 filas").toBeLessThan(2000);
-    // También paginado por defecto: la primera página responde rápido.
+    // También paginado por defecto: la primera página responde.
     const p = await leer(contador, c);
     expect(p.status).toBe(200);
-    expect(p.ms).toBeLessThan(2000);
+    expect(p.body.filas.length).toBeGreaterThan(0);
+
+    // Tiempo (RNF-031): mediana de 3 lecturas, solo sin instrumentar (P-4). Bajo cobertura se registra y no se compara.
+    const completo = await medirMediana(async () => (await leer(contador, c, "?limite=5000")).ms, 3);
+    const pagina = await medirMediana(async () => (await leer(contador, c)).ms, 3);
+    if (BAJO_COBERTURA) {
+      console.info(`CA-15 bajo cobertura (no se compara): listado 5.000 = ${completo.toFixed(0)} ms, página = ${pagina.toFixed(0)} ms`);
+      return;
+    }
+    expect(completo, "listado de 5.000 filas (mediana de 3)").toBeLessThan(2000);
+    expect(pagina, "primera página (mediana de 3)").toBeLessThan(2000);
   });
 });
 

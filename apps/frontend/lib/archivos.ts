@@ -97,12 +97,19 @@ export const MENSAJES_ARCHIVO = {
   version: (n: number) => `Versión ${n}`,
   generadoEn: (fecha: string) => `Generado el ${fecha}`,
   generadoPor: "por",
+  sha256Zip: "SHA-256 del ZIP",
   lineas: (n: number) => (n === 1 ? "1 línea" : `${n} líneas`),
   descargar: "Descargar",
   descargarVersion: (n: number) => `Descargar la versión ${n}`,
   descargando: "Descargando…",
   errorDescarga: "No se pudo descargar el archivo.",
   reabiertoTrasUltima: "Reabierto después de la última versión",
+  /** Nombre en español de los códigos del previo que antes se mostraban crudos (spec 020, DT-6). */
+  codigosPrevio: {
+    CUADRE: "Los montos no cuadran con el total",
+    USD_SIN_TC: "Falta el tipo de cambio de un comprobante en USD",
+    SALTO_CORRELATIVIDAD: "Salto en la correlatividad de los comprobantes",
+  } as Readonly<Record<string, string>>,
   errores: {
     prevalidacion_fallida: "Hay errores por corregir antes de generar el archivo.",
     formato_no_oficial: "El formato del archivo aún no es el oficial de SUNAT.",
@@ -113,6 +120,8 @@ export const MENSAJES_ARCHIVO = {
       "El periodo está revisado: solo quien puede aprobar y generar lo modifica.",
     cliente_archivado: "El cliente está archivado y es de solo lectura.",
     archivo_alterado: "El archivo guardado no coincide con su huella: no se puede descargar.",
+    resumen_fuera_de_rango:
+      "No se pudo calcular el resumen del archivo: hay montos fuera de rango.",
     solicitud_invalida: "Revisa los datos: la solicitud no es válida.",
     respuesta_invalida: MENSAJES.errorGeneral,
   } as Readonly<Record<string, string>>,
@@ -245,6 +254,17 @@ export const generarArchivo = (
     method: "POST",
     body: cuerpo,
   });
+
+/** Texto de un código del previo: el nombre en español si lo hay, y si no el código tal cual. */
+export const nombreCodigoPrevio = (codigo: string): string =>
+  Object.hasOwn(MENSAJES_ARCHIVO.codigosPrevio, codigo) ? MENSAJES_ARCHIVO.codigosPrevio[codigo]! : codigo;
+
+/**
+ * Nombre de descarga de una versión anterior (spec 020, D-9, P-6): «LE….zip» → «LE…_v2.zip». La versión más
+ * reciente conserva el nombre del servidor; el contenido del ZIP no cambia.
+ */
+export const nombreZipVersion = (nombreZip: string, version: number): string =>
+  `${nombreZip.replace(/\.zip$/i, "")}_v${version}.zip`;
 
 export type ResultadoDescarga =
   | { ok: true; status: number; archivo: Blob; nombre: string }

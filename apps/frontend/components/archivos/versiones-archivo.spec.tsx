@@ -128,6 +128,36 @@ describe("VersionesArchivo (spec 012b T14)", () => {
     expect(document.body.textContent).not.toContain(id.slice(0, 8));
   });
 
+  it("muestra la fecha en hora de Lima y el SHA-256 completo del ZIP de cada versión (CA-7, CA-8)", () => {
+    // 2026-11-05T15:30Z es 10:30 a. m. en Lima.
+    montar(false, [versionDe(2, { sha256Zip: "a".repeat(64) }), versionDe(1)]);
+    expect(document.body.textContent).toMatch(/05\/11\/26,? 10:30\s?a\.\s?m\.|5\/11\/26,? 10:30\s?a\.\s?m\./);
+    expect(screen.getByText("a".repeat(64))).toBeTruthy();
+    expect(screen.getByText("d".repeat(64))).toBeTruthy();
+    expect(document.body.textContent).not.toContain("UTC");
+  });
+
+  it("dos versiones se descargan con nombres distintos: la última el del servidor, la anterior con `_v1` (P-6)", async () => {
+    conZip(
+      () =>
+        new Response("zip", {
+          status: 200,
+          headers: {
+            "content-type": "application/zip",
+            "content-disposition": 'attachment; filename="LE20700000002202610080400021112.zip"',
+          },
+        }),
+    );
+    montar(false, [versionDe(2), versionDe(1)]);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: M.descargarVersion(2) }));
+    await vi.waitFor(() => expect(clics).toHaveLength(1));
+    await user.click(screen.getByRole("button", { name: M.descargarVersion(1) }));
+    await vi.waitFor(() => expect(clics).toHaveLength(2));
+    expect(clics[0]!.descarga).toBe("LE20700000002202610080400021112.zip");
+    expect(clics[1]!.descarga).toBe("LE20700000002202610080400021112_v1.zip");
+  });
+
   it("sin versiones lo dice y no avisa de reapertura", () => {
     montar(true, []);
     expect(screen.getByText(M.sinVersiones)).toBeTruthy();

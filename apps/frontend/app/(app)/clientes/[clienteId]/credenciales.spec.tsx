@@ -1,6 +1,7 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MOTIVO_CREDENCIAL_GENERICO } from "../../../../lib/credenciales";
 import { reiniciarSesion } from "../../../../lib/sesion";
 import {
   MENSAJES_ACCESO,
@@ -51,7 +52,7 @@ import Cliente from "./page";
 // [{tipo: "sol"|"sire_api", estado, fecha|null, motivo|null}] (nunca sobre ni secreto).
 // - Región "Credenciales" con dos grupos (fieldset + legend): "Credencial SOL" y "Credencial SIRE".
 //   Cada grupo muestra el estado con ETIQUETA_ESTADO; «Verificada» con la fecha dd/mm/aaaa (día con o sin
-//   cero) y «Inválida» con el motivo tal como llega.
+//   cero) y «Inválida» con el motivo en español (020).
 // - Con `credenciales.editar` y cliente activo, cada grupo es un formulario:
 //   SOL: "Usuario SOL" (texto) y "Clave SOL" (type=password), botones "Guardar" y "Verificar".
 //   SIRE: "Client ID" (texto) y "Client secret" (type=password), botones "Guardar" y "Verificar".
@@ -156,7 +157,9 @@ describe("/clientes/:id · credenciales (007b)", () => {
       expect(sol.textContent).toMatch(FECHA_VERIFICADA_TEXTO);
       const sire = grupo(region, "Credencial SIRE");
       expect(sire.textContent).toMatch(/Inválida/);
-      expect(sire.textContent).toContain(MOTIVO_INVALIDA);
+      // El motivo no es un código que el worker escriba: se muestra el texto genérico en español, no el crudo (020).
+      expect(sire.textContent).toContain(MOTIVO_CREDENCIAL_GENERICO);
+      expect(sire.textContent).not.toContain(MOTIVO_INVALIDA);
       expect(sire.textContent).not.toMatch(/Verificada/);
       expect(sol.textContent).not.toMatch(/Inválida/);
     });
@@ -325,7 +328,11 @@ describe("/clientes/:id · credenciales (007b)", () => {
     });
 
     it.each([
-      [400, { codigo: "datos_invalidos" }, MENSAJES_CREDENCIALES.datosInvalidos],
+      [
+        400,
+        { codigo: "datos_invalidos" },
+        MENSAJES_CREDENCIALES.datosInvalidos,
+      ],
       [403, { codigo: "sin_permiso" }, MENSAJES_ACCESO.sinPermiso],
       [
         409,

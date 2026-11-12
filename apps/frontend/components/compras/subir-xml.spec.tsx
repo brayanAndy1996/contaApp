@@ -2,6 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MENSAJES } from "../../lib/acceso";
+import { fechaHoraLima } from "../../lib/fechas";
 import { MENSAJES_LUPA as L, TOPE_XML_BYTES } from "../../lib/lupa-compras";
 import { reiniciarSesion } from "../../lib/sesion";
 import { C_2056_MIXTA, MENSAJES_COMPRAS as M, instalarFetchCompras, type OpcionesCompras } from "../../pruebas/compras";
@@ -59,7 +60,9 @@ describe("Subir XML en la lupa · caso feliz (CA-12)", () => {
     expect(await screen.findByText(L.xml.noDisponible)).toBeTruthy();
     await usuario.upload(screen.getByLabelText(L.subir.boton), archivoXml("factura.xml", "<Invoice>12345</Invoice>"));
 
-    expect(await screen.findByText(L.xml.subidoPor("Rosa Quispe", "2026-10-20 15:00 UTC"))).toBeTruthy();
+    const textoSubido = await screen.findByText(/^XML subido por Rosa Quispe el /);
+    expect(textoSubido.textContent).toBe(L.xml.subidoPor("Rosa Quispe", fechaHoraLima("2026-10-20T15:00:00.000Z")));
+    expect(document.body.textContent).toMatch(/20\/10\/26,? 10:00\s?a\.\s?m\./);
     expect(f.de(SUBIR)).toHaveLength(1);
     expect(f.de(SUBIR)[0]!.bytes).toBe("<Invoice>12345</Invoice>".length);
     expect(f.de(SUBIR)[0]!.headers["content-type"]).toBe("application/octet-stream");

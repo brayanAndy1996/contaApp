@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MENSAJES, mensajeDeError } from "../../../lib/acceso";
+import { MENSAJES, cargarYo, mensajeDeError } from "../../../lib/acceso";
 import { listarClientes } from "../../../lib/clientes";
+import { obtenerSesion } from "../../../lib/sesion";
 import {
   cancelarTrabajo,
   obtenerResumenTrabajos,
+  puedeCancelar,
   seguirTrabajos,
   type ResumenTrabajos,
   type TrabajoVista,
@@ -137,6 +139,10 @@ export default function Trabajos() {
   const [clientes, setClientes] = useState<ReadonlyMap<string, string>>(
     new Map(),
   );
+  const [quien, setQuien] = useState<{
+    rol: string | null;
+    usuarioId: string | null;
+  }>({ rol: null, usuarioId: null });
   const [cargado, setCargado] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorCancelar, setErrorCancelar] = useState<string | null>(null);
@@ -180,6 +186,23 @@ export default function Trabajos() {
               .map((c) => [c.id, c.razonSocial]),
           ),
         );
+      })
+      .catch(() => undefined);
+    return () => {
+      vigente = false;
+    };
+  }, []);
+
+  // Rol y usuario para decidir si se muestra «Cancelar» (D-6). Mientras no se conocen, el botón no aparece.
+  useEffect(() => {
+    let vigente = true;
+    void Promise.all([cargarYo(), obtenerSesion()])
+      .then(([{ yo }, sesion]) => {
+        if (vigente)
+          setQuien({
+            rol: yo?.rol ?? null,
+            usuarioId: sesion?.usuario.id ?? null,
+          });
       })
       .catch(() => undefined);
     return () => {
@@ -240,7 +263,8 @@ export default function Trabajos() {
       return siguientes;
     });
 
-  // Cancelar no se oculta por permiso: lo decide el servidor (creador o rol, D9) y su 403/409 se muestra.
+  // «Cancelar» solo lo ve quien encoló el trabajo, el Dueño y el Administrador (D9); el servidor igual valida y su
+  // 403/409 se muestra.
   const grupos = agrupar(trabajos);
   const totales = resumen ? conteos(resumen) : null;
 
@@ -306,15 +330,16 @@ export default function Trabajos() {
                         {t.motivo ? MOTIVOS[t.motivo] : ""}
                       </td>
                       <td className="py-1">
-                        {t.estado === "en_cola" && (
-                          <button
-                            type="button"
-                            className="rounded border px-2 py-0.5"
-                            onClick={() => void cancelar(t.id)}
-                          >
-                            {MENSAJES_PANEL.cancelar}
-                          </button>
-                        )}
+                        {t.estado === "en_cola" &&
+                          puedeCancelar(quien.rol, quien.usuarioId, t) && (
+                            <button
+                              type="button"
+                              className="rounded border px-2 py-0.5"
+                              onClick={() => void cancelar(t.id)}
+                            >
+                              {MENSAJES_PANEL.cancelar}
+                            </button>
+                          )}
                       </td>
                     </tr>
                   ))}

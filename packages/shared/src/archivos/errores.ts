@@ -15,6 +15,7 @@ export const CODIGOS_ERROR_ARCHIVO = [
   "no_excluible",
   "ya_excluida",
   "no_excluida",
+  "resumen_fuera_de_rango",
 ] as const;
 export type CodigoErrorArchivo = (typeof CODIGOS_ERROR_ARCHIVO)[number];
 export const codigoErrorArchivoSchema = z.enum(CODIGOS_ERROR_ARCHIVO);

@@ -89,14 +89,22 @@ beforeAll(async () => {
   backend = crearDbRol("contapp_backend");
   redis = conectarRedis();
   e = new Escenario(admin);
-  await fijarConfig(admin, "sire", {
+  await fijarConfigEjecutor();
+});
+
+// `config_sistema` es global a la BD: el `restaurarConfig` de otra suite (o de otra corrida en paralelo) deja `backoff_base_ms`
+// en 5000 y el worker de esta prueba, que relee la tabla cada 10 s, pasa de reintentos de 100 ms a 5, 10 y 20 s. Por eso el
+// trabajo que reintenta ("un error transitorio…", `:523` en su día) llegaba a `error` en 1 s o no llegaba en 20 s según con quién
+// coincidiera. Se fija aquí y otra vez al crear cada mundo, justo antes de arrancar su worker (que carga la tabla en su primer
+// trabajo), para que la ventana de cruce sea de milisegundos y no la de la suite entera.
+const fijarConfigEjecutor = (espera = 0) =>
+  fijarConfig(admin, "sire", {
     global: 4,
     tenant: 2,
-    espera: 0,
+    espera,
     reintentos: 3,
     base: 100,
   });
-});
 
 afterAll(async () => {
   await Promise.all(
@@ -117,8 +125,10 @@ async function mundo(
     reloj?: RelojAjustable;
     notificador?: ReturnType<typeof notificadorEspia>;
     arrancarYa?: boolean;
+    espera?: number;
   } = {},
 ) {
+  await fijarConfigEjecutor(o.espera);
   const prefijo = nuevoPrefijo();
   prefijos.push(prefijo);
   const T = await e.estudio();
@@ -230,8 +240,7 @@ describe("ejecución normal (flujo de punta a punta)", () => {
   });
 
   it("deja el lock del RUC vivo durante espera_ruc_ms después de terminar (D20)", async () => {
-    await fijarConfig(admin, "sire", { espera: 1500 });
-    const m = await mundo();
+    const m = await mundo({ espera: 1500 });
     try {
       const id = await m.encolar(m.c, 1);
       await esperarHasta(

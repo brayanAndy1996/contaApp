@@ -25,6 +25,26 @@ export const MENSAJES_CREDENCIALES = {
     "Si cambió la clave SOL, guarde o verifique de nuevo la credencial SIRE.",
 } as const;
 
+/**
+ * Motivos que escribe el worker al invalidar una credencial (`MotivoEstadoCredencial`, packages/db) con su texto en
+ * español. La pantalla nunca muestra el código crudo (spec 020, DT-3).
+ */
+export const MOTIVOS_CREDENCIAL: Readonly<Record<string, string>> = {
+  credencial_invalida:
+    "SUNAT rechazó las credenciales. Revísalas y guárdalas de nuevo.",
+};
+
+/** Texto para un motivo que el mapa no conoce. */
+export const MOTIVO_CREDENCIAL_GENERICO =
+  "No se pudo validar la credencial. Revísala y guárdala de nuevo.";
+
+/** Traduce el motivo de una credencial «Inválida»; un código desconocido da el texto genérico. */
+export const textoMotivoCredencial = (motivo: string): string =>
+  MOTIVOS_CREDENCIAL[motivo] ?? MOTIVO_CREDENCIAL_GENERICO;
+
+/** Tope de sondeo tras «Verificar»: pasado este tiempo la ficha deja de leer sola y se recarga a mano. */
+export const TOPE_VERIFICANDO_MS = 120_000;
+
 const base = (clienteId: string): string =>
   `/clientes/${encodeURIComponent(clienteId)}/credenciales`;
 
