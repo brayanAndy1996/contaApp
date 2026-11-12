@@ -15,7 +15,7 @@ Nivel C (04 §2.1): sin TDD ni ADV. Flujo 04 §1.3: implementar (+ pruebas míni
 | T7  | Horas de Lima (DT-5) y versiones y mensajes del archivo (DT-6) | frontend | sonnet | — ∥ T1–T6 | — | — | [x] |
 | T8  | E2E: E-03 sin recargar (CA-5) y panel a 1440×900 (CA-6) | tester | sonnet | T4, T6 | — | — | [x] |
 | T9  | Verificar CA-1 a CA-11 | tester | sonnet | T1–T8 | — | — | [x] |
-| T10 | Revisión final contra la spec | arquitecto | sonnet | T9 | — | — | [ ] |
+| T10 | Revisión final contra la spec | arquitecto | sonnet | T9 | — | — | [x] |
 | T11 | Cierre: `tasks.md`, `spec.md`, notas de `ESTADO.md` y commit | devops | haiku | T10 | — | — | [ ] |
 
 Paralelismo: T1 a T7 van en paralelo; cada una es dueña de sus archivos (columna «Archivos» de `plan.md`):
@@ -122,11 +122,11 @@ Fallos y clasificación (ninguno vuelve a una tarea de 020):
 - BD creadas para la verificación y que puede borrar el usuario: `contapp_c2` y `contapp_c3` (migradas y sembradas); `contapp` no se tocó.
 
 
-## T10 · [ ] Revisión final (arquitecto · sonnet)
+## T10 · [x] Revisión final (arquitecto · sonnet)
 - **Contexto (leer solo esto)**: `spec.md`, `plan.md`, `tasks.md` (Resultados), `git diff main...HEAD --stat` y el diff de los archivos de la columna «Archivos» de `plan.md`.
 - **Hacer**: comprobar cada CA con su evidencia de T9; que ningún límite cambió, que no hay `retry`, `skip` ni aserciones quitadas (diff de las cuatro pruebas); que 0046 no desactiva RLS ni toca `auditoria` y deja el trigger habilitado; que ningún archivo fuera de alcance (`packages/queue/src/despachador.ts`, `reconciliador.ts`) cambió; que `apps/frontend` no ganó dependencias. Ratificar desvíos en `plan.md` («Desvíos ratificados») o abrir T10a/T10b.
 - **Hecho cuando**: aprobada o lista de defectos con tareas nuevas. Commit `docs(020): revisión final`.
-- **Resultado**:
+- **Resultado** (2026-11-12, HEAD 92ab4b9): aprobada, sin defectos bloqueantes. Verificado en el diff `main...HEAD`: (1) sin `retry`, `fixme`, `.only` ni límites subidos: 2000 ms (CA-15), `LIMITE_MS = 5_000` (CA-13) y `max(5, 0.1 * mn)` (CA-8) intactos; solo hay `it.skipIf(BAJO_COBERTURA)` en la inyección de 20 ms; las líneas quitadas de las cuatro pruebas son el código movido a `medirMediana`/`fugaPorTiempo` y `FACTOR_COBERTURA` (holgura retirada por P-4), con las mismas aserciones; los `timeout` nuevos son esperas de pruebas nuevas de frontend/E2E (30 s para el sondeo de la ficha), no tocan los límites de RNF. (2) 0046: un bloque `DO`; solo `DISABLE/ENABLE TRIGGER notificacion_solo_leida` por nombre y solo si hay filas con µs; sin `ALTER ... ROW LEVEL SECURITY` ni `DISABLE ALL/USER`; no toca `auditoria`; `VALIDATE` del CHECK; journal idx 46 y snapshot; la prueba comprueba trigger habilitado y 42501. (3) El diff no incluye `.env`, `dump.rdb`, `docs/explorador/`, `.codex/`, `AGENTS.md`, `package.json` ni `pnpm-lock.yaml` (sin dependencias nuevas); `despachador.ts` y `reconciliador.ts` sin cambios; el grep de CA-7 solo devuelve `lib/fechas.ts:1`. (4) Los desvíos de T4 (tope de 120 s, «Verificando» local) y T7 (`_vN` solo en versiones anteriores) no estaban en `plan.md`: registrados en «Desvíos ratificados». Observaciones menores, no bloqueantes: las filas/encabezados de T1, T3–T8 en este archivo siguen con `[ ]` y sin «Resultado» (T11 los marca); `trabajos/page.spec.tsx`, `credenciales-cliente.tsx` y `compras/page.tsx` traen reformateo de espacios que infla el diff; CA-1 sigue «pendiente: CI» (3.ª corrida seguida) y CA-10 no prueba el 200 HTTP sino la misma sentencia a nivel BD (aceptado en T9).
 
 ## T11 · [ ] Cierre (devops · haiku)
 - **Contexto (leer solo esto)**: `tasks.md`, `spec.md` (cabecera y criterios), `docs/specs/ESTADO.md` (fila 020 y sección de notas).
