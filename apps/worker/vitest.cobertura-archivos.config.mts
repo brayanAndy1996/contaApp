@@ -49,7 +49,8 @@ export default defineConfig({
     maxWorkers: 1,
     testTimeout: 30_000,
     // CA-13 (20.000 filas en menos de 5 s) mantiene su límite estricto en `test:int`; bajo la instrumentación de v8 la misma
-    // ejecución tarda 5,8 a 6,4 s, así que esta config, y solo ella, relaja el límite a 3 veces (ver `generar-archivo.int.spec.ts`).
+    // ejecución tarda más, así que con esta variable (spec 020, P-4) la parte funcional de CA-13 corre igual y la aserción de
+    // tiempo no se evalúa, sin factor de holgura (ver `test/tiempos.ts` y `generar-archivo.int.spec.ts`).
     env: { CONTAPP_COBERTURA: "1" },
     coverage: {
       provider: "v8",

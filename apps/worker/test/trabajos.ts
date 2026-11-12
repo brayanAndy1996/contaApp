@@ -277,12 +277,16 @@ export async function fijarConfig(
   );
 }
 
-/** Valores por defecto de D12 (los que deja la migración 0018). */
+/**
+ * Valores por defecto de las cuatro colas de `config_sistema`: `sire`, `sol` y `xml` (D12, migración 0018) y `archivos`
+ * (D12/D19, migración 0040; sin SUNAT, espera 0). Si se agrega una cola a la tabla, se agrega aquí (spec 020, DT-2, D-3).
+ */
 export async function restaurarConfig(admin: ContappDb): Promise<void> {
   for (const [cola, v] of [
     ["sire", [4, 2, 2000]],
     ["sol", [2, 1, 2000]],
     ["xml", [8, 4, 2000]],
+    ["archivos", [4, 2, 0]],
   ] as const) {
     await admin.pool.query(
       `update config_sistema set concurrencia_global = $2, concurrencia_tenant = $3, espera_ruc_ms = $4,

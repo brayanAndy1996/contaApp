@@ -47,6 +47,7 @@ import {
 } from "../../../test/compras.js";
 import { arrancar007b, esperarTerminal } from "../../../test/procesadores-007b.js";
 import { loggerEspia, volcado } from "../../../test/soporte.js";
+import { BAJO_COBERTURA, medirMediana } from "../../../test/tiempos.js";
 import {
   Escenario,
   conectarRedis,
@@ -942,45 +943,55 @@ describe("cliente archivado y fallos tras guardar el ZIP", () => {
 // CA-13 · rendimiento (RNF-035, D11)
 // ---------------------------------------------------------------------------------------------------------------
 
-// Límite estricto de RNF-035 / D11 en la corrida normal (`test:int`, `ci:db`). La instrumentación de cobertura v8 encarece la
-// misma ejecución (5,8 a 6,4 s con 20.000 filas, frente a menos de 5 s sin ella), así que SOLO `vitest.cobertura-archivos.config.mts`
-// fija `CONTAPP_COBERTURA=1` y el límite se multiplica por 3 allí. El rendimiento real se sigue midiendo sin instrumentar.
-const FACTOR_COBERTURA = process.env.CONTAPP_COBERTURA === "1" ? 3 : 1;
-const LIMITE_MS = 5_000 * FACTOR_COBERTURA;
+// Límite estricto de RNF-035 / D11, sin factor de holgura (spec 020, DT-1, D-1, P-4): se compara la MEDIANA de 3 generaciones
+// tras un calentamiento, y solo sin instrumentar (`pnpm test:int`, `ci:db`). Con `CONTAPP_COBERTURA=1` (solo
+// `vitest.cobertura-archivos.config.mts`, que instrumenta con v8 y encarece la misma ejecución) la parte funcional corre igual y
+// la medida solo se registra. El calentamiento y cada muestra generan sobre un cliente propio con 20.000 filas: así todas
+// recorren el mismo camino completo (una versión nueva) y no el atajo de «idéntico a la última versión».
+const LIMITE_MS = 5_000;
+const MUESTRAS = 3;
+
+/** Genera 20.000 filas del `libro` sobre un mundo nuevo, comprueba el resultado y devuelve los ms de la generación. */
+async function generacionDe20000(libro: Libro): Promise<number> {
+  const m = await mundo();
+  const almacen = new AlmacenEspia();
+  if (libro === "compras") {
+    await sembrarCompras(admin, m, 20_000);
+  } else {
+    const prop = await sembrarPropuesta(admin, m, { filas: 20_000 });
+    await sembrarVentasConRuc(admin, m, prop, 20_000);
+  }
+  const p = await parametros(m, libro);
+  const id = await encolarGenerar(admin, backend, redis, prefijo, m, p);
+  const proc = generarArchivo({ db: dbWorker, storage: almacen });
+
+  const t0 = performance.now();
+  const resultado = (await proc(ctxDe(m, id, p))) as ResultadoGenerarArchivo;
+  const ms = performance.now() - t0;
+
+  // Parte funcional: siempre, también bajo cobertura.
+  expect(resultado).toMatchObject({ version: 1, nueva: true, lineas: 20_000 });
+  expect((await versionesDe(admin, m.c.id))[0]).toMatchObject({ lineas: 20_000 });
+  return ms;
+}
+
+async function verificarRendimiento(libro: Libro): Promise<void> {
+  await generacionDe20000(libro); // calentamiento: compila el camino caliente y llena las cachés; no cuenta
+  const mediana = await medirMediana(() => generacionDe20000(libro), MUESTRAS);
+  console.info(
+    `CA-13 ${libro}: mediana de ${MUESTRAS} = ${mediana.toFixed(0)} ms${BAJO_COBERTURA ? " (bajo cobertura: no se compara)" : ""}`,
+  );
+  if (BAJO_COBERTURA) return;
+  expect(mediana, `${libro}: mediana de ${MUESTRAS} generaciones de 20.000 filas`).toBeLessThan(LIMITE_MS);
+}
 
 describe("CA-13 / D11: 20.000 filas se generan en menos de 5 s", () => {
   it("compras: 20.000 filas", async () => {
-    const m = await mundo();
-    const almacen = new AlmacenEspia();
-    await sembrarCompras(admin, m, 20_000);
-    const p = await parametros(m, "compras");
-    const id = await encolarGenerar(admin, backend, redis, prefijo, m, p);
-    const proc = generarArchivo({ db: dbWorker, storage: almacen });
-
-    const t0 = performance.now();
-    const resultado = (await proc(ctxDe(m, id, p))) as ResultadoGenerarArchivo;
-    const ms = performance.now() - t0;
-
-    expect(resultado).toMatchObject({ version: 1, nueva: true, lineas: 20_000 });
-    expect(ms).toBeLessThan(LIMITE_MS);
-    expect((await versionesDe(admin, m.c.id))[0]).toMatchObject({ lineas: 20_000 });
+    await verificarRendimiento("compras");
   });
 
   it("ventas: 20.000 filas", async () => {
-    const m = await mundo();
-    const almacen = new AlmacenEspia();
-    const prop = await sembrarPropuesta(admin, m, { filas: 20_000 });
-    await sembrarVentasConRuc(admin, m, prop, 20_000);
-    const p = await parametros(m, "ventas");
-    const id = await encolarGenerar(admin, backend, redis, prefijo, m, p);
-    const proc = generarArchivo({ db: dbWorker, storage: almacen });
-
-    const t0 = performance.now();
-    const resultado = (await proc(ctxDe(m, id, p))) as ResultadoGenerarArchivo;
-    const ms = performance.now() - t0;
-
-    expect(resultado).toMatchObject({ version: 1, nueva: true, lineas: 20_000 });
-    expect(ms).toBeLessThan(LIMITE_MS);
+    await verificarRendimiento("ventas");
   });
 });
 
