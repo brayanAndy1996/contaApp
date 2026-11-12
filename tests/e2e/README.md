@@ -36,7 +36,7 @@ en el stdout del backend, que queda en `<tmp>/backend.log`.
 | --------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------- |
 | `E2E_CORREO`                            | `mailpit`       | `mailpit` (SMTP a Mailpit) o `consola`                                                              |
 | `E2E_CONSERVAR_BD`                      | `0`             | `1`: deja `contapp_e2e` al terminar y la reutiliza si ya existe                                     |
-| `E2E_REDIS_DB`                          | `15`            | Índice de Redis de la corrida (1 a 15). Se vacía al arrancar; el 0 es el de desarrollo y se rechaza |
+| `E2E_REDIS_DB`                          | `14`            | Índice de Redis de la corrida (1 a 15). Se vacía al arrancar; el 0 es el de desarrollo y se rechaza; el 15 es de las pruebas de integración |
 | `MAILPIT_SMTP_PORT` · `MAILPIT_UI_PORT` | `1025` · `8025` | Solo con `mailpit`                                                                                  |
 
 ## Qué hace una corrida

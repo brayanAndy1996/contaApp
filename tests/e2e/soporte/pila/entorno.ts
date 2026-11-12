@@ -83,7 +83,7 @@ export function leerConfig(env: NodeJS.ProcessEnv = process.env): ConfigE2E {
   if (conservar !== "0" && conservar !== "1") {
     throw new Error('E2E_CONSERVAR_BD debe ser "1" o "0".');
   }
-  const redisDb = Number(env.E2E_REDIS_DB ?? "15");
+  const redisDb = Number(env.E2E_REDIS_DB ?? "14");
   if (!Number.isInteger(redisDb) || redisDb < 1 || redisDb > 15) {
     throw new Error(
       "E2E_REDIS_DB debe ser un entero de 1 a 15 (el índice 0 es el de desarrollo).",
