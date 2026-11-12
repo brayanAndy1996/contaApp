@@ -232,7 +232,9 @@ export default function NuevoCliente() {
             {error}
           </p>
         )}
-        {cupoLleno && <UsoPlan />}
+        {cupoLleno && (
+          <UsoPlan avisoRucsAnunciado={error === MENSAJES_PLAN.limiteRucs} />
+        )}
 
         <button
           type="submit"

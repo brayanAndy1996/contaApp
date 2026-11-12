@@ -163,7 +163,10 @@ test("credenciales erróneas dan el mismo mensaje exista o no la cuenta", async 
 test("cerrar sesión desde el panel devuelve al login y se puede volver a entrar", async ({
   page,
   siembra,
+  vigilancia,
 }) => {
+  // Con la sesión cerrada, `GET /api/auth/sesion` da 401: es lo esperado al volver al panel.
+  vigilancia.permitirError(/401/);
   const estudio = await siembra.estudio();
   await page.goto("/login");
   await ingresar(page, estudio.dueno.correo, estudio.dueno.contrasena);

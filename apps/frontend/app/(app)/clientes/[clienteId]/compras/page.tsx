@@ -581,7 +581,16 @@ function Compras() {
               </p>
               {carga === "error" && (
                 <>
-                  <p role="alert" className="text-red-600">
+                  {/* Un aviso, un anunciador (018, T8a): si la pantalla ya anuncia este texto (p. ej. «No se
+                      encontró lo que buscas.» de un cliente ajeno), la grilla lo muestra sin rol. */}
+                  <p
+                    role={
+                      (errorCarga ?? M.errorCarga) === errorGeneral
+                        ? undefined
+                        : "alert"
+                    }
+                    className="text-red-600"
+                  >
                     {errorCarga ?? M.errorCarga}
                   </p>
                   <button

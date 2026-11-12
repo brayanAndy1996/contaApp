@@ -15,7 +15,11 @@ Nivel C (04 §2.1): sin TDD ni ADV. Flujo 04 §1.3: implementar (+ pruebas míni
 | T7  | Flujos E-07 y E-08: lupa XML y generar archivo | tester | sonnet | T1, T3 ∥ T4–T6, T8 | — | — | [x] |
 | T8  | Flujos E-09 y E-11: ventas y aislamiento en la UI | tester | sonnet | T1, T3 ∥ T4–T7 | — | — | [x] |
 | T9  | Flujo E-06 de volumen (`@volumen`) | tester | sonnet | T6 | — | — | [ ] |
-| T4a–T9a | (Condicional) Defectos de pantalla que encuentre Tn (P-6), una por tarea de flujos | frontend | sonnet | la Tn que lo encuentra | — | — | — |
+| T4a | Defectos de pantalla de E-01/E-02 y aislamiento: «Cerrar sesión» y cambio de estudio que remonta la pantalla | frontend | sonnet | T4, T8 | — | — | [x] |
+| T5a | Aviso de límite de RUCs en un solo anunciador | frontend | sonnet | T5 | — | — | [x] |
+| T7a | Foco de «Acciones» tras guardar desde la lupa (RF-096) | frontend | sonnet | T7 | — | — | [x] |
+| T8a | «No se encontró lo que buscas.» una sola vez en compras; listas al cambiar de estudio | frontend | sonnet | T8 | — | — | [x] |
+| T6a, T9a | (Condicional) Defectos de pantalla que encuentre Tn (P-6), una por tarea de flujos | frontend | sonnet | la Tn que lo encuentra | — | — | — |
 | T10 | Job `e2e` en CI, caché de Chromium y artefactos (P-1, P-5) | devops | haiku | T2 ∥ T3–T9 | — | — | [ ] |
 | T11 | Verificar CA-1 a CA-12: estabilidad, higiene, tiempos y CI | tester | sonnet | T4–T10 y las Tna abiertas | — | — | [ ] |
 | T12 | Revisión final contra la spec | arquitecto | sonnet | T11 | — | — | [ ] |
@@ -115,6 +119,17 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: el Resultado de la Tn que la abre (defectos con pantalla, paso, esperado y obtenido, archivo probable) y solo los componentes que nombra.
 - **Hacer**: corregir solo defectos pequeños de pantalla (P-6: textos, roles, foco, estado que no se refresca, aviso que no se ve); con su prueba de componente (`*.tn.spec.tsx`). Si resulta ser de servidor o pide cambiar un contrato, parar y escalar al orquestador.
 - **Hecho cuando**: la prueba de componente y el archivo E2E de la Tn pasan; `pnpm --filter @contapp/frontend test`, `typecheck`, `lint` y `next build` limpios. Commit `fix(018): <defecto> (Tna)`. Si una Tn no encuentra defectos, su Tna no se crea.
+
+- **Resultado T4a, T5a, T7a y T8a** (2026-11-12, hechas juntas, P-6): defectos de pantalla corregidos en `apps/frontend`, sin tocar contratos ni servidor.
+  - **T4a-1 · Cerrar sesión**: botón «Cerrar sesión» en el menú de `(app)/layout.tsx`: `POST /auth/logout` (CSRF por `api()`), `reiniciarSesion()` y `router.replace("/login")`; si falla (no 401), «No se pudo cerrar la sesión. Inténtalo de nuevo.».
+  - **T4a-2 / T8a-1 · Cambio de estudio**: el layout lleva una época (`epoca`) que sube al cambiar de estudio (aquí, tras releer la sesión, o por el evento de estudio desfasado de otra pestaña) y envuelve a `children` en `<Fragment key={epoca}>`: toda pantalla del área `(app)` se remonta y vuelve a pedir sus datos con el estudio nuevo (solución general; sin remontar en la carga inicial para no duplicar peticiones).
+  - **T5a · Límite de RUCs**: `UsoPlan` recibe `avisoRucsAnunciado`; si la pantalla (`clientes/nuevo`, `clientes/[clienteId]` al reactivar) ya anuncia «Llegaste al límite…», el uso del plan omite esa línea y conserva «subir de plan».
+  - **T8a-2 · No encontrado en compras**: el error de carga de la grilla se muestra sin `role="alert"` cuando su texto es igual al `errorGeneral` que la página ya anuncia.
+  - **T7a · Foco en la lupa**: `acciones-fila-compras.tsx` devuelve el foco al botón «Acciones» al terminar de guardar si quedó en `body` (sirve en la grilla y dentro de la lupa).
+  - **Pruebas de componente**: `layout.spec.tsx` (+3: logout feliz y 500, remonte al cambiar de estudio), `nuevo/page.spec.tsx` y `[clienteId]/fiscal.spec.tsx` (un solo aviso de límite), `compras/page.avisos-t8a.spec.tsx` (2), `acciones-fila-compras.spec.tsx` (+2: foco vuelve; no roba el foco). Frontend: 846 pruebas, `typecheck` y `lint` limpios.
+  - **Prueba E2E ajustada (una línea)**: `alta.e2e.ts` «cerrar sesión…» no declaraba el 401 de `GET /api/auth/sesion` que es inherente a volver al panel sin sesión (la vigilancia lo marcaba como error de consola); se añadió `vigilancia.permitirError(/401/)`, como ya hace la prueba de credenciales erróneas. Sin otros cambios en `tests/e2e`.
+  - **Panel «Generar archivo» tapa columnas a 1440 px (evaluado, no corregido)**: el panel es un cajón `fixed` de 30 rem que se superpone y no sabe nada de la página; evitarlo pide que el panel avise a la página (compras y ventas) para reservar ancho, y eso cambia el ancho que mide la grilla virtualizada (cierre del menú de acciones en `resize`, columnas visibles). No es un arreglo pequeño: queda como observación para una spec de UX de la grilla.
+  - **E2E**: archivos afectados (`alta`, `equipo`, `clientes`, `aislamiento`, `lupa`) 38/38 en 23 s; `alta`+`equipo` con `--repeat-each=4` 60/60; suite completa `pnpm e2e --trace off` 86 pasadas (los 4 `test.fail()` de `soporte.e2e.ts` son esperados) en 51 s. Una corrida inicial mostró un `equipo.e2e.ts` «lista abierta» que acabó en `/login` y no se repitió en 4 corridas más; se deja anotado por si reaparece.
 
 ## T10 · [ ] CI (devops · haiku)
 - **Contexto (leer solo esto)**: `spec.md` (D-9; CA-3, CA-11; P-1, P-5), `plan.md` (Contratos: CI, etiquetas y comandos), `.github/workflows/ci.yml` (jobs `ci` y `aislamiento`), `docker-compose.yml` (servicio `mailpit`), `tests/e2e/README.md`.

@@ -373,7 +373,11 @@ function DetalleCliente() {
               {errorAccion}
             </p>
           )}
-          {mostrarUso && <UsoPlan />}
+          {mostrarUso && (
+            <UsoPlan
+              avisoRucsAnunciado={errorAccion === MENSAJES_PLAN.limiteRucs}
+            />
+          )}
         </div>
       )}
       {cliente?.perfil && (

@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import { Campana } from "../../components/notificaciones/campana";
 import { cargarYo, tiene, type Yo } from "../../lib/acceso";
 import { api, EVENTO_ESTUDIO_DESFASADO } from "../../lib/api";
@@ -16,6 +22,7 @@ interface Estudio {
 
 const ERROR_CAMBIO = "No se pudo cambiar de estudio. Inténtalo de nuevo.";
 const ERROR_CARGA = "No se pudo cargar la sesión. Recarga la página.";
+const ERROR_CERRAR = "No se pudo cerrar la sesión. Inténtalo de nuevo.";
 const AVISO_DESFASADO =
   "El estudio activo cambió en otra pestaña. Se actualizaron los datos.";
 
@@ -26,6 +33,9 @@ export default function LayoutApp({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [yo, setYo] = useState<Yo | null>(null);
+  // Época de los datos: sube al cambiar de estudio (aquí o en otra pestaña) para remontar la pantalla
+  // abierta; así ninguna lista, formulario ni lupa conserva datos del estudio anterior (spec 018, T4a).
+  const [epoca, setEpoca] = useState(0);
 
   // El menú decide por permisos (`GET /acceso/yo`); si falla, simplemente no hay enlaces.
   const refrescarYo = useCallback(async () => {
@@ -64,6 +74,7 @@ export default function LayoutApp({ children }: { children: ReactNode }) {
         setSesion(s);
         setAviso(AVISO_DESFASADO);
         void refrescarYo();
+        setEpoca((e) => e + 1);
         router.refresh();
       });
     };
@@ -89,9 +100,26 @@ export default function LayoutApp({ children }: { children: ReactNode }) {
       const nueva = await obtenerSesion();
       if (nueva) setSesion(nueva);
       await refrescarYo();
+      setEpoca((e) => e + 1);
       router.refresh();
     } catch {
       setError(ERROR_CAMBIO);
+    }
+  }
+
+  async function cerrarSesion() {
+    setError(null);
+    setAviso(null);
+    try {
+      const r = await api("/auth/logout", { method: "POST" });
+      if (!r.ok && r.status !== 401) {
+        setError(ERROR_CERRAR);
+        return;
+      }
+      reiniciarSesion();
+      router.replace("/login");
+    } catch {
+      setError(ERROR_CERRAR);
     }
   }
 
@@ -120,6 +148,13 @@ export default function LayoutApp({ children }: { children: ReactNode }) {
           <Link href="/configuracion/auditoria">Auditoría</Link>
         )}
         {sesion && <Campana key={sesion.estudioActivo?.id ?? "sin-estudio"} />}
+        <button
+          type="button"
+          onClick={() => void cerrarSesion()}
+          className="ml-auto rounded border px-2 py-1"
+        >
+          Cerrar sesión
+        </button>
         {aviso && <p role="status">{aviso}</p>}
         {error && (
           <p role="alert" className="text-red-600">
@@ -127,7 +162,7 @@ export default function LayoutApp({ children }: { children: ReactNode }) {
           </p>
         )}
       </nav>
-      {children}
+      <Fragment key={epoca}>{children}</Fragment>
     </>
   );
 }

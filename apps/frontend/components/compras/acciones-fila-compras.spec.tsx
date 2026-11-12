@@ -82,6 +82,55 @@ describe("AccionesFilaCompras · clasificar (CA-6)", () => {
   });
 });
 
+describe("AccionesFilaCompras · foco tras guardar (spec 018 T7a, RF-096)", () => {
+  it("el botón se deshabilita mientras guarda y el foco vuelve a él al terminar", async () => {
+    const nueva = filaDe({ ...C_3064_BOLSAS, version: 2, clasificada: true });
+    instalarFetchCompras({
+      extra: {
+        [ruta(C_3064_BOLSAS.id, "clasificar")]: () => {
+          // El navegador deja el foco en <body> cuando el botón enfocado se deshabilita.
+          (document.activeElement as HTMLElement | null)?.blur();
+          return { status: 200, cuerpo: accionDe(nueva) };
+        },
+      },
+    });
+    const contexto = contextoDe();
+    const usuario = userEvent.setup();
+    render(<AccionesFilaCompras contexto={contexto} fila={C_3064_BOLSAS} />);
+
+    await abrirMenu(usuario, "F001-3064");
+    await usuario.click(screen.getByRole("menuitem", { name: M.clasificarComo("DNG") }));
+
+    const boton = screen.getByRole("button", { name: `${M.columnas.acciones} F001-3064` });
+    await vi.waitFor(() => expect(contexto.recargarFila).toHaveBeenCalled());
+    await vi.waitFor(() => expect((boton as HTMLButtonElement).disabled).toBe(false));
+    await vi.waitFor(() => expect(document.activeElement).toBe(boton));
+  });
+
+  it("si el foco ya está en otro control al terminar, no se lo quita", async () => {
+    const nueva = filaDe({ ...C_3064_BOLSAS, version: 2, clasificada: true });
+    instalarFetchCompras({
+      extra: { [ruta(C_3064_BOLSAS.id, "clasificar")]: { status: 200, cuerpo: accionDe(nueva) } },
+    });
+    const contexto = contextoDe();
+    const usuario = userEvent.setup();
+    render(
+      <>
+        <AccionesFilaCompras contexto={contexto} fila={C_3064_BOLSAS} />
+        <button type="button">otro control</button>
+      </>,
+    );
+    await abrirMenu(usuario, "F001-3064");
+    await usuario.click(screen.getByRole("menuitem", { name: M.clasificarComo("DNG") }));
+    const otro = screen.getByRole("button", { name: "otro control" });
+    otro.focus();
+    await vi.waitFor(() => expect(contexto.recargarFila).toHaveBeenCalled());
+    const boton = screen.getByRole("button", { name: `${M.columnas.acciones} F001-3064` });
+    await vi.waitFor(() => expect((boton as HTMLButtonElement).disabled).toBe(false));
+    expect(document.activeElement).toBe(otro);
+  });
+});
+
 describe("AccionesFilaCompras · excluir y restaurar (CA-9)", () => {
   it("una fila excluida ofrece Restaurar (no clasificar ni excluir) y envía la versión", async () => {
     const excluida = filaDe({ id: C_1040_ISC.id, serie: "F001", numero: "1040", version: 4, excluida: true, motivo: "Gasto personal" });

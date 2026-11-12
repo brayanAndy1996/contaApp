@@ -21,7 +21,15 @@ function fechaDePrueba(iso: string | null): string | null {
   return new Date(iso).toLocaleDateString("es-PE", FORMATO_FECHA);
 }
 
-export function UsoPlan() {
+interface PropsUsoPlan {
+  /**
+   * La pantalla ya anuncia «límite de RUCs» en su propio aviso (409 `cupo_rucs`): aquí se omite esa línea
+   * para que el mismo texto no salga en dos `role="alert"` (spec 018, T5a, CA-10).
+   */
+  avisoRucsAnunciado?: boolean;
+}
+
+export function UsoPlan({ avisoRucsAnunciado = false }: PropsUsoPlan = {}) {
   const [resultado, setResultado] = useState<ResultadoUso | null>(null);
 
   useEffect(() => {
@@ -83,7 +91,9 @@ export function UsoPlan() {
           role="alert"
           className="flex flex-col gap-1 rounded bg-amber-50 p-3 text-amber-900"
         >
-          {alcanzoRucs && <p>{MENSAJES_PLAN.limiteRucs}</p>}
+          {alcanzoRucs && !avisoRucsAnunciado && (
+            <p>{MENSAJES_PLAN.limiteRucs}</p>
+          )}
           {alcanzoUsuarios && <p>{MENSAJES_PLAN.limiteUsuarios}</p>}
           <p>{MENSAJES_PLAN.subirDePlan}</p>
         </div>

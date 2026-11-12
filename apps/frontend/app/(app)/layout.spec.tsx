@@ -1,4 +1,5 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
+import { useEffect } from "react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { reiniciarSesion } from "../../lib/sesion";
@@ -164,5 +165,82 @@ describe("(app)/layout · menú de estudio", () => {
       expect(screen.getByRole("alert").textContent?.length).toBeGreaterThan(0),
     );
     expect(router.refresh).not.toHaveBeenCalled();
+  });
+});
+
+// Spec 018 · T4a: «Cerrar sesión» y cambio de estudio que remonta la pantalla abierta.
+describe("(app)/layout · cerrar sesión y cambio de estudio (018 T4a)", () => {
+  beforeEach(() => {
+    Object.assign(router, crearRouterFalso());
+    reiniciarSesion();
+  });
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("«Cerrar sesión» hace POST /auth/logout con el CSRF, vacía la sesión y va a /login", async () => {
+    const f = instalarFetchFalso({
+      ...rutas(),
+      "POST /api/auth/logout": { status: 204, cuerpo: null },
+    });
+    render(
+      <LayoutApp>
+        <p>contenido</p>
+      </LayoutApp>,
+    );
+    await screen.findByLabelText("Estudio");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Cerrar sesión" }));
+
+    await vi.waitFor(() => expect(router.replace).toHaveBeenCalledWith("/login"));
+    const [llamada] = f.de("POST /api/auth/logout");
+    expect(llamada?.headers["x-csrf-token"]).toBe("csrf-1");
+  });
+
+  it("si el servidor falla (500) no sale de la pantalla y avisa", async () => {
+    instalarFetchFalso({
+      ...rutas(),
+      "POST /api/auth/logout": { status: 500, cuerpo: { codigo: "error" } },
+    });
+    render(
+      <LayoutApp>
+        <p>contenido</p>
+      </LayoutApp>,
+    );
+    await screen.findByLabelText("Estudio");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Cerrar sesión" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "No se pudo cerrar la sesión",
+    );
+    expect(router.replace).not.toHaveBeenCalledWith("/login");
+  });
+
+  it("al cambiar de estudio la pantalla abierta se remonta (vuelve a pedir sus datos)", async () => {
+    instalarFetchFalso(rutas());
+    const montajes = vi.fn();
+    function Hijo() {
+      useEffect(() => {
+        montajes();
+      }, []);
+      return <p>pantalla abierta</p>;
+    }
+    render(
+      <LayoutApp>
+        <Hijo />
+      </LayoutApp>,
+    );
+    const selector = await screen.findByLabelText("Estudio");
+    await vi.waitFor(() =>
+      expect((selector as HTMLSelectElement).value).toBe(A.id),
+    );
+    expect(montajes).toHaveBeenCalledTimes(1);
+
+    const user = userEvent.setup();
+    await user.selectOptions(selector, B.id);
+    await vi.waitFor(() => expect(montajes).toHaveBeenCalledTimes(2));
   });
 });

@@ -88,6 +88,20 @@ export function AccionesFilaCompras({
     if (abierto) menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
   }, [abierto]);
 
+  // El botón se deshabilita mientras guarda y el navegador deja el foco en `body` (RF-096, spec 018 T7a): al terminar
+  // vuelve al botón, que está en la grilla o dentro de la lupa, para que Esc y las flechas sigan funcionando.
+  const estabaOcupado = useRef(false);
+  useEffect(() => {
+    if (ocupado) {
+      estabaOcupado.current = true;
+      return;
+    }
+    if (!estabaOcupado.current) return;
+    estabaOcupado.current = false;
+    const activo = document.activeElement;
+    if (activo === null || activo === document.body) boton.current?.focus();
+  }, [ocupado]);
+
   // El menú es `fixed`: si la grilla se desplaza, deja de apuntar a su botón y se cierra.
   useEffect(() => {
     if (!abierto) return;
