@@ -21,8 +21,13 @@ import { lineasDe, primeraEntradaZip, sha256 } from "../soporte/zip.js";
 import {
   abrirPanelArchivo,
   botonGenerar,
+  cabecerasGrilla,
+  cajaDe,
   corregirMixtaPorApi,
+  desplazarGrilla,
   erroresDe,
+  grillaCompras,
+  interseccion,
   versiones,
 } from "../soporte/selectores/archivo.js";
 import {
@@ -255,5 +260,56 @@ test.describe("E-08 · generar archivo", () => {
     await expect(
       lupa.getByRole("button", { name: "Acciones F001-3064" }),
     ).toBeDisabled();
+  });
+
+  // Spec 020 CA-6 (DT-4): a 1440 px el panel va en una columna junto a la grilla y no tapa ninguna cabecera.
+  test("a 1440×900 el panel no se cruza con las cabeceras y la última columna se alcanza desplazando", async ({
+    siembra,
+    sesiones,
+    api,
+  }) => {
+    const { estudio, cliente } = await prepararCompras(siembra, sesiones, api);
+    const { page } = await sesiones.paginaDe(estudio.dueno);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(rutaCompras(cliente.id, PERIODO));
+    await expect(filaDe(page, "F001-2056")).toBeVisible();
+
+    const panel = await abrirPanelArchivo(page);
+    const cabeceras = cabecerasGrilla(page);
+    const total = await cabeceras.count();
+    expect(total).toBeGreaterThan(2);
+
+    // Las cajas se miden con la grilla a la vista (la página se desplaza en vertical; el panel queda fijo a la columna).
+    await grillaCompras(page).scrollIntoViewIfNeeded();
+    const cajaPanel = await cajaDe(panel);
+    const cajaGrilla = await cajaDe(grillaCompras(page));
+    // La grilla termina donde empieza el panel: son dos columnas, no una encima de la otra.
+    expect(cajaGrilla.x + cajaGrilla.width).toBeLessThanOrEqual(
+      cajaPanel.x + 0.5,
+    );
+
+    // Ninguna cabecera, vista por la ventana de la grilla, toca al panel; se repite en los dos extremos.
+    for (const extremo of ["inicio", "fin"] as const) {
+      await desplazarGrilla(page, extremo);
+      for (let i = 0; i < total; i++) {
+        const caja = await cajaDe(cabeceras.nth(i));
+        const visible = interseccion(caja, cajaGrilla);
+        if (visible === null) continue;
+        expect(
+          interseccion(visible, cajaPanel),
+          `la cabecera ${i} se cruza con el panel (${extremo})`,
+        ).toBeNull();
+      }
+    }
+
+    // La última columna se alcanza desplazando la grilla hasta el final: queda dentro de la ventana de la grilla.
+    await desplazarGrilla(page, "fin");
+    const ultima = cabeceras.last();
+    const cajaUltima = await cajaDe(ultima);
+    expect(cajaUltima.x).toBeGreaterThanOrEqual(cajaGrilla.x - 0.5);
+    expect(cajaUltima.x + cajaUltima.width).toBeLessThanOrEqual(
+      cajaGrilla.x + cajaGrilla.width + 0.5,
+    );
+    expect(interseccion(cajaUltima, cajaPanel)).toBeNull();
   });
 });

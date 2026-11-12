@@ -244,9 +244,13 @@ test.describe("credenciales del cliente", () => {
       })
       .toBe("verificada");
 
-    await page.reload();
-    await expect(grupoSol(page)).toContainText(/Estado: Verificada/);
-    await expect(grupoSire(page)).toContainText(/Estado: Verificada/);
+    // La ficha se refresca sola (spec 020 CA-5): pasa de «Verificando…» a «Verificada» sin recargar la página.
+    await expect(grupoSol(page)).toContainText(/Estado: Verificada/, {
+      timeout: 30_000,
+    });
+    await expect(grupoSire(page)).toContainText(/Estado: Verificada/, {
+      timeout: 30_000,
+    });
     await expect(campo(grupoSol(page), "Clave SOL")).toHaveValue("");
     for (const valor of Object.values(CREDENCIALES_FIXTURE)) {
       expect(await page.content()).not.toContain(valor);

@@ -107,7 +107,10 @@ test("excluir la venta descuadrada con motivo deja generar las ventas sin ella",
   await expect(
     panel.getByText("El archivo no se puede generar todavía."),
   ).toBeVisible();
-  await expect(panel.getByText("CUADRE")).toHaveCount(1);
+  await expect(
+    panel.getByText("Los montos no cuadran con el total"),
+  ).toHaveCount(1);
+  await expect(panel.getByText("CUADRE", { exact: true })).toHaveCount(0);
   await expect(botonGenerar(page)).toBeDisabled();
   await panel.getByRole("button", { name: "Excluir la venta D001-1" }).click();
 
@@ -287,7 +290,10 @@ test("lectura ve el previo y la grilla, pero sin botones de excluir ni de genera
 
   await abrirPanel(page).click();
   const panel = panelGenerar(page);
-  await expect(panel.getByText("CUADRE")).toHaveCount(1);
+  await expect(
+    panel.getByText("Los montos no cuadran con el total"),
+  ).toHaveCount(1);
+  await expect(panel.getByText("CUADRE", { exact: true })).toHaveCount(0);
   await expect(
     panel.getByText("No tienes permiso para generar el archivo."),
   ).toHaveCount(1);
