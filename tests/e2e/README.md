@@ -63,6 +63,16 @@ pnpm --filter @contapp/tests-e2e exec playwright show-trace test-results/<carpet
 
 Las trazas solo contienen datos de fixture.
 
+## Estabilidad (CA-4)
+
+Sin reintentos (`retries: 0`). Para que una prueba no dependa del reloj del worker (T11b):
+
+- Un estado de la cola que dura un ciclo del despachador (0 a 500 ms) no se comprueba «al vuelo». «En cola» se
+  fuerza con `retenerRuc` (`soporte/cola.ts`), que toma el lock del RUC como el despachador y lo suelta después
+  de verlo en pantalla. «Descargando…» no se puede retener: se comprueba en el registro del trabajo (`iniciadoEn`).
+- La pila no cambia la concurrencia de las colas: solo `espera_ruc_ms = 0` (T6). Las pruebas no se encolan entre sí
+  más de unos milisegundos porque los trabajos del mock tardan menos de 0,2 s.
+
 ## CI
 
 El job `e2e` de `.github/workflows/ci.yml` se llama «E2E de R1 (Playwright, Chromium y Mailpit)». Sus servicios son PostgreSQL 17, Redis 7 y Mailpit (`axllent/mailpit:v1.33.0`, el de `docker-compose.yml`). Cada corrida genera la contraseña de `contapp_app`, y el correo va con `E2E_CORREO=mailpit`.

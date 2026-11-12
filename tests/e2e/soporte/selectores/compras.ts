@@ -99,28 +99,6 @@ export async function irACelda(
 export const separador = (page: Page, titulo: RegExp | string): Locator =>
   grilla(page).locator("[data-seccion-titulo]").filter({ hasText: titulo });
 
-/**
- * Graba, desde que carga la página, cada texto distinto que tuvieron las regiones `role="status"` y `role="alert"`.
- * Los trabajos de la cola pasan por «En cola» y «Descargando…» en milisegundos: una aserción que sondea puede no
- * ver el estado intermedio, pero el historial sí lo guarda. Llamar antes de `page.goto`.
- */
-export async function grabarAvisos(page: Page): Promise<() => Promise<string[]>> {
-  await page.addInitScript(() => {
-    const w = window as unknown as { __avisos: string[] };
-    w.__avisos = [];
-    const leer = (): string =>
-      [...document.querySelectorAll('[role="status"],[role="alert"]')]
-        .map((e) => e.textContent ?? "")
-        .join(" | ");
-    new MutationObserver(() => {
-      const ahora = leer();
-      if (w.__avisos[w.__avisos.length - 1] !== ahora) w.__avisos.push(ahora);
-    }).observe(document, { childList: true, subtree: true, characterData: true });
-  });
-  return () =>
-    page.evaluate(() => (window as unknown as { __avisos: string[] }).__avisos);
-}
-
 /** Una compra tal como la devuelve el listado de la API (solo lo que usan los flujos). */
 export interface CompraApi {
   readonly id: string;

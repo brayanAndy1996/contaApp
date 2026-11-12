@@ -278,7 +278,11 @@ test.describe("roles y estudios", () => {
   test("un usuario en dos estudios cambia de estudio y ve los datos del nuevo", async ({
     siembra,
     sesiones,
+    vigilancia,
   }) => {
+    // T11a/T11b: igual que la prueba siguiente, el cambio de estudio rota la sesión y una petición en vuelo con la
+    // cookie vieja (la campana o la lista) puede recibir 401; `api()` la recupera, pero el navegador la anota en consola.
+    vigilancia.permitirError(/status of 401/);
     const a: Estudio = await siembra.estudio({
       nombre: "Estudio A Cambio E2E",
     });

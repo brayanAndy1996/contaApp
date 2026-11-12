@@ -106,6 +106,9 @@ async function observar(page: Page, url: string): Promise<Observado> {
   page.on("requestfinished", alTerminar);
   await page.goto(url);
   await expect(alerta(page, AVISO_NO_ENCONTRADO).first()).toBeVisible();
+  // T11b: compras hace dos lecturas (cliente y grilla); el aviso sale con la primera y la grilla puede seguir en
+  // «Cargando…». Se compara la pantalla ya quieta, no la de ese instante.
+  await expect(page.getByRole("main").getByText(/^Cargando/)).toHaveCount(0);
   await Promise.all(pendientes);
   page.off("response", alResponder);
   page.off("requestfinished", alTerminar);

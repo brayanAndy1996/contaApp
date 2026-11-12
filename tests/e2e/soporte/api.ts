@@ -33,6 +33,8 @@ export interface TrabajoApi {
   readonly estado:
     "en_cola" | "ejecutando" | "completado" | "error" | "cancelado";
   readonly motivo: string | null;
+  /** Cuándo pasó a `ejecutando` (null si nunca salió de la cola). */
+  readonly iniciadoEn: string | null;
 }
 
 export interface PrevioApi {

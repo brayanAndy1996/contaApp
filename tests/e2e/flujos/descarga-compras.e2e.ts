@@ -1,5 +1,6 @@
 // E-04 · Descarga SIRE de compras (spec 018, T6; HU-14, RF-042; CA-2, CA-8, CA-10). Cada prueba crea su estudio,
 // su cliente y su sesión. El caso feliz cubre D-1 de 015 (la grilla se actualiza sola al completar la descarga).
+import { retenerRuc } from "../soporte/cola.js";
 import {
   PERIODO,
   RUCS,
@@ -9,10 +10,10 @@ import {
   rucCentinela,
   test,
 } from "../soporte/fixtures.js";
+import type { TrabajoApi } from "../soporte/api.js";
 import {
   apiCompras,
   filasDeCompras,
-  grabarAvisos,
   rutaCompras,
 } from "../soporte/selectores/compras.js";
 
@@ -29,7 +30,6 @@ test("descarga 202610: en cola, «5 nuevas» y la grilla se actualiza sola", asy
   });
   const { page, sesion } = await sesiones.paginaDe(estudio.dueno);
   await api(sesion).cargarCredenciales(cliente.id);
-  const avisos = await grabarAvisos(page);
 
   await page.goto(rutaCompras(cliente.id, PERIODO));
   await expect(page.getByText("Aún no hay descargas de este periodo.")).toBeVisible();
@@ -37,7 +37,15 @@ test("descarga 202610: en cola, «5 nuevas» y la grilla se actualiza sola", asy
   await expect(filasDeCompras(page)).toHaveCount(0);
 
   const descargar = page.getByRole("button", { name: "Descargar", exact: true });
-  await descargar.click();
+  // T11b: «En cola» dura hasta el siguiente ciclo del despachador (0 a 500 ms) y podía no llegar a pintarse. Con el
+  // lock del RUC retenido el trabajo se queda en cola: la posición se comprueba en pantalla, no en un instante.
+  const retencion = await retenerRuc("sire", RUCS.contribuyente);
+  try {
+    await descargar.click();
+    await expect(estado(page, "En cola · posición 1")).toBeVisible();
+  } finally {
+    await retencion.soltar();
+  }
 
   // Sin recargar la página: la descarga termina y la grilla pide sola el listado (D-1 de 015, CA-8).
   await expect(page.getByText("5 nuevas, 0 distintas")).toBeVisible({
@@ -48,10 +56,17 @@ test("descarga 202610: en cola, «5 nuevas» y la grilla se actualiza sola", asy
   await expect(page.getByText(/^Última descarga: /)).toBeVisible();
   await expect(descargar).toBeEnabled();
 
-  // El trabajo pasó por «En cola» y «Descargando…» antes de terminar.
-  const historial = (await avisos()).join("\n");
-  expect(historial).toContain("En cola · posición 1");
-  expect(historial).toContain("Descargando la propuesta…");
+  // Tras la cola pasó por `ejecutando` («Descargando la propuesta…»). En pantalla ese estado dura lo que el trabajo
+  // del mock (decenas de ms) y sus dos eventos pueden llegar juntos, así que no es determinista verlo (T11b): se
+  // comprueba en el registro del trabajo, y el texto lo cubre la prueba de componente (`descarga-compras.spec.tsx`).
+  const trabajos = await api(sesion).exigir<TrabajoApi[]>(
+    "GET",
+    `/trabajos?clienteId=${cliente.id}`,
+  );
+  const descarga = trabajos.filter((t) => t.tipo === "sire.propuesta.descargar");
+  expect(descarga).toHaveLength(1);
+  expect(descarga[0]).toMatchObject({ estado: "completado" });
+  expect(descarga[0]?.iniciadoEn).not.toBeNull();
 
   // Cada aviso aparece una vez en el árbol de accesibilidad (CA-10).
   await expect(estado(page, "4 compras cargadas")).toHaveCount(1);

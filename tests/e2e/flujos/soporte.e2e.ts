@@ -164,7 +164,13 @@ test.describe("la vigilancia hace fallar la prueba", () => {
       }),
     );
     await page.goto("/login");
-    await page.evaluate(() => fetch("/api/auth/sesion"));
+    // T11b: la vigilancia lee el cuerpo de la respuesta después del evento `response`; si la prueba termina antes,
+    // el contexto se cierra con la lectura a medias y no hay hallazgo. Se espera la respuesta y su cuerpo.
+    const [respuesta] = await Promise.all([
+      page.waitForResponse("**/api/auth/sesion"),
+      page.evaluate(() => fetch("/api/auth/sesion")),
+    ]);
+    await respuesta.text();
   });
 
   test("con window.__pwn definido, aunque la página cambie después", async ({
