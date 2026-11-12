@@ -179,8 +179,10 @@ test("cerrar sesión desde el panel devuelve al login y se puede volver a entrar
   await cerrar.click();
   await expect(page).toHaveURL(/\/login$/);
 
-  // Sin sesión, el panel manda al login.
-  await page.goto("/");
+  // Sin sesión, el panel manda al login. La redirección la hace el cliente al recibir el 401 de la sesión y puede
+  // llegar antes del evento `load`: `goto` espera solo la respuesta (`commit`) para que no la tome por una
+  // navegación interrumpida; el destino lo comprueba la aserción siguiente.
+  await page.goto("/", { waitUntil: "commit" });
   await expect(page).toHaveURL(/\/login$/);
 
   await ingresar(page, estudio.dueno.correo, estudio.dueno.contrasena);

@@ -283,6 +283,12 @@ test.describe("roles y estudios", () => {
     // T11a/T11b: igual que la prueba siguiente, el cambio de estudio rota la sesión y una petición en vuelo con la
     // cookie vieja (la campana o la lista) puede recibir 401; `api()` la recupera, pero el navegador la anota en consola.
     vigilancia.permitirError(/status of 401/);
+    // T11 (CA-4): la otra cara de la misma carrera. Si la petición en vuelo (la campana, `GET /api/notificaciones/no-leidas`)
+    // ya lleva la cookie nueva pero conserva el `X-Estudio` del estudio anterior, el servidor responde 409
+    // `estudio_desfasado` (004 D12, `estudio.guard.ts`). Es el contrato; `api()` lo recupera (relee la sesión y
+    // refresca la pantalla) y el navegador lo anota en consola. Medido: 6 de 36 y 4 de 36 cambios dobles de estudio
+    // con la suite completa en paralelo, siempre la campana y con el `X-Estudio` del estudio que se deja.
+    vigilancia.permitirError(/status of 409/);
     const a: Estudio = await siembra.estudio({
       nombre: "Estudio A Cambio E2E",
     });
@@ -338,6 +344,12 @@ test.describe("roles y estudios", () => {
     // T11a: al cambiar de estudio una petición en vuelo con la cookie vieja puede recibir 401 (el
     // servidor revoca el token al rotar). `api()` lo recupera; el navegador igual lo anota en consola.
     vigilancia.permitirError(/status of 401/);
+    // T11 (CA-4): la otra cara de la misma carrera. Si la petición en vuelo (la campana, `GET /api/notificaciones/no-leidas`)
+    // ya lleva la cookie nueva pero conserva el `X-Estudio` del estudio anterior, el servidor responde 409
+    // `estudio_desfasado` (004 D12, `estudio.guard.ts`). Es el contrato; `api()` lo recupera (relee la sesión y
+    // refresca la pantalla) y el navegador lo anota en consola. Medido: 6 de 36 y 4 de 36 cambios dobles de estudio
+    // con la suite completa en paralelo, siempre la campana y con el `X-Estudio` del estudio que se deja.
+    vigilancia.permitirError(/status of 409/);
     const a: Estudio = await siembra.estudio();
     const b: Estudio = await siembra.estudio();
     const clienteA = await siembra.cliente(a.tenantId, {
