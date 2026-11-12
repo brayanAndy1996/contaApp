@@ -6,14 +6,14 @@ Nivel C (04 §2.1): sin TDD ni ADV. Flujo 04 §1.3: implementar (+ pruebas míni
 
 | #   | Tarea | Rol | Modelo | Depende de | TDD | ADV | Estado |
 | --- | ----- | --- | ------ | ---------- | --- | --- | ------ |
-| T1  | Tiempos del backend sin instrumentar: CA-15 de lectura y CA-8 de auth con inyección de 20 ms (DT-1) | tester | sonnet | — ∥ T2–T7 | — | — | [ ] |
-| T2  | Tiempos y espera del worker: CA-13 y `ejecutor.int.spec.ts:523` (DT-1); `restaurarConfig` con las cuatro colas (DT-2) | tester | sonnet | — ∥ T1, T3–T7 | — | — | [ ] |
-| T3  | Migración 0046: `notificacion.creada_en` a ms y CHECK validado (DT-8) | backend | sonnet | — ∥ T1, T2, T4–T7 | — | — | [ ] |
-| T4  | Ficha de credenciales: refresco al terminar la verificación e «Inválida» en español (DT-3) | frontend | sonnet | — ∥ T1–T3, T5–T7 | — | — | [ ] |
-| T5  | Panel de trabajos: relistar si el stream llega tarde (DT-7) y «Cancelar» solo con permiso (DT-3) | frontend | sonnet | — ∥ T1–T4, T6, T7 | — | — | [ ] |
-| T6  | Panel «Generar archivo» sin tapar columnas a 1440 px (DT-4) | frontend | sonnet | — ∥ T1–T5, T7 | — | — | [ ] |
-| T7  | Horas de Lima (DT-5) y versiones y mensajes del archivo (DT-6) | frontend | sonnet | — ∥ T1–T6 | — | — | [ ] |
-| T8  | E2E: E-03 sin recargar (CA-5) y panel a 1440×900 (CA-6) | tester | sonnet | T4, T6 | — | — | [ ] |
+| T1  | Tiempos del backend sin instrumentar: CA-15 de lectura y CA-8 de auth con inyección de 20 ms (DT-1) | tester | sonnet | — ∥ T2–T7 | — | — | [x] |
+| T2  | Tiempos y espera del worker: CA-13 y `ejecutor.int.spec.ts:523` (DT-1); `restaurarConfig` con las cuatro colas (DT-2) | tester | sonnet | — ∥ T1, T3–T7 | — | — | [x] |
+| T3  | Migración 0046: `notificacion.creada_en` a ms y CHECK validado (DT-8) | backend | sonnet | — ∥ T1, T2, T4–T7 | — | — | [x] |
+| T4  | Ficha de credenciales: refresco al terminar la verificación e «Inválida» en español (DT-3) | frontend | sonnet | — ∥ T1–T3, T5–T7 | — | — | [x] |
+| T5  | Panel de trabajos: relistar si el stream llega tarde (DT-7) y «Cancelar» solo con permiso (DT-3) | frontend | sonnet | — ∥ T1–T4, T6, T7 | — | — | [x] |
+| T6  | Panel «Generar archivo» sin tapar columnas a 1440 px (DT-4) | frontend | sonnet | — ∥ T1–T5, T7 | — | — | [x] |
+| T7  | Horas de Lima (DT-5) y versiones y mensajes del archivo (DT-6) | frontend | sonnet | — ∥ T1–T6 | — | — | [x] |
+| T8  | E2E: E-03 sin recargar (CA-5) y panel a 1440×900 (CA-6) | tester | sonnet | T4, T6 | — | — | [x] |
 | T9  | Verificar CA-1 a CA-11 | tester | sonnet | T1–T8 | — | — | [ ] |
 | T10 | Revisión final contra la spec | arquitecto | sonnet | T9 | — | — | [ ] |
 | T11 | Cierre: `tasks.md`, `spec.md`, notas de `ESTADO.md` y commit | devops | haiku | T10 | — | — | [ ] |
