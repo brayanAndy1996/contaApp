@@ -57,6 +57,10 @@ class RedisFalso extends EventEmitter {
   disconnect = vi.fn(() => {
     this.status = "end";
   });
+  /** Como Redis: el mensaje solo llega si el canal ya está suscrito. */
+  publicar(c: string, texto: string) {
+    if (this.canales.has(c)) this.emit("message", c, texto);
+  }
 }
 
 class RespuestaFalsa extends EventEmitter implements RespuestaSse {
@@ -348,6 +352,150 @@ describe("StreamService · suscriptor", () => {
     sub.emit("ready");
     await vi.advanceTimersByTimeAsync(0);
     expect(sub.canales.has(canal)).toBe(true);
+    r.end();
+  });
+});
+
+// 018 T11e · Contrato: cuando el cliente recibe el primer byte (`: conectado`) la conexión ya está registrada y la
+// suscripción Redis al canal ya está confirmada; un evento publicado justo después no se pierde.
+describe("StreamService · primer byte tras la suscripción confirmada (018 T11e)", () => {
+  beforeEach(() => {
+    estado.clientes = [CLIENTE];
+  });
+
+  /** SUBSCRIBE que Redis confirma solo cuando la prueba lo suelta (o tras `ms` con temporizadores falsos). */
+  const subscribeLento = () => {
+    const pendientes: (() => void)[] = [];
+    sub.subscribe.mockImplementation(
+      (c: string) =>
+        new Promise<void>((ok) => {
+          pendientes.push(() => {
+            sub.canales.add(c);
+            ok();
+          });
+        }),
+    );
+    return { confirmar: () => pendientes.splice(0).forEach((f) => f()) };
+  };
+
+  it("un evento publicado justo después del primer byte llega al cliente (SUBSCRIBE tarda en confirmarse)", async () => {
+    sub.subscribe.mockImplementation(
+      (c: string) =>
+        new Promise<void>((ok) =>
+          setTimeout(() => {
+            sub.canales.add(c);
+            ok();
+          }, 50),
+        ),
+    );
+    const r = new RespuestaFalsa();
+    const abierto = servicio.abrir(sesion(), undefined, r);
+    // El cliente recibe el primer byte en cuanto `abrir` termina: se avanza el reloj de 1 ms en 1 ms hasta entonces.
+    let listo = false;
+    void abierto.then(() => {
+      listo = true;
+    });
+    for (let i = 0; i < 200 && !listo; i++) {
+      await vi.advanceTimersByTimeAsync(1);
+    }
+    expect(listo).toBe(true);
+    expect(r.saludos).toBe(1); // el cliente ya vio el primer byte...
+    sub.publicar(canal, JSON.stringify({
+        ...vista(),
+        estado: "completado",
+        terminadoEn: new Date(1).toISOString(),
+      })); // ...y publica en ese instante
+    expect(r.texto).toContain('"estado":"completado"');
+    r.end();
+  });
+
+  it("no envía cabeceras ni primer byte hasta que Redis confirma el SUBSCRIBE, pero la conexión ya cuenta", async () => {
+    const lento = subscribeLento();
+    const r = new RespuestaFalsa();
+    const abierto = servicio.abrir(sesion(), undefined, r);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(r.cabecerasEnviadas).toBe(false);
+    expect(r.saludos).toBe(0);
+    expect(servicio.abiertos).toBe(1);
+    lento.confirmar();
+    await abierto;
+    expect(r.cabecerasEnviadas).toBe(true);
+    expect(r.saludoTrasCabeceras).toBe(true);
+    expect(r.saludos).toBe(1);
+    expect(sub.canales.has(canal)).toBe(true);
+    r.end();
+  });
+
+  it("dos conexiones del mismo canal comparten un solo SUBSCRIBE y ambas esperan su confirmación", async () => {
+    const lento = subscribeLento();
+    const a = new RespuestaFalsa();
+    const b = new RespuestaFalsa();
+    const pa = servicio.abrir(sesion(), undefined, a);
+    const pb = servicio.abrir(sesion({ sesionId: "s-2" }), undefined, b);
+    await vi.advanceTimersByTimeAsync(10);
+    expect([a.saludos, b.saludos]).toEqual([0, 0]);
+    expect(sub.subscribe).toHaveBeenCalledTimes(1);
+    lento.confirmar();
+    await Promise.all([pa, pb]);
+    expect([a.saludos, b.saludos]).toEqual([1, 1]);
+    expect(sub.subscribe).toHaveBeenCalledTimes(1);
+    a.end();
+    b.end();
+  });
+
+  it("si el cliente se va durante la espera, libera el cupo y el canal, y no escribe nada", async () => {
+    const lento = subscribeLento();
+    const r = new RespuestaFalsa();
+    const abierto = servicio.abrir(sesion(), undefined, r);
+    await vi.advanceTimersByTimeAsync(10);
+    r.end(); // cierre del cliente
+    expect(servicio.abiertos).toBe(0);
+    lento.confirmar();
+    await abierto;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(r.saludos).toBe(0);
+    expect(r.cabecerasEnviadas).toBe(false);
+    expect(sub.unsubscribe).toHaveBeenCalledWith(canal);
+    expect(sub.canales.has(canal)).toBe(false);
+    // El cupo se liberó: caben los 3 de la sesión.
+    sub.subscribe.mockImplementation(async (c: string) => {
+      sub.canales.add(c);
+    });
+    const otras = [await abrir(), await abrir(), await abrir()];
+    otras.forEach((o) => o.end());
+  });
+
+  it("el UNSUBSCRIBE de la última conexión no pisa al SUBSCRIBE pendiente de una nueva", async () => {
+    const lento = subscribeLento();
+    const a = new RespuestaFalsa();
+    const pa = servicio.abrir(sesion(), undefined, a);
+    await vi.advanceTimersByTimeAsync(10);
+    a.end(); // la última conexión se va con el SUBSCRIBE aún pendiente
+    const b = new RespuestaFalsa();
+    const pb = servicio.abrir(sesion({ sesionId: "s-2" }), undefined, b);
+    await vi.advanceTimersByTimeAsync(10);
+    lento.confirmar();
+    await vi.advanceTimersByTimeAsync(0);
+    lento.confirmar();
+    await Promise.all([pa, pb]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(b.saludos).toBe(1);
+    expect(sub.canales.has(canal)).toBe(true);
+    sub.publicar(canal, JSON.stringify(vista()));
+    expect(b.texto).toContain("event: trabajo");
+    b.end();
+  });
+
+  it("si Redis no responde al SUBSCRIBE, el stream se abre igual tras suscripcionMs y no queda colgado", async () => {
+    sub.subscribe.mockImplementation(() => new Promise<void>(() => undefined));
+    const r = new RespuestaFalsa();
+    const abierto = servicio.abrir(sesion(), undefined, r);
+    await vi.advanceTimersByTimeAsync(TIEMPOS_POR_DEFECTO.suscripcionMs - 1);
+    expect(r.saludos).toBe(0);
+    await vi.advanceTimersByTimeAsync(1);
+    await abierto;
+    expect(r.saludos).toBe(1);
+    expect(r.writableEnded).toBe(false);
     r.end();
   });
 });
