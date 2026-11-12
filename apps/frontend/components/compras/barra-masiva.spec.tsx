@@ -106,7 +106,9 @@ describe("BarraMasiva · clasificar en masa (CA-7)", () => {
 
     await usuario.click(screen.getByRole("button", { name: M.clasificarComo("DG") }));
 
-    expect((await screen.findByRole("alert")).textContent).toBe(M.errores.periodo_generado);
+    // La pantalla anuncia el error (`alAvisar`); aquí solo se muestra, sin `role` (018, P-2).
+    expect(await screen.findByText(M.errores.periodo_generado)).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(contexto.recargarFilas).not.toHaveBeenCalled();
     expect(alOperacion).not.toHaveBeenCalled();

@@ -31,6 +31,7 @@ import {
   recargarTrasExito,
   type AlAvisar,
 } from "./accion-compras";
+import { useErrorAnunciado } from "./aviso-unico";
 import { AceptarSugerencias } from "./aceptar-sugerencia";
 import { ExcluirCompra } from "./excluir-compra";
 
@@ -58,6 +59,18 @@ function Ventana({ children }: { children: ReactNode }) {
 const ALTO_MENU = 280;
 const ANCHO_MENU = 224;
 
+/** Tolerancia (px) al comparar la caja del botón: el subpíxel no cuenta como movimiento. */
+const TOLERANCIA_PX = 0.5;
+
+/** El botón cambió de lugar respecto de cuando se abrió el menú. Sin caja inicial se asume que sí (se cierra). */
+function botonSeMovio(inicial: DOMRect | null, actual: DOMRect): boolean {
+  if (!inicial) return true;
+  return (
+    Math.abs(actual.top - inicial.top) > TOLERANCIA_PX ||
+    Math.abs(actual.left - inicial.left) > TOLERANCIA_PX
+  );
+}
+
 interface PosicionMenu {
   top?: number;
   bottom?: number;
@@ -78,22 +91,45 @@ export function AccionesFilaCompras({
   const [panel, setPanel] = useState<Panel>(null);
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { avisarError, rolDe } = useErrorAnunciado(alAvisar);
   const menu = useRef<HTMLDivElement>(null);
   const boton = useRef<HTMLButtonElement>(null);
+  const cajaAlAbrir = useRef<DOMRect | null>(null);
   const comprobante = comprobanteDe(fila);
 
   useEffect(() => {
     if (abierto) menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
   }, [abierto]);
 
-  // El menú es `fixed`: si la grilla se desplaza, deja de apuntar a su botón y se cierra.
+  // El botón se deshabilita mientras guarda y el navegador deja el foco en `body` (RF-096, spec 018 T7a): al terminar
+  // vuelve al botón, que está en la grilla o dentro de la lupa, para que Esc y las flechas sigan funcionando.
+  const estabaOcupado = useRef(false);
+  useEffect(() => {
+    if (ocupado) {
+      estabaOcupado.current = true;
+      return;
+    }
+    if (!estabaOcupado.current) return;
+    estabaOcupado.current = false;
+    const activo = document.activeElement;
+    if (activo === null || activo === document.body) boton.current?.focus();
+  }, [ocupado]);
+
+  // El menú es `fixed` y se posicionó con la caja del botón al abrirlo: si el botón se movió de verdad (la grilla o la
+  // lupa se desplazaron) deja de apuntar a él y se cierra. Un `scroll` que no lo mueve no cierra nada: el navegador
+  // entrega el de un desplazamiento previo (p. ej. el que hace el clic al traer el botón a la vista, o el de la
+  // grilla virtualizada al asentarse) en el cuadro siguiente, ya abierto el menú (spec 018, T11d).
   useEffect(() => {
     if (!abierto) return;
     const cerrar = () => setAbierto(false);
-    window.addEventListener("scroll", cerrar, true);
+    const alDesplazar = () => {
+      const caja = boton.current?.getBoundingClientRect();
+      if (!caja || botonSeMovio(cajaAlAbrir.current, caja)) cerrar();
+    };
+    window.addEventListener("scroll", alDesplazar, true);
     window.addEventListener("resize", cerrar);
     return () => {
-      window.removeEventListener("scroll", cerrar, true);
+      window.removeEventListener("scroll", alDesplazar, true);
       window.removeEventListener("resize", cerrar);
     };
   }, [abierto]);
@@ -123,11 +159,11 @@ export function AccionesFilaCompras({
       } else {
         await recargarTrasError(contexto, fila.id, r);
         setError(r.mensaje);
-        alAvisar?.(r.mensaje, "error");
+        avisarError(r.mensaje);
       }
     } catch {
       setError(MENSAJES.errorGeneral);
-      alAvisar?.(MENSAJES.errorGeneral, "error");
+      avisarError(MENSAJES.errorGeneral);
     }
     setOcupado(false);
   }
@@ -205,6 +241,7 @@ export function AccionesFilaCompras({
         title={bloqueo ?? undefined}
         onClick={() => {
           const caja = boton.current?.getBoundingClientRect();
+          cajaAlAbrir.current = caja ?? null;
           if (caja) {
             const left = Math.max(8, Math.min(caja.right - ANCHO_MENU, window.innerWidth - ANCHO_MENU - 8));
             setPosicion(
@@ -248,7 +285,7 @@ export function AccionesFilaCompras({
       )}
 
       {error && (
-        <p role="alert" className="mt-1 text-xs text-red-600">
+        <p role={rolDe(error)} className="mt-1 text-xs text-red-600">
           {error}
         </p>
       )}

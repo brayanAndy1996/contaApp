@@ -137,6 +137,18 @@ describe("CA-6 · el stream exige sesión y estudio activo", () => {
     expect(s.cerrado).toBe(false);
     s.cerrar();
   });
+
+  // 018 T11e: al ver las cabeceras y el primer byte, la suscripción Redis ya está confirmada: el panel puede listar y
+  // un evento publicado en ese instante (sin esperar a que nadie se suscriba) no se pierde.
+  it("un evento publicado justo al recibir las cabeceras llega al cliente, sin esperar la suscripción", async () => {
+    for (let i = 0; i < 5; i++) {
+      const s = await abrirOk(E.titular);
+      await emitirE(cambio(T[0]!, i % 2 === 0 ? "ejecutando" : "en_cola"));
+      const visto = await s.esperar(esEventoId(T[0]!.id));
+      expect(visto, `intento ${i}`).not.toBeNull();
+      s.cerrar();
+    }
+  });
 });
 
 describe("CA-6 · un evento por cambio de estado en ≤ 2 s", () => {

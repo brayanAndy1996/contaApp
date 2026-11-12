@@ -27,6 +27,8 @@ export interface TiemposStream {
   duracionMs: number;
   /** Streams abiertos por sesión (CA-6). */
   maxPorSesion: number;
+  /** Espera máxima de la confirmación de SUBSCRIBE antes del primer byte (Redis caído: se abre igual). */
+  suscripcionMs: number;
 }
 
 export const TIEMPOS_STREAM = Symbol("TRABAJOS_TIEMPOS_STREAM");
@@ -36,6 +38,7 @@ export const TIEMPOS_POR_DEFECTO: TiemposStream = {
   revalidacionMs: 5_000,
   duracionMs: 5 * 60_000,
   maxPorSesion: 3,
+  suscripcionMs: 3_000,
 };
 
 /** Lo mínimo de la respuesta HTTP (Express) que usa el stream. */
@@ -97,6 +100,10 @@ export class StreamService implements OnModuleDestroy {
   private readonly tiempos: TiemposStream;
   private readonly porCanal = new Map<string, Set<Conexion>>();
   private readonly porSesion = new Map<string, number>();
+  /** SUBSCRIBE en curso por canal, compartido por las conexiones que se unen mientras Redis lo confirma. */
+  private readonly suscribiendo = new Map<string, Promise<void>>();
+  /** Cola de SUBSCRIBE/UNSUBSCRIBE por canal: se envían a Redis en el orden en que se pidieron. */
+  private readonly cadena = new Map<string, Promise<void>>();
   private escuchando = false;
   private cerrado = false;
 
@@ -118,8 +125,10 @@ export class StreamService implements OnModuleDestroy {
   }
 
   /**
-   * Abre el stream: 429 `streams_excedidos` al 4.º de la sesión; carga el alcance; envía las cabeceras de inmediato
-   * (sin evento inicial) y se suscribe al canal del estudio.
+   * Abre el stream: 429 `streams_excedidos` al 4.º de la sesión; carga el alcance; registra la conexión y espera la
+   * confirmación de Redis de la suscripción al canal del estudio; solo entonces envía las cabeceras y el primer byte
+   * (`: conectado`, sin evento inicial). Contrato (018 T11e): cuando el cliente ve el primer byte, la conexión ya está
+   * registrada y SUBSCRIBE ya está confirmado, así que ningún evento publicado desde ese instante se pierde.
    */
   async abrir(
     sesion: SesionResuelta,
@@ -172,12 +181,20 @@ export class StreamService implements OnModuleDestroy {
     res.setHeader("Cache-Control", "no-cache, no-transform");
     res.setHeader("Connection", "keep-alive");
     res.setHeader("X-Accel-Buffering", "no");
+
+    // Primero se registra y se espera la suscripción; las cabeceras y el primer byte salen después (018 T11e).
+    await this.esperar(this.registrar(c), this.tiempos.suscripcionMs);
+    // El cliente pudo irse (o el módulo apagarse) durante la espera: `cerrar` ya liberó cupo y canal.
+    if (c.cerrada) return;
+    if (clienteSeFue(res)) {
+      this.cerrar(c);
+      return;
+    }
     res.flushHeaders();
     // 007b D-2: el rewrite de Next no entrega las cabeceras hasta el primer byte del cuerpo; sin esto el cliente
     // esperaba al primer latido (~15 s). Es un comentario SSE: el lector del panel lo ignora.
     res.write(": conectado\n\n");
 
-    this.registrar(c);
     c.temporizadores.push(
       setInterval(() => {
         if (!c.cerrada) c.res.write(": latido\n\n");
@@ -200,15 +217,59 @@ export class StreamService implements OnModuleDestroy {
     else this.porSesion.set(sesionId, n);
   }
 
-  private registrar(c: Conexion): void {
+  /**
+   * Añade la conexión al canal y devuelve la promesa de su suscripción (compartida por las conexiones del canal
+   * mientras Redis la confirma; ya resuelta si el canal ya estaba suscrito). Nunca rechaza: un SUBSCRIBE fallido se
+   * tolera (el stream se abre igual y el evento `ready` vuelve a suscribir al recuperarse Redis).
+   */
+  private registrar(c: Conexion): Promise<void> {
     let set = this.porCanal.get(c.canal);
-    if (set === undefined) {
-      set = new Set();
-      this.porCanal.set(c.canal, set);
-      const sub = this.suscriptor();
-      sub?.subscribe(c.canal).catch(() => undefined);
+    if (set !== undefined) {
+      set.add(c);
+      return this.suscribiendo.get(c.canal) ?? Promise.resolve();
     }
-    set.add(c);
+    set = new Set([c]);
+    this.porCanal.set(c.canal, set);
+    const sub = this.suscriptor(); // instala el manejador de mensajes antes de pedir el canal
+    const p = this.encadenar(c.canal, async () => {
+      await sub?.subscribe(c.canal);
+    });
+    this.suscribiendo.set(c.canal, p);
+    void p.then(() => {
+      if (this.suscribiendo.get(c.canal) === p) this.suscribiendo.delete(c.canal);
+    });
+    return p;
+  }
+
+  /**
+   * Encola una operación de suscripción del canal tras las anteriores si hay una en curso: un UNSUBSCRIBE de la última conexión nunca
+   * se adelanta ni pisa al SUBSCRIBE pendiente de una conexión nueva. Los fallos se tragan.
+   */
+  private encadenar(canal: string, op: () => Promise<void>): Promise<void> {
+    const previa = this.cadena.get(canal);
+    // Sin operación en curso se envía en el acto (Redis ya ordena los comandos de una misma conexión).
+    const sig = (previa === undefined ? op() : previa.then(op)).then(
+      () => undefined,
+      () => undefined,
+    );
+    this.cadena.set(canal, sig);
+    void sig.then(() => {
+      if (this.cadena.get(canal) === sig) this.cadena.delete(canal);
+    });
+    return sig;
+  }
+
+  /** Espera la promesa como máximo `ms` (Redis sin responder no deja el stream colgado). */
+  private async esperar(p: Promise<void>, ms: number): Promise<void> {
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const limite = new Promise<void>((ok) => {
+      t = setTimeout(ok, ms);
+    });
+    try {
+      await Promise.race([p, limite]);
+    } finally {
+      clearTimeout(t);
+    }
   }
 
   private cerrar(c: Conexion): void {
@@ -219,10 +280,13 @@ export class StreamService implements OnModuleDestroy {
     const set = this.porCanal.get(c.canal);
     if (set?.delete(c) === true && set.size === 0) {
       this.porCanal.delete(c.canal);
-      this.redis
-        .suscriptor()
-        ?.unsubscribe(c.canal)
-        .catch(() => undefined);
+      const sub = this.redis.suscriptor();
+      if (sub !== null) {
+        // Tras el SUBSCRIBE pendiente; y se omite si otra conexión volvió a tomar el canal entre tanto.
+        void this.encadenar(c.canal, async () => {
+          if (!this.porCanal.has(c.canal)) await sub.unsubscribe(c.canal);
+        });
+      }
     }
     if (!c.res.writableEnded) c.res.end();
   }
@@ -355,6 +419,10 @@ export class StreamService implements OnModuleDestroy {
     }
   }
 }
+
+/** Función aparte: el estado de `res` cambia entre awaits y TypeScript no debe darlo por fijo. */
+const clienteSeFue = (res: RespuestaSse): boolean =>
+  res.writableEnded || res.socket?.destroyed === true;
 
 const ve = (v: Visibilidad, clienteId: string): boolean =>
   v.clientes.has(clienteId);

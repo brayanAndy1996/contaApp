@@ -327,3 +327,23 @@ describe("<GrillaCompras /> · edición por fila (T6)", () => {
     expect(campo()).toBeNull();
   });
 });
+
+// Spec 018 · T11d: el foco tras Tab llega siempre a la celda destino. Con un Tab pegado a la última tecla, los
+// efectos pasivos del render anterior aún no corrieron; el efecto viejo no debe consumir la marca de foco con la
+// celda activa vieja (el campo de «Base DG» se desmonta justo después y el foco caía en `body`). jsdom no reproduce
+// el desfase de efectos de React: este caso protege el comportamiento y la lógica de la marca está en foco-grilla.spec.ts.
+describe("<GrillaCompras /> · foco tras Tab (018 · T11d)", () => {
+  it("feliz: teclear y pulsar Tab en el mismo ciclo deja el foco en el campo «IGV DG»", async () => {
+    montar();
+    const user = userEvent.setup();
+    const bi = await abrir(user);
+    // Sin esperar entre la tecla y el Tab: un solo `act`, sin vaciar los efectos pasivos entre ambos.
+    act(() => {
+      fireEvent.change(bi, { target: { value: "150.00" } });
+      fireEvent.keyDown(bi, { key: "Tab" });
+    });
+    const igv = campo()!;
+    expect(igv.getAttribute("aria-label")).toBe(M.celdaDe(M.casilleros.igvDg, "F001-3064"));
+    expect(document.activeElement).toBe(igv);
+  });
+});

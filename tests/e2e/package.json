@@ -1,0 +1,26 @@
+{
+  "name": "@contapp/tests-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "e2e": "pnpm run e2e:build && playwright test --grep-invert @volumen",
+    "e2e:volumen": "playwright test --grep @volumen",
+    "e2e:build": "cd ../.. && turbo run build --filter=@contapp/backend... --filter=@contapp/worker... --filter=@contapp/frontend^... && cross-env BACKEND_URL=http://localhost:4210 pnpm --filter @contapp/frontend run build",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint . --max-warnings=0"
+  },
+  "dependencies": {
+    "@contapp/db": "workspace:*",
+    "@contapp/queue": "workspace:*",
+    "bullmq": "6.5.0",
+    "ioredis": "6.0.0",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "^24.0.0",
+    "@types/pg": "8.23.1",
+    "cross-env": "10.1.0"
+  }
+}

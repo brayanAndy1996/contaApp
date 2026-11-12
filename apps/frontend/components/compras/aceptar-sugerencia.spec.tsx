@@ -141,7 +141,9 @@ describe("AceptarSugerencias · 409", () => {
 
     await usuario.click(screen.getByRole("button", { name: `${M.aceptar} R-MIX` }));
 
-    expect((await screen.findByRole("alert")).textContent).toBe(M.errores.revisar_de_nuevo);
+    // La pantalla anuncia el error (`alAvisar`); aquí solo se muestra, sin `role` (018, P-2).
+    expect(await screen.findByText(M.errores.revisar_de_nuevo)).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
     expect(contexto.recargarFila).toHaveBeenCalledWith(C_2056_MIXTA.id);
     expect(contexto.recargarResumen).not.toHaveBeenCalled();
     expect(alTerminar).not.toHaveBeenCalled();

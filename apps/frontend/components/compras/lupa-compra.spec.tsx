@@ -299,8 +299,9 @@ describe("Lupa · aceptar la sugerencia (CA-15, 409 y 422 como en la grilla)", (
     await usuario.click(await screen.findByRole("button", { name: `${M.aceptar} R-ISC` }));
     await usuario.click(await screen.findByRole("button", { name: M.confirmar }));
 
-    const alerta = await screen.findByRole("alert");
-    expect(alerta.textContent).toContain(M.errores.revisar_de_nuevo);
+    // La pantalla anuncia el error (`alAvisarDe`); la ventana solo lo muestra, sin `role` (018, P-2).
+    expect(await screen.findByText(M.errores.revisar_de_nuevo)).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
     expect(contexto.recargarFila).toHaveBeenCalledWith(A.id);
     expect(alCerrar).not.toHaveBeenCalled();
     // Esc cierra la ventana de aceptación, no la lupa.

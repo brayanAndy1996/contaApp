@@ -231,7 +231,7 @@ function Compras() {
     alFallar: falla,
   });
 
-  // Aviso de lo que pasó con una acción de la pantalla (aria-live="polite", D-16).
+  // Aviso de lo que pasó con una acción de la pantalla (único anunciador: `role` alert/status, D-16, 018 P-2).
   const [aviso, setAviso] = useState<{ texto: string; tipo: "ok" | "error" | "info" } | null>(null);
   const alAvisar = useCallback<AlAvisar>((texto, tipo) => setAviso({ texto, tipo }), []);
 
@@ -568,7 +568,7 @@ function Compras() {
               alCambiar={setFiltros}
             />
             <div className="flex flex-wrap items-center gap-3 text-sm">
-              <p role="status" aria-live="polite">
+              <p role="status">
                 {carga === "cargando"
                   ? filas.length === 0
                     ? M.cargando
@@ -581,7 +581,16 @@ function Compras() {
               </p>
               {carga === "error" && (
                 <>
-                  <p role="alert" className="text-red-600">
+                  {/* Un aviso, un anunciador (018, T8a): si la pantalla ya anuncia este texto (p. ej. «No se
+                      encontró lo que buscas.» de un cliente ajeno), la grilla lo muestra sin rol. */}
+                  <p
+                    role={
+                      (errorCarga ?? M.errorCarga) === errorGeneral
+                        ? undefined
+                        : "alert"
+                    }
+                    className="text-red-600"
+                  >
                     {errorCarga ?? M.errorCarga}
                   </p>
                   <button
@@ -632,7 +641,6 @@ function Compras() {
             {aviso && (
               <p
                 role={aviso.tipo === "error" ? "alert" : "status"}
-                aria-live="polite"
                 className={`text-sm ${aviso.tipo === "error" ? "text-red-600" : ""}`}
               >
                 {aviso.texto}

@@ -44,6 +44,7 @@ import {
   seccionDe,
   type SeccionCompras,
 } from "./columnas-compras";
+import { debeEnfocar, type MarcaFoco } from "./foco-grilla";
 
 // Grilla de compras del periodo (spec 015, T4 y T6; D-5, D-6, D-16; P-3, P-5, P-8, P-9; RF-061, RF-064).
 // TanStack Table 9 da el modelo de columnas y filas (con las columnas fijas y los anchos) y TanStack Virtual
@@ -180,7 +181,7 @@ export function GrillaCompras({
   alAtenderEdicion,
 }: PropsGrillaCompras) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const enfocarRef = useRef(false);
+  const enfocarRef = useRef<MarcaFoco>(null);
   const [activaPedida, setActiva] = useState<Activa>({ r: 0, c: 0 });
   const [edicion, setEdicion] = useState<EdicionFila | null>(null);
   const [anuncio, setAnuncio] = useState("");
@@ -285,12 +286,13 @@ export function GrillaCompras({
 
   // El foco se pone tras renderizar: la celda activa siempre está en el DOM (la conservan los extractores).
   useEffect(() => {
-    if (!enfocarRef.current) return;
+    // Solo el efecto cuya celda activa es la pedida consume la marca (T11d): ver `foco-grilla.ts`.
+    if (!debeEnfocar(enfocarRef.current, activa)) return;
     const celda = scrollRef.current?.querySelector<HTMLElement>(
       `[data-r="${activa.r}"][data-c="${activa.c}"]`,
     );
     if (celda) {
-      enfocarRef.current = false;
+      enfocarRef.current = null;
       // La celda en edición enfoca su campo con el texto seleccionado: teclear reemplaza el monto.
       const campo = celda.querySelector<HTMLInputElement>("input[data-edicion]");
       if (campo) {
@@ -342,7 +344,7 @@ export function GrillaCompras({
     const rr = limitar(r, 0, nFilas - 1);
     const cc = limitar(c, 0, nColumnas - 1);
     setActiva({ r: rr, c: cc });
-    enfocarRef.current = true;
+    enfocarRef.current = { r: rr, c: cc };
     const item = filaAItem[rr];
     if (item !== undefined) filasVirtuales.scrollToIndex(item, { align: "auto" });
     const enCentro = cc - inicio.length;
@@ -367,7 +369,7 @@ export function GrillaCompras({
   function volverAEdicion(ed: EdicionFila) {
     const { r, c } = posicionDeEdicion(ed);
     setActiva({ r, c });
-    enfocarRef.current = true;
+    enfocarRef.current = { r, c };
   }
 
   function empezarEdicion(r: number, c: number): boolean {
@@ -377,7 +379,7 @@ export function GrillaCompras({
       return false;
     }
     setActiva({ r, c });
-    enfocarRef.current = true;
+    enfocarRef.current = { r, c };
     setAnuncio("");
     setEdicion((e) =>
       e && e.estado.filaId === row.id
@@ -411,7 +413,7 @@ export function GrillaCompras({
     turnoCalcular.current += 1;
     setEdicion(null);
     setAnuncio(M.edicionCancelada);
-    enfocarRef.current = true;
+    enfocarRef.current = "activa";
   }
 
   /** Cambia la celda en edición a la siguiente (o anterior) columna de monto de la misma fila, sin guardar. */
@@ -441,7 +443,7 @@ export function GrillaCompras({
       turnoCalcular.current += 1;
       setEdicion(null);
       if (destino) irARef.current(destino.r, destino.c);
-      else enfocarRef.current = true;
+      else enfocarRef.current = "activa";
     };
     if (invalidas.length > 0) {
       const siguiente = { ...ed, columna: invalidas[0]! };
@@ -700,7 +702,7 @@ export function GrillaCompras({
         // Otra celda de monto de la misma fila abierta: el campo pasa a ella.
         if (ed && esColumnaEditable(columna.id) && ed.columna !== columna.id && !ed.guardando) {
           setEdicion({ ...ed, columna: columna.id });
-          enfocarRef.current = true;
+          enfocarRef.current = { r, c };
         }
       },
       onDoubleClick: () => {
@@ -1043,7 +1045,11 @@ export function GrillaCompras({
           style={{ height: Math.max(filasVirtuales.getTotalSize(), vacio ? ALTO_FILA : 0), width: anchoTotal }}
         >
           {vacio && (
-            <p role="status" className="sticky left-0 px-3 py-3 text-sm" style={{ width: "min(100%, 480px)" }}>
+            <p
+              role={cargando ? undefined : "status"}
+              className="sticky left-0 px-3 py-3 text-sm"
+              style={{ width: "min(100%, 480px)" }}
+            >
               {cargando ? M.cargando : M.sinCompras}
             </p>
           )}

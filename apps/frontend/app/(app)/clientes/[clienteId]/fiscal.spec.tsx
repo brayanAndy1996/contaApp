@@ -336,6 +336,12 @@ describe("/clientes/:id · datos fiscales y archivado (007a)", () => {
     expect(within(uso).getByText(/RUCs: 100 de 100/)).toBeTruthy();
     expect(f.de("GET /api/plan/uso").length).toBeGreaterThan(0);
     expect(screen.getByText(MENSAJES_CLIENTES.clienteArchivado)).toBeTruthy();
+    // 018 T5a (CA-10): el aviso de límite se anuncia una sola vez.
+    expect(
+      screen
+        .getAllByRole("alert")
+        .filter((a) => (a.textContent ?? "").includes(MENSAJES_PLANES.limiteRucs)),
+    ).toHaveLength(1);
   });
 
   // D2 (T13): el 409 sin_plan al reactivar se muestra como en el alta (MENSAJES_PLANES.sinPlan), no como error genérico.

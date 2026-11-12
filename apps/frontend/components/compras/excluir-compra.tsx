@@ -14,6 +14,7 @@ import {
   recargarTrasExito,
   type AlAvisar,
 } from "./accion-compras";
+import { useErrorAnunciado } from "./aviso-unico";
 
 // Excluir una compra (spec 015, D-10, HU-17): motivo opcional de hasta 200 caracteres en una línea. Excluir una
 // agregada a mano equivale a descartarla (014 DU-16): se avisa antes de enviar. Espera la respuesta del servidor
@@ -35,6 +36,7 @@ export function ExcluirCompra({
 }) {
   const [motivo, setMotivo] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const { avisarError, rolDe } = useErrorAnunciado(alAvisar);
   const [ocupado, setOcupado] = useState(false);
   const campo = useRef<HTMLInputElement>(null);
   const comprobante = comprobanteDe(fila);
@@ -72,10 +74,10 @@ export function ExcluirCompra({
       }
       await recargarTrasError(contexto, fila.id, r);
       setError(r.mensaje);
-      alAvisar?.(r.mensaje, "error");
+      avisarError(r.mensaje);
     } catch {
       setError(MENSAJES.errorGeneral);
-      alAvisar?.(MENSAJES.errorGeneral, "error");
+      avisarError(MENSAJES.errorGeneral);
     }
     setOcupado(false);
   }
@@ -111,7 +113,7 @@ export function ExcluirCompra({
         />
       </label>
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role={rolDe(error)} className="text-sm text-red-600">
           {error}
         </p>
       )}

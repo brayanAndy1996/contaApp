@@ -194,6 +194,14 @@ describe("/clientes/nuevo", () => {
     expect(within(uso).getByText(/RUCs: 100 de 100/)).toBeTruthy();
     expect(f.de("GET /api/plan/uso").length).toBeGreaterThan(0);
     expect(router.push).not.toHaveBeenCalled();
+    // 018 T5a (CA-10): el aviso de límite se anuncia una sola vez; el uso del plan conserva «subir de plan».
+    await asentar();
+    expect(
+      screen
+        .getAllByRole("alert")
+        .filter((a) => (a.textContent ?? "").includes(MENSAJES_PLANES.limiteRucs)),
+    ).toHaveLength(1);
+    expect(within(uso).getAllByText(MENSAJES_PLANES.subirDePlan)).toHaveLength(1);
   });
 
   it.each<[string, number, unknown, string]>([

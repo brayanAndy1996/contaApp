@@ -23,6 +23,7 @@ import {
   type ResultadoCompras,
 } from "../../lib/compras";
 import type { AlAvisar } from "./accion-compras";
+import { useErrorAnunciado } from "./aviso-unico";
 import { InformeMasivo } from "./informe-masivo";
 
 // Barra de acciones masivas (spec 015, D-8, RF-063, CA-7). Con filas seleccionadas ofrece clasificar, excluir (motivo
@@ -53,6 +54,7 @@ export function BarraMasiva({
   const [modo, setModo] = useState<Modo>("barra");
   const [motivo, setMotivo] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const { avisarError, rolDe } = useErrorAnunciado(alAvisar);
   const [ocupado, setOcupado] = useState(false);
   const [informe, setInforme] = useState<InformeMasiva | null>(null);
 
@@ -79,7 +81,7 @@ export function BarraMasiva({
       const r = await pedir();
       if (!r.ok) {
         setError(r.mensaje);
-        alAvisar?.(r.mensaje, "error");
+        avisarError(r.mensaje);
         setOcupado(false);
         return;
       }
@@ -106,7 +108,7 @@ export function BarraMasiva({
       if (r.datos.rechazadas.length === 0) alLimpiarSeleccion?.();
     } catch {
       setError(MENSAJES.errorGeneral);
-      alAvisar?.(MENSAJES.errorGeneral, "error");
+      avisarError(MENSAJES.errorGeneral);
     }
     setOcupado(false);
   }
@@ -249,7 +251,7 @@ export function BarraMasiva({
           )}
           {bloqueo !== null && <p className="text-sm">{bloqueo}</p>}
           {error && (
-            <p role="alert" className="text-sm text-red-600">
+            <p role={rolDe(error)} className="text-sm text-red-600">
               {error}
             </p>
           )}
