@@ -37,6 +37,7 @@ export type ClienteRedis = Pick<
   | "zadd"
   | "zrem"
   | "zcard"
+  | "zrange"
   | "zscore"
   | "zrangebyscore"
   | "zremrangebyscore"

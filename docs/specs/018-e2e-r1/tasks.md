@@ -24,6 +24,7 @@ Nivel C (04 §2.1): sin TDD ni ADV. Flujo 04 §1.3: implementar (+ pruebas míni
 | T11 | Verificar CA-1 a CA-12: estabilidad, higiene, tiempos y CI | tester | sonnet | T4–T10 y las Tna abiertas | — | — | [~] |
 | T11a | Un 401 por la rotación de sesión al cambiar de estudio no expulsa al login | frontend | sonnet | T11 | — | — | [x] |
 | T11b | Intermitentes de la suite E2E (CA-4): causa de cada uno, corrección en pruebas o soporte, defectos de la app escalados | tester | sonnet | T11a | — | — | [x] |
+| T11c | Carrera del despachador: un trabajo publicado mientras se vacía la lista del estudio queda invisible hasta el reconciliador (decisión del usuario: corregir en 018) | backend | sonnet | T11b | TDD | ADV | [x] |
 | T12 | Revisión final contra la spec | arquitecto | sonnet | T11 | — | — | [ ] |
 | T13 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza ESTADO) | devops | haiku | T12 | — | — | [ ] |
 
@@ -191,6 +192,11 @@ Reglas comunes:
   - **`archivo.e2e.ts:137` y `lupa.e2e.ts:163` el menú «Acciones» de la lupa no aparece o se cierra antes de elegir (sin causa aislada).** No se reprodujo con registro de `scroll`/`resize`/`click` en 530 aperturas con carga de CPU (1 fallo sin registro). Hipótesis: el menú se cierra con el `scroll` de cualquier elemento (`acciones-fila-compras.tsx:105-115`, escucha en `window` en captura), y la lupa (diálogo con desplazamiento propio, el botón al pie) o la grilla de fondo se desplazan al asentarse. No se cambia la prueba sin una causa medida.
   - **`equipo.e2e.ts:278` 409 en consola al cambiar de estudio (sin diagnosticar, visto una vez al final).** Las aserciones pasaron; la vigilancia marcó «status of 409 (Conflict)». No hay traza (`--trace off`). Queda para quien revise T11a: un 409 no es el 401 de la rotación y no se declara.
   - **Corridas** (`--repeat-each=3 --workers=4`, 258 pruebas, `E2E_CORREO=consola`, 4 CPU). Con las correcciones de (a): 9 corridas con 0 fallos de 13 (tres seguidas con `--trace off` en verde antes de las dos últimas correcciones de soporte); con todo aplicado, 6 corridas: 0, 0, 1 (`lupa.e2e.ts:163`, menú), 1 (`equipo.e2e.ts:278`, 409), 0, 1 (`lupa.e2e.ts:163`). `--workers=1`: 86/86 (antes del arreglo de `soporte.e2e.ts:156`, 85/86). **CA-4 sigue sin cumplirse**: quedan los defectos (c) del despachador y del foco de la grilla (que no aparecieron en las últimas corridas pero siguen en el código), el menú de la lupa y el 409. `typecheck` y `lint` de `tests/e2e` limpios.
+
+## T11c · [x] Carrera del despachador al vaciar un estudio (backend · sonnet)
+- **Causa**: `despuesDelCommit` hacía `SREM tenants` + `DEL pend` tras el commit cuando la ventana salía vacía y sin `en_cola`; un `ZADD pend` + `SADD tenants` del backend entre la lectura y el borrado se perdía hasta el reconciliador (30-60 s).
+- **Corrección** (`packages/queue/src/despachador.ts`, `cerrarEstudioVacio`; sin Lua, compatible con el Redis falso): se lee la lista antes de la BD; si sale vacía se quitan solo esos ids (restos de cancelados), luego `SREM tenants` y, si la lista no quedó vacía (`ZCARD`), `SADD tenants` de nuevo. Un `ZADD` previo a la comprobación se ve y repone al estudio; uno posterior tiene su `SADD` después del `SREM`. El reconciliador solo hace `SADD`; no hay otro borrado de `pend`/`tenants`. `ClienteRedis` suma `zrange`.
+- **Pruebas**: `packages/queue/src/despachador-t11c.int.spec.ts` (4; la carrera se inyecta con un Redis-proxy antes del `SREM` y antes del `ZCARD`; en rojo con el código anterior). `queue` unitarias 462 y int 72 en verde; worker `iniciar.spec` 11 y `ejecutor-r1b.adv.int` 5 en verde; typecheck, lint y prettier limpios.
 
 ## T12 · [ ] Revisión final (arquitecto · sonnet)
 - **Contexto (leer solo esto)**: `spec.md`, `plan.md`, `tasks.md` (Resultados), el diff de la rama contra `main` limitado a `tests/e2e/soporte/`, `playwright.config.ts`, `.github/workflows/ci.yml`, `turbo.json`, `package.json` y los cambios de `apps/frontend`.

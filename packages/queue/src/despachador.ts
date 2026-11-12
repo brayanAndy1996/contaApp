@@ -173,6 +173,8 @@ export class Despachador {
     ahora: Date,
     ocupados: Set<string>,
   ): Promise<"despachado" | "nada" | "sin_cupo_global"> {
+    // Restos de la lista de pistas ANTES de leer la BD: si la ventana sale vacía, solo estos se borran (T11c).
+    const previos = await this.pistasPrevias(cola, tenantId);
     // Lock del RUC y cupos tomados dentro del callback (se sueltan si la transacción falla o se pierde).
     const tomado: { fila: TrabajoFila | null } = { fila: null };
     let a: Atencion;
@@ -287,9 +289,44 @@ export class Despachador {
       if (tomado.fila !== null) await this.soltar(tomado.fila, true);
       return "nada";
     }
-    if (await this.despuesDelCommit(cola, tenantId, ahora, a))
+    if (await this.despuesDelCommit(cola, tenantId, ahora, a, previos))
       return "despachado";
     return a.sinCupoGlobal ? "sin_cupo_global" : "nada";
+  }
+
+  /** Ids que la lista de pistas del estudio ya tenía antes de leer la BD (vacío si Redis falla). */
+  private async pistasPrevias(
+    cola: NombreCola,
+    tenantId: string,
+  ): Promise<string[]> {
+    try {
+      return await this.redis.zrange(this.k.pend(cola, tenantId), "0", "-1");
+    } catch {
+      registrarFallo("despachador: no se pudo leer la lista de pistas");
+      return [];
+    }
+  }
+
+  /**
+   * Cierra la pista de un estudio sin `en_cola` (T11c). El backend puede publicar un trabajo nuevo (ZADD pend y luego
+   * SADD tenants) en cualquier momento entre la lectura vacía en BD y este cierre, así que NO se borra la lista entera:
+   *  1. se quitan solo los ids que ya estaban antes de la lectura (restos de cancelados o ya despachados; un id
+   *     publicado antes de esa lectura habría salido en ella como `en_cola`);
+   *  2. se quita al estudio de `tenants`;
+   *  3. si la lista no quedó vacía, se vuelve a anotar al estudio.
+   * Un ZADD anterior a (3) se ve en (3) y el estudio se repone; uno posterior tiene su SADD después de (2). En ningún
+   * caso queda un trabajo en la lista con el estudio fuera de `tenants`. Sin Lua ni transacción: tolera un Redis falso.
+   */
+  private async cerrarEstudioVacio(
+    cola: NombreCola,
+    tenantId: string,
+    previos: readonly string[],
+  ): Promise<void> {
+    const pend = this.k.pend(cola, tenantId);
+    if (previos.length > 0) await this.redis.zrem(pend, ...previos);
+    await this.redis.srem(this.k.tenants(cola), tenantId);
+    if ((await this.redis.zcard(pend)) > 0)
+      await this.redis.sadd(this.k.tenants(cola), tenantId);
   }
 
   private async despuesDelCommit(
@@ -297,13 +334,11 @@ export class Despachador {
     tenantId: string,
     ahora: Date,
     a: Atencion,
+    previos: readonly string[],
   ): Promise<boolean> {
     const pend = this.k.pend(cola, tenantId);
     if (a.vacia) {
-      if (!a.quedan) {
-        await this.redis.srem(this.k.tenants(cola), tenantId);
-        await this.redis.del(pend);
-      }
+      if (!a.quedan) await this.cerrarEstudioVacio(cola, tenantId, previos);
       return false;
     }
     for (const f of a.perdidos) await this.redis.zrem(pend, f.id);
