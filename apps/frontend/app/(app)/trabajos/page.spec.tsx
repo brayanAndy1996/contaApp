@@ -303,15 +303,16 @@ describe("/trabajos · panel con SSE (007b)", () => {
     });
   });
 
-  // D-2: Next no entrega las cabeceras del stream hasta su primer byte (~15 s con el flujo ocioso); la lista no
-  // puede esperar a ese `fetch`.
-  describe("lista sin esperar las cabeceras del stream (D-2)", () => {
+  // T11e (reemplaza D-2): la lista espera a que el stream quede conectado para no perder eventos, pero con un tope
+  // (`TOPE_ESPERA_STREAM_MS`, 3 s): Next no entrega las cabeceras hasta el primer byte y un stream lento no puede
+  // dejar la lista vacía.
+  describe("lista tras el tope si el stream tarda en responder (T11e)", () => {
     it("muestra la lista aunque el stream aún no haya respondido y luego lo lee", async () => {
       const { panel } = montar({
         listado: lista([trabajoN(1, SOL, "en_cola")]),
         cabecerasStreamTarde: true,
       });
-      await vi.waitFor(() => fila(M.tipos[SOL]), { timeout: 1000 });
+      await vi.waitFor(() => fila(M.tipos[SOL]), { timeout: 6000 });
       expect(panel.conexiones).toHaveLength(1);
       act(() => panel.liberarCabeceras());
       panel.conexiones[0]!.evento(trabajoN(1, SOL, "completado"));

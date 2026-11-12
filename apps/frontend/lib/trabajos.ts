@@ -18,6 +18,11 @@ export const ESPERA_INICIAL_MS = 1_000;
 export const ESPERA_MAXIMA_MS = 10_000;
 /** Una conexión que duró al menos esto se considera sana y reinicia la espera. */
 const CONEXION_SANA_MS = 10_000;
+/**
+ * Tope de espera a que el stream quede conectado antes de listar. El servidor manda `: conectado` (y con él llegan
+ * las cabeceras) cuando ya registró y suscribió la conexión; si tarda más que esto se lista igualmente.
+ */
+export const TOPE_ESPERA_STREAM_MS = 3_000;
 /** Tope de texto sin completar un evento (un evento real mide < 1 KB). */
 const TOPE_PENDIENTE = 256 * 1024;
 
@@ -128,6 +133,29 @@ const dormir = (ms: number, senal: AbortSignal): Promise<void> =>
     senal.addEventListener("abort", alAbortar, { once: true });
   });
 
+/** Espera a `promesa` hasta `ms` o hasta que `senal` se aborte; no rechaza y no deja el temporizador vivo. */
+const esperarConTope = (
+  promesa: Promise<unknown>,
+  ms: number,
+  senal: AbortSignal,
+): Promise<void> =>
+  new Promise((resolver) => {
+    if (senal.aborted) return resolver();
+    const terminar = () => {
+      clearTimeout(t);
+      senal.removeEventListener("abort", terminar);
+      resolver();
+    };
+    const t = setTimeout(terminar, ms);
+    senal.addEventListener("abort", terminar, { once: true });
+    void promesa.then(terminar, terminar);
+  });
+
+/** Descarta el stream abierto (resuelva cuando resuelva) sin leerlo. */
+const cancelarCuerpo = (abierto: Promise<Response | null>): void => {
+  void abierto.then((r) => r?.body?.cancel().catch(() => undefined));
+};
+
 export interface OpcionesSeguimiento {
   /** Estado completo traído por `GET /trabajos` (al abrir y tras cada reconexión; el stream no trae estado inicial). */
   alListar: (trabajos: TrabajoVista[]) => void;
@@ -141,10 +169,11 @@ export interface OpcionesSeguimiento {
 }
 
 /**
- * Sigue los trabajos hasta que `senal` se aborte: lista, abre el stream y lo lee; al terminar (cierre normal a
- * los 5 min o error) espera con espera creciente (1 s → 10 s) y repite, re-sincronizando con el listado. Si el
- * stream no se puede abrir, el propio ciclo sondea el listado al menos cada 10 s. El stream no renueva la sesión
- * (D22): aquí tampoco se trata como actividad. Un 401/403 del listado detiene el ciclo.
+ * Sigue los trabajos hasta que `senal` se aborte: abre el stream y espera a que quede conectado (con tope), lista
+ * y lo lee; al terminar (cierre normal a los 5 min o error) espera con espera creciente (1 s → 10 s) y repite,
+ * re-sincronizando con el listado. Si el stream no se puede abrir, el propio ciclo sondea el listado al menos cada
+ * 10 s. El stream no renueva la sesión (D22): aquí tampoco se trata como actividad. Un 401/403 del listado detiene
+ * el ciclo.
  */
 export async function seguirTrabajos(o: OpcionesSeguimiento): Promise<void> {
   const { senal } = o;
@@ -161,8 +190,11 @@ export async function seguirTrabajos(o: OpcionesSeguimiento): Promise<void> {
           Accept: "text/event-stream",
         };
         if (sesion.estudioActivo) headers["X-Estudio"] = sesion.estudioActivo.id;
-        // Se abre antes de listar: lo que ocurra durante el listado queda en el flujo y se lee después. No se
-        // espera aquí (D-2): Next no entrega las cabeceras hasta el primer byte y la lista no debe esperarlas.
+        // Se abre y se espera antes de listar (T11e). El backend manda el primer byte `: conectado` solo cuando la
+        // conexión ya está registrada y suscrita, y Next entrega las cabeceras con ese byte: al resolver `fetch`,
+        // todo evento posterior queda en el flujo. Así lo ocurrido entre el listado y el registro del stream no se
+        // pierde (el stream no trae estado inicial). La espera tiene tope (`TOPE_ESPERA_STREAM_MS`): con un stream
+        // lento se lista igualmente y el stream se lee cuando llegue. Esto reemplaza al D-2 anterior (no esperar).
         abierto = fetch("/api/trabajos/stream", {
           method: "GET",
           credentials: "same-origin",
@@ -170,13 +202,18 @@ export async function seguirTrabajos(o: OpcionesSeguimiento): Promise<void> {
           headers,
           signal: senal,
         }).catch(() => null);
+        await esperarConTope(abierto, TOPE_ESPERA_STREAM_MS, senal);
+        if (senal.aborted) {
+          cancelarCuerpo(abierto);
+          return;
+        }
       }
       const [lista, resumen] = await Promise.all([
         listarTrabajos(),
         obtenerResumenTrabajos(),
       ]);
       if (senal.aborted) {
-        void abierto.then((r) => r?.body?.cancel().catch(() => undefined));
+        cancelarCuerpo(abierto);
         return;
       }
       if (lista.ok && lista.datos) {
@@ -186,7 +223,7 @@ export async function seguirTrabajos(o: OpcionesSeguimiento): Promise<void> {
       } else {
         o.alError(lista.status);
         if (lista.status === 401 || lista.status === 403) {
-          void abierto.then((r) => r?.body?.cancel().catch(() => undefined));
+          cancelarCuerpo(abierto);
           return;
         }
       }
