@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { reiniciarSesion } from "../../lib/sesion";
@@ -200,5 +200,46 @@ describe("AccionesFilaCompras · descartar (D-11)", () => {
     await abrirMenu(usuario, "F001-1040");
     expect(screen.queryByRole("menuitem", { name: M.descartar })).toBeNull();
     expect(screen.getByRole("menuitem", { name: M.excluir })).toBeTruthy();
+  });
+});
+
+// Spec 018 · T11d: el menú solo se cierra si el botón se movió de verdad. Un `scroll` que no lo mueve (el del
+// desplazamiento previo que el navegador entrega ya abierto el menú, o el de otro contenedor) lo deja abierto.
+describe("AccionesFilaCompras · cierre por desplazamiento (spec 018 T11d)", () => {
+  const cajaEn = (top: number) =>
+    ({ top, left: 100, right: 160, bottom: top + 30, width: 60, height: 30, x: 100, y: top }) as DOMRect;
+
+  async function abrirConBotonEn(top: { valor: number }) {
+    const contexto = contextoDe();
+    const usuario = userEvent.setup();
+    render(<AccionesFilaCompras contexto={contexto} fila={C_3064_BOLSAS} />);
+    const boton = await screen.findByRole("button", { name: `${M.columnas.acciones} F001-3064` });
+    vi.spyOn(boton, "getBoundingClientRect").mockImplementation(() => cajaEn(top.valor));
+    await usuario.click(boton);
+    expect(screen.getByRole("menu")).toBeTruthy();
+    return boton;
+  }
+
+  it("feliz: un scroll que no mueve el botón (otro contenedor o uno ya asentado) no cierra el menú", async () => {
+    const top = { valor: 200 };
+    await abrirConBotonEn(top);
+    const otro = document.createElement("div");
+    document.body.appendChild(otro);
+    act(() => {
+      fireEvent.scroll(otro);
+      fireEvent.scroll(document);
+    });
+    expect(screen.getByRole("menu")).toBeTruthy();
+    otro.remove();
+  });
+
+  it("error: si el desplazamiento mueve el botón, el menú se cierra", async () => {
+    const top = { valor: 200 };
+    await abrirConBotonEn(top);
+    top.valor = 120;
+    act(() => {
+      fireEvent.scroll(document);
+    });
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 });

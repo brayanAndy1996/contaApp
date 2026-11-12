@@ -59,6 +59,18 @@ function Ventana({ children }: { children: ReactNode }) {
 const ALTO_MENU = 280;
 const ANCHO_MENU = 224;
 
+/** Tolerancia (px) al comparar la caja del botón: el subpíxel no cuenta como movimiento. */
+const TOLERANCIA_PX = 0.5;
+
+/** El botón cambió de lugar respecto de cuando se abrió el menú. Sin caja inicial se asume que sí (se cierra). */
+function botonSeMovio(inicial: DOMRect | null, actual: DOMRect): boolean {
+  if (!inicial) return true;
+  return (
+    Math.abs(actual.top - inicial.top) > TOLERANCIA_PX ||
+    Math.abs(actual.left - inicial.left) > TOLERANCIA_PX
+  );
+}
+
 interface PosicionMenu {
   top?: number;
   bottom?: number;
@@ -82,6 +94,7 @@ export function AccionesFilaCompras({
   const { avisarError, rolDe } = useErrorAnunciado(alAvisar);
   const menu = useRef<HTMLDivElement>(null);
   const boton = useRef<HTMLButtonElement>(null);
+  const cajaAlAbrir = useRef<DOMRect | null>(null);
   const comprobante = comprobanteDe(fila);
 
   useEffect(() => {
@@ -102,14 +115,21 @@ export function AccionesFilaCompras({
     if (activo === null || activo === document.body) boton.current?.focus();
   }, [ocupado]);
 
-  // El menú es `fixed`: si la grilla se desplaza, deja de apuntar a su botón y se cierra.
+  // El menú es `fixed` y se posicionó con la caja del botón al abrirlo: si el botón se movió de verdad (la grilla o la
+  // lupa se desplazaron) deja de apuntar a él y se cierra. Un `scroll` que no lo mueve no cierra nada: el navegador
+  // entrega el de un desplazamiento previo (p. ej. el que hace el clic al traer el botón a la vista, o el de la
+  // grilla virtualizada al asentarse) en el cuadro siguiente, ya abierto el menú (spec 018, T11d).
   useEffect(() => {
     if (!abierto) return;
     const cerrar = () => setAbierto(false);
-    window.addEventListener("scroll", cerrar, true);
+    const alDesplazar = () => {
+      const caja = boton.current?.getBoundingClientRect();
+      if (!caja || botonSeMovio(cajaAlAbrir.current, caja)) cerrar();
+    };
+    window.addEventListener("scroll", alDesplazar, true);
     window.addEventListener("resize", cerrar);
     return () => {
-      window.removeEventListener("scroll", cerrar, true);
+      window.removeEventListener("scroll", alDesplazar, true);
       window.removeEventListener("resize", cerrar);
     };
   }, [abierto]);
@@ -221,6 +241,7 @@ export function AccionesFilaCompras({
         title={bloqueo ?? undefined}
         onClick={() => {
           const caja = boton.current?.getBoundingClientRect();
+          cajaAlAbrir.current = caja ?? null;
           if (caja) {
             const left = Math.max(8, Math.min(caja.right - ANCHO_MENU, window.innerWidth - ANCHO_MENU - 8));
             setPosicion(
