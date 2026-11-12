@@ -1,6 +1,6 @@
 # Spec 020 · Deuda técnica de R1
 
-Estado: aprobada (2026-11-12, decisiones P-1 a P-5 del usuario). Rama `spec/020-deuda-r1` desde `main` (578c81b). Plan en `plan.md` y tareas en `tasks.md`.
+Estado: hecha (2026-11-12; CA-1 a CA-11 verificados, CI verde en 3 corridas seguidas). Aprobada con decisiones P-1 a P-7 del usuario. Rama `spec/020-deuda-r1` desde `main` (578c81b). Plan en `plan.md` y tareas en `tasks.md`.
 Nivel de riesgo: **C** (P-1 = b, P-2 = a, P-5 = a). Por §2.1: (1) no, porque no cambia montos, clasificación ni el armado del TXT/ZIP: solo textos, horas y nombres de descarga; (2) no, porque no abre superficie nueva. CA-8 de auth protege contra la enumeración de cuentas, y CA-2 exige que su prueba siga detectando la fuga; (3) sí, porque una hora mal convertida o un estado de credencial viejo no se notan a simple vista; (4) no: la cola (DT-9/DT-10) y el borrado de auditoría (DT-11) quedan fuera.
 Cubre: RNF-031, RNF-035 y RNF-071 (no debilitarlos) · HU-09, HU-25, HU-26 · notas abiertas de R1 de `ESTADO.md` (decisión del usuario 2026-11-12).
 
