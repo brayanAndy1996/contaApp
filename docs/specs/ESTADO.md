@@ -185,6 +185,8 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 | 017-auditoria-notif | T15 · `packages/db/src/auditoria/auditoria-r1.adv.spec.ts`, `apps/backend/src/modules/notificaciones/r1.adv.int.spec.ts` | H-017-1 (media): cambiar el tipo de una asignación (promover a responsable, degradar, `cambiarRol`) no dejaba fila de auditoría (`INSERT … ON CONFLICT DO UPDATE` dispara UPDATE) | corregido (b728c35; migración 0045: acción `asignacion.tipo_cambiado` con `{de, a, usuarioId}`) |
 | 017-auditoria-notif | T15 · `auditoria-r1.adv.spec.ts` | H-017-2 (baja): los grants permitían DELETE de `membresia`/`cliente` y UPDATE de `asignacion`/`invitacion` sin rastro ni recálculo de `plan_aviso` | corregido (b728c35; por decisión del usuario se auditan con triggers: `miembro.eliminado`, `cliente.eliminado`, `invitacion.modificada`, cambio de asignación; los DELETE recalculan `plan_aviso`) |
 | 017-auditoria-notif | T15 · `auditoria-r1.adv.spec.ts` | H-017-3 (baja): `notificaciones_de_esta_transaccion()` confiaba en `app.notificaciones_tx` fijable por la sesión y podía revelar el destinatario de una notificación ajena | corregido (b728c35; solo filas con `xmin` de la transacción en curso) |
+| 018-e2e-r1 | T11c · `despachador-t11c.adv.int.spec.ts` | H-018-1 (baja): el cierre de un estudio vacío borraba la pista de un reintento con el mismo id leído como resto previo | corregido (c0c8441; relectura en BD y re-publicación de los previos `en_cola`) |
+| 018-e2e-r1 | T11c · `despachador-t11c.adv.int.spec.ts` | H-018-2 (media): el reconciliador re-encolaba un `ejecutando` vencido solo con SADD, sin ZADD, y el cierre del estudio lo perdía | corregido (c0c8441; el reconciliador usa `publicar`) |
 
 ## Decisiones pendientes del usuario
 
