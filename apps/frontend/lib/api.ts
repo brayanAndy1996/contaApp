@@ -1,4 +1,4 @@
-import { obtenerSesion, reiniciarSesion } from "./sesion";
+import { obtenerSesion, reiniciarSesion, type Sesion } from "./sesion";
 
 // Cliente HTTP del frontend (spec 004, CA-12). Todas las llamadas van a `/api/*` (Next las reescribe
 // al backend), con la cookie de sesión del mismo origen. Añade `X-CSRF-Token` en los no-GET y
@@ -21,7 +21,9 @@ export interface OpcionesApi {
   /** Login y recuperación: sin consultar la sesión ni añadir cabeceras de sesión. */
   sinSesion?: boolean;
   /**
-   * Por defecto (`true`) todo 401 es sesión caducada: se vacía la sesión y se va a /login. Con
+   * Por defecto (`true`) todo 401 es sesión caducada: se comprueba la sesión real (una vez, por si fue
+   * la rotación del cambio de estudio y se reintenta la petición una vez); si no hay sesión, se vacía
+   * y se va a /login. Con
    * `false` el 401 llega a la pantalla (p. ej. contraseña actual errónea), salvo que el cuerpo
    * traiga `codigo: "sesion_invalida"`, que sigue siendo sesión caducada.
    */
@@ -45,10 +47,31 @@ function irALogin(): void {
   if (window.location.pathname !== "/login") window.location.assign("/login");
 }
 
+// Comprobación de sesión tras un 401, compartida por todas las peticiones que lo reciben a la vez.
+let comprobacion401: Promise<Sesion | null> | null = null;
+
+/**
+ * Un 401 puede ser la carrera de la rotación de sesión (cambio de estudio): la petición salió con la
+ * cookie vieja y el servidor ya la revocó. Se relee la sesión real una sola vez (compartida) y se
+ * devuelve la sesión vigente, o `null` si de verdad caducó (o no se pudo comprobar).
+ */
+function comprobarSesionTras401(): Promise<Sesion | null> {
+  if (comprobacion401) return comprobacion401;
+  reiniciarSesion();
+  const peticion = obtenerSesion(true)
+    .catch(() => null)
+    .finally(() => {
+      if (comprobacion401 === peticion) comprobacion401 = null;
+    });
+  comprobacion401 = peticion;
+  return peticion;
+}
+
 async function ejecutar<T>(
   ruta: string,
   opciones: OpcionesApi,
   reintento: boolean,
+  reintento401 = false,
 ): Promise<RespuestaApi<T>> {
   const metodo = (opciones.method ?? "GET").toUpperCase();
   const headers: Record<string, string> = {};
@@ -86,6 +109,10 @@ async function ejecutar<T>(
       (opciones.manejar401 !== false ||
         (datos as { codigo?: string } | null)?.codigo === "sesion_invalida")
     ) {
+      // Como mucho un reintento por petición; la propia consulta de sesión (`/auth/sesion`) no pasa
+      // por aquí. Se reintenta con la sesión nueva: `X-Estudio` y el CSRF se recalculan.
+      if (!reintento401 && (await comprobarSesionTras401()) !== null)
+        return ejecutar<T>(ruta, opciones, reintento, true);
       reiniciarSesion();
       irALogin();
     } else if (
@@ -102,7 +129,7 @@ async function ejecutar<T>(
       (datos as { codigo?: string } | null)?.codigo === "csrf_invalido"
     ) {
       await obtenerSesion(true);
-      return ejecutar<T>(ruta, opciones, true);
+      return ejecutar<T>(ruta, opciones, true, reintento401);
     }
   }
   return {

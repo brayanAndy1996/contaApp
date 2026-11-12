@@ -311,6 +311,9 @@ test.describe("quien está en dos estudios", () => {
     vigilancia,
   }) => {
     vigilancia.permitirError(SIN_CONSOLA_404);
+    // T11a: al cambiar de estudio una petición en vuelo con la cookie vieja puede recibir 401 (el
+    // servidor revoca el token al rotar). `api()` lo recupera; el navegador igual lo anota en consola.
+    vigilancia.permitirError(/status of 401/);
     const estudioA = await siembra.estudio();
     const estudioB = await siembra.estudio();
     const clienteA = await siembra.cliente(estudioA.tenantId, {

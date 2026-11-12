@@ -329,7 +329,11 @@ test.describe("roles y estudios", () => {
   test("al cambiar de estudio con la lista abierta, la lista pasa a ser la del estudio nuevo", async ({
     siembra,
     sesiones,
+    vigilancia,
   }) => {
+    // T11a: al cambiar de estudio una petición en vuelo con la cookie vieja puede recibir 401 (el
+    // servidor revoca el token al rotar). `api()` lo recupera; el navegador igual lo anota en consola.
+    vigilancia.permitirError(/status of 401/);
     const a: Estudio = await siembra.estudio();
     const b: Estudio = await siembra.estudio();
     const clienteA = await siembra.cliente(a.tenantId, {
