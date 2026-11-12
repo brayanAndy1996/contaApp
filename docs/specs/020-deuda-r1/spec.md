@@ -62,3 +62,5 @@ Todas en la opción recomendada.
 - **P-3 · Zona y formato → (a)** hora de Lima con `fechaHoraLima` (`es-PE` corto, «20/10/26, 10:00 a. m.»), el formato de auditoría y notificaciones (017). Un solo formato en toda la app.
 - **P-4 · Tiempos bajo cobertura → (a) no se comparan.** Con `CONTAPP_COBERTURA=1` la prueba corre pero no evalúa el tiempo; la garantía la da el paso sin instrumentar (`pnpm ci:db`), con medianas. Los límites no cambian. En CA-8 de auth, una prueba inyecta 20 ms para comprobar que sigue detectando la enumeración de cuentas.
 - **P-5 · División → (a)** una sola 020 de nivel C.
+- **P-6 · Nombre del ZIP de una versión anterior → `_vN`** (2026-11-12): se revisa cuando llegue el formato oficial de SUNAT (nota [oficial]).
+- **P-7 · Fechas sin hora → solo el día** (2026-11-12): pasan al día de Lima, sin añadir la hora.
