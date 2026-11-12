@@ -26,6 +26,7 @@ Nivel C (04 §2.1): sin TDD ni ADV. Flujo 04 §1.3: implementar (+ pruebas míni
 | T11b | Intermitentes de la suite E2E (CA-4): causa de cada uno, corrección en pruebas o soporte, defectos de la app escalados | tester | sonnet | T11a | — | — | [x] |
 | T11c | Carrera del despachador: un trabajo publicado mientras se vacía la lista del estudio queda invisible hasta el reconciliador (decisión del usuario: corregir en 018) | backend | sonnet | T11b | TDD | ADV | [x] |
 | T11d | Foco tras Tab en la grilla (`grilla-compras.tsx` `enfocarRef`) y menú «Acciones» de la lupa que se cierra solo | frontend | sonnet | T11b | — | — | [x] |
+| T11e | El evento «terminado» que llega entre el listado y el registro del stream se pierde: el frontend espera el stream abierto antes de listar | frontend | sonnet | T11 | — | — | [ ] |
 | T12 | Revisión final contra la spec | arquitecto | sonnet | T11 | — | — | [ ] |
 | T13 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza ESTADO) | devops | haiku | T12 | — | — | [ ] |
 
