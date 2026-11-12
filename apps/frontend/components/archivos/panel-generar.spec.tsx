@@ -49,6 +49,7 @@ function montar(
     puedeGenerar?: boolean;
     alUbicarFila?: (id: string) => void;
     alGenerado?: () => void;
+    destino?: HTMLElement | null;
   } = {},
 ) {
   render(
@@ -60,6 +61,7 @@ function montar(
       puedeGenerar={o.puedeGenerar ?? true}
       alUbicarFila={o.alUbicarFila}
       alGenerado={o.alGenerado}
+      destino={o.destino}
     />,
   );
 }
@@ -90,6 +92,27 @@ describe("PanelGenerar · previo y generación (spec 012b T14)", () => {
     expect(within(panel).getAllByText("1,234.50", { selector: "dd" })).toHaveLength(2);
     expect(within(panel).queryByText(M.provisional)).toBeNull();
     expect((within(panel).getByRole("button", { name: M.generar }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("con columna destino (020 D-10): el panel se dibuja en ella, junto a la grilla, y no fijo sobre la página", async () => {
+    instalarFetchArchivos();
+    const destino = document.body.appendChild(document.createElement("div"));
+    montar({ destino });
+    const user = userEvent.setup();
+    const panel = await abrir(user);
+
+    expect(destino.contains(panel)).toBe(true);
+    expect(panel.className).not.toContain("fixed");
+    expect(panel.className).toContain("min-[1400px]:w-[30rem]");
+    destino.remove();
+  });
+
+  it("borde: con la columna destino aún sin montar (null) no se dibuja el panel", async () => {
+    instalarFetchArchivos();
+    montar({ destino: null });
+    await userEvent.setup().click(screen.getByRole("button", { name: M.abrir }));
+
+    expect(screen.queryByRole("complementary", { name: M.titulo })).toBeNull();
   });
 
   it("error: un error de prevalidación trae su enlace que ubica la fila y bloquea «Generar»", async () => {

@@ -94,6 +94,8 @@ function Compras() {
   const [permisos, setPermisos] = useState<PermisosCompras | null>(null);
   const [cliente, setCliente] = useState<ClienteDto | null>(null);
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null);
+  // Columna del panel «Generar archivo» (020 D-10): vive junto a la grilla, no encima.
+  const [ranuraPanel, setRanuraPanel] = useState<HTMLElement | null>(null);
 
   const [periodo, setPeriodo] = useState(busqueda.get("periodo") ?? "");
   const periodoValido = PERIODO_VALIDO.test(periodo);
@@ -458,283 +460,289 @@ function Compras() {
           </Link>
         </nav>
       </header>
+      <div className="flex flex-col gap-6 min-[1400px]:flex-row min-[1400px]:items-start">
+        <div className="flex min-w-0 flex-1 flex-col gap-6">
 
-      {soloLectura !== null && (
-        <p
-          role="status"
-          className="w-full max-w-xl rounded bg-amber-50 p-3 text-sm text-amber-900"
-        >
-          {soloLectura}
-        </p>
-      )}
-      {errorGeneral && (
-        <p role="alert" className="text-sm text-red-600">
-          {errorGeneral}
-        </p>
-      )}
-
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-sm">
-          {M.etiquetaPeriodo}
-          <input
-            type="text"
-            inputMode="numeric"
-            maxLength={6}
-            autoComplete="off"
-            value={periodo}
-            onChange={(e) => cambiarPeriodo(e.target.value)}
-            aria-describedby={
-              periodo !== "" && !periodoValido ? "periodo-ayuda" : undefined
-            }
-            className="rounded border px-3 py-2"
-          />
-        </label>
-        <ExportarCompras
-          key={`exportar|${clienteId}|${periodo}`}
-          clienteId={clienteId}
-          periodo={periodo}
-          periodoValido={periodoValido}
-        />
-      </div>
-      {periodo !== "" && !periodoValido && (
-        <p id="periodo-ayuda" className="text-sm text-red-600">
-          {M.periodoInvalido}
-        </p>
-      )}
-
-      {periodoValido && (
-        <EstadoPeriodo
-          key={`estado|${clienteId}|${periodo}`}
-          contexto={contexto}
-          archivado={archivado}
-          en={marca !== null && marca.estado === estado ? marca.en : null}
-          autor={marca !== null && marca.estado === estado ? marca.autor : null}
-          alCambiar={alCambiarEstado}
-          alRecargar={() =>
-            void cargarResumen().catch(() =>
-              setErrorGeneral(MENSAJES.errorGeneral),
-            )
-          }
-        />
-      )}
-
-      {periodoValido && (
-        <PanelGenerar
-          key={`archivo|${clienteId}|${periodo}`}
-          clienteId={clienteId}
-          periodo={periodo}
-          libro="compras"
-          puedeVer={permisos.ver}
-          puedeGenerar={permisos.aprobarGenerar && !archivado}
-          recarga={resumen}
-          alUbicarFila={(id) => void ubicar(id)}
-          alGenerado={() =>
-            void cargarResumen().catch(() =>
-              setErrorGeneral(MENSAJES.errorGeneral),
-            )
-          }
-        />
-      )}
-
-      <DescargaCompras
-        key={`descarga|${clienteId}|${periodo}`}
-        clienteId={clienteId}
-        periodo={periodo}
-        puedeDescargar={puedeDescargar}
-        periodoValido={periodoValido}
-        ultimaPropuesta={propuestas?.[0]}
-        cargadas={propuestas !== null}
-        alCompletar={() => {
-          void cargarTodo();
-          reintentar();
-        }}
-      />
-
-      {periodoValido && (
-        <>
-          <ResumenCompras resumen={resumen} />
-
-          <section
-            key={`compras|${clienteId}|${periodo}`}
-            aria-labelledby="titulo-lista-compras"
-            className="flex flex-col gap-3"
+        {soloLectura !== null && (
+          <p
+            role="status"
+            className="w-full max-w-xl rounded bg-amber-50 p-3 text-sm text-amber-900"
           >
-            <h2 id="titulo-lista-compras" className="text-lg font-semibold">
-              {M.tituloListado}
-            </h2>
-            <FiltrosListado
-              key={`filtros|${clienteId}|${periodo}`}
-              filtros={filtros}
-              alCambiar={setFiltros}
+            {soloLectura}
+          </p>
+        )}
+        {errorGeneral && (
+          <p role="alert" className="text-sm text-red-600">
+            {errorGeneral}
+          </p>
+        )}
+
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1 text-sm">
+            {M.etiquetaPeriodo}
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              autoComplete="off"
+              value={periodo}
+              onChange={(e) => cambiarPeriodo(e.target.value)}
+              aria-describedby={
+                periodo !== "" && !periodoValido ? "periodo-ayuda" : undefined
+              }
+              className="rounded border px-3 py-2"
             />
-            <div className="flex flex-wrap items-center gap-3 text-sm">
-              <p role="status">
-                {carga === "cargando"
-                  ? filas.length === 0
-                    ? M.cargando
-                    : M.cargandoMas(filas.length)
-                  : carga === "completa"
+          </label>
+          <ExportarCompras
+            key={`exportar|${clienteId}|${periodo}`}
+            clienteId={clienteId}
+            periodo={periodo}
+            periodoValido={periodoValido}
+          />
+        </div>
+        {periodo !== "" && !periodoValido && (
+          <p id="periodo-ayuda" className="text-sm text-red-600">
+            {M.periodoInvalido}
+          </p>
+        )}
+
+        {periodoValido && (
+          <EstadoPeriodo
+            key={`estado|${clienteId}|${periodo}`}
+            contexto={contexto}
+            archivado={archivado}
+            en={marca !== null && marca.estado === estado ? marca.en : null}
+            autor={marca !== null && marca.estado === estado ? marca.autor : null}
+            alCambiar={alCambiarEstado}
+            alRecargar={() =>
+              void cargarResumen().catch(() =>
+                setErrorGeneral(MENSAJES.errorGeneral),
+              )
+            }
+          />
+        )}
+
+        {periodoValido && (
+          <PanelGenerar
+            key={`archivo|${clienteId}|${periodo}`}
+            clienteId={clienteId}
+            periodo={periodo}
+            libro="compras"
+            destino={ranuraPanel}
+            puedeVer={permisos.ver}
+            puedeGenerar={permisos.aprobarGenerar && !archivado}
+            recarga={resumen}
+            alUbicarFila={(id) => void ubicar(id)}
+            alGenerado={() =>
+              void cargarResumen().catch(() =>
+                setErrorGeneral(MENSAJES.errorGeneral),
+              )
+            }
+          />
+        )}
+
+        <DescargaCompras
+          key={`descarga|${clienteId}|${periodo}`}
+          clienteId={clienteId}
+          periodo={periodo}
+          puedeDescargar={puedeDescargar}
+          periodoValido={periodoValido}
+          ultimaPropuesta={propuestas?.[0]}
+          cargadas={propuestas !== null}
+          alCompletar={() => {
+            void cargarTodo();
+            reintentar();
+          }}
+        />
+
+        {periodoValido && (
+          <>
+            <ResumenCompras resumen={resumen} />
+
+            <section
+              key={`compras|${clienteId}|${periodo}`}
+              aria-labelledby="titulo-lista-compras"
+              className="flex flex-col gap-3"
+            >
+              <h2 id="titulo-lista-compras" className="text-lg font-semibold">
+                {M.tituloListado}
+              </h2>
+              <FiltrosListado
+                key={`filtros|${clienteId}|${periodo}`}
+                filtros={filtros}
+                alCambiar={setFiltros}
+              />
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <p role="status">
+                  {carga === "cargando"
                     ? filas.length === 0
-                      ? M.sinResultados
-                      : M.cargaCompleta(filas.length)
-                    : null}
-              </p>
-              {carga === "error" && (
-                <>
-                  {/* Un aviso, un anunciador (018, T8a): si la pantalla ya anuncia este texto (p. ej. «No se
-                      encontró lo que buscas.» de un cliente ajeno), la grilla lo muestra sin rol. */}
-                  <p
-                    role={
-                      (errorCarga ?? M.errorCarga) === errorGeneral
-                        ? undefined
-                        : "alert"
-                    }
-                    className="text-red-600"
-                  >
-                    {errorCarga ?? M.errorCarga}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={reintentar}
-                    className="rounded border px-3 py-1"
-                  >
-                    {M.reintentar}
-                  </button>
-                </>
-              )}
-            </div>
-            <SeleccionDelFiltro
-              key={`seleccion|${clienteId}|${periodo}`}
-              cantidad={carga === "error" ? 0 : filasVista.length}
-              cargando={carga !== "completa"}
-              seleccionadas={seleccionVista.size}
-              alSeleccionar={seleccionarTodas}
-            />
-            <div className="flex flex-wrap items-start gap-3">
-              {permisos.clasificar && (
-                <fieldset
-                  key={`escritura|${clienteId}|${periodo}`}
-                  disabled={soloLectura !== null}
-                  title={soloLectura ?? undefined}
-                  className="m-0 flex min-w-0 flex-wrap items-start gap-3 border-0 p-0"
-                >
-                  <button
-                    type="button"
-                    onClick={() => setAgregando(true)}
-                    className="rounded border px-3 py-1 text-sm disabled:opacity-50"
-                  >
-                    {M.agregarCompra}
-                  </button>
-                  <DeshacerCompras control={deshacer} />
-                </fieldset>
-              )}
-              <BarraMasiva
-                key={`masiva|${clienteId}|${periodo}`}
-                contexto={contexto}
-                filas={filasVista}
-                seleccion={seleccionVista}
-                alAvisar={alAvisar}
-                alOperacion={registrar}
-                alLimpiarSeleccion={() => setSeleccion(new Set())}
-              />
-            </div>
-            {aviso && (
-              <p
-                role={aviso.tipo === "error" ? "alert" : "status"}
-                className={`text-sm ${aviso.tipo === "error" ? "text-red-600" : ""}`}
-              >
-                {aviso.texto}
-              </p>
-            )}
-            {/* Ctrl+Z / Ctrl+Y con el foco en la grilla (P-4): dentro de un campo en edición son del campo. */}
-            <div className="contents" onKeyDown={deshacer.alTeclear}>
-              <GrillaCompras
-                key={`grilla|${clienteId}|${periodo}`}
-                filas={filasVista}
-                cargando={carga === "cargando"}
-                seleccion={seleccionVista}
-                alCambiarSeleccion={setSeleccion}
-                resaltadas={resaltadas}
-                soloLectura={soloLectura}
-                alGuardarFila={guardarFila}
-                alCalcular={calcularFila}
-                renderAcciones={(fila) => (
-                  <AccionesFilaCompras
-                    contexto={contexto}
-                    fila={fila}
-                    alAvisar={avisarDeFila(fila)}
-                  />
+                      ? M.cargando
+                      : M.cargandoMas(filas.length)
+                    : carga === "completa"
+                      ? filas.length === 0
+                        ? M.sinResultados
+                        : M.cargaCompleta(filas.length)
+                      : null}
+                </p>
+                {carga === "error" && (
+                  <>
+                    {/* Un aviso, un anunciador (018, T8a): si la pantalla ya anuncia este texto (p. ej. «No se
+                        encontró lo que buscas.» de un cliente ajeno), la grilla lo muestra sin rol. */}
+                    <p
+                      role={
+                        (errorCarga ?? M.errorCarga) === errorGeneral
+                          ? undefined
+                          : "alert"
+                      }
+                      className="text-red-600"
+                    >
+                      {errorCarga ?? M.errorCarga}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={reintentar}
+                      className="rounded border px-3 py-1"
+                    >
+                      {M.reintentar}
+                    </button>
+                  </>
                 )}
-                alAbrirHistorial={setHistorialId}
-                alAbrirLupa={(id, orden) => setLupa({ id, orden })}
-                edicionPedida={editarPedida}
-                alAtenderEdicion={(abierta) => {
-                  setEditarPedida(null);
-                  if (!abierta) alAvisar(MENSAJES_LUPA.editarNoDisponible, "error");
-                }}
+              </div>
+              <SeleccionDelFiltro
+                key={`seleccion|${clienteId}|${periodo}`}
+                cantidad={carga === "error" ? 0 : filasVista.length}
+                cargando={carga !== "completa"}
+                seleccionadas={seleccionVista.size}
+                alSeleccionar={seleccionarTodas}
               />
-            </div>
-          </section>
+              <div className="flex flex-wrap items-start gap-3">
+                {permisos.clasificar && (
+                  <fieldset
+                    key={`escritura|${clienteId}|${periodo}`}
+                    disabled={soloLectura !== null}
+                    title={soloLectura ?? undefined}
+                    className="m-0 flex min-w-0 flex-wrap items-start gap-3 border-0 p-0"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setAgregando(true)}
+                      className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+                    >
+                      {M.agregarCompra}
+                    </button>
+                    <DeshacerCompras control={deshacer} />
+                  </fieldset>
+                )}
+                <BarraMasiva
+                  key={`masiva|${clienteId}|${periodo}`}
+                  contexto={contexto}
+                  filas={filasVista}
+                  seleccion={seleccionVista}
+                  alAvisar={alAvisar}
+                  alOperacion={registrar}
+                  alLimpiarSeleccion={() => setSeleccion(new Set())}
+                />
+              </div>
+              {aviso && (
+                <p
+                  role={aviso.tipo === "error" ? "alert" : "status"}
+                  className={`text-sm ${aviso.tipo === "error" ? "text-red-600" : ""}`}
+                >
+                  {aviso.texto}
+                </p>
+              )}
+              {/* Ctrl+Z / Ctrl+Y con el foco en la grilla (P-4): dentro de un campo en edición son del campo. */}
+              <div className="contents" onKeyDown={deshacer.alTeclear}>
+                <GrillaCompras
+                  key={`grilla|${clienteId}|${periodo}`}
+                  filas={filasVista}
+                  cargando={carga === "cargando"}
+                  seleccion={seleccionVista}
+                  alCambiarSeleccion={setSeleccion}
+                  resaltadas={resaltadas}
+                  soloLectura={soloLectura}
+                  alGuardarFila={guardarFila}
+                  alCalcular={calcularFila}
+                  renderAcciones={(fila) => (
+                    <AccionesFilaCompras
+                      contexto={contexto}
+                      fila={fila}
+                      alAvisar={avisarDeFila(fila)}
+                    />
+                  )}
+                  alAbrirHistorial={setHistorialId}
+                  alAbrirLupa={(id, orden) => setLupa({ id, orden })}
+                  edicionPedida={editarPedida}
+                  alAtenderEdicion={(abierta) => {
+                    setEditarPedida(null);
+                    if (!abierta) alAvisar(MENSAJES_LUPA.editarNoDisponible, "error");
+                  }}
+                />
+              </div>
+            </section>
 
-          {agregando && (
-            <div
-              key={`agregar|${clienteId}|${periodo}`}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
-            >
-              <AgregarCompra
+            {agregando && (
+              <div
+                key={`agregar|${clienteId}|${periodo}`}
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+              >
+                <AgregarCompra
+                  contexto={contexto}
+                  // Los errores ya se ven dentro del diálogo; a la página solo le llega el éxito (y no se anota para
+                  // deshacer: agregar no se deshace, 014 DU-14).
+                  alAvisar={(texto, tipo) => {
+                    if (tipo === "ok") alAvisar(texto, tipo);
+                  }}
+                  alCancelar={() => setAgregando(false)}
+                  alAgregar={(fila) => {
+                    // La fila ya se insertó con `recargarFila`; solo falta mostrarla en una vista que la incluya.
+                    setAgregando(false);
+                    setPorUbicar(fila.id);
+                  }}
+                  alUbicarExistente={(id) => {
+                    setAgregando(false);
+                    void ubicar(id);
+                  }}
+                />
+              </div>
+            )}
+            {lupa !== null && (
+              <LupaCompra
+                key={`lupa|${clienteId}|${periodo}`}
                 contexto={contexto}
-                // Los errores ya se ven dentro del diálogo; a la página solo le llega el éxito (y no se anota para
-                // deshacer: agregar no se deshace, 014 DU-14).
-                alAvisar={(texto, tipo) => {
-                  if (tipo === "ok") alAvisar(texto, tipo);
-                }}
-                alCancelar={() => setAgregando(false)}
-                alAgregar={(fila) => {
-                  // La fila ya se insertó con `recargarFila`; solo falta mostrarla en una vista que la incluya.
-                  setAgregando(false);
-                  setPorUbicar(fila.id);
-                }}
-                alUbicarExistente={(id) => {
-                  setAgregando(false);
-                  void ubicar(id);
+                filas={filas}
+                orden={lupa.orden}
+                compraId={lupa.id}
+                alCambiar={(id) => setLupa({ ...lupa, id })}
+                alCerrar={() => setLupa(null)}
+                alAvisarDe={avisarDeFila}
+                alEditar={(id) => {
+                  setLupa(null);
+                  setEditarPedida(id);
                 }}
               />
-            </div>
-          )}
-          {lupa !== null && (
-            <LupaCompra
-              key={`lupa|${clienteId}|${periodo}`}
-              contexto={contexto}
-              filas={filas}
-              orden={lupa.orden}
-              compraId={lupa.id}
-              alCambiar={(id) => setLupa({ ...lupa, id })}
-              alCerrar={() => setLupa(null)}
-              alAvisarDe={avisarDeFila}
-              alEditar={(id) => {
-                setLupa(null);
-                setEditarPedida(id);
-              }}
-            />
-          )}
-          {historialId !== null && (
-            <div
-              key={`historial|${clienteId}|${periodo}`}
-              className="fixed inset-y-0 right-0 z-40 flex"
-            >
-              <HistorialCompra
-                contexto={contexto}
-                compraId={historialId}
-                alCerrar={() => setHistorialId(null)}
-              />
-            </div>
-          )}
+            )}
+            {historialId !== null && (
+              <div
+                key={`historial|${clienteId}|${periodo}`}
+                className="fixed inset-y-0 right-0 z-40 flex"
+              >
+                <HistorialCompra
+                  contexto={contexto}
+                  compraId={historialId}
+                  alCerrar={() => setHistorialId(null)}
+                />
+              </div>
+            )}
 
-          {propuestas !== null && propuestas.length > 0 && (
-            <DiferenciasCompras diferencias={diferencias} />
-          )}
-        </>
-      )}
+            {propuestas !== null && propuestas.length > 0 && (
+              <DiferenciasCompras diferencias={diferencias} />
+            )}
+          </>
+        )}
+        </div>
+        <div ref={setRanuraPanel} className="contents" />
+      </div>
     </main>
   );
 }

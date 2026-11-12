@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import type {
   ExcluidaPrevioDto,
   PrevioArchivoDto,
@@ -34,6 +35,16 @@ const esPantallaAngosta = (): boolean =>
   typeof window.matchMedia === "function" &&
   window.matchMedia(ANCHO_ANGOSTO).matches;
 
+/**
+ * Disposición (020 D-10): con `destino` el panel ocupa su propia columna junto a la grilla, que se encoge con su
+ * desplazamiento propio. Bajo 1400 px no queda ancho útil para la grilla: el panel va debajo, a todo el ancho.
+ * Sin `destino` (ventas) conserva el panel fijo a la derecha.
+ */
+const CLASE_PANEL_FIJO =
+  "fixed inset-y-0 right-0 z-40 flex max-h-screen w-[30rem] max-w-full flex-col gap-4 overflow-auto border-l bg-white p-4 shadow-lg";
+const CLASE_PANEL_COLUMNA =
+  "flex max-h-[80vh] w-full min-w-0 flex-col gap-4 overflow-auto rounded border bg-white p-4 shadow-sm min-[1400px]:sticky min-[1400px]:top-4 min-[1400px]:max-h-[calc(100vh-2rem)] min-[1400px]:w-[30rem] min-[1400px]:shrink-0 min-[1400px]:self-start";
+
 const ACTIVO: ReadonlySet<TrabajoVista["estado"]> = new Set(["en_cola", "ejecutando"]);
 
 type Carga = "inactiva" | "cargando" | "lista" | "error";
@@ -51,6 +62,7 @@ export function PanelGenerar({
   alRestaurar,
   alPrevio,
   bloqueo = null,
+  destino,
 }: {
   clienteId: string;
   periodo: string;
@@ -73,6 +85,11 @@ export function PanelGenerar({
   alPrevio?: (previo: PrevioArchivoDto) => void;
   /** Motivo del bloqueo de las escrituras de ventas (`generado`, o `revisado` sin `sire.aprobar_generar`). */
   bloqueo?: string | null;
+  /**
+   * Contenedor (hermano de la grilla en una fila flex) donde se dibuja el panel. `undefined`: panel fijo a la derecha;
+   * `null`: el contenedor aún no está montado y el panel no se dibuja.
+   */
+  destino?: HTMLElement | null;
 }) {
   const [abierto, setAbierto] = useState(false);
   const [previo, setPrevio] = useState<PrevioArchivoDto | null>(null);
@@ -141,7 +158,7 @@ export function PanelGenerar({
   /** En pantallas angostas el panel taparía la fila: se cierra y la persona lo reabre con «Generar archivo». */
   const ubicar = (filaId: string) => {
     alUbicarFila?.(filaId);
-    if (esPantallaAngosta()) cerrar();
+    if (destino === undefined && esPantallaAngosta()) cerrar();
   };
 
   /** Cierra el panel y devuelve el foco al botón que lo abre (P-2, RF-096); sin desplazar la página. */
@@ -214,6 +231,9 @@ export function PanelGenerar({
 
   if (!puedeVer) return null;
 
+  const ubicarPanel = (nodo: ReactElement) =>
+    destino ? createPortal(nodo, destino) : nodo;
+
   const activo = trabajo !== null && ACTIVO.has(trabajo.estado);
   const esperando = trabajoId !== null && trabajo === null;
   const puedePulsar =
@@ -236,10 +256,10 @@ export function PanelGenerar({
       >
         {M.abrir}
       </button>
-      {abierto && (
+      {abierto && destino !== null && ubicarPanel(
         <aside
           aria-label={M.titulo}
-          className="fixed inset-y-0 right-0 z-40 flex max-h-screen w-[30rem] max-w-full flex-col gap-4 overflow-auto border-l bg-white p-4 shadow-lg"
+          className={destino === undefined ? CLASE_PANEL_FIJO : CLASE_PANEL_COLUMNA}
         >
           <div className="flex items-start justify-between gap-2">
             <div className="flex flex-col gap-1">
@@ -339,7 +359,7 @@ export function PanelGenerar({
               />
             </>
           )}
-        </aside>
+        </aside>,
       )}
     </>
   );
