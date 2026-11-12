@@ -27,9 +27,7 @@ export const TOPE_ESPERA_STREAM_MS = 3_000;
 const TOPE_PENDIENTE = 256 * 1024;
 
 /** Lista del estudio (solo lo que cumple el esquema). */
-export async function listarTrabajos(): Promise<
-  RespuestaApi<TrabajoVista[]>
-> {
+export async function listarTrabajos(): Promise<RespuestaApi<TrabajoVista[]>> {
   const r = await api<unknown>("/trabajos");
   if (!r.ok) return { ok: false, status: r.status, datos: null };
   const filas = Array.isArray(r.datos) ? (r.datos as unknown[]) : [];
@@ -156,6 +154,19 @@ const cancelarCuerpo = (abierto: Promise<Response | null>): void => {
   void abierto.then((r) => r?.body?.cancel().catch(() => undefined));
 };
 
+/**
+ * ¿Ve el usuario el botón «Cancelar» de un trabajo? Quien lo encoló, el Dueño y el Administrador (008 D9). Solo
+ * oculta: el servidor decide (403/409).
+ */
+export const puedeCancelar = (
+  rol: string | null | undefined,
+  usuarioId: string | null | undefined,
+  trabajo: Pick<TrabajoVista, "creadoPor">,
+): boolean =>
+  rol === "dueno" ||
+  rol === "admin" ||
+  (!!usuarioId && trabajo.creadoPor?.usuarioId === usuarioId);
+
 export interface OpcionesSeguimiento {
   /** Estado completo traído por `GET /trabajos` (al abrir y tras cada reconexión; el stream no trae estado inicial). */
   alListar: (trabajos: TrabajoVista[]) => void;
@@ -181,6 +192,8 @@ export async function seguirTrabajos(o: OpcionesSeguimiento): Promise<void> {
   while (!senal.aborted) {
     const inicio = Date.now();
     let respuesta: Response | null = null;
+    // D-7 (spec 020): el tope venció y se listó sin el stream; al abrirse, lo ocurrido entre ambos se relee una vez.
+    let streamTardio = false;
     try {
       const sesion = await obtenerSesion();
       if (senal.aborted) return;
@@ -189,7 +202,8 @@ export async function seguirTrabajos(o: OpcionesSeguimiento): Promise<void> {
         const headers: Record<string, string> = {
           Accept: "text/event-stream",
         };
-        if (sesion.estudioActivo) headers["X-Estudio"] = sesion.estudioActivo.id;
+        if (sesion.estudioActivo)
+          headers["X-Estudio"] = sesion.estudioActivo.id;
         // Se abre y se espera antes de listar (T11e). El backend manda el primer byte `: conectado` solo cuando la
         // conexión ya está registrada y suscrita, y Next entrega las cabeceras con ese byte: al resolver `fetch`,
         // todo evento posterior queda en el flujo. Así lo ocurrido entre el listado y el registro del stream no se
@@ -202,7 +216,12 @@ export async function seguirTrabajos(o: OpcionesSeguimiento): Promise<void> {
           headers,
           signal: senal,
         }).catch(() => null);
+        let abrio = false;
+        void abierto.then(() => {
+          abrio = true;
+        });
         await esperarConTope(abierto, TOPE_ESPERA_STREAM_MS, senal);
+        streamTardio = !abrio;
         if (senal.aborted) {
           cancelarCuerpo(abierto);
           return;
@@ -228,6 +247,26 @@ export async function seguirTrabajos(o: OpcionesSeguimiento): Promise<void> {
         }
       }
       respuesta = await abierto;
+      if (senal.aborted) {
+        void respuesta?.body?.cancel().catch(() => undefined);
+        return;
+      }
+      if (streamTardio && respuesta?.ok && respuesta.body) {
+        // Un trabajo pudo cambiar entre el listado y el registro del stream (que no trae estado inicial): una sola
+        // lectura más, ya con el stream conectado. Si falla, el ciclo sigue con el listado anterior.
+        const [nueva, nuevoResumen] = await Promise.all([
+          listarTrabajos(),
+          obtenerResumenTrabajos(),
+        ]);
+        if (senal.aborted) {
+          void respuesta.body.cancel().catch(() => undefined);
+          return;
+        }
+        if (nueva.ok && nueva.datos) {
+          o.alListar(nueva.datos);
+          if (nuevoResumen) o.alResumen?.(nuevoResumen);
+        }
+      }
       if (respuesta?.ok && respuesta.body) {
         await leerEventos(respuesta.body, o.alEvento);
       } else {

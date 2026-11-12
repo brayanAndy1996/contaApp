@@ -111,6 +111,8 @@ describe("lib/trabajos: seguirTrabajos espera al stream antes de listar", () => 
       "/api/trabajos",
     ]);
     expect(m.alListar).toHaveBeenCalledTimes(1);
+    // Con el stream a tiempo no hay segundo listado (DT-7).
+    expect(m.registro.filter((r) => r === "/api/trabajos")).toHaveLength(1);
 
     // Un «terminado» emitido después del registro llega por el flujo, no se pierde.
     flujo.enqueue(
@@ -138,8 +140,11 @@ describe("lib/trabajos: seguirTrabajos espera al stream antes de listar", () => 
     expect(m.registro).toContain("/api/trabajos");
     expect(m.alListar).toHaveBeenCalledTimes(1);
 
-    // El stream llega tarde: se lee igualmente.
+    // El stream llega tarde: se relista UNA vez (DT-7) y se lee igualmente.
     const flujo = m.responderStream();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(m.alListar).toHaveBeenCalledTimes(2);
+    expect(m.registro.filter((r) => r === "/api/trabajos")).toHaveLength(2);
     flujo.enqueue(
       new TextEncoder().encode(
         eventoSse(trabajoN(2, "archivo.generar", "error")),
@@ -148,6 +153,17 @@ describe("lib/trabajos: seguirTrabajos espera al stream antes de listar", () => 
     await vi.advanceTimersByTimeAsync(0);
     expect(m.alEvento).toHaveBeenCalledTimes(1);
 
+    m.control.abort();
+    await m.fin;
+  });
+
+  it("error: si el stream tarda más que el tope y luego falla (503), no se relista", async () => {
+    const m = montar();
+    await vi.advanceTimersByTimeAsync(TOPE_ESPERA_STREAM_MS);
+    expect(m.alListar).toHaveBeenCalledTimes(1);
+    m.responderStream(503);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(m.alListar).toHaveBeenCalledTimes(1);
     m.control.abort();
     await m.fin;
   });
