@@ -7,7 +7,8 @@
     },
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "env": ["BACKEND_URL"]
     },
     "typecheck": {
       "dependsOn": ["^build"]

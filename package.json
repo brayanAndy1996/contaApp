@@ -15,6 +15,8 @@
     "kek:generar": "pnpm --filter @contapp/crypto kek:generar",
     "kek:rotar": "pnpm --filter @contapp/worker kek:rotar",
     "test:aislamiento": "pnpm --filter @contapp/tests-aislamiento test:aislamiento",
+    "e2e": "pnpm --filter @contapp/tests-e2e run e2e",
+    "e2e:volumen": "pnpm --filter @contapp/tests-e2e run e2e:volumen",
     "cobertura:db": "pnpm --filter @contapp/shared build && pnpm --filter @contapp/db build && pnpm --filter @contapp/db test:cobertura",
     "cobertura:dominio": "pnpm --filter @contapp/shared build && pnpm --filter @contapp/domain test:cobertura",
     "cobertura:storage": "pnpm --filter @contapp/shared build && pnpm --filter @contapp/storage test:cobertura",

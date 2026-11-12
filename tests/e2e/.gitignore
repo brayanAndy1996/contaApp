@@ -1,0 +1,3 @@
+# Salidas de Playwright (reporte HTML y trazas): no se versionan.
+/playwright-report/
+/test-results/
