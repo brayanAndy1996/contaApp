@@ -46,6 +46,8 @@ export interface ResultadoDescarga {
   distintas: number;
   claves: string[];
   truncado: boolean;
+  /** Spec 021 (D-10): compras nuevas movidas por R-HIS; solo si hay alguna, y solo en compras. */
+  segunHistorial?: number;
 }
 
 function leerParametros(p: unknown) {
@@ -83,6 +85,7 @@ export function descargarPropuesta(
     const ctx = { clienteId: t.clienteId, periodo };
 
     const resultado = await d.db.withTenant({ tenantId: t.tenantId, trabajoId: t.id }, async (tx) => {
+      let segunHistorial = 0;
       const aplicado = await aplicarComplemento(tx, {
         clienteId: t.clienteId,
         periodo,
@@ -94,8 +97,10 @@ export function descargarPropuesta(
         filas: preparadas,
         leerExistentes: (x) => persistidor.leerExistentes(x, ctx),
         planificar: planificarComplemento,
-        insertar: (x, propuestaId, nuevas) =>
-          persistidor.insertar(x, ctx, propuestaId, nuevas),
+        insertar: async (x, propuestaId, nuevas) => {
+          const r = await persistidor.insertar(x, ctx, propuestaId, nuevas);
+          if (r !== undefined) segunHistorial = r.segunHistorial;
+        },
       });
       const { propuesta: creada, plan } = aplicado;
       const claves = [...new Set(plan.distintas.map((x) => x.clave))];
@@ -107,6 +112,7 @@ export function descargarPropuesta(
         distintas: plan.distintas.length,
         claves: claves.slice(0, TOPE_CLAVES_RESULTADO),
         truncado: claves.length > TOPE_CLAVES_RESULTADO,
+        ...(segunHistorial > 0 ? { segunHistorial } : {}),
       };
       return resultado;
     });

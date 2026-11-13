@@ -74,7 +74,7 @@ import { boletas290y292 } from "../../../test/ventas.js";
 // - La versión 2 se evalúa sin R-NEW (el proveedor con regla deja de ser nuevo).
 // - `resultado.segunHistorial` es el conteo de compras movidas y solo se informa cuando hay alguna (sin ellas el `resultado`
 //   conserva la forma de 014: así no se rompen las pruebas de 014). Nada de montos, razones sociales ni RUC en el `resultado`,
-//   los logs, Redis ni `auditoria.datos`; la auditoría `compra.historial` es de actor `sistema` y solo lleva ids y periodo.
+//   los logs, Redis ni `auditoria.datos`; la auditoría `compra.historial` es de actor `trabajo` (la descarga) y solo lleva ids y periodo.
 
 vi.setConfig({ testTimeout: 180_000, hookTimeout: 60_000 });
 
@@ -629,7 +629,7 @@ describe("CA-4: lo que R-HIS no toca", () => {
 
 // ---------------------------------------------------------------------------------------------------------------
 describe("CA-13 / D-10: el resultado, los logs y la auditoría no llevan montos, razón social ni RUC", () => {
-  it("canarios en razón social, RUC y montos: el conteo es lo único que sale; la auditoría compra.historial es del sistema y solo lleva ids", async () => {
+  it("canarios en razón social, RUC y montos: el conteo es lo único que sale; la auditoría compra.historial es del trabajo de descarga y solo lleva ids", async () => {
     const m = await mundoVentas(e, backend, { ruc: RUC_FIXTURE });
     const ruc = "20731641779";
     const razon = "CANARIO-razon-7f3a91c2e5b84d06";
@@ -667,7 +667,13 @@ describe("CA-13 / D-10: el resultado, los logs y la auditoría no llevan montos,
     // La auditoría de la aplicación: una fila, del sistema, con ids y periodo.
     const aud = await auditoriaHistorialDe(admin, m.T);
     expect(aud).toHaveLength(1);
-    expect(aud[0]).toMatchObject({ actor_tipo: "sistema", usuario_id: null });
+    // Actor `trabajo` con el id de la descarga (auditoria_registrar lo decide por `app.trabajo_id` y toma como usuario a quien
+    // la pidió: `creado_por` del trabajo).
+    expect(aud[0]).toMatchObject({
+      actor_tipo: "trabajo",
+      usuario_id: m.u,
+      trabajo_id: r.id,
+    });
     expect(Object.keys(aud[0]!.datos).sort()).toEqual([
       "compraId",
       "periodo",

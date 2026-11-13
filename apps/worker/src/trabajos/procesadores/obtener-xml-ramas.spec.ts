@@ -21,6 +21,8 @@ vi.mock("@contapp/db", async (original) => ({
   fijarObtencion: vi.fn(),
   guardarDocumentoXml: vi.fn(),
   leerProveedoresConocidos: vi.fn(),
+  // 021: los interruptores del estudio; sin filas, todo encendido.
+  leerReglasMotor: vi.fn(async () => ({ filas: [], aportarCatalogo: true })),
   reevaluarComprobante: vi.fn(),
 }));
 

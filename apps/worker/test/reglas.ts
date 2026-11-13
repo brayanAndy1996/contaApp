@@ -110,17 +110,18 @@ export async function contarAplicaciones(
 export interface AuditoriaHistorial {
   actor_tipo: string;
   usuario_id: string | null;
+  trabajo_id: string | null;
   datos: Record<string, unknown>;
   texto: string;
 }
 
-/** Filas de auditoría `compra.historial` del estudio (actor `sistema`; `datos` solo con ids). */
+/** Filas de auditoría `compra.historial` del estudio (actor `trabajo` en la descarga; `datos` solo con ids). */
 export async function auditoriaHistorialDe(
   admin: ContappDb,
   tenantId: string,
 ): Promise<AuditoriaHistorial[]> {
   const r = await admin.pool.query(
-    `select actor_tipo, usuario_id, datos, datos::text as texto from auditoria
+    `select actor_tipo, usuario_id, trabajo_id, datos, datos::text as texto from auditoria
       where tenant_id = $1 and accion = 'compra.historial' order by ocurrida_en, id`,
     [tenantId],
   );

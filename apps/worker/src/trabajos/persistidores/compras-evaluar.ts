@@ -8,6 +8,7 @@ import {
   crearEvaluarCompras as crearEvaluarDominio,
   type CompraEvaluable,
   type DetalleXml,
+  type OpcionesEvaluar,
 } from "@contapp/domain";
 
 const aEvaluable = (c: CompraConXml): CompraEvaluable => {
@@ -17,10 +18,13 @@ const aEvaluable = (c: CompraConXml): CompraEvaluable => {
     : { ...resto, xml: { origen: xml.origen, detalle: xml.detalle as DetalleXml } };
 };
 
-/** `xmlSimuladoEnReglas` es `XML_SIMULADO_EN_REGLAS` (P-4): apagada por defecto. */
+/**
+ * `xmlSimuladoEnReglas` es `XML_SIMULADO_EN_REGLAS` (P-4): apagada por defecto. 021: `reglasApagadas` (interruptores del estudio)
+ * y `proveedoresConRegla` (con regla aprendida vigente no son R-NEW) pasan tal cual al dominio.
+ */
 export function crearEvaluarCompras(
   proveedoresConocidos: readonly { tipo: string; numero: string }[],
-  opciones: { xmlSimuladoEnReglas: boolean } = { xmlSimuladoEnReglas: false },
+  opciones: OpcionesEvaluar = { xmlSimuladoEnReglas: false },
 ): EvaluarCompra {
   const evaluar = crearEvaluarDominio(proveedoresConocidos, opciones);
   return (fila) => evaluar(aEvaluable(fila));

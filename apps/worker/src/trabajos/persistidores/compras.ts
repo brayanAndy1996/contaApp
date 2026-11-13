@@ -10,7 +10,9 @@ import {
   leerEstadoPeriodo,
   leerExistentesCompras,
   leerProveedoresConocidos,
+  leerReglasMotor,
   listarPorObtener,
+  reglasHistorialVigentes,
   tipoCambioConEscala,
   type CompraNueva,
   type MontosCompra,
@@ -24,6 +26,10 @@ import {
 import { ErrorDatos, type FilaPropuestaSire } from "@contapp/sunat";
 import { ctxTenant, encolarLotesXml } from "../encolar-xml.js";
 import { crearEvaluarCompras } from "./compras-evaluar.js";
+import {
+  codigosApagados,
+  planificarHistorialDescarga,
+} from "./compras-historial.js";
 import { ErrorPropuesta } from "./errores.js";
 import type {
   ContextoPersistidor,
@@ -212,24 +218,42 @@ export const persistidorCompras: PersistidorLibro<CompraNueva> = {
   },
 
   async insertar(tx, ctx, propuestaId, nuevas) {
-    if (nuevas.length === 0) return;
+    if (nuevas.length === 0) return { segunHistorial: 0 };
     const conocidos = await leerProveedoresConocidos(
       tx,
       ctx.clienteId,
       ctx.periodo,
     );
+    // Spec 021 (D-8): las reglas vigentes se leen primero (toman el advisory compartido del estudio hasta el fin de la
+    // transacción) y después los interruptores: una descarga aplica con el interruptor que leyó. Con R-HIS apagado no hay reglas.
+    const reglas = await reglasHistorialVigentes(tx, ctx.clienteId, ctx.periodo);
+    const reglasApagadas = codigosApagados(await leerReglasMotor(tx));
+    const rHisActiva = !reglasApagadas.includes("R-HIS");
+    const datos = nuevas.map((n) => n.datos);
+    // Sin reglas vigentes (o con R-HIS apagado, que no las devuelve) no hay nada que planificar: `insertarCompras` igual que antes.
+    const planificado =
+      reglas.length > 0 && rHisActiva
+        ? planificarHistorialDescarga(datos, reglas, rHisActiva)
+        : null;
     await insertarCompras(
       tx,
       { clienteId: ctx.clienteId, periodo: ctx.periodo, propuestaId },
-      nuevas.map((n) => n.datos),
+      datos,
       // H-016-13: la misma bandera P-4 que `xml.obtener` y el backend, leída en cada descarga; `insertarCompras` pasa a `evaluar`
       // el XML guardado del comprobante de cada compra nueva.
       {
         evaluar: crearEvaluarCompras(conocidos, {
           xmlSimuladoEnReglas: process.env.XML_SIMULADO_EN_REGLAS === "1",
+          reglasApagadas,
+          proveedoresConRegla: reglas.map((r) => ({
+            tipo: r.docTipo,
+            numero: r.docNumero,
+          })),
         }),
+        ...(planificado === null ? {} : { historial: planificado.historial }),
       },
     );
+    return { segunHistorial: planificado === null ? 0 : planificado.contar() };
   },
 
   /**
