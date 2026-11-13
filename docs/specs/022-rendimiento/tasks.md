@@ -8,14 +8,14 @@ Nivel B (04 §2.1): TDD donde aplica, ronda ADV solo en el despachador. Flujo 04
 | --- | ----- | --- | ------ | ---------- | --- | --- | ------ |
 | T1  | Línea base de RP-1 a RP-6 y perfilado de Ctrl+Z y CA-13 (CA-1) | tester | sonnet | — | — | — | [x] |
 | T2  | RP-1: `pistasPrevias` acotada a `TRAMO_PISTAS` (CA-2, CA-4, CA-5) | backend | sonnet | T1 ∥ T5, T6, T7, T12 | sí | — | [x] |
-| T3  | RP-1: ronda ADV del despachador, G1 a G4 con N > K (CA-3) | adversario | opus | T2 | — | sí | [ ] |
+| T3  | RP-1: ronda ADV del despachador, G1 a G4 con N > K (CA-3) | adversario | opus | T2 | — | sí | [x] |
 | T4  | RP-1: corregir los hallazgos de T3 (solo si hay) | backend | sonnet | T3 | sí | — | [ ] |
-| T5  | RP-2: `leerExistentesCompras` con `join lateral` **[021]** (CA-6, CA-7) | backend | sonnet | T1 ∥ T2, T6, T7, T12 | sí | — | [ ] |
+| T5  | RP-2: `leerExistentesCompras` con `join lateral` **[021]** (CA-6, CA-7) | backend | sonnet | T1 ∥ T2, T6, T7, T12 | sí | — | [x] |
 | T6  | RP-3: venta por id en excluir/restaurar (CA-8, CA-9) | backend | sonnet | T1 ∥ T2, T5, T7, T12 | sí | — | [x] |
 | T7  | RP-4: `avisosOmitidos` en `shared` y en el previo (CA-10) | backend | sonnet | T1 ∥ T2, T5, T6, T12 | sí | — | [x] |
-| T8  | RP-4: «y N avisos más» en el panel del previo (CA-11) | frontend | sonnet | T7 ∥ T2, T5, T6, T9, T10, T12 | sí | — | [ ] |
+| T8  | RP-4: «y N avisos más» en el panel del previo (CA-11) | frontend | sonnet | T7 ∥ T2, T5, T6, T9, T10, T12 | sí | — | [x] |
 | T9  | RP-5: Ctrl+Z, parte del servidor, si domina **[021]** (CA-12) | backend | sonnet | T1 ∥ T2, T6, T7, T10; después de T5 si comparten archivo | sí | — | [ ] |
-| T10 | RP-5: Ctrl+Z, recarga y resumen del frontend, si domina **[021]** (CA-12) | frontend | sonnet | T1 ∥ T2, T5, T6, T7, T9, T12 | sí | — | [ ] |
+| T10 | RP-5: Ctrl+Z, recarga y resumen del frontend, si domina **[021]** (CA-12) | frontend | sonnet | T1 ∥ T2, T5, T6, T7, T9, T12 | sí | — | [x] |
 | T11 | RP-5: E-06 con tope de 3 s y resultado final (CA-12) | tester | sonnet | T9, T10 | — | — | [ ] |
 | T12 | RP-6: margen de CA-13 por la causa dominante **[021]** (CA-13) | backend | sonnet | T1 ∥ T2, T5, T6, T7, T9, T10 | — | — | [ ] |
 | T13 | Verificar CA-1 a CA-15 | tester | sonnet | T4, T5, T6, T8, T11, T12 | — | — | [ ] |
