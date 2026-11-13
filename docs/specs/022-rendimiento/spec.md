@@ -67,3 +67,4 @@ Ninguna de producto. Las decisiones técnicas que quedan (valor de `TRAMO_PISTAS
 ## Decisión posterior del usuario (2026-11-13)
 
 - **P-3 revisada:** T9 bajó la llamada `POST deshacer` de 1,23 s a 1,09 s (meta parcial 550 ms). Lo que queda es SQL por fila (FK, índices, triggers, `uuid_v7()`). El usuario aceptó ~1,5 s de total sin cambios de esquema; el tope de E-06 baja igual de 10 s a 3 s. La prueba de tiempo de T9 pasa a vigilar la regresión del servidor (≤ 1.200 ms) en lugar de 550 ms.
+- **P-4 revisada (2026-11-13):** T12 bajó la mediana de compras (20.000 filas) de ~3,1 s a ~2,4 s sin carga y con BD nueva (2,30–2,51 s en 5 corridas, T13). El usuario da la meta por alcanzada con esa medición; la prueba de CI vigila la regresión con un tope de 3,5 s (crece con el tamaño de la BD y la carga). El límite de 5 s sigue intacto.
