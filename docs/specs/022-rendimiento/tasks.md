@@ -17,7 +17,7 @@ Nivel B (04 §2.1): TDD donde aplica, ronda ADV solo en el despachador. Flujo 04
 | T9  | RP-5: Ctrl+Z, parte del servidor, si domina **[021]** (CA-12) | backend | sonnet | T1 ∥ T2, T6, T7, T10; después de T5 si comparten archivo | sí | — | [x] |
 | T10 | RP-5: Ctrl+Z, recarga y resumen del frontend, si domina **[021]** (CA-12) | frontend | sonnet | T1 ∥ T2, T5, T6, T7, T9, T12 | sí | — | [x] |
 | T11 | RP-5: E-06 con tope de 3 s y resultado final (CA-12) | tester | sonnet | T9, T10 | — | — | [x] |
-| T12 | RP-6: margen de CA-13 por la causa dominante **[021]** (CA-13) | backend | sonnet | T1 ∥ T2, T5, T6, T7, T9, T10 | — | — | [ ] |
+| T12 | RP-6: margen de CA-13 por la causa dominante **[021]** (CA-13) | backend | sonnet | T1 ∥ T2, T5, T6, T7, T9, T10 | — | — | [x] |
 | T13 | Verificar CA-1 a CA-15 | tester | sonnet | T4, T5, T6, T8, T11, T12 | — | — | [ ] |
 | T14 | Revisión final contra la spec | arquitecto | opus | T13 | — | — | [ ] |
 | T15 | Cierre: `tasks.md`, `spec.md`, notas de `ESTADO.md` y commit | devops | haiku | T14 | — | — | [ ] |
