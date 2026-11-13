@@ -14,7 +14,7 @@ Nivel A (spec). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T6  | Pruebas de componentes: aviso «Recordar», pantallas de reglas, etiqueta y filtro (rojo) | tester | sonnet | T2 ∥ T4, T5 | ✓ | — | [x] |
 | T7  | Dominio: `r-his.ts`, `catalogo.ts`, `reglasApagadas` y `crearEvaluarCompras` | backend | opus | T1 ∥ T8, T9 | ✓ | — | [x] |
 | T8  | `shared`: esquemas, DTOs, códigos, `historial`, filtro y acciones de auditoría | backend | sonnet | T2 ∥ T7, T9 | ✓ | — | [x] |
-| T9  | Migraciones 0047–0049, esquema drizzle, `packages/db/src/reglas/` e `insertarCompras` con historial | backend | opus | T3 ∥ T7, T8 | ✓ | — | [ ] |
+| T9  | Migraciones 0047–0049, esquema drizzle, `packages/db/src/reglas/` e `insertarCompras` con historial | backend | opus | T3 ∥ T7, T8 | ✓ | — | [x] |
 | T10 | Worker: R-HIS en la descarga, `segunHistorial` en el `resultado`, interruptores en `xml.obtener` | backend | sonnet | T4, T7, T9 ∥ T11, T12, T13 | ✓ | — | [ ] |
 | T11 | Backend: módulo `reglas` (cliente y estudio) | backend | sonnet | T5, T7, T8, T9 ∥ T10, T12, T13 | ✓ | — | [ ] |
 | T12 | Backend de compras: «Según historial» en listado, filtro y detalle; interruptores en `entornoDeReglas` ⚠022 | backend | sonnet | T5, T7, T8, T9 ∥ T10, T11, T13 | ✓ | — | [ ] |
