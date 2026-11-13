@@ -260,8 +260,19 @@ export interface DetalleLeido {
   hallazgos: HallazgoGuardadoFila[];
 }
 
-const SQL_DETALLE = `select ${COLUMNAS_LEIDA}, ${PROVEEDOR_NUEVO} as proveedor_nuevo, ${REGLA_HISTORIAL} as regla_historial from ${UNION_VIGENTE}
+const sqlDetalle = (conHistorial: boolean): string =>
+  `select ${COLUMNAS_LEIDA}, ${PROVEEDOR_NUEVO} as proveedor_nuevo, ${conHistorial ? REGLA_HISTORIAL : "null::uuid"} as regla_historial from ${UNION_VIGENTE}
   where c.id = $1 and c.cliente_id = $2 and c.periodo = $3 and c.descartada_en is null`;
+const SQL_DETALLE = sqlDetalle(true);
+const SQL_DETALLE_SIN_HISTORIAL = sqlDetalle(false);
+
+export interface OpcionesDetalle {
+  /**
+   * Resuelve `segunHistorial` desde `regla_aplicacion` (por defecto, sí: es lo que usa el backend). El worker pasa `false`: su rol
+   * no tiene SELECT sobre esa tabla (mínimo privilegio) y no necesita el dato; entonces `segunHistorial` queda en `null`.
+   */
+  conHistorial?: boolean;
+}
 const SQL_VERSIONES = `select v.n, v.accion, v.operacion_id, v.usuario_id, v.creada_en, v.excluida, v.motivo, v.clasificada,
     v.bi_dg::text as bi_dg, v.igv_dg::text as igv_dg, v.bi_dgng::text as bi_dgng, v.igv_dgng::text as igv_dgng,
     v.bi_dng::text as bi_dng, v.igv_dng::text as igv_dng, v.no_gravado::text as no_gravado, v.isc::text as isc,
@@ -277,9 +288,11 @@ export async function leerDetalleCompra(
   clienteId: string,
   periodo: string,
   compraId: string,
+  opciones: OpcionesDetalle = {},
 ): Promise<DetalleLeido | null> {
   if (!esUuid(compraId)) return null;
-  const c = await consultar(tx, SQL_DETALLE, [compraId, clienteId, periodo]);
+  const sql = opciones.conHistorial === false ? SQL_DETALLE_SIN_HISTORIAL : SQL_DETALLE;
+  const c = await consultar(tx, sql, [compraId, clienteId, periodo]);
   const fila = c.rows[0];
   if (fila === undefined) return null;
   const v = await consultar(tx, SQL_VERSIONES, [compraId]);

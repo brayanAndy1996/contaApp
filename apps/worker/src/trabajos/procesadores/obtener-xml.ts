@@ -144,7 +144,9 @@ export function obtenerXml(d: DepsObtenerXml): Procesador {
     const pendientes: Pendiente[] = [];
     await d.db.withTenant(estudio, async (tx) => {
       for (const id of compraIds) {
-        const detalle = await leerDetalleCompra(tx, t.clienteId, periodo, id);
+        const detalle = await leerDetalleCompra(tx, t.clienteId, periodo, id, {
+          conHistorial: false, // contapp_worker no tiene SELECT sobre regla_aplicacion
+        });
         const c = detalle?.compra;
         const original = detalle?.versiones[0]?.montos;
         if (
