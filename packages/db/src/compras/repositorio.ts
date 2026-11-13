@@ -111,6 +111,8 @@ export const datosDe = (c: CompraLeida): DatosVersion => ({
 });
 
 /** Igualdad exacta de dos versiones por valor (cadenas, booleanos y motivo). */
+const COLUMNAS_COMPARADAS = [...COLUMNAS_MONTO, "total"] as const;
+
 export function mismosDatos(a: DatosVersion, b: DatosVersion): boolean {
   if (
     a.excluida !== b.excluida ||
@@ -118,8 +120,7 @@ export function mismosDatos(a: DatosVersion, b: DatosVersion): boolean {
     a.motivo !== b.motivo
   )
     return false;
-  const columnas = [...COLUMNAS_MONTO, "total"] as const;
-  return columnas.every((k) => a.montos[k] === b.montos[k]);
+  return COLUMNAS_COMPARADAS.every((k) => a.montos[k] === b.montos[k]);
 }
 
 const SQL_LEER_UNA = `select ${COLUMNAS_LEIDA} from ${UNION_VIGENTE} where c.id = $1 and c.descartada_en is null`;
@@ -187,7 +188,7 @@ export interface VersionPorEscribir {
 
 const SQL_MOVER_PUNTEROS = `update compra c set version_vigente = x.n
   from jsonb_to_recordset($1::jsonb) as x(id uuid, base int, n int)
-  where c.id = x.id and c.version_vigente = x.base returning c.id`;
+  where c.id = x.id and c.version_vigente = x.base`;
 
 /** Mueve los punteros con compare-and-set. Las filas ya están bloqueadas, así que un desajuste es un error interno. */
 export async function moverPunteros(
@@ -206,46 +207,57 @@ export async function moverPunteros(
   }
 }
 
-const SQL_INSERTAR_VERSIONES = `insert into compra_version (compra_id, n, ${MONTOS_SQL}, excluida, motivo, clasificada, accion,
+const SQL_INSERTAR_VERSIONES_SIN_RETORNO = `insert into compra_version (compra_id, n, ${MONTOS_SQL}, excluida, motivo, clasificada, accion,
     operacion_id, usuario_id)
   select x.compra_id, x.n, ${MONTOS_CAST}, x.excluida, x.motivo, x.clasificada, x.accion, x.operacion_id, x.usuario_id
     from jsonb_to_recordset($1::jsonb) as x(compra_id uuid, n int, ${MONTOS_ENTRADA}, excluida boolean, motivo text,
-      clasificada boolean, accion text, operacion_id uuid, usuario_id uuid)
+      clasificada boolean, accion text, operacion_id uuid, usuario_id uuid)`;
+
+const SQL_INSERTAR_VERSIONES = `${SQL_INSERTAR_VERSIONES_SIN_RETORNO}
   returning id, compra_id, n, ${MONTOS_TEXTO}, excluida, motivo, clasificada, accion, operacion_id, usuario_id, creada_en`;
 
-/** Una fila de `compra_version` por entrada, devueltas en el orden de `lote`. */
+/**
+ * Una fila de `compra_version` por entrada, devueltas en el orden de `lote`. Con `devolver = false` no se leen de vuelta (salen
+ * `[]`): quien llama con miles de filas y no usa las versiones se ahorra el `RETURNING` y su lectura.
+ */
 export async function insertarVersiones(
   tx: TxConsulta,
   lote: VersionPorEscribir[],
+  devolver = true,
 ): Promise<VersionFila[]> {
   const salida: VersionFila[] = [];
   for (let i = 0; i < lote.length; i += LOTE) {
     const parte = lote.slice(i, i + LOTE);
-    const r = await consultar(tx, SQL_INSERTAR_VERSIONES, [
-      JSON.stringify(
-        parte.map((p) => ({
-          compra_id: p.compra.id,
-          n: p.n,
-          bi_dg: p.datos.montos.biDg,
-          igv_dg: p.datos.montos.igvDg,
-          bi_dgng: p.datos.montos.biDgng,
-          igv_dgng: p.datos.montos.igvDgng,
-          bi_dng: p.datos.montos.biDng,
-          igv_dng: p.datos.montos.igvDng,
-          no_gravado: p.datos.montos.noGravado,
-          isc: p.datos.montos.isc,
-          icbper: p.datos.montos.icbper,
-          otros_tributos: p.datos.montos.otrosTributos,
-          total: p.datos.montos.total,
-          excluida: p.datos.excluida,
-          motivo: p.datos.motivo,
-          clasificada: p.datos.clasificada,
-          accion: p.accion,
-          operacion_id: p.operacionId,
-          usuario_id: p.usuarioId,
-        })),
-      ),
-    ]);
+    const r = await consultar(
+      tx,
+      devolver ? SQL_INSERTAR_VERSIONES : SQL_INSERTAR_VERSIONES_SIN_RETORNO,
+      [
+        JSON.stringify(
+          parte.map((p) => ({
+            compra_id: p.compra.id,
+            n: p.n,
+            bi_dg: p.datos.montos.biDg,
+            igv_dg: p.datos.montos.igvDg,
+            bi_dgng: p.datos.montos.biDgng,
+            igv_dgng: p.datos.montos.igvDgng,
+            bi_dng: p.datos.montos.biDng,
+            igv_dng: p.datos.montos.igvDng,
+            no_gravado: p.datos.montos.noGravado,
+            isc: p.datos.montos.isc,
+            icbper: p.datos.montos.icbper,
+            otros_tributos: p.datos.montos.otrosTributos,
+            total: p.datos.montos.total,
+            excluida: p.datos.excluida,
+            motivo: p.datos.motivo,
+            clasificada: p.datos.clasificada,
+            accion: p.accion,
+            operacion_id: p.operacionId,
+            usuario_id: p.usuarioId,
+          })),
+        ),
+      ],
+    );
+    if (!devolver) continue;
     const porCompra = new Map(
       r.rows.map((f) => [f.compra_id as string, aVersion(f)]),
     );
@@ -291,14 +303,18 @@ export interface EvaluacionPorEscribir {
   xml: { id: string; xml: XmlParaEvaluar } | null;
 }
 
-/**
- * Inserta cada evaluación (`compra_evaluacion`), llama a `evaluar` con la fila y su XML (en orden) y guarda los hallazgos con
- * `version_n` y `evaluacion_n`. Si `evaluar` lanza, se propaga y la transacción de quien llama se revierte entera.
- */
-export async function guardarEvaluaciones(
+/** Un hallazgo por guardar, con la versión y la evaluación a la que pertenece. */
+interface HallazgoPorGuardar {
+  compra_id: string;
+  version_n: number;
+  evaluacion_n: number;
+  hallazgo: HallazgoNuevo;
+}
+
+/** Inserta las filas de `compra_evaluacion` (no dependen del resultado de `evaluar`). */
+async function insertarEvaluaciones(
   tx: TxConsulta,
   lote: EvaluacionPorEscribir[],
-  evaluar: Evaluar,
 ): Promise<void> {
   for (let i = 0; i < lote.length; i += LOTE) {
     await consultar(tx, SQL_INSERTAR_EVALUACIONES, [
@@ -312,12 +328,22 @@ export async function guardarEvaluaciones(
       ),
     ]);
   }
-  const hallazgos: {
-    compra_id: string;
-    version_n: number;
-    evaluacion_n: number;
-    hallazgo: HallazgoNuevo;
-  }[] = [];
+}
+
+/** Ms de cómputo seguidos que `evaluarFilas` se permite antes de ceder el hilo (para que el socket de la BD se atienda). */
+const REBANADA_MS = 2;
+
+/**
+ * Llama a `evaluar` con cada fila y su XML (en orden). Con `ceder`, cada `REBANADA_MS` devuelve el hilo al bucle de eventos: así
+ * una escritura en curso en la misma transacción sigue avanzando mientras se evalúa (el cómputo se solapa con la BD).
+ */
+async function evaluarFilas(
+  lote: EvaluacionPorEscribir[],
+  evaluar: Evaluar,
+  ceder: boolean,
+): Promise<HallazgoPorGuardar[]> {
+  const hallazgos: HallazgoPorGuardar[] = [];
+  let desde = performance.now();
   for (const e of lote) {
     const encontrados =
       (await evaluar(conXml(e.fila, e.xml?.xml ?? null))) ?? [];
@@ -328,7 +354,18 @@ export async function guardarEvaluaciones(
         evaluacion_n: e.n,
         hallazgo: h,
       });
+    if (ceder && performance.now() - desde >= REBANADA_MS) {
+      await new Promise<void>((seguir) => setImmediate(seguir));
+      desde = performance.now();
+    }
   }
+  return hallazgos;
+}
+
+async function insertarHallazgos(
+  tx: TxConsulta,
+  hallazgos: HallazgoPorGuardar[],
+): Promise<void> {
   for (let i = 0; i < hallazgos.length; i += LOTE) {
     await consultar(tx, SQL_INSERTAR_HALLAZGOS, [
       JSON.stringify(
@@ -344,6 +381,19 @@ export async function guardarEvaluaciones(
       ),
     ]);
   }
+}
+
+/**
+ * Inserta cada evaluación (`compra_evaluacion`), llama a `evaluar` con la fila y su XML (en orden) y guarda los hallazgos con
+ * `version_n` y `evaluacion_n`. Si `evaluar` lanza, se propaga y la transacción de quien llama se revierte entera.
+ */
+export async function guardarEvaluaciones(
+  tx: TxConsulta,
+  lote: EvaluacionPorEscribir[],
+  evaluar: Evaluar,
+): Promise<void> {
+  await insertarEvaluaciones(tx, lote);
+  await insertarHallazgos(tx, await evaluarFilas(lote, evaluar, false));
 }
 
 /** El XML vigente de cada compra del lote, leído ahora (después de que quien llama bloqueó las filas). */
@@ -387,17 +437,52 @@ export async function evaluarYGuardar(
   );
 }
 
-/** Escribe un lote de versiones de compras ya bloqueadas: mueve los punteros, inserta, evalúa y guarda los hallazgos. */
+/**
+ * Escribe un lote de versiones de compras ya bloqueadas: mueve los punteros, inserta, evalúa y guarda los hallazgos. Con
+ * `devolver = false` no lee de vuelta las versiones insertadas (salen `[]`).
+ *
+ * Las sentencias que no dependen de `evaluar` (versiones, punteros y evaluaciones) corren en la BD mientras `evaluar` calcula los
+ * hallazgos de todo el lote: el cómputo y la BD se solapan en vez de sumarse. Las sentencias siguen siendo las mismas, con el
+ * mismo texto y en el orden de siempre (versiones antes que punteros, evaluaciones después de las versiones, hallazgos después
+ * de las evaluaciones); si `evaluar` o una sentencia falla se propaga el primer error y la transacción de quien llama se revierte.
+ */
 export async function escribirVersiones(
   tx: TxConsulta,
   lote: VersionPorEscribir[],
   evaluar: Evaluar,
+  devolver = true,
 ): Promise<VersionFila[]> {
   if (lote.length === 0) return [];
+  // El XML vigente se lee con las filas ya bloqueadas por quien llama y antes de escribir; las escrituras no lo cambian.
+  const xmls = await xmlDeCompras(
+    tx,
+    lote.map((p) => p.compra),
+  );
+  const evaluaciones = lote.map(
+    (p): EvaluacionPorEscribir => ({
+      fila: conVersion(p.compra, p.n, p.datos),
+      n: 1,
+      xml: xmls.get(p.compra.id) ?? null,
+    }),
+  );
   // Primero las versiones y después los punteros: el trigger de `compra` exige que la versión vigente exista (H-014-6).
-  const versiones = await insertarVersiones(tx, lote);
-  await moverPunteros(tx, lote);
-  await evaluarYGuardar(tx, lote, evaluar);
+  const escritura = (async () => {
+    const versiones = await insertarVersiones(tx, lote, devolver);
+    await moverPunteros(tx, lote);
+    await insertarEvaluaciones(tx, evaluaciones);
+    return versiones;
+  })();
+  // Si `evaluar` falla primero, el error de la escritura (si lo hay) no debe quedar sin atender.
+  escritura.catch(() => undefined);
+  let hallazgos: HallazgoPorGuardar[];
+  try {
+    hallazgos = await evaluarFilas(evaluaciones, evaluar, true);
+  } catch (e) {
+    await escritura.catch(() => undefined); // que ninguna sentencia siga en vuelo cuando quien llama revierta
+    throw e;
+  }
+  const versiones = await escritura;
+  await insertarHallazgos(tx, hallazgos);
   return versiones;
 }
 
