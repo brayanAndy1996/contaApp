@@ -27,7 +27,7 @@ Nivel A (spec). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T19 | Ronda adversarial 2: dinero con R-HIS, aceptaciones y confirmaciones, interruptores, baja lógica (≤ 15 pruebas) | adversario | opus | T18 | — | ✓ | [ ] |
 | T20 | Pruebas de las correcciones de la ronda 2 (rojo) | tester | sonnet | T19 | ✓ | — | [ ] |
 | T21 | Corregir los hallazgos de la ronda 2 (migración 0051 si hace falta) | backend | opus | T20 | — | — | [ ] |
-| T22 | E2E prioridad 1: «Recordar» → descarga siguiente → «Según historial» → revertir | tester | sonnet | T14, T10 ∥ T16–T21 | — | — | [ ] |
+| T22 | E2E prioridad 1: «Recordar» → descarga siguiente → «Según historial» → revertir | tester | sonnet | T14, T10 ∥ T16–T21 | — | — | [x] |
 | T23 | Prueba manual contra el sistema completo | tester | sonnet | T21, T22 | — | — | [ ] |
 | T24 | Verificar CA-1 a CA-14 con evidencia, suites completas, `db:migrate` ×2 y cobertura | tester | sonnet | T23 | — | — | [ ] |
 | T25 | Revisión final contra la spec | arquitecto | opus | T24 | — | — | [ ] |
