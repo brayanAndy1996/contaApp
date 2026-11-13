@@ -24,6 +24,8 @@ export const listarComprasSchema = z.object({
   vista: z.enum(VISTAS_COMPRAS).optional(),
   alertas: booleanoSchema.optional(),
   proveedorNuevo: booleanoSchema.optional(),
+  /** Spec 021: solo las filas cuya versión vigente viene del historial. */
+  segunHistorial: booleanoSchema.optional(),
   /** Prefijo de RUC, fragmento de razón social o serie-número. Los comodines los escapa el repositorio. */
   q: z.string().max(BUSQUEDA_MAX).refine(sinControles).optional(),
 });

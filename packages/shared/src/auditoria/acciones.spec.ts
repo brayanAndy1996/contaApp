@@ -41,15 +41,17 @@ const CATALOGO_D3 = [
 // Ronda adversarial R1 (T16): cambio de tipo de asignación (H-017-1) y escrituras que los grants permiten, ahora auditadas (H-017-2).
 const RONDA_R1 = ["asignacion.tipo_cambiado", "miembro.eliminado", "cliente.eliminado", "invitacion.modificada"];
 const EXTRAS = ["credencial.descifrada", "sunat.envio"];
+// Spec 021 (T8): 8 acciones de reglas aprendidas (31 + 8 = 39).
+const REGLAS_021 = ["regla.creada", "regla.editada", "regla.activada", "regla.desactivada", "regla.eliminada", "estudio.regla_motor", "estudio.aporte_catalogo", "compra.historial"];
 
 describe("ACCIONES_AUDITORIA", () => {
-  it("es exactamente el catálogo de D-3, las 4 de la ronda R1, credencial.descifrada y sunat.envio", () => {
-    expect([...ACCIONES_AUDITORIA].sort()).toEqual([...CATALOGO_D3, ...RONDA_R1, ...EXTRAS].sort());
+  it("es exactamente el catálogo de D-3, las 4 de la ronda R1, credencial.descifrada, sunat.envio y las 8 de 021", () => {
+    expect([...ACCIONES_AUDITORIA].sort()).toEqual([...CATALOGO_D3, ...RONDA_R1, ...EXTRAS, ...REGLAS_021].sort());
   });
 
   it("no repite acciones", () => {
     expect(new Set(ACCIONES_AUDITORIA).size).toBe(ACCIONES_AUDITORIA.length);
-    expect(ACCIONES_AUDITORIA).toHaveLength(31);
+    expect(ACCIONES_AUDITORIA).toHaveLength(39);
   });
 
   it("todas son minúsculas con forma entidad.hecho", () => {

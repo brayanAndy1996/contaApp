@@ -36,6 +36,15 @@ export const ACCIONES_AUDITORIA = [
   "archivo.generado",
   "credencial.descifrada",
   "sunat.envio",
+  // Spec 021: reglas aprendidas (triggers de 0047–0049).
+  "regla.creada",
+  "regla.editada",
+  "regla.activada",
+  "regla.desactivada",
+  "regla.eliminada",
+  "estudio.regla_motor",
+  "estudio.aporte_catalogo",
+  "compra.historial",
 ] as const;
 
 export type AccionAuditoria = (typeof ACCIONES_AUDITORIA)[number];
