@@ -78,6 +78,11 @@ const FUNCIONES_017: { firma: string; dueno: string }[] = [
   { firma: "notificacion_credencial_invalida()", dueno: MIGRATOR },
   { firma: "notificacion_trabajo_terminado()", dueno: MIGRATOR },
   { firma: "notificacion_purgar(integer)", dueno: REGISTRADOR },
+  // Spec 021 (T9, migraciones 0047-0049): R-HIS en la descarga, aceptación al revisar y auditoría de reglas.
+  { firma: "aplicar_regla_historial(uuid,uuid,jsonb)", dueno: MIGRATOR },
+  { firma: "reglas_historial_vigentes(uuid,text)", dueno: MIGRATOR },
+  { firma: "regla_aceptar_periodo()", dueno: MIGRATOR },
+  ...["regla", "regla_motor", "aporte", "regla_aplicacion"].map((n) => ({ firma: `auditoria_capturar_${n}()`, dueno: MIGRATOR })),
   { firma: "notificaciones_de_esta_transaccion()", dueno: REGISTRADOR },
   { firma: "plan_aviso_disparar()", dueno: MIGRATOR },
   { firma: "plan_aviso_recalcular(uuid)", dueno: REGISTRADOR },

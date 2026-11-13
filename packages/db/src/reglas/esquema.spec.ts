@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
 const MIGRACIONES = resolve(__dirname, "../../migrations");
 const cargar = async () => {
   try {
-    return (await import("../schema/reglas")) as Record<string, unknown>;
+    return (await import("../schema/reglas.js")) as Record<string, unknown>;
   } catch (e) {
     throw new Error(`falta packages/db/src/schema/reglas.ts (T9): ${String(e)}`);
   }
