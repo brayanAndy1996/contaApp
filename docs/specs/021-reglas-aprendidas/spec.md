@@ -43,6 +43,7 @@ Preguntas P-1 a P-10 respondidas el 2026-11-13, todas con la opción (a). Se con
 - **P-9 = (a) · Eliminar una regla.** Baja lógica: deja de mostrarse y de aplicarse, las versiones pasadas conservan su «Según historial» y sus confirmaciones salen del conteo de 033.
 - **P-10 = (a) · Qué confirmaciones se registran para 033 (Ley 29733).** Solo de proveedores con RUC que empieza en 20 (personas jurídicas). El estudio puede apagar el aporte en su configuración; apagado, no se registra ninguna.
 - **Criterios de detalle del plan (aprobados por el usuario, 2026-11-13):** (1) una fila «Según historial» cuenta como clasificada; (2) «Recordar» sobre una regla desactivada la reactiva con el destino nuevo; (3) al pasar a `revisado` se registran como aceptadas las filas que siguen en el destino, y al re-revisar solo se suman las que falten; (4) filas que entran a un periodo ya `revisado` no suman hasta re-revisarlo; (5) R-HIS no es hallazgo de fila: se aplica solo en la descarga.
+- **Excluidas y aceptación (decisión del usuario, 2026-11-13, a raíz de H-021-1-6):** una fila «Según historial» que el contador excluyó no cuenta como aceptada al pasar el periodo a `revisado` ni deja confirmación.
 
 ## Decisiones de diseño
 - **D-4 · Dónde vive cada cosa.** R-HIS y el cálculo de «aceptada» son puros en `packages/domain`. El backend guarda reglas y responde a «Recordar»; el worker aplica R-HIS en la descarga. Todo dentro de `withTenant()`; el backend nunca llama a SUNAT.
