@@ -44,6 +44,7 @@ const previo = (extra: Record<string, unknown> = {}) => ({
   errores: [],
   erroresOmitidos: 0,
   avisos: [],
+  avisosOmitidos: 0,
   resumen: resumen(),
   excluidas: [],
   excluidasOmitidas: 0,
@@ -148,12 +149,17 @@ describe("previoArchivoSchema: errores y excluidas acotados", () => {
     expect(ok(previo({ excluidas: Array.from({ length: 1001 }, e) }))).toBe(false);
   });
 
-  it("erroresOmitidos y excluidasOmitidas son enteros no negativos", () => {
-    for (const k of ["erroresOmitidos", "excluidasOmitidas"]) {
+  it("erroresOmitidos, avisosOmitidos y excluidasOmitidas son enteros no negativos", () => {
+    for (const k of ["erroresOmitidos", "avisosOmitidos", "excluidasOmitidas"]) {
       expect(ok(previo({ [k]: 0 }))).toBe(true);
       expect(ok(previo({ [k]: 25000 }))).toBe(true);
       for (const v of [-1, 0.5, "1", null]) expect(ok(previo({ [k]: v })), `${k}=${String(v)}`).toBe(false);
     }
+  });
+
+  it("avisosOmitidos es obligatorio", () => {
+    const sin = Object.fromEntries(Object.entries(previo()).filter(([c]) => c !== "avisosOmitidos"));
+    expect(ok(sin)).toBe(false);
   });
 
   it("cada error exige `excluible` booleano", () => {

@@ -29,6 +29,7 @@ export function previoDe(parcial: Partial<PrevioArchivoDto> = {}): PrevioArchivo
     errores: [],
     erroresOmitidos: 0,
     avisos: [],
+    avisosOmitidos: 0,
     resumen: {
       modificadas: 2,
       excluidas: 1,

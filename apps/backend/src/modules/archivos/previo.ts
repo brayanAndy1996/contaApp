@@ -245,6 +245,8 @@ export async function calcularPrevio(
   else if (formatoNoOficial) motivo = "formato_no_oficial";
   else if (!resultado.apto) motivo = "prevalidacion_fallida";
 
+  // Solo se corta el DTO: `generar` y el worker arman sus propios avisos, y la huella sale del `canon` (no cambia).
+  const avisos = [...preparado.avisos, ...filas.avisosAdaptador];
   const ultima = await ultimaVersion(tx, e.clienteId, e.periodo, e.libro);
   const dto: PrevioArchivoDto = {
     apto: resultado.apto,
@@ -252,7 +254,8 @@ export async function calcularPrevio(
     motivo,
     errores: resultado.errores.slice(0, MAX_ITEMS_PREVIO).map((x) => aErrorDto(x, filas.excluible(x.filaId), filas.comprobanteDe)),
     erroresOmitidos: Math.max(0, resultado.errores.length - MAX_ITEMS_PREVIO),
-    avisos: [...preparado.avisos, ...filas.avisosAdaptador].map((a) => aAvisoDto(a, filas.comprobanteDe)),
+    avisos: avisos.slice(0, MAX_ITEMS_PREVIO).map((a) => aAvisoDto(a, filas.comprobanteDe)),
+    avisosOmitidos: Math.max(0, avisos.length - MAX_ITEMS_PREVIO),
     resumen: aResumenDto(preparado.resumen),
     excluidas: filas.excluidas,
     excluidasOmitidas: filas.excluidasOmitidas,
