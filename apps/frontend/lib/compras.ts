@@ -377,6 +377,7 @@ export const MENSAJES_COMPRAS = {
     restaurar: "Restaurada",
     deshacer: "Deshecha",
     rehacer: "Rehecha",
+    historial: "Según historial",
   },
   tituloHallazgos: "Hallazgos",
   sinHallazgos: "Sin hallazgos.",
