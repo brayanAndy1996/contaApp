@@ -52,6 +52,8 @@ Mediana de 3 (RP-1: de 5), sin carga propia (otro agente trabajaba en paralelo e
 | RP-5 | llamada / recarga / total del Ctrl+Z (E-06, `pnpm e2e:volumen`, 3 corridas: 1.104·630·1.866 · 954·560·1.830 · 1.031·576·1.821 ms) | masiva de 4.850 | **1.031 / 576 / 1.830 ms** (medianas); resto (tecla → petición, render, resumen, aviso) ≈ 214 ms | total ≤ 1,0 s | no |
 | RP-6 | ms de `archivo.generar` compras (CA-13: calentamiento + mediana de 3) y ventas; fases abajo | 20.000 filas | compras **3.183 ms** (tres corridas: 3.183 / 3.455 / 3.118); ventas **2.225 ms** (2.225 / 2.104 / 2.266) | compras ≤ 2,5 s | compras no; ventas sí (guarda) |
 
+**RP-5 tras T9, T10 y T11** (E-06, 3 corridas, BD recién creada, carga del equipo 9–10 sobre 4 núcleos): llamada / recarga / total 1.146·956·2.399 · 1.368·691·2.359 · 1.334·559·2.642 ms; **medianas 1.334 / 691 / 2.399 ms** (línea base T1: 1.031 / 576 / 1.830). Supera el 1,5 s aceptado por el usuario (P-3 revisada) y el tope de E-06 ya es 3 s; repetir sin carga en T13.
+
 Objetivos parciales de RP-5 para T9 y T10 (suman el total ≤ 1,0 s): llamada ≤ 550 ms (T9) y recarga + render + resumen ≤ 450 ms (T10).
 
 ### Perfilado (T1)

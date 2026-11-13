@@ -28,7 +28,7 @@ const TOTAL = 5_000;
 const EXCLUIDAS = 150;
 const MASIVA = TOTAL - EXCLUIDAS; // 4.850, como en 015 T11
 const TOPE_PRIMERAS_FILAS_MS = 2_000;
-const TOPE_DESHACER_MS = 10_000;
+const TOPE_DESHACER_MS = 3_000;
 /** Carga completa del listado y la masiva de 4.850 filas, con holgura: no es la medida, es el tope de la espera. */
 const ESPERA_TRABAJO_MS = 30_000;
 

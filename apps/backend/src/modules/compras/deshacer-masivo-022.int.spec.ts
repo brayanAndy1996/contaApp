@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- cuerpos JSON y filas de BD dinámicos en pruebas */
 // Spec 022 (T9, RP-5, CA-12): parte del servidor del Ctrl+Z masivo. El contrato HTTP no cambia (P-3 = a): `POST …/deshacer` de
-// una masiva de 4.850 filas responde en ≤ 550 ms (mediana de 3, sin instrumentar) y deja exactamente lo mismo que antes en la BD
+// una masiva de 4.850 filas responde en ≤ 1.200 ms (límite de regresión; mediana de 3, sin instrumentar) y deja exactamente lo mismo que antes en la BD
 // (versiones, puntero vigente, evaluación 1 y hallazgos de cada versión nueva, operación). La prueba de equivalencia usa más de
 // un lote de 500 filas y mezcla filas con y sin hallazgos. Medir en una BD recién creada (el INSERT de hallazgos se degrada en
 // una reutilizada: plan 022, «Perfilado (T1)»).
@@ -16,8 +16,10 @@ import { BAJO_COBERTURA, medirMediana } from "../../../test/tiempos.js";
 
 vi.setConfig({ testTimeout: 300_000, hookTimeout: 120_000 });
 
-/** Objetivo parcial de T9 (plan 022, «Línea base»): la llamada, sin la recarga ni el render del frontend. */
-const META_DESHACER_MS = 550;
+/** Vigila la regresión de la llamada (sin la recarga ni el render del frontend). Decisión del usuario (2026-11-13, spec 022, P-3 revisada):
+ * la meta de 550 ms no se alcanza (queda SQL por fila: FK, índices, triggers, `uuid_v7()`); se acepta ~1,5 s de total y este límite
+ * pasa a guardar contra regresiones: ≤ 1.200 ms. */
+const META_DESHACER_MS = 1_200;
 
 let v: BancoCompras;
 let E: Estudio;
@@ -96,7 +98,7 @@ describe("RP-5 · deshacer una masiva (servidor)", () => {
     expect(trasRehacer.every((f) => f.vigente === 4 && f.versiones[3].clasificada === true)).toBe(true);
   });
 
-  it("deshacer de 4.850 filas responde en ≤ 550 ms (mediana de 3, CA-12)", async () => {
+  it("deshacer de 4.850 filas responde en ≤ 1.200 ms (mediana de 3, CA-12)", async () => {
     const c = await nuevoCliente();
     const ids = await v.sembrarVolumen(E.tenantId, c.id, 4_850, { usuarioId: E.titular.id });
     const pe = base(c.id);
