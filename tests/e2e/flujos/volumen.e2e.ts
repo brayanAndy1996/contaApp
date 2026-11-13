@@ -1,6 +1,7 @@
 // E-06 · Volumen (spec 018, T9; RNF-031, CA-9; P-3, P-5). Etiqueta `@volumen`: la suite normal (`pnpm e2e`) no la
 // corre; `pnpm e2e:volumen` corre solo esta. Mide con tope (primeras filas < 2 s; Ctrl+Z de la masiva ≤ 10 s) y
-// deja los dos tiempos como anotaciones del reporte (`tiempo-primeras-filas`, `tiempo-deshacer-masiva`).
+// deja los tiempos como anotaciones del reporte (`tiempo-primeras-filas` y, del Ctrl+Z de la masiva, por separado,
+// `tiempo-deshacer-llamada`, `tiempo-deshacer-recarga` y `tiempo-deshacer-total`; spec 022, T1).
 // Acelerar el Ctrl+Z de la masiva (recarga el listado entero) queda para una spec de rendimiento (P-3).
 import type { Page, TestInfo } from "@playwright/test";
 import {
@@ -147,6 +148,25 @@ test.describe("E-06 volumen", { tag: "@volumen" }, () => {
 
     // Ctrl+Z con el foco en la grilla: desde la tecla hasta el aviso y la fila ya revertida.
     await celda(page, comprobante(primera), "comprobante").focus();
+    // Fases del Ctrl+Z (spec 022, T1): la llamada `POST …/deshacer` y la recarga del listado que la sigue.
+    const marcas = { llamadaInicio: 0, llamadaFin: 0, listadoFin: 0 };
+    const rutaApi = apiCompras(cliente.id, PERIODO);
+    page.on("request", (r) => {
+      if (r.method() === "POST" && r.url().endsWith(`${rutaApi}/deshacer`)) {
+        marcas.llamadaInicio = performance.now();
+      }
+    });
+    page.on("requestfinished", (r) => {
+      if (r.method() === "POST" && r.url().endsWith(`${rutaApi}/deshacer`)) {
+        marcas.llamadaFin = performance.now();
+      } else if (
+        marcas.llamadaFin > 0 &&
+        r.method() === "GET" &&
+        r.url().includes(`${rutaApi}?`)
+      ) {
+        marcas.listadoFin = performance.now();
+      }
+    });
     const antesDeDeshacer = performance.now();
     await page.keyboard.press("Control+z");
     await expect(estado(page, `Se deshizo la operación (${MASIVA} compras).`)).toHaveCount(1, {
@@ -157,7 +177,9 @@ test.describe("E-06 volumen", { tag: "@volumen" }, () => {
       { timeout: TOPE_DESHACER_MS },
     );
     const deshacerMs = milisegundos(antesDeDeshacer);
-    anotar(testInfo, "tiempo-deshacer-masiva", deshacerMs);
+    anotar(testInfo, "tiempo-deshacer-llamada", Math.round(marcas.llamadaFin - marcas.llamadaInicio));
+    anotar(testInfo, "tiempo-deshacer-recarga", Math.round(marcas.listadoFin - marcas.llamadaFin));
+    anotar(testInfo, "tiempo-deshacer-total", deshacerMs);
     expect(deshacerMs).toBeLessThanOrEqual(TOPE_DESHACER_MS);
     await expect(grilla(page)).toBeVisible();
   });
