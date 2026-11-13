@@ -7,7 +7,7 @@ import { PrevioArchivo } from "./previo-archivo";
 // (`avisosOmitidos`); el panel lo muestra como «Y N avisos más» sin perder la nota de que los avisos no
 // impiden generar el archivo.
 
-const aviso = { filaId: FILA_ID, comprobante: "F001-2056", codigo: "R-NEW", explicacion: "Proveedor nuevo" };
+const aviso = { filaId: FILA_ID, comprobante: "F001-2056", codigo: "R-NEW" as const, explicacion: "Proveedor nuevo" };
 
 afterEach(cleanup);
 
