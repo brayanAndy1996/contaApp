@@ -116,11 +116,6 @@ export function leerArreglo(a: unknown): unknown[] {
 }
 
 // ---------------------------------------------------------------- marcas de 010 y 011
-const CERO_MONTOS: Readonly<Record<Moneda, MontosComprobante>> = Object.freeze({
-  PEN: MontosComprobante.desde("PEN", { total: "0.00" }),
-  USD: MontosComprobante.desde("USD", { total: "0.00" }),
-});
-
 export function esMoneda(m: unknown): m is Moneda {
   return m === "PEN" || m === "USD";
 }
@@ -143,18 +138,14 @@ export function esMoneyReal(x: unknown): x is Money {
   return esMoneda(moneda) && esMoneyDe(x, moneda);
 }
 
-/** MontosComprobante real (marca privada de 010): `sumar` la comprueba. */
+/**
+ * MontosComprobante real (marca privada de 010) y de la misma moneda que declara. Antes lo comprobaba una suma `decimal.js`
+ * contra un cero; la marca privada y la moneda son exactamente lo que esa suma validaba, sin aritmética (022, RP-6).
+ */
 export function esMontosReal(x: unknown): x is MontosComprobante {
   if (typeof x !== "object" || x === null) return false;
   const moneda: unknown = (x as { moneda?: unknown }).moneda;
-  if (!esMoneda(moneda)) return false;
-  try {
-    CERO_MONTOS[moneda].sumar(x as MontosComprobante);
-    return true;
-  } catch {
-    // Con una instancia real estas llamadas no lanzan: cualquier error es una marca ausente.
-    return false;
-  }
+  return esMoneda(moneda) && MontosComprobante.esDeMoneda(x, moneda);
 }
 
 /** TipoCambio real: prototipo de TipoCambio (un Factor congelado no lo tiene) y marca privada. */

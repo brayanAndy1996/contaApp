@@ -950,6 +950,7 @@ describe("cliente archivado y fallos tras guardar el ZIP", () => {
 // recorren el mismo camino completo (una versión nueva) y no el atajo de «idéntico a la última versión».
 const LIMITE_MS = 5_000;
 const MUESTRAS = 3;
+const MARGEN_COMPRAS_MS = 2_500; // spec 022, RP-6 / P-4 = a
 
 /** Genera 20.000 filas del `libro` sobre un mundo nuevo, comprueba el resultado y devuelve los ms de la generación. */
 async function generacionDe20000(libro: Libro): Promise<number> {
@@ -992,6 +993,18 @@ describe("CA-13 / D11: 20.000 filas se generan en menos de 5 s", () => {
 
   it("ventas: 20.000 filas", async () => {
     await verificarRendimiento("ventas");
+  });
+
+  // Spec 022, RP-6 (P-4 = a, T12): margen sobre el límite. La meta de la mediana de compras es 2,5 s; el límite de 5 s de
+  // arriba no se toca. Mismo método (calentamiento + mediana de 3) y sin comparar bajo cobertura.
+  it("compras: margen de CA-13, mediana de 20.000 filas en 2,5 s o menos", async () => {
+    await generacionDe20000("compras"); // calentamiento
+    const mediana = await medirMediana(() => generacionDe20000("compras"), MUESTRAS);
+    console.info(
+      `RP-6 compras: mediana de ${MUESTRAS} = ${mediana.toFixed(0)} ms${BAJO_COBERTURA ? " (bajo cobertura: no se compara)" : ""}`,
+    );
+    if (BAJO_COBERTURA) return;
+    expect(mediana, `compras: mediana de ${MUESTRAS} generaciones de 20.000 filas`).toBeLessThanOrEqual(MARGEN_COMPRAS_MS);
   });
 });
 

@@ -79,6 +79,11 @@ export class MontosComprobante implements Cuadrable {
     return Object.freeze(COLUMNAS_COMPRA.map((c) => this.#columnas[c]));
   }
 
+  /** `x` es un MontosComprobante real (marca privada) en `moneda`: la comprobación de `sumar`, sin aritmética. */
+  static esDeMoneda(x: unknown, moneda: Moneda): boolean {
+    return esMontosComprobante(x) && x.moneda === moneda;
+  }
+
   /** Suma por columna y total; exige la misma moneda. */
   sumar(o: MontosComprobante): MontosComprobante {
     if (!esMontosComprobante(o) || o.moneda !== this.moneda) {

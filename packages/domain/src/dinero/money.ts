@@ -44,6 +44,7 @@ function parsear(valor: unknown): Dec {
 
 export class Money {
   readonly #d: Dec;
+  #texto: string | undefined; // memo de toString (estado privado: `Object.freeze` no lo alcanza); se pide varias veces por monto
   readonly moneda: Moneda;
 
   /** Único constructor: valida el rango de NUMERIC(14,2) y quita el cero negativo. */
@@ -51,7 +52,9 @@ export class Money {
     if (clave !== CLAVE) {
       throw new TypeError("Constructor privado: usa Money.desde.");
     }
-    if (d.abs().gt(LIMITE)) throw new MontoFueraDeRangoError();
+    // Con 11 enteros o menos (exponente <= 10) el valor es < 1e11 < LIMITE: se evita construir dos Decimal por cada Money (022).
+    // Un exponente NaN (Infinity, NaN) no entra por esa vía y sigue por la comprobación completa.
+    if (!(d.e <= 10) && d.abs().gt(LIMITE)) throw new MontoFueraDeRangoError();
     this.#d = sinCeroNegativo(d);
     this.moneda = moneda;
     Object.freeze(this);
@@ -148,7 +151,7 @@ export class Money {
 
   /** Canónico: -?\d{1,12}\.\d{2}, sin exponente ni -0.00. */
   toString(): string {
-    return this.#d.toFixed(2);
+    return (this.#texto ??= this.#d.toFixed(2));
   }
 
   toJSON(): { monto: string; moneda: Moneda } {
