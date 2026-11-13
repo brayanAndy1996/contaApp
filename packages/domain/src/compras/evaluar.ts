@@ -140,17 +140,23 @@ function resumenXml(c: CompraEvaluable, opciones: OpcionesEvaluar): ResumenXml |
  * Se guarda UN hallazgo por regla y versión (la tabla lo exige): si una regla marca varios destinos de la misma compra queda
  * el primero, en el orden del dominio (DG, DGNG, DNG). Un R-NEW resuelto (la fila ya está `clasificada`) no reaparece (D-4).
  * Con XML (016): la fila lleva `xml: aResumenXml(detalle)` si el origen no es `simulado` o `xmlSimuladoEnReglas` está activa;
- * un XML ajeno o en otra moneda no respalda nada (011 lo deja como aviso).
+ * un XML ajeno o en otra moneda no respalda nada (011 lo deja como aviso). 021: `reglasApagadas` no se evalúan y
+ * `proveedoresConRegla` cuentan como conocidos (sin R-NEW).
  */
 export function crearEvaluarCompras(
   proveedoresConocidos: readonly { tipo: string; numero: string }[],
   opciones: OpcionesEvaluar = { xmlSimuladoEnReglas: false },
 ): (c: CompraEvaluable) => HallazgoJson[] {
   const contexto: ContextoReglas = {
-    proveedoresConocidos: proveedoresValidos(proveedoresConocidos),
+    // Un proveedor con regla aprendida no es nuevo (021, D-7): se suma al historial, normalizado igual.
+    proveedoresConocidos: proveedoresValidos([...proveedoresConocidos, ...(opciones.proveedoresConRegla ?? [])]),
     proveedoresIsc: [],
     diccionario: DICCIONARIO_GLOSAS_BASE,
+    ...(opciones.reglasApagadas === undefined ? {} : { reglasApagadas: [...opciones.reglasApagadas] }),
   };
+  // Un código apagado desconocido es un defecto del llamador: falla aquí (EntradaReglasInvalidaError) en vez de dejar cada
+  // compra sin hallazgos en silencio.
+  evaluarReglas([], contexto);
   return (c) => {
     try {
       const fila: FilaEvaluable = {

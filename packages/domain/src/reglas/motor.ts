@@ -57,13 +57,21 @@ function compararHallazgos(a: Hallazgo, b: Hallazgo) {
   );
 }
 
-/** Hallazgos de una fila ya validada, sin ordenar (también los usa aplicar para re-evaluar: T15). */
+/**
+ * Hallazgos de una fila ya validada, sin ordenar (también los usa aplicar para re-evaluar: T15). Las reglas apagadas por el
+ * estudio (021, RF-089) no se evalúan: aplicar re-evalúa con el mismo contexto, así que su sugerencia queda obsoleta.
+ */
 export function evaluarFila(fila: FilaInterna, contexto: ContextoInterno): Hallazgo[] {
+  const { apagadas } = contexto;
   const hallazgos = porDestino(fila, contexto);
-  for (const h of [evaluarRed(fila), evaluarNuevo(fila, contexto), evaluarGastoPersonal(fila, contexto)]) {
-    if (h !== null) hallazgos.push(h);
-  }
-  return hallazgos;
+  if (!apagadas.has("R-RED")) hallazgos.push(...conHallazgo(evaluarRed(fila)));
+  if (!apagadas.has("R-NEW")) hallazgos.push(...conHallazgo(evaluarNuevo(fila, contexto)));
+  if (!apagadas.has("R-GP")) hallazgos.push(...conHallazgo(evaluarGastoPersonal(fila, contexto)));
+  return apagadas.size === 0 ? hallazgos : hallazgos.filter((h) => !apagadas.has(h.regla));
+}
+
+function conHallazgo(h: Hallazgo | null): Hallazgo[] {
+  return h === null ? [] : [h];
 }
 
 /**
