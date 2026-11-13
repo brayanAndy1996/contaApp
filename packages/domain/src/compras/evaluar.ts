@@ -123,7 +123,7 @@ export function hallazgoAJson(h: Hallazgo): HallazgoJson {
  * guardado con un monto ilegible se ignora (la fila se evalúa como sin XML) en vez de dejarla sin hallazgos; cualquier otro
  * error es un defecto de programa y se propaga.
  */
-function resumenXml(c: CompraEvaluable, opciones: OpcionesEvaluar): ResumenXml | null {
+export function resumenXml(c: CompraEvaluable, opciones: Pick<OpcionesEvaluar, "xmlSimuladoEnReglas">): ResumenXml | null {
   const xml = c.xml;
   if (xml === undefined || xml === null) return null;
   if (xml.origen === "simulado" && !opciones.xmlSimuladoEnReglas) return null;

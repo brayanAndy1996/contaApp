@@ -164,6 +164,7 @@ export class AccionesComprasService {
           cargarHallazgos: () => leerHallazgosVigentes(tx, [id.toLowerCase()]),
           conocidos: entorno.conocidos,
           evaluar: entorno.evaluar,
+          xmlSimuladoEnReglas: entorno.xmlSimuladoEnReglas,
           enMasa: false,
           regla,
           confirmar: confirmar === true,

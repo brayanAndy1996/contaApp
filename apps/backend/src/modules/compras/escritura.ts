@@ -40,6 +40,8 @@ export async function exigirEscritura(
 export interface EntornoReglas {
   readonly conocidos: ProveedorConocido[];
   readonly evaluar: EvaluarCompra;
+  /** La bandera P-4 con que evalúa `evaluar`: aceptar la usa para re-evaluar con el mismo XML (021, defecto de 014/016). */
+  readonly xmlSimuladoEnReglas: boolean;
 }
 
 export async function entornoDeReglas(tx: Tx, clienteId: string, periodo: string): Promise<EntornoReglas> {
@@ -48,11 +50,9 @@ export async function entornoDeReglas(tx: Tx, clienteId: string, periodo: string
   // (solo el worker la aplica en la descarga) y por eso no se pasan reglas aprendidas (P-3): corregir no devuelve la fila a la regla.
   const apagadas = (await leerReglasMotor(tx)).filas.filter((f) => !f.activa).map((f) => f.codigo as CodigoReglaMotor);
   // P-4: el XML simulado solo entra en las reglas con `XML_SIMULADO_EN_REGLAS=1` (apagado por defecto).
-  const evaluarDominio = crearEvaluarCompras(conocidos, {
-    xmlSimuladoEnReglas: process.env.XML_SIMULADO_EN_REGLAS === "1",
-    reglasApagadas: apagadas,
-  });
-  return { conocidos, evaluar: (fila) => evaluarDominio(aEvaluable(fila)) };
+  const xmlSimuladoEnReglas = process.env.XML_SIMULADO_EN_REGLAS === "1";
+  const evaluarDominio = crearEvaluarCompras(conocidos, { xmlSimuladoEnReglas, reglasApagadas: apagadas });
+  return { conocidos, evaluar: (fila) => evaluarDominio(aEvaluable(fila)), xmlSimuladoEnReglas };
 }
 
 /** El entorno de reglas de cada periodo (su historial de proveedores), leído una vez por periodo en la transacción. */

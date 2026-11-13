@@ -1,8 +1,9 @@
 // Aceptar la sugerencia GUARDADA de una compra (spec 014, D-4, D-15, DU-6, DU-15, DU-22). Puro: sin IO. El hallazgo viene de
 // `compra_hallazgo` (cadenas), no de una evaluación nueva, y se contrasta con la fila ACTUAL antes de aplicarse:
-//  - pide confirmación (hoy todo lo que sale de `evaluarReglas`, sin XML): se reconstruye el `Hallazgo` de 011 y lo aplica
-//    `aplicarSugerencia`, que re-evalúa la fila con el mismo entorno (la fila y el historial de proveedores) y solo aplica si
-//    sale el mismo hallazgo; si no, `revisar_de_nuevo`;
+//  - pide confirmación (todo lo que sale de `evaluarReglas` sin XML que lo respalde, y R-GP, que siempre confirma): se
+//    reconstruye el `Hallazgo` de 011 y lo aplica `aplicarSugerencia`, que re-evalúa la fila con el mismo entorno (la fila con su
+//    XML vigente, `compra.xml`, y el historial de proveedores) y solo aplica si sale el mismo hallazgo; si no, `revisar_de_nuevo`.
+//    R-GP exige XML (011): sin él en la fila el hallazgo no se reproduce nunca (defecto de 014/016 corregido en 021);
 //  - no pide confirmación (respaldada por el XML, DU-22): no hay XML con qué re-evaluar (llega con 016), así que se exige que
 //    las `lecturas` guardadas sean las columnas de la fila actual y se aplica la sugerencia con los movimientos de 010.
 // En masa (`enMasa`) solo entra lo que `sugerenciaEsMasiva` deja pasar (sin confirmación y sin dato); el resto es `no_masiva`.
@@ -13,7 +14,7 @@ import type { Moneda } from "../dinero/index";
 import { ConfirmacionInvalidaError, ReglasError, SugerenciaObsoletaError, aplicarSugerencia } from "../reglas/index";
 import type { CodigoRegla, Confirmacion, Hallazgo, MontosParciales, Sugerencia } from "../reglas/index";
 import { DICCIONARIO_GLOSAS_BASE } from "../texto/index";
-import { proveedoresValidos } from "./evaluar";
+import { proveedoresValidos, resumenXml } from "./evaluar";
 import type { CompraEvaluable } from "./evaluar";
 import { detallarHallazgo } from "./hallazgo-vista";
 import type { DetalleHallazgo, HallazgoGuardado } from "./hallazgo-vista";
@@ -30,6 +31,11 @@ export interface EntradaAceptar {
   readonly confirmar: boolean;
   readonly dato: DatoAceptar | undefined;
   readonly enMasa: boolean;
+  /**
+   * `XML_SIMULADO_EN_REGLAS` (016, P-4): si el XML simulado de `compra.xml` entra en la re-evaluación; por defecto no, como en
+   * `crearEvaluarCompras`. Debe ser el mismo valor con que se evaluó la compra.
+   */
+  readonly xmlSimuladoEnReglas?: boolean;
 }
 
 export type RechazoAceptar =
@@ -135,6 +141,7 @@ function confirmacionDe(regla: string, dato: DatoAceptar | undefined, moneda: Mo
 function conReevaluacion(e: EntradaAceptar, h: HallazgoGuardado, d: DetalleHallazgo): ResultadoAceptar {
   const c = e.compra;
   const montos = MontosComprobante.desde(c.moneda, c.montos);
+  const xml = resumenXml(c, { xmlSimuladoEnReglas: e.xmlSimuladoEnReglas === true });
   const hallazgo: Hallazgo = {
     filaId: "fila",
     regla: h.regla as CodigoRegla,
@@ -152,6 +159,8 @@ function conReevaluacion(e: EntradaAceptar, h: HallazgoGuardado, d: DetalleHalla
         proveedor: { tipo: c.docTipo, numero: c.docNumero },
         comprobante: { tipo: c.tipoDoc, serie: c.serie, numero: c.numero },
         montos,
+        // El XML vigente de la compra, como en la evaluación (016): R-GP y el resto de lo respaldado por XML lo necesitan.
+        ...(xml === null ? {} : { xml }),
       },
     ],
     contexto: {

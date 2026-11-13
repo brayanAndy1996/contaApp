@@ -73,6 +73,11 @@ export interface ContextoSugerencia {
    * ellas, una fila con XML no se acepta (`revisar_de_nuevo`): no hay con qué contrastar.
    */
   evaluar?: EvaluarCompra;
+  /**
+   * La bandera P-4 de ese mismo entorno: el XML vigente de la fila (`aEvaluable`) entra en la re-evaluación de aceptar con
+   * confirmación (R-GP exige XML) bajo la misma regla que en la evaluación. Por defecto, apagada.
+   */
+  xmlSimuladoEnReglas?: boolean;
   enMasa: boolean;
   regla: string;
   confirmar: boolean;
@@ -132,6 +137,7 @@ export function transformarSugerencia(ctx: ContextoSugerencia): TransformarCompr
       confirmar: ctx.confirmar,
       dato: ctx.dato,
       enMasa: ctx.enMasa,
+      xmlSimuladoEnReglas: ctx.xmlSimuladoEnReglas === true,
     });
     if (!r.ok) {
       if (r.rechazo === "requiere_dato" && r.dato !== undefined) ctx.alPedirDato?.(r.dato);
