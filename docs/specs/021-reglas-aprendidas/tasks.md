@@ -17,7 +17,7 @@ Nivel A (spec). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T9  | Migraciones 0047–0049, esquema drizzle, `packages/db/src/reglas/` e `insertarCompras` con historial | backend | opus | T3 ∥ T7, T8 | ✓ | — | [x] |
 | T10 | Worker: R-HIS en la descarga, `segunHistorial` en el `resultado`, interruptores en `xml.obtener` | backend | sonnet | T4, T7, T9 ∥ T11, T12, T13 | ✓ | — | [ ] |
 | T11 | Backend: módulo `reglas` (cliente y estudio) | backend | sonnet | T5, T7, T8, T9 ∥ T10, T12, T13 | ✓ | — | [x] |
-| T12 | Backend de compras: «Según historial» en listado, filtro y detalle; interruptores en `entornoDeReglas` ⚠022 | backend | sonnet | T5, T7, T8, T9 ∥ T10, T11, T13 | ✓ | — | [ ] |
+| T12 | Backend de compras: «Según historial» en listado, filtro y detalle; interruptores en `entornoDeReglas` ⚠022 | backend | sonnet | T5, T7, T8, T9 ∥ T10, T11, T13 | ✓ | — | [x] |
 | T13 | Frontend: `lib/reglas.ts`, pantalla de reglas del cliente y reglas del motor | frontend | sonnet | T6, T8 ∥ T9–T12 | ✓ | — | [x] |
 | T14 | Frontend: grilla, masiva, filtro, lupa e historial («Según historial» y «Recordar») ⚠022 | frontend | sonnet | T6, T13 y merge de 022 RP-5 | ✓ | — | [ ] |
 | T15 | Cobertura ≥ 90 %: `domain/reglas`, `db/reglas`, módulo `reglas`, persistidor de compras; en CI | devops | haiku | T10, T11, T12 ∥ T14 | — | — | [ ] |
