@@ -453,7 +453,7 @@ describe("022 T3 ADV · G2: `ejecutando` que se reintenta con el mismo id", () =
   // `en_cola`: no entra en `ejecutando` (solo se releen los `ejecutando`), su pista recién publicada se borra en el ZREM
   // y, si el tramo vacía la lista (N = K), el estudio sale de `tenants` con el trabajo en_cola: queda varado hasta el
   // reconciliador (≥ 30 s). despachador.ts:214-218 y :357-386.
-  it.fails.each([
+  it.each([
     ["el ejecutor", "ejecutor"],
     ["el reconciliador", "reconciliador"],
   ] as const)(
@@ -539,20 +539,16 @@ describe("022 T3 ADV · G2: `ejecutando` que se reintenta con el mismo id", () =
 
   // H-022-2 (baja): CA-2 y D-1 dicen «como máximo K lecturas de `leerTrabajo`» por atención. Con un tramo de ids
   // `ejecutando` se leen dos veces (despachador.ts:216-218 y la relectura de :364-367): 2K por atención.
-  it.fails(
-    "H-022-2 · CA-2 con N = 2.000 pistas de trabajos `ejecutando`: una atención hace ≤ K leerTrabajo",
-    async () => {
-      const x = await caso();
-      await ejecutandoConPista(x, 2_000);
-      const { redis: rd, reg } = instrumentar();
-      ctl.leidos = 0;
-      await ciclo(x, despachador(x, rd));
-      const leidos = ctl.leidos;
-      expect(reg.zrange.filter((z) => z.clave === x.pend)).toHaveLength(1);
-      expect(leidos).toBeLessThanOrEqual(K);
-    },
-    60_000,
-  );
+  it("H-022-2 · CA-2 con N = 2.000 pistas de trabajos `ejecutando`: una atención hace ≤ K leerTrabajo", async () => {
+    const x = await caso();
+    await ejecutandoConPista(x, 2_000);
+    const { redis: rd, reg } = instrumentar();
+    ctl.leidos = 0;
+    await ciclo(x, despachador(x, rd));
+    const leidos = ctl.leidos;
+    expect(reg.zrange.filter((z) => z.clave === x.pend)).toHaveLength(1);
+    expect(leidos).toBeLessThanOrEqual(K);
+  }, 60_000);
 });
 
 describe("022 T3 ADV · G3: nunca un trabajo en la lista con el estudio fuera de tenants", () => {
@@ -801,14 +797,11 @@ describe("022 T3 ADV · G4 y bordes: convergencia sin bucle", () => {
   // H-022-3 (baja, preexistente): un miembro de la lista que no es un uuid hace fallar `leerTrabajo` dentro de la
   // transacción (22P02); la atención termina en «nada» antes del cierre y el estudio se atiende para siempre sin
   // limpiar nada (G4): ni ese id ni los N − 1 restos que tiene detrás. despachador.ts:216-217 y :307-310.
-  it.fails(
-    "H-022-3 · un resto corrupto (no uuid) al frente de N = 2K restos no impide converger (G4)",
-    async () => {
-      const x = await caso();
-      await redis.zadd(x.pend, 1, "no-es-un-uuid");
-      await restos(x, 2 * K, VIEJO);
-      const { redis: rd, reg } = instrumentar();
-      await converger(x, despachador(x, rd), reg, ciclosCA4(2 * K + 1));
-    },
-  );
+  it("H-022-3 · un resto corrupto (no uuid) al frente de N = 2K restos no impide converger (G4)", async () => {
+    const x = await caso();
+    await redis.zadd(x.pend, 1, "no-es-un-uuid");
+    await restos(x, 2 * K, VIEJO);
+    const { redis: rd, reg } = instrumentar();
+    await converger(x, despachador(x, rd), reg, ciclosCA4(2 * K + 1));
+  });
 });

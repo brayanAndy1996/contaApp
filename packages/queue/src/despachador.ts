@@ -52,6 +52,8 @@ export const VENTANA_CANDIDATOS = 20;
  */
 export const TRAMO_PISTAS = 100;
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export interface OpcionesDespachador {
   db: DbCola;
   redis: ClienteRedis;
@@ -72,12 +74,6 @@ interface Atencion {
   vacia: boolean;
   /** Con la ventana vacía: si aún quedan en_cola (p. ej. con disponible_desde futuro). */
   quedan: boolean;
-  /**
-   * Con la ventana vacía y sin en_cola: los ids de la lista de pistas (leídos antes de la BD) que la lectura muestra
-   * `ejecutando`. Pueden ser un trabajo ya despachado (su despachador ya lo quitó de la lista) o, si se reintenta con
-   * el mismo id, el dueño de una pista nueva que el cierre no debe llevarse (T11c).
-   */
-  ejecutando: string[];
   despachado: TrabajoFila | null;
   descartados: Descartado[];
   /** Candidatos que otro actor cambió antes (transición perdida): solo se quitan de la pista. */
@@ -197,7 +193,6 @@ export class Despachador {
         const r: Atencion = {
           vacia: false,
           quedan: false,
-          ejecutando: [],
           despachado: null,
           descartados: [],
           perdidos: [],
@@ -212,11 +207,6 @@ export class Despachador {
         if (ventana.length === 0) {
           r.vacia = true;
           r.quedan = (await contarPendientes(tx, cola)) > 0;
-          if (!r.quedan) {
-            for (const id of previos)
-              if ((await leerTrabajo(tx, id))?.estado === "ejecutando")
-                r.ejecutando.push(id);
-          }
           return r;
         }
         const descartar = async (
@@ -335,50 +325,55 @@ export class Despachador {
    * Cierra la pista de un estudio sin `en_cola` (T11c). El backend puede publicar un trabajo nuevo (ZADD pend y luego
    * SADD tenants) en cualquier momento entre la lectura vacía en BD y este cierre, así que NO se borra la lista entera:
    *  1. se quitan solo los ids que ya estaban antes de la lectura (restos de cancelados o ya despachados; un id
-   *     publicado antes de esa lectura habría salido en ella como `en_cola`);
-   *  2. de esos, los que la lectura vio `ejecutando` pudieron reintentarse con el mismo id (commit `en_cola` y luego
-   *     ZADD): se vuelven a leer y los que ya están `en_cola` se publican otra vez. Si el ZADD del reintento fue antes
-   *     del paso 1 el commit también, así que la relectura lo ve; si fue después, sobrevive al ZREM;
+   *     publicado antes de esa lectura habría salido en ella como `en_cola`), sean uuid o no (un miembro corrupto se
+   *     descarta aquí y no se lee: `leerTrabajo` fallaría con 22P02 y el estudio nunca se limpiaría, H-022-3);
+   *  2. DESPUÉS del ZREM se lee cada uno de esos ids una sola vez (≤ K lecturas por atención, H-022-2) y los que están
+   *     `en_cola` se publican otra vez: pudieron re-encolarse con el mismo id (ejecutor o reconciliador) entre la
+   *     lectura vacía y el ZREM, incluso entre `contarPendientes` y su lectura (H-022-1). Si el commit del re-encolado
+   *     fue antes de esta lectura, la lectura lo ve y se publica; si fue después, su ZADD es posterior al ZREM y
+   *     sobrevive. Leer antes del ZREM no serviría: un re-encolado entre la lectura y el ZREM perdería su pista;
    *  3. se quita al estudio de `tenants`;
    *  4. si la lista no quedó vacía, se vuelve a anotar al estudio.
    * Un ZADD anterior a (4) se ve en (4) y el estudio se repone; uno posterior tiene su SADD después de (3). En ningún
    * caso queda un trabajo en la lista con el estudio fuera de `tenants`. Sin Lua ni transacción: tolera un Redis falso.
-   * Los `ejecutando` que siguen así tras la relectura no tienen pista que conservar: no hay bucle de ciclos vacíos.
-   * `previos` y `ejecutando` valen como mucho `TRAMO_PISTAS` (022 D-1): con más restos, el paso 4 repone al estudio y el
-   * siguiente ciclo toma otro tramo (≤ ⌈N / K⌉ + 1 ciclos).
+   * Si la lectura de (2) falla, el estudio sigue en `tenants` y el siguiente ciclo lo atiende (un `en_cola` saldría en
+   * la ventana). Los `ejecutando` no tienen pista que conservar: no hay bucle de ciclos vacíos.
+   * `previos` vale como mucho `TRAMO_PISTAS` (022 D-1): con más restos, el paso 4 repone al estudio y el siguiente ciclo
+   * toma otro tramo (≤ ⌈N / K⌉ + 1 ciclos).
    */
   private async cerrarEstudioVacio(
     cola: NombreCola,
     tenantId: string,
     previos: readonly string[],
-    ejecutando: readonly string[],
   ): Promise<void> {
     const pend = this.k.pend(cola, tenantId);
     if (previos.length > 0) {
       await this.redis.zrem(pend, ...previos);
-      if (ejecutando.length > 0) {
+      const validos = previos.filter((id) => UUID.test(id));
+      if (validos.length > 0) {
         const reintentados = await this.db.withTenant(
           { tenantId },
           async (tx) => {
             const r: TrabajoFila[] = [];
-            for (const id of ejecutando) {
+            for (const id of validos) {
               const f = await leerTrabajo(tx, id);
               if (f?.estado === "en_cola") r.push(f);
             }
             return r;
           },
         );
-        await publicar(
-          this.redis,
-          reintentados.map((f) => ({
-            id: f.id,
-            tenantId,
-            cola: f.cola,
-            prioridad: f.prioridad,
-            creadoEn: f.creadoEn,
-          })),
-          { prefijo: this.prefijo },
-        );
+        if (reintentados.length > 0)
+          await publicar(
+            this.redis,
+            reintentados.map((f) => ({
+              id: f.id,
+              tenantId,
+              cola: f.cola,
+              prioridad: f.prioridad,
+              creadoEn: f.creadoEn,
+            })),
+            { prefijo: this.prefijo },
+          );
       }
     }
     await this.redis.srem(this.k.tenants(cola), tenantId);
@@ -395,8 +390,7 @@ export class Despachador {
   ): Promise<boolean> {
     const pend = this.k.pend(cola, tenantId);
     if (a.vacia) {
-      if (!a.quedan)
-        await this.cerrarEstudioVacio(cola, tenantId, previos, a.ejecutando);
+      if (!a.quedan) await this.cerrarEstudioVacio(cola, tenantId, previos);
       return false;
     }
     for (const f of a.perdidos) await this.redis.zrem(pend, f.id);

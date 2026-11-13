@@ -176,7 +176,7 @@ describe("RP-1: una atención lee y borra como máximo un tramo de la lista", ()
     expect(await redis.sismember(k.tenants("sire"), T)).toBe(0);
   }, 120_000);
 
-  it("CA-5: mediana de 5 atenciones con N = 20.000 ≤ 100 ms y ≤ 1,5 × la de N = 100 (Redis real, sin instrumentar)", async () => {
+  it("CA-5: mediana de atenciones con N = 20.000 ≤ 100 ms y ≤ 1,5 × la de N = 100 (Redis real, sin instrumentar)", async () => {
     const T100 = await estudioConRestos(100);
     const T20k = await e.estudio();
     const d = despachador(redis);
@@ -188,9 +188,28 @@ describe("RP-1: una atención lee y borra como máximo un tramo de la lista", ()
       await d.ciclo();
       return performance.now() - t0;
     };
-    await muestra(T100, 100)(); // calentamiento (conexiones, caché de configuración)
-    const base = await medirMediana(muestra(T100, 100), 5);
-    const grande = await medirMediana(muestra(T20k, 20_000), 5);
+    const chica = muestra(T100, 100);
+    const grande20k = muestra(T20k, 20_000);
+    // Calentamiento de ambas (conexiones, caché de configuración, planes de PostgreSQL, JIT).
+    for (let i = 0; i < 3; i++) {
+      await chica();
+      await grande20k();
+    }
+    // 41 pares INTERCALADOS: la carga de la máquina (otros agentes, GC) afecta por igual a las dos series, así que la
+    // razón de las medianas no la hereda. Se mide el ciclo completo del estudio (la operación pública), cuyo costo fijo
+    // es el mismo en ambas series.
+    const chicas: number[] = [];
+    const grandes: number[] = [];
+    await medirMediana(async () => {
+      chicas.push(await chica());
+      const g = await grande20k();
+      grandes.push(g);
+      return g;
+    }, 41);
+    const mediana = (v: number[]): number =>
+      [...v].sort((x, y) => x - y)[Math.floor(v.length / 2)] ?? 0;
+    const base = mediana(chicas);
+    const grande = mediana(grandes);
     console.log(
       `CA-5 RP-1: N=100 ${base.toFixed(1)} ms · N=20.000 ${grande.toFixed(1)} ms · razón ${(grande / base).toFixed(2)}${BAJO_COBERTURA ? " (bajo cobertura: no se compara)" : ""}`,
     );
