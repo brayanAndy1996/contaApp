@@ -6,6 +6,16 @@ import type { DiccionarioGlosas } from "../texto/index";
 
 export type CodigoRegla = "R-ISC" | "R-MIX" | "R-RED" | "R-NEW" | "R-GP";
 
+/** Reglas que el estudio puede apagar (021, RF-089): las de 011 y R-HIS; la prevalidación de 012 nunca. */
+export type CodigoReglaMotor = CodigoRegla | "R-HIS";
+
+/** Regla aprendida viva y activa de un cliente (021, D-2): proveedor y destino. */
+export interface ReglaAprendidaEvaluable {
+  readonly id: string;
+  readonly proveedor: DocProveedor;
+  readonly destino: Destino;
+}
+
 /** Orden de salida de los hallazgos de una misma fila. */
 export const ORDEN_REGLAS: readonly CodigoRegla[] = Object.freeze([
   "R-ISC",
@@ -67,6 +77,8 @@ export interface ContextoReglas {
   /** Marca "emisor de ISC" (R1: dato del llamador). */
   readonly proveedoresIsc: readonly DocProveedor[];
   readonly diccionario: DiccionarioGlosas;
+  /** Reglas apagadas por el estudio (021, RF-089): no se evalúan. Un código fuera de CodigoReglaMotor es inválido. */
+  readonly reglasApagadas?: readonly CodigoReglaMotor[];
 }
 
 /**

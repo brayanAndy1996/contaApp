@@ -10,7 +10,7 @@ import type { ColumnaCompra } from "../comprobante/index";
 import { DICCIONARIO_GLOSAS_BASE } from "../texto/index";
 import { DineroError } from "../dinero/index";
 import { ReglasError, evaluarReglas } from "../reglas/index";
-import type { ContextoReglas, DocProveedor, FilaEvaluable, Hallazgo, ResumenXml, Sugerencia } from "../reglas/index";
+import type { CodigoReglaMotor, ContextoReglas, DocProveedor, FilaEvaluable, Hallazgo, ResumenXml, Sugerencia } from "../reglas/index";
 import { aResumenXml } from "../ubl/index";
 import type { DetalleXml } from "../ubl/index";
 
@@ -40,6 +40,10 @@ export interface XmlEvaluable {
 export interface OpcionesEvaluar {
   /** `XML_SIMULADO_EN_REGLAS`: si el XML simulado entra en las reglas (por defecto no). */
   readonly xmlSimuladoEnReglas: boolean;
+  /** Reglas apagadas por el estudio (021, RF-089). */
+  readonly reglasApagadas?: readonly CodigoReglaMotor[];
+  /** Proveedores con regla aprendida: cuentan como conocidos, no son R-NEW (021, D-7). */
+  readonly proveedoresConRegla?: readonly { tipo: string; numero: string }[];
 }
 
 /** Lo que la evaluación necesita de una compra (estructural: `packages/db` no depende de este paquete). */
