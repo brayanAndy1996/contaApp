@@ -247,6 +247,8 @@ Lo prueba `tests/aislamiento/falla-cerrado.spec.ts` (CA-4). El peor caso de un o
 
 ---
 
+<!-- simulador: rls -->
+
 ## 5. Lo que enseñó el adversario (spec 002)
 
 El rol *adversario* intenta romper el aislamiento. Sus hallazgos están en `docs/specs/ESTADO.md` ("Hallazgos adversariales abiertos"). Los más didácticos:

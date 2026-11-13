@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Curso ContApp</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="curso.css">
+</head>
+<body>
+<div class="app">
+  <header class="barra">
+    <button type="button" class="boton-indice" id="boton-indice" aria-controls="lateral" aria-expanded="false">Índice</button>
+    <a class="marca" href="#m00"><span class="marca-sello">CA</span> Curso ContApp</a>
+    <button type="button" class="boton-tema" id="boton-tema" aria-label="Cambiar tema (auto, claro u oscuro)">Tema auto</button>
+  </header>
+
+  <aside class="lateral" id="lateral" aria-label="Índice del curso">
+    <div class="avance" id="avance" aria-live="polite"></div>
+    <label class="buscar" for="buscar">
+      <span class="buscar-etiqueta">Buscar en el curso</span>
+      <input type="search" id="buscar" placeholder="RLS, IGV, huella, boleta 291…" autocomplete="off">
+    </label>
+    <nav>
+      <ol class="indice" id="indice"></ol>
+    </nav>
+    <p class="lateral-nota">Tu avance se guarda solo en este navegador.</p>
+  </aside>
+
+  <main class="principal" id="principal" tabindex="-1">
+    <noscript><p>Esta versión del curso necesita JavaScript. Los mismos módulos están en <code>docs/curso/*.md</code>.</p></noscript>
+  </main>
+</div>
+<script src="contenido.js"></script>
+<script src="simuladores.js"></script>
+<script src="curso.js"></script>
+</body>
+</html>

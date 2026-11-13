@@ -312,6 +312,8 @@ Justificar es `POST …/ventas/saltos-justificados` con comentario de 1 a 500 ca
 
 **Agregar la venta** (`POST …/ventas`) la crea con origen `manual`: cuenta como presente en la correlatividad, el salto desaparece y la propuesta original queda intacta (CA-8). Si repite la clave de otra fila, incluso del SIRE, da `409 duplicado`.
 
+<!-- simulador: correlatividad -->
+
 ## 8. La ronda adversarial (resumen)
 
 013 es nivel B, con ronda adversarial acotada a la correlatividad y la importación (P-11). El adversario encontró ocho hallazgos, todos corregidos (tabla de `docs/specs/ESTADO.md`):

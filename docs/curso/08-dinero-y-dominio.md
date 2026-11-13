@@ -135,6 +135,8 @@ export function moverMonto(m, origen, destino, monto: Money) {
 
 Es un asiento de reclasificación: debe y haber se compensan, el total del comprobante queda igual.
 
+<!-- simulador: dinero -->
+
 ## 6. El lint que prohíbe `number`
 
 Aun con `Money`, un programador apurado podría escribir `parseFloat(monto)`. El ESLint del repo lo impide en `packages/domain/src/{dinero,comprobante,reglas}` (`eslint.config.mjs:779-790`), con selectores definidos en `eslint.config.mjs:532-560`:

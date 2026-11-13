@@ -15,6 +15,16 @@ No necesitas leerlo todo de una vez. Cada módulo se sostiene solo y enlaza a lo
 - Cómo funcionan las pantallas de ventas y compras y la lupa del comprobante con su XML.
 - Cómo queda registrada cada acción (auditoría), cómo llegan las notificaciones y cómo se prueba la aplicación completa de punta a punta.
 
+## Versión web interactiva
+
+El mismo curso, con índice, buscador, avance y simuladores, está en `docs/curso/web/index.html`: ábrelo con doble clic en tu navegador (no necesita servidor). Los módulos 03, 08 y 11 traen un simulador.
+
+Los `.md` siguen siendo la fuente. Si cambias uno, reconstruye la versión web:
+
+```bash
+pnpm curso:web
+```
+
 ## Cómo usar este curso
 
 1. **Lee el módulo en orden de arriba abajo.** Primero la idea con una analogía contable, luego el código real, luego el impacto.
