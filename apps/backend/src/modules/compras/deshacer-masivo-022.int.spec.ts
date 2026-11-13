@@ -34,6 +34,13 @@ afterAll(async () => {
   await v?.cerrar();
 });
 
+/** `ANALYZE` de las tablas que toca el deshacer, justo antes de medir. En una BD que otras suites vaciaron, las estadísticas dicen «0
+ * filas» hasta que el autovacuum las recalcula (hasta ~1 min después): sin esto, la primera llamada tras una carga masiva usa un plan
+ * de tabla vacía y tarda ~10 s (T13: 10.799 ms; reproducido con `ANALYZE` sobre tablas vacías: 9.711 ms; con estadísticas al día,
+ * ~750 ms). No cambia el límite ni lo que se mide: pone la BD en el estado que el autovacuum alcanza solo, de forma determinista. */
+const analizarTablas = () =>
+  v.b.sql("analyze compra, compra_version, compra_evaluacion, compra_hallazgo, compra_operacion");
+
 const items = (ids: string[], versionBase: number) => ids.map((compraId) => ({ compraId, versionBase }));
 const nuevoCliente = () => v.cliente(E, { responsable: contador.id });
 
@@ -106,6 +113,7 @@ describe("RP-5 · deshacer una masiva (servidor)", () => {
     const llamada = async (): Promise<number> => {
       const m = await v.llamar(contador, "POST", `${pe}/masivas/clasificar`, { items: items(ids, versionBase), destino: "DNG" });
       expect(m.status, m.text.slice(0, 200)).toBe(200);
+      await analizarTablas(); // fuera de la medición
       const t0 = performance.now();
       const d = await v.llamar(contador, "POST", `${pe}/deshacer`, {});
       const ms = performance.now() - t0;

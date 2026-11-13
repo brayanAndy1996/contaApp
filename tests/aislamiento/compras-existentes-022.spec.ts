@@ -5,7 +5,10 @@
 //   CA-7  tiempo: 20.000 compras recién cargadas SIN `ANALYZE` (el arnés no lo ejecuta y el autovacuum sigue activo). El plan lento
 //         aparece solo en la primera lectura tras la carga (T1: 65 s; luego 134 ms cuando autovacuum calcula estadísticas), así
 //         que se mide esa primera lectura aparte; la mediana de 3 por sí sola la esconde. Objetivos: primera lectura y mediana
-//         de 3 ≤ 1,0 s, y t(20.000) ≤ 5 × t(5.000). La aserción de tiempo se salta bajo cobertura (D-8).
+//         de 3 ≤ 1,0 s, y mediana(20.000) ≤ 5 × mediana(5.000). La aserción de tiempo se salta bajo cobertura (D-8).
+//         La razón compara MEDIANAS, no primeras lecturas (T5): con una base de ~30 ms la primera lectura de 5.000 es ruido puro
+//         (CI run 43450010114: primeras 32 y 190 ms, razón 6,03, con medianas 47 y 126 ms, razón 2,7). El O(n²) (T1: 64 s) lo
+//         sigue detectando el tope absoluto de 1,0 s sobre la primera lectura de 20.000. El factor 5× no cambia.
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { abrirAdmin, exportado } from "./auth-soporte";
@@ -257,7 +260,7 @@ async function medir(
 }
 
 describe("CA-7 · tiempo de la primera lectura tras la carga, sin ANALYZE", () => {
-  it("20.000 compras: primera lectura y mediana de 3 ≤ 1,0 s, y t(20.000) ≤ 5 × t(5.000)", async () => {
+  it("20.000 compras: primera lectura y mediana de 3 ≤ 1,0 s, y mediana(20.000) ≤ 5 × mediana(5.000)", async () => {
     const P5 = "202601";
     const P20 = "202602";
     const X = (await ec.estudio()).id;
@@ -272,9 +275,9 @@ describe("CA-7 · tiempo de la primera lectura tras la carga, sin ANALYZE", () =
     expect(pequeno.filas).toBe(5_000 - 250 + 1);
     expect(grande.filas).toBe(20_000 - 1_000 + 1);
 
-    const razon = grande.primera / pequeno.primera;
+    const razon = grande.mediana / pequeno.mediana;
     console.info(
-      `CA-6/7 RP-2: 5.000 primera ${pequeno.primera.toFixed(0)} ms (mediana ${pequeno.mediana.toFixed(0)}) · 20.000 primera ${grande.primera.toFixed(0)} ms (mediana ${grande.mediana.toFixed(0)}) · razón de primeras ${razon.toFixed(2)}${BAJO_COBERTURA ? " (bajo cobertura: no se compara)" : ""}`,
+      `CA-6/7 RP-2: 5.000 primera ${pequeno.primera.toFixed(0)} ms (mediana ${pequeno.mediana.toFixed(0)}) · 20.000 primera ${grande.primera.toFixed(0)} ms (mediana ${grande.mediana.toFixed(0)}) · razón de medianas ${razon.toFixed(2)}${BAJO_COBERTURA ? " (bajo cobertura: no se compara)" : ""}`,
     );
     if (BAJO_COBERTURA) return;
     expect(grande.primera).toBeLessThanOrEqual(1_000);

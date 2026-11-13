@@ -950,7 +950,10 @@ describe("cliente archivado y fallos tras guardar el ZIP", () => {
 // recorren el mismo camino completo (una versión nueva) y no el atajo de «idéntico a la última versión».
 const LIMITE_MS = 5_000;
 const MUESTRAS = 3;
-const MARGEN_COMPRAS_MS = 2_500; // spec 022, RP-6 / P-4 = a
+// Spec 022, RP-6, P-4 revisada (decisión del usuario, 2026-11-13, al final de spec.md): T12 llevó la mediana a 2,30-2,51 s sin carga
+// y el usuario dio la meta de 2,5 s por alcanzada; en CI esta prueba solo vigila regresiones con un tope de 3,5 s (el tiempo crece
+// con el tamaño de la BD y la carga). El límite de 5 s (LIMITE_MS) no se toca.
+const MARGEN_COMPRAS_MS = 3_500;
 
 /** Genera 20.000 filas del `libro` sobre un mundo nuevo, comprueba el resultado y devuelve los ms de la generación. */
 async function generacionDe20000(libro: Libro): Promise<number> {
@@ -995,9 +998,9 @@ describe("CA-13 / D11: 20.000 filas se generan en menos de 5 s", () => {
     await verificarRendimiento("ventas");
   });
 
-  // Spec 022, RP-6 (P-4 = a, T12): margen sobre el límite. La meta de la mediana de compras es 2,5 s; el límite de 5 s de
-  // arriba no se toca. Mismo método (calentamiento + mediana de 3) y sin comparar bajo cobertura.
-  it("compras: margen de CA-13, mediana de 20.000 filas en 2,5 s o menos", async () => {
+  // Spec 022, RP-6 (T12; P-4 revisada: decisión del usuario, tope de regresión 3,5 s, el de 5 s no se toca). Mismo método
+  // (calentamiento + mediana de 3) y sin comparar bajo cobertura.
+  it("compras: vigilancia de regresión de CA-13, mediana de 20.000 filas en 3,5 s o menos", async () => {
     await generacionDe20000("compras"); // calentamiento
     const mediana = await medirMediana(() => generacionDe20000("compras"), MUESTRAS);
     console.info(
