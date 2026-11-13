@@ -20,7 +20,7 @@ Nivel A (spec). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T12 | Backend de compras: «Según historial» en listado, filtro y detalle; interruptores en `entornoDeReglas` ⚠022 | backend | sonnet | T5, T7, T8, T9 ∥ T10, T11, T13 | ✓ | — | [x] |
 | T13 | Frontend: `lib/reglas.ts`, pantalla de reglas del cliente y reglas del motor | frontend | sonnet | T6, T8 ∥ T9–T12 | ✓ | — | [x] |
 | T14 | Frontend: grilla, masiva, filtro, lupa e historial («Según historial» y «Recordar») ⚠022 | frontend | sonnet | T6, T13 y merge de 022 RP-5 | ✓ | — | [x] |
-| T15 | Cobertura ≥ 90 %: `domain/reglas`, `db/reglas`, módulo `reglas`, persistidor de compras; en CI | devops | haiku | T10, T11, T12 ∥ T14 | — | — | [ ] |
+| T15 | Cobertura ≥ 90 %: `domain/reglas`, `db/reglas`, módulo `reglas`, persistidor de compras; en CI | devops | haiku | T10, T11, T12 ∥ T14 | — | — | [x] |
 | T16 | Ronda adversarial 1: aislamiento, permisos, funciones acotadas y concurrencia (≤ 15 pruebas) | adversario | opus | T10, T11, T12, T15 ∥ T14 | — | ✓ | [ ] |
 | T17 | Pruebas de las correcciones de la ronda 1 (rojo) | tester | sonnet | T16 | ✓ | — | [ ] |
 | T18 | Corregir los hallazgos de la ronda 1 (migración 0050 si hace falta) | backend | opus | T17 | — | — | [ ] |
@@ -123,7 +123,7 @@ Reglas comunes:
 - **Hacer**: solo después de que RP-5 de 022 esté en `main` y el orquestador lo haya integrado (si no, parar y avisar). Etiqueta «Según historial» en la fila y en la lupa, filtro, `historial` en el historial de versiones, aviso «Recordar» tras clasificar en la fila, la lupa (habilita el botón de 016 P-8) y la masiva de un solo proveedor. Lo nuevo en `components/reglas/`; en la grilla solo el enganche.
 - **Hecho cuando**: las de T6 de `components/compras/` pasan; las de la grilla y E-06 siguen verdes; typecheck y lint limpios. Commit `feat(021): según historial y recordar en la grilla y la lupa`.
 
-## T15 · [ ] Cobertura (devops · haiku)
+## T15 · [x] Cobertura (devops · haiku)
 - **Contexto (leer solo esto)**: `package.json` (raíz: scripts `cobertura:*`), `.github/workflows/ci.yml`, `packages/domain/vitest.cobertura.config.mts`, `apps/backend/vitest.cobertura*.config.mts` (modelo).
 - **Hacer**: `cobertura:reglas` (domain `src/reglas/r-his.ts` y `catalogo.ts`, `packages/db/src/reglas/`, `apps/backend/src/modules/reglas/`, `apps/worker/src/trabajos/persistidores/compras.ts`), umbral 90 % en líneas y ramas, paso en CI.
 - **Hecho cuando**: `pnpm cobertura:reglas` ≥ 90 % (o lista de lo que falta, sin bajar el umbral) y el paso aparece en `ci.yml`. Commit `chore(021): cobertura de reglas aprendidas`.

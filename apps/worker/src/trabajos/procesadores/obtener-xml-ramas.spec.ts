@@ -165,7 +165,8 @@ describe("obtenerXml: qué compras se piden", () => {
     n.obtener.mockResolvedValue(respuesta(XML_MIXTA));
     await n.correr([ID(1)]);
     expect(n.withTenant.mock.calls[0]?.[0]).toEqual({ tenantId: TENANT });
-    expect(vi.mocked(leerDetalleCompra).mock.calls[0]?.slice(1)).toEqual([CLIENTE, PERIODO, ID(1)]);
+    // Mínimo privilegio (7aca23a): contapp_worker no tiene SELECT sobre regla_aplicacion, así que pide el detalle con conHistorial:false.
+    expect(vi.mocked(leerDetalleCompra).mock.calls[0]?.slice(1)).toEqual([CLIENTE, PERIODO, ID(1), { conHistorial: false }]);
   });
 });
 
