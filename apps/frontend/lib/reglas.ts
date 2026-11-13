@@ -38,6 +38,7 @@ export const MENSAJES_REGLAS = {
   segunHistorial: "Según historial",
   // Botón de la lupa que 016 P-8 dejó fuera.
   recordarProveedor: "Recordar para este proveedor",
+  yaRecordado: "Ya hay una regla activa de este proveedor con este destino.",
 
   // Pantalla de reglas del cliente (CA-7).
   enlaceReglasCliente: "Reglas aprendidas",

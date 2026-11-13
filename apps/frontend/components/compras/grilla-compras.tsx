@@ -31,6 +31,7 @@ import {
   type EstadoEdicion,
 } from "../../lib/edicion-compras";
 import { conMiles, destinoDe, validarMonto } from "../../lib/montos-compras";
+import { MENSAJES_REGLAS as R } from "../../lib/reglas";
 import {
   COLUMNAS_COMPRAS,
   ENCABEZADOS,
@@ -814,6 +815,11 @@ export function GrillaCompras({
             {f.proveedorNuevo && (
               <span className="rounded border border-blue-700 px-1 font-medium text-blue-900">
                 {M.proveedorNuevo}
+              </span>
+            )}
+            {f.segunHistorial && (
+              <span className="rounded border border-emerald-700 px-1 font-medium text-emerald-900">
+                {R.segunHistorial}
               </span>
             )}
           </span>

@@ -34,6 +34,7 @@ import {
   type ExcluirCompra,
   type FilaCompraVista,
   type HallazgoVista,
+  type ReglaVista,
   type InformeDescarga,
   type InformeMasiva,
   type ListadoCompras,
@@ -453,6 +454,8 @@ export interface PermisosCompras {
   descargar: boolean;
   clasificar: boolean;
   aprobarGenerar: boolean;
+  /** `reglas.gestionar` (spec 021): sin él no se ofrece «Recordar». Solo oculta; el backend valida. */
+  gestionarReglas?: boolean;
 }
 
 /**
@@ -468,6 +471,14 @@ export interface ContextoCompras {
   recargarFila: (id: string) => Promise<void>;
   recargarFilas: (ids: string[]) => Promise<void>;
   recargarResumen: () => Promise<void>;
+  /**
+   * Las reglas aprendidas del cliente (spec 021), leídas una vez por la página con `GET …/reglas`; `recargar` las
+   * vuelve a leer tras crear o actualizar una. Sin ellas (sin `reglas.gestionar` o sin cargar) no se ofrece «Recordar».
+   */
+  reglas?: {
+    lista: readonly ReglaVista[];
+    recargar: () => Promise<void>;
+  };
 }
 
 /** Filtros del listado tal como los elige el usuario. */
@@ -475,6 +486,8 @@ export interface FiltrosCompras {
   vista: VistaCompras;
   alertas: boolean;
   proveedorNuevo: boolean;
+  /** Solo las filas que aplicó R-HIS (spec 021). Opcional para no romper a quien arma los filtros a mano (ausente = false). */
+  segunHistorial?: boolean;
   q: string;
 }
 
@@ -482,6 +495,7 @@ export const FILTROS_INICIALES: FiltrosCompras = {
   vista: "con_igv",
   alertas: false,
   proveedorNuevo: false,
+  segunHistorial: false,
   q: "",
 };
 
@@ -626,6 +640,7 @@ export function consultaDeListado(
   q.set("vista", filtros.vista);
   if (filtros.alertas) q.set("alertas", "true");
   if (filtros.proveedorNuevo) q.set("proveedorNuevo", "true");
+  if (filtros.segunHistorial) q.set("segunHistorial", "true");
   const busqueda = filtros.q.trim();
   if (busqueda !== "") q.set("q", busqueda);
   if (cursor !== undefined) q.set("cursor", cursor);
