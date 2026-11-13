@@ -330,6 +330,27 @@
       "when": 1794514297698,
       "tag": "0046_notificacion_ms_validada",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1794578979728,
+      "tag": "0047_regla_aprendida",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1794578991497,
+      "tag": "0048_regla_aplicacion",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1794579004802,
+      "tag": "0049_regla_confirmacion",
+      "breakpoints": true
     }
   ]
 }

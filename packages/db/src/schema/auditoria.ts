@@ -5,7 +5,7 @@ import { tenant } from "./plataforma";
 
 /**
  * Catálogo cerrado de acciones (D-3), las 4 de la ronda adversarial R1 (0045: H-017-1 y H-017-2), `credencial.descifrada` (solo la
- * vista, D-6) y `sunat.envio` (reservada, R2).
+ * vista, D-6), `sunat.envio` (reservada, R2) y las 8 de la spec 021 (0049).
  */
 export const ACCIONES_AUDITORIA_BD = [
   "sesion.ingreso",
@@ -39,6 +39,15 @@ export const ACCIONES_AUDITORIA_BD = [
   "periodo.estado_cambiado",
   "archivo.generado",
   "sunat.envio",
+  // Spec 021 (0049): reglas aprendidas, interruptores del motor, aporte al catálogo y la versión `historial`.
+  "regla.creada",
+  "regla.editada",
+  "regla.activada",
+  "regla.desactivada",
+  "regla.eliminada",
+  "estudio.regla_motor",
+  "estudio.aporte_catalogo",
+  "compra.historial",
 ] as const;
 
 const lista = (valores: readonly string[]) => sql.raw(valores.map((v) => `'${v}'`).join(", "));

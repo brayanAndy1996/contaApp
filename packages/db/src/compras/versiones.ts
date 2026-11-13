@@ -1,6 +1,7 @@
 // Versiones de compras (spec 014, D-1, D-2, D-4, D-7). `crearVersion` es el ÚNICO punto de escritura de una versión de una compra
 // existente: comprueba la versión base, inserta la n+1, mueve el puntero con compare-and-set, re-evalúa la fila con la función
 // inyectada y guarda sus hallazgos, todo en la transacción de `withTenant`. `packages/db` no sabe de reglas: recibe `evaluar`.
+import { aplicarReglaHistorial } from "../reglas/aplicar";
 import { consultar, ComprasReglaError, type TxConsulta } from "./errores";
 import {
   escribirVersiones,
@@ -201,16 +202,28 @@ export async function descartar(
 }
 
 /**
+ * R-HIS en la descarga (spec 021, D-7): para una compra nueva (su versión 1), la regla aprendida que la mueve y la versión 1
+ * consolidada en su destino, o `null` si no se aplica. La decide el dominio (`planificarHistorial`) y entra inyectada.
+ */
+export type HistorialDescarga = (
+  fila: CompraLeida,
+) => { reglaId: string; datos: MontosCompra } | null;
+
+/**
  * Inserta las compras que trae una descarga (D-3, para el persistidor): origen `sire` con su propuesta, versión 1 (acción
  * `original`) de cada una, y evalúa cada una guardando sus hallazgos con `version_n` = 1. Devuelve los ids en el orden de `nuevas`.
  * Todo o nada con la transacción; una clave viva repetida (en el lote o ya existente) lanza `ComprasRepoError` 23505 y un monto
  * que no cabe en NUMERIC(14,2), 22003. Inserta por lotes.
+ *
+ * Spec 021: con `historial`, después de las versiones 1 (ya evaluadas: sus hallazgos quedan en su historial) crea la versión 2
+ * `historial` de cada compra que lo pida con `aplicar_regla_historial` y la evalúa también (P-6). Si la BD rechaza una (42501),
+ * toda la descarga se revierte. Sin `historial` el resultado es idéntico al de antes.
  */
 export async function insertarCompras(
   tx: TxConsulta,
   contexto: { clienteId: string; periodo: string; propuestaId: string },
   nuevas: CompraNueva[],
-  f: { evaluar: Evaluar },
+  f: { evaluar: Evaluar; historial?: HistorialDescarga },
 ): Promise<string[]> {
   const ids: string[] = [];
   const lote: VersionPorEscribir[] = [];
@@ -263,5 +276,22 @@ export async function insertarCompras(
   }
   await insertarVersiones(tx, lote);
   await evaluarYGuardar(tx, lote, f.evaluar);
+  if (f.historial) {
+    const segunHistorial: VersionPorEscribir[] = [];
+    for (const p of lote) {
+      const h = f.historial(p.compra);
+      if (!h) continue;
+      const n = await aplicarReglaHistorial(tx, p.compra.id, h.reglaId, h.datos);
+      segunHistorial.push({
+        compra: p.compra,
+        n,
+        datos: { montos: h.datos, excluida: false, motivo: null, clasificada: true },
+        accion: "historial",
+        operacionId: null,
+        usuarioId: null,
+      });
+    }
+    await evaluarYGuardar(tx, segunHistorial, f.evaluar);
+  }
   return ids;
 }
