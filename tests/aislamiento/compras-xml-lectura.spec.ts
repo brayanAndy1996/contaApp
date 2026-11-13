@@ -335,7 +335,7 @@ describe("leerDetalleXml · lo que nunca sale", () => {
     const fuera = claves(resto);
     for (const p of PROHIBIDAS) expect(fuera.has(p), `clave ${p} fuera de xml`).toBe(false);
     expect(Object.keys(d!).sort()).toEqual(
-      ["compra", "hallazgos", "identidad", "obtencion", "proveedorNuevo", "versiones", "xml"].sort(),
+      ["compra", "hallazgos", "identidad", "obtencion", "proveedorNuevo", "segunHistorial", "versiones", "xml"].sort(),
     );
   });
 
