@@ -44,6 +44,14 @@ import {
 /** Candidatos que el despachador mira por estudio y cola en cada ciclo (D21). */
 export const VENTANA_CANDIDATOS = 20;
 
+/**
+ * Ids de la lista de pistas que una atención lee (y, como mucho, borra y relee en BD) por estudio y ciclo (022 RP-1,
+ * D-1). Acota el costo de un estudio con muchos restos; no tiene que ver con `VENTANA_CANDIDATOS`, que acota los
+ * candidatos de la BD. K = 100 por la medida de T1 (con 500 una atención cuesta 2,6 × la de N = 100). Si la lista tiene
+ * más, el cierre repone al estudio en `tenants` y el siguiente ciclo toma otro tramo.
+ */
+export const TRAMO_PISTAS = 100;
+
 export interface OpcionesDespachador {
   db: DbCola;
   redis: ClienteRedis;
@@ -306,13 +314,17 @@ export class Despachador {
     return a.sinCupoGlobal ? "sin_cupo_global" : "nada";
   }
 
-  /** Ids que la lista de pistas del estudio ya tenía antes de leer la BD (vacío si Redis falla). */
+  /** Primeros `TRAMO_PISTAS` ids que la lista de pistas del estudio ya tenía antes de leer la BD (vacío si Redis falla). */
   private async pistasPrevias(
     cola: NombreCola,
     tenantId: string,
   ): Promise<string[]> {
     try {
-      return await this.redis.zrange(this.k.pend(cola, tenantId), "0", "-1");
+      return await this.redis.zrange(
+        this.k.pend(cola, tenantId),
+        "0",
+        String(TRAMO_PISTAS - 1),
+      );
     } catch {
       registrarFallo("despachador: no se pudo leer la lista de pistas");
       return [];
@@ -332,6 +344,8 @@ export class Despachador {
    * Un ZADD anterior a (4) se ve en (4) y el estudio se repone; uno posterior tiene su SADD después de (3). En ningún
    * caso queda un trabajo en la lista con el estudio fuera de `tenants`. Sin Lua ni transacción: tolera un Redis falso.
    * Los `ejecutando` que siguen así tras la relectura no tienen pista que conservar: no hay bucle de ciclos vacíos.
+   * `previos` y `ejecutando` valen como mucho `TRAMO_PISTAS` (022 D-1): con más restos, el paso 4 repone al estudio y el
+   * siguiente ciclo toma otro tramo (≤ ⌈N / K⌉ + 1 ciclos).
    */
   private async cerrarEstudioVacio(
     cola: NombreCola,
