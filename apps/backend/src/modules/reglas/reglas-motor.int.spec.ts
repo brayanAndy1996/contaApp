@@ -141,11 +141,15 @@ describe("PUT /estudio/reglas-motor/:codigo (CA-8)", () => {
   });
 
   it("auditoría: estudio.regla_motor con el usuario y {codigo, activa}", async () => {
+    // Otras pruebas del archivo ya auditaron R-GP en este estudio: se exige exactamente una fila más.
+    const delGp = async () => (await v.auditoriaDe(E.tenantId, "estudio.regla_motor")).filter((a) => a.datos.codigo === "R-GP");
+    const antes = (await delGp()).length;
     expect((await fijar(admin, "R-GP", { activa: false })).status).toBe(200);
-    const aud = (await v.auditoriaDe(E.tenantId, "estudio.regla_motor")).filter((a) => a.datos.codigo === "R-GP");
-    expect(aud).toHaveLength(1);
-    expect(aud[0]).toMatchObject({ actor_tipo: "usuario", usuario_id: admin.id });
-    expect(aud[0].datos).toEqual({ codigo: "R-GP", activa: false });
+    const aud = await delGp();
+    expect(aud).toHaveLength(antes + 1);
+    const nueva = aud.at(-1);
+    expect(nueva).toMatchObject({ actor_tipo: "usuario", usuario_id: admin.id });
+    expect(nueva.datos).toEqual({ codigo: "R-GP", activa: false });
   });
 
   it.each([
@@ -205,10 +209,12 @@ describe("PUT /estudio/reglas-motor/aporte (P-10, CA-6)", () => {
   });
 
   it("auditoría: estudio.aporte_catalogo con el usuario", async () => {
+    // Otras pruebas del archivo ya auditaron el aporte en este estudio: se exige exactamente una fila más.
+    const antes = (await v.auditoriaDe(E.tenantId, "estudio.aporte_catalogo")).length;
     expect((await aporte(admin, { aportar: false })).status).toBe(200);
     const aud = await v.auditoriaDe(E.tenantId, "estudio.aporte_catalogo");
-    expect(aud).toHaveLength(1);
-    expect(aud[0]).toMatchObject({ actor_tipo: "usuario", usuario_id: admin.id });
+    expect(aud).toHaveLength(antes + 1);
+    expect(aud.at(-1)).toMatchObject({ actor_tipo: "usuario", usuario_id: admin.id });
   });
 
   it("es del estudio: no cambia el aporte de otro", async () => {

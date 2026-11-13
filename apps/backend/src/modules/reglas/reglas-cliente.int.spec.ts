@@ -335,13 +335,16 @@ describe("POST …/reglas/recordar (RF-110, HU-28, D-5, P-7; CA-1)", () => {
     const a = await compra(c, "1", { doc: PROV });
     const b = await compra(c, "2", { doc: "20700000045" });
     const antes = await v.foto(c.id);
+    // Las pruebas anteriores dejan confirmaciones en el estudio: se exige que esta acción no agregue ninguna.
+    const confirmacionesAntes = await v.confirmacionesBd(E.tenantId);
     const r = await recordar(contador, c, [a, b], "DNG", null);
     expect(r.status, r.text).toBe(422);
     expect(r.body).toEqual({ codigo: "proveedores_distintos" });
     sinCanarios(r);
     expect(await v.reglasBd(c.id)).toEqual([]);
     expect(await v.foto(c.id)).toEqual(antes);
-    expect(await v.confirmacionesBd(E.tenantId)).toEqual([]);
+    expect(await v.confirmacionesBd(E.tenantId)).toEqual(confirmacionesAntes);
+    expect((await v.confirmacionesBd(E.tenantId)).filter((x) => x.cliente_id === c.id)).toEqual([]);
   });
 
   it("P-2 · el mismo número con otro tipo de documento es otro proveedor: 422", async () => {
