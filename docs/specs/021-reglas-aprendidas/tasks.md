@@ -8,10 +8,10 @@ Nivel A (spec). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | --- | ----- | --- | ------ | ---------- | --- | --- | ------ |
 | T1  | Pruebas de dominio: `planificarHistorial`, interruptores, P-6, catálogo, RUC aportable (rojo) | tester | sonnet | — ∥ T2, T3 | ✓ | — | [x] |
 | T2  | Pruebas de `shared/reglas` y de los cambios en `shared/compras` y auditoría (rojo) | tester | sonnet | — ∥ T1, T3 | ✓ | — | [x] |
-| T3  | Pruebas de BD: tablas, RLS, grants, funciones acotadas, aceptaciones, confirmaciones, auditoría, concurrencia (rojo) | tester | sonnet | — ∥ T1, T2 | ✓ | — | [ ] |
-| T4  | Pruebas del worker: descarga con R-HIS, `resultado`, interruptores en `xml.obtener` (rojo) | tester | sonnet | T2 ∥ T5, T6 | ✓ | — | [ ] |
-| T5  | Pruebas HTTP: reglas del cliente, motor del estudio, listado y detalle «Según historial», interruptores en aceptar y masiva (rojo) | tester | sonnet | T2 ∥ T4, T6 | ✓ | — | [ ] |
-| T6  | Pruebas de componentes: aviso «Recordar», pantallas de reglas, etiqueta y filtro (rojo) | tester | sonnet | T2 ∥ T4, T5 | ✓ | — | [ ] |
+| T3  | Pruebas de BD: tablas, RLS, grants, funciones acotadas, aceptaciones, confirmaciones, auditoría, concurrencia (rojo) | tester | sonnet | — ∥ T1, T2 | ✓ | — | [x] |
+| T4  | Pruebas del worker: descarga con R-HIS, `resultado`, interruptores en `xml.obtener` (rojo) | tester | sonnet | T2 ∥ T5, T6 | ✓ | — | [x] |
+| T5  | Pruebas HTTP: reglas del cliente, motor del estudio, listado y detalle «Según historial», interruptores en aceptar y masiva (rojo) | tester | sonnet | T2 ∥ T4, T6 | ✓ | — | [x] |
+| T6  | Pruebas de componentes: aviso «Recordar», pantallas de reglas, etiqueta y filtro (rojo) | tester | sonnet | T2 ∥ T4, T5 | ✓ | — | [x] |
 | T7  | Dominio: `r-his.ts`, `catalogo.ts`, `reglasApagadas` y `crearEvaluarCompras` | backend | opus | T1 ∥ T8, T9 | ✓ | — | [x] |
 | T8  | `shared`: esquemas, DTOs, códigos, `historial`, filtro y acciones de auditoría | backend | sonnet | T2 ∥ T7, T9 | ✓ | — | [x] |
 | T9  | Migraciones 0047–0049, esquema drizzle, `packages/db/src/reglas/` e `insertarCompras` con historial | backend | opus | T3 ∥ T7, T8 | ✓ | — | [ ] |
