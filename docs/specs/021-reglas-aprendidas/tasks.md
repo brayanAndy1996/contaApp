@@ -21,8 +21,8 @@ Nivel A (spec). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T13 | Frontend: `lib/reglas.ts`, pantalla de reglas del cliente y reglas del motor | frontend | sonnet | T6, T8 ∥ T9–T12 | ✓ | — | [x] |
 | T14 | Frontend: grilla, masiva, filtro, lupa e historial («Según historial» y «Recordar») ⚠022 | frontend | sonnet | T6, T13 y merge de 022 RP-5 | ✓ | — | [x] |
 | T15 | Cobertura ≥ 90 %: `domain/reglas`, `db/reglas`, módulo `reglas`, persistidor de compras; en CI | devops | haiku | T10, T11, T12 ∥ T14 | — | — | [x] |
-| T16 | Ronda adversarial 1: aislamiento, permisos, funciones acotadas y concurrencia (≤ 15 pruebas) | adversario | opus | T10, T11, T12, T15 ∥ T14 | — | ✓ | [ ] |
-| T17 | Pruebas de las correcciones de la ronda 1 (rojo) | tester | sonnet | T16 | ✓ | — | [ ] |
+| T16 | Ronda adversarial 1: aislamiento, permisos, funciones acotadas y concurrencia (≤ 15 pruebas) | adversario | opus | T10, T11, T12, T15 ∥ T14 | — | ✓ | [x] |
+| T17 | Pruebas de las correcciones de la ronda 1 (rojo) | tester | sonnet | T16 | ✓ | — | [x] |
 | T18 | Corregir los hallazgos de la ronda 1 (migración 0050 si hace falta) | backend | opus | T17 | — | — | [ ] |
 | T19 | Ronda adversarial 2: dinero con R-HIS, aceptaciones y confirmaciones, interruptores, baja lógica (≤ 15 pruebas) | adversario | opus | T18 | — | ✓ | [ ] |
 | T20 | Pruebas de las correcciones de la ronda 2 (rojo) | tester | sonnet | T19 | ✓ | — | [ ] |
