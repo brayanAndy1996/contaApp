@@ -18,7 +18,7 @@ Nivel B (04 §2.1): TDD donde aplica, ronda ADV solo en el despachador. Flujo 04
 | T10 | RP-5: Ctrl+Z, recarga y resumen del frontend, si domina **[021]** (CA-12) | frontend | sonnet | T1 ∥ T2, T5, T6, T7, T9, T12 | sí | — | [x] |
 | T11 | RP-5: E-06 con tope de 3 s y resultado final (CA-12) | tester | sonnet | T9, T10 | — | — | [x] |
 | T12 | RP-6: margen de CA-13 por la causa dominante **[021]** (CA-13) | backend | sonnet | T1 ∥ T2, T5, T6, T7, T9, T10 | — | — | [x] |
-| T13 | Verificar CA-1 a CA-15 | tester | sonnet | T4, T5, T6, T8, T11, T12 | — | — | [ ] |
+| T13 | Verificar CA-1 a CA-15 | tester | sonnet | T4, T5, T6, T8, T11, T12 | — | — | [x] |
 | T14 | Revisión final contra la spec | arquitecto | opus | T13 | — | — | [ ] |
 | T15 | Cierre: `tasks.md`, `spec.md`, notas de `ESTADO.md` y commit | devops | haiku | T14 | — | — | [ ] |
 
@@ -115,10 +115,39 @@ Reglas comunes:
 - **Hacer**: con el perfilado de T1, escribir en Resultado la causa dominante (fase y cifras) y optimizarla sin cambiar el contenido del TXT/ZIP ni el SHA-256 (comparar contra el de la línea base con el mismo periodo). Si 2,5 s exige reescribir el armado del archivo, parar y escalar con la medida; el límite de 5 s no se toca.
 - **Hecho cuando**: mediana de compras de CA-13 ≤ 2,5 s (≥ 3 muestras, sin carga ni cobertura) con el límite de 5 s intacto; las suites `generar-archivo*.spec.ts` pasan sin cambiar aserciones; SHA-256 idéntico; causa escrita; typecheck y lint de `worker` limpios. Commit `perf(022): margen de la generación de archivo`.
 
-## T13 · [ ] Verificar CA-1 a CA-15 (tester · sonnet)
+## T13 · [x] Verificar CA-1 a CA-15 (tester · sonnet)
 - **Contexto**: `spec.md` (CA-1 a CA-15), `tasks.md` (Resultados de T1 a T12), `plan.md` (línea base), `package.json` (raíz: `ci:db`, `ci:cierre`, `e2e`, `e2e:volumen`).
 - **Hacer**: tabla CA → evidencia (`archivo:línea` o comando). CA-3: las seis suites de `queue` sin diff de aserciones. CA-14: `git diff main..HEAD` con grep de límites de tiempo en `*.spec.ts`, `*.int.spec.ts` y `*.e2e.ts` (solo baja el de E-06) y grep de `retry`/`skip`/`only` en los archivos tocados. CA-15: suites de `queue`, `db`, `shared`, `backend`, `worker` y `frontend`, typecheck, lint, `pnpm ci:db`, `pnpm ci:cierre`, `pnpm e2e`; `pnpm e2e:volumen` una vez (resultado en `plan.md`). Tras el rebase sobre `main` (con 021 si ya integró), repetir CA-6 y CA-12. 3 corridas seguidas del CI (las lanza el orquestador).
 - **Hecho cuando**: cada CA tiene evidencia o queda como faltante (CI pendiente se marca «pendiente: CI»). Un fallo vuelve a su tarea; no se reintenta. Commit `docs(022): verificación de criterios`.
+- **Resultado**: hecha (2026-11-13), con **dos CA no cumplidos de forma estable** (CA-13, CA-15) que no se reintentan. Entorno: BD propias nuevas por fase (`contapp_022m`, `contapp_022t13`, y una BD nueva por muestra de CA-13), migradas dos veces y sembradas; E-06 y `pnpm e2e` con su BD `contapp_e2e`. Carga del equipo durante las medidas: 1,0–2,0 (otra sesión con vitest); en las suites completas llegó a 5–10 por `turbo`/`next build`.
+  - **CA-12 · E-06 (`pnpm e2e:volumen`, 3 corridas, sin carga ≈ 3)** llamada / recarga / total: 821·399·1.471 · 839·347·1.365 · 839·321·1.357 ms. **Medianas: llamada 839 ms, recarga 347 ms, total 1.365 ms** (≤ 1,5 s, máximo 1.471 ms). Las medidas de T11 (2.399 ms) eran por la carga de 9–10.
+  - **CA-13 · mediana de compras (`generar-archivo.int.spec.ts:1000`)**: en BD nueva por corrida, 5 corridas: 2.395 · 2.508 · 2.295 · 2.314 · 2.455 ms (mediana de las medianas 2.395 ms; 4 de 5 ≤ 2.500, una a 8 ms por encima). En una sola BD que acumula corridas sube: 2.848 · ≤2.500 · 2.609 · 2.583 · 2.584 · 2.686 · 3.099 · 2.508 · 2.609 · 2.790 ms (la prueba pasó 1 de 10). El límite de 5 s se cumple siempre; el margen de 2,5 s es **estrecho e intermitente** (≈ 0 % de holgura sobre el tope en BD usada).
+  - **CA-5 (5 corridas)**: N=100 / N=20.000 en ms: 24,6/24,3 · 24,5/27,1 · 24,0/22,4 · 23,9/23,0 · 25,7/24,7 (razón 0,93–1,10; tope 100 ms y 1,5 ×). **CA-6/CA-7 (5 corridas)**: 20.000 compras, primera lectura 148 · 147 · 152 · 145 · 89 ms (tope 1.000 ms), razón de primeras 2,69 · 2,45 · 2,35 · 2,76 · 1,32 (tope 5). La corrida de 42 s de CA-6 **no reapareció** (3–4 s cada una).
+  - **Tabla CA → evidencia → estado**
+
+| CA | Evidencia | Estado |
+|---|---|---|
+| CA-1 | `plan.md` «Línea base (CA-1)» (sin «pendiente» en la tabla) y «Perfilado (T1)» | cumplido |
+| CA-2 | `packages/queue/src/despachador-022.int.spec.ts:124` (N = 2.000 y 20.000); `grep '"0", "-1"' despachador.ts` vacío (`despachador.ts:313` usa `TRAMO_PISTAS - 1`) | cumplido |
+| CA-3 | `git diff main..HEAD` de las seis suites (t11c, t11c.adv, r1b.adv, r2a.adv, `despacho.int`, `despachador.spec`) vacío; pasan en `queue test:int` (15 archivos, 116 pruebas); ronda ADV en `despachador-022.adv.int.spec.ts` (B1–B14, H-022-n) | cumplido |
+| CA-4 | `despachador-022.int.spec.ts:148` | cumplido |
+| CA-5 | `despachador-022.int.spec.ts:179`, 5 corridas (arriba) | cumplido |
+| CA-6 | `tests/aislamiento/compras-existentes-022.spec.ts:86` (5 corridas verdes) | cumplido |
+| CA-7 | `tests/aislamiento/compras-existentes-022.spec.ts:260` (5 corridas verdes) | cumplido |
+| CA-8 | `apps/backend/src/modules/ventas/exclusion-por-id.spec.ts:78-120` (espía de `leerFilasVentas`, 404, `no_excluida`) y `exclusion-rp3.int.spec.ts:49,62,88` | cumplido |
+| CA-9 | `exclusion-rp3.int.spec.ts:119` (p95 < 300 ms, mediana ≤ 2 ×) | cumplido |
+| CA-10 | `apps/backend/src/modules/archivos/previo.spec.ts:103,113,121`; `packages/shared/src/archivos/previo.spec.ts:152,160` | cumplido |
+| CA-11 | `apps/frontend/components/archivos/previo-archivo.avisos-omitidos.spec.tsx:15,24,29`; `previo.spec.ts` «la huella no depende del corte»; suites `generar-archivo*` verdes. **Faltante**: T12 no dejó escrita la comparación de SHA-256 antes/después (solo «resultados idénticos» en el commit) | cumplido, con faltante de evidencia |
+| CA-12 | E-06: total 1.365 ms (≤ 1,5 s), `volumen.e2e.ts:31` `TOPE_DESHACER_MS = 3_000`; `filas-compras.spec.tsx:103,125,148`; suites 014/015 verdes sin cambios. La prueba de vigilancia `deshacer-masivo-022.int.spec.ts:101` (≤ 1.200 ms) falló una vez en la corrida completa (ver CA-15) | cumplido (E-06); vigilancia intermitente |
+| CA-13 | `generar-archivo.int.spec.ts:989-1011`; mediana 2.395 ms en BD nueva, 2.508 ms en la peor de 5; hasta 3.099 ms en BD usada | **no cumplido de forma estable** |
+| CA-14 | `git diff main..HEAD`: único límite que cambia es `volumen.e2e.ts:31` 10_000 → 3_000 (baja); los demás son nuevos (`deshacer-masivo-022.int.spec.ts` 1.200 ms, `generar-archivo.int.spec.ts:953` 2.500 ms); ninguna aserción quitada (los `-` de `previo.spec.ts`, `exclusion.service.spec.ts` y `shared/previo.spec.ts` son imports, el mock `leerFilaVenta` y una prueba ampliada); grep de `retry`/`skip`/`only`/`fixme` en líneas añadidas: vacío | cumplido |
+| CA-15 | typecheck y lint (turbo `--force`) OK; unitarias de los 11 paquetes OK (frontend 894, shared 1.782, domain 2.446, backend 1.240, db 823, queue 462, worker 409, sunat 262, storage 192, crypto 291, tests-limites 329); aislamiento 2.498 OK; queue int 116 OK; worker int 340 OK; frontend `TZ=America/Lima` y `TZ=UTC` 894 OK cada una; `ci:cierre` 3 OK; `pnpm e2e` 87 OK. **Backend int: 1 fallo** `deshacer-masivo-022.int.spec.ts` (aserción de `META_DESHACER_MS`, línea 203): 10.799 ms frente a 1.200, tras aislamiento + unitarias + queue + worker en la misma BD. Aislada pasa (1 corrida en esa BD usada, 3 en BD nueva) y `backend test:int` completa sobre BD nueva: 2.669 OK. CI de 3 corridas: pendiente: CI | **no cumplido en una corrida** (intermitente, dependiente del estado de la BD) |
+
+  - **Fallos y clasificación**
+    - `deshacer-masivo-022.int.spec.ts` (T9/T11): **intermitente por estado de BD**, no regresión del código. Es la degradación que T1 ya avisó (el `insert compra_hallazgo` por lote se encarece en una BD con cargas masivas y sin estadísticas recientes). `ci:db` corre aislamiento, worker int y backend int en la misma BD, así que puede fallar allí. Decisión para T14: reubicar la prueba, medir tras `ANALYZE` o aceptar el riesgo; no se cambió nada.
+    - CA-13: **hallazgo de rendimiento** (meta de tiempo no alcanzada con holgura): T12 midió 2,4 s en un par intercalado; sin carga y en BD nueva da 2,30–2,51 s y crece con la BD. Escalar al orquestador con la medida; no se sube el límite ni se reintenta.
+    - Una corrida de CA-7 en una BD ajena dio razón 5,03 (tope 5) con otra sesión cargando la máquina; no se repitió en 15 corridas en BD propias (ver incidente).
+  - **Incidente de entorno (a revisar por el orquestador)**: el scratchpad es compartido con otra sesión (spec 021) y su `env.sh` pisó el mío; durante un tramo mis comandos apuntaron por error a `contapp_021` con el código de 022 (CA-5 ×5, CA-6/7 ×10, CA-13 ×5 y las suites `migrar`, `unit`, `aislamiento` y parte de `queue test:int`). Se detectó por 4 fallos de aislamiento que solo existían en esa BD (funciones de 021, `config_sistema` con espera 0 / base 100). Esas medidas se descartaron y se repitieron en BD propias. No se borró ninguna fila a propósito, pero las pruebas dejan fixtures y pudieron tocar `config_sistema`: conviene revisar `contapp_021`. Mis BD (`contapp_022m/t13/v/w` y las de cada muestra) se borraron al terminar.
 
 ## T14 · [ ] Revisión final contra la spec (arquitecto · opus)
 - **Contexto**: `spec.md`, `plan.md`, `tasks.md` (Resultado de T13), `git diff main..HEAD --stat`.
