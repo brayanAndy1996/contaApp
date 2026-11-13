@@ -143,7 +143,7 @@ describe("R1 · identidades ajenas en el cuerpo (CA-5, D-2)", () => {
 
 describe("R1 · contrato de «Recordar» (plan: «todas las compras del cliente, vivas, de un mismo periodo y del mismo proveedor»)", () => {
   // H-021-1-1: el repositorio acepta compras de periodos distintos y fija `periodo_aprendido` al mayor en silencio.
-  it.fails("H-021-1-1 · compras del mismo proveedor en dos periodos: se rechaza (no 200) y no se crea regla", async () => {
+  it("H-021-1-1 · compras del mismo proveedor en dos periodos: se rechaza (no 200) y no se crea regla", async () => {
     const c = await nuevoCliente();
     const p1 = await compra(c, "1", { periodo: "202609" });
     const p2 = await compra(c, "2", { periodo: "202611" });
@@ -175,7 +175,7 @@ describe("R1 · canarios en errores (D-10, CA-13)", () => {
 
 describe("R1 · versionBase fuera del rango de `integer` (versionBaseSchema = z.number().int().min(1), sin cota)", () => {
   // H-021-1-2: 2^31 pasa el esquema y llega a `version = $n` (integer): la BD responde 22003 y la ruta da 500.
-  it.fails("H-021-1-2 · PATCH, «Recordar» y DELETE con versionBase = 2^31: 409 regla_cambiada (o 400), nunca 500, y la regla no cambia", async () => {
+  it("H-021-1-2 · PATCH, «Recordar» y DELETE con versionBase = 2^31: 409 regla_cambiada (o 400), nunca 500, y la regla no cambia", async () => {
     const c = await nuevoCliente();
     const id = await compra(c, "1");
     const regla = await v.sembrarRegla(E.tenantId, c.id, { usuarioId: E.titular.id, destino: "DNG" });

@@ -157,7 +157,8 @@ describe("la regla cambia durante la descarga (CA-9, plan: Orden de bloqueo)", (
       for (let i = 0; i < 3; i++) {
         const id = await compraDelWorker(tx, c.id, prop, DESCARGA, { serie: "F88", numero: String(++consecutivo), docNumero: doc });
         const r = vig.find((v) => v.doc_numero === doc);
-        if (r) await aplicar(tx, id, r.regla_id as string, consolidar(FACTURA_DG, r.destino as Destino));
+        // Como planificarHistorial (D-7, 0050): FACTURA_DG ya esta en DG, asi que una regla DG no mueve nada y no se aplica.
+        if (r && r.destino !== "DG") await aplicar(tx, id, r.regla_id as string, consolidar(FACTURA_DG, r.destino as Destino));
       }
       return vig as { regla_id: string; doc_numero: string; destino: Destino; version: number }[];
     });

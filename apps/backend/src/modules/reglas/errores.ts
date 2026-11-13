@@ -6,6 +6,8 @@ const ESTADO: Record<CodigoErrorRegla, number> = {
   regla_cambiada: HttpStatus.CONFLICT,
   // P-2: «Recordar» con compras de más de un proveedor.
   proveedores_distintos: HttpStatus.UNPROCESSABLE_ENTITY,
+  // H-021-1-1: «Recordar» con compras de más de un periodo (plan: «de un mismo periodo»).
+  periodos_distintos: HttpStatus.UNPROCESSABLE_ENTITY,
 };
 
 /** Error de reglas aprendidas: el cuerpo es solo `{ codigo }`, sin eco de la entrada ni datos del proveedor (D-10). */

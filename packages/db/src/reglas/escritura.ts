@@ -48,7 +48,9 @@ const SQL_ELIMINAR = `update regla_aprendida
 
 const SQL_VIVA = `select 1 from regla_aprendida where id = $1 and cliente_id = $2 and eliminada_en is null`;
 
-const versionValida = (v: unknown): v is number => Number.isInteger(v) && (v as number) >= 1;
+/** `version` es int4: fuera de 1..2^31-1 no hay regla con esa versión (y la BD respondería 22003, H-021-1-2). */
+const VERSION_MAX = 2_147_483_647;
+const versionValida = (v: unknown): v is number => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= VERSION_MAX;
 
 async function releer(tx: TxConsulta, clienteId: string, reglaId: string): Promise<ReglaFila> {
   const fila = await leerRegla(tx, clienteId, reglaId);
@@ -68,9 +70,10 @@ async function sinEscritura(
 }
 
 /**
- * «Recordar» (D-2, D-5): todas las compras deben ser del cliente, vivas y de un mismo proveedor (P-2). `versionBase = null` crea
- * la regla (si ya hay una viva, `regla_cambiada`); con número actualiza el destino y reactiva la viva si la versión coincide.
- * `periodo_aprendido` = periodo de esas compras (el mayor, si vinieran de varios). Registra la confirmación `recordar` (P-1).
+ * «Recordar» (D-2, D-5): todas las compras deben ser del cliente, vivas, de un mismo proveedor (P-2) y de un mismo periodo
+ * (H-021-1-1: `periodos_distintos`, sin escribir). `versionBase = null` crea la regla (si ya hay una viva, `regla_cambiada`); con
+ * número actualiza el destino y reactiva la viva si la versión coincide. `periodo_aprendido` = periodo de esas compras. Registra la
+ * confirmación `recordar` (P-1).
  */
 export async function recordarRegla(
   tx: TxConsulta,
@@ -83,9 +86,11 @@ export async function recordarRegla(
   if (compras.rowCount !== ids.length) return "no_encontrada";
   const proveedores = new Set(compras.rows.map((c) => `${c.doc_tipo as string}:${c.doc_numero as string}`));
   if (proveedores.size !== 1) return "proveedores_distintos";
+  const periodos = new Set(compras.rows.map((c) => c.periodo as string));
+  if (periodos.size !== 1) return "periodos_distintos";
   const docTipo = compras.rows[0]!.doc_tipo as string;
   const docNumero = compras.rows[0]!.doc_numero as string;
-  const periodo = compras.rows.map((c) => c.periodo as string).sort().at(-1)!;
+  const periodo = compras.rows[0]!.periodo as string;
 
   const escrita =
     e.versionBase === null

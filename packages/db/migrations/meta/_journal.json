@@ -351,6 +351,13 @@
       "when": 1794579004802,
       "tag": "0049_regla_confirmacion",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1794587004626,
+      "tag": "0050_regla_correcciones_r1",
+      "breakpoints": true
     }
   ]
 }

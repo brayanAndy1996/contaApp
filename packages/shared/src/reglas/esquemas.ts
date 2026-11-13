@@ -5,6 +5,11 @@ import { MAX_ITEMS_MASIVA } from "../compras/masivas.js";
 // Spec 021 (plan, Contratos: HTTP; D-5, P-2, P-8, P-10). Cuerpos y query strings de las rutas de reglas aprendidas.
 // `z.object` descarta las claves desconocidas: clienteId, tenantId, proveedor y ruc nunca viajan por el cuerpo.
 
+/** Mayor `integer` de PostgreSQL: `regla_aprendida.version` es int4 (H-021-1-2: más arriba sería un 22003 y un 500). */
+export const VERSION_REGLA_MAX = 2_147_483_647;
+/** `versionBase` de una regla: entero de 1 a `VERSION_REGLA_MAX`. */
+export const versionReglaSchema = versionBaseSchema.max(VERSION_REGLA_MAX);
+
 /** Códigos de las reglas del motor que el estudio puede apagar (RF-089). La prevalidación de 012 no figura (P-8). */
 export const CODIGOS_REGLA_MOTOR = ["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP", "R-HIS"] as const;
 export type CodigoReglaMotor = (typeof CODIGOS_REGLA_MOTOR)[number];
@@ -28,13 +33,13 @@ export const recordarReglaSchema = z.object({
       }
     }),
   destino: destinoCompraSchema,
-  versionBase: versionBaseSchema.nullable(),
+  versionBase: versionReglaSchema.nullable(),
 });
 export type RecordarRegla = z.infer<typeof recordarReglaSchema>;
 
 /** PATCH …/reglas/:reglaId: al menos uno de `destino` o `activa`. */
 export const editarReglaSchema = z
-  .object({ versionBase: versionBaseSchema, destino: destinoCompraSchema.optional(), activa: z.boolean().optional() })
+  .object({ versionBase: versionReglaSchema, destino: destinoCompraSchema.optional(), activa: z.boolean().optional() })
   .refine((v) => v.destino !== undefined || v.activa !== undefined, { message: "Se requiere destino o activa" });
 export type EditarRegla = z.infer<typeof editarReglaSchema>;
 
@@ -42,7 +47,7 @@ export type EditarRegla = z.infer<typeof editarReglaSchema>;
 export const eliminarReglaSchema = z.object({
   versionBase: z
     .union([z.number(), z.string().regex(/^[0-9]{1,9}$/).transform((s) => Number(s))])
-    .pipe(versionBaseSchema),
+    .pipe(versionReglaSchema),
 });
 export type EliminarRegla = z.infer<typeof eliminarReglaSchema>;
 

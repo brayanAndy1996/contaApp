@@ -26,7 +26,7 @@ export interface ReglaFila {
 }
 
 /** Códigos de rechazo del repositorio; el backend los traduce a HTTP (404, 409 y 422). */
-export type CodigoRegla = "regla_cambiada" | "proveedores_distintos" | "no_encontrada";
+export type CodigoRegla = "regla_cambiada" | "proveedores_distintos" | "periodos_distintos" | "no_encontrada";
 
 export interface EntradaRecordar {
   clienteId: string;

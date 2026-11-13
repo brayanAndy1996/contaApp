@@ -88,12 +88,12 @@ describe("R1 · aplicar_regla_historial no crea una versión `historial` que no 
   }
 
   // H-021-1-3: la función no exige base gravada ≠ 0; una fila solo con no gravado sale de «sin clasificar» con la etiqueta.
-  it.fails("H-021-1-3 · compra sin base gravada (solo no gravado): 42501, nunca la versión 2 `historial` clasificada", async () => {
+  it("H-021-1-3 · compra sin base gravada (solo no gravado): 42501, nunca la versión 2 `historial` clasificada", async () => {
     expect(await intentarNoOp(montos({ noGravado: "500.00" }))).toBe("42501");
   });
 
   // H-021-1-4: la función no exige que algo cambie; con la versión 1 ya en el destino crea una versión 2 idéntica y clasificada.
-  it.fails("H-021-1-4 · versión 1 ya en el destino de la regla: 42501, nunca una versión 2 idéntica marcada «Según historial»", async () => {
+  it("H-021-1-4 · versión 1 ya en el destino de la regla: 42501, nunca una versión 2 idéntica marcada «Según historial»", async () => {
     expect(await intentarNoOp(montos({ biDng: "1000.00", igvDng: "180.00" }))).toBe("42501");
   });
 });
@@ -176,7 +176,7 @@ describe("R1 · regla_aceptar_periodo (P-1: «una clasificación manual sin Reco
   // H-021-1-5: el trigger compara la versión vigente con el destino ACTUAL de la regla y no mira si sigue siendo la versión
   // `historial`: tras editar la regla (DNG → DG), la fila que el contador movió a mano a DG cuenta como aceptada y aporta una
   // confirmación `aceptada` DG al catálogo entre estudios (033).
-  it.fails("H-021-1-5 · regla editada DNG → DG después de la descarga y fila movida a DG a mano: no es aceptada ni confirma DG", async () => {
+  it("H-021-1-5 · regla editada DNG → DG después de la descarga y fila movida a DG a mano: no es aceptada ni confirma DG", async () => {
     const e = await escenario(2);
     await admin.query("update regla_aprendida set destino = 'DG', version = version + 1 where id = $1", [e.regla]);
     await ec.version(X, e.compras[0]!, 3, { accion: "editar", usuarioId: ux, montos: consolidar(FACTURA_DG, "DG") });
@@ -187,7 +187,7 @@ describe("R1 · regla_aceptar_periodo (P-1: «una clasificación manual sin Reco
 
   // H-021-1-6: una fila «Según historial» que el contador excluyó del registro (versión vigente `excluida = true`) cuenta como
   // aceptada y confirma el destino para el catálogo, aunque el contador rechazó la fila.
-  it.fails("H-021-1-6 · fila «Según historial» excluida después: no es aceptada ni deja confirmación", async () => {
+  it("H-021-1-6 · fila «Según historial» excluida después: no es aceptada ni deja confirmación", async () => {
     const e = await escenario(1);
     await ec.version(X, e.compras[0]!, 3, { accion: "excluir", excluida: true, motivo: "no corresponde", usuarioId: ux });
     await revisar(e);

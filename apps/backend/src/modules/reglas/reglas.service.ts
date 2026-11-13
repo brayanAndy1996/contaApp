@@ -27,7 +27,7 @@ import { aReglaVista } from "./vistas.js";
 /** Un código de rechazo del repositorio es siempre un error HTTP; nada se escribió, así que lanzarlo deshace la transacción sin costo. */
 function exigirRegla(r: ReglaFila | CodigoRegla | "ok"): ReglaFila | "ok" {
   if (r === "no_encontrada") throw new AccesoError("no_encontrado");
-  if (r === "regla_cambiada" || r === "proveedores_distintos") throw new ReglasError(r);
+  if (r === "regla_cambiada" || r === "proveedores_distintos" || r === "periodos_distintos") throw new ReglasError(r);
   return r;
 }
 

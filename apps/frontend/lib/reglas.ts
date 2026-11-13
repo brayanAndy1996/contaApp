@@ -13,7 +13,8 @@ import { api } from "./api";
 
 // Reglas aprendidas (spec 021, T13; plan, Contratos: HTTP). Cliente HTTP y textos de las pantallas de reglas del
 // cliente, del aviso «Recordar» y de las reglas del motor del estudio. Toda respuesta con cuerpo se valida con
-// `@contapp/shared`; un 409 `regla_cambiada` o un 422 `proveedores_distintos` salen en español, nunca con el código.
+// `@contapp/shared`; un 409 `regla_cambiada` o un 422 `proveedores_distintos` / `periodos_distintos` salen en español, nunca
+// con el código.
 
 export type { CodigoReglaMotor, DestinoCompra, ReglaVista, ReglasMotor };
 
@@ -32,6 +33,7 @@ export const MENSAJES_REGLAS = {
   recordada: "Regla guardada. Se aplicará en las próximas descargas de este proveedor.",
   reglaCambiada: "La regla cambió mientras tanto. Revisa las reglas del cliente e inténtalo de nuevo.",
   proveedoresDistintos: "Las compras elegidas son de proveedores distintos. Recuerda un proveedor a la vez.",
+  periodosDistintos: "Las compras elegidas son de periodos distintos. Recuerda las compras de un solo periodo.",
   clienteArchivado: "El cliente está archivado: sus reglas son de solo lectura.",
   datosInvalidos: "Revisa los datos de la regla.",
   // Etiqueta de las filas que aplicó R-HIS y nombre de la versión `historial` en el historial de versiones.
@@ -91,6 +93,7 @@ export function mensajeDeErrorReglas(status: number, datos: unknown): string {
   if (status === 409 && codigo === "regla_cambiada") return MENSAJES_REGLAS.reglaCambiada;
   if (status === 409 && codigo === "cliente_archivado") return MENSAJES_REGLAS.clienteArchivado;
   if (status === 422 && codigo === "proveedores_distintos") return MENSAJES_REGLAS.proveedoresDistintos;
+  if (status === 422 && codigo === "periodos_distintos") return MENSAJES_REGLAS.periodosDistintos;
   if (status === 403) return MENSAJES.sinPermiso;
   if (status === 404) return MENSAJES.noEncontrado;
   return MENSAJES.errorGeneral;

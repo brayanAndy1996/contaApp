@@ -277,10 +277,11 @@ describe("0048 · aplicar_regla_historial: camino valido (D-6, D-7, D-8)", () =>
 
   it("la suma del total no cambia al consolidar (NUMERIC exacto): total de la version 2 = total de la version 1", async () => {
     const b = await base({ montosV1: MIXTA_CHICA });
-    const regla = await ec.regla(X, cx, { docNumero: b.doc, destino: "DG" });
+    // MIXTA_CHICA ya esta en DG: la regla la mueve a DNG para que haya consolidacion (D-7, 0050 rechaza lo que no mueve nada).
+    const regla = await ec.regla(X, cx, { docNumero: b.doc, destino: "DNG" });
     const compra = await worker.withTenant({ tenantId: X }, async (tx) => {
       const c = await nuevaCompra(tx, b);
-      await aplicar(tx, c, regla, consolidar(MIXTA_CHICA, "DG"));
+      await aplicar(tx, c, regla, consolidar(MIXTA_CHICA, "DNG"));
       return c;
     });
     const r = await admin.query("select n, total from compra_version where compra_id = $1 order by n", [compra]);
