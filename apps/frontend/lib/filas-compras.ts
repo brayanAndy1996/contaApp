@@ -4,6 +4,7 @@ import {
   MENSAJES_COMPRAS as M,
   cargarPeriodo,
   obtenerDetalleCompra,
+  TOPE_SELECCION,
   type FiltrosCompras,
 } from "./compras";
 import { useSecuencia } from "./secuencia";
@@ -160,7 +161,11 @@ export function useFilasCompras({
     setFilas((previas) => fusionar(previas, [fila]));
   }, []);
 
-  /** Vuelve a pedir el listado completo con los filtros vigentes y lo cambia de una vez (sin vaciar la grilla). */
+  /**
+   * Vuelve a pedir el listado completo con los filtros vigentes y lo cambia de una vez (sin vaciar la grilla).
+   * Pide bloques del máximo que admite el servidor (`limite` ≤ 5.000, spec 022 RP-5): como el cursor es opaco no se
+   * pueden pedir bloques a la vez, así que se reduce el número de viajes (una masiva de 4.850 filas, 1 en vez de 5).
+   */
   const recargarListado = useCallback(async () => {
     if (cargaActual.current !== "completa") return;
     const mia = generacion.current;
@@ -168,8 +173,9 @@ export function useFilasCompras({
     try {
       const r = await cargarPeriodo(clienteId, periodo, filtrosActuales.current, {
         senal: new AbortController().signal,
+        tamanoBloque: TOPE_SELECCION,
         alBloque: (bloque) => {
-          acumuladas.push(...bloque);
+          for (const f of bloque) acumuladas.push(f);
         },
       });
       if (generacion.current !== mia) return;

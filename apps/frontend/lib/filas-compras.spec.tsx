@@ -118,4 +118,58 @@ describe("useFilasCompras", () => {
     expect(f.listados()).toHaveLength(antes + 1);
     expect(result.current.filas).toHaveLength(ids.length);
   });
+
+  // Spec 022 · T10 (RP-5, CA-12): la recarga tras un Ctrl+Z masivo pedía 5 GET secuenciales de 1.000 filas. El cursor
+  // es opaco (no se puede pedir en paralelo), pero `limite` admite hasta 5.000 (LIMITE_MAX_LISTADO): una masiva de
+  // 4.850 filas se recarga con una sola petición, sin cambiar el contrato.
+  it("recargarFilas de una masiva grande pide el listado en una sola petición de hasta 5.000 filas y deja la lista igual de completa", async () => {
+    const f = instalarFetchCompras({ estado: { filas: generarFilas(4900) } });
+    const { result } = montarHook();
+    await waitFor(() => expect(result.current.carga).toBe("completa"));
+    const ids = result.current.filas.map((x) => x.id);
+    expect(ids.length).toBeGreaterThan(4800);
+    const antes = f.listados().length;
+
+    const tocado = ids[10]!;
+    f.estado.filas = f.estado.filas.map((x) =>
+      x.id === tocado ? { ...x, version: 7 } : x,
+    );
+    act(() => result.current.setSeleccion(new Set([tocado, ids[20]!])));
+    await act(() => result.current.recargarFilas(ids));
+
+    const nuevas = f.listados().slice(antes);
+    expect(nuevas).toHaveLength(1);
+    expect(nuevas[0]!.url).toContain("limite=5000");
+    expect(result.current.filas).toHaveLength(ids.length);
+    expect(result.current.filas.find((x) => x.id === tocado)?.version).toBe(7);
+    expect(result.current.seleccion).toEqual(new Set([tocado, ids[20]!]));
+  });
+
+  it("con más de 5.000 filas sigue el cursor: una petición por cada 5.000 y ninguna fila se pierde", async () => {
+    const f = instalarFetchCompras({ estado: { filas: generarFilas(5200) } });
+    const { result } = montarHook();
+    await waitFor(() => expect(result.current.carga).toBe("completa"));
+    const ids = result.current.filas.map((x) => x.id);
+    const antes = f.listados().length;
+
+    await act(() => result.current.recargarFilas(ids));
+    expect(f.listados().length - antes).toBe(2);
+    expect(result.current.filas.map((x) => x.id)).toEqual(ids);
+  });
+
+  it("error: si el listado de la recarga falla avisa una vez y deja la lista como estaba", async () => {
+    const f = instalarFetchCompras({ estado: { filas: generarFilas(150) } });
+    const { result, alFallar } = montarHook();
+    await waitFor(() => expect(result.current.carga).toBe("completa"));
+    const ids = result.current.filas.map((x) => x.id);
+    const antes = result.current.filas;
+
+    instalarFetchCompras({
+      estado: { filas: f.estado.filas },
+      extra: { [`GET ${BASE}`]: { status: 500, cuerpo: {} } },
+    });
+    await act(() => result.current.recargarFilas(ids));
+    expect(alFallar).toHaveBeenCalledTimes(1);
+    expect(result.current.filas).toEqual(antes);
+  });
 });
