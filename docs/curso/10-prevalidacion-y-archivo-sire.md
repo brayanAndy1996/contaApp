@@ -152,7 +152,7 @@ Backend y worker usan la misma función de armado (`packages/domain/src/archivos
 `apps/worker/src/trabajos/procesadores/generar-archivo.ts:279-345` (fragmento simplificado):
 
 ```ts
-return await d.db.withTenant({ tenantId: t.tenantId }, async (tx) => {
+return await d.db.withTenant({ tenantId: t.tenantId, trabajoId: t.id }, async (tx) => {  // trabajoId: autor en la auditoría (módulo 14)
   // (0) ¿Este trabajo ya entregó su versión? (reintento) → devolverla tal cual
   // (1) Cliente activo
   // (2) Bloqueo advisory del cliente + periodo + libro

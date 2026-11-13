@@ -1,6 +1,6 @@
 # 13 · La lupa del comprobante: XML UBL, parser seguro y re-evaluación
 
-> Módulo anterior: [12-compras.md](12-compras.md) · Índice: [00-indice.md](00-indice.md)
+> Módulo anterior: [12-compras.md](12-compras.md) · Siguiente: [14-auditoria-y-notificaciones.md](14-auditoria-y-notificaciones.md) · Índice: [00-indice.md](00-indice.md)
 >
 > Cubre la spec **016** (lupa del comprobante y XML, solo compras). Conviene haber leído [03](03-rls-y-withtenant.md), [05](05-bullmq-y-la-cola.md), [08](08-dinero-y-dominio.md) y [10](10-prevalidacion-y-archivo-sire.md).
 
