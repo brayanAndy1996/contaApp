@@ -97,6 +97,8 @@ describe("T13b · ronda adversarial 2b", () => {
       "UblError", "aResumenXml", "compararIdentidad", "leerUbl", "planificarObtencionXml",
       // 012b (T1, plan Contratos: Dominio): archivos/ (previo, huella, adaptadores, D2) y los errores de una fila de ventas.
       "canonHuella", "compraLeidaAFila", "erroresDeFilaVenta", "permiteProvisional", "prepararArchivo", "ventaAFila",
+      // 021 (T7): catálogo del motor, RUC aportable y R-HIS (reglas/catalogo, reglas/r-his).
+      "CATALOGO_REGLAS_MOTOR", "esRucAportable", "planificarHistorial",
     ].sort();
     expect(Object.keys(Publico).sort()).toEqual(esperados);
 

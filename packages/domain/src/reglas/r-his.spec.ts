@@ -82,7 +82,7 @@ describe("planificarHistorial: lo que sí se mueve", () => {
   });
 
   it("fila en PEN con origen USD y tipo de cambio: se mueven los montos en PEN y no lanza", () => {
-    const origen = { montos: montos("USD", { biDg: "26.50", igvDg: "4.77", total: "31.27" }), tipoCambio: tc("3.7750") };
+    const origen = { montos: montos("USD", { biDg: "26.50", igvDg: "4.77", total: "31.27" }), tipoCambio: tc("3.775") };
     const m = montos("PEN", { biDg: "100.04", igvDg: "18.01", total: "118.05" });
     const r = plan([fila({ montos: m, origenUsd: origen })], [regla("DNG")]);
     expect(r).toHaveLength(1);
