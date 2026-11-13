@@ -254,6 +254,7 @@ export type {
   FiltrosListado as FiltrosListadoCompras,
   HallazgoGuardadoFila as HallazgoGuardadoCompra,
   PaginaListado as PaginaListadoCompras,
+  SegunHistorialLeido as SegunHistorialCompra,
   VersionHistorial as VersionHistorialCompra,
   VistaListado as VistaListadoCompras,
 } from "./compras/lectura";

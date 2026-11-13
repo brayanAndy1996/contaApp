@@ -28,6 +28,8 @@ export interface FiltrosListado {
   vista?: VistaListado;
   alertas?: boolean;
   proveedorNuevo?: boolean;
+  /** Spec 021: solo las filas cuya versión vigente es la que dejó una regla aprendida (`true`) o las demás (`false`). */
+  segunHistorial?: boolean;
   q?: string;
 }
 
@@ -40,9 +42,15 @@ export interface HallazgoGuardadoFila {
   requiereConfirmacion: boolean;
 }
 
+/** La regla aprendida de la que viene la versión vigente («Según historial»); solo viaja su id (spec 021, D-1). */
+export interface SegunHistorialLeido {
+  reglaId: string;
+}
+
 export interface CompraListada {
   compra: CompraLeida;
   proveedorNuevo: boolean;
+  segunHistorial: SegunHistorialLeido | null;
   hallazgos: HallazgoGuardadoFila[];
 }
 
@@ -79,6 +87,14 @@ const VERSION_UNO_LATERAL = `(select * from compra_version x where x.tenant_id =
 const ULTIMA_EVALUACION = `(select max(e.n) from compra_evaluacion e where e.tenant_id = c.tenant_id and e.compra_id = c.id
     and e.version_n = c.version_vigente)`;
 
+/**
+ * Regla de la que viene la versión vigente de `c` (021): `regla_aplicacion` tiene una fila por versión `historial` y solo esa,
+ * así que una fila corregida después (vigente distinta) o sin aplicación no se marca. Búsqueda por el único
+ * `(tenant_id, compra_id, version_n)`; sigue marcada aunque la regla se haya eliminado (P-9).
+ */
+const REGLA_HISTORIAL = `(select a.regla_id from regla_aplicacion a where a.tenant_id = c.tenant_id and a.compra_id = c.id
+    and a.version_n = c.version_vigente)`;
+
 /** Número con ceros a la izquierda para ordenar «999» antes de «1000» (el número tiene hasta 15 caracteres). */
 const NUMERO_ORDEN = `lpad(c.numero, 20, '0') collate "C"`;
 const SERIE_ORDEN = `c.serie collate "C"`;
@@ -94,7 +110,7 @@ select * from (
   select ${COLUMNAS_LEIDA},
     (not v.clasificada and not exists (select 1 from conocidos k where k.doc_tipo = c.doc_tipo and k.doc_numero = c.doc_numero))
       as proveedor_nuevo, ${SERIE_ORDEN} as orden_serie, ${NUMERO_ORDEN} as orden_numero,
-    c.fecha as orden_fecha,
+    c.fecha as orden_fecha, ${REGLA_HISTORIAL} as regla_historial,
     exists (select 1 from compra_hallazgo z where z.tenant_id = c.tenant_id and z.compra_id = c.id
       and z.version_n = c.version_vigente and z.evaluacion_n = ${ULTIMA_EVALUACION}) as con_hallazgos
   from compra c cross join lateral ${VERSION_VIGENTE_LATERAL} v
@@ -110,6 +126,7 @@ select * from (
 ) t
 where ($4::boolean is null or t.proveedor_nuevo = $4::boolean)
   and ($5::boolean is null or not $5::boolean or t.con_hallazgos)
+  and ($13::boolean is null or (t.regla_historial is not null) = $13::boolean)
   and ($6::date is null or t.orden_fecha > $6::date
     or (t.orden_fecha = $6::date and (t.orden_serie > $7::text collate "C"
       or (t.orden_serie = $7::text collate "C" and (t.orden_numero > lpad($8::text, 20, '0') collate "C"
@@ -146,6 +163,9 @@ const SQL_HALLAZGOS = `select h.compra_id, h.regla, h.sugerencia, h.lecturas, h.
     and h.evaluacion_n = ${ULTIMA_EVALUACION}
   where c.id = any($1::uuid[])
   order by h.compra_id, array_position(array['R-ISC','R-MIX','R-RED','R-NEW','R-GP'], h.regla::text)`;
+
+const aSegunHistorial = (reglaId: unknown): SegunHistorialLeido | null =>
+  typeof reglaId === "string" ? { reglaId } : null;
 
 const aHallazgo = (f: Fila): HallazgoGuardadoFila => ({
   compraId: f.compra_id,
@@ -198,6 +218,7 @@ export async function listarCompras(
     q === null ? null : `%${q}%`,
     c?.id ?? null,
     filtros.limite + 1,
+    filtros.segunHistorial ?? null,
   ]);
   const hayMas = r.rows.length > filtros.limite;
   const filas = hayMas ? r.rows.slice(0, filtros.limite) : r.rows;
@@ -205,6 +226,7 @@ export async function listarCompras(
   const salida = filas.map((f) => ({
     compra: aCompraLeida(f),
     proveedorNuevo: f.proveedor_nuevo as boolean,
+    segunHistorial: aSegunHistorial(f.regla_historial),
     hallazgos: hallazgos.get(f.id) ?? [],
   }));
   const ultima = salida[salida.length - 1];
@@ -233,11 +255,12 @@ export interface VersionHistorial {
 export interface DetalleLeido {
   compra: CompraLeida;
   proveedorNuevo: boolean;
+  segunHistorial: SegunHistorialLeido | null;
   versiones: VersionHistorial[];
   hallazgos: HallazgoGuardadoFila[];
 }
 
-const SQL_DETALLE = `select ${COLUMNAS_LEIDA}, ${PROVEEDOR_NUEVO} as proveedor_nuevo from ${UNION_VIGENTE}
+const SQL_DETALLE = `select ${COLUMNAS_LEIDA}, ${PROVEEDOR_NUEVO} as proveedor_nuevo, ${REGLA_HISTORIAL} as regla_historial from ${UNION_VIGENTE}
   where c.id = $1 and c.cliente_id = $2 and c.periodo = $3 and c.descartada_en is null`;
 const SQL_VERSIONES = `select v.n, v.accion, v.operacion_id, v.usuario_id, v.creada_en, v.excluida, v.motivo, v.clasificada,
     v.bi_dg::text as bi_dg, v.igv_dg::text as igv_dg, v.bi_dgng::text as bi_dgng, v.igv_dgng::text as igv_dgng,
@@ -264,6 +287,7 @@ export async function leerDetalleCompra(
   return {
     compra: aCompraLeida(fila),
     proveedorNuevo: fila.proveedor_nuevo as boolean,
+    segunHistorial: aSegunHistorial(fila.regla_historial),
     versiones: v.rows.map((f) => ({
       n: f.n,
       accion: f.accion,

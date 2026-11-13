@@ -95,7 +95,7 @@ export class ExportarComprasService {
             ...(vista === undefined ? {} : { vista }),
             ...(cursor === undefined ? {} : { cursor }),
           });
-          for (const l of pagina.filas) filas.push(filaExcel(aFilaVista(l.compra, l.proveedorNuevo, [])));
+          for (const l of pagina.filas) filas.push(filaExcel(aFilaVista(l.compra, l.proveedorNuevo, [], l.segunHistorial)));
           if (pagina.siguiente === null) return filas;
           cursor = pagina.siguiente;
         }

@@ -59,6 +59,7 @@ const leido = (o: { xml?: Partial<NonNullable<DetalleXmlLeido["xml"]>> | null; c
     ...o.compra,
   },
   proveedorNuevo: false,
+  segunHistorial: null,
   versiones: [],
   hallazgos: [],
   identidad: { rucEmisor: "20700000045", tipo: "01", serie: "F001", numero: "2056" },

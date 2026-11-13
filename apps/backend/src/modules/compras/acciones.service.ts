@@ -248,7 +248,7 @@ export class AccionesComprasService {
       } catch (e) {
         throw aErrorHttp(e);
       }
-      return { fila: aFilaVista(previo.compra, previo.proveedorNuevo, previo.hallazgos), cuadre: cuadreDe(previo.compra) };
+      return { fila: aFilaVista(previo.compra, previo.proveedorNuevo, previo.hallazgos, previo.segunHistorial), cuadre: cuadreDe(previo.compra) };
     });
   }
 
@@ -285,7 +285,7 @@ export class AccionesComprasService {
         } catch (e) {
           throw aErrorHttp(e);
         }
-        const fila = aFilaVista(previo.compra, previo.proveedorNuevo, previo.hallazgos);
+        const fila = aFilaVista(previo.compra, previo.proveedorNuevo, previo.hallazgos, previo.segunHistorial);
         return { fila: { ...fila, excluida: true, motivo: o.comoDescarte }, cuadre: cuadreDe(previo.compra) };
       }
       const entorno = await entornoDeReglas(tx, clienteId, periodo);
@@ -369,5 +369,5 @@ export async function altaCompra(
 /** La fila tal como quedó (versión vigente, hallazgos re-evaluados) y su cuadre. */
 export async function respuestaDe(tx: Tx, clienteId: string, periodo: string, compraId: string): Promise<AccionCompraRespuesta> {
   const d = exigir(await leerDetalleCompra(tx, clienteId, periodo, compraId));
-  return { fila: aFilaVista(d.compra, d.proveedorNuevo, d.hallazgos), cuadre: cuadreDe(d.compra) };
+  return { fila: aFilaVista(d.compra, d.proveedorNuevo, d.hallazgos, d.segunHistorial), cuadre: cuadreDe(d.compra) };
 }

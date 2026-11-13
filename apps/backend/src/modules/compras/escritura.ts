@@ -4,12 +4,13 @@ import {
   ComprasReglaError,
   leerEstadoPeriodo,
   leerProveedoresConocidos,
+  leerReglasMotor,
   type Alcance,
   type EvaluarCompra,
   type ProveedorConocido,
   type Tx,
 } from "@contapp/db";
-import { crearEvaluarCompras, DineroError, puedeEscribir } from "@contapp/domain";
+import { crearEvaluarCompras, DineroError, puedeEscribir, type CodigoReglaMotor } from "@contapp/domain";
 import { AccesoError } from "../acceso/errores.js";
 import { aEvaluable } from "./evaluable.js";
 import { ComprasError, type CodigoCompras } from "./errores.js";
@@ -43,8 +44,14 @@ export interface EntornoReglas {
 
 export async function entornoDeReglas(tx: Tx, clienteId: string, periodo: string): Promise<EntornoReglas> {
   const conocidos = await leerProveedoresConocidos(tx, clienteId, periodo);
+  // 021, RF-089: las reglas que el estudio apagó (sin fila = encendida) no se evalúan. R-HIS no es hallazgo ni se evalúa aquí
+  // (solo el worker la aplica en la descarga) y por eso no se pasan reglas aprendidas (P-3): corregir no devuelve la fila a la regla.
+  const apagadas = (await leerReglasMotor(tx)).filas.filter((f) => !f.activa).map((f) => f.codigo as CodigoReglaMotor);
   // P-4: el XML simulado solo entra en las reglas con `XML_SIMULADO_EN_REGLAS=1` (apagado por defecto).
-  const evaluarDominio = crearEvaluarCompras(conocidos, { xmlSimuladoEnReglas: process.env.XML_SIMULADO_EN_REGLAS === "1" });
+  const evaluarDominio = crearEvaluarCompras(conocidos, {
+    xmlSimuladoEnReglas: process.env.XML_SIMULADO_EN_REGLAS === "1",
+    reglasApagadas: apagadas,
+  });
   return { conocidos, evaluar: (fila) => evaluarDominio(aEvaluable(fila)) };
 }
 

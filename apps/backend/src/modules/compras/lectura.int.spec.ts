@@ -82,6 +82,7 @@ const CLAVES_FILA = [
   "origen",
   "proveedor",
   "proveedorNuevo",
+  "segunHistorial",
   "serie",
   "tipo",
   "tipoCambio",
