@@ -259,7 +259,13 @@ Usa el cliente `20700000002` con su credencial SIRE guardada (clave inventada) y
 
     En «Importar propuesta» elige el archivo y «Revisar archivo». Debes ver «Filas válidas: 3», «Filas con error: 0» y «Filas con advertencia: 2»: la fila 3 dice «El total no cuadra con la suma de los componentes; se guardará tal cual.» y la fila 4 «Falta el tipo de cambio de la venta en USD; no se incluirá en el resumen.». «Confirmar importación» da «3 nuevos, 0 difieren». En la grilla, la B001-294 sale «No cuadra». Si importas el mismo archivo otra vez: «0 nuevos, 0 difieren».
 
-**Para ver un error de descarga:** crea un cliente cuyo RUC termine en 9 (por ejemplo `20700001009`, que tiene dígito verificador válido), guarda su credencial y descarga: el mock simula una credencial rechazada y deberías ver «La descarga falló: Credencial inválida». Los RUC terminados en 7 u 8 también son centinelas, pero fallan antes, en la consulta RUC al crear el cliente (módulo 05).
+**Para ver los errores de descarga** (los «centinelas» del simulador, módulo 06):
+
+- Sin credencial SIRE guardada, «Descargar» responde «Primero guarda la credencial.».
+- Con un cliente cuyo RUC termine en **9** (por ejemplo `20700000029`) y su credencial guardada: «La descarga falló: Credencial inválida», con «Reintentar». La credencial SIRE del cliente pasa a «Inválida».
+- Con RUC terminado en **8** (`20700000088`): «La descarga falló: Datos inválidos». Con RUC terminado en **7** (`20700000037`): el trabajo se reintenta solo y, en alrededor de medio minuto, termina en «La descarga falló: SUNAT no responde».
+
+En los tres casos no se guarda ninguna venta.
 
 ## Problemas frecuentes
 
