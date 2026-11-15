@@ -16,7 +16,7 @@
   const guardado = {
     leer(clave, porDefecto) {
       try {
-        const v = localStorage.getItem("curso-contapp." + clave);
+        const v = localStorage.getItem((CURSO.clave || "curso-contapp") + "." + clave);
         return v === null ? porDefecto : JSON.parse(v);
       } catch (e) {
         return porDefecto;
@@ -24,7 +24,7 @@
     },
     escribir(clave, valor) {
       try {
-        localStorage.setItem("curso-contapp." + clave, JSON.stringify(valor));
+        localStorage.setItem((CURSO.clave || "curso-contapp") + "." + clave, JSON.stringify(valor));
       } catch (e) {
         /* sin almacenamiento: el avance dura lo que dure la pestaña */
       }
@@ -287,7 +287,7 @@
     hoja.append(m.id === "00" ? bienvenida() : "", contenido, cierre(m));
     principal.replaceChildren(hoja);
     pintarIndice(m.id);
-    document.title = (m.id === "00" ? "" : m.id + " · " + m.titulo + " · ") + "Curso ContApp";
+    document.title = (m.id === "00" ? "" : m.id + " · " + m.titulo + " · ") + (CURSO.titulo || "Curso ContApp");
     guardado.escribir("ultimo", m.id);
     if (ancla) {
       const destino = document.getElementById(ancla);

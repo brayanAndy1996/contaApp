@@ -1,7 +1,11 @@
 // Construye la versión web del curso a partir de los .md de docs/curso/.
 //
-//   node docs/curso/web/construir.mjs                 → escribe docs/curso/web/contenido.js
-//   node docs/curso/web/construir.mjs --publicar DIR  → además arma en DIR la versión para publicar como página
+//   node docs/curso/web/construir.mjs                         → curso: escribe docs/curso/web/contenido.js
+//   node docs/curso/web/construir.mjs --libro guia            → guía de uso: escribe docs/guia/web/
+//   node docs/curso/web/construir.mjs [--libro X] --publicar DIR → además arma en DIR la versión para publicar
+//
+// Dos libros comparten este motor (curso.css, curso.js, simuladores.js): el curso técnico (docs/curso)
+// y la guía de uso (docs/guia).
 //
 // Los .md siguen siendo la única fuente del texto. Este script solo los convierte a HTML (con `marked`,
 // incluido en herramientas/ para que funcione sin internet) y genera el índice de búsqueda.
@@ -14,9 +18,18 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { Marked } = require("./herramientas/marked.cjs");
 
-const WEB = dirname(fileURLToPath(import.meta.url));
-const CURSO = resolve(WEB, "..");
-const RAIZ = resolve(CURSO, "../..");
+const MOTOR = dirname(fileURLToPath(import.meta.url));
+const RAIZ = resolve(MOTOR, "../../..");
+const LIBROS = {
+  curso: { fuente: "docs/curso", titulo: "Curso ContApp", sello: "CA", clave: "curso-contapp", buscar: "RLS, IGV, huella, boleta 291…" },
+  guia: { fuente: "docs/guia", titulo: "Guía de uso de ContApp", sello: "GU", clave: "guia-contapp", buscar: "credenciales, generar archivo, excluir…" },
+};
+const iLibro = process.argv.indexOf("--libro");
+const nombreLibro = iLibro === -1 ? "curso" : process.argv[iLibro + 1];
+const LIBRO = LIBROS[nombreLibro];
+if (!LIBRO) throw new Error(`Libro desconocido: ${nombreLibro}. Usa: ${Object.keys(LIBROS).join(", ")}`);
+const CURSO = resolve(RAIZ, LIBRO.fuente);
+const WEB = join(CURSO, "web");
 const REPO = "https://github.com/brayanAndy1996/contaApp/blob/main/";
 
 const archivos = readdirSync(CURSO)
@@ -112,22 +125,37 @@ const modulos = archivos.map((archivo) => {
 
 const salida =
   "// Generado por construir.mjs a partir de docs/curso/*.md. No editar a mano: edita el .md y vuelve a construir.\n" +
-  `window.CURSO = ${JSON.stringify({ repo: REPO, modulos })};\n`;
+  `window.CURSO = ${JSON.stringify({ repo: REPO, titulo: LIBRO.titulo, clave: LIBRO.clave, modulos })};\n`;
+mkdirSync(WEB, { recursive: true });
 writeFileSync(join(WEB, "contenido.js"), salida);
-console.log(`contenido.js: ${modulos.length} módulos, ${(salida.length / 1024).toFixed(0)} KB`);
+console.log(`${LIBRO.fuente}/web/contenido.js: ${modulos.length} módulos, ${(salida.length / 1024).toFixed(0)} KB`);
+
+// La página de cada libro sale de la del motor, con su título y rutas hacia los archivos compartidos.
+const paginaMotor = readFileSync(join(MOTOR, "index.html"), "utf8");
+const rutaMotor = relative(WEB, MOTOR).split("\\").join(posix.sep);
+const prefijo = rutaMotor ? rutaMotor + "/" : "";
+function paginaDelLibro(prefijoArchivos) {
+  return paginaMotor
+    .replace(/<title>[^<]*<\/title>/, `<title>${LIBRO.titulo}</title>`)
+    .replace(/<span class="marca-sello">[^<]*<\/span>[^<]*<\/a>/, `<span class="marca-sello">${LIBRO.sello}</span> ${LIBRO.titulo}</a>`)
+    .replace(/placeholder="[^"]*"/, `placeholder="${LIBRO.buscar}"`)
+    .replace(/(href|src)="(curso\.css|curso\.js|simuladores\.js)"/g, (_, a, f) => `${a}="${prefijoArchivos}${f}"`);
+}
+if (WEB !== MOTOR) writeFileSync(join(WEB, "index.html"), paginaDelLibro(prefijo));
 
 // --publicar DIR: la misma página sin <!doctype>, <html>, <head> ni <body> (la plataforma los agrega).
 const i = process.argv.indexOf("--publicar");
 if (i !== -1) {
   const destino = resolve(process.argv[i + 1] ?? "");
   mkdirSync(destino, { recursive: true });
-  const pagina = readFileSync(join(WEB, "index.html"), "utf8");
+  const pagina = paginaDelLibro("");
   const cabeza = pagina
     .match(/<head>([\s\S]*?)<\/head>/)[1]
     .replace(/\s*<meta charset[^>]*>/, "")
     .replace(/\s*<meta name="viewport"[^>]*>/, "");
   const cuerpo = pagina.match(/<body>([\s\S]*?)<\/body>/)[1];
   writeFileSync(join(destino, "index.html"), `${cabeza.trim()}\n${cuerpo.trim()}\n`);
-  for (const f of ["curso.css", "curso.js", "simuladores.js", "contenido.js"]) copyFileSync(join(WEB, f), join(destino, f));
+  for (const f of ["curso.css", "curso.js", "simuladores.js"]) copyFileSync(join(MOTOR, f), join(destino, f));
+  copyFileSync(join(WEB, "contenido.js"), join(destino, "contenido.js"));
   console.log(`Versión para publicar en ${destino}`);
 }
