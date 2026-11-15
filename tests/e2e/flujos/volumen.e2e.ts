@@ -1,5 +1,5 @@
 // E-06 · Volumen (spec 018, T9; RNF-031, CA-9; P-3, P-5). Etiqueta `@volumen`: la suite normal (`pnpm e2e`) no la
-// corre; `pnpm e2e:volumen` corre solo esta. Mide con tope (primeras filas < 2 s; Ctrl+Z de la masiva ≤ 10 s) y
+// corre; `pnpm e2e:volumen` corre solo esta. Mide con tope (primeras filas < 2 s; Ctrl+Z de la masiva ≤ 3 s, spec 022) y
 // deja los tiempos como anotaciones del reporte (`tiempo-primeras-filas` y, del Ctrl+Z de la masiva, por separado,
 // `tiempo-deshacer-llamada`, `tiempo-deshacer-recarga` y `tiempo-deshacer-total`; spec 022, T1).
 // Acelerar el Ctrl+Z de la masiva (recarga el listado entero) queda para una spec de rendimiento (P-3).
