@@ -133,7 +133,7 @@
 
   // «Ejercicios»: la lista de preguntas y la lista de soluciones (dentro de <details>) se vuelven tarjetas.
   function mejorarEjercicios(raiz) {
-    const h2 = [...raiz.querySelectorAll("h2")].find((h) => /^Ejercicios/i.test(h.textContent.trim()));
+    const h2 = [...raiz.querySelectorAll("h2")].find((h) => /^(Ejercicios|Comprueba lo aprendido)/i.test(h.textContent.trim()));
     if (!h2) return;
     const tramo = [];
     for (let n = h2.nextElementSibling; n && n.tagName !== "H2"; n = n.nextElementSibling) tramo.push(n);

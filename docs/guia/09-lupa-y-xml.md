@@ -134,6 +134,10 @@ Si te equivocaste de archivo, «Quitar el XML» te devuelve al formulario manual
 
 ## Qué ves en pantalla
 
+![Lupa del comprobante F001-2056 con cabecera, XML simulado, ítems y comparación SIRE contra XML](web/img/lupa.png)
+
+*Captura real del entorno de prueba: la compra mixta F001-2056 después de aceptar R-MIX. Todas las columnas «Coinciden» con el XML.*
+
 ### Estado del XML
 
 | Lo que ves | Qué significa | Qué puedes hacer |

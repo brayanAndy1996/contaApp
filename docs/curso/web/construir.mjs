@@ -75,6 +75,11 @@ function convertir(id, md) {
         usados.add(ancla);
         return `<h${nivel} id="${ancla}">${texto}</h${nivel}>\n`;
       },
+      image(href, titulo, texto) {
+        // Las imágenes de un libro viven en <libro>/web/img; la página está en <libro>/web.
+        const src = href.startsWith("web/") ? href.slice(4) : href;
+        return `<img src="${escapar(src)}" alt="${escapar(texto)}">`;
+      },
       link(href, titulo, texto) {
         const t = titulo ? ` title="${escapar(titulo)}"` : "";
         const modulo = href.match(/^(\d\d)-[\w-]+\.md(#.*)?$/);
@@ -137,7 +142,7 @@ const prefijo = rutaMotor ? rutaMotor + "/" : "";
 function paginaDelLibro(prefijoArchivos) {
   return paginaMotor
     .replace(/<title>[^<]*<\/title>/, `<title>${LIBRO.titulo}</title>`)
-    .replace(/<span class="marca-sello">[^<]*<\/span>[^<]*<\/a>/, `<span class="marca-sello">${LIBRO.sello}</span> ${LIBRO.titulo}</a>`)
+    .replace(/<span class="marca-sello">[^<]*<\/span>[^<]*<\/a>/, `<span class="marca-sello">${LIBRO.sello}</span> <span class="marca-texto">${LIBRO.titulo}</span></a>`)
     .replace(/placeholder="[^"]*"/, `placeholder="${LIBRO.buscar}"`)
     .replace(/(href|src)="(curso\.css|curso\.js|simuladores\.js)"/g, (_, a, f) => `${a}="${prefijoArchivos}${f}"`);
 }
@@ -157,5 +162,12 @@ if (i !== -1) {
   writeFileSync(join(destino, "index.html"), `${cabeza.trim()}\n${cuerpo.trim()}\n`);
   for (const f of ["curso.css", "curso.js", "simuladores.js"]) copyFileSync(join(MOTOR, f), join(destino, f));
   copyFileSync(join(WEB, "contenido.js"), join(destino, "contenido.js"));
+  try {
+    const imgs = readdirSync(join(WEB, "img"));
+    mkdirSync(join(destino, "img"), { recursive: true });
+    for (const f of imgs) copyFileSync(join(WEB, "img", f), join(destino, "img", f));
+  } catch {
+    /* libro sin imágenes */
+  }
   console.log(`Versión para publicar en ${destino}`);
 }

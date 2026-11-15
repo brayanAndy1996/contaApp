@@ -285,6 +285,8 @@ textarea { font-family: var(--f-mono); font-size: 0.875rem; line-height: 1.5; re
 .contenido h3 { font: 700 1.15rem/1.3 var(--f-titulo); margin: 1.8rem 0 0.5rem; }
 .contenido p, .contenido li { max-width: 68ch; }
 .contenido a { overflow-wrap: anywhere; }
+.contenido img { display: block; max-width: 100%; height: auto; margin: 1rem 0 0.4rem; border: 1px solid var(--linea); border-radius: 10px; background: #fff; }
+.contenido img + em, .contenido p:has(> img) + p > em:only-child { font-size: 0.85rem; color: var(--tinta-suave); }
 .contenido ul, .contenido ol { padding-left: 1.4rem; }
 .contenido li + li { margin-top: 0.25rem; }
 .contenido hr { border: 0; border-top: 1px solid var(--linea); margin: 2rem 0; }
@@ -583,6 +585,7 @@ mark { background: var(--aviso-fondo); color: var(--tinta); border-radius: 3px; 
   }
   .lateral.abierta { transform: none; visibility: visible; }
   .principal { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-block: 1.25rem 3rem; }
-  .marca { font-size: 1rem; white-space: nowrap; }
+  .marca { font-size: 1rem; white-space: nowrap; min-width: 0; overflow: hidden; }
+  .marca-texto { overflow: hidden; text-overflow: ellipsis; }
   .ejercicio-acciones, .ejercicio-respuesta { padding-left: 0; margin-left: 0; }
 }

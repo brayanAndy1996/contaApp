@@ -96,6 +96,10 @@ No hay un botón «Editar». Para cambiar una credencial, escribe los datos nuev
 
 ## Qué ves en pantalla
 
+![Sección «Credenciales» de la ficha del cliente con SOL y SIRE verificadas](web/img/credenciales.png)
+
+*Captura real del entorno de prueba: las dos credenciales «Verificada el 14/11/2026». Los campos quedan vacíos porque las claves nunca se vuelven a mostrar.*
+
 ### Estados de una credencial (ficha del cliente y listado)
 
 | Estado | Qué significa | Qué hacer |

@@ -170,6 +170,7 @@ Además:
 
 | Síntoma | Causa | Solución |
 |---|---|---|
+| Tras una descarga correcta, la auditoría muestra «Descifró una credencial» con «Motivo: SUNAT rechazó el token del SIRE» | Es un rótulo equivocado de la pantalla: el motivo guardado (`sire.token`) significa que el worker descifró la credencial **para pedir** el token del SIRE, no que SUNAT lo rechazara. Lo vimos en la prueba en vivo. | Ninguna: la descarga salió bien. Si una credencial falla de verdad, verás «Marcó una credencial como inválida» y la credencial en «Inválida». |
 | No veo «Auditoría» en el menú. | Tu rol no es Dueño ni Administrador. | Es lo esperado. |
 | No encuentro una acción en la auditoría. | No está en el catálogo (por ejemplo, un intento de login fallido o abrir la lupa), o está más abajo. | Revisa la tabla de acciones y usa «Cargar más». |
 | Lancé un trabajo y no me llegó aviso. | Fue cancelado, era automático, o lo lanzó otra persona. | Míralo en «Trabajos» ([módulo 06](06-credenciales-y-trabajos.md)). |
