@@ -234,7 +234,7 @@ Convenciones: PK `uuid` v7, montos `NUMERIC(14,2)`, `created_at`/`updated_at` co
 - **Datos**: TanStack Query contra la API vía `/api/*` (proxy por `rewrites` de Next en local → mismo origen, la cookie de sesión es de primera parte).
 - **Grilla**: TanStack Table + virtualización (TanStack Virtual) para 5,000 filas, edición por celda y teclado.
 - **Formularios**: React Hook Form + resolvers zod con los esquemas de `packages/shared`.
-- **UI**: HTML semántico + Tailwind. shadcn/ui no está configurado: se introduce cuando una spec lo necesite (decisión del usuario, 2026-11-04).
+- **UI**: HTML semántico + Tailwind 4 con los tokens del estilo A (`app/globals.css`) y componentes de shadcn/ui copiados en `components/ui/` (spec 038, decisión del usuario 2026-11-15, que reemplaza la de 2026-11-04).
 - **Permisos en UI**: hook `usePuede('sire.aprobar_generar')` que solo oculta; el backend vuelve a validar.
 - **Organización por feature** (no por tipo de archivo): cada carpeta de `features/` tiene sus componentes, hooks y llamadas al backend.
 

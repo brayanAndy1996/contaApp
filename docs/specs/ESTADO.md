@@ -45,6 +45,7 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 | 035-cruce-emitidos-sol | B | pendiente | — | RF-054 · HU-13. |
 | 036-superadmin-estudios | C | pendiente | — | RF-008. |
 | 037-eliminar-cliente | A | pendiente | — | RF-038 + purga de auditoría (RNF-020/021). |
+| 038-diseno-visual | C | en curso | T6 (bloqueada) | Pedida por el usuario 2026-11-15: estilo A (verde petróleo) elegido sobre el lienzo de maquetas, shadcn/ui y dos fases. Fase 1 hecha: tokens, fuentes autoalojadas, tema claro fijo y componentes base en `components/ui/` (14 pruebas). La fase 2 (aplicar a las pantallas) espera a que 021 y 022 estén en `main`, porque toca la grilla, la lupa, el menú y el panel de generar archivo. |
 
 ## Hallazgos adversariales abiertos
 | Spec | Prueba | Hallazgo | Estado |
