@@ -76,7 +76,11 @@ Ten a mano el código del proyecto: clónalo desde el repositorio que te compart
 
 ### Arrancar ContApp
 
-El backend y el worker **no leen el archivo `.env` por sí solos**: necesitan que sus variables estén cargadas en la terminal desde la que los arrancas. Además, `pnpm dev` usa Turbo, que por defecto no pasa esas variables a las aplicaciones; por eso se agrega `--env-mode=loose`.
+El backend y el worker **no leen el archivo `.env` por sí solos**: necesitan que sus variables estén cargadas en la terminal desde la que los arrancas. Además, Turbo (lo que hay detrás de `pnpm dev`) por defecto no pasa esas variables a las aplicaciones; por eso se agrega `--env-mode=loose`.
+
+El frontend se arranca **en otra terminal, sin cargar el `.env`**. El `.env` trae `PORT=4000`, que es el puerto del backend; si el frontend lo hereda, intenta usar el mismo puerto y el backend falla con `EADDRINUSE: address already in use :::4000`. Sin el `.env`, el frontend usa el puerto 3000 y busca el backend en `http://localhost:4000`, que es justo lo que necesitas.
+
+**Terminal 1: backend y worker**
 
 1. Carga el `.env` en la terminal:
    - En Linux, macOS o Git Bash:
@@ -87,12 +91,24 @@ El backend y el worker **no leen el archivo `.env` por sí solos**: necesitan qu
      ```powershell
      Get-Content .env | Where-Object { $_ -match '^[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $n, $v = $_ -split '=', 2; [Environment]::SetEnvironmentVariable($n, $v, 'Process') }
      ```
-2. En **esa misma terminal**, ejecuta `pnpm dev --env-mode=loose`.
-3. Espera a que el frontend diga que está listo y abre `http://localhost:3000` en el navegador. Usa siempre `localhost`, no `127.0.0.1` (ver «Problemas frecuentes»).
+2. En **esa misma terminal**, arranca solo el backend y el worker:
+   ```bash
+   pnpm dev --env-mode=loose --filter=@contapp/backend --filter=@contapp/worker
+   ```
+3. Espera a ver las líneas `Nest application successfully started` (backend) y `Worker iniciado` (worker).
 
-**Resultado esperado:** la terminal muestra la salida de las tres aplicaciones (frontend, backend y worker, con la línea `Worker iniciado`), y el navegador te lleva a la pantalla «Ingresar a ContApp».
+**Terminal 2: frontend**
 
-> Alternativa: con el `.env` cargado, puedes arrancar cada aplicación en su propia terminal con `pnpm --filter @contapp/backend dev`, `pnpm --filter @contapp/worker dev` y `pnpm --filter @contapp/frontend dev`. Antes corre `pnpm build`.
+1. Abre una terminal nueva en la carpeta del proyecto. **No** cargues el `.env` en ella.
+2. Ejecuta:
+   ```bash
+   pnpm --filter @contapp/frontend dev
+   ```
+3. Cuando diga `Ready`, abre `http://localhost:3000` en el navegador. Usa siempre `localhost`, no `127.0.0.1` (ver «Problemas frecuentes»).
+
+**Resultado esperado:** el navegador te lleva a la pantalla «Ingresar a ContApp». Deja las dos terminales abiertas mientras usas ContApp: ahí aparecen los errores y, con `CORREO_PROVIDER=consola`, los correos (en la terminal 1).
+
+> Esta forma de arranque la probamos de punta a punta con PostgreSQL, Redis y los datos del seed.
 
 ### Entrar con un usuario de prueba
 
@@ -127,7 +143,7 @@ ContApp envía correos para confirmar el registro, invitar, recuperar la contras
 
 | `CORREO_PROVIDER` | Dónde aparece el correo | Cómo se ve |
 |---|---|---|
-| `consola` (el valor de `.env.example`) | En la terminal donde corre `pnpm dev`, dentro de la salida del backend | Un bloque que empieza con `[correo:consola]`, seguido de `para:`, `asunto:` y el texto con el enlace |
+| `consola` (el valor de `.env.example`) | En la terminal 1 (backend y worker), dentro de la salida del backend | Un bloque que empieza con `[correo:consola]`, seguido de `para:`, `asunto:` y el texto con el enlace |
 | `smtp` | En Mailpit: abre `http://localhost:8025` | Una bandeja de entrada como la de cualquier correo web |
 
 Para usar Mailpit:
@@ -138,25 +154,25 @@ Para usar Mailpit:
    CORREO_REMITENTE=contapp@prueba.test
    SMTP_URL=smtp://localhost:1025
    ```
-2. Detén `pnpm dev` (Ctrl+C), vuelve a cargar el `.env` en la terminal y arráncalo otra vez.
+2. Detén la terminal 1 (Ctrl+C), vuelve a cargar el `.env` y arranca otra vez el backend y el worker.
 
 **Resultado esperado:** al pedir, por ejemplo, la recuperación de contraseña, el correo «ContApp: restablece tu contraseña» aparece en Mailpit. Con `smtp`, `CORREO_REMITENTE` es obligatorio: si lo dejas vacío, el backend no arranca.
 
 ### Apagar ContApp
 
-1. En la terminal de `pnpm dev`, presiona Ctrl+C.
+1. En las dos terminales (backend y worker, y frontend), presiona Ctrl+C.
 2. Ejecuta `pnpm servicios:down`.
 
-**Resultado esperado:** los contenedores se detienen. **Los datos se conservan**: la próxima vez basta con `pnpm servicios:up`, cargar el `.env` y `pnpm dev --env-mode=loose`.
+**Resultado esperado:** los contenedores se detienen. **Los datos se conservan**: la próxima vez basta con `pnpm servicios:up` y arrancar las dos terminales como en «Arrancar ContApp».
 
 ### Empezar de cero
 
 Si quieres borrar todo lo que hiciste (clientes, correcciones, estudios registrados, correos de Mailpit) y volver al seed:
 
-1. Detén `pnpm dev` (Ctrl+C).
+1. Detén las dos terminales (Ctrl+C).
 2. Ejecuta `docker compose down -v`. La opción `-v` **borra** los volúmenes de PostgreSQL, Redis y Mailpit.
 3. Ejecuta `pnpm servicios:up`, `pnpm db:migrate` y `pnpm db:seed`.
-4. Carga el `.env` y arranca con `pnpm dev --env-mode=loose`.
+4. Arranca como en «Arrancar ContApp»: terminal 1 con el `.env` cargado para el backend y el worker, terminal 2 sin `.env` para el frontend.
 
 **Resultado esperado:** ContApp vuelve a tener solo los datos del seed.
 
@@ -216,7 +232,8 @@ Ningún RUC ni número de comprobante de los fixtures termina en 7, 8 ni 9. Esas
 |---|---|---|
 | `el seed de desarrollo no se ejecuta con NODE_ENV=production` | El seed trae una contraseña publicada en el repositorio; nunca se carga en producción. | Quita `NODE_ENV=production` de tu terminal o de tu `.env`. |
 | `falta MIGRATIONS_DATABASE_URL` | Corriste `db:migrate`, `db:seed` o `db:plataforma-alta` sin `.env`. | Crea el `.env` desde `.env.example`. |
-| `Falta DATABASE_URL para createDb` (al arrancar el backend) | El backend no recibió las variables del `.env`. | Carga el `.env` en la terminal y usa `pnpm dev --env-mode=loose`. |
+| `Falta DATABASE_URL para createDb` (al arrancar el backend) | El backend no recibió las variables del `.env`. | Carga el `.env` en la terminal 1 y arranca con `--env-mode=loose` (ver «Arrancar ContApp»). |
+| `EADDRINUSE: address already in use :::4000` | El frontend heredó `PORT=4000` del `.env` y ocupó el puerto del backend. | Arranca el frontend en una terminal sin el `.env` cargado (terminal 2). |
 | `Entorno inválido: CORREO_REMITENTE` o `Entorno inválido: SMTP_URL` | Pusiste `CORREO_PROVIDER=smtp` sin remitente o sin URL. | Completa las dos líneas, o vuelve a `consola`. |
 | `contraseña inválida: debe tener entre 12 y 128 caracteres` / `…es una contraseña demasiado común` | `db:plataforma-alta` aplica la misma política que la pantalla. | Elige otra contraseña. |
 
@@ -272,7 +289,7 @@ Otras reglas que conviene saber:
 <details>
 <summary>Soluciones</summary>
 
-1. `pnpm servicios:up`; luego cargar el `.env` en la terminal y `pnpm dev --env-mode=loose`. No hace falta migrar ni sembrar de nuevo: los datos se conservaron.
+1. `pnpm servicios:up`; luego, en la terminal 1, cargar el `.env` y `pnpm dev --env-mode=loose --filter=@contapp/backend --filter=@contapp/worker`, y en la terminal 2 (sin `.env`) `pnpm --filter @contapp/frontend dev`. No hace falta migrar ni sembrar de nuevo: los datos se conservaron.
 2. El backend no recibió las variables del `.env`: no las cargaste en la terminal, o Turbo las filtró. Carga el `.env` (bash: `set -a; . ./.env; set +a`; PowerShell: la línea del paso a paso) y arranca con `pnpm dev --env-mode=loose`.
 3. En el `.env`: `CORREO_PROVIDER=smtp`, un `CORREO_REMITENTE` cualquiera y `SMTP_URL=smtp://localhost:1025`. Reinicias `pnpm dev` con el `.env` recargado y abres `http://localhost:8025`.
 4. `docker compose down -v`, `pnpm servicios:up`, `pnpm db:migrate` y `pnpm db:seed`. Se pierde todo lo que hiciste: clientes, correcciones, estudios registrados, trabajos y correos de Mailpit.
