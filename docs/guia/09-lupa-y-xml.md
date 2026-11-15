@@ -227,6 +227,7 @@ Usa el cliente `20700000002`, periodo `202610`, con la propuesta de compras ya d
 
 | Síntoma | Causa | Solución |
 |---|---|---|
+| La descarga de una versión (o «Descargar XML» en la lupa) falla con un error, aunque la versión aparece en la lista | Tu `.env` tiene `STORAGE=mock`: el worker guardó el archivo en su memoria y el backend no lo encuentra (`archivo_alterado`). | Configura `STORAGE=local` con una ruta completa ([módulo 01](01-preparar-entorno.md)). Lo generado antes del cambio no se recupera: reabre y genera de nuevo. |
 | La lupa se queda en «Pendiente: se está obteniendo el XML.» | El worker no está corriendo o la cola está detenida. | Revisa «Trabajos» ([módulo 06](06-credenciales-y-trabajos.md)) y que el worker esté levantado ([módulo 01](01-preparar-entorno.md)). |
 | Veo el XML simulado pero la sugerencia sigue siendo un estimado. | `XML_SIMULADO_EN_REGLAS` está apagada. | Es lo esperado en producción. En pruebas, actívala o sube el XML a mano. |
 | No aparece «Subir XML». | Ya hay un XML subido, o no tienes `sire.clasificar`, o eres de rol Lectura. | Si ya hay XML subido, no se reemplaza. Si no, pide el permiso. |

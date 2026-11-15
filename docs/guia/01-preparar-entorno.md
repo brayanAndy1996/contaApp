@@ -48,7 +48,15 @@ Ten a mano el código del proyecto: clónalo desde el repositorio que te compart
 1. En la raíz del proyecto, copia el archivo de ejemplo:
    - En Linux, macOS o Git Bash: `cp .env.example .env`
    - En PowerShell: `Copy-Item .env.example .env`
-2. No cambies nada por ahora. Los valores de ejemplo ya apuntan a los servicios de Docker y dejan todos los adaptadores en `mock`.
+2. Abre el `.env` y cambia **solo estas dos líneas**, para que los archivos generados y los XML se guarden en una carpeta de tu disco:
+   ```
+   STORAGE=local
+   STORAGE_DIR=/ruta/completa/a/contaApp/storage
+   ```
+   Usa la ruta **completa** de la carpeta del proyecto más `/storage` (en Windows, por ejemplo, `C:/Users/tu-usuario/contaApp/storage`). La carpeta `storage/` ya está ignorada por git.
+3. Deja todo lo demás como está. Los valores de ejemplo ya apuntan a los servicios de Docker y dejan los adaptadores de SUNAT en `mock`.
+
+> **Por qué cambiar `STORAGE`.** Con el valor de ejemplo (`STORAGE=mock`) cada programa guarda los archivos en su propia memoria: el worker guarda el ZIP generado y los XML, y el backend, que es quien te los entrega, no los encuentra. El resultado es que «Descargar» una versión del archivo falla (`archivo_alterado`) y «Descargar XML» en la lupa también puede fallar. Lo comprobamos en una prueba real. Con `STORAGE=local` y una ruta completa, los dos programas usan la misma carpeta. La ruta tiene que ser completa porque el backend y el worker arrancan cada uno desde su propia carpeta: con `./storage` cada uno usaría una distinta.
 
 **Resultado esperado:** existe un archivo `.env` en la raíz. Ese archivo no se sube al repositorio (está en `.gitignore`) y **no se comparte**: tiene contraseñas, aunque sean de desarrollo.
 
@@ -233,6 +241,7 @@ Ningún RUC ni número de comprobante de los fixtures termina en 7, 8 ni 9. Esas
 | `el seed de desarrollo no se ejecuta con NODE_ENV=production` | El seed trae una contraseña publicada en el repositorio; nunca se carga en producción. | Quita `NODE_ENV=production` de tu terminal o de tu `.env`. |
 | `falta MIGRATIONS_DATABASE_URL` | Corriste `db:migrate`, `db:seed` o `db:plataforma-alta` sin `.env`. | Crea el `.env` desde `.env.example`. |
 | `Falta DATABASE_URL para createDb` (al arrancar el backend) | El backend no recibió las variables del `.env`. | Carga el `.env` en la terminal 1 y arranca con `--env-mode=loose` (ver «Arrancar ContApp»). |
+| «Descargar» una versión del archivo da error, o «Descargar XML» en la lupa (`archivo_alterado`) | `STORAGE=mock` en el `.env`: cada programa guarda los archivos en su propia memoria. | Pon `STORAGE=local` y `STORAGE_DIR` con la ruta completa (ver «Crear tu archivo de configuración `.env`») y reinicia la terminal 1. Los archivos generados antes del cambio se perdieron: reabre el periodo y genera de nuevo. |
 | `EADDRINUSE: address already in use :::4000` | El frontend heredó `PORT=4000` del `.env` y ocupó el puerto del backend. | Arranca el frontend en una terminal sin el `.env` cargado (terminal 2). |
 | `Entorno inválido: CORREO_REMITENTE` o `Entorno inválido: SMTP_URL` | Pusiste `CORREO_PROVIDER=smtp` sin remitente o sin URL. | Completa las dos líneas, o vuelve a `consola`. |
 | `contraseña inválida: debe tener entre 12 y 128 caracteres` / `…es una contraseña demasiado común` | `db:plataforma-alta` aplica la misma política que la pantalla. | Elige otra contraseña. |

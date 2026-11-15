@@ -231,6 +231,7 @@ Usa el cliente `20700000002`, periodo `202610`, con un usuario que tenga `sire.a
 
 | Síntoma | Causa | Solución |
 |---|---|---|
+| La descarga de una versión (o «Descargar XML» en la lupa) falla con un error, aunque la versión aparece en la lista | Tu `.env` tiene `STORAGE=mock`: el worker guardó el archivo en su memoria y el backend no lo encuentra (`archivo_alterado`). | Configura `STORAGE=local` con una ruta completa ([módulo 01](01-preparar-entorno.md)). Lo generado antes del cambio no se recupera: reabre y genera de nuevo. |
 | No veo el botón «Generar», solo «No tienes permiso para generar el archivo.» | Tu rol no tiene `sire.aprobar_generar` (Asistente o Lectura). | Pide a un Contador, Administrador o Dueño que genere. |
 | «Generar» está gris aunque no hay errores. | El periodo ya está `generado`, el cliente está archivado, o el previo se está recargando. | Lee el veredicto bajo el formato. Si es `generado`, reabre. |
 | Se queda en «En cola». | El worker no está corriendo o hay otros trabajos antes. | Pulsa «Ver trabajos» y revisa el worker ([módulo 06](06-credenciales-y-trabajos.md)). |
