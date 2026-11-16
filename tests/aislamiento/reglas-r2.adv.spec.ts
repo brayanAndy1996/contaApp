@@ -285,7 +285,7 @@ describe("R2 · dinero con R-HIS en aplicar_regla_historial", () => {
 describe("R2 · aceptaciones y confirmaciones al revisar", () => {
   // H-021-2-1: `regla_aceptar_periodo` solo exige que los OTROS dos pares estén en 0. Una fila que el contador dejó sin base
   // gravada (todo a no gravado) no está en ningún destino, pero cuenta como aceptada y confirma DNG para el catálogo (033).
-  it.fails("H-021-2-1 · fila «Según historial» que el contador deja sin base gravada (todo a no gravado): no es aceptada ni confirma", async () => {
+  it("H-021-2-1 · fila «Según historial» que el contador deja sin base gravada (todo a no gravado): no es aceptada ni confirma", async () => {
     const e = await escenario(1);
     await ec.version(X, e.compras[0]!, 3, { accion: "editar", usuarioId: ux, montos: montos({ noGravado: "1180.00" }) });
     await pasar(e, "abierto", "revisado");
@@ -296,7 +296,7 @@ describe("R2 · aceptaciones y confirmaciones al revisar", () => {
   // H-021-2-2: deshacer la corrección deja la fila otra vez con los montos que puso la regla (copia de la versión `historial`),
   // pero `segunHistorial` mira solo si la vigente tiene fila en regla_aplicacion: la etiqueta no vuelve y el filtro «Según
   // historial» (con el que se revierte en masa, CA-3) ya no la encuentra. Es una fila clasificada por el sistema sin su marca.
-  it.fails("H-021-2-2 · corregir una fila «Según historial» y deshacer la corrección: vuelve la etiqueta y el filtro la encuentra", async () => {
+  it("H-021-2-2 · corregir una fila «Según historial» y deshacer la corrección: vuelve la etiqueta y el filtro la encuentra", async () => {
     const e = await escenario(1);
     const id = e.compras[0]!;
     await ec.version(X, id, 3, { accion: "clasificar", usuarioId: ux, montos: consolidar(FACTURA_DG, "DG") });
@@ -340,7 +340,7 @@ describe("R2 · aceptaciones y confirmaciones al revisar", () => {
 describe("R2 · interruptores del motor", () => {
   // H-021-2-3: R-NEW («Avisa cuando un proveedor no tiene historial en el cliente») apagado en el estudio sigue marcando
   // «Proveedor nuevo» en la grilla y la lupa: el listado lo calcula en SQL sin leer los interruptores (solo `evaluar` los lee).
-  it.fails("H-021-2-3 · con R-NEW apagado, el listado no marca «Proveedor nuevo» (con R-NEW encendido sí: control)", async () => {
+  it("H-021-2-3 · con R-NEW apagado, el listado no marca «Proveedor nuevo» (con R-NEW encendido sí: control)", async () => {
     const cx = await ec.cliente(X);
     const cz = await ec.cliente(Z);
     await ec.interruptor(Z, "R-NEW", false);

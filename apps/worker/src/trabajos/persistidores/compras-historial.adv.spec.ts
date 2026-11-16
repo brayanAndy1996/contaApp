@@ -44,7 +44,7 @@ describe("R2 · R-HIS en la descarga con montos al borde de NUMERIC(14,2)", () =
   // MontoFueraDeRangoError dentro de `planificarHistorial`. Sale de `persistidorCompras.insertar` sin capturar: la descarga ENTERA
   // del periodo se revierte (y no como ErrorDatos), solo porque el proveedor tiene regla. Sin regla la misma fila se guarda.
   // Lo coherente con D-7 y con la BD (que rechaza esa consolidación) es dejar esa fila en su versión 1 y seguir con las demás.
-  it.fails("H-021-2-4 · una fila cuya suma de BI o de IGV desborda no tumba el plan: se queda en la versión 1 y las demás se mueven", () => {
+  it("H-021-2-4 · una fila cuya suma de BI o de IGV desborda no tumba el plan: se queda en la versión 1 y las demás se mueven", () => {
     const preparadas = persistidorCompras.preparar([
       fila("1"),
       fila("2", { biDg: "999999999999.99", biDgng: "0.01", igvDg: "0.00", total: "999999999999.99" }),

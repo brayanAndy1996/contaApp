@@ -3,7 +3,7 @@
 // `cambiarDestino` (010). La BD recalcula la misma consolidación y falla cerrado si no coincide. Puro: sin IO, sin `number`.
 import { cambiarDestino } from "../comprobante/index";
 import type { Destino, MontosComprobante } from "../comprobante/index";
-import { Money } from "../dinero/index";
+import { Money, MontoFueraDeRangoError } from "../dinero/index";
 import { EntradaReglasInvalidaError } from "./errores";
 import { PARES_DESTINO, esMontosReal, leerArreglo, leerObjeto } from "./entrada";
 import type { FilaEvaluable, ReglaAprendidaEvaluable } from "./tipos";
@@ -118,10 +118,25 @@ export function planificarHistorial(
     if (fila.clave === null) continue;
     const regla = porProveedor.get(fila.clave);
     if (regla === undefined || regla === null) continue;
-    if (biTotal(fila.montos).esCero()) continue;
-    const { montos, consolidados } = cambiarDestino(fila.montos, regla.destino);
-    if (consolidados.length === 0) continue;
-    plan.push(Object.freeze({ filaId: fila.id, reglaId: regla.id, destino: regla.destino, montos }));
+    const movida = consolidar(fila.montos, regla.destino);
+    if (movida === null) continue;
+    plan.push(Object.freeze({ filaId: fila.id, reglaId: regla.id, destino: regla.destino, montos: movida }));
   }
   return plan;
+}
+
+/**
+ * Montos de la fila en el destino, o `null` si R-HIS no la mueve: BI total 0, ya está toda en el destino o la suma de los BI o
+ * de los IGV no cabe en NUMERIC(14,2) (H-021-2-4: la BD rechaza esa consolidación; la fila se queda en su versión 1 y las
+ * demás siguen). Cualquier otro error se propaga.
+ */
+function consolidar(m: MontosComprobante, destino: Destino): MontosComprobante | null {
+  try {
+    if (biTotal(m).esCero()) return null;
+    const { montos, consolidados } = cambiarDestino(m, destino);
+    return consolidados.length === 0 ? null : montos;
+  } catch (e) {
+    if (e instanceof MontoFueraDeRangoError) return null;
+    throw e;
+  }
 }

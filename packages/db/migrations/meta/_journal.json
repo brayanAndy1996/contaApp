@@ -358,6 +358,13 @@
       "when": 1794587004626,
       "tag": "0050_regla_correcciones_r1",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1794786890069,
+      "tag": "0051_regla_correcciones_r2",
+      "breakpoints": true
     }
   ]
 }

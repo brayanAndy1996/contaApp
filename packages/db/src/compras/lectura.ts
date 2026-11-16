@@ -60,12 +60,20 @@ export interface PaginaListado {
 }
 
 /**
+ * R-NEW encendida en el estudio de `c` (021, RF-089, H-021-2-3): sin fila en `estudio_regla_motor` está encendida. Apagada, ninguna
+ * fila es «Proveedor nuevo» (listado, detalle y filtro). Búsqueda por la clave `(tenant_id, codigo)`; backend y worker tienen SELECT.
+ */
+const R_NEW_ACTIVA = `not exists (select 1 from estudio_regla_motor m where m.tenant_id = c.tenant_id and m.codigo = 'R-NEW'
+    and not m.activa)`;
+
+/**
  * La compra tiene proveedor nuevo si no está clasificada y el mismo cliente no tiene compras vivas o excluidas (las descartadas
- * no) del mismo proveedor en OTROS periodos (D-4, DU-7). Una agregada viva de otro periodo también cuenta.
+ * no) del mismo proveedor en OTROS periodos (D-4, DU-7). Una agregada viva de otro periodo también cuenta. Con R-NEW apagada
+ * en el estudio, nunca (021).
  */
 const PROVEEDOR_NUEVO = `(not v.clasificada and not exists (
     select 1 from compra h where h.cliente_id = c.cliente_id and h.periodo <> c.periodo and h.descartada_en is null
-      and h.doc_tipo = c.doc_tipo and h.doc_numero = c.doc_numero))`;
+      and h.doc_tipo = c.doc_tipo and h.doc_numero = c.doc_numero) and ${R_NEW_ACTIVA})`;
 
 /** Suma de los tres IGV de la versión vigente distinta de 0.00. */
 const CON_IGV = `(v.igv_dg + v.igv_dgng + v.igv_dng) <> 0`;
@@ -88,12 +96,28 @@ const ULTIMA_EVALUACION = `(select max(e.n) from compra_evaluacion e where e.ten
     and e.version_n = c.version_vigente)`;
 
 /**
- * Regla de la que viene la versión vigente de `c` (021): `regla_aplicacion` tiene una fila por versión `historial` y solo esa,
+ * Regla de la que viene la versión vigente `v` de `c` (021): `regla_aplicacion` tiene una fila por versión `historial` y solo esa,
  * así que una fila corregida después (vigente distinta) o sin aplicación no se marca. Búsqueda por el único
  * `(tenant_id, compra_id, version_n)`; sigue marcada aunque la regla se haya eliminado (P-9).
+ *
+ * H-021-2-2: si la vigente la escribió `deshacer` o `rehacer` (014) y deja la fila como la dejó la regla (los mismos montos,
+ * exclusión, motivo y clasificación que la versión `historial`, el mismo criterio por VALOR con el que `revertir` decide que una
+ * fila «sigue como la dejó» una operación), vuelve a ser «Según historial» de esa regla. Solo se busca cuando la vigente es de
+ * deshacer/rehacer, por el mismo único de `regla_aplicacion` (a lo sumo una fila por compra).
  */
-const REGLA_HISTORIAL = `(select a.regla_id from regla_aplicacion a where a.tenant_id = c.tenant_id and a.compra_id = c.id
-    and a.version_n = c.version_vigente)`;
+const REGLA_HISTORIAL = `coalesce(
+  (select a.regla_id from regla_aplicacion a where a.tenant_id = c.tenant_id and a.compra_id = c.id
+    and a.version_n = c.version_vigente),
+  case when v.accion in ('deshacer', 'rehacer') then (
+    select a.regla_id from regla_aplicacion a
+      join compra_version h on h.tenant_id = a.tenant_id and h.compra_id = a.compra_id and h.n = a.version_n
+     where a.tenant_id = c.tenant_id and a.compra_id = c.id and a.version_n < v.n and h.accion = 'historial'
+       and h.bi_dg = v.bi_dg and h.igv_dg = v.igv_dg and h.bi_dgng = v.bi_dgng and h.igv_dgng = v.igv_dgng
+       and h.bi_dng = v.bi_dng and h.igv_dng = v.igv_dng and h.no_gravado = v.no_gravado and h.isc = v.isc
+       and h.icbper = v.icbper and h.otros_tributos = v.otros_tributos and h.total = v.total
+       and h.excluida = v.excluida and h.motivo is not distinct from v.motivo and h.clasificada = v.clasificada
+     order by a.version_n desc limit 1)
+  end)`;
 
 /** Número con ceros a la izquierda para ordenar «999» antes de «1000» (el número tiene hasta 15 caracteres). */
 const NUMERO_ORDEN = `lpad(c.numero, 20, '0') collate "C"`;
@@ -105,15 +129,17 @@ const SERIE_ORDEN = `c.serie collate "C"`;
  */
 const SQL_LISTADO = `with conocidos as materialized (
   select distinct doc_tipo, doc_numero from compra where cliente_id = $1 and periodo <> $2 and descartada_en is null
+), r_new as materialized (
+  select not exists (select 1 from estudio_regla_motor m where m.codigo = 'R-NEW' and not m.activa) as activa
 )
 select * from (
   select ${COLUMNAS_LEIDA},
-    (not v.clasificada and not exists (select 1 from conocidos k where k.doc_tipo = c.doc_tipo and k.doc_numero = c.doc_numero))
-      as proveedor_nuevo, ${SERIE_ORDEN} as orden_serie, ${NUMERO_ORDEN} as orden_numero,
+    (not v.clasificada and not exists (select 1 from conocidos k where k.doc_tipo = c.doc_tipo and k.doc_numero = c.doc_numero)
+      and r.activa) as proveedor_nuevo, ${SERIE_ORDEN} as orden_serie, ${NUMERO_ORDEN} as orden_numero,
     c.fecha as orden_fecha, ${REGLA_HISTORIAL} as regla_historial,
     exists (select 1 from compra_hallazgo z where z.tenant_id = c.tenant_id and z.compra_id = c.id
       and z.version_n = c.version_vigente and z.evaluacion_n = ${ULTIMA_EVALUACION}) as con_hallazgos
-  from compra c cross join lateral ${VERSION_VIGENTE_LATERAL} v
+  from compra c cross join lateral ${VERSION_VIGENTE_LATERAL} v cross join r_new r
   where c.cliente_id = $1 and c.periodo = $2 and c.descartada_en is null
     and (case when $3::text = 'excluidas' then v.excluida else not v.excluida end)
     and (coalesce($3::text, '') not in ('con_igv', 'sin_igv') or (${CON_IGV}) = ($3::text = 'con_igv'))
