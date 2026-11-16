@@ -42,6 +42,8 @@ export interface EntornoReglas {
   readonly evaluar: EvaluarCompra;
   /** La bandera P-4 con que evalúa `evaluar`: aceptar la usa para re-evaluar con el mismo XML (021, defecto de 014/016). */
   readonly xmlSimuladoEnReglas: boolean;
+  /** Las reglas que el estudio apagó, las mismas con que evalúa `evaluar`: aceptar no aplica lo guardado de una apagada (021, H-T25-1). */
+  readonly reglasApagadas: readonly CodigoReglaMotor[];
 }
 
 export async function entornoDeReglas(tx: Tx, clienteId: string, periodo: string): Promise<EntornoReglas> {
@@ -52,7 +54,7 @@ export async function entornoDeReglas(tx: Tx, clienteId: string, periodo: string
   // P-4: el XML simulado solo entra en las reglas con `XML_SIMULADO_EN_REGLAS=1` (apagado por defecto).
   const xmlSimuladoEnReglas = process.env.XML_SIMULADO_EN_REGLAS === "1";
   const evaluarDominio = crearEvaluarCompras(conocidos, { xmlSimuladoEnReglas, reglasApagadas: apagadas });
-  return { conocidos, evaluar: (fila) => evaluarDominio(aEvaluable(fila)), xmlSimuladoEnReglas };
+  return { conocidos, evaluar: (fila) => evaluarDominio(aEvaluable(fila)), xmlSimuladoEnReglas, reglasApagadas: apagadas };
 }
 
 /** El entorno de reglas de cada periodo (su historial de proveedores), leído una vez por periodo en la transacción. */

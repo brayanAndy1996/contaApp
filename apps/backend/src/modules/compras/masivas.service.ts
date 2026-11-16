@@ -111,6 +111,7 @@ export class MasivasComprasService {
           conocidos: entorno.conocidos,
           evaluar: entorno.evaluar,
           xmlSimuladoEnReglas: entorno.xmlSimuladoEnReglas,
+          reglasApagadas: entorno.reglasApagadas,
           enMasa: true,
           regla,
           confirmar: false,

@@ -165,6 +165,7 @@ export class AccionesComprasService {
           conocidos: entorno.conocidos,
           evaluar: entorno.evaluar,
           xmlSimuladoEnReglas: entorno.xmlSimuladoEnReglas,
+          reglasApagadas: entorno.reglasApagadas,
           enMasa: false,
           regla,
           confirmar: confirmar === true,

@@ -4,6 +4,7 @@
 //    reconstruye el `Hallazgo` de 011 y lo aplica `aplicarSugerencia`, que re-evalúa la fila con el mismo entorno (la fila con su
 //    XML vigente, `compra.xml`, y el historial de proveedores) y solo aplica si sale el mismo hallazgo; si no, `revisar_de_nuevo`.
 //    R-GP exige XML (011): sin él en la fila el hallazgo no se reproduce nunca (defecto de 014/016 corregido en 021);
+//    con `reglasApagadas` (021) la regla apagada no se reproduce: `revisar_de_nuevo` (H-T25-1);
 //  - no pide confirmación (respaldada por el XML, DU-22): no hay XML con qué re-evaluar (llega con 016), así que se exige que
 //    las `lecturas` guardadas sean las columnas de la fila actual y se aplica la sugerencia con los movimientos de 010.
 // En masa (`enMasa`) solo entra lo que `sugerenciaEsMasiva` deja pasar (sin confirmación y sin dato); el resto es `no_masiva`.
@@ -12,7 +13,7 @@ import type { ColumnaCompra, Destino } from "../comprobante/index";
 import { DineroError, Money } from "../dinero/index";
 import type { Moneda } from "../dinero/index";
 import { ConfirmacionInvalidaError, ReglasError, SugerenciaObsoletaError, aplicarSugerencia } from "../reglas/index";
-import type { CodigoRegla, Confirmacion, Hallazgo, MontosParciales, Sugerencia } from "../reglas/index";
+import type { CodigoRegla, CodigoReglaMotor, Confirmacion, Hallazgo, MontosParciales, Sugerencia } from "../reglas/index";
 import { DICCIONARIO_GLOSAS_BASE } from "../texto/index";
 import { proveedoresValidos, resumenXml } from "./evaluar";
 import type { CompraEvaluable } from "./evaluar";
@@ -36,6 +37,11 @@ export interface EntradaAceptar {
    * `crearEvaluarCompras`. Debe ser el mismo valor con que se evaluó la compra.
    */
   readonly xmlSimuladoEnReglas?: boolean;
+  /**
+   * Reglas que el estudio apagó (021, RF-089, H-T25-1): lo guardado de una regla apagada ya no se acepta, con o sin XML y con o
+   * sin confirmación (`revisar_de_nuevo`). Deben ser las mismas con que se evalúa (`EntornoReglas`). Por defecto, ninguna.
+   */
+  readonly reglasApagadas?: readonly CodigoReglaMotor[];
 }
 
 export type RechazoAceptar =
@@ -167,6 +173,8 @@ function conReevaluacion(e: EntradaAceptar, h: HallazgoGuardado, d: DetalleHalla
       proveedoresConocidos: proveedoresValidos(e.proveedoresConocidos),
       proveedoresIsc: [],
       diccionario: DICCIONARIO_GLOSAS_BASE,
+      // La regla apagada no se evalúa: la re-evaluación no la reproduce y la sugerencia queda obsoleta (011, motor).
+      ...(e.reglasApagadas === undefined ? {} : { reglasApagadas: [...e.reglasApagadas] }),
     },
   });
   return salida(r.montos, r.excluir, h.regla === "R-NEW");
@@ -174,6 +182,8 @@ function conReevaluacion(e: EntradaAceptar, h: HallazgoGuardado, d: DetalleHalla
 
 function respaldada(e: EntradaAceptar, h: HallazgoGuardado): ResultadoAceptar {
   const c = e.compra;
+  // Sin re-evaluación (no hay con qué), la regla apagada se contrasta aquí: el estudio ya no la quiere aplicar (H-T25-1).
+  if (e.reglasApagadas?.includes(h.regla as CodigoReglaMotor) === true) return rechazo("revisar_de_nuevo");
   const montos = MontosComprobante.desde(c.moneda, c.montos);
   // Contraste con la fila actual: cada columna que la regla leyó sigue valiendo lo mismo.
   for (const [k, leida] of Object.entries(parciales(h.lecturas, c.moneda))) {

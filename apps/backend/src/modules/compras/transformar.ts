@@ -19,6 +19,7 @@ import {
   DineroError,
   MontosComprobante,
   type CambiosMontos,
+  type CodigoReglaMotor,
 } from "@contapp/domain";
 import type { DatoSugerencia, DestinoCompra } from "@contapp/shared";
 import { aEvaluable } from "./evaluable.js";
@@ -78,6 +79,11 @@ export interface ContextoSugerencia {
    * confirmación (R-GP exige XML) bajo la misma regla que en la evaluación. Por defecto, apagada.
    */
   xmlSimuladoEnReglas?: boolean;
+  /**
+   * Las reglas que el estudio apagó (021, H-T25-1), del mismo entorno: lo guardado de una regla apagada no se acepta, con o sin XML
+   * (`revisar_de_nuevo`); sin XML `sigueVigente` no contrasta, así que la re-evaluación de aceptar tiene que saberlo. Por defecto, ninguna.
+   */
+  reglasApagadas?: readonly CodigoReglaMotor[];
   enMasa: boolean;
   regla: string;
   confirmar: boolean;
@@ -138,6 +144,7 @@ export function transformarSugerencia(ctx: ContextoSugerencia): TransformarCompr
       dato: ctx.dato,
       enMasa: ctx.enMasa,
       xmlSimuladoEnReglas: ctx.xmlSimuladoEnReglas === true,
+      ...(ctx.reglasApagadas === undefined ? {} : { reglasApagadas: ctx.reglasApagadas }),
     });
     if (!r.ok) {
       if (r.rechazo === "requiere_dato" && r.dato !== undefined) ctx.alPedirDato?.(r.dato);
