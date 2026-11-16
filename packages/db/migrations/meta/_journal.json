@@ -372,6 +372,13 @@
       "when": 1794856838011,
       "tag": "0052_reglas_historial_lote",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1794866760880,
+      "tag": "0053_compra_version_operacion_parcial",
+      "breakpoints": true
     }
   ]
 }
