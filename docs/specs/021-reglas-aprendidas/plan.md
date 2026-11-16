@@ -75,3 +75,20 @@ Nivel A. D-n, CA-n y P-n son los de `spec.md` (P-1 a P-10 decididas con (a) el 2
 - **Fuga entre clientes del mismo estudio**: la regla se filtra por `cliente_id` en la función y en el repositorio; CA-5 lo prueba con el mismo RUC en dos clientes.
 - **Conflictos con 022**: ver «Cruce con 022».
 - **Volumen**: 5.000 compras nuevas con regla son 5.000 llamadas a la función. Se agrupan por lotes (arreglo de compras) si la prueba de volumen de T10 pasa de 2 × el tiempo de la descarga sin reglas; se anota en la tarea.
+
+## Desvíos ratificados (T25, 2026-11-16)
+Revisados contra `spec.md` y las decisiones del usuario; ninguno debilita D-1 a D-10 ni RNF-052.
+- **Auditoría `compra.historial` con actor `trabajo`**, no `sistema`: `auditoria_registrar` (017) decide el actor por contexto; con `app.trabajo_id` del worker deja `trabajo_id` de la descarga y `usuario_id` = `creado_por` del trabajo. Es más trazable y sigue sin datos sensibles (`{compraId, reglaId, periodo}`). CA-13 «actor sistema» se lee como «actor no humano directo».
+- **`leerDetalleCompra(…, {conHistorial: false})` en `obtener-xml.ts`**: el worker no tiene `SELECT` sobre `regla_aplicacion` (mínimo privilegio); allí `segunHistorial` queda `null` y no se usa.
+- **422 `periodos_distintos` en `recordar`** (H-021-1-1): fuera del contrato del plan; P-5 exige un solo `periodo_aprendido`.
+- **Campos opcionales por compatibilidad**: `segunHistorial` opcional en `listarComprasSchema`/`FiltrosCompras` y con `default(null)` en la fila; `ResultadoDescarga.segunHistorial` solo si > 0; `PersistidorLibro.insertar` devuelve `void | ResultadoInsertar` (ventas no informa).
+- **Grilla sin columnas fijas por debajo de 1024 px** (T23a-1, F-4): a 390 px las fijas tapaban la fila.
+- **«Según historial» tras deshacer o rehacer, por valor** (H-021-2-2, decisión del usuario): la vigente de `deshacer`/`rehacer` con los mismos datos que la versión `historial` vuelve a llevar la etiqueta y a salir en el filtro.
+- **`aplicar_regla_historial` rechaza también base gravada 0 y destino ya igual** (0050, H-021-1-3/4): D-7 comprobado en la BD, falla cerrado.
+- **`regla_aceptar_periodo` más estricto que el plan** (0050–0051): la versión `historial` en el destino actual de la regla (H-021-1-5), vigente no excluida (decisión del usuario) y con base gravada (H-021-2-1).
+- **`proveedoresConRegla` son todos los proveedores con regla vigente**, también en filas que R-HIS no mueve (BI 0, destino igual): un proveedor con regla no es nuevo.
+- **«Proveedor nuevo» lee R-NEW de `estudio_regla_motor`** en listado, detalle y filtro (H-021-2-3, decisión del usuario), en `db/compras/lectura.ts` (⚠022, solo añadido).
+- **Aceptar R-GP con XML** (0cfcadc, defecto previo de 014/016): `aceptar` re-evalúa con el XML vigente (`resumenXml`, misma bandera P-4) y mantiene `aplicarSugerencia` y `sigueVigente`; no se salta la re-evaluación.
+- **Clave del advisory**: `hashtextextended('reglas_motor:' ‖ estudio, 0)` (bigint) en 0048 y en `fijarReglaMotor`; `fijarAporte` no lo toma porque la descarga no lee el aporte.
+- **`regla.editada` también cuando solo cambia `periodo_aprendido`** («Recordar» con el mismo destino en otro periodo): queda auditado con destino anterior = nuevo.
+- **Confirmaciones `aceptada` de reglas inactivas o eliminadas** se registran igual al revisar; 033 excluye las eliminadas por `regla_id` (P-9).
