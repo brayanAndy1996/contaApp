@@ -63,7 +63,9 @@ export const MENSAJES_ARCHIVO = {
   excluidasOmitidas: (n: number) =>
     n === 1 ? "Y 1 venta excluida más que no se muestra." : `Y ${n} ventas excluidas más que no se muestran.`,
   tituloAvisos: "Avisos",
-  avisosOmitidos: "Los avisos no impiden generar el archivo.",
+  avisosNoImpiden: "Los avisos no impiden generar el archivo.",
+  avisosOmitidos: (n: number) =>
+    n === 1 ? "Y 1 aviso más que no se muestra." : `Y ${n} avisos más que no se muestran.`,
   tituloResumen: "Resumen de cambios del archivo",
   modificadas: "Modificadas",
   excluidas: "Excluidas",

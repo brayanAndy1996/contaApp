@@ -220,6 +220,7 @@ export async function aplicarMasiva(
       usuarioId: e.usuarioId,
     })),
     f.evaluar,
+    false,
   );
   await descartarFilas(tx, descartes);
   return { operacionId, aplicadas: plan.length + descartes.length, rechazadas };
@@ -342,7 +343,7 @@ async function revertir(
     operacionId: nueva,
     usuarioId: e.usuarioId,
   }));
-  await escribirVersiones(tx, lote, f.evaluar);
+  await escribirVersiones(tx, lote, f.evaluar, false);
   await consultar(
     tx,
     sentido === "deshacer" ? SQL_MARCAR_DESHECHA : SQL_MARCAR_VIGENTE,

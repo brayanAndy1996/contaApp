@@ -80,6 +80,10 @@ const SQL_PAGINA = `select ${COLUMNAS_VENTA_CON_EXCLUSION} from ${DESDE_VENTA_CO
 const SQL_TODAS_DEL_PERIODO = `select ${COLUMNAS_VENTA_CON_EXCLUSION} from ${DESDE_VENTA_CON_EXCLUSION}
   where cliente_id = $1 and periodo = $2 ${ORDEN}`;
 
+// Spec 022 (D-4): la misma fila que `SQL_TODAS_DEL_PERIODO` pero por id (y por cliente y periodo), sin traer el periodo.
+const SQL_POR_ID = `select ${COLUMNAS_VENTA_CON_EXCLUSION} from ${DESDE_VENTA_CON_EXCLUSION}
+  where cliente_id = $1 and periodo = $2 and id = $3`;
+
 const SQL_EXISTENTES = `select clave, origen, to_char(fecha, 'YYYY-MM-DD') as fecha, moneda,
     coalesce(tipo_cambio::text, '') as tipo_cambio, tipo_doc_contraparte, doc_contraparte,
     base_gravada::text as base_gravada, igv::text as igv, exonerada::text as exonerada, inafecta::text as inafecta,
@@ -156,6 +160,21 @@ export async function leerFilasVentas(
 ): Promise<VentaFila[]> {
   const r = await consultar(tx, SQL_TODAS_DEL_PERIODO, [clienteId, periodo]);
   return r.rows.map(aVenta);
+}
+
+/**
+ * Spec 022 (D-4): UNA venta del cliente y periodo por su id, con su exclusión vigente (misma forma que `leerFilasVentas`);
+ * `null` si no existe en ese cliente y periodo (o la RLS no la deja ver). `ventaId` debe ser un UUID: el llamador lo valida.
+ */
+export async function leerFilaVenta(
+  tx: TxConsulta,
+  clienteId: string,
+  periodo: string,
+  ventaId: string,
+): Promise<VentaFila | null> {
+  const r = await consultar(tx, SQL_POR_ID, [clienteId, periodo, ventaId]);
+  const f = r.rows[0];
+  return f === undefined ? null : aVenta(f);
 }
 
 /** Lo ya guardado del periodo (sire y manual) en la forma que consume `planificarComplemento` (D16). */
