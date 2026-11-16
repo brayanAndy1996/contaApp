@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   useEffect,
   useMemo,
   useRef,
@@ -680,13 +681,16 @@ export function GrillaCompras({
     // virtualizador y `items` se leen del último pintado.
   }, [resaltadas, items.length]);
   const columnasVisibles = columnasVirtuales.getVirtualItems();
-  const margenIzq = columnasVisibles.length
-    ? (columnasVisibles[0]?.start ?? anchoInicio) - anchoInicio
-    : 0;
-  const finVisible = columnasVisibles.length
-    ? (columnasVisibles[columnasVisibles.length - 1]?.end ?? anchoInicio) - anchoInicio
-    : 0;
-  const margenDer = Math.max(0, anchoCentro - finVisible);
+  // Espacio vacío antes de cada columna de la ventana y tras la última. Las columnas de la ventana no siempre son
+  // contiguas: el extractor conserva la columna activa aunque quede lejos (sin columnas fijas, la de «seleccionar»), y
+  // un único margen a la izquierda pegaba las demás a ella, fuera de la vista (F-4).
+  const huecosColumnas: number[] = [];
+  let bordeColumnas = anchoInicio;
+  for (const v of columnasVisibles) {
+    huecosColumnas.push(Math.max(0, v.start - bordeColumnas));
+    bordeColumnas = v.end;
+  }
+  const margenDer = Math.max(0, anchoInicio + anchoCentro - bordeColumnas);
 
   // Posición fija de una columna de los extremos (sticky) dentro de su fila.
   function estiloFija(columna: ColumnaGrilla, region: "start" | "end"): CSSProperties {
@@ -984,11 +988,15 @@ export function GrillaCompras({
         style={{ width: anchoTotal, height: ALTO_FILA, transform: `translateY(${start}px)` }}
       >
         {inicio.map((col, i) => celda(col, item.fila, item.r, i, estiloFija(col, "start")))}
-        <div aria-hidden="true" style={{ width: margenIzq, flexShrink: 0 }} />
-        {columnasVisibles.map((v) => {
+        {columnasVisibles.map((v, k) => {
           const col = centro[v.index];
           if (!col) return null;
-          return celda(col, item.fila, item.r, inicio.length + v.index, { width: col.getSize() });
+          return (
+            <Fragment key={col.id}>
+              <div aria-hidden="true" style={{ width: huecosColumnas[k] ?? 0, flexShrink: 0 }} />
+              {celda(col, item.fila, item.r, inicio.length + v.index, { width: col.getSize() })}
+            </Fragment>
+          );
         })}
         <div aria-hidden="true" style={{ width: margenDer, flexShrink: 0 }} />
         {fin.map((col, i) =>
