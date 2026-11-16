@@ -22,6 +22,7 @@ export function ReglasMotor() {
   const [motor, setMotor] = useState<ReglasMotorDto | null>(null);
   const [cargado, setCargado] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [anuncio, setAnuncio] = useState("");
   const enCurso = useRef(false);
 
   useEffect(() => {
@@ -46,14 +47,21 @@ export function ReglasMotor() {
   const puedeCambiar = tiene(yo, PERMISO_REGLAS_GESTIONAR) && yo?.alcance === "global";
 
   const cambiar = useCallback(
-    async (llamada: () => ReturnType<typeof fijarAporteCatalogo>, aplicar: (m: ReglasMotorDto) => ReglasMotorDto) => {
+    async (
+      llamada: () => ReturnType<typeof fijarAporteCatalogo>,
+      aplicar: (m: ReglasMotorDto) => ReglasMotorDto,
+      mensaje: string,
+    ) => {
       if (enCurso.current) return;
       enCurso.current = true;
       setError(null);
+      setAnuncio("");
       try {
         const r = await llamada();
-        if (r.ok) setMotor((previo) => (previo ? aplicar(previo) : previo));
-        else if (r.status !== 401) setError(r.mensaje);
+        if (r.ok) {
+          setMotor((previo) => (previo ? aplicar(previo) : previo));
+          setAnuncio(mensaje);
+        } else if (r.status !== 401) setError(r.mensaje);
       } catch {
         setError(MENSAJES.errorGeneral);
       } finally {
@@ -67,12 +75,14 @@ export function ReglasMotor() {
     cambiar(
       () => fijarReglaMotor(codigo, activa),
       (m) => ({ ...m, reglas: m.reglas.map((r) => (r.codigo === codigo ? { ...r, activa } : r)) }),
+      M.motorCambiada(codigo, activa),
     );
 
   const fijarAporte = (aportar: boolean) =>
     cambiar(
       () => fijarAporteCatalogo(aportar),
       (m) => ({ ...m, aportarCatalogo: aportar }),
+      M.aporteCambiado(aportar),
     );
 
   if (!cargado) return <p role="status">{M.cargandoMotor}</p>;
@@ -84,6 +94,9 @@ export function ReglasMotor() {
           {error}
         </p>
       )}
+      <p role="status" className="sr-only">
+        {anuncio}
+      </p>
       {motor && (
         <>
           <p className="text-sm">{M.introMotor}</p>

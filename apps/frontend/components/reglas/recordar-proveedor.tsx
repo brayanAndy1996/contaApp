@@ -145,6 +145,9 @@ export function RecordarProveedor({
             >
               {M.recordar}
             </button>
+            <kbd aria-hidden="true" className="rounded border px-1 text-xs">
+              {M.atajo}
+            </kbd>
           </>
         )}
       </div>

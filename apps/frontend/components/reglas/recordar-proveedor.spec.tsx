@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MENSAJES } from "../../lib/acceso";
@@ -83,6 +83,15 @@ describe("<RecordarProveedor /> · aviso (CA-1)", () => {
     expect(llamadas[0]!.body).toEqual({ compraIds: [COMPRA], destino: "DNG", versionBase: null });
     expect(llamadas[0]!.headers["x-csrf-token"]).toBeTruthy();
     expect(alAvisar).toHaveBeenCalledWith(R.recordada, "ok");
+  });
+
+  it("muestra el atajo «Alt+R» como texto visible, no solo en aria-keyshortcuts (T23a-4)", () => {
+    montar();
+
+    const aviso = screen.getByRole("status");
+    expect(within(aviso).getByText(R.atajo)).toBeTruthy();
+    // El nombre accesible del botón sigue siendo «Recordar»: el atajo ya lo declara aria-keyshortcuts.
+    expect(aceptar().textContent).toBe(R.recordar);
   });
 
   it("el atajo Alt+R acepta y el foco sigue en la celda; la «r» sola no acepta", async () => {

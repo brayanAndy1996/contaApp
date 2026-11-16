@@ -66,6 +66,12 @@ export const MENSAJES_REGLAS = {
   confirmarEliminar: (numero: string) =>
     `¿Eliminar la regla de ${numero}? Las próximas descargas ya no moverán sus compras al destino aprendido; lo ya clasificado no cambia.`,
   campoDestino: "Destino",
+  // Anuncios (role="status") tras cada acción de la tabla; el foco ya no se pierde, pero quien usa lector de pantalla
+  // necesita oír el resultado (T23a-3).
+  reglaActualizada: (numero: string) => `Regla de ${numero} actualizada.`,
+  reglaActivada: (numero: string) => `Regla de ${numero} activada.`,
+  reglaDesactivada: (numero: string) => `Regla de ${numero} desactivada.`,
+  reglaEliminada: (numero: string) => `Regla de ${numero} eliminada.`,
   guardar: "Guardar",
   cancelarEdicion: "Cancelar",
   // Confirmar eliminar: `ConfirmarAccion` (role alertdialog, botones «Confirmar» y «Cancelar»).
@@ -78,6 +84,10 @@ export const MENSAJES_REGLAS = {
   introMotor: "Enciende o apaga las reglas que revisan las compras de todo el estudio.",
   cargandoMotor: "Cargando reglas del motor…",
   aporte: "Aportar proveedores con RUC 20 al catálogo compartido",
+  // Anuncio (role="status") del cambio de un interruptor, una vez que el servidor respondió 200 (T23a-4).
+  motorCambiada: (codigo: string, activa: boolean) => `Regla ${codigo} ${activa ? "activada" : "desactivada"}.`,
+  aporteCambiado: (aportar: boolean) =>
+    `Aporte al catálogo compartido ${aportar ? "activado" : "desactivado"}.`,
   soloAlcanceGlobal: "Solo un Dueño o Administrador con alcance global puede cambiar las reglas del estudio.",
 } as const;
 

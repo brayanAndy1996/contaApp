@@ -82,6 +82,47 @@ describe("HistorialCompra", () => {
     expect(screen.getByText(C_1040_ISC.hallazgos[0]!.explicacion)).toBeTruthy();
   });
 
+  it("rotula «Según historial» la versión que crea R-HIS (sin usuario) y deja «SIRE» solo para la original (T23a-2)", async () => {
+    const original = versionOriginalDe(C_1040_ISC);
+    const vigente = filaDe({ ...C_1040_ISC, version: 2 });
+    instalarFetchCompras({
+      extra: {
+        [`GET ${BASE}/${C_1040_ISC.id}`]: {
+          status: 200,
+          cuerpo: {
+            original,
+            vigente,
+            versiones: [
+              original,
+              {
+                n: 2,
+                accion: "historial",
+                operacionId: uuidDe(9, 2),
+                usuarioId: null,
+                autor: null,
+                creadaEn: "2026-10-21T10:30:00.000Z",
+                excluida: false,
+                motivo: null,
+                clasificada: true,
+                montos: vigente.montos,
+              },
+            ],
+            hallazgos: [],
+          },
+        },
+      },
+    });
+    render(<HistorialCompra contexto={contextoDe()} compraId={C_1040_ISC.id} alCerrar={vi.fn()} />);
+    await screen.findByRole("table");
+    const versiones = screen.getByRole("region", { name: M.versiones });
+    const items = within(versiones).getAllByRole("listitem");
+    expect(items[0]!.textContent).toContain(M.versionPor(1, "SIRE", fechaHoraLima("2026-10-20T15:00:00.000Z")));
+    expect(items[1]!.textContent).toContain(
+      M.versionPor(2, "Según historial", fechaHoraLima("2026-10-21T10:30:00.000Z")),
+    );
+    expect(items[1]!.textContent).not.toContain("· SIRE ·");
+  });
+
   it("escapa la razón social hostil del SIRE y muestra el error del servidor si no hay detalle", async () => {
     const hostil = filaDe({
       id: uuidDe(4, 1),

@@ -134,6 +134,22 @@ function tramosDeGrupo(centro: readonly ColumnaGrilla[]): { titulo: string; anch
   return tramos;
 }
 
+/** Bajo este ancho (el `lg` de Tailwind) las columnas fijas de los extremos no dejan sitio al resto de la grilla. */
+const ANCHO_ANGOSTO = "(max-width: 1023px)";
+
+function usePantallaAngosta(): boolean {
+  const [angosta, setAngosta] = useState(false);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const consulta = window.matchMedia(ANCHO_ANGOSTO);
+    const leer = () => setAngosta(consulta.matches);
+    leer();
+    consulta.addEventListener("change", leer);
+    return () => consulta.removeEventListener("change", leer);
+  }, []);
+  return angosta;
+}
+
 /** Rango por defecto más los índices que deben seguir en el DOM (la celda activa conserva el foco). */
 function conIndices(range: Range, extra: readonly number[]): number[] {
   const base = defaultRangeExtractor(range);
@@ -225,6 +241,16 @@ export function GrillaCompras({
     getRowId: (f) => f.id,
     initialState: { columnPinning: { start: [...FIJAS_COMPRAS.start], end: [...FIJAS_COMPRAS.end] } },
   });
+
+  // En pantalla angosta no se fijan columnas (T23a-1): las fijas suman 886 px y a 390 px la de la derecha tapaba
+  // Comprobante, Proveedor y Destino. Sin fijar, el orden de las columnas es el mismo y todo se alcanza desplazando.
+  const angosta = usePantallaAngosta();
+  useEffect(() => {
+    table.setColumnPinning(
+      angosta ? { start: [], end: [] } : { start: [...FIJAS_COMPRAS.start], end: [...FIJAS_COMPRAS.end] },
+    );
+    // `table` es estable entre renders; solo importa el cambio de ancho.
+  }, [angosta]);
 
   const filasTabla = table.getRowModel().rows;
   const inicio = table.getStartLeafColumns();
@@ -995,14 +1021,16 @@ export function GrillaCompras({
       <div style={{ width: anchoTotal, minWidth: "100%" }}>
         <div role="rowgroup" className="sticky top-0 z-30 bg-gray-50 text-black" style={{ width: anchoTotal }}>
           <div role="row" aria-rowindex={1} className="flex" style={{ height: ALTO_GRUPO, width: anchoTotal }}>
-            <div
-              role="columnheader"
-              aria-colspan={inicio.length}
-              className="sticky left-0 z-20 shrink-0 truncate border-b bg-gray-100 px-2 text-xs font-semibold leading-7"
-              style={{ width: anchoInicio }}
-            >
-              {T.grupoIdentidad}
-            </div>
+            {inicio.length > 0 && (
+              <div
+                role="columnheader"
+                aria-colspan={inicio.length}
+                className="sticky left-0 z-20 shrink-0 truncate border-b bg-gray-100 px-2 text-xs font-semibold leading-7"
+                style={{ width: anchoInicio }}
+              >
+                {T.grupoIdentidad}
+              </div>
+            )}
             {tramos.map((t, i) => (
               <div
                 key={`${t.titulo}-${i}`}
@@ -1013,14 +1041,16 @@ export function GrillaCompras({
                 {t.titulo}
               </div>
             ))}
-            <div
-              role="columnheader"
-              aria-colspan={fin.length}
-              className="sticky right-0 z-20 shrink-0 truncate border-b border-l bg-gray-100 px-2 text-xs font-semibold leading-7"
-              style={{ width: anchoFin }}
-            >
-              {T.grupoFin}
-            </div>
+            {fin.length > 0 && (
+              <div
+                role="columnheader"
+                aria-colspan={fin.length}
+                className="sticky right-0 z-20 shrink-0 truncate border-b border-l bg-gray-100 px-2 text-xs font-semibold leading-7"
+                style={{ width: anchoFin }}
+              >
+                {T.grupoFin}
+              </div>
+            )}
           </div>
           <div role="row" aria-rowindex={2} className="flex" style={{ height: ALTO_ENCABEZADO, width: anchoTotal }}>
             {todas.map((col, c) => {

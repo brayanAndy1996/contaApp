@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReglaVista } from "@contapp/shared";
 import { MENSAJES } from "../../lib/acceso";
+import { MENSAJES_REGLAS as ML } from "../../lib/reglas";
 import { fechaHoraLima } from "../../lib/fechas";
 import { reiniciarSesion } from "../../lib/sesion";
 import { celdas, esperarFila, rutaSesion, yoDe } from "../../pruebas/acceso";
@@ -238,5 +239,118 @@ describe("<TablaReglasCliente /> · eliminar con confirmación", () => {
 
     expect((await screen.findByRole("alert")).textContent).toBe(R.reglaCambiada);
     expect(screen.getAllByRole("row").some((r) => r.textContent?.includes(RUC_A))).toBe(true);
+  });
+});
+
+// T23a-3, T23a-5 (prueba manual T23): foco, Esc, anuncio de estado y diseño apilado en móvil.
+describe("<TablaReglasCliente /> · foco y teclado (T23a-3)", () => {
+  const botonDe = (nombre: string) => screen.getByRole("button", { name: nombre });
+  const encabezado = () => screen.getByRole("columnheader", { name: R.columnas.proveedor });
+
+  it("Enter en «Editar» lleva el foco al combobox «Destino», no a «Guardar»", async () => {
+    instalar([A, B]);
+    const usuario = montar();
+    await esperarFila(RUC_A);
+
+    botonDe(R.editar(RUC_A)).focus();
+    await usuario.keyboard("{Enter}");
+
+    const destino = await screen.findByRole("combobox", { name: R.campoDestino });
+    expect(document.activeElement).toBe(destino);
+  });
+
+  it("Esc cancela la edición sin mandar nada y devuelve el foco a «Editar»", async () => {
+    const f = instalar([A, B]);
+    const usuario = montar();
+    await esperarFila(RUC_A);
+    botonDe(R.editar(RUC_A)).focus();
+    await usuario.keyboard("{Enter}");
+    const destino = await screen.findByRole("combobox", { name: R.campoDestino });
+    expect(document.activeElement).toBe(destino);
+
+    await usuario.keyboard("{Escape}");
+
+    expect(screen.queryByRole("combobox", { name: R.campoDestino })).toBeNull();
+    expect(document.activeElement).toBe(botonDe(R.editar(RUC_A)));
+    expect(f.llamadas.filter((l) => l.method === "PATCH")).toHaveLength(0);
+  });
+
+  it("tras guardar el foco vuelve a «Editar» de la fila y se anuncia el cambio en un role=status", async () => {
+    instalar([A, B], {
+      extra: { [rutaRegla("PATCH", A.id)]: { status: 200, cuerpo: reglaDe({ ...A, destino: "DGNG", version: 4 }) } },
+    });
+    const usuario = montar();
+    await esperarFila(RUC_A);
+    botonDe(R.editar(RUC_A)).focus();
+    await usuario.keyboard("{Enter}");
+    await usuario.selectOptions(await screen.findByRole("combobox", { name: R.campoDestino }), "DGNG");
+    await usuario.click(botonDe(R.guardar));
+
+    await vi.waitFor(() => expect(document.activeElement).toBe(botonDe(R.editar(RUC_A))));
+    expect(screen.getByRole("status").textContent).toBe(ML.reglaActualizada(RUC_A));
+  });
+
+  it("tras desactivar y activar el foco queda en el botón de la fila y se anuncia el estado", async () => {
+    instalar([A, B], {
+      extra: {
+        [rutaRegla("PATCH", A.id)]: { status: 200, cuerpo: reglaDe({ ...A, activa: false, version: 4 }) },
+        [rutaRegla("PATCH", B.id)]: { status: 200, cuerpo: reglaDe({ ...B, activa: true, version: 3 }) },
+      },
+    });
+    const usuario = montar();
+    await esperarFila(RUC_A);
+
+    await usuario.click(botonDe(R.desactivar(RUC_A)));
+    await vi.waitFor(() => expect(document.activeElement).toBe(botonDe(R.activar(RUC_A))));
+    expect(screen.getByRole("status").textContent).toBe(ML.reglaDesactivada(RUC_A));
+
+    await usuario.click(botonDe(R.activar(RUC_B)));
+    await vi.waitFor(() => expect(document.activeElement).toBe(botonDe(R.desactivar(RUC_B))));
+    expect(screen.getByRole("status").textContent).toBe(ML.reglaActivada(RUC_B));
+  });
+
+  it("tras eliminar, con la fila ya fuera, el foco va al encabezado de la tabla y se anuncia", async () => {
+    instalar([A, B], { extra: { [rutaRegla("DELETE", A.id)]: { status: 204 } } });
+    const usuario = montar();
+    await esperarFila(RUC_A);
+
+    await usuario.click(botonDe(R.eliminar(RUC_A)));
+    await usuario.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: R.confirmar }));
+
+    await vi.waitFor(() => expect(document.activeElement).toBe(encabezado()));
+    expect(screen.getByRole("status").textContent).toBe(ML.reglaEliminada(RUC_A));
+  });
+
+  it("si la eliminación falla (409) la fila sigue y el foco vuelve a su botón «Eliminar»", async () => {
+    instalar([A], { extra: { [rutaRegla("DELETE", A.id)]: { status: 409, cuerpo: { codigo: "regla_cambiada" } } } });
+    const usuario = montar();
+    await esperarFila(RUC_A);
+
+    await usuario.click(botonDe(R.eliminar(RUC_A)));
+    await usuario.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: R.confirmar }));
+
+    await screen.findByRole("alert");
+    await vi.waitFor(() => expect(document.activeElement).toBe(botonDe(R.eliminar(RUC_A))));
+  });
+});
+
+describe("<TablaReglasCliente /> · móvil (T23a-5)", () => {
+  it("cada celda lleva su etiqueta de columna para el diseño apilado a 390 px y la tabla ya no esconde nada tras un scroll interior", async () => {
+    instalar([A]);
+    const { container } = render(<TablaReglasCliente clienteId="c-1" />);
+    const fila = await esperarFila(RUC_A);
+
+    const etiquetas = [...fila.querySelectorAll("td")].map((td) => td.getAttribute("data-etiqueta"));
+    expect(etiquetas).toEqual([
+      R.columnas.proveedor,
+      R.columnas.destino,
+      R.columnas.estado,
+      R.columnas.aplicada,
+      R.columnas.aceptada,
+      R.columnas.actualizada,
+      ML.columnaAcciones,
+    ]);
+    expect(container.querySelector(".overflow-x-auto")).toBeNull();
+    expect(screen.getByRole("table").className).not.toContain("min-w-[");
   });
 });

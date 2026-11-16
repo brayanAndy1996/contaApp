@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CODIGOS_REGLA_MOTOR } from "@contapp/shared";
 import { MENSAJES } from "../../lib/acceso";
+import { MENSAJES_REGLAS as ML } from "../../lib/reglas";
 import { reiniciarSesion } from "../../lib/sesion";
 import { rutaSesion, yoDe, type RolPrueba } from "../../pruebas/acceso";
 import {
@@ -152,5 +153,39 @@ describe("<ReglasMotor /> · sin rol global (P-8, RF-089)", () => {
     await interruptor("R-ISC");
     const todos = screen.getAllByRole("switch") as HTMLInputElement[];
     expect(todos.some((el) => el.disabled || el.getAttribute("aria-disabled") === "true")).toBe(false);
+  });
+});
+
+// T23a-4: el cambio de un interruptor se anuncia en una región role="status".
+describe("<ReglasMotor /> · anuncio del cambio (T23a-4)", () => {
+  it("apagar y encender una regla anuncia su estado nuevo en un role=status", async () => {
+    instalar(motorDe(), { extra: { [rutaFijarMotor("R-MIX")]: { status: 200, cuerpo: {} } } });
+    render(<ReglasMotor />);
+    const usuario = userEvent.setup();
+    const mix = await interruptor("R-MIX");
+    expect(screen.getByRole("status").textContent).toBe("");
+
+    await usuario.click(mix);
+    await vi.waitFor(() => expect(screen.getByRole("status").textContent).toBe(ML.motorCambiada("R-MIX", false)));
+
+    await usuario.click(mix);
+    await vi.waitFor(() => expect(screen.getByRole("status").textContent).toBe(ML.motorCambiada("R-MIX", true)));
+  });
+
+  it("el aporte al catálogo anuncia su estado nuevo", async () => {
+    instalar(motorDe(), { extra: { [RUTA_APORTE]: { status: 200, cuerpo: {} } } });
+    render(<ReglasMotor />);
+    await userEvent.setup().click(await aporte());
+
+    await vi.waitFor(() => expect(screen.getByRole("status").textContent).toBe(ML.aporteCambiado(false)));
+  });
+
+  it("si el servidor rechaza el cambio no se anuncia un estado que no ocurrió", async () => {
+    instalar(motorDe(), { extra: { [rutaFijarMotor("R-GP")]: { status: 403, cuerpo: { codigo: "sin_permiso" } } } });
+    render(<ReglasMotor />);
+    await userEvent.setup().click(await interruptor("R-GP"));
+
+    expect((await screen.findByRole("alert")).textContent).toBe(MENSAJES.sinPermiso);
+    expect(screen.getByRole("status").textContent).toBe("");
   });
 });

@@ -139,7 +139,11 @@ export function HistorialCompra({
                   <p>
                     {M.versionPor(
                       ver.n,
-                      ver.usuarioId ? etiquetaAutor(ver.autor) : M.autorSire,
+                      ver.usuarioId
+                        ? etiquetaAutor(ver.autor)
+                        : ver.accion === "historial"
+                          ? M.accionesVersion.historial
+                          : M.autorSire,
                       fechaHoraLima(ver.creadaEn),
                     )}
                   </p>
