@@ -108,7 +108,7 @@ export function PrevioArchivo({
         )}
       </section>
 
-      {previo.avisos.length > 0 && (
+      {(previo.avisos.length > 0 || previo.avisosOmitidos > 0) && (
         <section aria-label={M.tituloAvisos} className="flex flex-col gap-2">
           <h4 className="font-medium">{M.tituloAvisos}</h4>
           <ul className="flex flex-col gap-1 text-sm">
@@ -132,7 +132,10 @@ export function PrevioArchivo({
               </li>
             ))}
           </ul>
-          <p className="text-xs">{M.avisosOmitidos}</p>
+          {previo.avisosOmitidos > 0 && (
+            <p className="text-sm">{M.avisosOmitidos(previo.avisosOmitidos)}</p>
+          )}
+          <p className="text-xs">{M.avisosNoImpiden}</p>
         </section>
       )}
 
