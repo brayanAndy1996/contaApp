@@ -365,6 +365,13 @@
       "when": 1794786890069,
       "tag": "0051_regla_correcciones_r2",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1794856838011,
+      "tag": "0052_reglas_historial_lote",
+      "breakpoints": true
     }
   ]
 }

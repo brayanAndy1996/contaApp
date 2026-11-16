@@ -1,7 +1,7 @@
 // Versiones de compras (spec 014, D-1, D-2, D-4, D-7). `crearVersion` es el ÚNICO punto de escritura de una versión de una compra
 // existente: comprueba la versión base, inserta la n+1, mueve el puntero con compare-and-set, re-evalúa la fila con la función
 // inyectada y guarda sus hallazgos, todo en la transacción de `withTenant`. `packages/db` no sabe de reglas: recibe `evaluar`.
-import { aplicarReglaHistorial } from "../reglas/aplicar";
+import { aplicarReglasHistorial, type AplicacionHistorial } from "../reglas/aplicar";
 import { consultar, ComprasReglaError, type TxConsulta } from "./errores";
 import {
   escribirVersiones,
@@ -216,8 +216,8 @@ export type HistorialDescarga = (
  * que no cabe en NUMERIC(14,2), 22003. Inserta por lotes.
  *
  * Spec 021: con `historial`, después de las versiones 1 (ya evaluadas: sus hallazgos quedan en su historial) crea la versión 2
- * `historial` de cada compra que lo pida con `aplicar_regla_historial` y la evalúa también (P-6). Si la BD rechaza una (42501),
- * toda la descarga se revierte. Sin `historial` el resultado es idéntico al de antes.
+ * `historial` de cada compra que lo pida con `aplicar_reglas_historial` (por lotes de 500, T25c) y la evalúa también (P-6). Si
+ * la BD rechaza una (42501), toda la descarga se revierte. Sin `historial` el resultado es idéntico al de antes.
  */
 export async function insertarCompras(
   tx: TxConsulta,
@@ -278,19 +278,22 @@ export async function insertarCompras(
   await evaluarYGuardar(tx, lote, f.evaluar);
   if (f.historial) {
     const segunHistorial: VersionPorEscribir[] = [];
+    const aplicaciones: AplicacionHistorial[] = [];
     for (const p of lote) {
       const h = f.historial(p.compra);
       if (!h) continue;
-      const n = await aplicarReglaHistorial(tx, p.compra.id, h.reglaId, h.datos);
+      aplicaciones.push({ compraId: p.compra.id, reglaId: h.reglaId, datos: h.datos });
       segunHistorial.push({
         compra: p.compra,
-        n,
+        n: 2,
         datos: { montos: h.datos, excluida: false, motivo: null, clasificada: true },
         accion: "historial",
         operacionId: null,
         usuarioId: null,
       });
     }
+    // Por lotes de 500 (T25c): la BD valida cada compra igual que la función por fila y crea siempre la versión 2.
+    await aplicarReglasHistorial(tx, aplicaciones);
     await evaluarYGuardar(tx, segunHistorial, f.evaluar);
   }
   return ids;

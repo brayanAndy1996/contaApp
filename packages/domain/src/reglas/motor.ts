@@ -79,7 +79,20 @@ function conHallazgo(h: Hallazgo | null): Hallazgo[] {
  * entrada inválida → EntradaReglasInvalidaError. Orden: id → ORDEN_REGLAS → DG, DGNG, DNG.
  */
 export function evaluarReglas(filas: readonly FilaEvaluable[], ctx: ContextoReglas): ResultadoEvaluacion {
+  return evaluarValidado(filas, validarContexto(ctx));
+}
+
+/**
+ * `evaluarReglas` con el contexto validado UNA vez, al crear (021, T25c): un contexto inválido lanza aquí
+ * (EntradaReglasInvalidaError) y cada llamada solo valida sus filas. Queda la copia validada: cambiar `ctx` después no cambia
+ * lo evaluado. Para evaluar muchas filas una a una con el mismo contexto (la descarga), sin pagar el contexto en cada fila.
+ */
+export function crearEvaluadorReglas(ctx: ContextoReglas): (filas: readonly FilaEvaluable[]) => ResultadoEvaluacion {
   const contexto = validarContexto(ctx);
+  return (filas) => evaluarValidado(filas, contexto);
+}
+
+function evaluarValidado(filas: readonly FilaEvaluable[], contexto: ContextoInterno): ResultadoEvaluacion {
   const internas = validarFilas(filas);
   const hallazgos: Hallazgo[] = [];
   const avisos: Aviso[] = [];

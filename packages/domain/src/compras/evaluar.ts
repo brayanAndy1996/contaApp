@@ -9,7 +9,9 @@ import { MontosComprobante } from "../comprobante/index";
 import type { ColumnaCompra } from "../comprobante/index";
 import { DICCIONARIO_GLOSAS_BASE } from "../texto/index";
 import { DineroError } from "../dinero/index";
-import { ReglasError, evaluarReglas } from "../reglas/index";
+import { ReglasError } from "../reglas/index";
+// Interno del paquete (como prevalidar): fuera de la superficie pública fijada por R2b-1.
+import { crearEvaluadorReglas } from "../reglas/motor";
 import type { CodigoReglaMotor, ContextoReglas, DocProveedor, FilaEvaluable, Hallazgo, ResumenXml, Sugerencia } from "../reglas/index";
 import { aResumenXml } from "../ubl/index";
 import type { DetalleXml } from "../ubl/index";
@@ -154,9 +156,10 @@ export function crearEvaluarCompras(
     diccionario: DICCIONARIO_GLOSAS_BASE,
     ...(opciones.reglasApagadas === undefined ? {} : { reglasApagadas: [...opciones.reglasApagadas] }),
   };
-  // Un código apagado desconocido es un defecto del llamador: falla aquí (EntradaReglasInvalidaError) en vez de dejar cada
-  // compra sin hallazgos en silencio.
-  evaluarReglas([], contexto);
+  // El contexto se valida UNA vez, aquí (T25c): un contexto inválido (p. ej. un código apagado desconocido) es un defecto del
+  // llamador y falla aquí (EntradaReglasInvalidaError) en vez de dejar cada compra sin hallazgos en silencio; cada compra solo
+  // valida su fila, así que el costo por fila no depende de cuántos proveedores y reglas tenga el contexto.
+  const evaluarReglas = crearEvaluadorReglas(contexto);
   return (c) => {
     try {
       const fila: FilaEvaluable = {
@@ -166,7 +169,7 @@ export function crearEvaluarCompras(
         montos: MontosComprobante.desde(c.moneda, c.montos),
       };
       const xml = resumenXml(c, opciones);
-      const resultado = evaluarReglas([xml === null ? fila : { ...fila, xml }], contexto);
+      const resultado = evaluarReglas([xml === null ? fila : { ...fila, xml }]);
       const porRegla = new Map<string, HallazgoJson>();
       for (const h of resultado.hallazgos) {
         if (h.regla === "R-NEW" && c.clasificada) continue;

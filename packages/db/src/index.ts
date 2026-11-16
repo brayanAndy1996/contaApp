@@ -364,9 +364,11 @@ export type { AutorResuelto } from "./acceso/autores";
 export { marcarOrigenImportacion } from "./clientes/origen";
 
 // Spec 021: reglas aprendidas (cliente y estudio), interruptores del motor, aporte al catálogo y la aplicación de R-HIS en la
-// descarga (funciones acotadas de 0048, solo el worker). Tablas de 0047–0049 aparte del índice del esquema.
+// descarga (funciones acotadas de 0048 y, por lotes, 0052; solo el worker). Tablas de 0047–0049 aparte del índice del esquema.
 export {
   aplicarReglaHistorial,
+  aplicarReglasHistorial,
+  LOTE_HISTORIAL,
   datosHistorial,
   editarRegla,
   eliminarRegla,
@@ -380,6 +382,7 @@ export {
   reglasHistorialVigentes,
 } from "./reglas";
 export type {
+  AplicacionHistorial,
   CodigoRegla,
   DestinoRegla,
   EntradaEditar as EntradaEditarRegla,

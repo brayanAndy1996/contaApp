@@ -3,7 +3,8 @@
 export { esUuidRegla, leerRegla, listarReglas } from "./lectura";
 export { editarRegla, eliminarRegla, recordarRegla } from "./escritura";
 export { fijarAporte, fijarReglaMotor, leerReglasMotor } from "./motor";
-export { aplicarReglaHistorial, datosHistorial, reglasHistorialVigentes } from "./aplicar";
+export { aplicarReglaHistorial, aplicarReglasHistorial, datosHistorial, LOTE_HISTORIAL, reglasHistorialVigentes } from "./aplicar";
+export type { AplicacionHistorial } from "./aplicar";
 export type {
   CodigoRegla,
   DestinoRegla,

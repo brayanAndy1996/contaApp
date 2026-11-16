@@ -84,6 +84,10 @@ const FUNCIONES_017: { firma: string; dueno: string }[] = [
   { firma: "reglas_historial_vigentes(uuid,text)", dueno: MIGRATOR },
   { firma: "regla_aceptar_periodo()", dueno: MIGRATOR },
   ...["regla", "regla_motor", "aporte", "regla_aplicacion"].map((n) => ({ firma: `auditoria_capturar_${n}()`, dueno: MIGRATOR })),
+  // Spec 021 (T25c, migracion 0052): R-HIS por lotes (EXECUTE solo contapp_worker) y el INSERT de auditoria por lote de la
+  // captura compra.historial por sentencia (dueño contapp_registrador, EXECUTE solo contapp_migrator).
+  { firma: "aplicar_reglas_historial(jsonb)", dueno: MIGRATOR },
+  { firma: "interno.auditoria_insertar_lote(uuid,text,uuid,uuid,text,text,uuid[],uuid[],jsonb[])", dueno: REGISTRADOR },
   { firma: "notificaciones_de_esta_transaccion()", dueno: REGISTRADOR },
   { firma: "plan_aviso_disparar()", dueno: MIGRATOR },
   { firma: "plan_aviso_recalcular(uuid)", dueno: REGISTRADOR },
