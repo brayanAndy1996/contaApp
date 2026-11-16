@@ -29,7 +29,7 @@ Nivel A (spec). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T21 | Corregir los hallazgos de la ronda 2 (migración 0051 si hace falta) | backend | opus | T20 | — | — | [x] |
 | T22 | E2E prioridad 1: «Recordar» → descarga siguiente → «Según historial» → revertir | tester | sonnet | T14, T10 ∥ T16–T21 | — | — | [x] |
 | T23 | Prueba manual contra el sistema completo | tester | sonnet | T21, T22 | — | — | [x] |
-| T24 | Verificar CA-1 a CA-14 con evidencia, suites completas, `db:migrate` ×2 y cobertura | tester | sonnet | T23 | — | — | [ ] |
+| T24 | Verificar CA-1 a CA-14 con evidencia, suites completas, `db:migrate` ×2 y cobertura | tester | sonnet | T23 | — | — | [x] |
 | T25 | Revisión final contra la spec | arquitecto | opus | T24 | — | — | [ ] |
 | T26 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T25 | — | — | [ ] |
 
@@ -190,10 +190,59 @@ Reglas comunes:
 
 *Cierre.* Procesos detenidos (backend, worker, frontend); Redis índice 13 vaciado; `contapp_021m` se deja sin borrar. No se tocó código de producción ni `contapp` ni `contapp_021`.
 
-## T24 · [ ] Verificar (tester · sonnet)
+## T24 · [x] Verificar (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (CA-1 a CA-14), `tasks.md` (resultados), `package.json` (scripts).
 - **Hacer**: cada CA con su evidencia (prueba o comando); suites de `domain`, `shared`, `db`, `backend`, `worker`, `frontend`, `test:aislamiento`, typecheck, lint, `pnpm db:migrate` ×2, `pnpm cobertura:reglas`, `pnpm ci:db` y `pnpm e2e`.
 - **Hecho cuando**: tabla CA → evidencia → OK/falta en el resultado; todo en verde o la lista de lo que falta.
+
+**Resultado (2026-11-16, rama `spec/021-reglas-aprendidas`, merge 410b584 con 022, Node 22.22.0)**
+
+*Entorno.* BD nueva `contapp_021v` (migrada dos veces y sembrada), Redis índice 14 (13 para la E2E), adaptadores en `mock`. Tras el merge hizo falta `pnpm install --frozen-lockfile` (la 038 trajo `@fontsource-variable/*`; sin eso `pnpm build` falla en el frontend) y recompilar los `dist`. Sin Docker ni Mailpit: la E2E corrió con `E2E_CORREO=consola` (README de `tests/e2e`). La E2E usa su propia BD fija `contapp_e2e`. No se tocó código de producción ni `contapp`.
+
+*Suites.*
+| Suite | Resultado |
+| --- | --- |
+| `pnpm typecheck` | OK (18/18) |
+| `pnpm lint` | **FALLA** en `domain` (F-1); los otros 10 paquetes limpios (`turbo run lint --continue`) |
+| Unitarias: crypto 291, shared 2033, domain 2577 (+3 todo ajenos a 021), db 961, storage 192, sunat 262, queue 462, backend 1244, worker 410, tests/limites 329 | OK |
+| Integración queue 116 · worker 365 | OK |
+| Integración backend | 2833 de 2834 OK (116 archivos), **1 falla** (F-2) |
+| `tests/aislamiento` completo | OK (92 archivos, 2694 pruebas) |
+| Frontend `TZ=America/Lima` y `TZ=UTC` | OK, 104 archivos y 970 pruebas en cada una |
+| `pnpm e2e` | 88/88 con `E2E_CORREO=consola`; la primera corrida (Mailpit por defecto) dio 8 fallos por `ECONNREFUSED 127.0.0.1:8025` (F-3) |
+| `pnpm e2e:volumen` | OK (2/2) |
+| `pnpm cobertura:reglas` | OK: domain 98,5 % líneas / 97,2 % ramas; db 100 % / 98,3 %; backend 100 % / 100 %; worker 100 % / 93,2 %; todos sobre el 90 % |
+| `pnpm db:migrate` ×2 (al inicio y de nuevo al final) | OK, 52 migraciones y sin cambios en la segunda |
+
+*Criterios.*
+| CA | Evidencia (archivo:línea) | Estado |
+| --- | --- | --- |
+| CA-1 | `apps/frontend/components/reglas/recordar-proveedor.spec.tsx:61,97,140` · `components/compras/grilla-compras.historial.spec.tsx:160,193` · `lupa-compra.historial.spec.tsx:141` · `apps/backend/src/modules/reglas/reglas-cliente.int.spec.ts:217-235` (403 sin `reglas.gestionar`, 200 con él) · `tests/e2e/flujos/reglas.e2e.ts:38` (teclado y Alt+R) | OK |
+| CA-2 | `apps/worker/src/trabajos/persistidores/persistidor-reglas.int.spec.ts:243,297` (versión 2 `historial`, versión 1 idéntica con md5) · `apps/backend/src/modules/compras/historial.int.spec.ts:92` · `grilla-compras.historial.spec.tsx:117` · `lupa-compra.historial.spec.tsx:92` · `reglas.e2e.ts:38` | OK |
+| CA-3 | `historial.int.spec.ts:217,245,258` (una, en masa por filtro, resumen) · `barra-masiva.historial.spec.tsx:189` · `reglas.e2e.ts:38` (masiva a DG) | OK |
+| CA-4 | `persistidor-reglas.int.spec.ts:481-609` (regla inactiva/eliminada, BI 0, destino igual, R-HIS apagado, descarga repetida, fila preexistente) · `tests/aislamiento/reglas-funciones.spec.ts:300,450,465,485` · `packages/domain/src/reglas/r-his.spec.ts:125` | OK |
+| CA-5 | `tests/aislamiento/reglas-tablas.spec.ts:579` (dos estudios, sin `withTenant`) · `reglas-vigentes.spec.ts:87` · `reglas-cliente.int.spec.ts:182,192,360,585,699` (404 idéntico) · `historial.int.spec.ts:152` · `persistidor-reglas.int.spec.ts:609` · `reglas-r1.adv.int.spec.ts:113` | OK |
+| CA-6 | `reglas-repositorio.spec.ts:181,192` · `reglas-revisado.spec.ts:262-352` · `reglas-tablas.spec.ts:390,404,647` (ningún rol lee, sin UPDATE/DELETE, dos estudios) · `reglas-cliente.int.spec.ts:459`. Ninguna ruta de 021 lee `regla_confirmacion`: lo garantiza el grant (`reglas-tablas.spec.ts:404`) | OK |
+| CA-7 | `reglas-cliente.int.spec.ts:111,512,639,735` · `tabla-reglas-cliente.spec.tsx:78` · `reglas-revisado.spec.ts:163` (aplicada y aceptada) · `reglas-repositorio.spec.ts:485` (auditoría anterior/nuevo) | OK |
+| CA-8 | `reglas-motor.int.spec.ts:58,74,113` · `historial.int.spec.ts:349` · `obtener-xml-interruptores.int.spec.ts:133` · `domain/src/reglas/interruptores.spec.ts:28` · `reglas-tablas.spec.ts:449` (prevalidación no) · `reglas-motor.spec.tsx:57` · `reglas-apagadas-022.int.spec.ts:90` | OK |
+| CA-9 | `tests/aislamiento/reglas-concurrencia.spec.ts:77,142,205` · `reglas-cliente.int.spec.ts:321,444` · `persistidor-reglas.int.spec.ts:449` | OK |
+| CA-10 | `reglas-funciones.spec.ts:300,321,342` (42501, sin UPDATE sobre `compra`) · `reglas-r1.adv.spec.ts:77` | OK |
+| CA-11 | `packages/domain/src/reglas/r-his.spec.ts:165` y `compras/evaluar-reglas.spec.ts:131` (San Juan y mixta: mismos montos que a mano) · `reglas-funciones.spec.ts:657` | OK |
+| CA-12 | `historial.int.spec.ts:294,313,325` · `r-his.spec.ts:218` · `grilla-compras.historial.spec.tsx:239` | OK |
+| CA-13 | `persistidor-reglas.int.spec.ts:631` (resultado, logs, auditoría) · `historial.int.spec.ts:200` · `reglas-cliente.int.spec.ts:43` · `reglas-r1.adv.int.spec.ts:157` · `reglas-funciones.spec.ts:764` · `reglas-r1.adv.spec.ts:222` | OK |
+| CA-14 | Suites, typecheck, `db:migrate` ×2, E2E y cobertura en verde, salvo lint (F-1) y la prueba de rutas de HU-40 (F-2) | **No cumplido** |
+
+*Cruce con 022 (punto 3).* `evaluarPorPeriodo` (lazy: `leerProveedoresConocidos` y `leerReglasMotor` en la primera llamada) con `escribirVersiones` solapando `evaluar` y las escrituras: sin diferencias. Prueba nueva `apps/backend/src/modules/compras/reglas-apagadas-022.int.spec.ts` (2 pruebas, verdes): fixture de 009 sin historial más 60 filas de volumen; la masiva a DG y su Ctrl+Z dejan los mismos hallazgos (regla, sugerencia, lecturas, confirmación) en las versiones 2 y 3 que la acción fila por fila, con todas las reglas encendidas (control: salen R-ISC y R-NEW) y con R-ISC y R-NEW apagadas (no salen; R-MIX sigue). `deshacer-masivo-022.int.spec.ts` (equivalencia con 1.230 filas y 4.850 filas en ≤ 1.200 ms) pasa suelta y en la suite completa. Queda sin cubrir un lote de más de 500 filas con reglas apagadas (la prueba de 022 cubre los lotes con todas encendidas).
+
+*Diseños a 390 px (T23a), Chromium de `/opt/pw-browsers`, capturas en el scratchpad `t24/` (`021v-*.png`; script `zz-t24-angosto.e2e.ts`, no versionado).*
+- Tabla de reglas apilada: OK. Fila `flex` en columna, 7 celdas con su `data-etiqueta` entre x = 25 y 365, sin ancestro con scroll interior, sin desborde de página, encabezado oculto, botones Editar, Desactivar y Eliminar dentro de la ventana (`021v-reglas-390.png`).
+- Grilla sin columnas fijas: cumple lo estructural (ningún `data-col` ni encabezado `sticky` lateral; sin desborde de página; Comprobante visible de 129 a 285 px), pero **tiene un defecto** (F-4).
+
+*Fallos y clasificación (no se reintentó ninguno).*
+- **F-1 · lint · baja · defecto de 021 (prueba).** `packages/domain/src/reglas/r-his-entrada.spec.ts:131-132` · `'_m'` y `'_p'` asignadas sin usar (`@typescript-eslint/no-unused-vars`); entró en 367445d (T15). Corrige tester o backend.
+- **F-2 · integración backend · media · faltante de 021.** `apps/backend/src/aislamiento/hu40-api.int.spec.ts:1796` · la prueba de cobertura de rutas de HU-40 no tiene caso para las 7 rutas nuevas: `GET`, `POST …/recordar`, `PATCH` y `DELETE` de `/clientes/:clienteId/reglas` y `GET`, `PUT /:codigo` y `PUT /aporte` de `/estudio/reglas-motor`. El 404 de cada una ya está en `reglas-cliente.int.spec.ts` (CA-5); falta registrarlas en HU-40.
+- **F-3 · E2E · entorno, sin defecto.** 8 pruebas que leen correo (`alta`, `equipo`, `soporte:33`) fallan con Mailpit apagado; con `E2E_CORREO=consola` pasan 88/88.
+- **F-4 · frontend · media · regresión de T23a-1.** A 390 px, al desplazar la grilla a la derecha las filas quedan en blanco: con `scrollLeft` ≥ ~1.000 px se ven los encabezados (DG, DGNG, … Total, Acciones) pero ninguna celda de datos (barrido en `angosto.log`: `fila=[]` desde x = 1200; a 1440 px siempre hay celdas). Causa probable: sin columnas fijas la celda activa por defecto (columna `seleccionar`, índice 0) va en `centro` y `conIndices` la mete en el rango virtual; `margenIzq` (`grilla-compras.tsx:~683`) se calcula con `columnasVisibles[0].start` (= 0), no se pone el espaciador y las columnas visibles se pintan pegadas a la primera, fuera de la ventana. Con 1440 px la columna 0 está fijada y no entra en `centro`. Capturas `021v-grilla-390-derecha.png` y `021v-grilla-390-medio.png`. Requiere T24a (frontend) con una prueba que desplace la grilla angosta.
 
 ## T25 · [ ] Revisión final (arquitecto · opus)
 - **Contexto (leer solo esto)**: `spec.md`, `plan.md`, resultado de T24, `git diff main...HEAD --stat` y los archivos que la revisión necesite.
