@@ -57,13 +57,21 @@ function compararHallazgos(a: Hallazgo, b: Hallazgo) {
   );
 }
 
-/** Hallazgos de una fila ya validada, sin ordenar (también los usa aplicar para re-evaluar: T15). */
+/**
+ * Hallazgos de una fila ya validada, sin ordenar (también los usa aplicar para re-evaluar: T15). Las reglas apagadas por el
+ * estudio (021, RF-089) no se evalúan: aplicar re-evalúa con el mismo contexto, así que su sugerencia queda obsoleta.
+ */
 export function evaluarFila(fila: FilaInterna, contexto: ContextoInterno): Hallazgo[] {
+  const { apagadas } = contexto;
   const hallazgos = porDestino(fila, contexto);
-  for (const h of [evaluarRed(fila), evaluarNuevo(fila, contexto), evaluarGastoPersonal(fila, contexto)]) {
-    if (h !== null) hallazgos.push(h);
-  }
-  return hallazgos;
+  if (!apagadas.has("R-RED")) hallazgos.push(...conHallazgo(evaluarRed(fila)));
+  if (!apagadas.has("R-NEW")) hallazgos.push(...conHallazgo(evaluarNuevo(fila, contexto)));
+  if (!apagadas.has("R-GP")) hallazgos.push(...conHallazgo(evaluarGastoPersonal(fila, contexto)));
+  return apagadas.size === 0 ? hallazgos : hallazgos.filter((h) => !apagadas.has(h.regla));
+}
+
+function conHallazgo(h: Hallazgo | null): Hallazgo[] {
+  return h === null ? [] : [h];
 }
 
 /**
@@ -71,7 +79,20 @@ export function evaluarFila(fila: FilaInterna, contexto: ContextoInterno): Halla
  * entrada inválida → EntradaReglasInvalidaError. Orden: id → ORDEN_REGLAS → DG, DGNG, DNG.
  */
 export function evaluarReglas(filas: readonly FilaEvaluable[], ctx: ContextoReglas): ResultadoEvaluacion {
+  return evaluarValidado(filas, validarContexto(ctx));
+}
+
+/**
+ * `evaluarReglas` con el contexto validado UNA vez, al crear (021, T25c): un contexto inválido lanza aquí
+ * (EntradaReglasInvalidaError) y cada llamada solo valida sus filas. Queda la copia validada: cambiar `ctx` después no cambia
+ * lo evaluado. Para evaluar muchas filas una a una con el mismo contexto (la descarga), sin pagar el contexto en cada fila.
+ */
+export function crearEvaluadorReglas(ctx: ContextoReglas): (filas: readonly FilaEvaluable[]) => ResultadoEvaluacion {
   const contexto = validarContexto(ctx);
+  return (filas) => evaluarValidado(filas, contexto);
+}
+
+function evaluarValidado(filas: readonly FilaEvaluable[], contexto: ContextoInterno): ResultadoEvaluacion {
   const internas = validarFilas(filas);
   const hallazgos: Hallazgo[] = [];
   const avisos: Aviso[] = [];

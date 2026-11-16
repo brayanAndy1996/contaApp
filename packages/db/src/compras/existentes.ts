@@ -6,6 +6,9 @@ import type { ExistenteCompra, ProveedorConocido } from "./tipos";
 // lo que el SIRE entregó, no contra lo que el usuario corrigió después. Lateral con `offset 0` (como SQL_ORIGINAL de
 // `filas-reemplazo.ts`, spec 022 RP-2): con un join plano y tablas recién cargadas sin estadísticas el planificador elegía un nested
 // loop O(n²) sobre `compra_version_operacion_idx` (20.000 compras: ~65 s en la primera lectura). Mismo resultado que UNION_ORIGINAL.
+// El lateral solo no bastaba: con `reltuples = 0` (ANALYZE que vio la tabla sin filas vivas) la búsqueda de cada compra seguía
+// empatando ese índice con la única y a veces lo elegía (CI: 32 s). Desde 0053 el índice es parcial (`operacion_id is not null`) y
+// esta consulta no puede usarlo: la única (tenant_id, compra_id, n) es su solo acceso por índice, con o sin estadísticas.
 const SQL_EXISTENTES = `select c.clave, c.origen, to_char(c.fecha, 'YYYY-MM-DD') as fecha, c.moneda,
     coalesce(c.tipo_cambio::text, '') as tipo_cambio, c.doc_tipo, c.doc_numero,
     v.bi_dg::text as bi_dg, v.igv_dg::text as igv_dg, v.bi_dgng::text as bi_dgng, v.igv_dgng::text as igv_dgng,

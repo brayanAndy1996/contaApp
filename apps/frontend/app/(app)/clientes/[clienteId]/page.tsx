@@ -33,6 +33,7 @@ import {
 } from "../../../../lib/clientes";
 import { MENSAJES_COMPRAS } from "../../../../lib/compras";
 import { MENSAJES_PLAN } from "../../../../lib/planes";
+import { MENSAJES_REGLAS } from "../../../../lib/reglas";
 import { MENSAJES_REGISTRO } from "../../../../lib/registro";
 
 // Detalle de un cliente (spec 005, CA-5, CA-7, CA-15, D18; spec 007a, D1, D3, D5; CA-4, CA-5, CA-9).
@@ -178,6 +179,7 @@ function DetalleCliente() {
   const puedeEditar = usePuede("clientes.editar");
   const puedeArchivar = usePuede("clientes.archivar");
   const puedeCredenciales = usePuede("credenciales.editar");
+  const puedeVerReglas = usePuede("reglas.ver");
   const [cliente, setCliente] = useState<ClienteDto | null>(null);
   const [cargado, setCargado] = useState(false);
   const [asigna, setAsigna] = useState(false);
@@ -347,6 +349,17 @@ function DetalleCliente() {
             >
               {MENSAJES_COMPRAS.enlaceCompras}
             </Link>
+            {puedeVerReglas === true && (
+              <>
+                {" · "}
+                <Link
+                  href={`/clientes/${encodeURIComponent(cliente.id)}/reglas`}
+                  className="underline"
+                >
+                  {MENSAJES_REGLAS.enlaceReglasCliente}
+                </Link>
+              </>
+            )}
           </nav>
         </header>
       )}

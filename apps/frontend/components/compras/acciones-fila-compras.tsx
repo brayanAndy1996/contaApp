@@ -24,6 +24,7 @@ import {
   type AccionCompraRespuesta,
 } from "../../lib/compras";
 import { destinoDe } from "../../lib/montos-compras";
+import { RecordarTrasClasificar } from "../reglas/recordar-tras-clasificar";
 import { ConfirmarAccion } from "../ventas/confirmar-accion";
 import {
   comprobanteDe,
@@ -91,6 +92,8 @@ export function AccionesFilaCompras({
   const [panel, setPanel] = useState<Panel>(null);
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Spec 021: tras clasificar OK se ofrece «Recordar» con el destino elegido. `n` reinicia el aviso (y sus 10 s).
+  const [recordar, setRecordar] = useState<{ n: number; destino: DestinoCompra } | null>(null);
   const { avisarError, rolDe } = useErrorAnunciado(alAvisar);
   const menu = useRef<HTMLDivElement>(null);
   const boton = useRef<HTMLButtonElement>(null);
@@ -147,6 +150,7 @@ export function AccionesFilaCompras({
   async function ejecutar(
     pedir: () => Promise<ResultadoCompras<AccionCompraRespuesta>>,
     mensajeOk: string,
+    destinoOk?: DestinoCompra,
   ): Promise<void> {
     if (ocupado) return;
     setError(null);
@@ -156,6 +160,7 @@ export function AccionesFilaCompras({
       if (r.ok) {
         await recargarTrasExito(contexto, fila.id);
         alAvisar?.(mensajeOk, "ok");
+        if (destinoOk !== undefined) setRecordar((previo) => ({ n: (previo?.n ?? 0) + 1, destino: destinoOk }));
       } else {
         await recargarTrasError(contexto, fila.id, r);
         setError(r.mensaje);
@@ -177,6 +182,7 @@ export function AccionesFilaCompras({
           destino,
         }),
       M.compraClasificada,
+      destino,
     );
   };
 
@@ -289,6 +295,23 @@ export function AccionesFilaCompras({
           {error}
         </p>
       )}
+
+      {recordar !== null &&
+        createPortal(
+          // Sale por un portal: la celda de la grilla recorta su contenido. No toma el foco (Alt+R lo acepta).
+          <div className="fixed bottom-4 left-4 z-[60]">
+            <RecordarTrasClasificar
+              key={recordar.n}
+              contexto={contexto}
+              compraIds={[fila.id]}
+              proveedor={fila.proveedor}
+              destino={recordar.destino}
+              alAvisar={alAvisar}
+              alTerminar={() => setRecordar(null)}
+            />
+          </div>,
+          document.body,
+        )}
 
       {panel === "aceptar" && (
         <Ventana>

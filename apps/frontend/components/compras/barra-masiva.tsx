@@ -22,6 +22,7 @@ import {
   type ContextoCompras,
   type ResultadoCompras,
 } from "../../lib/compras";
+import { RecordarTrasClasificar } from "../reglas/recordar-tras-clasificar";
 import type { AlAvisar } from "./accion-compras";
 import { useErrorAnunciado } from "./aviso-unico";
 import { InformeMasivo } from "./informe-masivo";
@@ -32,6 +33,26 @@ import { InformeMasivo } from "./informe-masivo";
 // su motivo; se recargan las aplicadas y las `version_obsoleta` (lo demás no cambió). Sin actualización optimista.
 
 type Modo = "barra" | "excluir";
+
+/** «Recordar» tras una masiva (spec 021, P-2): solo con un único proveedor en toda la selección y lo que se aplicó. */
+interface OfertaRecordar {
+  n: number;
+  compraIds: string[];
+  proveedor: FilaCompraVista["proveedor"];
+  destino: DestinoCompra;
+}
+
+/** El proveedor (tipo + número) común a todas las filas, o `null` si hay varios o ninguna. */
+function proveedorUnico(
+  filas: readonly FilaCompraVista[],
+): FilaCompraVista["proveedor"] | null {
+  const primera = filas[0];
+  if (primera === undefined) return null;
+  const mismo = filas.every(
+    (f) => f.proveedor.tipo === primera.proveedor.tipo && f.proveedor.numero === primera.proveedor.numero,
+  );
+  return mismo ? primera.proveedor : null;
+}
 
 export function BarraMasiva({
   contexto,
@@ -57,9 +78,10 @@ export function BarraMasiva({
   const { avisarError, rolDe } = useErrorAnunciado(alAvisar);
   const [ocupado, setOcupado] = useState(false);
   const [informe, setInforme] = useState<InformeMasiva | null>(null);
+  const [recordar, setRecordar] = useState<OfertaRecordar | null>(null);
 
   if (!contexto.permisos.clasificar) return null;
-  if (seleccion.size === 0 && informe === null) return null;
+  if (seleccion.size === 0 && informe === null && recordar === null) return null;
 
   const items = filas
     .filter((f) => seleccion.has(f.id))
@@ -73,9 +95,11 @@ export function BarraMasiva({
 
   async function aplicar(
     pedir: () => Promise<ResultadoCompras<InformeMasiva>>,
+    destinoOk?: DestinoCompra,
   ): Promise<void> {
     if (ocupado) return;
     setError(null);
+    setRecordar(null);
     setOcupado(true);
     try {
       const r = await pedir();
@@ -98,6 +122,17 @@ export function BarraMasiva({
         contexto.recargarResumen(),
       ]);
       if (r.datos.aplicadas > 0) alOperacion?.();
+      if (destinoOk !== undefined && aplicadas.length > 0) {
+        const proveedor = proveedorUnico(filas.filter((f) => seleccion.has(f.id)));
+        if (proveedor !== null) {
+          setRecordar((previo) => ({
+            n: (previo?.n ?? 0) + 1,
+            compraIds: aplicadas,
+            proveedor,
+            destino: destinoOk,
+          }));
+        }
+      }
       setInforme(r.datos);
       setModo("barra");
       setMotivo("");
@@ -120,8 +155,9 @@ export function BarraMasiva({
   const clasificar = (destino: DestinoCompra) => {
     const cuerpo = masivaClasificarSchema.safeParse({ items, destino });
     if (!cuerpo.success) return invalida();
-    void aplicar(() =>
-      masivaClasificarCompras(contexto.clienteId, contexto.periodo, cuerpo.data),
+    void aplicar(
+      () => masivaClasificarCompras(contexto.clienteId, contexto.periodo, cuerpo.data),
+      destino,
     );
   };
 
@@ -256,6 +292,17 @@ export function BarraMasiva({
             </p>
           )}
         </div>
+      )}
+      {recordar !== null && (
+        <RecordarTrasClasificar
+          key={recordar.n}
+          contexto={contexto}
+          compraIds={recordar.compraIds}
+          proveedor={recordar.proveedor}
+          destino={recordar.destino}
+          alAvisar={alAvisar}
+          alTerminar={() => setRecordar(null)}
+        />
       )}
       {informe && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">

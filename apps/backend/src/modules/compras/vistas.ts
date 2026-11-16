@@ -5,6 +5,7 @@ import type {
   CompraListada,
   DetalleCompraLeido,
   HallazgoGuardadoCompra,
+  SegunHistorialCompra,
   VersionHistorialCompra,
 } from "@contapp/db";
 import { detallarHallazgo } from "@contapp/domain";
@@ -30,7 +31,12 @@ export function aHallazgoVista(h: HallazgoGuardadoCompra): HallazgoVista {
   };
 }
 
-export function aFilaVista(c: CompraLeida, proveedorNuevo: boolean, hallazgos: HallazgoGuardadoCompra[]): FilaCompraVista {
+export function aFilaVista(
+  c: CompraLeida,
+  proveedorNuevo: boolean,
+  hallazgos: HallazgoGuardadoCompra[],
+  segunHistorial: SegunHistorialCompra | null,
+): FilaCompraVista {
   return {
     id: c.id,
     origen: c.origen,
@@ -47,11 +53,12 @@ export function aFilaVista(c: CompraLeida, proveedorNuevo: boolean, hallazgos: H
     motivo: c.motivo,
     clasificada: c.clasificada,
     proveedorNuevo,
+    segunHistorial: segunHistorial === null ? null : { reglaId: segunHistorial.reglaId },
     hallazgos: hallazgos.map(aHallazgoVista),
   };
 }
 
-export const aFilaListada = (l: CompraListada): FilaCompraVista => aFilaVista(l.compra, l.proveedorNuevo, l.hallazgos);
+export const aFilaListada = (l: CompraListada): FilaCompraVista => aFilaVista(l.compra, l.proveedorNuevo, l.hallazgos, l.segunHistorial);
 
 export function aVersionVista(v: VersionHistorialCompra, autores: Autores): VersionCompraVista {
   return {
@@ -69,7 +76,7 @@ export function aVersionVista(v: VersionHistorialCompra, autores: Autores): Vers
 }
 
 export function aDetalleVista(d: DetalleCompraLeido, autores: Autores): DetalleCompra {
-  const vigente = aFilaVista(d.compra, d.proveedorNuevo, d.hallazgos);
+  const vigente = aFilaVista(d.compra, d.proveedorNuevo, d.hallazgos, d.segunHistorial);
   const versiones = d.versiones.map((v) => aVersionVista(v, autores));
   return { original: versiones[0]!, vigente, versiones, hallazgos: vigente.hallazgos };
 }

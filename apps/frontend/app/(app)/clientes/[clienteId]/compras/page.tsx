@@ -15,6 +15,7 @@ import type {
   EstadoPeriodoRespuesta,
   FilaCompraVista,
   PropuestaComprasDto,
+  ReglaVista,
   ResumenComprasVista,
   VistaCompras,
 } from "@contapp/shared";
@@ -66,6 +67,11 @@ import {
   type PermisosCompras,
 } from "../../../../../lib/compras";
 import type { CambiosFila } from "../../../../../lib/edicion-compras";
+import {
+  MENSAJES_REGLAS,
+  PERMISO_REGLAS_GESTIONAR,
+  listarReglas,
+} from "../../../../../lib/reglas";
 import { useFilasCompras } from "../../../../../lib/filas-compras";
 import { MENSAJES_LUPA } from "../../../../../lib/lupa-compras";
 import { useSecuencia } from "../../../../../lib/secuencia";
@@ -86,6 +92,7 @@ const SIN_PERMISOS: PermisosCompras = {
   descargar: false,
   clasificar: false,
   aprobarGenerar: false,
+  gestionarReglas: false,
 };
 
 function Compras() {
@@ -138,6 +145,7 @@ function Compras() {
         descargar: tiene(yo, PERMISO_DESCARGAR),
         clasificar: tiene(yo, PERMISO_CLASIFICAR),
         aprobarGenerar: tiene(yo, PERMISO_APROBAR_GENERAR),
+        gestionarReglas: tiene(yo, PERMISO_REGLAS_GESTIONAR),
       });
       if (!ver) return;
       const c = await obtenerCliente(clienteId);
@@ -152,6 +160,26 @@ function Compras() {
       vigente = false;
     };
   }, [clienteId]);
+
+  // Reglas aprendidas del cliente (spec 021): se leen UNA vez, solo con `reglas.gestionar`, y se vuelven a leer tras
+  // crear o actualizar una. Si no se pueden leer, no se ofrece «Recordar» (no se adivina qué reglas hay).
+  const [reglas, setReglas] = useState<readonly ReglaVista[] | null>(null);
+  const puedeGestionarReglas = permisos?.gestionarReglas === true;
+  const recargarReglas = useCallback(async () => {
+    const r = await listarReglas(clienteId);
+    if (r.ok) setReglas(r.datos);
+  }, [clienteId]);
+  useEffect(() => {
+    setReglas(null);
+    if (!puedeGestionarReglas) return;
+    let vigente = true;
+    void listarReglas(clienteId).then((r) => {
+      if (vigente && r.ok) setReglas(r.datos);
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [clienteId, puedeGestionarReglas]);
 
   const falla = useCallback((status: number, mensaje: string) => {
     if (status !== 401) setErrorGeneral(mensaje);
@@ -342,6 +370,7 @@ function Compras() {
       recargarFila,
       recargarFilas,
       recargarResumen: cargarResumen,
+      reglas: reglas === null ? undefined : { lista: reglas, recargar: recargarReglas },
     }),
     [
       clienteId,
@@ -352,6 +381,8 @@ function Compras() {
       cargarResumen,
       recargarFila,
       recargarFilas,
+      reglas,
+      recargarReglas,
     ],
   );
 
@@ -420,6 +451,7 @@ function Compras() {
     if (tipo !== "ok") return;
     const noSeDeshace =
       texto === M.compraDescartada ||
+      texto === MENSAJES_REGLAS.recordada ||
       (fila.origen === "agregada" && texto === M.compraExcluida);
     if (!noSeDeshace) registrar();
   };

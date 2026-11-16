@@ -7,6 +7,7 @@ import {
   TOPE_SELECCION,
   type FiltrosCompras,
 } from "../../lib/compras";
+import { MENSAJES_REGLAS as R } from "../../lib/reglas";
 
 // Filtros y selección del listado de compras (spec 015, T5; D-4, D-8; CA-2, CA-12). Los filtros no filtran en el
 // navegador: cada cambio sube a la página, que vuelve a pedir el listado al servidor con esos parámetros. La
@@ -89,6 +90,16 @@ export function FiltrosListado({
           }
         />
         {M.filtroProveedorNuevo}
+      </label>
+      <label className="flex items-center gap-1">
+        <input
+          type="checkbox"
+          checked={filtros.segunHistorial === true}
+          onChange={(e) =>
+            alCambiar({ ...filtros, segunHistorial: e.target.checked })
+          }
+        />
+        {R.segunHistorial}
       </label>
       <label className="flex min-w-64 flex-col gap-1">
         {M.buscar}

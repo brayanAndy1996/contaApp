@@ -5,7 +5,8 @@ import type { CompraLeida } from "./tipos";
 
 // Lateral con `offset 0` (como SQL_LEER_VARIAS): la versión se busca por la única (tenant_id, compra_id, n) de cada compra. Con un
 // join plano y estadísticas vacías el planificador elegía un nested loop sobre `compra_version_operacion_idx` (O(n²): 20.000
-// filas tardaban decenas de segundos, RNF-035). Mismo resultado que UNION_ORIGINAL / UNION_VIGENTE.
+// filas tardaban decenas de segundos, RNF-035). Mismo resultado que UNION_ORIGINAL / UNION_VIGENTE. Desde 0053 ese índice es parcial
+// (`operacion_id is not null`) y estas consultas no pueden usarlo, así que no dependen de las estadísticas (spec 022 RP-2).
 const SQL_ORIGINAL = `select ${COLUMNAS_LEIDA} from compra c
   join lateral (select * from compra_version v where v.tenant_id = c.tenant_id and v.compra_id = c.id and v.n = 1 offset 0) v on true
   where c.cliente_id = $1 and c.periodo = $2 and c.origen = 'sire' and c.descartada_en is null order by c.clave, c.id`;

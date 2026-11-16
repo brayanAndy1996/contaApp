@@ -16,6 +16,11 @@ import {
   obtenerDetalleLupa,
 } from "../../lib/lupa-compras";
 import { destinoDe } from "../../lib/montos-compras";
+import { MENSAJES_REGLAS as R, ofreceRecordar } from "../../lib/reglas";
+import {
+  RecordarTrasClasificar,
+  destinoRecordable,
+} from "../reglas/recordar-tras-clasificar";
 import { comprobanteDe, type AlAvisar } from "./accion-compras";
 import { AccionesFilaCompras } from "./acciones-fila-compras";
 import { AceptarSugerencias } from "./aceptar-sugerencia";
@@ -93,6 +98,9 @@ export function LupaCompra({
   const [panel, setPanel] = useState(false);
   const [verHistorial, setVerHistorial] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
+  // «Recordar para este proveedor» (spec 021, 016 P-8): el aviso se pide con el botón; clasificar desde el menú lo
+  // ofrece por su cuenta (lo monta `AccionesFilaCompras`).
+  const [recordando, setRecordando] = useState(false);
 
   // Foco: entra en el modal y vuelve a quien lo abrió. Cambiar de compra no mueve el foco.
   useEffect(() => {
@@ -126,6 +134,7 @@ export function LupaCompra({
     setPanel(false);
     setVerHistorial(false);
     setAviso(null);
+    setRecordando(false);
   }, [compraId]);
 
   const actual = detalle.id === compraId ? detalle : { id: compraId, datos: null, error: null };
@@ -145,6 +154,15 @@ export function LupaCompra({
     !fila.excluida &&
     fila.hallazgos.length > 0;
   const bloqueo = contexto.soloLectura;
+  const destinoVigente = fila !== null ? destinoRecordable(fila) : null;
+  const reglasCliente = contexto.reglas;
+  const ofrecerRecordar =
+    fila !== null && contexto.permisos.gestionarReglas === true && reglasCliente !== undefined;
+  const yaRecordado =
+    fila !== null &&
+    destinoVigente !== null &&
+    reglasCliente !== undefined &&
+    !ofreceRecordar(reglasCliente.lista, fila.proveedor, destinoVigente, true);
 
   function cerrar(): void {
     void (async () => {
@@ -302,7 +320,10 @@ export function LupaCompra({
 
         {datos !== null && (
           <>
-            <CabeceraLupaCompra cabecera={datos.cabecera} />
+            <CabeceraLupaCompra
+              cabecera={datos.cabecera}
+              segunHistorial={fila?.segunHistorial != null}
+            />
             <EstadoXmlLupa
               contexto={contexto}
               compraId={compraId}
@@ -398,6 +419,19 @@ export function LupaCompra({
                 {L.hallazgos.aceptar}
               </button>
             )}
+            {ofrecerRecordar && (
+              <button
+                type="button"
+                onClick={() => setRecordando(true)}
+                disabled={destinoVigente === null || yaRecordado || bloqueo !== null}
+                title={
+                  bloqueo ?? (yaRecordado ? R.yaRecordado : undefined)
+                }
+                className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+              >
+                {R.recordarProveedor}
+              </button>
+            )}
             <button
               type="button"
               aria-expanded={verHistorial}
@@ -408,6 +442,17 @@ export function LupaCompra({
             </button>
           </div>
           {fila === null && <p className="text-sm">{L.sinFila}</p>}
+          {recordando && fila !== null && destinoVigente !== null && (
+            <RecordarTrasClasificar
+              key={`${compraId}|${destinoVigente}`}
+              contexto={contexto}
+              compraIds={[fila.id]}
+              proveedor={fila.proveedor}
+              destino={destinoVigente}
+              alAvisar={avisar}
+              alTerminar={() => setRecordando(false)}
+            />
+          )}
           {/* Con la pantalla de la grilla, ella anuncia el aviso (role="status"); aquí solo se muestra (018, P-2). */}
           <div aria-live={alAvisarDe ? undefined : "polite"}>{aviso && <p className="text-sm">{aviso}</p>}</div>
           {verHistorial && (

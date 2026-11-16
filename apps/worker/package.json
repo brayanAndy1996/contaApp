@@ -18,6 +18,7 @@
     "test:cobertura:xml": "vitest run --config vitest.cobertura-xml.config.mts --coverage",
     "test:cobertura:archivos": "vitest run --config vitest.cobertura-archivos.config.mts --coverage",
     "test:cobertura:auditoria": "vitest run --config vitest.cobertura-auditoria.config.mts --coverage",
+    "test:cobertura:reglas": "vitest run --config vitest.cobertura-reglas.config.mts --coverage",
     "kek:rotar": "node --env-file-if-exists=../../.env --env-file-if-exists=.env dist/cli/kek-rotar.js",
     "trabajos:kek-rotar": "node --env-file-if-exists=../../.env --env-file-if-exists=.env dist/cli/encolar-kek-rotar.js"
   },

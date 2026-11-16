@@ -85,6 +85,7 @@ export const ACCIONES_VERSION = [
   "restaurar",
   "deshacer",
   "rehacer",
+  "historial",
 ] as const;
 export type AccionVersion = (typeof ACCIONES_VERSION)[number];
 
@@ -120,6 +121,8 @@ export const filaCompraVistaSchema = z.object({
   motivo: z.string().nullable(),
   clasificada: z.boolean(),
   proveedorNuevo: z.boolean(),
+  /** Spec 021: la versión vigente viene de una regla aprendida; solo viaja su id. Filas de antes de 021 → null. */
+  segunHistorial: z.object({ reglaId: z.uuid() }).nullable().default(null),
   hallazgos: z.array(hallazgoVistaSchema),
 });
 export type FilaCompraVista = z.infer<typeof filaCompraVistaSchema>;

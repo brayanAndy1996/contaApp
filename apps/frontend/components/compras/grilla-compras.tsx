@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   useEffect,
   useMemo,
   useRef,
@@ -31,6 +32,7 @@ import {
   type EstadoEdicion,
 } from "../../lib/edicion-compras";
 import { conMiles, destinoDe, validarMonto } from "../../lib/montos-compras";
+import { MENSAJES_REGLAS as R } from "../../lib/reglas";
 import {
   COLUMNAS_COMPRAS,
   ENCABEZADOS,
@@ -133,6 +135,22 @@ function tramosDeGrupo(centro: readonly ColumnaGrilla[]): { titulo: string; anch
   return tramos;
 }
 
+/** Bajo este ancho (el `lg` de Tailwind) las columnas fijas de los extremos no dejan sitio al resto de la grilla. */
+const ANCHO_ANGOSTO = "(max-width: 1023px)";
+
+function usePantallaAngosta(): boolean {
+  const [angosta, setAngosta] = useState(false);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const consulta = window.matchMedia(ANCHO_ANGOSTO);
+    const leer = () => setAngosta(consulta.matches);
+    leer();
+    consulta.addEventListener("change", leer);
+    return () => consulta.removeEventListener("change", leer);
+  }, []);
+  return angosta;
+}
+
 /** Rango por defecto más los índices que deben seguir en el DOM (la celda activa conserva el foco). */
 function conIndices(range: Range, extra: readonly number[]): number[] {
   const base = defaultRangeExtractor(range);
@@ -224,6 +242,16 @@ export function GrillaCompras({
     getRowId: (f) => f.id,
     initialState: { columnPinning: { start: [...FIJAS_COMPRAS.start], end: [...FIJAS_COMPRAS.end] } },
   });
+
+  // En pantalla angosta no se fijan columnas (T23a-1): las fijas suman 886 px y a 390 px la de la derecha tapaba
+  // Comprobante, Proveedor y Destino. Sin fijar, el orden de las columnas es el mismo y todo se alcanza desplazando.
+  const angosta = usePantallaAngosta();
+  useEffect(() => {
+    table.setColumnPinning(
+      angosta ? { start: [], end: [] } : { start: [...FIJAS_COMPRAS.start], end: [...FIJAS_COMPRAS.end] },
+    );
+    // `table` es estable entre renders; solo importa el cambio de ancho.
+  }, [angosta]);
 
   const filasTabla = table.getRowModel().rows;
   const inicio = table.getStartLeafColumns();
@@ -653,13 +681,16 @@ export function GrillaCompras({
     // virtualizador y `items` se leen del último pintado.
   }, [resaltadas, items.length]);
   const columnasVisibles = columnasVirtuales.getVirtualItems();
-  const margenIzq = columnasVisibles.length
-    ? (columnasVisibles[0]?.start ?? anchoInicio) - anchoInicio
-    : 0;
-  const finVisible = columnasVisibles.length
-    ? (columnasVisibles[columnasVisibles.length - 1]?.end ?? anchoInicio) - anchoInicio
-    : 0;
-  const margenDer = Math.max(0, anchoCentro - finVisible);
+  // Espacio vacío antes de cada columna de la ventana y tras la última. Las columnas de la ventana no siempre son
+  // contiguas: el extractor conserva la columna activa aunque quede lejos (sin columnas fijas, la de «seleccionar»), y
+  // un único margen a la izquierda pegaba las demás a ella, fuera de la vista (F-4).
+  const huecosColumnas: number[] = [];
+  let bordeColumnas = anchoInicio;
+  for (const v of columnasVisibles) {
+    huecosColumnas.push(Math.max(0, v.start - bordeColumnas));
+    bordeColumnas = v.end;
+  }
+  const margenDer = Math.max(0, anchoInicio + anchoCentro - bordeColumnas);
 
   // Posición fija de una columna de los extremos (sticky) dentro de su fila.
   function estiloFija(columna: ColumnaGrilla, region: "start" | "end"): CSSProperties {
@@ -816,6 +847,11 @@ export function GrillaCompras({
                 {M.proveedorNuevo}
               </span>
             )}
+            {f.segunHistorial && (
+              <span className="rounded border border-emerald-700 px-1 font-medium text-emerald-900">
+                {R.segunHistorial}
+              </span>
+            )}
           </span>
         </div>
       );
@@ -952,11 +988,15 @@ export function GrillaCompras({
         style={{ width: anchoTotal, height: ALTO_FILA, transform: `translateY(${start}px)` }}
       >
         {inicio.map((col, i) => celda(col, item.fila, item.r, i, estiloFija(col, "start")))}
-        <div aria-hidden="true" style={{ width: margenIzq, flexShrink: 0 }} />
-        {columnasVisibles.map((v) => {
+        {columnasVisibles.map((v, k) => {
           const col = centro[v.index];
           if (!col) return null;
-          return celda(col, item.fila, item.r, inicio.length + v.index, { width: col.getSize() });
+          return (
+            <Fragment key={col.id}>
+              <div aria-hidden="true" style={{ width: huecosColumnas[k] ?? 0, flexShrink: 0 }} />
+              {celda(col, item.fila, item.r, inicio.length + v.index, { width: col.getSize() })}
+            </Fragment>
+          );
         })}
         <div aria-hidden="true" style={{ width: margenDer, flexShrink: 0 }} />
         {fin.map((col, i) =>
@@ -989,14 +1029,16 @@ export function GrillaCompras({
       <div style={{ width: anchoTotal, minWidth: "100%" }}>
         <div role="rowgroup" className="sticky top-0 z-30 bg-gray-50 text-black" style={{ width: anchoTotal }}>
           <div role="row" aria-rowindex={1} className="flex" style={{ height: ALTO_GRUPO, width: anchoTotal }}>
-            <div
-              role="columnheader"
-              aria-colspan={inicio.length}
-              className="sticky left-0 z-20 shrink-0 truncate border-b bg-gray-100 px-2 text-xs font-semibold leading-7"
-              style={{ width: anchoInicio }}
-            >
-              {T.grupoIdentidad}
-            </div>
+            {inicio.length > 0 && (
+              <div
+                role="columnheader"
+                aria-colspan={inicio.length}
+                className="sticky left-0 z-20 shrink-0 truncate border-b bg-gray-100 px-2 text-xs font-semibold leading-7"
+                style={{ width: anchoInicio }}
+              >
+                {T.grupoIdentidad}
+              </div>
+            )}
             {tramos.map((t, i) => (
               <div
                 key={`${t.titulo}-${i}`}
@@ -1007,14 +1049,16 @@ export function GrillaCompras({
                 {t.titulo}
               </div>
             ))}
-            <div
-              role="columnheader"
-              aria-colspan={fin.length}
-              className="sticky right-0 z-20 shrink-0 truncate border-b border-l bg-gray-100 px-2 text-xs font-semibold leading-7"
-              style={{ width: anchoFin }}
-            >
-              {T.grupoFin}
-            </div>
+            {fin.length > 0 && (
+              <div
+                role="columnheader"
+                aria-colspan={fin.length}
+                className="sticky right-0 z-20 shrink-0 truncate border-b border-l bg-gray-100 px-2 text-xs font-semibold leading-7"
+                style={{ width: anchoFin }}
+              >
+                {T.grupoFin}
+              </div>
+            )}
           </div>
           <div role="row" aria-rowindex={2} className="flex" style={{ height: ALTO_ENCABEZADO, width: anchoTotal }}>
             {todas.map((col, c) => {

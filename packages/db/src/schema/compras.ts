@@ -146,8 +146,12 @@ export const compraVersion = pgTable(
       columns: [t.tenantId, t.usuarioId],
       foreignColumns: [membresia.tenantId, membresia.usuarioId],
     }),
-    // Deshacer busca las versiones que creó una operación.
-    index("compra_version_operacion_idx").on(t.tenantId, t.operacionId),
+    // Deshacer busca las versiones que creó una operación. Parcial (0053, spec 022 RP-2): una búsqueda sin `operacion_id = …` (la
+    // versión de cada compra en un lateral) no puede usarlo; si pudiera, con estadísticas que estiman 1 fila por estudio el
+    // planificador lo elegía en lugar de la única y traía todas las versiones del estudio por compra (O(n²)).
+    index("compra_version_operacion_idx")
+      .on(t.tenantId, t.operacionId)
+      .where(sql`${t.operacionId} is not null`),
     check("compra_version_n_positivo", sql`${t.n} >= 1`),
   ],
 );

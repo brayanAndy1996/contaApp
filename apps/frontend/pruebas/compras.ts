@@ -92,6 +92,7 @@ export function filaDe(parcial: Partial<FilaCompraVista> = {}): FilaCompraVista 
     clasificada: true,
     proveedorNuevo: false,
     hallazgos: [],
+    segunHistorial: null,
     ...parcial,
   };
 }

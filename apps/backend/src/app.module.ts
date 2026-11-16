@@ -14,6 +14,7 @@ import { NotificacionesModule } from "./modules/notificaciones/notificaciones.mo
 import { PlanesModule } from "./modules/planes/planes.module.js";
 import { PlataformaModule } from "./modules/plataforma/plataforma.module.js";
 import { RegistroModule } from "./modules/registro/registro.module.js";
+import { ReglasModule } from "./modules/reglas/reglas.module.js";
 import { StorageModule } from "./modules/storage/storage.module.js";
 import type { OpcionesRedisTrabajos } from "./modules/trabajos/redis.js";
 import { TrabajosModule } from "./modules/trabajos/trabajos.module.js";
@@ -46,6 +47,7 @@ export class AppModule {
         ArchivosModule,
         VentasModule,
         ComprasModule,
+        ReglasModule,
         // Spec 017: rutas estáticas de `/notificaciones` y `/auditoria`; no chocan con ningún `:id` anterior.
         NotificacionesModule,
         AuditoriaModule,

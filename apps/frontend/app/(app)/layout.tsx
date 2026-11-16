@@ -147,6 +147,9 @@ export default function LayoutApp({ children }: { children: ReactNode }) {
         {tiene(yo, "auditoria.ver") && (
           <Link href="/configuracion/auditoria">Auditoría</Link>
         )}
+        {tiene(yo, "reglas.ver") && (
+          <Link href="/configuracion/reglas">Reglas del motor</Link>
+        )}
         {sesion && <Campana key={sesion.estudioActivo?.id ?? "sin-estudio"} />}
         <button
           type="button"

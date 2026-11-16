@@ -4,6 +4,7 @@ import type { CabeceraLupa } from "@contapp/shared";
 import type { ReactNode } from "react";
 import { MENSAJES_COMPRAS as M } from "../../lib/compras";
 import { MENSAJES_LUPA as L, etiquetaTipo } from "../../lib/lupa-compras";
+import { MENSAJES_REGLAS as R } from "../../lib/reglas";
 
 // Cabecera de la lupa (spec 016, CA-14, RF-091): RUC, razón social, «Proveedor nuevo», tipo, serie-número, fecha,
 // moneda, tipo de cambio y origen de la serie. Todo es texto del servidor ya validado: React lo escapa, nada se
@@ -18,7 +19,14 @@ function Dato({ etiqueta, children }: { etiqueta: string; children: ReactNode })
   );
 }
 
-export function CabeceraLupaCompra({ cabecera }: { cabecera: CabeceraLupa }) {
+export function CabeceraLupaCompra({
+  cabecera,
+  segunHistorial = false,
+}: {
+  cabecera: CabeceraLupa;
+  /** La fila vigente la clasificó R-HIS (spec 021): se rotula con texto, no solo con color. */
+  segunHistorial?: boolean;
+}) {
   const C = L.cabecera;
   return (
     <section aria-label={L.secciones.cabecera} className="flex flex-col gap-2">
@@ -30,6 +38,11 @@ export function CabeceraLupaCompra({ cabecera }: { cabecera: CabeceraLupa }) {
           {cabecera.proveedorNuevo && (
             <span className="ml-2 rounded bg-amber-100 px-2 py-0.5 text-xs font-medium">
               {M.proveedorNuevo}
+            </span>
+          )}
+          {segunHistorial && (
+            <span className="ml-2 rounded border border-emerald-700 px-2 py-0.5 text-xs font-medium text-emerald-900">
+              {R.segunHistorial}
             </span>
           )}
         </Dato>

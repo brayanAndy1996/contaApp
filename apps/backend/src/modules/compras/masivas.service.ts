@@ -110,6 +110,8 @@ export class MasivasComprasService {
           cargarHallazgos: () => leerHallazgosVigentes(tx, items.map((i) => i.compraId.toLowerCase())),
           conocidos: entorno.conocidos,
           evaluar: entorno.evaluar,
+          xmlSimuladoEnReglas: entorno.xmlSimuladoEnReglas,
+          reglasApagadas: entorno.reglasApagadas,
           enMasa: true,
           regla,
           confirmar: false,

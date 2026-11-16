@@ -18,6 +18,7 @@ import {
   guardarDocumentoXml,
   leerDetalleCompra,
   leerProveedoresConocidos,
+  leerReglasMotor,
   leerXmlVigente,
   reevaluarComprobante,
   type CompraLeida,
@@ -38,6 +39,7 @@ import {
 } from "@contapp/sunat";
 import type { Procesador } from "../ejecutor.js";
 import { crearEvaluarCompras } from "../persistidores/compras-evaluar.js";
+import { codigosApagados } from "../persistidores/compras-historial.js";
 
 export interface DepsObtenerXml {
   db: Pick<ContappDb, "withTenant">;
@@ -142,7 +144,9 @@ export function obtenerXml(d: DepsObtenerXml): Procesador {
     const pendientes: Pendiente[] = [];
     await d.db.withTenant(estudio, async (tx) => {
       for (const id of compraIds) {
-        const detalle = await leerDetalleCompra(tx, t.clienteId, periodo, id);
+        const detalle = await leerDetalleCompra(tx, t.clienteId, periodo, id, {
+          conHistorial: false, // contapp_worker no tiene SELECT sobre regla_aplicacion
+        });
         const c = detalle?.compra;
         const original = detalle?.versiones[0]?.montos;
         if (
@@ -241,9 +245,12 @@ export function obtenerXml(d: DepsObtenerXml): Procesador {
             // H-016-11: el XML es del comprobante (D-4): se re-evalúan TODAS sus compras vivas del cliente, en cualquier
             // periodo, cada una con el historial de proveedores de su periodo. Sin UPDATE sobre compra (0038): bloquea con la
             // función acotada. Si la del lote ya no está viva, no se guarda nada (como antes).
+            // 021 (RF-089): los interruptores del estudio, leídos en esta misma transacción, gobiernan también esta evaluación.
+            const reglasApagadas = codigosApagados(await leerReglasMotor(tx));
             const evaluarDe = async (p: string) =>
               crearEvaluarCompras(await leerProveedoresConocidos(tx, t.clienteId, p), {
                 xmlSimuladoEnReglas: enReglas,
+                reglasApagadas,
               });
             const reevaluadas = await reevaluarComprobante(tx, t.clienteId, identidadDe(c), {
               evaluarDe,
