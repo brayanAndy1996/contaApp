@@ -128,8 +128,9 @@ describe("planificarHistorial: filas inválidas", () => {
   });
 
   it("fila sin montos o sin proveedor (requeridos) lanza", () => {
-    const { montos: _m, ...sinMontos } = filaValida();
-    const { proveedor: _p, ...sinProveedor } = filaValida();
+    const sin = (clave: string) => Object.fromEntries(Object.entries(filaValida()).filter(([k]) => k !== clave));
+    const sinMontos = sin("montos") as unknown as ReturnType<typeof filaValida>;
+    const sinProveedor = sin("proveedor") as unknown as ReturnType<typeof filaValida>;
     expect(() => plan([sinMontos], [regla()])).toThrow(EntradaReglasInvalidaError);
     expect(() => plan([sinProveedor], [regla()])).toThrow(EntradaReglasInvalidaError);
   });
