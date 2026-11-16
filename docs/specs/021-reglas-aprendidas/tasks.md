@@ -29,10 +29,14 @@ Nivel A (spec). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T21 | Corregir los hallazgos de la ronda 2 (migración 0051 si hace falta) | backend | opus | T20 | — | — | [x] |
 | T22 | E2E prioridad 1: «Recordar» → descarga siguiente → «Según historial» → revertir | tester | sonnet | T14, T10 ∥ T16–T21 | — | — | [x] |
 | T23 | Prueba manual contra el sistema completo | tester | sonnet | T21, T22 | — | — | [x] |
+| T23a | Defectos de pantalla de la prueba manual (T23a-1 a T23a-5, 21a5606) | frontend | sonnet | T23 | — | — | [x] |
 | T24 | Verificar CA-1 a CA-14 con evidencia, suites completas, `db:migrate` ×2 y cobertura | tester | sonnet | T23 | — | — | [x] |
 | T25 | Revisión final contra la spec | arquitecto | opus | T24 | — | — | [x] |
+| T25a | Aceptar con la regla apagada da «revisar de nuevo» (H-T25-1, a71dde1) | — | — | T25 | — | — | [x] |
+| T25b | Medición de la descarga de 5.000 compras con y sin reglas (H-T25-2, 85d7eef) | tester | — | T25 | — | — | [x] |
 | T25c | Descarga con reglas: R-HIS por lotes (0052) y contexto validado una vez (decisión del usuario 2026-11-16) | backend | opus | T25b | ✓ | — | [x] |
-| T26 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T25 | — | — | [ ] |
+| R3 | Ronda adversarial 3 sobre el lote de T25c: 10 pruebas, sin hallazgos (e8ce81c) | adversario | opus | T25c | — | ✓ | [x] |
+| T26 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T25 | — | — | [x] |
 
 Paralelismo: T1 ∥ T2 ∥ T3; luego T4 ∥ T5 ∥ T6 (necesitan los nombres de `shared` de T2). Implementación en tres carriles independientes: T7 (`domain`) ∥ T8 (`shared`) ∥ T9 (`db`). Luego T10 (`apps/worker`) ∥ T11 (`apps/backend/src/modules/reglas`) ∥ T12 (`apps/backend/src/modules/compras` y `db/compras/lectura.ts`). T11 y T12 comparten solo `app.module.ts` (T11 lo toca y T12 no). T13 corre en paralelo con T9–T12 contra el contrato de `shared` (sus pruebas simulan la API). T14 va último en el frontend (ver «Orden frente a 022»). T15 ∥ T14. La ronda 1 (T16) puede empezar con T14 en curso porque ataca BD, backend y worker; las rondas y sus correcciones van en serie (T16 → T18 → T19 → T21). T22 ∥ T16–T21. Si una ronda no deja fallos, se saltan sus dos tareas de corrección (se marcan `[x]` «sin hallazgos»).
 
@@ -54,72 +58,72 @@ Reglas comunes:
 - Montos: `Money` / cadenas decimales; ningún `number` para dinero. Toda consulta de negocio dentro de `withTenant()`; nunca desactivar RLS. `apps/backend` no escribe versiones `historial` ni importa `@contapp/sunat`. Sin dependencias nuevas.
 - Una ambigüedad nueva que cambie la spec no se decide: `requiere usuario` y se informa al orquestador.
 
-## T1 · [ ] Pruebas de dominio, rojo (tester · sonnet)
+## T1 · [x] Pruebas de dominio, rojo (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (D-7, P-3, P-5, P-6, P-8, P-10; CA-2, CA-4, CA-8, CA-11, CA-12), `plan.md` (Contratos: Dominio; Decisiones técnicas), `packages/domain/src/reglas/{tipos,motor,r-new}.ts`, `packages/domain/src/comprobante/cambiar-destino.ts`, `packages/domain/src/compras/evaluar.ts` (`crearEvaluarCompras`), `packages/domain/src/reglas/r-new.spec.ts` (modelo de fixtures).
 - **Hacer**: `packages/domain/src/reglas/{r-his,catalogo,interruptores}.spec.ts` y `compras/evaluar-reglas.spec.ts`. `planificarHistorial`: proveedor con regla DNG → montos de `cambiarDestino` (fixture de 01 §7 regla 3); documento normalizado (espacios, minúsculas); otro proveedor, BI total 0, destino ya igual o sin reglas → nada; nota de crédito negativa; USD con tipo de cambio; mezcla DG + DGNG consolidada; R-HIS apagado → nada. `evaluarReglas` con `reglasApagadas`: cada código de 011 apagado no sale y los demás sí; entrada con un código desconocido → `EntradaReglasInvalidaError`. P-6 (CA-11): fila con R-ISC 770.00 (San Juan) y con la mixta 21.48/1.61 movidas por R-HIS a DG: los hallazgos sobre la versión movida y `aplicarSugerencia` dan los mismos montos que la fila clasificada a mano en DG. `crearEvaluarCompras` con `proveedoresConRegla` → sin R-NEW. `CATALOGO_REGLAS_MOTOR`: seis códigos, descripción no vacía, sin «prevalidación». `esRucAportable`: `6`/20… sí; `6`/10…, `1`/DNI, `0` no.
 - **Hecho cuando**: compilan contra las firmas del plan y fallan por «no implementado»; las demás de `domain` siguen verdes. Commit `test(021): dominio de reglas aprendidas en rojo`.
 
-## T2 · [ ] Pruebas de `shared`, rojo (tester · sonnet)
+## T2 · [x] Pruebas de `shared`, rojo (tester · sonnet)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: HTTP), `packages/shared/src/compras/{respuestas,filtros}.ts`, `packages/shared/src/auditoria/acciones.ts`, `packages/shared/src/xml/detalle.ts` (forma del detalle).
 - **Hacer**: `packages/shared/src/reglas/*.spec.ts`: `reglaVistaSchema` (destino DG|DGNG|DNG, `version` ≥ 1, `aplicada`/`aceptada` enteros ≥ 0, sin campos de RUC fuera de `proveedor`), `recordarReglaSchema` (`compraIds` 1..5000 únicos, `versionBase` entero o `null`), `editarReglaSchema` (al menos uno de `destino`/`activa`), `reglasMotorSchema`, códigos `regla_cambiada`, `proveedores_distintos`. En `shared/compras`: `historial` en `ACCIONES_VERSION`; `segunHistorial` en la fila y el detalle (`{reglaId: uuid} | null`); filtro `segunHistorial`. Acciones de auditoría nuevas de `plan.md` (BD).
 - **Hecho cuando**: fallan por «no implementado»; las de `shared` existentes siguen verdes. Commit `test(021): esquemas de reglas en rojo`.
 
-## T3 · [ ] Pruebas de BD, rojo (tester · sonnet)
+## T3 · [x] Pruebas de BD, rojo (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (D-2, D-3, D-5 a D-8, P-1, P-4, P-5, P-9, P-10; CA-4 a CA-7, CA-9, CA-10, CA-13), `plan.md` (Contratos: BD, orden de bloqueo, packages/db), `packages/db/migrations/0038_compra_worker_sin_update.sql` (patrón de función acotada), `tests/aislamiento/compras-soporte.ts`, `tests/aislamiento/compras-xml-tablas.spec.ts` (modelo; no repetir), `tests/aislamiento/auditoria-soporte.ts`.
 - **Hacer**: `tests/aislamiento/reglas-{tablas,funciones,revisado,concurrencia}.spec.ts` y `packages/db/src/reglas/*.spec.ts`. Catálogo: RLS `FORCE`, grants del plan (sin `DELETE`; el worker sin escritura directa sobre `regla_*`; nadie de la app lee `regla_confirmacion`), única parcial con baja lógica (eliminar y volver a crear funciona). Aislamiento (CA-5, CA-6): dos estudios y dos clientes con el mismo RUC; sin `withTenant` no se ve nada. Funciones (CA-10): `aplicar_regla_historial` rechaza con 42501 compra no creada en la transacción, `n ≠ 2`, compra con versión 2, regla de otro cliente o proveedor, inactiva, eliminada, `periodo_aprendido` ≥ periodo (P-5), R-HIS apagado y `p_datos` que no son la consolidación; el worker sigue sin `UPDATE` en `compra`; el backend no puede insertar `accion = historial`. `reglas_historial_vigentes` filtra por cliente, periodo y estado. Revisado (P-1, P-4, P-10): al pasar a `revisado`, aceptaciones de las filas que siguen en el destino y no de las corregidas; confirmación solo RUC 20 con aporte encendido; reabrir y volver a revisar no duplica. `recordarRegla`: crea, actualiza con versión, 409 con versión vieja, reactiva una inactiva, confirmación `recordar`. Auditoría de cada acción y `compra.historial` con actor `sistema` y sin RUC. Concurrencia (CA-9): dos `recordarRegla` simultáneos → una regla y un `regla_cambiada`; PATCH durante la descarga en 10 rondas → todas las filas con el mismo destino y sin interbloqueos.
 - **Hecho cuando**: fallan por «no implementado» (tablas o funciones ausentes); las de 002–020 siguen verdes. Commit `test(021): BD de reglas aprendidas en rojo`.
 
-## T4 · [ ] Pruebas del worker, rojo (tester · sonnet)
+## T4 · [x] Pruebas del worker, rojo (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (D-1, D-7, D-10; CA-2, CA-4, CA-9, CA-13), `plan.md` (Contratos: Worker, packages/db), `apps/worker/src/trabajos/persistidores/persistidor-compras.int.spec.ts` (modelo y arnés), `apps/worker/src/trabajos/procesadores/descargar-propuesta.ts` (`ResultadoDescarga`), `apps/worker/src/trabajos/procesadores/obtener-xml.ts` (líneas 230–260).
 - **Hacer**: `apps/worker/src/trabajos/persistidores/persistidor-reglas.int.spec.ts` y `procesadores/obtener-xml-interruptores.int.spec.ts`. CA-2: regla DNG del proveedor X aprendida en 202609; la descarga de 202610 deja sus compras con versión 2 `historial`, destino DNG, `regla_aplicacion` y la versión 1 idéntica a la propuesta (comparación por columnas y `md5` de la fila). CA-4: cada exclusión de la lista (inactiva, eliminada, R-HIS apagado, BI 0, destino igual, periodo 202609 o anterior, descarga repetida que no trae filas nuevas). `resultado.segunHistorial` con el conteo y sin canarios (CA-13). Versión 2 evaluada sin R-NEW. Interruptores: R-MIX apagado → `xml.obtener` no guarda R-MIX.
 - **Hecho cuando**: fallan por «no implementado»; las del worker siguen verdes. Commit `test(021): R-HIS en la descarga en rojo`.
 
-## T5 · [ ] Pruebas HTTP, rojo (tester · sonnet)
+## T5 · [x] Pruebas HTTP, rojo (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (D-5, D-9, P-2, P-3, P-7, P-8, P-9; CA-1, CA-3, CA-5 a CA-9, CA-12, CA-13), `plan.md` (Contratos: HTTP, Backend), `apps/backend/src/modules/compras/detalle.int.spec.ts` y `masivas.int.spec.ts` (modelo de arnés), `apps/backend/test/` (sembrado de compras y sesiones).
 - **Hacer**: `apps/backend/src/modules/reglas/{reglas-cliente,reglas-motor}.int.spec.ts` y `apps/backend/src/modules/compras/historial.int.spec.ts`. Rutas del plan con 200/403/404/409/422: sin `reglas.gestionar` → 403 en escrituras (CA-1); cliente o regla de otro estudio o no visible → 404 idéntico al inexistente (CA-5); `recordar` con proveedores mezclados → 422 (P-2), sin crear versiones (D-5); `versionBase` vieja → 409 (CA-9); `DELETE` deja de listarla y la siguiente descarga no la aplica (P-9); `GET` con `aplicada`/`aceptada`; interruptor sin rol global → 403, código de prevalidación → 404. Compras: `segunHistorial` en listado y detalle; filtro; clasificar de nuevo una fila «Según historial» (una y masiva por el filtro) quita la etiqueta y el resumen ve el destino nuevo (CA-3); tras corregir, aceptar y masiva no traen R-HIS (CA-12); con R-GP apagado, aceptar y masiva no lo ven (CA-8). Errores sin canarios.
 - **Hecho cuando**: fallan por «no implementado» (404 de ruta o campo ausente); las del backend siguen verdes. Commit `test(021): rutas de reglas en rojo`.
 
-## T6 · [ ] Pruebas de componentes, rojo (tester · sonnet)
+## T6 · [x] Pruebas de componentes, rojo (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (CA-1, CA-3, CA-7, CA-8, P-2, P-3), `plan.md` (Contratos: Frontend), `apps/frontend/components/compras/foco-grilla.ts` (atajos existentes), `apps/frontend/components/compras/barra-masiva.spec.tsx` y `lupa-compra.spec.tsx` (modelo de simulación de la API).
 - **Hacer**: `apps/frontend/components/reglas/{recordar-proveedor,tabla-reglas-cliente,reglas-motor}.spec.tsx` y `components/compras/{grilla-compras,barra-masiva,lupa-compra}.historial.spec.tsx` (archivos nuevos: no editar los `*.spec.tsx` existentes). El aviso no toma el foco, se acepta con el atajo y el foco sigue en la celda (CA-1); no aparece sin `reglas.gestionar` ni si ya hay regla con ese destino; en masiva solo con un proveedor (P-2); tras corregir una fila «Según historial» se ofrece con el destino nuevo (P-3). Etiqueta «Según historial» como texto y filtro. Pantalla del cliente: columnas de CA-7, editar, desactivar, activar y eliminar con confirmación y 409 con mensaje. Motor: seis interruptores, sin prevalidación, deshabilitados sin rol global, interruptor del aporte.
 - **Hecho cuando**: fallan por componente ausente; las del frontend siguen verdes. Commit `test(021): pantallas de reglas en rojo`.
 
-## T7 · [ ] Dominio (backend · opus)
+## T7 · [x] Dominio (backend · opus)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: Dominio; Decisiones técnicas), pruebas de T1, `packages/domain/src/reglas/{tipos,motor,entrada,r-new,index}.ts`, `packages/domain/src/comprobante/cambiar-destino.ts`, `packages/domain/src/compras/evaluar.ts`, `packages/domain/src/index.ts`.
 - **Hacer**: `reglas/r-his.ts` (`planificarHistorial`), `reglas/catalogo.ts` (`CATALOGO_REGLAS_MOTOR`, `CodigoReglaMotor`, `esRucAportable`), `reglasApagadas?` en `ContextoReglas` validado en `entrada.ts` y aplicado en `motor.ts`, `OpcionesEvaluar` con `reglasApagadas` y `proveedoresConRegla`. Exportar por la lista cerrada de `index.ts`. Sin IO, sin `number` para dinero.
 - **Hecho cuando**: las de T1 y todas las de `domain` pasan; typecheck y lint limpios. Commit `feat(021): R-HIS e interruptores en el dominio`.
 
-## T8 · [ ] `shared` (backend · sonnet)
+## T8 · [x] `shared` (backend · sonnet)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: HTTP), pruebas de T2, `packages/shared/src/compras/{respuestas,filtros,index}.ts`, `packages/shared/src/auditoria/acciones.ts`, `packages/shared/src/index.ts`.
 - **Hacer**: `packages/shared/src/reglas/` (esquemas, respuestas, errores, index); `historial` en `ACCIONES_VERSION`; `segunHistorial` en fila, detalle y filtro; acciones de auditoría nuevas.
 - **Hecho cuando**: las de T2 y todas las de `shared` pasan; `build` de `shared` y typecheck de los consumidores limpios (un `switch` exhaustivo que falle por `historial` se anota para T12/T14, no se arregla aquí). Commit `feat(021): contratos de reglas en shared`.
 
-## T9 · [ ] Migraciones y `packages/db` (backend · opus)
+## T9 · [x] Migraciones y `packages/db` (backend · opus)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: BD, orden de bloqueo, packages/db; Riesgos), pruebas de T3, `packages/db/migrations/0038_compra_worker_sin_update.sql`, `0042_auditoria_capturas.sql` (una función de captura y su trigger, p. ej. `xml.subido`), `0045_auditoria_ronda_r1.sql` (CHECK de acciones), `0046_notificacion_ms_validada.sql` (cabecera), `meta/_journal.json` (última entrada), `packages/db/src/schema/{compras,xml,index}.ts`, `packages/db/src/compras/{versiones,repositorio}.ts` (`insertarCompras`, `insertarVersiones`, `evaluarYGuardar`), `packages/db/src/xml/documentos.ts` (modelo de repositorio).
 - **Hacer**: 0047–0049 según el plan (repetibles: `CREATE OR REPLACE`, `DROP … IF EXISTS`, `GRANT`/`REVOKE`; DDL de drizzle para las tablas), entradas 47–49 del diario y snapshots, `schema/reglas.ts`, `src/reglas/*.ts` e `insertarCompras` con `historial` opcional (sin él, idéntico a hoy). No tocar `compras/existentes.ts` (022).
 - **Hecho cuando**: `pnpm db:migrate` dos veces en verde; las de T3 pasan (`pnpm test:aislamiento -- tests/aislamiento/reglas-*` y `pnpm --filter @contapp/db test`); las de 002–020 siguen verdes; typecheck y lint limpios. Commit `feat(021): tablas, funciones acotadas y repositorio de reglas`.
 
-## T10 · [ ] Worker (backend · sonnet)
+## T10 · [x] Worker (backend · sonnet)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: Worker), pruebas de T4, `apps/worker/src/trabajos/persistidores/{compras,compras-evaluar,tipos}.ts`, `apps/worker/src/trabajos/procesadores/descargar-propuesta.ts`, `apps/worker/src/trabajos/procesadores/obtener-xml.ts` (líneas 230–260), exports de `packages/db/src/reglas/index.ts`.
 - **Hacer**: antes, `git diff main...spec/022-rendimiento --stat -- apps/worker/src/trabajos/persistidores/compras.ts` (vacío: sigue; si no, avisar). `insertar` lee reglas e interruptores en la transacción, arma `historial` con `planificarHistorial` y devuelve el conteo; `ResultadoDescarga.segunHistorial` (opcional, ventas no lo informa); `crearEvaluarCompras` del worker con `reglasApagadas` y `proveedoresConRegla`; `obtener-xml.ts` lee los interruptores. Medir la descarga de 5.000 compras con y sin reglas y anotarlo (plan, Riesgos: Volumen).
 - **Hecho cuando**: las de T4 y todas las del worker pasan (`pnpm --filter @contapp/worker test` y `test:int`); typecheck y lint limpios. Commit `feat(021): R-HIS al cargar compras`.
 
-## T11 · [ ] Backend: módulo `reglas` (backend · sonnet)
+## T11 · [x] Backend: módulo `reglas` (backend · sonnet)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: HTTP), pruebas de T5 (`modules/reglas/`), `apps/backend/src/modules/compras/{compras.controller,compras.service,errores,apoyo}.ts` (guard, `exigirCliente`, mapeo de errores), `apps/backend/src/modules/estudio/estudio.controller.ts` (rol de alcance global), `apps/backend/src/app.module.ts`.
 - **Hacer**: `apps/backend/src/modules/reglas/` con las rutas del plan; validación con `shared`; `Cache-Control: no-store`; 404 uniforme; escrituras en `withTenant`, con el advisory exclusivo del interruptor. Registrar el módulo.
 - **Hecho cuando**: las de T5 de `modules/reglas/` pasan; las del backend siguen verdes; typecheck y lint limpios. Commit `feat(021): rutas de reglas del cliente y del estudio`.
 
-## T12 · [ ] Backend de compras: «Según historial» e interruptores ⚠022 (backend · sonnet)
+## T12 · [x] Backend de compras: «Según historial» e interruptores ⚠022 (backend · sonnet)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: HTTP y Backend; «Cruce con 022»), pruebas de T5 (`modules/compras/historial.int.spec.ts`), `packages/db/src/compras/lectura.ts` (listado, filtros y `leerDetalleCompra`), `apps/backend/src/modules/compras/{escritura,vistas,detalle}.ts`.
 - **Hacer**: antes, `git diff main...spec/022-rendimiento --stat -- packages/db/src/compras/lectura.ts apps/backend/src/modules/compras/escritura.ts` (con cambios: avisar al orquestador y añadir sin mover código ajeno). `segunHistorial` y filtro en el listado (join con `regla_aplicacion` sobre la versión vigente) y en el detalle; `entornoDeReglas` lee los interruptores y no pasa reglas aprendidas (P-3).
 - **Hecho cuando**: las de T5 de `modules/compras/` pasan; las de 014–016 siguen verdes, incluido el tiempo de CA-15 de `lectura.int.spec.ts`; typecheck y lint limpios. Commit `feat(021): según historial en el listado y la lupa`.
 
-## T13 · [ ] Frontend: pantallas de reglas (frontend · sonnet)
+## T13 · [x] Frontend: pantallas de reglas (frontend · sonnet)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: HTTP, Frontend), pruebas de T6 (`components/reglas/`), `apps/frontend/lib/api.ts`, `apps/frontend/lib/compras.ts` (patrón de llamadas, sin editarlo), `apps/frontend/app/(app)/configuracion/auditoria/page.tsx` (modelo de página), `apps/frontend/app/(app)/clientes/[clienteId]/page.tsx`, `apps/frontend/lib/auditoria.ts`.
 - **Hacer**: `lib/reglas.ts`, `components/reglas/{tabla-reglas-cliente,reglas-motor,recordar-proveedor}.tsx`, las dos páginas, el enlace en la ficha del cliente y los textos de las acciones de auditoría nuevas en `lib/auditoria.ts`. Mensajes de 409/422 en español.
 - **Hecho cuando**: las de T6 de `components/reglas/` pasan; las del frontend siguen verdes; typecheck y lint limpios. Commit `feat(021): pantallas de reglas del cliente y del motor`.
 
-## T14 · [ ] Frontend: grilla, masiva, filtro y lupa ⚠022 (frontend · sonnet)
+## T14 · [x] Frontend: grilla, masiva, filtro y lupa ⚠022 (frontend · sonnet)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: Frontend; «Cruce con 022»), pruebas de T6 (`components/compras/*.historial.spec.tsx`), `apps/frontend/components/compras/{grilla-compras,barra-masiva,filtros-compras,lupa-compra,historial-compra,foco-grilla}.tsx|ts`, `apps/frontend/lib/compras.ts`, `components/reglas/recordar-proveedor.tsx` (de T13).
 - **Hacer**: solo después de que RP-5 de 022 esté en `main` y el orquestador lo haya integrado (si no, parar y avisar). Etiqueta «Según historial» en la fila y en la lupa, filtro, `historial` en el historial de versiones, aviso «Recordar» tras clasificar en la fila, la lupa (habilita el botón de 016 P-8) y la masiva de un solo proveedor. Lo nuevo en `components/reglas/`; en la grilla solo el enganche.
 - **Hecho cuando**: las de T6 de `components/compras/` pasan; las de la grilla y E-06 siguen verdes; typecheck y lint limpios. Commit `feat(021): según historial y recordar en la grilla y la lupa`.
@@ -129,35 +133,35 @@ Reglas comunes:
 - **Hacer**: `cobertura:reglas` (domain `src/reglas/r-his.ts` y `catalogo.ts`, `packages/db/src/reglas/`, `apps/backend/src/modules/reglas/`, `apps/worker/src/trabajos/persistidores/compras.ts`), umbral 90 % en líneas y ramas, paso en CI.
 - **Hecho cuando**: `pnpm cobertura:reglas` ≥ 90 % (o lista de lo que falta, sin bajar el umbral) y el paso aparece en `ci.yml`. Commit `chore(021): cobertura de reglas aprendidas`.
 
-## T16 · [ ] Ronda adversarial 1 (adversario · opus)
+## T16 · [x] Ronda adversarial 1 (adversario · opus)
 - **Contexto (leer solo esto)**: `spec.md` (completo), `plan.md` (Contratos), 04 §2.3 (catálogo: aislamiento, permisos y alcance, cola). Caja negra primero (rutas y funciones públicas); luego caja blanca (`packages/db/migrations/0047–0049`, `packages/db/src/reglas/`, `apps/backend/src/modules/reglas/`, `apps/worker/src/trabajos/persistidores/compras.ts`).
 - **Hacer**: ≤ 15 pruebas `*.adv.spec.ts` / `*.adv.int.spec.ts`: `clienteId`/`reglaId`/`compraIds` de otro estudio o cliente en URL y cuerpo; cliente desasignado con sesión viva; asistente sin `reglas.gestionar`; llamar a las funciones con `set_config` de otro estudio, sin estudio o con compras mezcladas; el worker que intenta `historial` fuera de la función o con datos alterados en 0.01; el backend que inserta `accion = historial`; dos «Recordar» y un PATCH contra una descarga; leer `regla_confirmacion` desde cada rol; canarios en errores y `resultado`.
 - **Hecho cuando**: las pruebas están en el repo; cada fallo es un hallazgo `H-021-1-n` con severidad en el resultado de la tarea. Commit `test(021): ronda adversarial 1`.
 
-## T17 · [ ] Pruebas de las correcciones de la ronda 1, rojo (tester · sonnet)
+## T17 · [x] Pruebas de las correcciones de la ronda 1, rojo (tester · sonnet)
 - **Contexto (leer solo esto)**: resultado de T16 (hallazgos), sus pruebas, `spec.md` (los CA citados).
 - **Hacer**: una prueba normal (no adversarial) por hallazgo que fije el comportamiento esperado por la spec.
 - **Hecho cuando**: fallan por el defecto; commit `test(021): correcciones de la ronda 1 en rojo`.
 
-## T18 · [ ] Corregir la ronda 1 (backend · opus)
+## T18 · [x] Corregir la ronda 1 (backend · opus)
 - **Contexto (leer solo esto)**: hallazgos de T16, pruebas de T16 y T17, solo los archivos que señalan.
 - **Hacer**: corregir sin quitar aserciones. Un cambio de BD va en **0050** (repetible). Un hallazgo que exija cambiar la spec se escala: `requiere usuario`.
 - **Hecho cuando**: las de T16 y T17 pasan; las suites de los paquetes tocados siguen verdes. Commit `fix(021): hallazgos de la ronda 1`.
 
-## T19 · [ ] Ronda adversarial 2 (adversario · opus)
+## T19 · [x] Ronda adversarial 2 (adversario · opus)
 - **Contexto (leer solo esto)**: `spec.md` (completo), `plan.md`, 04 §2.3 (catálogo: dinero y reglas), resultado de T16–T18. Caja negra y luego blanca (`packages/domain/src/reglas/r-his.ts`, 0048–0050, `packages/db/src/reglas/`).
 - **Hacer**: ≤ 15 pruebas: montos 0, negativos (NC), 0.005, enormes cerca de NUMERIC(14,2), USD con tipo de cambio de 3 decimales, IGV 10 % y 18 %, base 0 con IGV ≠ 0, R-ISC y R-MIX con regla (P-6), consolidación de tres destinos; reabrir y volver a revisar; corregir y volver a la regla con deshacer; apagar R-HIS a mitad de la descarga; eliminar y volver a recordar; RUC 20 contra 10 y otros tipos de documento (P-10); aporte apagado.
 - **Hecho cuando**: igual que T16 (`H-021-2-n`). Commit `test(021): ronda adversarial 2`.
 
-## T20 · [ ] Pruebas de las correcciones de la ronda 2, rojo (tester · sonnet)
+## T20 · [x] Pruebas de las correcciones de la ronda 2, rojo (tester · sonnet)
 - **Contexto (leer solo esto)**: resultado de T19, sus pruebas, `spec.md` (los CA citados).
 - **Hacer / Hecho cuando**: como T17. Commit `test(021): correcciones de la ronda 2 en rojo`.
 
-## T21 · [ ] Corregir la ronda 2 (backend · opus)
+## T21 · [x] Corregir la ronda 2 (backend · opus)
 - **Contexto (leer solo esto)**: hallazgos de T19, pruebas de T19 y T20, solo los archivos que señalan.
 - **Hacer / Hecho cuando**: como T18; un cambio de BD va en **0051**. Commit `fix(021): hallazgos de la ronda 2`.
 
-## T22 · [ ] E2E prioridad 1 (tester · sonnet)
+## T22 · [x] E2E prioridad 1 (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (CA-1 a CA-3, CA-14), `tests/e2e/flujos/{descarga-compras,grilla-compras}.e2e.ts` (modelo, sin editarlos), `tests/e2e/soporte/` (sembrado y selectores).
 - **Hacer**: `tests/e2e/flujos/reglas.e2e.ts` y `soporte/selectores/reglas.ts`: clasificar una fila de X en DNG con el teclado → «Recordar» con el atajo → descargar el periodo siguiente (mock) → filas de X con «Según historial» → filtro → masiva a DG → etiqueta fuera y resumen actualizado. No tocar E-06 (022).
 - **Hecho cuando**: `pnpm e2e -- reglas` pasa 3 veces seguidas, sin `retry` ni `test.only`. Commit `test(021): e2e de reglas aprendidas`.
@@ -190,6 +194,9 @@ Reglas comunes:
 - **T23a-5 · baja.** A 390 px la tabla de reglas del cliente corta «Aplicada» y esconde Aceptada, Actualizada y las acciones tras un desplazamiento interno sin pista visual (`min-w-[44rem]` en `overflow-x-auto`). `tabla-reglas-cliente.tsx:116-117`. Captura `48-reglas-cliente-390.png`.
 
 *Cierre.* Procesos detenidos (backend, worker, frontend); Redis índice 13 vaciado; `contapp_021m` se deja sin borrar. No se tocó código de producción ni `contapp` ni `contapp_021`.
+
+## T23a · [x] Defectos de pantalla de la prueba manual (frontend · sonnet)
+- **Resultado (21a5606)**: corrige los defectos T23a-1 a T23a-5 de la sección «Defectos de pantalla» de este resultado. La regresión de T23a-1 en la grilla a 390 px (F-4) se corrigió en `fa25064`.
 
 ## T24 · [x] Verificar (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (CA-1 a CA-14), `tasks.md` (resultados), `package.json` (scripts).
@@ -231,7 +238,7 @@ Reglas comunes:
 | CA-11 | `packages/domain/src/reglas/r-his.spec.ts:165` y `compras/evaluar-reglas.spec.ts:131` (San Juan y mixta: mismos montos que a mano) · `reglas-funciones.spec.ts:657` | OK |
 | CA-12 | `historial.int.spec.ts:294,313,325` · `r-his.spec.ts:218` · `grilla-compras.historial.spec.tsx:239` | OK |
 | CA-13 | `persistidor-reglas.int.spec.ts:631` (resultado, logs, auditoría) · `historial.int.spec.ts:200` · `reglas-cliente.int.spec.ts:43` · `reglas-r1.adv.int.spec.ts:157` · `reglas-funciones.spec.ts:764` · `reglas-r1.adv.spec.ts:222` | OK |
-| CA-14 | Suites, typecheck, `db:migrate` ×2, E2E y cobertura en verde, salvo lint (F-1) y la prueba de rutas de HU-40 (F-2) | **No cumplido** |
+| CA-14 | Suites, typecheck, `db:migrate` ×2, E2E y cobertura en verde, salvo lint (F-1) y la prueba de rutas de HU-40 (F-2) | **Cumplido** (T26): F-1 en `fc80de0`, F-2 en `a224dbd`, F-4 en `fa25064`; F-3 es de entorno. CI `43792734346` verde sobre `a224dbd`, con `hu40-api.int.spec.ts` (481 pruebas) |
 | H-T25-2 · plan «Volumen» (sin CA propio) | T25b, medición en `contapp_021p`: descarga de 5.000 compras sin reglas 2.413 ms, con 300 reglas 15.969 ms (6,6 ×, mediana de 3); aplicar en BD 63 % y evaluar 25 % del tiempo de insertar; sin límite de tiempo para la descarga en RNF-03x ni en 009/013 (RNF-033 cubre la evaluación), sin prueba de vigilancia; ver «T25b» en el resultado de T25 | **Corregido en T25c**: 1,69 × (sin reglas 2.107 ms, con 300 reglas 3.556 ms, BD nueva `contapp_021s`) |
 
 *Cruce con 022 (punto 3).* `evaluarPorPeriodo` (lazy: `leerProveedoresConocidos` y `leerReglasMotor` en la primera llamada) con `escribirVersiones` solapando `evaluar` y las escrituras: sin diferencias. Prueba nueva `apps/backend/src/modules/compras/reglas-apagadas-022.int.spec.ts` (2 pruebas, verdes): fixture de 009 sin historial más 60 filas de volumen; la masiva a DG y su Ctrl+Z dejan los mismos hallazgos (regla, sugerencia, lecturas, confirmación) en las versiones 2 y 3 que la acción fila por fila, con todas las reglas encendidas (control: salen R-ISC y R-NEW) y con R-ISC y R-NEW apagadas (no salen; R-MIX sigue). `deshacer-masivo-022.int.spec.ts` (equivalencia con 1.230 filas y 4.850 filas en ≤ 1.200 ms) pasa suelta y en la suite completa. Queda sin cubrir un lote de más de 500 filas con reglas apagadas (la prueba de 022 cubre los lotes con todas encendidas).
@@ -268,9 +275,14 @@ Reglas comunes:
 - **H-T25-1 · baja.** `packages/domain/src/compras/aceptar.ts:166-170`: la re-evaluación de aceptar arma `contexto` sin `reglasApagadas`. Un hallazgo guardado antes de apagar R-ISC, R-MIX, R-RED o R-NEW, en una fila **sin XML**, se puede aceptar con la regla apagada (`sigueVigente` devuelve `true` sin XML, `apps/backend/src/modules/compras/transformar.ts:117`). Con XML (y R-GP, que siempre lo tiene) sí da `revisar_de_nuevo`. Choca con el comentario de `motor.ts` («su sugerencia queda obsoleta») y con el título de `historial.int.spec.ts` («no llega a aceptar»), aunque CA-8 solo habla de evaluaciones siguientes y de no borrar lo guardado. Opciones para el usuario: (a) ratificarlo (aceptar algo ya guardado y visible es decisión del contador) o (b) T25a/T25b: `reglasApagadas` en `EntradaAceptar` desde `entornoDeReglas`, con prueba de aceptar R-NEW guardada y R-NEW apagada → 409.
 - **H-T25-2 · baja (proceso).** La medición de volumen de T10 (5.000 compras con y sin reglas; plan, Riesgos: «Volumen») no quedó anotada. `insertarCompras` llama a `aplicar_regla_historial` fila por fila (`packages/db/src/compras/versiones.ts:279-292`). Conviene medirlo antes del cierre o dejarlo como nota en `ESTADO.md`.
 
-*Pendiente para el cierre (T26 u orquestador).* Correr `apps/backend/src/aislamiento/hu40-api.int.spec.ts` (F-2) contra la BD de pruebas para dar CA-14 por cumplido, y decidir H-T25-1 y H-T25-2.
+*Pendiente para el cierre (T26 u orquestador).* Correr `apps/backend/src/aislamiento/hu40-api.int.spec.ts` (F-2) contra la BD de pruebas para dar CA-14 por cumplido, y decidir H-T25-1 y H-T25-2. **Resuelto en T26:** `hu40-api` en verde en la CI `43792734346` (sobre `a224dbd`); H-T25-1 corregido en `a71dde1` y H-T25-2 en `0c6ff2a` (decisiones del usuario 2026-11-16).
 
-*T25b: medición de la descarga de 5.000 compras con y sin reglas aprendidas (H-T25-2, decisión del usuario 2026-11-16, tester).* **Hallazgo H-T25b-1 · media: con reglas la descarga tarda 6,6 × la descarga sin reglas (el plan, Riesgos «Volumen», pedía agrupar si pasaba de 2 ×); no se corrigió.**
+## T25a · [x] Aceptar con la regla apagada da «revisar de nuevo» (H-T25-1)
+- **Resultado (a71dde1)**: aceptar una sugerencia guardada de una regla que el estudio apagó responde `revisar_de_nuevo`, también sin XML (decisión del usuario 2026-11-16). La re-evaluación de `aceptar` contrasta la regla apagada. Pruebas: `packages/domain/src/compras/aceptar-apagadas.spec.ts` y `apps/backend/src/modules/compras/aceptar-apagada-t25a.int.spec.ts`.
+
+## T25b · [x] Medición de la descarga de 5.000 compras con y sin reglas aprendidas (H-T25-2, decisión del usuario 2026-11-16, tester)
+
+**Hallazgo H-T25b-1 · media: con reglas la descarga tarda 6,6 × la descarga sin reglas (el plan, Riesgos «Volumen», pedía agrupar si pasaba de 2 ×); no se corrigió.**
 - **Método.** BD nueva `contapp_021p` (migrada y sembrada, creada otra vez antes de la serie), HEAD de `spec/021-reglas-aprendidas`, PostgreSQL 17 y Redis locales, 4 núcleos, mock de SIRE (`generarFilasComprasVolumen(5.000)` con 400 proveedores distintos, periodo 202610). «Con reglas»: 300 reglas `DNG` aprendidas en 202609 (75 % de las filas; 3.800 compras reciben versión 2 `historial`); «sin reglas»: ninguna. Mediana de 3 corridas alternadas (sin, con, sin, con…) tras una descarga de calentamiento, cada una con cliente nuevo. **La máquina no estuvo sin carga**: otro agente corría suites de vitest en paralelo (≈ 1 núcleo, carga 1–2); como las corridas alternan y la razón se repite en las dos series, la conclusión no cambia, pero los milisegundos absolutos llevan ese ruido. Arnés temporal sin commit.
 - **Descarga completa en el worker** (`job_registro.terminado_en − iniciado_en` del trabajo `sire.propuesta.descargar` real, BullMQ y worker reales): sin reglas **2.413 ms** (2.490 · 2.413 · 2.392); con reglas **15.969 ms** (10.840 · 16.156 · 15.969); razón **6,6 ×**. Serie previa en otra BD recién creada (misma carga): sin 3.015 (3.411 · 3.015 · 2.996), con 15.052 (14.133 · 16.257 · 15.052), razón 5,0 ×.
 - **Reparto** (solo la transacción de `insertarCompras` con el evaluador y el planificador del persistidor, mediana de 3, cada corrida revertida; SQL medido por sentencia con un envoltorio de la `tx`): sin reglas **842 ms** (SQL 669, evaluar 134, resto JS 39). Con reglas **6.562 ms**: **aplicar en BD 4.111 ms = 63 %** (3.800 llamadas a `aplicar_regla_historial`, 1,08 ms cada una); **evaluar 1.637 ms = 25 %** (8.800 evaluaciones: 5.000 de la versión 1 y 3.800 de la 2; 0,19 ms cada una frente a 0,03 ms sin reglas); **planificar (`planificarHistorialDescarga`, dominio puro) 92 ms = 1,4 %** (89–150); inserciones de compras, versiones 1 y hallazgos ≈ 720 ms = 11 %. Cada llamada busca por índice, así que su costo no depende del tamaño de la tabla; en un bucle SQL directo la función cuesta 0,62 ms por llamada (inserta la versión 2 y la aplicación, actualiza la compra y deja una fila de auditoría, con dos disparadores en `compra_version`), así que ≈ 0,45 ms de cada llamada de 1,08 ms es viaje de ida y vuelta.
@@ -278,7 +290,9 @@ Reglas comunes:
 - **Causas (el plan 2 × se incumple por dos motivos).** (1) `insertarCompras` aplica fila por fila (`packages/db/src/compras/versiones.ts:279-292`): cada compra movida es un viaje a la BD y una ejecución de `aplicar_regla_historial` con su auditoría. (2) `crearEvaluarCompras` (`packages/domain/src/compras/evaluar.ts:152`) mete las reglas en `proveedoresConocidos` y `evaluarReglas` valida el contexto entero en **cada** fila (`validarContexto` → `clavesDe`, `packages/domain/src/reglas/entrada.ts:354`), así que el costo por fila es proporcional a conocidos + reglas y se paga dos veces con R-HIS. Medido solo con dominio, 5.000 filas: contexto de 0 / 300 / 1.000 / 3.000 proveedores = **105 / 836 / 2.509 / 7.894 ms**. Pasa de 3 s (RNF-033) con ≈ 1.200 proveedores entre conocidos y reglas, con o sin 021; 021 lo acerca porque suma sus reglas al contexto y evalúa dos veces.
 - **Propuesta (tarea nueva, no hecha aquí).** (a) Función `aplicar_reglas_historial(p_items jsonb)` con las mismas validaciones y el mismo fallo cerrado (42501) por lote de 500: un viaje por lote, `INSERT … SELECT` de `compra_version`, un `UPDATE` y un `INSERT` de `regla_aplicacion`, y la auditoría en un solo `INSERT` por lote (disparador de sentencia con tablas de transición) en vez de uno por fila; estimado ≈ 1 s en vez de 4,1 s. (b) Validar el contexto una sola vez al crear el evaluador (`validarContexto` hecho al inicio de `crearEvaluarCompras` y reutilizado), con lo que la evaluación deja de depender del número de proveedores (≈ 0,1 s por 5.000 filas con cualquier contexto) y RNF-033 queda cubierto. Con (a) y (b) se espera la descarga con reglas ≲ 2 × la de sin reglas; confirmar midiendo con el mismo método. Si no se hace, ratificar el 6,6 × como costo aceptado de 5.000 filas con 300 reglas (≈ 13 s más en el worker, fuera de la petición del usuario).
 
-*T25c: R-HIS por lotes y contexto de reglas validado una vez (decisión del usuario 2026-11-16, «Rendimiento de la descarga» en `spec.md`; backend).* **H-T25b-1 corregido: con 300 reglas la descarga de 5.000 compras tarda 1,69 × la descarga sin reglas (antes 6,6 ×; meta ≤ 2 ×).**
+## T25c · [x] R-HIS por lotes y contexto de reglas validado una vez (decisión del usuario 2026-11-16, «Rendimiento de la descarga» en `spec.md`; backend)
+
+**H-T25b-1 corregido: con 300 reglas la descarga de 5.000 compras tarda 1,69 × la descarga sin reglas (antes 6,6 ×; meta ≤ 2 ×).**
 - **(a) Lotes, migración 0052** (`0052_reglas_historial_lote.sql`, repetible, con journal y snapshot). `aplicar_reglas_historial(p_items jsonb) → integer` aplica de 1 a 500 compras `[{compra, regla, datos}]` con las mismas validaciones y el mismo 42501 de mensaje fijo que `aplicar_regla_historial`: estudio por `app.tenant_id`, R-HIS encendido (mismo advisory compartido), compra viva de esta transacción solo con la versión 1, regla viva, activa, del mismo cliente y proveedor y aprendida antes (FOR SHARE), base gravada ≠ 0, algo que mover, `datos` = versión 1 consolidada recalculada en NUMERIC y una sola `historial` por compra (repetirla en el lote se rechaza). Valida ítem por ítem con lecturas por clave (índices únicos) y solo después escribe: versiones 2 y `regla_aplicacion` con un `INSERT … unnest` cada una y el puntero por clave. Una primera versión con un solo `SELECT … JOIN` tardaba ≈ 2 s por lote: sin estadísticas del estudio (sus compras de esta transacción no están en ellas) el planificador recorría todas las compras del estudio por cada ítem. `aplicar_regla_historial` se conserva sin cambios (la usan `tests/aislamiento`, `apps/backend/test/soporte-reglas.ts` y `historial.int.spec.ts`). `insertarCompras` llama a `aplicarReglasHistorial` (`packages/db/src/reglas/aplicar.ts`) por lotes de `LOTE_HISTORIAL` = 500. Grants: EXECUTE solo `contapp_worker`.
 - **Semántica del lote: todo o nada.** Un ítem inválido rechaza el lote entero con 42501 y no deja aplicada ninguna fila del lote. Es la misma semántica de la función por fila: su 42501 aborta la transacción y toda la descarga se revierte; nunca dejó seguir a las válidas. Lo fijan `reglas-lote.spec.ts` (24 rechazos: lote 42501, la lista fila a fila también 42501, las válidas solas sí se aplican y tras el rechazo quedan sin versión 2, sin `regla_aplicacion` y sin auditoría) y la reversión total de `insertarCompras`.
 - **Auditoría `compra.historial`.** Pasa a un trigger AFTER INSERT por sentencia con tabla de transición: sigue habiendo una fila por compra, con el mismo actor (misma regla que `auditoria_registrar`: trabajo, usuario o sistema; un trabajo ajeno da 42501), entidad y datos `{compraId, reglaId, periodo}`, pero insertadas en un solo INSERT por lote con `interno.auditoria_insertar_lote` (dueño `contapp_registrador`, EXECUTE solo `contapp_migrator`). `escalada.adv.spec.ts` suma las dos SECURITY DEFINER nuevas.
@@ -287,7 +301,23 @@ Reglas comunes:
 - **Medición** con el mismo arnés de T25b; solo se amplió la expresión del reparto a `aplicar_reglas?_historial`. BD nueva `contapp_021s`, migrada dos veces y sembrada, con la máquina sin otro agente (carga 0,3–0,6); mediana de 3. Descarga completa en el worker: sin reglas **2.107 ms** (1.961 · 2.508 · 2.107), con 300 reglas **3.556 ms** (4.067 · 3.462 · 3.556), razón **1,69 ×**. Segunda serie en otra BD nueva, `contapp_021t` (carga 1–1,7): sin reglas 2.169 ms (1.568 · 2.169 · 2.319), con reglas 3.211 ms (3.348 · 2.903 · 3.211), razón 1,48 ×. Reparto de `insertarCompras` en `contapp_021s`: sin reglas 1.023 ms; con reglas 2.307 ms. De esos 2.307 ms, aplicar en BD toma 1.038 ms (8 llamadas; antes 4.111 ms en 3.800 llamadas), evaluar las 8.800 filas 241 ms (antes 1.637 ms) y planificar 106 ms.
 - **Nota.** En una BD reutilizada por varias corridas, las dos descargas se vuelven más lentas: la descarga sin reglas llegó a 2,9–3,4 s de reparto. La causa son las búsquedas del trigger por fila `compra_version_worker_acotado` (0038) al insertar las versiones 1, sin estadísticas del estudio. Eso queda fuera de T25c y es la razón de medir en BD nueva, como en T25b.
 
-## T26 · [ ] Cierre (devops · haiku)
+## T26 · [x] Cierre (devops · haiku)
 - **Contexto (leer solo esto)**: resultado de T25, `tasks.md`, `spec.md` (estado y CA).
 - **Hacer**: marcar tareas y CA, estado de la spec «hecha (fecha)». Commit `docs(021): cierre` con rutas explícitas. El orquestador actualiza `ESTADO.md`.
 - **Hecho cuando**: `git status` limpio en los archivos de 021 y el commit hecho.
+- **Resultado (2026-11-16, rama `spec/021-reglas-aprendidas`)**
+
+*Tablero.* T1 a T25, T23a, T25a, T25b, T25c y R3 `[x]` en la tabla y en los encabezados. Faltaban T23a, T25a y T25b (sin fila ni encabezado), T25c (sin encabezado) y los encabezados de T1 a T14, T16 a T22 y T26 seguían en `[ ]`: se añadieron o corrigieron. CA-1 a CA-14 `[x]` en `spec.md`, con estado «hecha (2026-11-16; CA-1 a CA-14 verificados)».
+
+*CA-14 cumplido.* F-1 en `fc80de0`, F-2 en `a224dbd`, F-4 en `fa25064`; F-3 es de entorno (E2E con `E2E_CORREO=consola`). CI `43792734346` verde sobre `a224dbd`; el job «Aislamiento entre estudios» pasó `hu40-api.int.spec.ts` (481 pruebas). El CI sobre `e8ce81c` (en curso) lo confirma el orquestador.
+
+*Checks.* `pnpm typecheck`: OK, 18/18. `pnpm lint`: OK, 11/11.
+
+*Notas para ESTADO.*
+1. Hallazgos corregidos, con commit: H-021-1-1 a 6 en `bd0b178` (migración 0050); H-021-2-1 a 4 en `4509078` (0051); H-T25-1 en `a71dde1`; H-T25-2 (llamado H-T25b-1 en T25b y T25c) en `0c6ff2a` (0052; descarga con reglas de 6,6 × a 1,69 ×). Ronda adversarial 3 (`e8ce81c`): 10 pruebas, sin hallazgos.
+2. Migraciones usadas: 0047–0052 (0052 es el lote de T25c). La próxima es 0053. ESTADO dice «021 usa 0047–0051»: hay que actualizarlo.
+3. Defecto previo de R-GP con XML (aceptar daba `revisar_de_nuevo` siempre), corregido en `0cfcadc`.
+4. Observaciones de T23 fuera de 021: Historial sin Esc (`historial-compra.tsx`); una fila corregida sigue visible con el filtro «Según historial» hasta recargar; la lupa sigue mostrando los hallazgos ya aceptados tras aceptar R-GP; el periodo futuro (202612, 202701) devuelve 400 sin investigar.
+5. Disparador `compra_version_worker_acotado` (0038) lento en una BD reutilizada: busca por fila al insertar la versión 1, sin estadísticas del estudio. Medir siempre en BD nueva (T25c).
+6. SAVEPOINT y `xmin`: ya anotado en ESTADO («mantenimiento», 0038).
+7. Confirmaciones listas para 033: `regla_confirmacion` (0049) solo inserta, con RLS forzada, y ninguna ruta de 021 la lee (D-3, CA-6).
