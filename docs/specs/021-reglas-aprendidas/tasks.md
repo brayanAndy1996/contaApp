@@ -28,7 +28,7 @@ Nivel A (spec). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T20 | Pruebas de las correcciones de la ronda 2 (rojo) | tester | sonnet | T19 | ✓ | — | [x] |
 | T21 | Corregir los hallazgos de la ronda 2 (migración 0051 si hace falta) | backend | opus | T20 | — | — | [x] |
 | T22 | E2E prioridad 1: «Recordar» → descarga siguiente → «Según historial» → revertir | tester | sonnet | T14, T10 ∥ T16–T21 | — | — | [x] |
-| T23 | Prueba manual contra el sistema completo | tester | sonnet | T21, T22 | — | — | [ ] |
+| T23 | Prueba manual contra el sistema completo | tester | sonnet | T21, T22 | — | — | [x] |
 | T24 | Verificar CA-1 a CA-14 con evidencia, suites completas, `db:migrate` ×2 y cobertura | tester | sonnet | T23 | — | — | [ ] |
 | T25 | Revisión final contra la spec | arquitecto | opus | T24 | — | — | [ ] |
 | T26 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T25 | — | — | [ ] |
@@ -161,10 +161,34 @@ Reglas comunes:
 - **Hacer**: `tests/e2e/flujos/reglas.e2e.ts` y `soporte/selectores/reglas.ts`: clasificar una fila de X en DNG con el teclado → «Recordar» con el atajo → descargar el periodo siguiente (mock) → filas de X con «Según historial» → filtro → masiva a DG → etiqueta fuera y resumen actualizado. No tocar E-06 (022).
 - **Hecho cuando**: `pnpm e2e -- reglas` pasa 3 veces seguidas, sin `retry` ni `test.only`. Commit `test(021): e2e de reglas aprendidas`.
 
-## T23 · [ ] Prueba manual (tester · sonnet)
+## T23 · [x] Prueba manual (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (CA), `docs/specs/019-docker-local/` (cómo levantar el sistema local, solo la sección de arranque).
 - **Hacer**: con el sistema completo y adaptadores en `mock`: el flujo de T22 a mano, la pantalla de reglas (editar, desactivar, eliminar, volver a recordar), el interruptor de R-HIS y de R-NEW, pasar el periodo a `revisado` y ver `aceptada`. Defectos de pantalla → T23a.
 - **Hecho cuando**: resultado con pasos, lo visto y los defectos (o «sin defectos»).
+
+**Resultado (2026-11-16, rama `spec/021-reglas-aprendidas`, Node 22.22.0, Chromium de Playwright 1440×900 y 390×844, es-PE)**
+
+*Entorno.* Sin Docker: PostgreSQL 17 y Redis ya estaban activos; Mailpit no se usó (`CORREO_PROVIDER=consola`). BD nueva `contapp_021m` (migrada dos veces y sembrada), Redis índice 13, adaptadores en `mock`, `XML_SIMULADO_EN_REGLAS=1`, backend `:4210`, worker y frontend `:3210` (build de producción). Un estudio con un Dueño y cinco clientes (mixta, contribuyente de prueba y tres con RUC sin fixture, que reciben el conjunto genérico). Credenciales SOL y SIRE guardadas por la pantalla del cliente; descargas por el botón «Descargar»; todo lo demás por la interfaz. Capturas fuera del repo, en el scratchpad `t23/`.
+
+*Pasos y lo visto (todo en español, sin errores de consola salvo los 409 y 400 que se citan).*
+1. Flujo de T22 a mano (CA-1 a CA-3). 202610: F001-6010 y F001-6012 llegan en DG con alerta R-NEW y «Proveedor nuevo». Clasificar F001-6010 en DNG con teclado (menú con flechas): «Compra clasificada.» y aviso «¿Recordar para este proveedor en este cliente?» sin quitar el foco de la celda; el botón declara `aria-keyshortcuts="Alt+R"`; Alt+R guarda («Regla guardada. Se aplicará en las próximas descargas de este proveedor.») y el aviso desaparece. La compra del mismo periodo no se mueve. Descarga de 202611: dos filas en DNG con «Según historial» y Base DNG 0 → 280,00 (+280,00 aumenta); filtro «Según historial» deja las 2; panel «Historial» muestra «Versión 2 … Según historial». Masiva a DG sobre las 2: «2 aplicadas», sin etiqueta, resumen sin cambio. Otro «Recordar» hecho con clic (no Alt+R) también guarda.
+2. Reglas del cliente. Editar (DNG → DGNG) con «Guardar»; desactivar → «Inactiva»; activar → «Activa»; eliminar abre la confirmación (foco en «Cancelar», Esc la cierra y devuelve el foco al botón) y al confirmar queda «Este cliente aún no tiene reglas aprendidas.». Volver a recordar desde la grilla crea la regla de nuevo (Aplicada 0, Aceptada 0). Con dos pestañas, editar una regla ya desactivada en la otra da el 409: «La regla cambió mientras tanto. Revisa las reglas del cliente e inténtalo de nuevo.» y la tabla se recarga.
+3. Reglas del motor. R-HIS apagada (persiste al recargar): la descarga siguiente (202610 en un cliente con regla aprendida en 202609) llega en DG y sin etiqueta; encendida de nuevo, 202611 llega «Según historial». R-NEW apagada: la descarga de un cliente nuevo no trae alerta R-NEW ni «Proveedor nuevo»; lo ya guardado en otro cliente se conserva. Aporte al catálogo: sin fila → apagado (`aportar_catalogo=false`); con él apagado un «Recordar» no deja fila en `regla_confirmacion` (3 → 3), encendido sí (3 → 4).
+4. Periodo a `revisado` (confirmación «¿Marcar el periodo como revisado?…»): en la tabla de reglas, Aceptada pasa de 0 a 2 y aparecen 2 confirmaciones `aceptada` en `regla_confirmacion`.
+5. Corregir una fila «Según historial» (F001-6010 de DGNG a DG): la etiqueta sale y el resumen se actualiza; Ctrl+Z («Se deshizo la operación (1 compras).») devuelve DGNG y la etiqueta; Ctrl+Shift+Z la quita; otro Ctrl+Z la devuelve.
+6. R-GP con XML subido (F001-5070, zapatilla): se subió `fixtures/xml/20700000070-01-F001-5070.xml` por «Subir XML» de la lupa («XML subido por …»), «Aceptar sugerencias» → «Aceptar R-GP» → «Confirmar»: «Sugerencia aceptada.», la compra pasa a Excluidas. Defecto corregido: sí, da 200.
+7. Teclado y foco: menú de acciones, aviso, confirmaciones y atajos funcionan; los hallazgos de foco están en T23a. Sin desborde horizontal de página a 1440 ni a 390; sí problemas de la grilla a 390 (T23a-1).
+
+*Observaciones que no son defecto de 021.* (a) Con el filtro «Según historial» puesto, una fila corregida sigue en el listado, ya sin etiqueta, hasta recargar. (b) El panel «Historial» de la compra (016/017, `historial-compra.tsx`, un `aside` sin foco inicial) no se cierra con Esc. (c) Tras aceptar R-GP la lupa sigue mostrando los hallazgos ya aceptados. (d) Pedir 202612 y 202701 (posteriores al mes actual) da 400 y no se investigó la causa; por eso los periodos siguientes se armaron aprendiendo en un periodo anterior.
+
+*Defectos de pantalla (T23a, frontend · sonnet).*
+- **T23a-1 · media.** A 390 px la grilla de compras solo deja ver «Total y acciones»: la columna fija derecha cubre Comprobante, Proveedor y Destino, y las filas no se pueden identificar. `apps/frontend/components/compras/grilla-compras.tsx` (columnas `sticky` de los extremos, ~líneas 665, 1001 y 1019). Capturas `49-grilla-390.png`, `50-grilla-390-scroll.png`.
+- **T23a-2 · media.** La versión que crea R-HIS (sin usuario) se rotula «Versión 2 · SIRE» en el historial de la compra; debería indicar el sistema o la regla. `apps/frontend/components/compras/historial-compra.tsx:142` (`ver.usuarioId ? etiquetaAutor(...) : M.autorSire`; distinguir `accion === "historial"`). Captura `12-historial-versiones.png`.
+- **T23a-3 · baja.** Pantalla de reglas del cliente: «Editar» con Enter deja el foco en «Guardar» (React reutiliza el botón) en lugar del selector de destino, y Esc no cancela; tras guardar, activar, desactivar o eliminar el foco cae a `body`; ninguna de esas acciones anuncia un estado. `apps/frontend/components/reglas/tabla-reglas-cliente.tsx`. Capturas `17-editar.png`, `18-editada.png`.
+- **T23a-4 · baja.** Los interruptores de «Reglas del motor» y del aporte no anuncian el cambio (sin `role="status"`), y el aviso «Recordar» no muestra «Alt+R» a quien no usa lector de pantalla. `apps/frontend/components/reglas/reglas-motor.tsx`, `recordar-tras-clasificar.tsx`. Capturas `24-reglas-motor.png`, `08-clasificada-aviso.png`.
+- **T23a-5 · baja.** A 390 px la tabla de reglas del cliente corta «Aplicada» y esconde Aceptada, Actualizada y las acciones tras un desplazamiento interno sin pista visual (`min-w-[44rem]` en `overflow-x-auto`). `tabla-reglas-cliente.tsx:116-117`. Captura `48-reglas-cliente-390.png`.
+
+*Cierre.* Procesos detenidos (backend, worker, frontend); Redis índice 13 vaciado; `contapp_021m` se deja sin borrar. No se tocó código de producción ni `contapp` ni `contapp_021`.
 
 ## T24 · [ ] Verificar (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (CA-1 a CA-14), `tasks.md` (resultados), `package.json` (scripts).
