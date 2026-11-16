@@ -82,6 +82,8 @@ interface Recursos {
   invitacionId: string;
   invitacionCorreo: string;
   tokenHash: Buffer;
+  /** 021: una regla aprendida del primer cliente (sembrada por SQL), con la que se prueban las rutas de reglas. */
+  reglaId: string;
 }
 interface Sesion {
   cookie: string;
@@ -131,6 +133,8 @@ let registradas: string[] = [];
 const sufijo = randomBytes(4).toString("hex");
 /** Clientes creados, registrados al instante para limpiarlos aunque el arranque falle a mitad. */
 const clientesCreados: string[] = [];
+/** 021: reglas aprendidas sembradas por la prueba (se quitan antes que los clientes que referencian). */
+const reglasSembradas: string[] = [];
 /** Redis de las pruebas de `/trabajos`: base 15 y prefijo propio (la app recibe la misma URL y prefijo). */
 const prefijoRedis = nuevoPrefijo();
 let redis: RedisPrueba;
@@ -223,6 +227,13 @@ async function prepararEstudio(
      values ($1, $2, 'lectura', $3, $4, now() + interval '72 hours') returning id`,
     [tenantId, invitacionCorreo, dueno.id, tokenHash],
   );
+  // 021: una regla aprendida viva en el primer cliente (el id y el destino de B no deben verse ni cambiar desde A).
+  const regla = await h.sql(
+    `insert into regla_aprendida (tenant_id, cliente_id, doc_tipo, doc_numero, destino, periodo_aprendido, creada_por, actualizada_por)
+     values ($1, $2, '6', $3, 'DNG', '202609', $4, $4) returning id`,
+    [tenantId, clientes[0], `20${String(Math.floor(Math.random() * 1e9)).padStart(9, "0")}`, dueno.id],
+  );
+  reglasSembradas.push(regla[0].id);
   return {
     tenantId,
     nombre,
@@ -237,6 +248,7 @@ async function prepararEstudio(
     invitacionId: inv[0].id,
     invitacionCorreo,
     tokenHash,
+    reglaId: regla[0].id,
   };
 }
 
@@ -302,6 +314,7 @@ async function calcularMarcadores(
     de.asistente.membresiaId,
     de.asignacionId,
     ...de.trabajos.map((t) => t.id),
+    de.reglaId,
   ]);
   const correos = new Set<string>([de.invitacionCorreo]);
   const otros = new Set<string>([de.nombre]);
@@ -350,6 +363,10 @@ async function instantanea(
     ),
     job_registro: await q(
       "select to_jsonb(j) j from job_registro j where tenant_id = $1 and cliente_id = any($2::uuid[]) order by id",
+      [r.tenantId, r.clientes],
+    ),
+    regla_aprendida: await q(
+      "select to_jsonb(g) j from regla_aprendida g where tenant_id = $1 and cliente_id = any($2::uuid[]) order by id",
       [r.tenantId, r.clientes],
     ),
   };
@@ -719,6 +736,209 @@ function casosNotificaciones(): Caso[] {
           expect(ids.filter((id) => ajenos(c).auditoria.includes(id) || ajenos(c).descifrado.includes(id))).toEqual([]);
         }
         await intactas(c);
+      },
+    },
+  ];
+}
+
+
+/* ---------------------------- 021 · reglas aprendidas ----------------------------
+ * `/clientes/:clienteId/reglas*` (reglas.ver para leer, reglas.gestionar para escribir) y `/estudio/reglas-motor*` (el estudio sale de
+ * la sesión; escribir exige reglas.gestionar y alcance global). Un cliente o una regla de B desde A: el mismo 404 `no_encontrado`,
+ * nunca un dato ni un cambio en B; la asistente (sin reglas.gestionar) recibe 403 en toda escritura, antes de mirar el recurso. */
+const NO_ENCONTRADO = { codigo: "no_encontrado" };
+const PERMISO_DENEGADO = { codigo: "permiso_denegado" };
+const CODIGOS_MOTOR = ["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP", "R-HIS"];
+
+/** Pares (cliente, regla) con ids del otro estudio solos y mezclados con los propios; ninguno existe para quien llama. */
+const paresDeRegla = (c: Contexto): [string, string][] => [
+  [c.ajeno.clientes[0], c.ajeno.reglaId], // todo ajeno y real
+  [c.mio.clientes[0], c.ajeno.reglaId], // cliente propio (visible para la asistente), regla de B
+  [c.mio.clientes[1], c.ajeno.reglaId], // cliente propio, regla de B
+  [c.ajeno.clientes[1], c.ajeno.reglaId], // otro cliente de B con la regla de B
+  [c.ajeno.clientes[0], randomUUID()], // cliente de B, regla inexistente
+  [c.ajeno.asignacionId, c.ajeno.reglaId], // id de otra cosa de B como cliente
+  [c.mio.clientes[0], c.ajeno.asignacionId], // id de otra cosa de B como regla
+];
+
+/** `estudio_regla_motor` y `estudio_reglas_config` de un estudio (el rol del arnés las lee sin RLS). */
+async function filasMotor(tenantId: string): Promise<unknown[]> {
+  const a = await h.sql("select to_jsonb(m) j from estudio_regla_motor m where tenant_id = $1 order by codigo", [tenantId]);
+  const b = await h.sql("select to_jsonb(g) j from estudio_reglas_config g where tenant_id = $1", [tenantId]);
+  return [...a, ...b].map((f) => f.j);
+}
+let motorAntes: { mio: unknown[]; ajeno: unknown[] } | null = null;
+const registrarMotorAntes = async (c: Contexto): Promise<void> => {
+  motorAntes = { mio: await filasMotor(c.mio.tenantId), ajeno: await filasMotor(c.ajeno.tenantId) };
+};
+
+/** La regla sembrada de `r` sigue como se sembró (viva, activa, versión 1, destino DNG). */
+async function reglaIntacta(r: Recursos): Promise<void> {
+  const f = await h.sql(
+    "select destino, activa, version, eliminada_en, eliminada_por from regla_aprendida where id = $1",
+    [r.reglaId],
+  );
+  expect(f).toEqual([{ destino: "DNG", activa: true, version: 1, eliminada_en: null, eliminada_por: null }]);
+}
+
+/** Todas las respuestas son el mismo 404 sin revelar cuál de los ids no existe. */
+function mismoNoEncontrado(respuestas: Resp[], referencia: Resp): void {
+  for (const r of respuestas) {
+    expect(r.status, r.text).toBe(404);
+    expect(r.body).toEqual(NO_ENCONTRADO);
+    expect(r.text).toBe(referencia.text);
+  }
+}
+
+function casosReglas(): Caso[] {
+  const cuerpoEditar = (c: Contexto) => ({ versionBase: 1, destino: "DG", activa: false, tenantId: c.ajeno.tenantId, clienteId: c.ajeno.clientes[0] });
+  /** Escrituras de reglas con ids de B: la asistente (sin reglas.gestionar) recibe 403; el Dueño, el 404 de siempre. */
+  const verificarEscritura = async (c: Contexto, respuestas: Resp[]): Promise<void> => {
+    const referencia = await c.pedir({ ruta: `/clientes/${randomUUID()}/reglas` });
+    expect(referencia.status).toBe(404);
+    if (c.yo.rol === "asistente") {
+      for (const r of respuestas) {
+        expect(r.status, r.text).toBe(403);
+        expect(r.body).toEqual(PERMISO_DENEGADO);
+      }
+    } else {
+      mismoNoEncontrado(respuestas, respuestas[0]!);
+      expect(respuestas[0]!.body).toEqual(referencia.body);
+    }
+    await reglaIntacta(c.ajeno);
+    await reglaIntacta(c.mio);
+  };
+
+  return [
+    {
+      ruta: "GET /clientes/:clienteId/reglas",
+      esperado: { dueno: [404], asistente: [404] },
+      construir: (c) => idsDeCliente(c.ajeno).map((id) => ({ ruta: `/clientes/${id}/reglas` })),
+      extra: async (c, respuestas) => {
+        // Cliente de otro estudio, no visible o inexistente: el mismo 404, sin revelar cuál es.
+        const noExiste = await c.pedir({ ruta: `/clientes/${randomUUID()}/reglas` });
+        expect(noExiste.status).toBe(404);
+        expect(noExiste.body).toEqual(NO_ENCONTRADO);
+        mismoNoEncontrado(respuestas, noExiste);
+        // Propio y visible: la regla sembrada, con su id; propio y no visible (la asistente solo ve su cliente asignado).
+        const propio = await c.pedir({ ruta: `/clientes/${c.mio.clientes[0]}/reglas` });
+        expect(propio.status, propio.text).toBe(200);
+        expect((propio.body as any[]).map((x) => x.id)).toEqual([c.mio.reglaId]);
+        expect(JSON.stringify(propio.body)).not.toContain(c.ajeno.reglaId);
+        const noVisible = await c.pedir({ ruta: `/clientes/${c.mio.clientes[1]}/reglas` });
+        if (c.yo.rol === "asistente") {
+          expect(noVisible.status, noVisible.text).toBe(404);
+          expect(noVisible.text).toBe(noExiste.text);
+        } else {
+          expect(noVisible.status, noVisible.text).toBe(200);
+          expect(noVisible.body).toEqual([]);
+        }
+        await reglaIntacta(c.ajeno);
+      },
+    },
+    {
+      ruta: "POST /clientes/:clienteId/reglas/recordar",
+      esperado: { dueno: [404], asistente: [403] },
+      construir: (c) =>
+        idsDeCliente(c.ajeno).map((id) => ({
+          metodo: "POST" as const,
+          ruta: `/clientes/${id}/reglas/recordar`,
+          cuerpo: { compraIds: [randomUUID()], destino: "DG", versionBase: null, tenantId: c.ajeno.tenantId },
+        })),
+      extra: async (c, respuestas) => {
+        await verificarEscritura(c, respuestas);
+        // Con el cliente visible pero una compra de otro estudio (id inexistente aquí): la asistente sigue sin permiso, el Dueño 404.
+        const propio = await c.pedir({
+          metodo: "POST",
+          ruta: `/clientes/${c.mio.clientes[0]}/reglas/recordar`,
+          cuerpo: { compraIds: [randomUUID()], destino: "DG", versionBase: null },
+        });
+        expect(propio.status, propio.text).toBe(c.yo.rol === "asistente" ? 403 : 404);
+        expect(propio.body).toEqual(c.yo.rol === "asistente" ? PERMISO_DENEGADO : NO_ENCONTRADO);
+        const n = await h.sql("select count(*)::int n from regla_aprendida where cliente_id = any($1::uuid[])", [
+          [...c.mio.clientes, ...c.ajeno.clientes],
+        ]);
+        expect(n[0].n).toBe(2); // solo las dos sembradas (una por estudio): no se creó ninguna
+      },
+    },
+    {
+      ruta: "PATCH /clientes/:clienteId/reglas/:reglaId",
+      esperado: { dueno: [404], asistente: [403] },
+      construir: (c) =>
+        paresDeRegla(c).map(([cl, rg]) => ({
+          metodo: "PATCH" as const,
+          ruta: `/clientes/${cl}/reglas/${rg}`,
+          cuerpo: cuerpoEditar(c),
+        })),
+      extra: verificarEscritura,
+    },
+    {
+      ruta: "DELETE /clientes/:clienteId/reglas/:reglaId",
+      esperado: { dueno: [404], asistente: [403] },
+      construir: (c) =>
+        paresDeRegla(c).map(([cl, rg]) => ({
+          metodo: "DELETE" as const,
+          ruta: `/clientes/${cl}/reglas/${rg}?versionBase=1&tenantId=${c.ajeno.tenantId}`,
+        })),
+      extra: verificarEscritura,
+    },
+    {
+      // El estudio sale de la sesión: `tenantId` en la consulta no cambia de estudio y la respuesta es solo la configuración propia.
+      ruta: "GET /estudio/reglas-motor",
+      esperado: todos(200),
+      construir: (c) => [{ ruta: "/estudio/reglas-motor" }, { ruta: `/estudio/reglas-motor?tenantId=${c.ajeno.tenantId}&estudioId=${c.ajeno.tenantId}` }],
+      extra: async (c, respuestas) => {
+        for (const r of respuestas) {
+          expect((r.body.reglas as any[]).map((x) => x.codigo)).toEqual(CODIGOS_MOTOR);
+          expect(typeof r.body.aportarCatalogo).toBe("boolean");
+        }
+      },
+    },
+    {
+      // Escribir exige reglas.gestionar Y alcance global: el Dueño pasa (200, o 404 si el código no es del catálogo) y la asistente
+      // recibe 403 antes de mirar el código. Los valores escritos son los de por defecto (sin fila = encendida): el efecto es neutro.
+      ruta: "PUT /estudio/reglas-motor/:codigo",
+      esperado: { dueno: [200, 404], asistente: [403] },
+      construir: (c) => [
+        { metodo: "PUT", ruta: "/estudio/reglas-motor/R-ISC", cuerpo: { activa: true, tenantId: c.ajeno.tenantId, estudioId: c.ajeno.tenantId } },
+        { metodo: "PUT", ruta: `/estudio/reglas-motor/R-HIS?tenantId=${c.ajeno.tenantId}`, cuerpo: { activa: true } },
+        { metodo: "PUT", ruta: "/estudio/reglas-motor/prevalidacion", cuerpo: { activa: true } },
+        { metodo: "PUT", ruta: `/estudio/reglas-motor/${c.ajeno.tenantId}`, cuerpo: { activa: true, tenantId: c.ajeno.tenantId } },
+      ],
+      antes: registrarMotorAntes,
+      extra: async (c, respuestas) => {
+        if (c.yo.rol === "asistente") {
+          for (const r of respuestas) expect(r.body).toEqual(PERMISO_DENEGADO);
+          expect(await filasMotor(c.mio.tenantId)).toEqual(motorAntes!.mio); // sin permiso: nada se guarda
+        } else {
+          expect(respuestas.map((r) => r.status)).toEqual([200, 200, 404, 404]);
+          expect((respuestas[0]!.body.reglas as any[]).find((x) => x.codigo === "R-ISC").activa).toBe(true);
+          const propias = (await h.sql("select codigo, activa from estudio_regla_motor where tenant_id = $1 order by codigo", [c.mio.tenantId])).map(
+            (f) => `${f.codigo}:${f.activa}`,
+          );
+          expect(propias).toEqual(expect.arrayContaining(["R-HIS:true", "R-ISC:true"])); // en el estudio de la sesión
+        }
+        expect(await filasMotor(c.ajeno.tenantId)).toEqual(motorAntes!.ajeno); // el estudio de B no se toca
+      },
+    },
+    {
+      ruta: "PUT /estudio/reglas-motor/aporte",
+      esperado: { dueno: [200], asistente: [403] },
+      construir: (c) => [
+        { metodo: "PUT", ruta: "/estudio/reglas-motor/aporte", cuerpo: { aportar: true, tenantId: c.ajeno.tenantId, estudioId: c.ajeno.tenantId } },
+        { metodo: "PUT", ruta: `/estudio/reglas-motor/aporte?tenantId=${c.ajeno.tenantId}`, cuerpo: { aportar: true } },
+      ],
+      antes: registrarMotorAntes,
+      extra: async (c, respuestas) => {
+        if (c.yo.rol === "asistente") {
+          for (const r of respuestas) expect(r.body).toEqual(PERMISO_DENEGADO);
+          expect(await filasMotor(c.mio.tenantId)).toEqual(motorAntes!.mio);
+        } else {
+          for (const r of respuestas) expect(r.body.aportarCatalogo).toBe(true);
+          const f = await h.sql("select aportar_catalogo from estudio_reglas_config where tenant_id = $1", [c.mio.tenantId]);
+          expect(f).toEqual([{ aportar_catalogo: true }]); // el valor por defecto, en el estudio de la sesión
+        }
+        expect(await filasMotor(c.ajeno.tenantId)).toEqual(motorAntes!.ajeno);
       },
     },
   ];
@@ -1718,6 +1938,9 @@ const CASOS: Caso[] = [
       }
     },
   },
+
+  /* ---------- 021: reglas aprendidas y reglas del motor ---------- */
+  ...casosReglas(),
 ];
 
 const POR_RUTA = new Map(CASOS.map((c) => [c.ruta, c]));
@@ -1750,6 +1973,7 @@ async function limpiar(): Promise<void> {
   await borrarPorId("notificacion", todos.flatMap((x) => [...x.notifDueno, ...x.notifAsistente]));
   await borrarPorId("auditoria", todos.flatMap((x) => x.auditoria));
   await borrarPorId("auditoria_descifrado", todos.flatMap((x) => x.descifrado));
+  await h.sql("delete from regla_aprendida where id = any($1::uuid[])", [reglasSembradas]).catch(() => undefined);
   const filas = await h
     .sql("select id from usuario where nombre like $1", [`HU40 _ % ${sufijo}`])
     .catch(() => [] as { id: string }[]);
