@@ -12,7 +12,7 @@ export {
   RutaStorageError,
   StorageIOError,
 } from "./errores.js";
-export { rutaArchivo, rutaXml, validarRuta } from "./ruta.js";
+export { rutaArchivo, rutaBuzon, rutaXml, validarRuta } from "./ruta.js";
 export { leerVerificado, sha256Hex } from "./hash.js";
 export { MockStorage } from "./mock.js";
 export { LocalStorage } from "./local.js";
