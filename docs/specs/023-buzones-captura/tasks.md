@@ -18,7 +18,7 @@ Nivel A (spec). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T10 | `sunat`: `SolPortal`, `MockSolPortal`, fixtures y selección en el worker | backend | sonnet | T3 ∥ T8, T9, T11 | ✓ | — | [x] |
 | T11 | Migraciones 0054–0056, esquema drizzle y `packages/db/src/buzon/` | backend | opus | T4 ∥ T8, T9, T10 | ✓ | — | [x] |
 | T12 | Worker: `sol.buzon.revisar`, `sol.buzon.abrir` y `buzon.programar` | backend | opus | T5, T8, T9, T10, T11 ∥ T13, T14 | ✓ | — | [x] |
-| T13 | Backend: módulo `buzon` | backend | sonnet | T6, T9, T11 ∥ T12, T14 | ✓ | — | [ ] |
+| T13 | Backend: módulo `buzon` | backend | sonnet | T6, T9, T11 ∥ T12, T14 | ✓ | — | [x] |
 | T14 | Frontend: botón en la ficha, vista mínima, campana y panel de trabajos (estilo A) | frontend | sonnet | T7, T9 ∥ T10–T13 | ✓ | — | [x] |
 | T15 | Cobertura ≥ 90 %: `domain/buzon`, `db/buzon`, mock, módulo `buzon`, procesadores; en CI | devops | haiku | T12, T13 ∥ T14 | — | — | [ ] |
 | T16 | Ronda adversarial 1: aislamiento, permisos, storage, adjuntos y contenido hostiles, secretos (≤ 15 pruebas) | adversario | opus | T12, T13, T15 ∥ T14, T22 | — | ✓ | [ ] |
