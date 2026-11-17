@@ -15,6 +15,7 @@ import {
   type ContextoCompras,
 } from "../../lib/compras";
 import { validarMonto } from "../../lib/montos-compras";
+import { cn } from "../../lib/utils";
 import { ConfirmarAccion } from "../ventas/confirmar-accion";
 import {
   comprobanteDe,
@@ -23,6 +24,7 @@ import {
   type AlAvisar,
 } from "./accion-compras";
 import { useErrorAnunciado } from "./aviso-unico";
+import { Badge, Button, Input, Label, Select, cifra, panelDialogo } from "../ui";
 
 // Aceptar sugerencias de una compra (spec 015, D-7, RNF-073). Los hallazgos de la fila se ven como chips con su
 // explicación y un botón «Aceptar» cada uno. Flujo:
@@ -147,34 +149,34 @@ export function AceptarSugerencias({
       onKeyDown={(e) => {
         if (e.key === "Escape" && !ocupado) alCancelar();
       }}
-      className="flex w-[32rem] max-w-full flex-col gap-3 rounded border bg-white p-4 shadow-lg"
+      className={cn(panelDialogo, "max-w-xl")}
     >
-      <h3 className="text-base font-medium">{`${M.aceptarSugerencias} · ${comprobante}`}</h3>
+      <h3 className="font-titulo text-lg font-semibold text-tinta">{`${M.aceptarSugerencias} · ${comprobante}`}</h3>
 
       {paso.tipo === "lista" &&
         (fila.hallazgos.length === 0 ? (
-          <p className="text-sm">{M.sinHallazgos}</p>
+          <p className="text-sm text-tinta-media">{M.sinHallazgos}</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {fila.hallazgos.map((h, i) => (
               <li
                 key={h.regla}
-                className="flex flex-col gap-1 rounded border p-2 text-sm"
+                className="flex flex-col items-start gap-2 rounded-control border border-linea p-3 text-sm text-tinta-media"
               >
-                <span className="w-fit rounded bg-amber-100 px-2 py-0.5 text-xs font-medium">
+                <Badge tono="aviso" className="h-auto min-h-6 whitespace-normal py-0.5">
                   {`${h.regla} · ${M.hallazgos[h.regla]}`}
-                </span>
+                </Badge>
                 <p>{h.explicacion}</p>
-                <button
-                  type="button"
+                <Button
+                  size="sm"
                   aria-label={`${M.aceptar} ${h.regla}`}
                   autoFocus={i === 0}
                   disabled={ocupado}
                   onClick={() => aceptar(h)}
-                  className="w-fit rounded bg-black px-3 py-1 text-sm text-white disabled:opacity-50"
+                  className="max-lg:h-11"
                 >
                   {M.aceptar}
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -197,9 +199,9 @@ export function AceptarSugerencias({
           className="flex flex-col gap-2"
         >
           {paso.dato === "gravado" ? (
-            <label className="flex flex-col gap-1 text-sm">
+            <Label>
               {M.pedirGravado}
-              <input
+              <Input
                 type="text"
                 inputMode="decimal"
                 autoComplete="off"
@@ -207,59 +209,51 @@ export function AceptarSugerencias({
                 value={gravado}
                 onChange={(e) => setGravado(e.target.value)}
                 aria-invalid={error !== null}
-                className="w-40 rounded border px-3 py-2"
+                className={cn("w-40 max-w-full max-lg:h-11", cifra)}
               />
-            </label>
+            </Label>
           ) : (
-            <label className="flex flex-col gap-1 text-sm">
+            <Label>
               {M.pedirDestino}
-              <select
+              <Select
                 value={destino}
                 onChange={(e) => setDestino(e.target.value as DestinoCompra)}
-                className="w-40 rounded border px-3 py-2"
+                className="w-40 max-w-full max-lg:h-11"
               >
                 {DESTINOS_COMPRA.map((d) => (
                   <option key={d} value={d}>
                     {M.destinos[d]}
                   </option>
                 ))}
-              </select>
-            </label>
+              </Select>
+            </Label>
           )}
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={ocupado}
-              className="rounded bg-black px-3 py-1 text-sm text-white disabled:opacity-50"
-            >
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" size="sm" disabled={ocupado} className="max-lg:h-11">
               {M.aceptarSugerencia}
-            </button>
-            <button
-              type="button"
-              disabled={ocupado}
-              onClick={volver}
-              className="rounded border px-3 py-1 text-sm"
-            >
+            </Button>
+            <Button variant="secundario" size="sm" disabled={ocupado} onClick={volver} className="max-lg:h-11">
               {M.cancelar}
-            </button>
+            </Button>
           </div>
         </form>
       )}
 
       {error && (
-        <p role={rolDe(error)} className="text-sm text-red-600">
+        <p role={rolDe(error)} className="text-sm font-medium text-error">
           {error}
         </p>
       )}
       {paso.tipo === "lista" && (
-        <button
-          type="button"
+        <Button
+          variant="secundario"
+          size="sm"
           disabled={ocupado}
           onClick={alCancelar}
-          className="w-fit rounded border px-3 py-1 text-sm"
+          className="w-fit max-lg:h-11"
         >
           {M.cerrar}
-        </button>
+        </Button>
       )}
     </div>
   );

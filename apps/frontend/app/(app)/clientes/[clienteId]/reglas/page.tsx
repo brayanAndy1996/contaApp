@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Suspense } from "react";
+import { EncabezadoPagina, buttonVariants } from "../../../../../components/ui";
+import { cn } from "../../../../../lib/utils";
 import { TablaReglasCliente } from "../../../../../components/reglas/tabla-reglas-cliente";
 import { MENSAJES_REGLAS as M } from "../../../../../lib/reglas";
 
@@ -13,12 +15,19 @@ function ReglasDelCliente() {
   const { clienteId } = useParams<{ clienteId: string }>();
   return (
     <main className="flex min-w-0 flex-col gap-4 p-4 sm:p-6">
-      <nav aria-label="Ruta de navegación" className="text-sm">
-        <Link href={`/clientes/${encodeURIComponent(clienteId)}`} className="underline">
-          Volver al cliente
-        </Link>
-      </nav>
-      <h1 className="text-xl font-semibold">{M.tituloReglasCliente}</h1>
+      <EncabezadoPagina
+        titulo={M.tituloReglasCliente}
+        acciones={
+          <nav aria-label="Ruta de navegación">
+            <Link
+              href={`/clientes/${encodeURIComponent(clienteId)}`}
+              className={cn(buttonVariants({ variant: "secundario" }), "max-lg:h-11")}
+            >
+              Volver al cliente
+            </Link>
+          </nav>
+        }
+      />
       <TablaReglasCliente clienteId={clienteId} />
     </main>
   );
@@ -27,7 +36,7 @@ function ReglasDelCliente() {
 // `useParams()` es un dato de la URL en tiempo de petición: Next exige un límite de Suspense.
 export default function Pagina() {
   return (
-    <Suspense fallback={<main className="p-6">{M.cargando}</main>}>
+    <Suspense fallback={<main className="p-6 text-tinta-suave">{M.cargando}</main>}>
       <ReglasDelCliente />
     </Suspense>
   );

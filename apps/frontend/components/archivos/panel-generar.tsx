@@ -18,6 +18,7 @@ import {
 } from "../../lib/archivos";
 import { MENSAJES } from "../../lib/acceso";
 import { useSecuencia } from "../../lib/secuencia";
+import { Alert, Button, anilloFoco, enlace } from "../ui";
 import { seguirTrabajos } from "../../lib/trabajos";
 import { PrevioArchivo } from "./previo-archivo";
 import { VersionesArchivo } from "./versiones-archivo";
@@ -30,6 +31,13 @@ import { VersionesArchivo } from "./versiones-archivo";
 
 /** Bajo este ancho (el `lg` de Tailwind) el panel cubriría la grilla: al ubicar una fila se cierra. */
 const ANCHO_ANGOSTO = "(max-width: 1023px)";
+/** Bajo 1400 px el panel en columna queda debajo de la grilla (020 D-10): al abrirlo hay que llevarlo a la vista. */
+const ANCHO_SIN_COLUMNA = "(max-width: 1399px)";
+const sinColumnaLateral = (): boolean =>
+  typeof window !== "undefined" &&
+  typeof window.matchMedia === "function" &&
+  window.matchMedia(ANCHO_SIN_COLUMNA).matches;
+
 const esPantallaAngosta = (): boolean =>
   typeof window !== "undefined" &&
   typeof window.matchMedia === "function" &&
@@ -41,9 +49,16 @@ const esPantallaAngosta = (): boolean =>
  * Sin `destino` (ventas) conserva el panel fijo a la derecha.
  */
 const CLASE_PANEL_FIJO =
-  "fixed inset-y-0 right-0 z-40 flex max-h-screen w-[30rem] max-w-full flex-col gap-4 overflow-auto border-l bg-white p-4 shadow-lg";
+  "fixed inset-y-0 right-0 z-40 flex max-h-screen w-[30rem] max-w-full flex-col gap-4 overflow-auto border-l border-linea bg-hoja p-5 text-tinta shadow-flotante";
 const CLASE_PANEL_COLUMNA =
-  "flex max-h-[80vh] w-full min-w-0 flex-col gap-4 overflow-auto rounded border bg-white p-4 shadow-sm min-[1400px]:sticky min-[1400px]:top-4 min-[1400px]:max-h-[calc(100vh-2rem)] min-[1400px]:w-[30rem] min-[1400px]:shrink-0 min-[1400px]:self-start";
+  "flex max-h-[80vh] w-full min-w-0 flex-col gap-4 overflow-auto rounded-tarjeta border border-linea bg-hoja p-5 text-tinta shadow-tarjeta min-[1400px]:sticky min-[1400px]:top-4 min-[1400px]:max-h-[calc(100vh-2rem)] min-[1400px]:w-[30rem] min-[1400px]:shrink-0 min-[1400px]:self-start";
+
+/**
+ * P-3 (038): en celular «Generar archivo» queda fijo abajo, a todo el ancho y sobre la barra inferior del marco
+ * (`--alto-barra-inferior`, que define el marco; sin ella, 0). Solo CSS: es el mismo botón, sin duplicado.
+ */
+const CLASE_BOTON_ABRIR =
+  "max-md:fixed max-md:inset-x-4 max-md:bottom-[calc(var(--alto-barra-inferior,0px)+1rem)] max-md:z-30 max-md:h-12 max-md:shadow-flotante";
 
 const ACTIVO: ReadonlySet<TrabajoVista["estado"]> = new Set(["en_cola", "ejecutando"]);
 
@@ -103,6 +118,18 @@ export function PanelGenerar({
   const [error, setError] = useState<string | null>(null);
   const secuencia = useSecuencia();
   const botonAbrir = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  const tituloRef = useRef<HTMLHeadingElement>(null);
+
+  // Con `destino` y bajo 1400 px el panel se pinta debajo de la grilla, fuera de la vista: al abrirlo se
+  // desplaza hasta él y el foco pasa a su título (038 T-final-d). Desde 1400 px va en su columna fija.
+  useEffect(() => {
+    if (!abierto || !destino || !sinColumnaLateral()) return;
+    const panel = panelRef.current;
+    if (!panel) return;
+    if (typeof panel.scrollIntoView === "function") panel.scrollIntoView({ block: "start" });
+    tituloRef.current?.focus({ preventScroll: true });
+  }, [abierto, destino]);
 
   const cargar = useCallback(async () => {
     const id = secuencia.nueva();
@@ -247,76 +274,63 @@ export function PanelGenerar({
 
   return (
     <>
-      <button
+      <Button
         ref={botonAbrir}
-        type="button"
+        variant="secundario"
         aria-expanded={abierto}
         onClick={() => setAbierto((a) => !a)}
-        className="rounded border px-4 py-2 text-sm"
+        className={`min-h-11 lg:min-h-10 ${CLASE_BOTON_ABRIR}`}
       >
         {M.abrir}
-      </button>
+      </Button>
       {abierto && destino !== null && ubicarPanel(
         <aside
+          ref={panelRef}
           aria-label={M.titulo}
           className={destino === undefined ? CLASE_PANEL_FIJO : CLASE_PANEL_COLUMNA}
         >
           <div className="flex items-start justify-between gap-2">
             <div className="flex flex-col gap-1">
-              <h3 className="text-base font-medium">{M.titulo}</h3>
-              <p className="text-xs">{M.subtitulo(libro)}</p>
+              <h3
+                ref={tituloRef}
+                tabIndex={-1}
+                className={`m-0 scroll-mt-4 font-titulo text-lg font-bold ${anilloFoco}`}
+              >
+                {M.titulo}
+              </h3>
+              <p className="m-0 text-xs text-tinta-suave">{M.subtitulo(libro)}</p>
             </div>
-            <button
-              type="button"
-              onClick={cerrar}
-              className="rounded border px-3 py-1 text-sm"
-            >
+            <Button variant="secundario" size="sm" onClick={cerrar} className="min-h-11 lg:min-h-8">
               {M.cerrar}
-            </button>
+            </Button>
           </div>
 
           <div className="flex flex-col gap-2">
             {carga === "cargando" && (
-              <p role="status" className="text-sm">
+              <p role="status" className="m-0 text-sm text-tinta-suave">
                 {M.cargando}
               </p>
             )}
             {carga === "error" && (
-              <div className="flex flex-wrap items-center gap-3 text-sm">
-                <p role="alert" className="text-red-600">
+              <div className="flex flex-wrap items-center gap-3">
+                <Alert tono="error" className="min-w-0 flex-1">
                   {errorCarga ?? M.errorCarga}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => void cargar()}
-                  className="rounded border px-3 py-1"
-                >
+                </Alert>
+                <Button variant="secundario" size="sm" onClick={() => void cargar()} className="min-h-11 lg:min-h-8">
                   {M.reintentar}
-                </button>
+                </Button>
               </div>
             )}
-            {error && (
-              <p role="alert" className="text-sm text-red-600">
-                {error}
-              </p>
-            )}
-            {aviso && (
-              <p role="status" className="text-sm">
-                {aviso}
-              </p>
-            )}
+            {error && <Alert tono="error">{error}</Alert>}
+            {aviso && <Alert tono="ok">{aviso}</Alert>}
             {trabajo?.estado === "en_cola" && (
-              <p role="status" className="text-sm">
+              <Alert tono="info">
                 {trabajo.posicion === null
                   ? M.generacionEnColaSinPosicion
                   : M.generacionEnCola(trabajo.posicion)}
-              </p>
+              </Alert>
             )}
-            {trabajo?.estado === "ejecutando" && (
-              <p role="status" className="text-sm">
-                {M.generacionEjecutando}
-              </p>
-            )}
+            {trabajo?.estado === "ejecutando" && <Alert tono="info">{M.generacionEjecutando}</Alert>}
           </div>
 
           {previo !== null && (
@@ -332,19 +346,14 @@ export function PanelGenerar({
 
               <div className="flex flex-wrap items-center gap-3">
                 {puedeGenerar ? (
-                  <button
-                    type="button"
-                    disabled={!puedePulsar}
-                    onClick={() => void generar()}
-                    className="rounded bg-black px-4 py-2 text-white disabled:opacity-50"
-                  >
+                  <Button disabled={!puedePulsar} onClick={() => void generar()} className="min-h-11 lg:min-h-10">
                     {enviando || activo || esperando ? M.generando : M.generar}
-                  </button>
+                  </Button>
                 ) : (
-                  <p className="text-sm">{M.sinPermisoGenerar}</p>
+                  <p className="m-0 text-sm text-tinta-suave">{M.sinPermisoGenerar}</p>
                 )}
                 {trabajoId && (
-                  <Link href="/trabajos" className="text-sm underline">
+                  <Link href="/trabajos" className={`text-sm ${enlace}`}>
                     {M.verTrabajos}
                   </Link>
                 )}

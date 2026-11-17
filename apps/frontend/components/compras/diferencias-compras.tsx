@@ -3,6 +3,7 @@
 import type { DiferenciaComprasDto } from "@contapp/shared";
 import { MENSAJES_COMPRAS as M } from "../../lib/compras";
 import { conMiles } from "../../lib/montos-compras";
+import { Card, CardTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui";
 import { ANCLA_DIFERENCIAS } from "./descarga-compras";
 
 // Región «Diferencias de la última descarga» (spec 015, D-14; 014 D-18): los comprobantes que el SIRE trajo
@@ -43,58 +44,46 @@ export function DiferenciasCompras({
   diferencias: DiferenciaComprasDto[] | null;
 }) {
   return (
-    <section
-      id={ANCLA_DIFERENCIAS}
-      aria-label={M.tituloDiferencias}
-      className="flex flex-col gap-3"
-    >
-      <h2 className="text-lg font-medium">{M.tituloDiferencias}</h2>
+    <Card id={ANCLA_DIFERENCIAS} aria-label={M.tituloDiferencias}>
+      <CardTitle>{M.tituloDiferencias}</CardTitle>
       {diferencias && diferencias.length === 0 && (
-        <p className="text-sm">{M.sinDiferencias}</p>
+        <p className="m-0 text-sm text-tinta-suave">{M.sinDiferencias}</p>
       )}
       {diferencias && diferencias.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr>
-                <th scope="col" className="px-2 py-1">
-                  {COLUMNAS.comprobante}
-                </th>
-                <th scope="col" className="px-2 py-1">
-                  {COLUMNAS.origen}
-                </th>
-                <th scope="col" className="px-2 py-1">
-                  {COLUMNAS.valor}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {diferencias.map((d) => (
-                <tr key={d.clave} className="border-t align-top">
-                  <td className="whitespace-nowrap px-2 py-1">
-                    {d.serie}-{d.numero}
-                  </td>
-                  <td className="px-2 py-1">
-                    {d.origenExistente === "manual"
-                      ? COLUMNAS.origenManual
-                      : COLUMNAS.origenSire}
-                  </td>
-                  <td className="px-2 py-1">
-                    <ul>
-                      {d.campos.map((c) => (
-                        <li key={c}>
-                          {etiquetaDe(c)}:{" "}
-                          {valorDe(c, d.valoresSire[c])}
-                        </li>
-                      ))}
-                    </ul>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead scope="col">{COLUMNAS.comprobante}</TableHead>
+              <TableHead scope="col">{COLUMNAS.origen}</TableHead>
+              <TableHead scope="col">{COLUMNAS.valor}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {diferencias.map((d) => (
+              <TableRow key={d.clave} className="align-top">
+                <TableCell className="whitespace-nowrap font-mono text-[13px]">
+                  {d.serie}-{d.numero}
+                </TableCell>
+                <TableCell>
+                  {d.origenExistente === "manual"
+                    ? COLUMNAS.origenManual
+                    : COLUMNAS.origenSire}
+                </TableCell>
+                <TableCell>
+                  <ul className="m-0 list-none p-0">
+                    {d.campos.map((c) => (
+                      <li key={c}>
+                        {etiquetaDe(c)}:{" "}
+                        {valorDe(c, d.valoresSire[c])}
+                      </li>
+                    ))}
+                  </ul>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
-    </section>
+    </Card>
   );
 }

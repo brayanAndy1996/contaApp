@@ -7,6 +7,7 @@ import { fechaCorta } from "../../lib/acceso";
 import { MENSAJES_COMPRAS as M, descargarCompras } from "../../lib/compras";
 import { MENSAJES_CREDENCIALES } from "../../lib/credenciales";
 import { seguirTrabajos } from "../../lib/trabajos";
+import { Alert, Button, Card, CardTitle, enlace } from "../ui";
 
 // Región «Descarga» de compras (spec 015, D-14; RF-060, CA-3). «Descargar» encola `sire.propuesta.descargar`
 // y la región sigue el trabajo (posición en cola, «Ejecutando») con el mismo lector del panel de 007b. Al
@@ -112,87 +113,76 @@ export function DescargaCompras({
         );
 
   return (
-    <section aria-label={TITULO_DESCARGA} className="flex flex-col gap-3">
-      <h2 className="text-lg font-medium">{TITULO_DESCARGA}</h2>
+    <Card aria-label={TITULO_DESCARGA}>
+      <CardTitle>{TITULO_DESCARGA}</CardTitle>
 
       <div className="flex flex-wrap items-center gap-3">
         {puedeDescargar && (
-          <button
-            type="button"
+          <Button
             onClick={() => void descargar()}
             disabled={!periodoValido || enviando || activo || espera}
-            className="rounded bg-black px-4 py-2 text-white disabled:opacity-50"
+            className="min-h-11 lg:min-h-10"
           >
             {M.descargar}
-          </button>
+          </Button>
         )}
         {trabajoId && (
-          <Link href="/trabajos" className="text-sm underline">
+          <Link href="/trabajos" className={`text-sm ${enlace}`}>
             {MENSAJES_CREDENCIALES.enlacePanel}
           </Link>
         )}
       </div>
 
       <div aria-live="polite" className="flex flex-col gap-2">
-        {error && (
-          <p role="alert" className="text-sm text-red-600">
-            {error}
-          </p>
-        )}
+        {error && <Alert tono="error">{error}</Alert>}
         {trabajo?.estado === "en_cola" && (
-          <p role="status" className="text-sm">
+          <Alert tono="info">
             {trabajo.posicion === null
               ? M.enColaSinPosicion
               : M.enCola(trabajo.posicion)}
-          </p>
+          </Alert>
         )}
-        {trabajo?.estado === "ejecutando" && (
-          <p role="status" className="text-sm">
-            {M.ejecutando}
-          </p>
-        )}
-        {trabajo?.estado === "cancelado" && (
-          <p role="status" className="text-sm">
-            {M.descargaCancelada}
-          </p>
-        )}
+        {trabajo?.estado === "ejecutando" && <Alert tono="info">{M.ejecutando}</Alert>}
+        {trabajo?.estado === "cancelado" && <Alert tono="info">{M.descargaCancelada}</Alert>}
         {trabajo?.estado === "error" && (
-          <div role="status" className="flex flex-wrap items-center gap-3 text-sm">
-            <p>
+          // Un error del trabajo se anuncia con rol `status` (como hasta ahora): el `tono` de `error` diría `alert`.
+          <Alert tono="error" role="status" className="flex-wrap items-center gap-3">
+            <p className="m-0">
               {M.descargaFallida}
               {trabajo.motivo ? `: ${M.motivosTrabajo[trabajo.motivo]}` : "."}
             </p>
             {puedeDescargar && (
-              <button
-                type="button"
+              <Button
+                variant="secundario"
+                size="sm"
                 onClick={() => void descargar()}
                 disabled={!periodoValido || enviando}
-                className="rounded border px-3 py-1"
+                className="min-h-11 lg:min-h-8"
               >
                 {M.reintentar}
-              </button>
+              </Button>
             )}
-          </div>
+          </Alert>
         )}
       </div>
 
       {!activo && !espera && ultimaPropuesta && resumen !== null && (
         <div className="flex flex-col gap-1 text-sm">
-          <p>
+          <p className="m-0 font-semibold">
             {ultimaPropuesta.filasDistintas > 0 ? (
-              <a href={`#${ANCLA_DIFERENCIAS}`} className="underline">
+              <a href={`#${ANCLA_DIFERENCIAS}`} className={enlace}>
                 {resumen}
               </a>
             ) : (
               resumen
             )}
           </p>
-          <p>{M.ultimaDescarga(fechaCorta(ultimaPropuesta.creadaEn))}</p>
+          <p className="m-0 text-tinta-suave">{M.ultimaDescarga(fechaCorta(ultimaPropuesta.creadaEn))}</p>
         </div>
       )}
       {cargadas && !ultimaPropuesta && periodoValido && (
-        <p className="text-sm">{M.sinDescargas}</p>
+        <p className="m-0 text-sm text-tinta-suave">{M.sinDescargas}</p>
       )}
-    </section>
+    </Card>
   );
 }

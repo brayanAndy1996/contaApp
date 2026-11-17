@@ -1,6 +1,7 @@
 "use client";
 
 import { ReglasMotor } from "../../../../components/reglas/reglas-motor";
+import { EncabezadoPagina } from "../../../../components/ui";
 import { MENSAJES_REGLAS as M } from "../../../../lib/reglas";
 
 // Reglas del motor del estudio (spec 021, CA-8, P-8, P-10; RF-089). Solo un Dueño o Administrador con alcance global
@@ -8,8 +9,8 @@ import { MENSAJES_REGLAS as M } from "../../../../lib/reglas";
 
 export default function PaginaReglasMotor() {
   return (
-    <main className="flex min-w-0 flex-col gap-4 p-4 sm:p-6">
-      <h1 className="text-xl font-semibold">{M.tituloReglasMotor}</h1>
+    <main className="flex min-w-0 flex-col gap-6 p-4 sm:p-6">
+      <EncabezadoPagina titulo={M.tituloReglasMotor} />
       <ReglasMotor />
     </main>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { CircleAlert } from "lucide-react";
 import { Autor } from "../../../../components/autor";
 import {
   lineasDetalle,
@@ -11,6 +12,17 @@ import {
   type FilaAuditoria,
 } from "../../../../lib/auditoria";
 import { fechaHoraLima } from "../../../../lib/fechas";
+import {
+  Alert,
+  Button,
+  EncabezadoPagina,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../../../components/ui";
 
 // Consulta de auditoría (spec 017, P-2; CA-12, CA-14): tabla paginada por fecha, sin filtros. Solo con
 // `auditoria.ver` (el enlace de la barra se oculta sin el permiso; el backend responde 403). Todo es texto de React:
@@ -22,7 +34,7 @@ function Detalle({ fila }: { fila: FilaAuditoria }) {
   const lineas = lineasDetalle(fila);
   if (lineas.length === 0) return null;
   return (
-    <ul className="list-none">
+    <ul className="m-0 flex list-none flex-col gap-0.5 p-0 text-tinta-media">
       {lineas.map((l, i) => (
         <li key={i}>{l}</li>
       ))}
@@ -86,86 +98,93 @@ export default function PaginaAuditoria() {
 
   return (
     <main className="flex min-w-0 flex-col gap-4 p-4 sm:p-6">
-      <h1 className="text-xl font-semibold">{M.titulo}</h1>
+      <EncabezadoPagina titulo={M.titulo} />
       {sinPermiso ? (
-        <p role="alert">{M.sinPermiso}</p>
+        <Alert tono="aviso" role="alert">
+          <CircleAlert aria-hidden="true" />
+          <p className="m-0">{M.sinPermiso}</p>
+        </Alert>
       ) : (
         <>
-          {filas.length === 0 && !cargando && !error && <p>{M.vacio}</p>}
+          {filas.length === 0 && !cargando && !error && <p className="m-0 text-tinta-suave">{M.vacio}</p>}
           {filas.length > 0 && (
-            <div className="overflow-x-auto">
-              <table
-                aria-label={M.tabla}
-                className="w-full min-w-[44rem] text-left text-sm"
-              >
-                <thead>
-                  <tr>
-                    <th scope="col" className="px-2 py-1">{M.columnas.fecha}</th>
-                    <th scope="col" className="px-2 py-1">{M.columnas.actor}</th>
-                    <th scope="col" className="px-2 py-1">{M.columnas.accion}</th>
-                    <th scope="col" className="px-2 py-1">{M.columnas.cliente}</th>
-                    <th scope="col" className="px-2 py-1">{M.columnas.detalle}</th>
-                  </tr>
-                </thead>
-                <tbody ref={cuerpo}>
+            <div className="rounded-tarjeta border border-linea bg-hoja shadow-tarjeta">
+              <Table aria-label={M.tabla} className="min-w-[44rem]">
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead scope="col" className="px-2">{M.columnas.fecha}</TableHead>
+                    <TableHead scope="col" className="px-2">{M.columnas.actor}</TableHead>
+                    <TableHead scope="col" className="px-2">{M.columnas.accion}</TableHead>
+                    <TableHead scope="col" className="px-2">{M.columnas.cliente}</TableHead>
+                    <TableHead scope="col" className="px-2">{M.columnas.detalle}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody ref={cuerpo}>
                   {filas.map((f) => (
-                    <tr
+                    <TableRow
                       key={f.id}
                       tabIndex={-1}
-                      className="border-t align-top focus:outline focus:outline-2"
+                      className="align-top focus:outline-2 focus:-outline-offset-2 focus:outline-primario"
                     >
-                      <td className="px-2 py-1">{fechaHoraLima(f.ocurridaEn)}</td>
-                      <td className="px-2 py-1">
+                      <TableCell className="whitespace-nowrap px-2 align-top">{fechaHoraLima(f.ocurridaEn)}</TableCell>
+                      <TableCell className="px-2 align-top">
                         {f.actor.tipo === "usuario" ? (
                           <Autor autor={f.actor.autor} />
                         ) : (
                           textoActor(f.actor)
                         )}
-                      </td>
-                      <td className="px-2 py-1">{textoAccion(f.accion, f.datos)}</td>
-                      <td className="px-2 py-1">
+                      </TableCell>
+                      <TableCell className="px-2 align-top">{textoAccion(f.accion, f.datos)}</TableCell>
+                      <TableCell className="px-2 align-top">
                         {f.cliente ? f.cliente.razonSocial : M.sinCliente}
-                      </td>
-                      <td className="px-2 py-1">
+                      </TableCell>
+                      <TableCell className="px-2 align-top">
                         <Detalle fila={f} />
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
           <div aria-live="polite">
-            {cargando && <p role="status">{M.cargando}</p>}
-            {error && (
-              <p role="alert" className="text-red-600">
-                {error}
+            {cargando && (
+              <p role="status" className="m-0 text-tinta-suave">
+                {M.cargando}
               </p>
+            )}
+            {error && (
+              <Alert tono="error" role="alert">
+                <CircleAlert aria-hidden="true" />
+                <p className="m-0">{error}</p>
+              </Alert>
             )}
           </div>
           {error && (
-            <button
+            <Button
               ref={botonReintentar}
-              type="button"
+              variant="secundario"
+              size="sm"
               onClick={() => {
                 if (filas.length > 0) primeraNueva.current = filas.length;
                 void cargar(filas.length > 0 ? siguiente : null);
               }}
-              className="w-fit rounded border px-3 py-1 text-sm"
+              className="w-fit max-lg:h-11"
             >
               {M.reintentar}
-            </button>
+            </Button>
           )}
           {siguiente !== null && !error && (
-            <button
+            <Button
               ref={botonMas}
-              type="button"
+              variant="secundario"
+              size="sm"
               aria-disabled={cargando}
               onClick={cargarMas}
-              className="w-fit rounded border px-3 py-1 text-sm aria-disabled:opacity-50"
+              className="w-fit max-lg:h-11 aria-disabled:cursor-not-allowed aria-disabled:opacity-45"
             >
               {M.cargarMas}
-            </button>
+            </Button>
           )}
         </>
       )}

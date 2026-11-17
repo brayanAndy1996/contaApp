@@ -4,6 +4,7 @@ import type { ComparacionFila } from "@contapp/shared";
 import { MENSAJES_COMPRAS as M } from "../../lib/compras";
 import { MENSAJES_LUPA as L } from "../../lib/lupa-compras";
 import { conMiles } from "../../lib/montos-compras";
+import { Badge, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui";
 
 // Comparación SIRE y XML por columna (spec 016, D-9, CA-14, RF-093). Las diferencias se resaltan con texto
 // («Difiere») además del fondo y el peso de letra, no solo con color. Cada diferencia lleva la regla y la
@@ -19,47 +20,49 @@ export function ComparacionXml({
   const T = L.comparacion;
   return (
     <section aria-label={L.secciones.comparacion} className="flex flex-col gap-2">
-      <h3 className="text-sm font-medium">{L.secciones.comparacion}</h3>
-      {!hayXml && <p className="text-sm">{T.sinXmlNota}</p>}
-      <table aria-label={T.tabla} className="w-full text-sm">
-        <thead>
-          <tr className="text-right">
-            <th scope="col" className="py-1 text-left">{T.columna}</th>
-            <th scope="col" className="py-1">{T.sire}</th>
-            <th scope="col" className="py-1">{T.xml}</th>
-            <th scope="col" className="py-1 pl-3 text-left">{T.estado}</th>
-          </tr>
-        </thead>
-        <tbody>
+      <h3 className="text-sm font-semibold text-tinta">{L.secciones.comparacion}</h3>
+      {!hayXml && <p className="text-sm text-tinta-media">{T.sinXmlNota}</p>}
+      <Table aria-label={T.tabla}>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead scope="col">{T.columna}</TableHead>
+            <TableHead scope="col" className="text-right">{T.sire}</TableHead>
+            <TableHead scope="col" className="text-right">{T.xml}</TableHead>
+            <TableHead scope="col" className="pl-4">{T.estado}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {filas.map((f) => {
             const estado = f.xml === null ? T.sinXml : f.difiere ? T.difiere : T.coincide;
             return (
-              <tr
+              <TableRow
                 key={f.columna}
                 data-difiere={f.difiere ? "true" : "false"}
-                className={`border-t text-right ${f.difiere ? "bg-amber-50 font-medium" : ""}`}
+                className={f.difiere ? "bg-aviso-fondo font-medium text-aviso hover:bg-aviso-fondo" : "text-tinta"}
               >
-                <th scope="row" className="py-1 text-left font-normal">
+                <TableHead scope="row" className="whitespace-normal border-0 py-2 text-sm font-normal text-inherit">
                   {T.columnas[f.columna]}
-                </th>
-                <td className="py-1 tabular-nums">{conMiles(f.sire)}</td>
-                <td className="py-1 tabular-nums">{f.xml === null ? L.cabecera.sinDato : conMiles(f.xml)}</td>
-                <td className="py-1 pl-3 text-left">
+                </TableHead>
+                <TableCell numerico className="py-2">{conMiles(f.sire)}</TableCell>
+                <TableCell numerico className="py-2">
+                  {f.xml === null ? L.cabecera.sinDato : conMiles(f.xml)}
+                </TableCell>
+                <TableCell className="py-2 pl-4 text-left">
                   <span>{estado}</span>
                   {f.difiere && f.regla !== undefined && (
-                    <span className="ml-2 rounded bg-amber-100 px-2 py-0.5 text-xs font-medium">
+                    <Badge tono="aviso" className="ml-2 h-auto min-h-6 whitespace-normal border border-aviso-borde py-0.5">
                       {`${f.regla} · ${M.hallazgos[f.regla]}`}
-                    </span>
+                    </Badge>
                   )}
                   {f.difiere && f.explicacion !== undefined && (
                     <p className="text-xs font-normal">{f.explicacion}</p>
                   )}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             );
           })}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </section>
   );
 }

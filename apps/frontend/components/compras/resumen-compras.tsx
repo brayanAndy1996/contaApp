@@ -3,6 +3,18 @@
 import type { ResumenComprasVista } from "@contapp/shared";
 import { MENSAJES_COMPRAS as M } from "../../lib/compras";
 import { conMiles, iguales } from "../../lib/montos-compras";
+import {
+  Alert,
+  Card,
+  CardTitle,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  cifra,
+} from "../ui";
 
 // Resumen del periodo de compras (spec 015, D-12; RF-068, RF-069, CA-15). Todas las cifras las calcula el
 // servidor; aquí solo se muestran las cadenas recibidas, con miles. La diferencia lleva signo y texto (no solo
@@ -33,7 +45,8 @@ export const TEXTOS_RESUMEN = {
   sinCambio: "sin cambio",
 } as const;
 
-const MONTO = "px-2 text-right tabular-nums";
+const MONTO = cifra;
+const CABECERA_MONTO = "text-right";
 
 /** Diferencia con signo y texto: «+5.00 (aumenta)», «-12.00 (disminuye)», «0.00 (sin cambio)». */
 export function diferenciaConTexto(diferencia: string): string {
@@ -53,97 +66,75 @@ export function ResumenCompras({
 }) {
   const sinConvertir = resumen?.filasSinConvertir.length ?? 0;
   return (
-    <section aria-label={M.tituloResumen} className="flex flex-col gap-3">
-      <h2 className="text-lg font-medium">{M.tituloResumen}</h2>
-      <p className="text-sm">
-        <strong>{M.periodoEntero}</strong>: {TEXTOS_RESUMEN.alcance}
-      </p>
-      {resumen && sinConvertir > 0 && (
-        <p
-          role="status"
-          className="rounded bg-amber-50 p-3 text-sm text-amber-900"
-        >
-          {M.avisoSinConvertir(sinConvertir)}
+    <Card aria-label={M.tituloResumen}>
+      <div className="flex flex-col gap-1">
+        <CardTitle>{M.tituloResumen}</CardTitle>
+        <p className="m-0 text-sm text-tinta-suave">
+          <strong className="text-tinta-media">{M.periodoEntero}</strong>: {TEXTOS_RESUMEN.alcance}
         </p>
+      </div>
+      {resumen && sinConvertir > 0 && (
+        <Alert tono="aviso" role="status">
+          {M.avisoSinConvertir(sinConvertir)}
+        </Alert>
       )}
       {resumen && (
         <>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr>
-                  <th scope="col" className="px-2 py-1">
-                    {TEXTOS_RESUMEN.casillero}
-                  </th>
-                  <th scope="col" className={`${MONTO} py-1`}>
-                    {M.columnaOriginal}
-                  </th>
-                  <th scope="col" className={`${MONTO} py-1`}>
-                    {M.columnaVigente}
-                  </th>
-                  <th scope="col" className={`${MONTO} py-1`}>
-                    {M.columnaDiferencia}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {CASILLEROS.map((c) => (
-                  <tr key={c} className="border-t">
-                    <th scope="row" className="px-2 py-1 font-normal">
-                      {M.casilleros[c]}
-                    </th>
-                    <td className={MONTO}>
-                      {conMiles(resumen.casilleros.original[c])}
-                    </td>
-                    <td className={MONTO}>
-                      {conMiles(resumen.casilleros.vigente[c])}
-                    </td>
-                    <td className={MONTO}>
-                      {diferenciaConTexto(resumen.casilleros.diferencia[c])}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col">{TEXTOS_RESUMEN.casillero}</TableHead>
+                <TableHead scope="col" className={CABECERA_MONTO}>
+                  {M.columnaOriginal}
+                </TableHead>
+                <TableHead scope="col" className={CABECERA_MONTO}>
+                  {M.columnaVigente}
+                </TableHead>
+                <TableHead scope="col" className={CABECERA_MONTO}>
+                  {M.columnaDiferencia}
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {CASILLEROS.map((c) => (
+                <TableRow key={c}>
+                  <TableHead scope="row" className="text-sm font-normal text-tinta">
+                    {M.casilleros[c]}
+                  </TableHead>
+                  <TableCell className={MONTO}>{conMiles(resumen.casilleros.original[c])}</TableCell>
+                  <TableCell className={MONTO}>{conMiles(resumen.casilleros.vigente[c])}</TableCell>
+                  <TableCell className={MONTO}>{diferenciaConTexto(resumen.casilleros.diferencia[c])}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
 
-          <div className="overflow-x-auto">
-            <table
-              aria-label={TEXTOS_RESUMEN.particion}
-              className="w-full text-left text-sm"
-            >
-              <thead>
-                <tr>
-                  <th scope="col" className="px-2 py-1">
-                    {TEXTOS_RESUMEN.casillero}
-                  </th>
-                  <th scope="col" className={`${MONTO} py-1`}>
-                    {M.filasConIgv(resumen.conIgv.n)}
-                  </th>
-                  <th scope="col" className={`${MONTO} py-1`}>
-                    {M.filasSinIgv(resumen.sinIgv.n)}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {CASILLEROS.map((c) => (
-                  <tr key={c} className="border-t">
-                    <th scope="row" className="px-2 py-1 font-normal">
-                      {M.casilleros[c]}
-                    </th>
-                    <td className={MONTO}>
-                      {conMiles(resumen.conIgv.casilleros[c])}
-                    </td>
-                    <td className={MONTO}>
-                      {conMiles(resumen.sinIgv.casilleros[c])}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table aria-label={TEXTOS_RESUMEN.particion}>
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col">{TEXTOS_RESUMEN.casillero}</TableHead>
+                <TableHead scope="col" className={CABECERA_MONTO}>
+                  {M.filasConIgv(resumen.conIgv.n)}
+                </TableHead>
+                <TableHead scope="col" className={CABECERA_MONTO}>
+                  {M.filasSinIgv(resumen.sinIgv.n)}
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {CASILLEROS.map((c) => (
+                <TableRow key={c}>
+                  <TableHead scope="row" className="text-sm font-normal text-tinta">
+                    {M.casilleros[c]}
+                  </TableHead>
+                  <TableCell className={MONTO}>{conMiles(resumen.conIgv.casilleros[c])}</TableCell>
+                  <TableCell className={MONTO}>{conMiles(resumen.sinIgv.casilleros[c])}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </>
       )}
-    </section>
+    </Card>
   );
 }

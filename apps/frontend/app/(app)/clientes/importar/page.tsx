@@ -2,6 +2,22 @@
 
 import Link from "next/link";
 import { useRef, useState, type ChangeEvent } from "react";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  EncabezadoPagina,
+  Label,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  buttonVariants,
+  enlace,
+} from "../../../../components/ui";
 import { MENSAJES, usePuede } from "../../../../lib/acceso";
 import {
   MASCARA_CLAVE,
@@ -13,6 +29,7 @@ import {
   type InformeImportacion,
   type VistaPrevia,
 } from "../../../../lib/importacion";
+import { cn } from "../../../../lib/utils";
 
 // Asistente de importación de clientes (spec 007b, D7–D9; CA-1, CA-8): subir → vista previa → informe.
 // El archivo se conserva solo en memoria (referencia en un `ref`, nunca en estado ni almacenamiento) y se
@@ -31,13 +48,13 @@ export default function ImportarClientes() {
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
 
-  if (puede === undefined) return <main className="p-6">Cargando…</main>;
+  if (puede === undefined) return <main className="p-6 text-tinta-suave">Cargando…</main>;
   if (puede === false) {
     return (
       <main className="p-6">
-        <p role="alert" className="text-sm text-red-600">
+        <Alert tono="error" role="alert">
           {MENSAJES.sinPermiso}
-        </p>
+        </Alert>
       </main>
     );
   }
@@ -99,143 +116,151 @@ export default function ImportarClientes() {
   }
 
   return (
-    <main className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">{M.titulo}</h1>
-        <Link href="/clientes" className="text-sm underline">
-          Volver a clientes
-        </Link>
-      </div>
+    <main className="flex flex-col gap-6 p-6">
+      <EncabezadoPagina
+        titulo={M.titulo}
+        acciones={
+          <Link
+            href="/clientes"
+            className={cn(buttonVariants({ variant: "secundario" }), "max-lg:h-11")}
+          >
+            Volver a clientes
+          </Link>
+        }
+      />
 
-      <section className="space-y-3">
-        <a href={URL_PLANTILLA} download className="text-sm underline">
+      <Card>
+        <a href={URL_PLANTILLA} download className={cn(enlace, "self-start text-sm max-lg:flex max-lg:min-h-11 max-lg:items-center")}>
           {M.plantilla}
         </a>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="archivo-importacion" className="text-sm">
-            Archivo (.xlsx o .csv)
-          </label>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="archivo-importacion">Archivo (.xlsx o .csv)</Label>
           <input
             id="archivo-importacion"
             type="file"
             accept={ACEPTA}
             onChange={alElegir}
-            className="text-sm"
+            className="w-full min-w-0 cursor-pointer rounded-control border border-linea-control bg-hoja p-2 text-sm text-tinta file:mr-3 file:cursor-pointer file:rounded-control file:border-0 file:bg-neutro-fondo file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-tinta max-lg:min-h-11"
           />
         </div>
-        <button
+        <Button
           type="button"
           onClick={() => void revisar()}
           disabled={!haySeleccion || ocupado}
-          className="rounded bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
+          className="self-start max-lg:h-11"
         >
           Revisar archivo
-        </button>
-      </section>
+        </Button>
+      </Card>
 
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <Alert tono="error" role="alert">
           {error}
-        </p>
+        </Alert>
       )}
 
       {vista && (
-        <section aria-label="Vista previa" className="space-y-3">
-          <ul className="text-sm">
+        <Card aria-label="Vista previa">
+          <ul className="m-0 flex list-none flex-col gap-1 p-0 text-sm text-tinta-media">
             <li>{M.validas(vista.validas)}</li>
             <li>{M.conError(vista.conError)}</li>
             <li>{M.cupoLibre(vista.cupoLibre)}</li>
             <li>{M.excedentes(vista.excedentes)}</li>
           </ul>
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr>
-                <th>Fila</th>
-                <th>RUC</th>
-                <th>Estado</th>
-                <th>Claves</th>
-                <th>Motivos</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Fila</TableHead>
+                <TableHead>RUC</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead>Claves</TableHead>
+                <TableHead>Motivos</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {vista.filas.map((f) => (
-                <tr key={f.n}>
-                  <td>{f.n}</td>
-                  <td>{f.ruc}</td>
-                  <td>
-                    {f.estado === "valida"
-                      ? M.estadoFila.valida
-                      : M.estadoFila.conError}
-                  </td>
-                  <td>
+                <TableRow key={f.n}>
+                  <TableCell>{f.n}</TableCell>
+                  <TableCell className="font-mono">{f.ruc}</TableCell>
+                  <TableCell>
+                    <Badge tono={f.estado === "valida" ? "ok" : "error"}>
+                      {f.estado === "valida"
+                        ? M.estadoFila.valida
+                        : M.estadoFila.conError}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
                     {[
                       f.tieneSol ? `SOL ${MASCARA_CLAVE}` : null,
                       f.tieneSire ? `SIRE ${MASCARA_CLAVE}` : null,
                     ]
                       .filter(Boolean)
                       .join(" · ")}
-                  </td>
-                  <td>
+                  </TableCell>
+                  <TableCell>
                     {f.motivos.map((m) => (
-                      <p key={m}>{textoMotivo(m, f.archivado)}</p>
+                      <p key={m} className="m-0">
+                        {textoMotivo(m, f.archivado)}
+                      </p>
                     ))}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-          <div className="flex gap-2">
-            <button
+            </TableBody>
+          </Table>
+          <div className="flex flex-wrap gap-2">
+            <Button
               type="button"
               onClick={() => void confirmar()}
               disabled={vista.validas === 0 || ocupado}
-              className="rounded bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
+              className="max-lg:h-11"
             >
               Confirmar importación
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="secundario"
               onClick={cancelar}
               disabled={ocupado}
-              className="rounded border px-4 py-2 text-sm"
+              className="max-lg:h-11"
             >
               Cancelar
-            </button>
+            </Button>
           </div>
-        </section>
+        </Card>
       )}
 
       {informe && (
-        <section aria-label="Resultado" className="space-y-3">
-          <ul className="text-sm">
+        <Card aria-label="Resultado">
+          <ul className="m-0 flex list-none flex-col gap-1 p-0 text-sm text-tinta-media">
             <li>{M.creadas(informe.creadas)}</li>
             <li>{M.consultasEncoladas(informe.consultasEncoladas)}</li>
             <li>{M.consultasOmitidas(informe.consultasOmitidas)}</li>
           </ul>
           {informe.noImportadas.length > 0 && (
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr>
-                  <th>Fila</th>
-                  <th>RUC</th>
-                  <th>Motivo</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>Fila</TableHead>
+                  <TableHead>RUC</TableHead>
+                  <TableHead>Motivo</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {informe.noImportadas.map((f) => (
-                  <tr key={`${f.n}-${f.ruc}`}>
-                    <td>{f.n}</td>
-                    <td>{f.ruc}</td>
-                    <td>{textoMotivo(f.motivo, f.archivado)}</td>
-                  </tr>
+                  <TableRow key={`${f.n}-${f.ruc}`}>
+                    <TableCell>{f.n}</TableCell>
+                    <TableCell className="font-mono">{f.ruc}</TableCell>
+                    <TableCell>{textoMotivo(f.motivo, f.archivado)}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           )}
-          <Link href="/clientes" className="text-sm underline">
+          <Link href="/clientes" className={cn(enlace, "self-start text-sm")}>
             Ir a clientes
           </Link>
-        </section>
+        </Card>
       )}
     </main>
   );

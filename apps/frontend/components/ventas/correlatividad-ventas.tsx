@@ -6,6 +6,7 @@ import type {
   SerieCorrelatividadDto,
 } from "@contapp/shared";
 import { MENSAJES_VENTAS as M } from "../../lib/ventas";
+import { Badge, Button, Card, CardTitle } from "../ui";
 
 // Región «Correlatividad» (spec 013, D7; RF-053, HU-12). Muestra por serie lo que calcula el servidor: los
 // saltos como rangos (jamás se expanden número por número), su estado de justificación y, con permiso, las
@@ -61,21 +62,19 @@ function Faltante({
     hasta: f.hasta,
   };
   return (
-    <li className="flex flex-col gap-1 rounded border p-2">
-      <span className="font-medium">{textoFaltante(s.serie, f)}</span>
-      {f.estado === "justificado" && (
-        <span className="text-sm">{M.justificado}</span>
-      )}
-      {f.estado === "parcial" && (
-        <span className="text-sm">{M.justificadoEnParte}</span>
-      )}
-      {f.comentario && <span className="text-sm">{f.comentario}</span>}
+    <li className="flex flex-col items-start gap-2 rounded-control border border-linea bg-hoja-alterna p-3">
+      <span className="font-semibold text-tinta">{textoFaltante(s.serie, f)}</span>
+      {f.estado === "justificado" && <Badge tono="ok">{M.justificado}</Badge>}
+      {f.estado === "parcial" && <Badge tono="aviso">{M.justificadoEnParte}</Badge>}
+      {f.comentario && <span className="text-sm text-tinta-media">{f.comentario}</span>}
       {puedeClasificar &&
         f.estado === "justificado" &&
         f.justificacionId !== undefined && (
-          <span className="flex gap-2">
-            <button
+          <span className="flex flex-wrap gap-2">
+            <Button
               type="button"
+              variant="secundario"
+              size="sm"
               disabled={!alRevertir}
               onClick={() =>
                 alRevertir?.({
@@ -83,30 +82,34 @@ function Faltante({
                   clave: claveFaltante(s.serie, f),
                 })
               }
-              className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+              className="max-lg:h-11"
             >
               {M.revertir}
-            </button>
+            </Button>
           </span>
         )}
       {puedeClasificar && f.estado !== "justificado" && (
-        <span className="flex gap-2">
-          <button
+        <span className="flex flex-wrap gap-2">
+          <Button
             type="button"
+            variant="secundario"
+            size="sm"
             disabled={!alJustificar}
             onClick={() => alJustificar?.(salto)}
-            className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+            className="max-lg:h-11"
           >
             {M.justificar}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="secundario"
+            size="sm"
             disabled={!alAgregar}
             onClick={() => alAgregar?.(salto)}
-            className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+            className="max-lg:h-11"
           >
             {M.agregarVenta}
-          </button>
+          </Button>
         </span>
       )}
     </li>
@@ -135,25 +138,25 @@ export function CorrelatividadVentas({
   );
 
   return (
-    <section aria-label="Correlatividad" className="flex flex-col gap-3">
-      <h2 className="text-lg font-medium">Correlatividad</h2>
-      {correlatividad && <p className="text-sm">{M.porRevisar(porRevisar)}</p>}
+    <Card aria-label="Correlatividad">
+      <CardTitle>Correlatividad</CardTitle>
+      {correlatividad && <p className="m-0 text-sm text-tinta-media">{M.porRevisar(porRevisar)}</p>}
       {series.map((s) => (
         <fieldset
           key={`${s.tipo}|${s.serie}`}
-          className="flex flex-col gap-2 rounded border p-3"
+          className="m-0 flex min-w-0 flex-col gap-3 rounded-control border border-linea p-4"
         >
-          <legend className="px-1 text-sm font-medium">
+          <legend className="px-1 text-sm font-semibold text-tinta">
             {M.nombreSerie(s.tipo, s.serie)}
           </legend>
           {s.estado === "completa" && (
-            <p className="text-sm">{M.numeracionCompleta}</p>
+            <p className="m-0 text-sm text-tinta-media">{M.numeracionCompleta}</p>
           )}
           {s.estado === "no_evaluable" && (
-            <p className="text-sm">{M.noEvaluable}</p>
+            <p className="m-0 text-sm text-tinta-media">{M.noEvaluable}</p>
           )}
           {s.estado === "con_faltantes" && (
-            <ul className="flex flex-col gap-2 text-sm">
+            <ul className="m-0 flex list-none flex-col gap-2 p-0 text-sm">
               {s.faltantes.map((f) => (
                 <Faltante
                   key={`${f.desde}-${f.hasta}`}
@@ -168,12 +171,12 @@ export function CorrelatividadVentas({
             </ul>
           )}
           {s.noEvaluables > 0 && (
-            <p className="text-xs">
+            <p className="m-0 text-xs text-tinta-suave">
               Comprobantes con número no evaluable: {s.noEvaluables}
             </p>
           )}
         </fieldset>
       ))}
-    </section>
+    </Card>
   );
 }

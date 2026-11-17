@@ -1,4 +1,5 @@
 import { MONEDAS, REGIMENES, ZONAS, type PerfilFiscal } from "@contapp/shared";
+import { Label, Select } from "./ui";
 
 // Datos fiscales de un cliente (spec 007a, D1; CA-4, CA-9). Solo presentación: el catálogo sale de
 // `@contapp/shared` y el backend valida los valores (400). La pantalla decide si los muestra como
@@ -53,9 +54,9 @@ export function DatosFiscales({
 }: PropsControles) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      <label className="flex flex-col gap-1 text-sm">
+      <Label>
         Régimen
-        <select
+        <Select
           value={perfil.regimen ?? ""}
           disabled={deshabilitado}
           onChange={(e) =>
@@ -64,7 +65,7 @@ export function DatosFiscales({
               regimen: REGIMENES.find((r) => r === e.target.value) ?? null,
             })
           }
-          className="rounded border px-3 py-2"
+          className="max-lg:h-11"
         >
           <option value="">Sin definir</option>
           {REGIMENES.map((r) => (
@@ -72,12 +73,12 @@ export function DatosFiscales({
               {TEXTO_REGIMEN[r]}
             </option>
           ))}
-        </select>
-      </label>
+        </Select>
+      </Label>
 
-      <label className="flex flex-col gap-1 text-sm">
+      <Label>
         Zona
-        <select
+        <Select
           value={perfil.zona}
           disabled={deshabilitado}
           onChange={(e) =>
@@ -86,17 +87,17 @@ export function DatosFiscales({
               zona: ZONAS.find((z) => z === e.target.value) ?? perfil.zona,
             })
           }
-          className="rounded border px-3 py-2"
+          className="max-lg:h-11"
         >
           {ZONAS.map((z) => (
             <option key={z} value={z}>
               {TEXTO_ZONA[z]}
             </option>
           ))}
-        </select>
-      </label>
+        </Select>
+      </Label>
 
-      <label className="flex items-center gap-2 text-sm">
+      <Label className="min-h-10 flex-row items-center gap-2 font-normal text-tinta max-lg:min-h-11">
         <input
           type="checkbox"
           checked={perfil.ventasExoneradas}
@@ -104,11 +105,12 @@ export function DatosFiscales({
           onChange={(e) =>
             onChange({ ...perfil, ventasExoneradas: e.target.checked })
           }
+          className="size-5 cursor-pointer accent-primario max-lg:size-6"
         />
         Ventas exoneradas
-      </label>
+      </Label>
 
-      <label className="flex items-center gap-2 text-sm">
+      <Label className="min-h-10 flex-row items-center gap-2 font-normal text-tinta max-lg:min-h-11">
         <input
           type="checkbox"
           checked={perfil.ventasMixtas}
@@ -116,13 +118,14 @@ export function DatosFiscales({
           onChange={(e) =>
             onChange({ ...perfil, ventasMixtas: e.target.checked })
           }
+          className="size-5 cursor-pointer accent-primario max-lg:size-6"
         />
         Ventas mixtas
-      </label>
+      </Label>
 
-      <label className="flex flex-col gap-1 text-sm">
+      <Label>
         Moneda habitual
-        <select
+        <Select
           value={perfil.monedaHabitual}
           disabled={deshabilitado}
           onChange={(e) =>
@@ -133,15 +136,15 @@ export function DatosFiscales({
                 perfil.monedaHabitual,
             })
           }
-          className="rounded border px-3 py-2"
+          className="max-lg:h-11"
         >
           {MONEDAS.map((m) => (
             <option key={m} value={m}>
               {TEXTO_MONEDA[m]}
             </option>
           ))}
-        </select>
-      </label>
+        </Select>
+      </Label>
     </div>
   );
 }
@@ -156,11 +159,11 @@ export function DatosFiscalesLectura({ perfil }: { perfil: PerfilFiscal }) {
     ["Moneda habitual", TEXTO_MONEDA[perfil.monedaHabitual]],
   ];
   return (
-    <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
+    <dl className="m-0 grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
       {filas.map(([etiqueta, valor]) => (
         <div key={etiqueta} className="contents">
-          <dt className="text-neutral-600">{etiqueta}</dt>
-          <dd>{valor}</dd>
+          <dt className="text-tinta-suave">{etiqueta}</dt>
+          <dd className="m-0 text-tinta">{valor}</dd>
         </div>
       ))}
     </dl>

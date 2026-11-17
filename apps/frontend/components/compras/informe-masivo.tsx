@@ -1,17 +1,31 @@
 "use client";
 
 import type { FilaCompraVista, InformeMasiva } from "@contapp/shared";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type KeyboardEvent } from "react";
 import {
   MENSAJES_COMPRAS as M,
   mensajeDeRechazoMasivo,
 } from "../../lib/compras";
+import {
+  Button,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  panelDialogo,
+} from "../ui";
+import { useRestaurarFoco } from "../../lib/restaurar-foco";
 import { comprobanteDe } from "./accion-compras";
 
 // Informe de una acción masiva (spec 015, D-8, CA-7): «N aplicadas» y la lista de rechazadas con el comprobante y
 // un motivo legible por código. Las masivas son parciales: lo rechazado no impide lo aplicado. Solo muestra; las
 // `version_obsoleta` las recarga quien lanzó la masiva (`BarraMasiva`). El comprobante sale de las filas cargadas;
 // si una fila ya no está, se muestra el id corto.
+
+const FOCALIZABLES =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /** Comprobante de una compra por su id, o el id corto si la fila no está cargada. */
 export function comprobanteDeId(
@@ -32,60 +46,78 @@ export function InformeMasivo({
   alCerrar: () => void;
 }) {
   const cerrar = useRef<HTMLButtonElement>(null);
+  const raiz = useRef<HTMLDivElement>(null);
 
+  // Al cerrar, el foco vuelve al control que abrió el informe (antes del efecto que lo mueve adentro).
+  useRestaurarFoco();
   useEffect(() => {
     cerrar.current?.focus();
   }, []);
 
+  // `aria-modal`: Tab y Shift+Tab ciclan dentro del informe; Esc lo cierra.
+  function alTeclear(e: KeyboardEvent<HTMLDivElement>): void {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      alCerrar();
+      return;
+    }
+    if (e.key !== "Tab" || !raiz.current) return;
+    const lista = Array.from(raiz.current.querySelectorAll<HTMLElement>(FOCALIZABLES));
+    const primero = lista[0];
+    const ultimo = lista[lista.length - 1];
+    if (!primero || !ultimo) return;
+    const activo = document.activeElement;
+    if (e.shiftKey && (activo === primero || activo === raiz.current)) {
+      e.preventDefault();
+      ultimo.focus();
+    } else if (!e.shiftKey && activo === ultimo) {
+      e.preventDefault();
+      primero.focus();
+    } else if (!raiz.current.contains(activo)) {
+      e.preventDefault();
+      (e.shiftKey ? ultimo : primero).focus();
+    }
+  }
+
   return (
     <div
+      ref={raiz}
       role="dialog"
       aria-modal="true"
       aria-label={M.informeMasivo}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") alCerrar();
-      }}
-      className="flex max-h-[80vh] w-[32rem] max-w-full flex-col gap-3 overflow-auto rounded border bg-white p-4 shadow-lg"
+      onKeyDown={alTeclear}
+      className={panelDialogo}
     >
-      <h3 className="text-base font-medium">{M.informeMasivo}</h3>
-      <p className="text-sm font-medium">{M.aplicadas(informe.aplicadas)}</p>
+      <h3 className="m-0 font-titulo text-lg font-bold">{M.informeMasivo}</h3>
+      <p className="m-0 text-sm font-semibold">{M.aplicadas(informe.aplicadas)}</p>
       {informe.rechazadas.length > 0 && (
         <>
-          <p className="text-sm font-medium text-red-700">
+          <p className="m-0 text-sm font-semibold text-error">
             {M.rechazadas(informe.rechazadas.length)}
           </p>
-          <table aria-label={M.tablaRechazadas} className="w-full text-sm">
-            <thead>
-              <tr className="text-left">
-                <th scope="col" className="py-1 pr-3">
-                  {M.columnas.comprobante}
-                </th>
-                <th scope="col" className="py-1">
-                  {M.columnaMotivo}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table aria-label={M.tablaRechazadas}>
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col">{M.columnas.comprobante}</TableHead>
+                <TableHead scope="col">{M.columnaMotivo}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {informe.rechazadas.map((r) => (
-                <tr key={r.compraId} className="border-t">
-                  <td className="py-1 pr-3 whitespace-nowrap">
+                <TableRow key={r.compraId}>
+                  <TableCell className="whitespace-nowrap py-2 font-mono">
                     {comprobanteDeId(filas, r.compraId)}
-                  </td>
-                  <td className="py-1">{mensajeDeRechazoMasivo(r.codigo)}</td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="py-2">{mensajeDeRechazoMasivo(r.codigo)}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </>
       )}
-      <button
-        ref={cerrar}
-        type="button"
-        onClick={alCerrar}
-        className="w-fit rounded border px-3 py-1 text-sm"
-      >
+      <Button ref={cerrar} variant="secundario" onClick={alCerrar} className="w-fit max-lg:h-11">
         {M.cerrar}
-      </button>
+      </Button>
     </div>
   );
 }

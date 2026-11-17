@@ -1,6 +1,7 @@
 "use client";
 
 import type { EstadoXml } from "@contapp/shared";
+import { CircleAlert, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { MENSAJES } from "../../lib/acceso";
 import { etiquetaAutor } from "../../lib/autor";
@@ -13,6 +14,7 @@ import {
   solicitarXml,
 } from "../../lib/lupa-compras";
 import { seguirTrabajos } from "../../lib/trabajos";
+import { Alert, Badge, Button } from "../ui";
 
 // Estado del XML en la lupa (spec 016, RF-097a, RF-097b, CA-9, CA-11, CA-16). Cuatro estados del servidor:
 //  - disponible: «XML simulado» (origen del mock), «XML real» o «XML subido por X el …»; aviso de moneda si la del
@@ -149,15 +151,16 @@ export function EstadoXmlLupa({
 
   const botonObtener = (texto: string) =>
     puedeEscribir && (
-      <button
-        type="button"
+      <Button
+        variant="secundario"
+        size="sm"
         onClick={() => void solicitar()}
         disabled={ocupado !== null || bloqueo !== null}
         title={bloqueo ?? undefined}
-        className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+        className="max-lg:h-11"
       >
         {ocupado === "solicitar" ? L.xml.solicitando : texto}
-      </button>
+      </Button>
     );
 
   let cuerpo: ReactNode;
@@ -173,40 +176,43 @@ export function EstadoXmlLupa({
     cuerpo = (
       <>
         <div className="flex flex-wrap items-center gap-3">
-          <span
+          <Badge
             data-origen={xml.origen}
-            className="rounded bg-gray-100 px-2 py-0.5 text-sm font-medium"
+            tono={xml.origen === "simulado" ? "aviso" : xml.origen === "subido" ? "info" : "ok"}
+            className="h-auto min-h-6 whitespace-normal py-0.5"
           >
             {etiqueta}
-          </span>
-          <button
-            type="button"
+          </Badge>
+          <Button
+            variant="secundario"
+            size="sm"
             onClick={() => void descargar()}
             disabled={ocupado !== null}
-            className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+            className="max-lg:h-11"
           >
             {ocupado === "descargar" ? L.xml.descargando : L.xml.descargar}
-          </button>
+          </Button>
         </div>
         {/* P-6: un XML simulado se puede reemplazar subiendo el real; con uno real o subido el servidor da 409. */}
         {xml.origen === "simulado" && puedeEscribir && subir}
         {xml.avisoMoneda !== undefined && (
-          <p role="note" className="rounded border border-amber-300 bg-amber-50 p-2 text-sm">
+          <Alert tono="aviso" role="note">
+            <TriangleAlert aria-hidden />
             {L.xml.avisoMoneda(xml.avisoMoneda.monedaXml, xml.avisoMoneda.monedaFila)}
-          </p>
+          </Alert>
         )}
       </>
     );
   } else if (xml.estado === "pendiente") {
     cuerpo = (
-      <p role="status" className="text-sm">
+      <p role="status" className="text-sm text-tinta-media">
         {L.xml.pendiente}
       </p>
     );
   } else if (xml.estado === "sin_solicitar") {
     cuerpo = (
       <div className="flex flex-wrap items-center gap-3">
-        <p className="text-sm">{L.xml.sinSolicitar}</p>
+        <p className="text-sm text-tinta-media">{L.xml.sinSolicitar}</p>
         {botonObtener(L.xml.obtener)}
         {puedeEscribir && subir}
       </div>
@@ -214,8 +220,8 @@ export function EstadoXmlLupa({
   } else {
     cuerpo = (
       <>
-        <p className="text-sm font-medium">{L.xml.noDisponible}</p>
-        <p className="text-sm">{L.xml.causas[xml.codigo]}</p>
+        <p className="text-sm font-semibold text-tinta">{L.xml.noDisponible}</p>
+        <p className="text-sm text-tinta-media">{L.xml.causas[xml.codigo]}</p>
         <div className="flex flex-wrap items-center gap-3">
           {xml.codigo !== "no_aplica" && botonObtener(L.xml.reintentarObtener)}
           {puedeEscribir && subir}
@@ -226,14 +232,15 @@ export function EstadoXmlLupa({
 
   return (
     <section aria-label={L.secciones.xml} className="flex flex-col gap-2">
-      <h3 className="text-sm font-medium">{L.secciones.xml}</h3>
+      <h3 className="text-sm font-semibold text-tinta">{L.secciones.xml}</h3>
       {cuerpo}
       <div aria-live="polite">
-        {aviso && <p className="text-sm">{aviso}</p>}
+        {aviso && <p className="text-sm text-tinta-media">{aviso}</p>}
         {error && (
-          <p role="alert" className="text-sm text-red-600">
+          <Alert tono="error">
+            <CircleAlert aria-hidden />
             {error}
-          </p>
+          </Alert>
         )}
       </div>
     </section>

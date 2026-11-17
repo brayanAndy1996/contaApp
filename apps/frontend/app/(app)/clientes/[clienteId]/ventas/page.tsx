@@ -18,6 +18,18 @@ import {
   type TamanoPaginaVentas,
 } from "@contapp/shared";
 import { PanelGenerar } from "../../../../../components/archivos/panel-generar";
+import {
+  Alert,
+  Button,
+  Card,
+  CardTitle,
+  EncabezadoPagina,
+  Input,
+  Label,
+  Select,
+  alertVariants,
+  velo,
+} from "../../../../../components/ui";
 import { AgregarVenta } from "../../../../../components/ventas/agregar-venta";
 import { ConfirmarAccion } from "../../../../../components/ventas/confirmar-accion";
 import {
@@ -515,16 +527,12 @@ function Ventas() {
     void cargarResto();
   }
 
-  if (permisos === null) return <main className="p-6">Cargando…</main>;
+  if (permisos === null) return <main className="p-6 text-tinta-suave">Cargando…</main>;
 
   if (!permisos.ver) {
     return (
       <main className="flex flex-col gap-4 p-6">
-        {errorGeneral && (
-          <p role="alert" className="text-sm text-red-600">
-            {errorGeneral}
-          </p>
-        )}
+        {errorGeneral && <Alert tono="error">{errorGeneral}</Alert>}
       </main>
     );
   }
@@ -551,40 +559,38 @@ function Ventas() {
   }`;
 
   return (
-    <main className="flex flex-col gap-6 p-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">{M.titulo}</h1>
-        {cliente && (
-          <p className="text-sm">
-            {cliente.razonSocial} · RUC {cliente.ruc}
-          </p>
-        )}
-        {/* Enlace entre Ventas y Compras (spec 015, D-1). */}
-        <nav aria-label="Registros del cliente" className="flex gap-3 text-sm">
-          <Link href={hrefCompras} className="underline">
-            {MENSAJES_COMPRAS.enlaceCompras}
-          </Link>
-        </nav>
-      </header>
+    // En celular (P-3) «Generar archivo» queda fijo abajo: el `pb-28` deja ver el final de la página.
+    <main className="flex flex-col gap-6 p-4 pb-28 md:p-6 md:pb-6">
+      <EncabezadoPagina
+        titulo={M.titulo}
+        descripcion={
+          cliente ? (
+            <>
+              {cliente.razonSocial} · RUC <span className="font-mono">{cliente.ruc}</span>
+            </>
+          ) : undefined
+        }
+        acciones={
+          /* Enlace entre Ventas y Compras (spec 015, D-1). */
+          <nav aria-label="Registros del cliente" className="flex flex-wrap gap-2">
+            <Button asChild variant="secundario" className="max-lg:h-11">
+              <Link href={hrefCompras}>{MENSAJES_COMPRAS.enlaceCompras}</Link>
+            </Button>
+          </nav>
+        }
+      />
 
       {archivado && (
-        <p
-          role="status"
-          className="w-full max-w-xl rounded bg-amber-50 p-3 text-sm text-amber-900"
-        >
+        <Alert tono="aviso" role="status" className="w-full max-w-xl">
           {M.clienteArchivado}
-        </p>
+        </Alert>
       )}
-      {errorGeneral && (
-        <p role="alert" className="text-sm text-red-600">
-          {errorGeneral}
-        </p>
-      )}
+      {errorGeneral && <Alert tono="error">{errorGeneral}</Alert>}
 
       <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-sm">
+        <Label className="w-40">
           {M.etiquetaPeriodo}
-          <input
+          <Input
             type="text"
             inputMode="numeric"
             maxLength={6}
@@ -594,37 +600,38 @@ function Ventas() {
             aria-describedby={
               periodo !== "" && !periodoValido ? "periodo-ayuda" : undefined
             }
-            className="rounded border px-3 py-2"
+            className="font-mono font-normal max-lg:h-11"
           />
-        </label>
+        </Label>
         {puedeDescargar &&
           (escribible ? (
-            <Link href={hrefImportar} className="rounded border px-4 py-2 text-sm">
-              {M.importar}
-            </Link>
+            <Button asChild variant="secundario" className="max-lg:h-11">
+              <Link href={hrefImportar}>{M.importar}</Link>
+            </Button>
           ) : (
             <span
               aria-disabled="true"
               title={bloqueo ?? undefined}
-              className="rounded border px-4 py-2 text-sm opacity-50"
+              className="inline-flex h-10 cursor-not-allowed items-center rounded-control border border-linea-control bg-hoja px-4 text-sm font-semibold text-tinta opacity-45 max-lg:h-11"
             >
               {M.importar}
             </span>
           ))}
         {puedeClasificar && (
-          <button
+          <Button
             type="button"
+            variant="secundario"
             disabled={!periodoValido || !escribible}
             title={bloqueo ?? undefined}
             onClick={() => abrirFormulario({ tipo: "agregar", salto: null })}
-            className="rounded border px-4 py-2 text-sm disabled:opacity-50"
+            className="max-lg:h-11"
           >
             {M.agregarVentaManual}
-          </button>
+          </Button>
         )}
       </div>
       {periodo !== "" && !periodoValido && (
-        <p id="periodo-ayuda" className="text-sm text-red-600">
+        <p id="periodo-ayuda" className="m-0 text-sm text-error">
           {M.periodoInvalido}
         </p>
       )}
@@ -647,7 +654,8 @@ function Ventas() {
         />
       )}
       {periodoValido && bloqueo !== null && (
-        <p role="status" className="w-full max-w-xl rounded bg-amber-50 p-3 text-sm text-amber-900">
+        // Se conserva el `<p role="status">`: las pruebas lo buscan por `p` (regla 1); mismo aspecto que `Alert` aviso.
+        <p role="status" className={`${alertVariants({ tono: "aviso" })} m-0 w-full max-w-xl`}>
           {bloqueo}
         </p>
       )}
@@ -731,16 +739,8 @@ function Ventas() {
             }
           />
 
-          {aviso && (
-            <p role="status" className="text-sm">
-              {aviso}
-            </p>
-          )}
-          {errorAccion && (
-            <p role="alert" className="text-sm text-red-600">
-              {errorAccion}
-            </p>
-          )}
+          {aviso && <Alert tono="ok">{aviso}</Alert>}
+          {errorAccion && <Alert tono="error">{errorAccion}</Alert>}
           {puedeClasificar && escribible && confirmacion && (
             <ConfirmarAccion
               mensaje={
@@ -774,81 +774,81 @@ function Ventas() {
             />
           )}
 
-          <section aria-label={M.tablaVentas} className="flex flex-col gap-3">
-            <h2 className="text-lg font-medium">{M.tablaVentas}</h2>
+          <Card aria-label={M.tablaVentas}>
+            <CardTitle>{M.tablaVentas}</CardTitle>
 
             <form
               onSubmit={aplicarFiltros}
               noValidate
               className="flex flex-wrap items-end gap-3"
             >
-              <label className="flex flex-col gap-1 text-sm">
+              <Label>
                 {M.buscar}
-                <input
+                <Input
                   type="text"
                   value={borrador.q}
                   onChange={(e) => setBorrador({ ...borrador, q: e.target.value })}
-                  className="rounded border px-3 py-2"
+                  className="font-normal max-lg:h-11"
                 />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
+              </Label>
+              <Label>
                 {M.filtroTipo}
-                <input
+                <Input
                   type="text"
                   value={borrador.tipo}
                   onChange={(e) =>
                     setBorrador({ ...borrador, tipo: e.target.value })
                   }
-                  className="w-20 rounded border px-3 py-2"
+                  className="w-20 font-normal max-lg:h-11"
                 />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
+              </Label>
+              <Label>
                 {M.filtroSerie}
-                <input
+                <Input
                   type="text"
                   value={borrador.serie}
                   onChange={(e) =>
                     setBorrador({ ...borrador, serie: e.target.value })
                   }
-                  className="w-24 rounded border px-3 py-2"
+                  className="w-24 font-mono font-normal max-lg:h-11"
                 />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
+              </Label>
+              <Label>
                 {M.montoMinimo}
-                <input
+                <Input
                   type="text"
                   inputMode="decimal"
                   value={borrador.min}
                   onChange={(e) =>
                     setBorrador({ ...borrador, min: e.target.value })
                   }
-                  className="w-32 rounded border px-3 py-2"
+                  className="w-32 cifra font-normal max-lg:h-11"
                 />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
+              </Label>
+              <Label>
                 {M.montoMaximo}
-                <input
+                <Input
                   type="text"
                   inputMode="decimal"
                   value={borrador.max}
                   onChange={(e) =>
                     setBorrador({ ...borrador, max: e.target.value })
                   }
-                  className="w-32 rounded border px-3 py-2"
+                  className="w-32 cifra font-normal max-lg:h-11"
                 />
-              </label>
-              <button type="submit" className="rounded border px-4 py-2 text-sm">
+              </Label>
+              <Button type="submit" variant="secundario" className="max-lg:h-11">
                 {M.filtrar}
-              </button>
+              </Button>
             </form>
             {filtrosInvalidos && (
-              <p className="text-sm text-red-600">{M.filtrosInvalidos}</p>
+              <p className="m-0 text-sm text-error">{M.filtrosInvalidos}</p>
             )}
 
             {datosPagina?.avisos.includes("todas_limitada") && (
-              <p role="status" className="rounded bg-amber-50 p-3 text-sm text-amber-900">
+              <Alert tono="aviso" role="status">
                 {M.todasLimitada(conMiles(datosPagina.total))}
-              </p>
+              </Alert>
             )}
 
             <GrillaVentas
@@ -889,46 +889,48 @@ function Ventas() {
               }
             />
 
-            <div className="flex flex-wrap items-center gap-3 text-sm">
-              <label className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-3 text-sm text-tinta-media">
+              <Label className="flex-row items-center gap-2 font-normal">
                 {M.filasPorPagina}
-                <select
+                <Select
                   value={String(tamano)}
                   onChange={(e) => {
                     const v = e.target.value;
                     setTamano(v === "todas" ? "todas" : (Number(v) as TamanoPaginaVentas));
                     setPagina(1);
                   }}
-                  className="rounded border px-2 py-1"
+                  className="w-24 max-lg:h-11"
                 >
                   {TAMANOS_PAGINA_VENTAS.map((t) => (
                     <option key={t} value={String(t)}>
                       {String(t)}
                     </option>
                   ))}
-                </select>
-              </label>
-              <button
+                </Select>
+              </Label>
+              <Button
                 type="button"
+                variant="secundario"
                 disabled={pagina <= 1}
                 onClick={() => setPagina(pagina - 1)}
-                className="rounded border px-3 py-1 disabled:opacity-50"
+                className="max-lg:h-11"
               >
                 {M.anterior}
-              </button>
+              </Button>
               <span>
                 Página {pagina} · {conMiles(total)} comprobantes
               </span>
-              <button
+              <Button
                 type="button"
+                variant="secundario"
                 disabled={!hayMas}
                 onClick={() => setPagina(pagina + 1)}
-                className="rounded border px-3 py-1 disabled:opacity-50"
+                className="max-lg:h-11"
               >
                 {M.siguiente}
-              </button>
+              </Button>
             </div>
-          </section>
+          </Card>
 
           {propuestas !== null && propuestas.length > 0 && (
             <DiferenciasVentas diferencias={diferencias} />
@@ -938,7 +940,7 @@ function Ventas() {
 
       {/* Excluir y restaurar salen en un diálogo sobre todo lo demás: el panel lateral no lo tapa. */}
       {puedeClasificar && escribible && exclusion !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+        <div className={`${velo} flex items-center justify-center p-4`}>
           {exclusion.tipo === "excluir" ? (
             <ExcluirVenta
               key={`x|${exclusion.ventaId}`}
@@ -976,7 +978,7 @@ function Ventas() {
 // `useParams()` y `useSearchParams()` son datos de la URL en tiempo de petición: Next exige un límite de Suspense.
 export default function Pagina() {
   return (
-    <Suspense fallback={<main className="p-6">Cargando…</main>}>
+    <Suspense fallback={<main className="p-6 text-tinta-suave">Cargando…</main>}>
       <Ventas />
     </Suspense>
   );

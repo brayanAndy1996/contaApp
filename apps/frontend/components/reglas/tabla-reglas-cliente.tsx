@@ -12,7 +12,20 @@ import {
   listarReglas,
   type ReglaVista,
 } from "../../lib/reglas";
+import { cn } from "../../lib/utils";
 import { ConfirmarAccion } from "../ventas/confirmar-accion";
+import {
+  Alert,
+  Badge,
+  Button,
+  Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../ui";
 
 // Reglas aprendidas de un cliente (spec 021, CA-7, HU-31; D-5). Lista proveedor, destino, estado, cuántas veces se
 // aplicó y se aceptó, y cuándo cambió por última vez (hora de Lima). Con `reglas.gestionar` se edita el destino, se
@@ -27,7 +40,8 @@ import { ConfirmarAccion } from "../ventas/confirmar-accion";
 
 /** Celda: en escritorio, tabla; a menos de 768 px, bloque con la etiqueta de su columna delante (T23a-5). */
 const CELDA =
-  "px-2 py-1 max-md:flex max-md:gap-2 max-md:px-0 max-md:before:w-28 max-md:before:shrink-0 max-md:before:font-medium max-md:before:content-[attr(data-etiqueta)]";
+  "px-2 py-2 align-top max-md:flex max-md:gap-2 max-md:px-0 max-md:py-1 max-md:before:w-28 max-md:before:shrink-0 max-md:before:font-semibold max-md:before:text-tinta-suave max-md:before:content-[attr(data-etiqueta)]";
+const CABECERA = "px-2 py-2";
 
 type Edicion = { reglaId: string; destino: DestinoCompra };
 
@@ -160,69 +174,70 @@ export function TablaReglasCliente({ clienteId }: { clienteId: string }) {
     setFoco(clave(regla.id, "eliminar"));
   }
 
-  if (!cargado) return <p role="status">{M.cargando}</p>;
+  if (!cargado) return <p role="status" className="m-0 text-tinta-suave">{M.cargando}</p>;
 
   return (
     <section aria-label={M.tituloReglasCliente} className="flex min-w-0 flex-col gap-3">
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <Alert tono="error" role="alert">
           {error}
-        </p>
+        </Alert>
       )}
       <p role="status" className="sr-only">
         {anuncio}
       </p>
-      {reglas.length === 0 && !error && <p>{M.sinReglas}</p>}
+      {reglas.length === 0 && !error && <p className="m-0 text-tinta-media">{M.sinReglas}</p>}
       {reglas.length > 0 && (
-        <div>
-          <table
+        <div className="md:overflow-x-clip md:rounded-tarjeta md:border md:border-linea md:bg-hoja md:shadow-tarjeta">
+          <Table
+            desplazable={false}
             role="table"
             aria-label={M.tablaReglas}
-            className="w-full text-left text-sm max-md:block"
+            className="max-md:block"
           >
-            <thead role="rowgroup" className="max-md:sr-only">
-              <tr role="row">
-                <th
+            <TableHeader role="rowgroup" className="max-md:sr-only">
+              <TableRow role="row" className="hover:bg-transparent">
+                <TableHead
                   ref={registrar(ENCABEZADO)}
                   tabIndex={-1}
                   role="columnheader"
                   scope="col"
-                  className="px-2 py-1"
+                  className={CABECERA}
                 >
                   {M.columnas.proveedor}
-                </th>
-                <th role="columnheader" scope="col" className="px-2 py-1">{M.columnas.destino}</th>
-                <th role="columnheader" scope="col" className="px-2 py-1">{M.columnas.estado}</th>
-                <th role="columnheader" scope="col" className="px-2 py-1">{M.columnas.aplicada}</th>
-                <th role="columnheader" scope="col" className="px-2 py-1">{M.columnas.aceptada}</th>
-                <th role="columnheader" scope="col" className="px-2 py-1">{M.columnas.actualizada}</th>
+                </TableHead>
+                <TableHead role="columnheader" scope="col" className={CABECERA}>{M.columnas.destino}</TableHead>
+                <TableHead role="columnheader" scope="col" className={CABECERA}>{M.columnas.estado}</TableHead>
+                <TableHead role="columnheader" scope="col" className={CABECERA}>{M.columnas.aplicada}</TableHead>
+                <TableHead role="columnheader" scope="col" className={CABECERA}>{M.columnas.aceptada}</TableHead>
+                <TableHead role="columnheader" scope="col" className={CABECERA}>{M.columnas.actualizada}</TableHead>
                 {puedeGestionar && (
-                  <th role="columnheader" scope="col" className="px-2 py-1">{M.columnaAcciones}</th>
+                  <TableHead role="columnheader" scope="col" className={CABECERA}>{M.columnaAcciones}</TableHead>
                 )}
-              </tr>
-            </thead>
-            <tbody role="rowgroup" className="max-md:block">
+              </TableRow>
+            </TableHeader>
+            <TableBody role="rowgroup" className="max-md:block">
               {reglas.map((r) => {
                 const numero = r.proveedor.numero;
                 const editando = edicion?.reglaId === r.id ? edicion : null;
                 return (
-                  <tr
+                  <TableRow
                     key={r.id}
                     role="row"
                     onKeyDown={(e) => alTeclear(e, r.id)}
-                    className="align-top md:border-t max-md:mb-3 max-md:flex max-md:flex-col max-md:rounded max-md:border max-md:p-2"
+                    className="align-top max-md:mb-3 max-md:flex max-md:flex-col max-md:rounded-control max-md:border max-md:border-linea max-md:bg-hoja max-md:p-3 max-md:shadow-tarjeta"
                   >
-                    <td role="cell" data-etiqueta={M.columnas.proveedor} className={CELDA}>
+                    <TableCell role="cell" data-etiqueta={M.columnas.proveedor} className={CELDA}>
                       <div>
-                        <span className="block">{numero}</span>
+                        <span className="block font-mono">{numero}</span>
                         {r.proveedor.razonSocial !== null && (
-                          <span className="block">{r.proveedor.razonSocial}</span>
+                          <span className="block text-tinta-media">{r.proveedor.razonSocial}</span>
                         )}
                       </div>
-                    </td>
-                    <td role="cell" data-etiqueta={M.columnas.destino} className={CELDA}>
+                    </TableCell>
+                    <TableCell role="cell" data-etiqueta={M.columnas.destino} className={CELDA}>
                       {editando ? (
-                        <select
+                        <Select
                           ref={registrar(clave(r.id, "destino"))}
                           aria-label={M.campoDestino}
                           value={editando.destino}
@@ -230,96 +245,105 @@ export function TablaReglasCliente({ clienteId }: { clienteId: string }) {
                           onChange={(e) =>
                             setEdicion({ reglaId: r.id, destino: e.target.value as DestinoCompra })
                           }
-                          className="rounded border px-2 py-1"
+                          className="h-9 w-auto max-lg:h-11"
                         >
                           {DESTINOS_COMPRA.map((d) => (
                             <option key={d} value={d}>
                               {d}
                             </option>
                           ))}
-                        </select>
+                        </Select>
                       ) : (
                         r.destino
                       )}
-                    </td>
-                    <td role="cell" data-etiqueta={M.columnas.estado} className={CELDA}>
-                      {r.activa ? M.activa : M.inactiva}
-                    </td>
-                    <td role="cell" data-etiqueta={M.columnas.aplicada} className={CELDA}>{r.aplicada}</td>
-                    <td role="cell" data-etiqueta={M.columnas.aceptada} className={CELDA}>{r.aceptada}</td>
-                    <td role="cell" data-etiqueta={M.columnas.actualizada} className={CELDA}>
+                    </TableCell>
+                    <TableCell role="cell" data-etiqueta={M.columnas.estado} className={CELDA}>
+                      <Badge tono={r.activa ? "ok" : "neutro"}>{r.activa ? M.activa : M.inactiva}</Badge>
+                    </TableCell>
+                    <TableCell role="cell" data-etiqueta={M.columnas.aplicada} className={cn(CELDA, "cifras")}>{r.aplicada}</TableCell>
+                    <TableCell role="cell" data-etiqueta={M.columnas.aceptada} className={cn(CELDA, "cifras")}>{r.aceptada}</TableCell>
+                    <TableCell role="cell" data-etiqueta={M.columnas.actualizada} className={CELDA}>
                       {fechaHoraLima(r.actualizadaEn)}
-                    </td>
+                    </TableCell>
                     {puedeGestionar && (
-                      <td role="cell" data-etiqueta={M.columnaAcciones} className={CELDA}>
+                      <TableCell role="cell" data-etiqueta={M.columnaAcciones} className={CELDA}>
                         <div className="flex flex-wrap gap-2">
                           {editando ? (
                             <>
-                              <button
+                              <Button
                                 key="guardar"
                                 ref={registrar(clave(r.id, "guardar"))}
                                 type="button"
+                                size="sm"
                                 disabled={ocupado}
                                 onClick={() => void cambiar(r, { destino: editando.destino })}
-                                className="rounded bg-black px-2 py-1 text-white disabled:opacity-50"
+                                className="max-lg:h-11"
                               >
                                 {M.guardar}
-                              </button>
-                              <button
+                              </Button>
+                              <Button
                                 key="cancelar"
                                 type="button"
+                                variant="secundario"
+                                size="sm"
                                 disabled={ocupado}
                                 onClick={() => cancelarEdicion(r.id)}
-                                className="rounded border px-2 py-1"
+                                className="max-lg:h-11"
                               >
                                 {M.cancelarEdicion}
-                              </button>
+                              </Button>
                             </>
                           ) : (
                             <>
-                              <button
+                              <Button
                                 key="editar"
                                 ref={registrar(clave(r.id, "editar"))}
                                 type="button"
+                                variant="secundario"
+                                size="sm"
                                 disabled={ocupado}
                                 aria-label={M.editar(numero)}
                                 onClick={() => empezarEdicion(r)}
-                                className="rounded border px-2 py-1"
+                                className="max-lg:h-11"
                               >
                                 Editar
-                              </button>
-                              <button
+                              </Button>
+                              <Button
                                 key="alternar"
                                 ref={registrar(clave(r.id, "alternar"))}
                                 type="button"
+                                variant="secundario"
+                                size="sm"
                                 disabled={ocupado}
                                 aria-label={r.activa ? M.desactivar(numero) : M.activar(numero)}
                                 onClick={() => void cambiar(r, { activa: !r.activa })}
-                                className="rounded border px-2 py-1"
+                                className="max-lg:h-11"
                               >
                                 {r.activa ? "Desactivar" : "Activar"}
-                              </button>
-                              <button
+                              </Button>
+                              <Button
                                 key="eliminar"
                                 ref={registrar(clave(r.id, "eliminar"))}
                                 type="button"
+                                variant="secundario"
+                                size="sm"
                                 disabled={ocupado}
                                 aria-label={M.eliminar(numero)}
                                 onClick={() => setAEliminar(r)}
-                                className="rounded border px-2 py-1"
+                                className="max-lg:h-11"
                               >
                                 Eliminar
-                              </button>
+                              </Button>
                             </>
                           )}
                         </div>
-                      </td>
+                      </TableCell>
                     )}
-                  </tr>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
       {aEliminar && (

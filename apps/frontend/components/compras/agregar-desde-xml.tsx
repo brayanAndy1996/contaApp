@@ -7,6 +7,7 @@ import {
   type FilaCompraVista,
   type VistaPreviaDesdeXml,
 } from "@contapp/shared";
+import { CircleAlert } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { MENSAJES } from "../../lib/acceso";
 import { MENSAJES_COMPRAS as M, type ContextoCompras } from "../../lib/compras";
@@ -17,8 +18,25 @@ import {
   mensajeDeErrorXml,
 } from "../../lib/lupa-compras";
 import { conMiles } from "../../lib/montos-compras";
+import { cn } from "../../lib/utils";
 import type { AlAvisar } from "./accion-compras";
 import { ItemsXml } from "./items-xml";
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  enlace,
+  Input,
+  Label,
+  Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  panelDialogo,
+} from "../ui";
 
 // «Agregar desde XML» (spec 016, T16; HU-18, CA-13, D-8, P-9). Con la vista previa ya leída por el servidor
 // (`vistaPreviaDesdeXmlSchema`) se muestran los campos prellenados (solo lectura: salen del XML) y se pide SOLO el
@@ -118,8 +136,8 @@ export function AgregarDesdeXml({
 
   const dato = (nombre: string, valor: string) => (
     <div className="flex flex-col">
-      <dt className="text-xs text-gray-700">{nombre}</dt>
-      <dd className="text-sm break-words">{valor}</dd>
+      <dt className="text-xs font-semibold text-tinta-suave">{nombre}</dt>
+      <dd className="break-words text-sm text-tinta">{valor}</dd>
     </div>
   );
 
@@ -133,22 +151,17 @@ export function AgregarDesdeXml({
         if (e.key === "Escape" && !ocupado) alCancelar();
       }}
       noValidate
-      className="flex max-h-[90vh] w-[56rem] max-w-full flex-col gap-3 overflow-auto rounded border bg-white p-4 shadow-lg"
+      className={cn(panelDialogo, "max-w-4xl gap-3")}
     >
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-base font-medium">{L.desdeXml.titulo}</h3>
-        <button
-          type="button"
-          onClick={alQuitar}
-          disabled={ocupado}
-          className="rounded border px-3 py-1 text-sm disabled:opacity-50"
-        >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="font-titulo text-lg font-semibold text-tinta">{L.desdeXml.titulo}</h3>
+        <Button variant="secundario" size="sm" onClick={alQuitar} disabled={ocupado} className="max-lg:h-11">
           {L.desdeXml.volver}
-        </button>
+        </Button>
       </div>
 
       <section aria-label={L.desdeXml.resumen} className="flex flex-col gap-2">
-        <h4 className="text-sm font-medium">{L.desdeXml.resumen}</h4>
+        <h4 className="text-sm font-semibold text-tinta">{L.desdeXml.resumen}</h4>
         <dl className="flex flex-wrap gap-x-6 gap-y-2">
           {dato(M.campos.tipo, etiquetaTipo(vista.tipo))}
           {dato(L.secciones.cabecera, `${vista.serie}-${vista.numero}`)}
@@ -156,41 +169,41 @@ export function AgregarDesdeXml({
           {dato(M.campos.moneda, vista.moneda)}
           {dato(L.desdeXml.proveedor, `${vista.proveedor.numero} · ${vista.proveedor.razonSocial}`)}
         </dl>
-        <table aria-label={L.desdeXml.montos} className="w-full text-sm">
-          <thead>
-            <tr className="text-left">
+        <Table aria-label={L.desdeXml.montos}>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
               {COLUMNAS.map(([clave, nombre]) => (
-                <th key={clave} scope="col" className="py-1 pr-2 text-right">
+                <TableHead key={clave} scope="col" className="text-right">
                   {nombre}
-                </th>
+                </TableHead>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            <tr className="border-t">
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow>
               {COLUMNAS.map(([clave]) => (
-                <td key={clave} className="py-1 pr-2 text-right tabular-nums">
+                <TableCell key={clave} numerico className="py-2">
                   {conMiles(vista.montos[clave] ?? "0.00")}
-                </td>
+                </TableCell>
               ))}
-            </tr>
-          </tbody>
-        </table>
+            </TableRow>
+          </TableBody>
+        </Table>
       </section>
 
       <ItemsXml items={vista.items} hayXml />
 
-      <div className="flex flex-wrap gap-3">
-        <label className="flex flex-col gap-1 text-sm">
+      <div className="flex flex-wrap items-start gap-3">
+        <Label>
           {L.desdeXml.destino}
-          <select
+          <Select
             ref={primero}
             value={destino}
             onChange={(e) => {
               setDestino(e.target.value as DestinoCompra | "");
               setError(null);
             }}
-            className="rounded border px-3 py-2"
+            className="min-w-48 max-lg:h-11"
           >
             <option value="">{L.desdeXml.elegirDestino}</option>
             {DESTINOS_COMPRA.map((d) => (
@@ -198,13 +211,13 @@ export function AgregarDesdeXml({
                 {M.destinos[d]}
               </option>
             ))}
-          </select>
-        </label>
+          </Select>
+        </Label>
         {vista.requiereTipoCambio && (
-          <div className="flex flex-col gap-1 text-sm">
-            <label className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1.5">
+            <Label>
               {L.desdeXml.tipoCambio}
-              <input
+              <Input
                 type="text"
                 inputMode="decimal"
                 autoComplete="off"
@@ -214,47 +227,43 @@ export function AgregarDesdeXml({
                   setError(null);
                 }}
                 aria-describedby="desde-xml-tipo-cambio"
-                className="w-32 rounded border px-3 py-2"
+                className={cn("w-32 max-lg:h-11", "cifras")}
               />
-            </label>
-            <span id="desde-xml-tipo-cambio" className="text-xs text-gray-700">
+            </Label>
+            <span id="desde-xml-tipo-cambio" className="text-xs text-tinta-suave">
               {L.desdeXml.tipoCambioAyuda}
             </span>
           </div>
         )}
       </div>
-      <p className="text-xs text-gray-700">{M.destinoAyuda}</p>
+      <p className="text-xs text-tinta-suave">{M.destinoAyuda}</p>
 
       {duplicada !== null && (
-        <p role="note" className="text-sm">
+        <p role="note" className="text-sm text-tinta-media">
           {L.desdeXml.yaExiste}{" "}
-          <button type="button" onClick={() => alUbicarExistente(duplicada)} className="underline">
+          <button
+            type="button"
+            onClick={() => alUbicarExistente(duplicada)}
+            className={cn(enlace, "min-h-6 font-semibold max-lg:min-h-11")}
+          >
             {M.ubicarExistente}
           </button>
         </p>
       )}
       {error && (
-        <p role="alert" className="text-sm text-red-600">
-          {error}
-        </p>
+        <Alert tono="error">
+          <CircleAlert aria-hidden />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={ocupado || duplicada !== null}
-          className="rounded bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
-        >
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" disabled={ocupado || duplicada !== null} className="max-lg:h-11">
           {ocupado ? L.desdeXml.agregando : L.desdeXml.agregar}
-        </button>
-        <button
-          type="button"
-          onClick={alCancelar}
-          disabled={ocupado}
-          className="rounded border px-4 py-2 text-sm"
-        >
+        </Button>
+        <Button variant="secundario" onClick={alCancelar} disabled={ocupado} className="max-lg:h-11">
           {M.cancelar}
-        </button>
+        </Button>
       </div>
     </form>
   );

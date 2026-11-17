@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { MENSAJES_COMPRAS as M, exportarCompras } from "../../lib/compras";
+import { Alert, Button } from "../ui";
 
 // «Exportar a Excel» (spec 015, D-15; CA-15): descarga el Excel del periodo (no del filtro) con `fetch` y lo
 // guarda con un enlace temporal; el archivo nunca se interpreta aquí. Un error del servidor sale como aviso.
@@ -51,21 +52,15 @@ export function ExportarCompras({
 
   return (
     <div className="flex flex-col gap-1">
-      <button
-        type="button"
+      <Button
+        variant="secundario"
         onClick={() => void exportar()}
         disabled={!periodoValido || exportando}
-        className="rounded border px-4 py-2 text-sm disabled:opacity-50"
+        className="min-h-11 lg:min-h-10"
       >
         {exportando ? M.exportando : M.exportar}
-      </button>
-      <div aria-live="polite">
-        {error && (
-          <p role="alert" className="text-sm text-red-600">
-            {error}
-          </p>
-        )}
-      </div>
+      </Button>
+      <div aria-live="polite">{error && <Alert tono="error">{error}</Alert>}</div>
     </div>
   );
 }

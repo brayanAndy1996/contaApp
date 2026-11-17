@@ -3,6 +3,20 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api } from "../../../../lib/api";
+import {
+  Alert,
+  Button,
+  Card,
+  Input,
+  Label,
+  enlace,
+} from "../../../../components/ui";
+import { cn } from "../../../../lib/utils";
+
+const ENLACE = cn(
+  enlace,
+  "text-sm max-lg:inline-flex max-lg:min-h-11 max-lg:items-center",
+);
 
 const ACTUALIZADA = "Tu contraseña fue actualizada.";
 const TOKEN_INVALIDO = "El enlace no es válido o venció. Solicita uno nuevo.";
@@ -73,48 +87,46 @@ export default function Nueva() {
 
   return (
     <main className="flex flex-1 items-center justify-center p-6">
-      <div className="flex w-full max-w-sm flex-col gap-4">
-        <h1 className="text-2xl font-semibold">Nueva contraseña</h1>
+      <Card className="w-full max-w-md">
+        <h1 className="m-0 font-titulo text-[28px] font-extrabold leading-tight tracking-tight text-tinta">
+          Nueva contraseña
+        </h1>
         {listo ? (
           <>
-            <p role="status">{ACTUALIZADA}</p>
-            <Link href="/login" className="text-sm underline">
+            <Alert tono="ok">{ACTUALIZADA}</Alert>
+            <Link href="/login" className={ENLACE}>
               Ir a iniciar sesión
             </Link>
           </>
         ) : (
           <form onSubmit={cambiar} className="flex flex-col gap-4">
-            <label className="flex flex-col gap-1 text-sm">
+            <Label>
               Nueva contraseña
-              <input
+              <Input
                 type="password"
                 autoComplete="new-password"
                 required
                 value={contrasena}
                 onChange={(e) => setContrasena(e.target.value)}
-                className="rounded border px-3 py-2"
+                className="max-lg:h-11"
               />
-            </label>
-            {error && (
-              <p role="alert" className="text-sm text-red-600">
-                {error}
-              </p>
-            )}
-            <button
+            </Label>
+            {error && <Alert tono="error">{error}</Alert>}
+            <Button
               type="submit"
               disabled={enviando || !token}
-              className="rounded bg-black px-4 py-2 text-white disabled:opacity-50"
+              className="max-lg:h-11"
             >
               Cambiar contraseña
-            </button>
+            </Button>
             {!token && (
-              <Link href="/recuperar" className="text-sm underline">
+              <Link href="/recuperar" className={ENLACE}>
                 Solicitar un enlace nuevo
               </Link>
             )}
           </form>
         )}
-      </div>
+      </Card>
     </main>
   );
 }
