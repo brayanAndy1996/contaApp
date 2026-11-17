@@ -15,6 +15,8 @@ import {
   suscribirAvisos,
   type NotificacionVista,
 } from "../../lib/notificaciones";
+import { cn } from "../../lib/utils";
+import { Alert, anilloFoco, Button, EncabezadoPagina, enlace } from "../ui";
 import { TextoNotificacion } from "./texto-notificacion";
 
 // Lista de notificaciones (spec 017, D-11; CA-16). `PanelNotificaciones` es el desplegable de la campana (las 10
@@ -39,10 +41,15 @@ function FilaNotificacion({
       <button
         type="button"
         onClick={() => alAbrir(notificacion)}
-        className={`flex w-full flex-col gap-1 border-b px-3 py-2 text-left text-sm ${sinLeer ? "font-semibold" : ""}`}
+        className={cn(
+          "flex w-full cursor-pointer flex-col gap-1 border-b border-linea px-4 py-3 text-left text-sm text-tinta hover:bg-hoja-alterna",
+          anilloFoco,
+          "focus-visible:-outline-offset-2",
+          sinLeer && "font-semibold",
+        )}
       >
         <TextoNotificacion notificacion={notificacion} />
-        <span className="text-xs font-normal text-gray-500">
+        <span className="text-xs font-normal text-tinta-suave">
           {fechaHoraLima(notificacion.creadaEn)}
           {sinLeer && ` · ${M.sinLeer}`}
         </span>
@@ -182,16 +189,23 @@ function Estado({
 }) {
   if (error) {
     return (
-      <div role="alert" className="px-3 py-2 text-sm text-red-600">
-        <p>{error}</p>
-        <button type="button" className="underline" onClick={alReintentar}>
-          {M.reintentar}
-        </button>
-      </div>
+      <Alert tono="error" className="m-3">
+        <div className="flex flex-col items-start gap-2">
+          <p className="m-0">{error}</p>
+          <Button
+            variant="secundario"
+            size="sm"
+            className="max-lg:min-h-11"
+            onClick={alReintentar}
+          >
+            {M.reintentar}
+          </Button>
+        </div>
+      </Alert>
     );
   }
-  if (cargando && vacio) return <p role="status" className="px-3 py-2 text-sm">{M.cargando}</p>;
-  if (!cargando && vacio) return <p className="px-3 py-2 text-sm">{M.vacio}</p>;
+  if (cargando && vacio) return <p role="status" className="m-0 px-4 py-3 text-sm text-tinta-suave">{M.cargando}</p>;
+  if (!cargando && vacio) return <p className="m-0 px-4 py-3 text-sm text-tinta-suave">{M.vacio}</p>;
   return null;
 }
 
@@ -212,18 +226,19 @@ export function PanelNotificaciones({ alCerrar }: { alCerrar: () => void }) {
       role="dialog"
       aria-label={M.panel}
       tabIndex={-1}
-      className="absolute right-0 z-10 mt-2 w-96 max-w-[calc(100vw-2rem)] rounded border bg-white shadow focus:outline-none max-sm:fixed max-sm:inset-x-4 max-sm:w-auto"
+      className="absolute right-0 z-20 mt-2 w-96 max-w-[calc(100vw-2rem)] rounded-tarjeta border border-linea bg-hoja text-tinta shadow-flotante max-sm:fixed max-sm:inset-x-4 max-sm:w-auto"
     >
-      <div className="flex items-center justify-between border-b px-3 py-2 text-sm">
-        <h2 className="font-semibold">{M.titulo}</h2>
-        <button
-          type="button"
-          className="underline"
+      <div className="flex items-center justify-between gap-2 border-b border-linea px-4 py-2 text-sm">
+        <h2 className="m-0 text-base font-bold">{M.titulo}</h2>
+        <Button
+          variant="terciario"
+          size="sm"
+          className="max-lg:min-h-11"
           onClick={() => void marcarTodas()}
           disabled={visibles.length === 0}
         >
           {M.marcarTodas}
-        </button>
+        </Button>
       </div>
       <Estado
         cargando={cargando}
@@ -242,8 +257,12 @@ export function PanelNotificaciones({ alCerrar }: { alCerrar: () => void }) {
           />
         ))}
       </ul>
-      <div className="px-3 py-2 text-sm">
-        <Link href="/notificaciones" onClick={alCerrar} className="underline">
+      <div className="px-4 py-2 text-sm">
+        <Link
+          href="/notificaciones"
+          onClick={alCerrar}
+          className={cn(enlace, "inline-flex items-center max-lg:min-h-11")}
+        >
           {M.verTodas}
         </Link>
       </div>
@@ -278,25 +297,33 @@ export function ListaNotificaciones() {
   }
 
   return (
-    <section className="mx-auto max-w-2xl p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">{M.titulo}</h1>
-        <button
-          type="button"
-          className="text-sm underline"
-          onClick={() => void marcarTodas()}
-          disabled={visibles.length === 0}
-        >
-          {M.marcarTodas}
-        </button>
-      </div>
+    <section className="mx-auto max-w-2xl space-y-4 px-4 py-6 md:px-6">
+      <EncabezadoPagina
+        titulo={M.titulo}
+        acciones={
+          <Button
+            variant="secundario"
+            className="max-lg:min-h-11"
+            onClick={() => void marcarTodas()}
+            disabled={visibles.length === 0}
+          >
+            {M.marcarTodas}
+          </Button>
+        }
+      />
       <Estado
         cargando={cargando}
         error={error}
         vacio={visibles.length === 0}
         alReintentar={() => void cargar(null)}
       />
-      <ul ref={lista} className="mt-4">
+      <ul
+        ref={lista}
+        className={cn(
+          "m-0 list-none overflow-hidden rounded-tarjeta border border-linea bg-hoja p-0 shadow-tarjeta",
+          visibles.length === 0 && "hidden",
+        )}
+      >
         {visibles.map((n) => (
           <FilaNotificacion
             key={n.id}
@@ -306,15 +333,15 @@ export function ListaNotificaciones() {
         ))}
       </ul>
       {siguiente && (
-        <button
+        <Button
           ref={botonMas}
-          type="button"
-          className="mt-4 rounded border px-3 py-1 text-sm aria-disabled:opacity-50"
+          variant="secundario"
+          className="max-lg:min-h-11 aria-disabled:cursor-not-allowed aria-disabled:opacity-45"
           aria-disabled={cargando}
           onClick={cargarMas}
         >
           {M.cargarMas}
-        </button>
+        </Button>
       )}
     </section>
   );

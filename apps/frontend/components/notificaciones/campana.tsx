@@ -9,6 +9,8 @@ import {
   obtenerNoLeidas,
   suscribirAvisos,
 } from "../../lib/notificaciones";
+import { Bell } from "lucide-react";
+import { Badge, Button } from "../ui";
 import { PanelNotificaciones } from "./panel-notificaciones";
 
 // Campana de la barra superior (spec 017, D-11; CA-16). Muestra el conteo de no leídas («99+» desde 100), que se
@@ -73,27 +75,24 @@ export function Campana() {
   const conConteo = noLeidas !== null && noLeidas > 0;
   return (
     <div ref={contenedor} className="relative ml-auto">
-      <button
+      <Button
         ref={boton}
-        type="button"
+        variant="secundario"
         aria-label={
           conConteo ? M.campanaConConteo(formatoConteo(noLeidas)) : M.campana
         }
         aria-expanded={abierta}
         aria-haspopup="dialog"
         onClick={() => (abierta ? cerrar() : setAbierta(true))}
-        className="relative rounded border px-2 py-1"
+        className="relative px-3 max-lg:min-h-11 max-lg:min-w-11"
       >
-        <span aria-hidden="true">🔔</span>
+        <Bell aria-hidden="true" />
         {conConteo && (
-          <span
-            data-testid="conteo-notificaciones"
-            className="ml-1 rounded bg-red-600 px-1 text-xs text-white"
-          >
+          <Badge tono="error" data-testid="conteo-notificaciones">
             {formatoConteo(noLeidas)}
-          </span>
+          </Badge>
         )}
-      </button>
+      </Button>
       {abierta && <PanelNotificaciones alCerrar={() => cerrar()} />}
     </div>
   );
