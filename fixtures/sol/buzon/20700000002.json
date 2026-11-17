@@ -1,0 +1,185 @@
+{
+  "mensajes": [
+    {
+      "idSunat": "FX-0001",
+      "asunto": "Resolución de Ejecución Coactiva N.° 0123-2026/SUNAT",
+      "remitente": "SUNAT - BUZÓN ELECTRÓNICO (PRUEBA)",
+      "fecha": "2026-10-30T09:15:00-05:00",
+      "codigoTipo": "FX-COACTIVA",
+      "leidoEnSunat": false,
+      "contenido": {
+        "formato": "texto",
+        "cuerpo": "Se le notifica la Resolución de Ejecución Coactiva N.° 0123-2026.\nDocumento sintético de prueba."
+      },
+      "adjuntos": [
+        {
+          "idSunat": "FX-0001-A1",
+          "nombre": "resolucion-coactiva-0123.pdf",
+          "base64": "JVBERi0xLjQKMSAwIG9iajw8L1R5cGUvQ2F0YWxvZy9QYWdlcyAyIDAgUj4+ZW5kb2JqCjIgMCBvYmo8PC9UeXBlL1BhZ2VzL0tpZHNbXS9Db3VudCAwPj5lbmRvYmoKJSBzaW50w6l0aWNvIGNvYWN0aXZhCnRyYWlsZXI8PC9Sb290IDEgMCBSPj4KJSVFT0YK"
+        }
+      ]
+    },
+    {
+      "idSunat": "FX-0002",
+      "asunto": "NOTIFICACIÓN DE RESOLUCIÓN DE DETERMINACIÓN N° 012-003-0001234",
+      "remitente": "SUNAT - BUZÓN ELECTRÓNICO (PRUEBA)",
+      "fecha": "2026-10-29T16:40:00-05:00",
+      "codigoTipo": "FX-RD",
+      "leidoEnSunat": false,
+      "contenido": {
+        "formato": "html",
+        "cuerpo": "<p>Se notifica la <b>Resolución de Determinación</b> de prueba.</p><script>alert('xss')</script><img src=x onerror=alert(1)>"
+      },
+      "adjuntos": [
+        {
+          "idSunat": "FX-0002-A1",
+          "nombre": "determinacion-0001234.pdf",
+          "base64": "JVBERi0xLjQKMSAwIG9iajw8L1R5cGUvQ2F0YWxvZy9QYWdlcyAyIDAgUj4+ZW5kb2JqCjIgMCBvYmo8PC9UeXBlL1BhZ2VzL0tpZHNbXS9Db3VudCAwPj5lbmRvYmoKJSBzaW50w6l0aWNvIGRldGVybWluYWNpw7NuCnRyYWlsZXI8PC9Sb290IDEgMCBSPj4KJSVFT0YK"
+        },
+        {
+          "idSunat": "FX-0002-A2",
+          "nombre": "anexo-0001234.xml",
+          "base64": "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPGFuZXhvPjxub3RhPnNpbnTDqXRpY28gYW5leG88L25vdGE+PC9hbmV4bz4K"
+        }
+      ]
+    },
+    {
+      "idSunat": "FX-0003",
+      "asunto": "Res. de Multa N.° 152-002-0000456",
+      "remitente": "SUNAT - BUZÓN ELECTRÓNICO (PRUEBA)",
+      "fecha": "2026-10-28T11:05:00-05:00",
+      "codigoTipo": null,
+      "leidoEnSunat": false,
+      "contenido": {
+        "formato": "texto",
+        "cuerpo": "Se le notifica la resolución de multa de prueba."
+      },
+      "adjuntos": [
+        {
+          "idSunat": "FX-0003-A1",
+          "nombre": "constancia-multa.png",
+          "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        }
+      ]
+    },
+    {
+      "idSunat": "FX-0004",
+      "asunto": "R.M. N.° 152-002-0000789 - Resolución de multa",
+      "remitente": "SUNAT - BUZÓN ELECTRÓNICO (PRUEBA)",
+      "fecha": "2026-10-27T10:00:00-05:00",
+      "codigoTipo": "FX-RM",
+      "leidoEnSunat": true,
+      "contenido": {
+        "formato": "html",
+        "cuerpo": "<p>Resolución de multa de prueba.</p><!-- comentario --><style>p{color:red}</style>"
+      },
+      "adjuntos": []
+    },
+    {
+      "idSunat": "FX-0005",
+      "asunto": "Requerimiento de Fiscalización - Carta N.° 26-0011",
+      "remitente": "SUNAT - BUZÓN ELECTRÓNICO (PRUEBA)",
+      "fecha": "2026-10-26T15:30:00-05:00",
+      "codigoTipo": "FX-REQ",
+      "leidoEnSunat": false,
+      "contenido": {
+        "formato": "texto",
+        "cuerpo": "Requerimiento de información y documentación de prueba."
+      },
+      "adjuntos": [
+        {
+          "idSunat": "FX-0005-A1",
+          "nombre": "anexos-requerimiento.zip",
+          "base64": "UEsFBgAAAAAAAAAAAAAAAAAAAAAAAA=="
+        },
+        {
+          "idSunat": "FX-0005-A2",
+          "nombre": "..\\..\\Windows\\recibo‮fdp.exe",
+          "base64": "TVqQAAMAAAA="
+        },
+        {
+          "idSunat": "FX-0005-A3",
+          "nombre": "../../etc/pass\u0000wd.pdf",
+          "base64": "TVqQAAMAAAA="
+        }
+      ]
+    },
+    {
+      "idSunat": "FX-0006",
+      "asunto": "REQ. 2026-0098: SUSTENTO DE OPERACIONES",
+      "remitente": "SUNAT - BUZÓN ELECTRÓNICO (PRUEBA)",
+      "fecha": "2026-10-25T08:20:00-05:00",
+      "codigoTipo": null,
+      "leidoEnSunat": false,
+      "contenido": {
+        "formato": "texto",
+        "cuerpo": "Sustente las operaciones del periodo indicado. Mensaje sintético."
+      },
+      "adjuntos": []
+    },
+    {
+      "idSunat": "FX-0007",
+      "asunto": "Boletín informativo: calendario de obligaciones mensuales",
+      "remitente": "SUNAT - BUZÓN ELECTRÓNICO (PRUEBA)",
+      "fecha": "2026-10-24T09:00:00-05:00",
+      "codigoTipo": null,
+      "leidoEnSunat": true,
+      "contenido": {
+        "formato": "html",
+        "cuerpo": "<h1>Calendario</h1><p>Consulte el cronograma de vencimientos.</p>"
+      },
+      "adjuntos": []
+    },
+    {
+      "idSunat": "FX-0008",
+      "asunto": "Constancia de presentación de declaración del periodo 2026-09",
+      "remitente": "SUNAT - BUZÓN ELECTRÓNICO (PRUEBA)",
+      "fecha": "2026-10-22T17:45:00-05:00",
+      "codigoTipo": "FX-CONSTANCIA",
+      "leidoEnSunat": true,
+      "contenido": {
+        "formato": "texto",
+        "cuerpo": "Su declaración fue recibida. Constancia sintética."
+      },
+      "adjuntos": [
+        {
+          "idSunat": "FX-0008-A1",
+          "nombre": "constancia-declaracion.pdf",
+          "base64": "JVBERi0xLjQKMSAwIG9iajw8L1R5cGUvQ2F0YWxvZy9QYWdlcyAyIDAgUj4+ZW5kb2JqCjIgMCBvYmo8PC9UeXBlL1BhZ2VzL0tpZHNbXS9Db3VudCAwPj5lbmRvYmoKJSBzaW50w6l0aWNvIGNvbnN0YW5jaWEKdHJhaWxlcjw8L1Jvb3QgMSAwIFI+PgolJUVPRgo="
+        }
+      ]
+    },
+    {
+      "idSunat": "FX-0009",
+      "asunto": "Aviso: actualice sus datos de contacto",
+      "remitente": "SUNAT - BUZÓN ELECTRÓNICO (PRUEBA)",
+      "fecha": "2026-10-20T12:10:00-05:00",
+      "codigoTipo": null,
+      "leidoEnSunat": false,
+      "contenido": {
+        "formato": "texto",
+        "cuerpo": "Actualice su teléfono y correo en SUNAT Operaciones en Línea."
+      },
+      "adjuntos": []
+    },
+    {
+      "idSunat": "FX-0010",
+      "asunto": "Respaldo completo del buzón (archivo muy grande)",
+      "remitente": "SUNAT - BUZÓN ELECTRÓNICO (PRUEBA)",
+      "fecha": "2026-10-18T09:30:00-05:00",
+      "codigoTipo": null,
+      "leidoEnSunat": true,
+      "contenido": {
+        "formato": "texto",
+        "cuerpo": "Adjunto de gran tamaño, sintético: supera el tope de un adjunto."
+      },
+      "adjuntos": [
+        {
+          "idSunat": "FX-0010-A1",
+          "nombre": "respaldo-completo.zip",
+          "tamano": 26214400
+        }
+      ]
+    }
+  ]
+}
