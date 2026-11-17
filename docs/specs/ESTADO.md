@@ -45,7 +45,7 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 | 035-cruce-emitidos-sol | B | pendiente | — | RF-054 · HU-13. |
 | 036-superadmin-estudios | C | pendiente | — | RF-008. |
 | 037-eliminar-cliente | A | pendiente | — | RF-038 + purga de auditoría (RNF-020/021). |
-| 038-diseno-visual | C | en curso | T6 (bloqueada) | Pedida por el usuario 2026-11-15: estilo A (verde petróleo) elegido sobre el lienzo de maquetas, shadcn/ui y dos fases. Fase 1 hecha: tokens, fuentes autoalojadas, tema claro fijo y componentes base en `components/ui/` (14 pruebas). La fase 2 (aplicar a las pantallas) espera a que 021 y 022 estén en `main`, porque toca la grilla, la lupa, el menú y el panel de generar archivo. |
+| 038-diseno-visual | C | hecha | — | Mergeada en `main` (d1cc8fd). Estilo A (verde petróleo) en todas las pantallas: menú lateral en escritorio y barra inferior en celular (P-5), «Ventas» desde la ficha del cliente (P-4), grillas con sus alturas (P-2), compras en celular con desplazamiento y «Generar archivo» fijo (P-3), diálogos propios estilados (P-6). Prueba `diseno.estatico.spec.ts` contra colores sueltos. Revisión en navegador (P-7) en 70 vistas a 1440/390 px sobre el build de producción: sin desbordes, contraste AA, foco visible, objetivos de 44 px. E2E 88 + volumen en verde. Modo oscuro fuera (P-1). |
 
 ## Hallazgos adversariales abiertos
 | Spec | Prueba | Hallazgo | Estado |
@@ -322,3 +322,5 @@ No son decisiones tomadas ni pendientes del usuario: cada spec las resuelve al p
 - [frontend] Vistos en 021 T23 (fuera de 021): el panel «Historial» no cierra con Esc; con el filtro «Según historial» una fila corregida sigue en el listado hasta recargar; pedir un periodo futuro (202612, 202701) da 400 sin investigar; la lupa sigue mostrando hallazgos ya aceptados tras aceptar R-GP.
 - [rendimiento] El trigger por fila `compra_version_worker_acotado` (0038) se vuelve lento en una BD reutilizada (la descarga sin reglas pasa de ~0,9 s a ~3 s de inserción; 021 T25c).
 - [033] Las confirmaciones de 021 (`regla_confirmacion`, 0049) son solo inserción, RUC 20 y con el aporte encendido; ninguna ruta las lee aún.
+- [frontend] De 038: en el historial de la compra a 390 px «Valor vigente» queda algo cortado (la tabla desplaza 37 px sin pista); los nombres largos de proveedor se truncan con «…»; en las filas de ventas (36 px) las áreas táctiles de 44 px de filas vecinas se solapan 8 px.
+- [dependencias] Next 16.4.3 tiene una vulnerabilidad conocida: `next build` sale con error en el primer intento de cada ventana de 5 minutos (`SecurityFatalError`) y pasa al reintentar; puede tumbar CI y E2E al azar. El usuario decidió actualizarlo en una spec aparte (039).
