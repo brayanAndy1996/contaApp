@@ -20,7 +20,7 @@ Estas pantallas no dependen del rol: las usa cualquier persona según su situaci
 |---|---|
 | Visitante sin cuenta | Registrar un estudio nuevo («Crear estudio») y quedar como su Dueño. |
 | Persona con cuenta | Iniciar sesión, recuperar y cambiar su contraseña, cerrar sesión. |
-| Miembro de varios estudios | Elegir el estudio al entrar y cambiar desde el selector «Estudio» del menú. |
+| Miembro de varios estudios | Elegir el estudio al entrar y cambiar desde el selector «Estudio» del menú (en celular, dentro de «Más»). |
 | Persona con cuenta pero sin estudios activos | Iniciar sesión, pero no entrar a ningún estudio hasta que un Dueño o Administrador la agregue. |
 | Super-admin de plataforma | Entrar y abrir «Administración de plataforma» (ver [módulo 04](04-planes-y-limites.md)). |
 
@@ -67,7 +67,7 @@ Estas pantallas no dependen del rol: las usa cualquier persona según su situaci
 ### Elegir o cambiar de estudio
 
 1. En «Elige tu estudio», haz clic en el nombre del estudio.
-2. Para cambiar más tarde, usa el selector «Estudio» a la izquierda del menú superior y elige otro.
+2. Para cambiar más tarde, usa el selector «Estudio»: en escritorio está arriba del menú lateral; en celular, toca «Más» en la barra inferior. Elige otro estudio.
 
 **Resultado esperado:** la pantalla se recarga con los datos del estudio elegido. No se pide contraseña. Si tenías otra pestaña abierta con el estudio anterior, al usarla verás «El estudio activo cambió en otra pestaña. Se actualizaron los datos.»: ContApp no deja que una pestaña vieja guarde cambios en el estudio equivocado.
 
@@ -89,9 +89,7 @@ Si pides dos enlaces, solo vale el último.
 
 ### Cambiar tu contraseña con la sesión iniciada
 
-En esta versión no hay un enlace en el menú: escribe la dirección.
-
-1. Con la sesión iniciada, abre `http://localhost:3000/cuenta/contrasena`.
+1. Con la sesión iniciada, haz clic en «Cambiar contraseña» al pie del menú lateral (en celular, dentro de «Más»). También puedes abrir `http://localhost:3000/cuenta/contrasena`.
 2. En «Cambiar contraseña» completa «Contraseña actual» y «Nueva contraseña».
 3. Haz clic en «Cambiar contraseña».
 
@@ -99,13 +97,17 @@ En esta versión no hay un enlace en el menú: escribe la dirección.
 
 ### Cerrar sesión
 
-1. Haz clic en «Cerrar sesión», a la derecha del menú superior.
+1. Haz clic en «Cerrar sesión», al pie del menú lateral. En celular, toca «Más» en la barra inferior y luego «Cerrar sesión».
 
 **Resultado esperado:** vuelves a «Ingresar a ContApp». Si usas el botón «atrás» del navegador, ContApp te devuelve al ingreso: la sesión ya no vale.
 
 > En «Elige tu estudio» y en la consola del super-admin no hay botón «Cerrar sesión». Allí la sesión se cierra sola por inactividad (ver «Reglas y límites»), o puedes usar una ventana privada del navegador para tus pruebas.
 
 ## Qué ves en pantalla
+
+![Inicio de ContApp con el menú lateral y el recuadro de uso del plan](web/img/inicio.png)
+
+*El inicio de un estudio: a la izquierda, el menú lateral con el selector «Estudio»; al centro, el título «ContApp» y el recuadro con el plan y su uso.*
 
 | Pantalla | Dirección | Título | Botones y enlaces |
 |---|---|---|---|
@@ -117,7 +119,14 @@ En esta versión no hay un enlace en el menú: escribe la dirección.
 | Elegir estudio | `/estudios` | «Elige tu estudio» | Un botón por estudio; «Administración de plataforma» si eres super-admin |
 | Cambiar contraseña | `/cuenta/contrasena` | «Cambiar contraseña» | «Cambiar contraseña» |
 
-El menú superior, una vez dentro de un estudio, tiene: el selector «Estudio», los enlaces que tu rol permite («Clientes», «Trabajos», «Usuarios», «Auditoría»), la campana de notificaciones y «Cerrar sesión».
+Una vez dentro de un estudio, el menú cambia según el ancho de la pantalla:
+
+| Dónde | Qué tiene |
+|---|---|
+| Escritorio (menú lateral, a la izquierda) | Arriba, el selector «Estudio». Debajo, los enlaces que tu rol permite («Clientes», «Trabajos», «Usuarios», «Auditoría», «Reglas del motor») y la campana «Notificaciones». Al pie, «Cambiar contraseña» y «Cerrar sesión». |
+| Celular (barra inferior) | «Clientes», «Trabajos», «Notificaciones» y «Más». «Más» abre el resto: «Estudio», «Usuarios», «Auditoría», «Reglas del motor», «Cambiar contraseña» y «Cerrar sesión». Se cierra con Esc o al elegir un enlace. |
+
+El menú no tiene un enlace «Inicio»: para volver al inicio abre `http://localhost:3000/`.
 
 ### Correos que puede enviarte ContApp en este módulo
 
@@ -162,7 +171,7 @@ El menú superior, una vez dentro de un estudio, tiene: el selector «Estudio»,
 
 1. **Registro.** Registra «Estudio Prueba Guía» con el correo `dueno@prueba.test`. Abre el correo «ContApp: confirma tu registro», fija la contraseña `una frase larga de prueba` y confirma. Debes ver «Tu estudio fue creado. Ya puedes iniciar sesión.».
 2. **Ingreso directo.** Entra con `dueno@prueba.test`. Como tienes un solo estudio, entras directo. El inicio muestra «Plan Prueba · periodo de prueba, vence el …» (14 días después de hoy), «RUCs: 0 de 5» y la tarjeta «Primeros pasos».
-3. **Contraseña común.** Abre `/cuenta/contrasena`, escribe tu contraseña actual y como nueva `123456789012`. Debes ver «Esa contraseña es demasiado común. Elige otra.».
+3. **Contraseña común.** Haz clic en «Cambiar contraseña» en el menú, escribe tu contraseña actual y como nueva `123456789012`. Debes ver «Esa contraseña es demasiado común. Elige otra.».
 4. **Una prueba por cuenta.** Cierra sesión y registra otro estudio, «Segundo Estudio Guía», otra vez con `dueno@prueba.test`. En el enlace verás «Ya tienes una cuenta con este correo…». Inicia sesión desde ahí: debe salir «Tu estudio se creó, pero no tiene plan: la prueba gratis ya se usó con tu cuenta. Contacta a ContApp para activar uno.». Haz clic en «Cambiar a este estudio»: el inicio muestra el mismo aviso en lugar del uso del plan.
 5. **Selector de estudios.** Cierra sesión y entra de nuevo con `dueno@prueba.test`. Ahora tienes dos estudios: debes ver «Elige tu estudio», con el último usado resaltado. Lo mismo pasa con `uab@seed.contapp.test` (Estudio A y Estudio B).
 6. **Bloqueo.** Cierra sesión. Intenta entrar 5 veces con `dueno@prueba.test` y una contraseña equivocada. Luego escribe la correcta: sigue saliendo «Correo o contraseña incorrectos.». Busca el correo «ContApp: tu cuenta se bloqueó temporalmente».
@@ -179,7 +188,7 @@ El menú superior, una vez dentro de un estudio, tiene: el selector «Estudio»,
 | Al abrir el enlace sale que no es válido o venció | Ya lo usaste, venció, pediste otro después, o el enlace se cortó al copiarlo (falta la parte `#t=…`). | Copia el enlace completo o pide uno nuevo. |
 | Pusiste la contraseña correcta y sale «Correo o contraseña incorrectos.» | La cuenta está bloqueada por 5 intentos fallidos. | Espera 15 minutos o restablece la contraseña. |
 | Estabas trabajando y de pronto aparece «Ingresar a ContApp» | La sesión venció (2 h sin actividad o 12 h desde el ingreso), o cambiaste la contraseña desde otro lugar. | Vuelve a ingresar. |
-| No encuentras dónde cambiar la contraseña | No hay enlace en el menú en esta versión. | Abre `/cuenta/contrasena`. |
+| No encuentras dónde cambiar la contraseña | En celular está escondida dentro de «Más». | Toca «Más» en la barra inferior y luego «Cambiar contraseña», o abre `/cuenta/contrasena`. |
 | No ves el estudio que esperabas en el selector | Tu membresía en ese estudio está desactivada, o aún no aceptaste la invitación. | Pide al Dueño que te reactive o te reenvíe la invitación ([módulo 03](03-equipo-roles-asignaciones.md)). |
 | Registraste un segundo estudio y no puedes crear clientes | La cuenta ya usó su prueba gratis: el estudio quedó sin plan. | El super-admin debe asignarle un plan ([módulo 04](04-planes-y-limites.md)). |
 | No hay botón «Cerrar todas mis sesiones» | En esta versión no tiene pantalla. | Cambia tu contraseña: eso cierra tus otras sesiones. |

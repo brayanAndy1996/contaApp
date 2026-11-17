@@ -37,7 +37,7 @@ Piensa en la auditoría como el libro de actas del estudio, y en las notificacio
 ### Consultar la auditoría
 
 1. Entra como Dueño o Administrador.
-2. En el menú superior, pulsa «Auditoría». Se abre la página «Auditoría» (`/configuracion/auditoria`).
+2. En el menú lateral, pulsa «Auditoría» (en celular, dentro de «Más»). Se abre la página «Auditoría» (`/configuracion/auditoria`).
 3. Verás la tabla «Registros de auditoría» con las columnas «Fecha», «Actor», «Acción», «Cliente» y «Detalle», **de la más reciente a la más antigua**.
 4. La página muestra 50 registros. Para ver los anteriores, pulsa «Cargar más» al final.
 
@@ -47,8 +47,8 @@ Piensa en la auditoría como el libro de actas del estudio, y en las notificacio
 
 ### Revisar tus notificaciones desde la campana
 
-1. Mira la campana en la barra superior. Si tienes avisos sin leer, muestra el número (con más de 99, «99+»).
-2. Haz clic en la campana. Se abre el panel «Notificaciones» con las 10 más recientes. Las no leídas salen en negrita y con «Sin leer».
+1. Mira la campana «Notificaciones» del menú: en escritorio está en el menú lateral, debajo de «Trabajos»; en celular, en la barra inferior. Si tienes avisos sin leer, muestra el número (con más de 99, «99+»).
+2. Haz clic en la campana. Se abre el panel «Notificaciones» con las 10 más recientes (en escritorio, al lado del menú; en celular, encima de la barra inferior). Se cierra con Esc o con un clic fuera. Las no leídas salen en negrita y con «Sin leer».
 3. Haz clic en una notificación: se marca como leída y te lleva a donde corresponde (la ficha del cliente, o «Trabajos» si es de un trabajo sin cliente).
 4. Para limpiar la campana de una vez, pulsa «Marcar todas como leídas».
 5. Para ver más de 10, pulsa «Ver todas».
@@ -91,7 +91,7 @@ Si la persona ya no está activa en el estudio verás «[nombre] (inactivo)». S
 
 ### Acciones que se registran
 
-Este es el catálogo completo de R1. Lo que no está en esta lista no se audita.
+Este es el catálogo completo de R1 más las reglas aprendidas de la spec 021. Lo que no está en esta lista no se audita.
 
 | Grupo | Acción que ves | Cuándo |
 |---|---|---|
@@ -108,6 +108,9 @@ Este es el catálogo completo de R1. Lo que no está en esta lista no se audita.
 | Libros | «Subió un XML» | [Módulo 09](09-lupa-y-xml.md). |
 | Libros | «Cambió el estado de un periodo» | Marcar revisado, generar o reabrir. El detalle dice el libro, el periodo y «Abierto → Generado», etc. |
 | Libros | «Generó un archivo» | Cada versión generada, con su número. |
+| Reglas | «Recordó una regla para un proveedor», «Editó una regla de un proveedor», «Activó una regla de un proveedor», «Desactivó una regla de un proveedor», «Eliminó una regla de un proveedor» | Reglas aprendidas de un cliente ([módulo 13](13-reglas-aprendidas.md)). |
+| Reglas | «Aplicó el destino según el historial» | Una compra que llegó en una descarga y una regla aprendida la clasificó sola. |
+| Reglas | «Cambió una regla del motor del estudio», «Cambió el aporte al catálogo compartido» | Interruptores de «Reglas del motor» ([módulo 13](13-reglas-aprendidas.md)). |
 | Reservada | «Envió a SUNAT» | Reservada para R2: hoy no aparece. |
 
 La auditoría **no guarda montos**: «Modificó compras» dice qué operación fue y cuántas filas tocó. El antes y después de cada compra lo ves en su «Historial» ([módulo 08](08-compras.md)).
@@ -150,7 +153,7 @@ Además:
 
 ## Pruébalo con los datos de prueba
 
-1. **Auditoría como Dueño.** Entra con `ua@seed.contapp.test`. En el menú pulsa «Auditoría». El registro más reciente debe ser «Inició sesión» con tu nombre como actor y «—» en «Cliente».
+1. **Auditoría como Dueño.** Entra con `ua@seed.contapp.test`. En el menú lateral pulsa «Auditoría». El registro más reciente debe ser «Inició sesión» con tu nombre como actor y «—» en «Cliente».
 2. **Auditoría como Contador.** Cierra sesión y entra con `uab@seed.contapp.test`. El enlace «Auditoría» no está en el menú. Escribe `/configuracion/auditoria` en la barra del navegador: debe salir «No tienes permiso para ver la auditoría.».
 3. **Rastro de un mes de trabajo.** Como Dueño, recorre el cliente `20700000002` en `202610`: descarga las compras, acepta la sugerencia de F001-2056, genera el archivo ([módulo 10](10-generar-archivo.md)). Vuelve a «Auditoría» y busca, de abajo hacia arriba:
    - «Descifró una credencial» con actor «Sistema» (la descarga usó la credencial del cliente).

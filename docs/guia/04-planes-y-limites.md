@@ -21,7 +21,7 @@ Lo miras al empezar (qué incluye tu prueba), cuando agregas clientes o personas
 |---|---|
 | Cualquier miembro del estudio | Ver el plan y su uso en el inicio («Plan …», «RUCs: …», «Usuarios: …»). |
 | Dueño y Administrador | Ver también el uso en «Usuarios» y recibir el mensaje de límite al invitar o reactivar a alguien. |
-| Dueño | Recibir en la campana los avisos del 90 % y del 100 % de RUC o de usuarios. |
+| Dueño | Recibir en la campana «Notificaciones» los avisos del 90 % y del 100 % de RUC o de usuarios. |
 | Super-admin de plataforma | Asignar plan y RUC adicionales a cada estudio, y crear, editar, desactivar y activar planes. |
 
 **Nadie del estudio, ni siquiera el Dueño, puede cambiar su plan desde ContApp en esta versión.** El permiso `plan.gestionar` del Dueño todavía no tiene pantalla: el cambio de plan lo hace el super-admin de ContApp.
@@ -66,7 +66,7 @@ Para liberar cupo, **archiva** un cliente que ya no atiendes: los archivados no 
 
 ### Leer los avisos del 90 % y del 100 %
 
-1. Mira la campana del menú superior: muestra cuántas notificaciones no has leído.
+1. Mira la campana «Notificaciones» del menú (en el menú lateral en escritorio, en la barra inferior en celular): muestra cuántas notificaciones no has leído.
 2. Ábrela y lee el aviso.
 
 **Resultado esperado:** si eres Dueño y el uso de RUC o de usuarios llega al 90 % o al 100 % del límite, ves uno de estos textos:
@@ -135,6 +135,8 @@ Ejemplo: un estudio en Independiente con 10 RUC adicionales contratados tiene 30
 | «Usuarios: 2 de 5 (1 pendiente)» | Miembros activos más invitaciones pendientes; entre paréntesis, cuántas están pendientes |
 | «Usuarios: 2 de ilimitado» | El plan no limita usuarios |
 | «Tu estudio se creó, pero no tiene plan: …» (en lugar del uso) | El estudio no tiene suscripción (ver «Reglas y límites») |
+
+Debajo de la línea de RUC, y de la de usuarios si el plan tiene límite, una barra muestra cuánto del cupo usas. La barra es solo una ayuda visual: la cifra exacta es la del texto.
 
 ### Consola del super-admin
 

@@ -1,6 +1,6 @@
 # 15 · Pruebas E2E: la app completa en un navegador real
 
-> Módulo anterior: [14-auditoria-y-notificaciones.md](14-auditoria-y-notificaciones.md) · Índice: [00-indice.md](00-indice.md)
+> Módulo anterior: [14-auditoria-y-notificaciones.md](14-auditoria-y-notificaciones.md) · Siguiente: [16-reglas-aprendidas.md](16-reglas-aprendidas.md) · Índice: [00-indice.md](00-indice.md)
 >
 > Cubre la spec **018** (pruebas E2E de R1 con Playwright) y, al final, la **020** (deuda técnica de R1). Complementa el [09](09-pruebas-y-calidad.md): allí están SDD, TDD, integración, adversariales y cobertura; aquí solo lo que agrega la E2E.
 

@@ -44,7 +44,7 @@ Los permisos salen de la matriz de roles de ContApp. Si no ves un botón, casi s
 ### Crear un cliente por RUC
 
 1. En el menú, haz clic en «Clientes».
-2. Arriba a la derecha, haz clic en «Nuevo cliente». Se abre la pantalla «Nuevo cliente» (`/clientes/nuevo`).
+2. Arriba a la derecha (en celular, debajo del título), haz clic en «Nuevo cliente». Se abre la pantalla «Nuevo cliente» (`/clientes/nuevo`).
 3. En «RUC», escribe los 11 dígitos. Debajo verás la ayuda «11 dígitos. Empieza con 10, 15, 16, 17 o 20.».
 4. Sal del campo (tecla Tab o clic fuera). Si el número no cumple el formato o el dígito verificador, aparece en rojo «El RUC no es válido.» y no podrás crearlo hasta corregirlo.
 5. «Razón social» es opcional. La ayuda dice: «Opcional. Si la dejas vacía, se guarda «RUC <número>» hasta completarla.»
@@ -141,6 +141,10 @@ Estos datos describen al cliente y servirán para clasificar automáticamente se
 
 ## Qué ves en pantalla
 
+![Listado de clientes con filtros, responsables y estado de las credenciales](web/img/clientes.png)
+
+*El listado «Clientes»: arriba, «Importar clientes» y «Nuevo cliente»; debajo, los filtros y la tabla con el responsable y el estado de las credenciales SOL y SIRE de cada cliente.*
+
 ### Listado de clientes (`/clientes`)
 
 | Columna | Qué muestra |
@@ -149,14 +153,14 @@ Estos datos describen al cliente y servirán para clasificar automáticamente se
 | RUC | El RUC del cliente. |
 | Razón social | Enlace a la ficha. Puede ser la provisional «RUC <número>» si la consulta RUC aún no terminó o falló. |
 | Responsable | El nombre del responsable o «Sin responsable». |
-| Credenciales | «SOL: …» y «SIRE API: …» con el estado de cada una («No configurada», «Configurada», «Verificada», «Inválida»). Si el cliente está archivado, también «Archivado». |
+| Credenciales | Dos etiquetas, «SOL: …» y «SIRE API: …», con el estado de cada una («No configurada», «Configurada», «Verificada», «Inválida»). Si el cliente está archivado, también la etiqueta «Archivado». |
 | Acciones | Solo con permiso de archivar: «Archivar» o «Reactivar», que llevan a la ficha. |
 
 ### Ficha del cliente (`/clientes/<id>`)
 
 | Parte | Qué hay |
 |---|---|
-| Encabezado | Razón social, «RUC …» y el enlace «Compras» a la grilla de compras ([08 · Compras](08-compras.md)). |
+| Encabezado | Razón social, «RUC …» y los enlaces «Compras · Ventas · Reglas aprendidas»: la grilla de compras ([08](08-compras.md)), la pantalla de ventas ([07](07-ventas.md)) y las reglas aprendidas del cliente ([13](13-reglas-aprendidas.md)). En escritorio van a la derecha del título; en celular, debajo. |
 | «Archivar» / «Reactivar» | Botón con confirmación (solo Dueño y Administrador). |
 | «Datos fiscales» | Formulario editable o, si no puedes editar o el cliente está archivado, el texto de cada dato. |
 | «Credenciales» | Estado y formulario de SOL y SIRE ([06 · Credenciales y trabajos](06-credenciales-y-trabajos.md)). |

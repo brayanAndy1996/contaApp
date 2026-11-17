@@ -14,6 +14,7 @@ No necesitas leerlo todo de una vez. Cada módulo se sostiene solo y enlaza a lo
 - Cómo se prevalida un periodo y se genera el archivo SIRE (TXT y ZIP) con versiones inmutables.
 - Cómo funcionan las pantallas de ventas y compras y la lupa del comprobante con su XML.
 - Cómo queda registrada cada acción (auditoría), cómo llegan las notificaciones y cómo se prueba la aplicación completa de punta a punta.
+- Cómo la app aprende la clasificación de cada proveedor, cómo se encuentra y se quita lo que crece con el volumen, y cómo se rediseñó sin romper nada.
 
 ## Versión web interactiva
 
@@ -32,7 +33,7 @@ pnpm curso:web
 3. **Haz los ejercicios.** Las soluciones están escondidas en un bloque desplegable; intenta primero sin mirar.
 4. **Sigue las rutas de archivo.** Cada fragmento de código indica de dónde sale, por ejemplo `packages/db/src/with-tenant.ts:182`. Ábrelo en tu editor para ver el contexto completo. Cuando un fragmento está recortado, el módulo lo dice.
 
-> Las rutas y números de línea de los módulos 01 a 09 corresponden al estado del repositorio con la spec 008 terminada; los módulos 10 a 13, a las specs 012 a 016 terminadas; los módulos 14 y 15, a la Release 1 completa (specs 017, 018 y 020). Si el código cambia, busca el nombre de la función con `Ctrl+Shift+F` en tu editor.
+> Las rutas y números de línea de los módulos 01 a 09 corresponden al estado del repositorio con la spec 008 terminada; los módulos 10 a 13, a las specs 012 a 016 terminadas; los módulos 14 y 15, a la Release 1 completa (specs 017, 018 y 020); los módulos 16 a 18, a las specs 021, 022 y 038 terminadas (con la migración 0053). Si el código cambia, busca el nombre de la función con `Ctrl+Shift+F` en tu editor.
 
 ## Mapa de módulos
 
@@ -54,12 +55,15 @@ pnpm curso:web
 | 13 | [Lupa XML](13-lupa-xml.md) | XML UBL del comprobante: parser seguro, obtención en la cola, re-evaluación de reglas y la lupa en pantalla. |
 | 14 | [Auditoría y notificaciones](14-auditoria-y-notificaciones.md) | Registro inmutable de cada acción escrito por triggers, quién hizo qué, y notificaciones en la app que llegan exactamente una vez. |
 | 15 | [Pruebas E2E](15-pruebas-e2e.md) | Playwright recorriendo la app completa como un usuario, la pila propia de pruebas, la CI y los errores que solo aparecen entre piezas. |
+| 16 | [Reglas aprendidas](16-reglas-aprendidas.md) | «Recordar para este proveedor», la versión «Según historial» que la descarga aplica sola y se revierte, y el conteo anónimo para el catálogo. |
+| 17 | [Rendimiento](17-rendimiento.md) | Medir antes de optimizar: N+1, planes de consulta con `EXPLAIN`, `ANALYZE`, índices parciales y el despachador por tramos. |
+| 18 | [Diseño visual](18-diseno-visual.md) | Tokens de Tailwind 4, componentes de shadcn/ui, fuentes propias, accesibilidad y un rediseño que no rompió ningún E2E. |
 
 ## Orden recomendado
 
 ```text
 00 → 01 → 02 → 03 ─┬─► 04 → 05 → 06
-                   └─► 07 → 08 → 09 → 10 → 11 → 12 → 13 → 14 → 15
+                   └─► 07 → 08 → 09 → 10 → 11 → 12 → 13 → 14 → 15 → 16 → 17 → 18
 ```
 
 - **Ruta mínima (2–3 horas):** 01, 02 y 03. Con eso entiendes dónde vive cada dato y quién puede verlo.
@@ -67,6 +71,7 @@ pnpm curso:web
 - **Ruta de seguridad y negocio:** 07, 08 y 09. Se pueden leer en cualquier orden después de 03.
 - **Ruta del negocio SIRE:** 10 a 13, después de 05 (cola) y 08 (dinero). El 10 usa datos de ventas y compras: si algo no se entiende, sigue con 11 y 12 y vuelve.
 - **Ruta de cierre de R1:** 14 (después de 03 y 06) y 15 (después de 09).
+- **Ruta después de R1:** 16 (después de 12 y 14), 17 (después de 02 y 05) y 18 (después de 15).
 
 ## Cómo correr los ejemplos
 
@@ -88,7 +93,7 @@ Desde la raíz del repo (en PowerShell o en la terminal de tu editor):
 ```bash
 pnpm install          # instala dependencias de todas las apps y paquetes
 pnpm build            # compila packages/* (turbo respeta el orden de dependencias)
-pnpm db:migrate       # aplica todas las migraciones (0000…0040) a la base de datos
+pnpm db:migrate       # aplica todas las migraciones (0000…0053) a la base de datos
 pnpm db:seed          # carga datos de ejemplo (estudios, usuarios, clientes)
 ```
 
@@ -157,7 +162,7 @@ Antes de empezar el módulo 02, verifica:
 - [ ] `node -v` muestra `v24.x`.
 - [ ] `pnpm -v` muestra `10.x`.
 - [ ] `psql -h localhost -U postgres -d contapp -c "select version();"` muestra PostgreSQL 17.
-- [ ] `psql -h localhost -U postgres -d contapp -c "select count(*) from drizzle.__drizzle_migrations;"` devuelve 41 (las migraciones 0000 a 0040).
+- [ ] `psql -h localhost -U postgres -d contapp -c "select count(*) from drizzle.__drizzle_migrations;"` devuelve 54 (las migraciones 0000 a 0053).
 - [ ] (Para 04–06) `redis-cli ping` responde `PONG`.
 
 ## Cómo está escrito cada módulo
@@ -208,6 +213,7 @@ Ordenado alfabéticamente. La columna "Módulo" indica dónde se explica a fondo
 | Término | Qué significa en ContApp | Módulo |
 |---|---|---|
 | **Adaptador** | Implementación concreta de un puerto (por ejemplo, el mock del SIRE). Se cambia por configuración (`SIRE_CLIENT=mock`) sin tocar la lógica. | 01 |
+| **ANALYZE** | Comando de PostgreSQL que calcula las estadísticas de una tabla (cuántas filas, cómo se reparten). Sin estadísticas recientes, el planificador puede elegir un plan malo. | 17 |
 | **Argon2id** | Algoritmo para guardar contraseñas de forma que sea muy caro adivinarlas aunque roben la base. Se guarda el *hash*, nunca la contraseña. | 07 |
 | **Arriendo (lease)** | Permiso temporal con fecha de vencimiento: "este worker es el único que ejecuta este trabajo durante los próximos N segundos". Si el worker muere, el arriendo vence solo. | 04 |
 | **BullMQ** | Librería de Node.js que implementa colas de trabajos sobre Redis. En ContApp solo transporta `{ jobId, tenantId, tipo }`; el estado real vive en `job_registro`. | 05 |
@@ -227,28 +233,34 @@ Ordenado alfabéticamente. La columna "Módulo" indica dónde se explica a fondo
 | **Huella** | SHA-256 del contenido canónico de las filas de un periodo. Garantiza que se genera exactamente lo que se vio en el previo. | 10 |
 | **Idempotente** | Operación que puede repetirse sin cambiar el resultado. Clave para reintentos: descargar dos veces el mismo periodo no debe duplicar nada. | 05 |
 | **Índice** | Estructura que permite a PostgreSQL encontrar filas rápido, como el índice alfabético de un archivador. Un índice único además impide duplicados. | 02 |
+| **Índice parcial** | Índice que solo incluye las filas que cumplen una condición (`WHERE …`). Sirve para la unicidad entre filas vivas o para que el planificador no lo use donde no corresponde. | 16, 17 |
 | **Job (trabajo)** | Una tarea en segundo plano: descargar una propuesta SIRE, revisar un buzón SOL. Se registra en la tabla `job_registro`. | 05 |
 | **KEK** | *Key Encryption Key*: llave maestra que cifra las DEK. Solo el worker tiene la parte privada para descifrar. | 07 |
 | **Lock (bloqueo)** | Marca que impide que dos procesos hagan lo mismo a la vez (por ejemplo, dos consultas a SUNAT con el mismo RUC). | 04 |
 | **Migración** | Archivo SQL numerado que cambia el esquema de la base. Se aplican en orden y nunca se editan después de aplicadas. | 02 |
 | **Money** | Clase de `packages/domain` que representa un monto en soles o dólares con precisión exacta (sobre `decimal.js`). | 08 |
 | **Monorepo** | Un solo repositorio con varias apps y paquetes que se versionan juntos. | 01 |
+| **N+1** | Traer una lista con una consulta y luego hacer una consulta más por cada elemento. Con N grande son miles de viajes; se arregla con una sola consulta o por lotes. | 17 |
 | **NestJS** | Framework de Node.js para servidores, organizado en módulos, controladores y servicios. Lo usan el backend y el worker. | 06 |
 | **Next.js** | Framework de React para el frontend. Además reenvía `/api/*` al backend. | 01 |
 | **NUMERIC(14,2)** | Tipo de PostgreSQL para montos exactos: hasta 14 dígitos, 2 decimales. Nunca `float`. | 02, 08 |
 | **Outbox** | Patrón: primero se guarda el trabajo en la BD (commit) y solo después se avisa a Redis. Si Redis falla, nada se pierde: un reconciliador repone. | 05 |
+| **Plan de consulta** | Estrategia que elige PostgreSQL para ejecutar una consulta (qué índice, en qué orden unir). Se ve con `EXPLAIN`. | 17 |
 | **pnpm** | Gestor de paquetes de Node.js, rápido y estricto con las dependencias. Maneja los *workspaces* del monorepo. | 01 |
 | **Prevalidación** | Revisión del periodo completo antes de generar el archivo: decide si es apto y lista los errores (bloquean) y los avisos (no bloquean). | 10 |
 | **Prueba adversarial** | Prueba escrita por alguien que intenta romper el sistema (fugas entre estudios, carreras, entradas maliciosas). Archivos `*.adv.spec.ts`. | 09 |
 | **Puerto** | Interfaz que describe qué necesita el sistema de afuera (por ejemplo, `SireAuth.obtenerToken`), sin decir cómo se hace. | 01 |
+| **R-HIS** | Regla del historial: aplica sola, en la descarga, el destino que el contador «recordó» para un proveedor de un cliente. La fila queda «Según historial» y se puede revertir. | 16 |
 | **Redis** | Base de datos en memoria, muy rápida, usada para colas, locks, cupos y mensajes en tiempo real. | 04 |
 | **RLS (Row Level Security)** | Función de PostgreSQL que filtra filas automáticamente según una política; en ContApp, según el estudio activo. | 03 |
 | **Rol de base de datos** | "Usuario" de PostgreSQL con permisos concretos: `contapp_backend`, `contapp_worker`, etc. | 02 |
 | **SECURITY DEFINER** | Función SQL que se ejecuta con los permisos de su dueño, no de quien la llama. Sirve para dar acceso controlado a algo puntual. | 02 |
 | **SHA-256** | Huella digital de un archivo: si cambia un byte, cambia toda. Se guarda la del TXT y la del ZIP de cada versión. | 10 |
+| **shadcn/ui** | Catálogo de componentes de React que se copian al repo (no se instalan) y se adaptan a los tokens. Usa Radix para el comportamiento accesible. | 18 |
 | **SSE (Server-Sent Events)** | Canal HTTP abierto por el que el servidor empuja eventos al navegador (por ejemplo, "tu trabajo terminó"). | 06 |
-| **Transacción** | Grupo de operaciones que se aplican todas o ninguna, como un asiento contable que debe cuadrar completo. | 02 |
 | **TDD** | *Test-Driven Development*: primero se escribe la prueba que falla y luego el código que la hace pasar. | 09 |
+| **Token de diseño** | Nombre para una decisión visual (`primario`, `tinta-suave`). Vive en `globals.css` con `@theme` y genera las clases de Tailwind. | 18 |
+| **Transacción** | Grupo de operaciones que se aplican todas o ninguna, como un asiento contable que debe cuadrar completo. | 02 |
 | **TTL** | *Time To Live*: tiempo tras el cual Redis borra una clave sola. Así un lock olvidado no queda para siempre. | 04 |
 | **turbo** | Herramienta que ejecuta tareas (`build`, `test`) en todos los paquetes del monorepo respetando el orden de dependencias y con caché. | 01 |
 | **withTenant** | Función de `packages/db` que abre una transacción "a nombre de un estudio": fija rol y estudio para que RLS filtre. | 03 |
@@ -266,7 +278,7 @@ Ordenado alfabéticamente. La columna "Módulo" indica dónde se explica a fondo
 
 1. La DEK cifra una credencial concreta; la KEK es la llave maestra que cifra las DEK. Así, cambiar la KEK no obliga a volver a cifrar cada clave SOL, solo a "re-envolver" sus DEK (módulo 07).
 2. El [03 · RLS y withTenant](03-rls-y-withtenant.md), después de repasar roles en el [02](02-postgresql.md).
-3. 41 (de `0000_roles` a `0040_archivo_generado`), si corriste `pnpm db:migrate` con el repo al día.
+3. 54 (de `0000_roles` a `0053_compra_version_operacion_parcial`), si corriste `pnpm db:migrate` con el repo al día.
 
 </details>
 

@@ -46,8 +46,10 @@ Esta es la matriz exacta del sistema. «Sí» indica que el rol tiene el permiso
 | `auditoria.ver` | Ver «Auditoría» | Sí | Sí | — | — | — |
 | `plan.gestionar` | Reservado al Dueño; en esta versión no tiene pantalla (el plan lo cambia ContApp, ver [módulo 04](04-planes-y-limites.md)) | Sí | — | — | — | — |
 | `estudio.configurar`, `roles.gestionar` | Reservados para versiones futuras; sin pantalla hoy | Sí | Sí | — | — | — |
-| `ajustes.crear`, `ajustes.generar`, `reglas.gestionar` | Reservados para versiones futuras; sin pantalla hoy | Sí | Sí | Sí | — | — |
-| `buzon.ver`, `reglas.ver`, `prorrata.ver` | Reservados para versiones futuras (buzón SOL, reglas, prorrata); sin pantalla hoy | Sí | Sí | Sí | Sí | Sí |
+| `reglas.gestionar` | «Recordar» la clasificación de un proveedor y editar, activar, desactivar o eliminar las reglas aprendidas de un cliente. Con alcance global (Dueño y Administrador), también encender o apagar las «Reglas del motor» ([módulo 13](13-reglas-aprendidas.md)) | Sí | Sí | Sí | — | — |
+| `ajustes.crear`, `ajustes.generar` | Reservados para versiones futuras; sin pantalla hoy | Sí | Sí | Sí | — | — |
+| `reglas.ver` | Ver las «Reglas aprendidas» de un cliente y la pantalla «Reglas del motor» ([módulo 13](13-reglas-aprendidas.md)) | Sí | Sí | Sí | Sí | Sí |
+| `buzon.ver`, `prorrata.ver` | Reservados para versiones futuras (buzón SOL, prorrata); sin pantalla hoy | Sí | Sí | Sí | Sí | Sí |
 | `buzon.marcar_leido` | Reservado para el buzón SOL; sin pantalla hoy | Sí | Sí | Sí | Sí | — |
 
 En resumen: el Administrador tiene todo menos `plan.gestionar`, y en la práctica la única diferencia de poder con el Dueño es que **no puede tocar a un Dueño** (ver «Reglas y límites»).
@@ -56,8 +58,10 @@ En resumen: el Administrador tiene todo menos `plan.gestionar`, y en la práctic
 
 | Rol | Enlaces del menú |
 |---|---|
-| Dueño y Administrador | «Clientes», «Trabajos», «Usuarios», «Auditoría» |
-| Contador, Asistente y Lectura | «Clientes», «Trabajos» |
+| Dueño y Administrador | «Clientes», «Trabajos», «Notificaciones», «Usuarios», «Auditoría», «Reglas del motor» |
+| Contador, Asistente y Lectura | «Clientes», «Trabajos», «Notificaciones», «Reglas del motor» |
+
+Todos ven además el selector «Estudio», «Cambiar contraseña» y «Cerrar sesión». En celular, «Usuarios», «Auditoría», «Reglas del motor» y el resto quedan dentro de «Más» ([módulo 02](02-entrar-a-contapp.md#qué-ves-en-pantalla)).
 
 Si alguien no ve un botón, casi siempre es por su rol. Ocultar es solo una comodidad: aunque alguien escriba la dirección a mano, el sistema le niega la acción.
 
@@ -181,7 +185,7 @@ Entra con `ua@seed.contapp.test` (contraseña `desarrollo-contapp-2026`), Dueño
 2. **Invitación duplicada.** Invita otra vez a `asistente@prueba.test`: debes ver «Ya hay una invitación pendiente para ese correo.».
 3. **Ya es miembro.** Invita a `uab@seed.contapp.test`: debes ver «Esa persona ya es miembro del estudio.».
 4. **Aceptar con cuenta nueva.** Abre el correo «ContApp: te invitaron a un estudio» y entra al enlace en una **ventana privada** (para no cerrar la sesión de `ua`). Escribe el nombre «Ana Asistente» y una contraseña de 12 caracteres o más, y haz clic en «Crear cuenta y aceptar».
-5. **Alcance asignado.** En la ventana privada, entra con `asistente@prueba.test`. En el menú solo verás «Clientes» y «Trabajos», y la lista de clientes estará vacía.
+5. **Alcance asignado.** En la ventana privada, entra con `asistente@prueba.test`. En el menú verás «Clientes», «Trabajos», «Notificaciones» y «Reglas del motor», pero no «Usuarios» ni «Auditoría», y la lista de clientes estará vacía.
 6. **Asignación masiva.** En la ventana de `ua`, ve a «Clientes», marca «Cliente A dos» y «Cliente A tres», elige «Ana Asistente», tipo «Colaborador», y haz clic en «Asignar seleccionados». Debes ver «Clientes asignados: 2». En la ventana privada, recarga «Clientes»: ahora Ana ve esos dos.
 7. **Responsable.** En la ficha de «Cliente A dos», asigna a «Ana Asistente» como «Responsable». En la lista de clientes, su «Responsable» pasa a «Ana Asistente».
 8. **Cambio de rol.** En «Usuarios», cambia el rol de Ana a «Lectura». En «Clientes», «Cliente A dos» vuelve a «Sin responsable» (Lectura no puede ser responsable). En su ficha, Ana figura ahora como «Colaborador» y sigue viendo sus dos clientes.

@@ -2,7 +2,7 @@
 
 > Anterior: [07 · Ventas (RVIE)](07-ventas.md) · Siguiente: [09 · La lupa y el XML](09-lupa-y-xml.md) · Índice: [00-indice.md](00-indice.md)
 
-Al terminar este módulo vas a poder descargar las compras de un periodo, revisarlas en una grilla tipo Excel, corregir montos con el teclado viendo el cuadre en vivo, clasificar, aplicar las sugerencias de las reglas, excluir lo que no es deducible, agregar compras que faltan, deshacer y exportar a Excel.
+Al terminar este módulo vas a poder descargar las compras de un periodo, revisarlas en una grilla tipo Excel, corregir montos con el teclado viendo el cuadre en vivo, clasificar, aplicar las sugerencias de las reglas, excluir lo que no es deducible, agregar compras que faltan, deshacer y exportar a Excel. Cómo hacer que ContApp recuerde la clasificación de un proveedor está en el [módulo 13](13-reglas-aprendidas.md).
 
 ## Para qué sirve
 
@@ -25,8 +25,8 @@ Los permisos salen de `packages/shared/src/acceso/roles.ts`. Dueño y Administra
 | Rol | Qué puede hacer en Compras |
 |---|---|
 | Dueño, Administrador | Todo, en todos los clientes. |
-| Contador | Todo en sus clientes: descargar, editar, clasificar, aceptar sugerencias, excluir, agregar, deshacer, marcar revisado, **reabrir** y seguir editando un periodo **revisado**. |
-| Asistente | Descargar, editar, clasificar, aceptar, excluir, restaurar, agregar, descartar, deshacer y marcar revisado, solo con el periodo **abierto**. |
+| Contador | Todo en sus clientes: descargar, editar, clasificar, aceptar sugerencias, excluir, agregar, deshacer, marcar revisado, **reabrir** y seguir editando un periodo **revisado**. También «Recordar» la clasificación de un proveedor ([módulo 13](13-reglas-aprendidas.md)). |
+| Asistente | Descargar, editar, clasificar, aceptar, excluir, restaurar, agregar, descartar, deshacer y marcar revisado, solo con el periodo **abierto**. No ve el aviso «Recordar». |
 | Lectura | Ver la grilla, filtrar, abrir el «Historial», ver el resumen y «Exportar a Excel». No ve «Acciones» ni puede editar; arriba aparece «No tienes permiso para modificar las compras.». |
 
 | Permiso | Para qué |
@@ -35,12 +35,13 @@ Los permisos salen de `packages/shared/src/acceso/roles.ts`. Dueño y Administra
 | `sire.descargar` | Botón «Descargar». |
 | `sire.clasificar` | Editar celdas, «Acciones» (clasificar, aceptar sugerencias, excluir, restaurar, descartar), acciones sobre la selección, «Agregar compra», «Deshacer», «Rehacer» y «Marcar como revisado». |
 | `sire.aprobar_generar` | «Reabrir», modificar un periodo revisado y generar el archivo. |
+| `reglas.gestionar` | El aviso «¿Recordar para este proveedor en este cliente?» al clasificar ([módulo 13](13-reglas-aprendidas.md)). |
 
 ## Antes de empezar
 
 - Entorno levantado ([01](01-preparar-entorno.md)), sesión iniciada ([02](02-entrar-a-contapp.md)), cliente `20700000002` creado ([05](05-clientes.md)) y su credencial SIRE guardada con una clave inventada ([06](06-credenciales-y-trabajos.md)).
-- Una pantalla de al menos 1366 px de ancho: la grilla tiene muchas columnas.
-- Cómo llegar: «Clientes» → el cliente → enlace «Compras». Desde Ventas, enlace «Compras» del encabezado.
+- Mejor una pantalla de al menos 1366 px de ancho: la grilla tiene muchas columnas. En un celular también se puede usar: la grilla se desplaza hacia los lados y «Generar archivo» queda fijo abajo (ver «Qué ves en pantalla»).
+- Cómo llegar: «Clientes» → el cliente → enlace «Compras» del encabezado de su ficha. Desde Ventas, botón «Compras» del encabezado.
 
 ## Paso a paso
 
@@ -55,7 +56,7 @@ Los permisos salen de `packages/shared/src/acceso/roles.ts`. Dueño y Administra
 ### Recorrer la grilla, filtrar y buscar
 
 1. Arriba de la grilla elige la vista: «Con IGV» (la de entrada), «Sin IGV» o «Excluidas». Una compra va a «Sin IGV» cuando la suma de sus tres IGV es 0.00.
-2. Marca «Con alertas» para ver solo las filas con hallazgos, o «Proveedor nuevo» para las de proveedores sin historial en el cliente.
+2. Marca «Con alertas» para ver solo las filas con hallazgos, «Proveedor nuevo» para las de proveedores sin historial en el cliente, o «Según historial» para las que ContApp clasificó sola con una regla aprendida ([módulo 13](13-reglas-aprendidas.md)).
 3. En «Buscar por RUC, razón social o serie-número» escribe, por ejemplo, `CALZADO`, `20700000061` o `F001-2056`. Busca solo al dejar de teclear; Enter busca de inmediato.
 4. Muévete con el teclado: flechas, Tab y Shift+Tab, Re Pág / Av Pág, Inicio y Fin (con Ctrl, a la primera o la última celda). La barra espaciadora marca o desmarca la fila.
 
@@ -76,6 +77,8 @@ Los permisos salen de `packages/shared/src/acceso/roles.ts`. Dueño y Administra
 2. Elige «Clasificar como DG», «Clasificar como DGNG» o «Clasificar como DNG».
 
 **Resultado esperado:** «Compra clasificada.». El servidor mueve la base y el IGV al casillero elegido y la columna «Destino» pasa de «Por clasificar» a «Clasificada». Si el proveedor era nuevo, su alerta R-NEW desaparece.
+
+Si tienes el permiso `reglas.gestionar`, abajo a la izquierda aparece además el aviso «¿Recordar para este proveedor en este cliente?» con el proveedor, el destino y el botón «Recordar» (o Alt+R). No toma el foco ni corta tu trabajo con el teclado, y se oculta solo a los 10 segundos. Si lo aceptas, las compras de ese proveedor que lleguen en las próximas descargas vendrán ya clasificadas. El detalle está en el [módulo 13](13-reglas-aprendidas.md).
 
 ### Entender los hallazgos de las reglas
 
@@ -108,7 +111,7 @@ Las reglas que miran el XML (R-MIX exacta, R-ISC con el ISC del XML, R-GP) depen
 2. Aparece la barra «Acciones sobre la selección» con «N seleccionadas» y los botones «Clasificar como DG», «Clasificar como DGNG», «Clasificar como DNG», «Excluir», «Restaurar», «Aceptar R-RED» y «Quitar selección».
 3. Elige la acción.
 
-**Resultado esperado:** el diálogo «Resultado de la acción masiva» con «N aplicadas» y, si hubo, «N rechazadas» y la tabla «Compras rechazadas» (comprobante y motivo, por ejemplo «Otra persona la cambió; se recargó la fila.»). Cierra con «Cerrar». En bloque **solo** se acepta R-RED, y solo la que no pide confirmación; las demás sugerencias se aceptan fila por fila. Para «aplicar a todas las del proveedor», busca su RUC y usa «Seleccionar las N del filtro».
+**Resultado esperado:** el diálogo «Resultado de la acción masiva» con «N aplicadas» y, si hubo, «N rechazadas» y la tabla «Compras rechazadas» (comprobante y motivo, por ejemplo «Otra persona la cambió; se recargó la fila.»). Cierra con «Cerrar». En bloque **solo** se acepta R-RED, y solo la que no pide confirmación; las demás sugerencias se aceptan fila por fila. Para «aplicar a todas las del proveedor», busca su RUC y usa «Seleccionar las N del filtro». Si todas las filas que clasificaste en bloque son del mismo proveedor, aparece también el aviso «¿Recordar para este proveedor en este cliente?» ([módulo 13](13-reglas-aprendidas.md)).
 
 ### Excluir y restaurar una compra
 
@@ -150,7 +153,7 @@ Detalles que conviene saber:
 ### Ver el historial de una fila
 
 1. En la fila, haz clic en «Historial».
-2. El panel «Historial de la compra» muestra el «Valor original del SIRE» frente al «Valor vigente» por casillero (con «(cambió)»), las «Versiones» («Versión N · usuario · fecha» y la acción: «Original del SIRE», «Editada», «Clasificada», «Sugerencia aceptada», «Excluida», «Restaurada», «Deshecha»…) y los «Hallazgos».
+2. El panel «Historial de la compra» muestra el «Valor original del SIRE» frente al «Valor vigente» por casillero (con «(cambió)»), las «Versiones» («Versión N · usuario · fecha» y la acción: «Original del SIRE», «Editada», «Clasificada», «Sugerencia aceptada», «Excluida», «Restaurada», «Deshecha», «Según historial»…) y los «Hallazgos». La versión que crea una regla aprendida no tiene usuario: dice «Según historial» en lugar del nombre.
 3. Ciérralo con «Cerrar».
 
 ### Revisar el resumen y las diferencias con la propuesta
@@ -174,20 +177,30 @@ Igual que en ventas: en «Estado del periodo», «Marcar como revisado» → «C
 
 ## Qué ves en pantalla
 
-**Columnas de la grilla** (comprobante y proveedor quedan fijos a la izquierda; total y acciones, a la derecha)
+![Pantalla de compras con el resumen del periodo, los filtros y la grilla de compras](web/img/compras.png)
+
+*La pantalla «Compras» en escritorio: el periodo y «Exportar a Excel», el estado del periodo, «Generar archivo», la descarga, el «Resumen del periodo» y la grilla con sus filtros.*
+
+![Pantalla de compras en un celular, con la grilla y el botón «Generar archivo» fijo abajo](web/img/compras-movil.png)
+
+*Compras en un celular: el menú pasa a la barra inferior, la grilla se desplaza hacia los lados y «Generar archivo» queda fijo abajo, sobre la barra.*
+
+En pantallas de menos de 1024 px de ancho las columnas de los extremos dejan de estar fijas, para que no tapen el resto; el orden de las columnas no cambia. En un celular (menos de 768 px), el botón «Generar archivo» se queda fijo al pie de la pantalla, a todo lo ancho.
+
+**Columnas de la grilla** (en pantallas anchas, comprobante y proveedor quedan fijos a la izquierda; total y acciones, a la derecha)
 
 | Columna | Qué muestra |
 |---|---|
 | Seleccionar | Casilla para las acciones en bloque. |
 | Tipo | Código del comprobante (`01` factura…). |
 | Comprobante | Serie-número, «⚠ Con alerta: R-…», «Agregada», «Excluida», «Actualizada». |
-| Proveedor | Razón social (o «(sin razón social)»), tipo y número de documento y la marca «Proveedor nuevo». |
+| Proveedor | Razón social (o «(sin razón social)»), tipo y número de documento y las marcas «Proveedor nuevo» o «Según historial» (la clasificó una regla aprendida, [módulo 13](13-reglas-aprendidas.md)). |
 | Fecha, Moneda | Fecha de emisión; moneda y, en USD, «TC 3.300». |
 | Destino | «DG», «DGNG», «DNG», «Mixta» (base en más de un casillero) o «Sin base», y «Clasificada» / «Por clasificar». Es informativo: lo calcula la pantalla según qué bases tienen monto. |
 | Con alerta | Cada regla con su explicación. |
 | DG (Base, IGV), DGNG (Base, IGV), DNG (Base, IGV), No gravado, ISC, ICBPER, Otros | Las 10 columnas de monto editables, en la moneda del comprobante. |
 | Total | Suma de las 10 columnas. No se edita. |
-| Ver comprobante | La lupa (módulo 09). |
+| Lupa | Botón «Ver comprobante» que abre la lupa (módulo 09). El encabezado dice «Lupa». |
 | Acciones | Menú «Acciones» y botón «Historial». |
 
 Los encabezados de la grilla separan las filas en «Con IGV (N)», «Sin IGV (N)» y «Excluidas (N)».
@@ -251,7 +264,7 @@ Usa el cliente `20700000002`, su credencial SIRE guardada y el periodo `202610`.
 | «La sugerencia cambió. Se recargó la fila: revísala.» | Llegó el XML o alguien cambió la fila después de que la abriste. | Vuelve a abrir «Aceptar sugerencias». |
 | No aparece R-GP en la zapatilla. | R-GP necesita la glosa del XML. | Ver módulo 09, o excluye a mano. |
 | El resumen no cambia al filtrar. | Es del periodo entero, a propósito. | Usa los filtros solo para la grilla. |
-| La grilla se ve cortada. | Pantalla angosta. | Usa al menos 1366 px y desplázate a la derecha. |
+| La grilla se ve cortada. | Pantalla angosta. | Desplázate hacia la derecha dentro de la grilla. Para trabajar cómodo, usa al menos 1366 px. |
 
 ## Comprueba lo aprendido
 
@@ -275,6 +288,6 @@ Usa el cliente `20700000002`, su credencial SIRE guardada y el periodo `202610`.
 ## Para saber más
 
 - Curso técnico: [12 · Compras](../curso/12-compras.md) · [08 · Dinero y dominio](../curso/08-dinero-y-dominio.md) (motor de reglas)
-- Specs: [`docs/specs/014-compras-backend/spec.md`](../specs/014-compras-backend/spec.md) · [`docs/specs/015-compras-frontend/spec.md`](../specs/015-compras-frontend/spec.md) · [`docs/specs/011-motor-reglas/spec.md`](../specs/011-motor-reglas/spec.md)
+- Specs: [`docs/specs/014-compras-backend/spec.md`](../specs/014-compras-backend/spec.md) · [`docs/specs/015-compras-frontend/spec.md`](../specs/015-compras-frontend/spec.md) · [`docs/specs/011-motor-reglas/spec.md`](../specs/011-motor-reglas/spec.md) · [`docs/specs/038-diseno-visual/spec.md`](../specs/038-diseno-visual/spec.md) (diseño en escritorio y celular)
 - Requisitos: RF-060 a RF-071, RF-080 a RF-083, RF-085 · HU-14 a HU-19, HU-23, HU-24.
 - Siguiente paso: [09 · La lupa y el XML](09-lupa-y-xml.md) y luego [10 · Generar el archivo SIRE](10-generar-archivo.md).

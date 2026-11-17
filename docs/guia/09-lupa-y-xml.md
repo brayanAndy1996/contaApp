@@ -65,13 +65,13 @@ Piensa en la lupa como tener la factura física engrapada a la fila del Excel. L
 
 La lupa se lee de arriba abajo, en este orden:
 
-1. **Cabecera:** RUC, razón social (con la marca «Proveedor nuevo» si es la primera vez que aparece), tipo de comprobante (por ejemplo «Factura (01)»), serie y número, fecha de emisión, moneda, tipo de cambio y origen de la serie («Electrónica» o «Física»).
+1. **Cabecera:** RUC, razón social (con la marca «Proveedor nuevo» si es la primera vez que aparece, o «Según historial» si la clasificó una regla aprendida), tipo de comprobante (por ejemplo «Factura (01)»), serie y número, fecha de emisión, moneda, tipo de cambio y origen de la serie («Electrónica» o «Física»).
 2. **XML del comprobante:** de dónde salió el XML o por qué no está (ver «Qué ves en pantalla»). Si está, tienes «Descargar XML» para guardarlo en tu computadora.
 3. **Ítems del XML:** una tabla con descripción, cantidad, unidad, precio unitario, valor, afectación, IGV, ISC e ICBPER de cada línea.
 4. **Comparación SIRE y XML:** columna por columna, la cifra del SIRE, la del XML y el resultado («Coincide», «Difiere» o «Sin XML»). Las filas que difieren salen resaltadas y llevan la regla que las explica.
 5. **Hallazgos y sugerencia:** cada hallazgo con su regla (por ejemplo «R-MIX · Compra mixta») y su explicación.
 6. **Historial del proveedor:** sus compras de este cliente en los últimos 6 periodos, con el destino que tuvieron y si se excluyeron.
-7. **Acciones:** las mismas de la grilla («Clasificar», «Excluir», etc.), más «Editar», «Aceptar sugerencias» e «Historial».
+7. **Acciones:** el mismo menú «Acciones» de la grilla (clasificar, excluir, restaurar…), más «Editar», «Aceptar sugerencias», «Recordar para este proveedor» (si tienes `reglas.gestionar`) e «Historial» («Ocultar historial» para plegarlo).
 
 ### Aceptar la sugerencia con el teclado (Enter en dos pasos)
 
@@ -92,6 +92,16 @@ La lupa no tiene celdas editables. «Editar» te lleva a la grilla:
 3. Edita como en el [módulo 08](08-compras.md) (Enter guarda, Esc cancela).
 
 «Editar» sale deshabilitado si la compra está excluida o si el periodo es de solo lectura para ti; al pasar el mouse ves el motivo.
+
+### Recordar la clasificación del proveedor desde la lupa
+
+Si el XML te confirmó cómo clasificar a un proveedor recurrente, puedes pedirle a ContApp que lo recuerde:
+
+1. Clasifica la compra (menú «Acciones» de la lupa o de la grilla).
+2. Pulsa «Recordar para este proveedor».
+3. Aparece el aviso «¿Recordar para este proveedor en este cliente?» con el proveedor y el destino. Pulsa «Recordar» (o Alt+R).
+
+**Resultado esperado:** «Regla guardada. Se aplicará en las próximas descargas de este proveedor.». El botón sale deshabilitado si la compra está por clasificar, es mixta o está excluida, si el periodo es de solo lectura para ti, o si ya hay una regla activa de ese proveedor con ese destino («Ya hay una regla activa de este proveedor con este destino.»). Todo sobre las reglas aprendidas está en el [módulo 13](13-reglas-aprendidas.md).
 
 ### Pedir el XML o reintentar
 
@@ -134,9 +144,9 @@ Si te equivocaste de archivo, «Quitar el XML» te devuelve al formulario manual
 
 ## Qué ves en pantalla
 
-![Lupa del comprobante F001-2056 con cabecera, XML simulado, ítems y comparación SIRE contra XML](web/img/lupa.png)
+![Lupa de una compra con la cabecera, el estado del XML, los ítems y la comparación entre el SIRE y el XML](web/img/lupa.png)
 
-*Captura real del entorno de prueba: la compra mixta F001-2056 después de aceptar R-MIX. Todas las columnas «Coinciden» con el XML.*
+*La lupa de un comprobante: arriba, la cabecera y el estado del XML; debajo, los ítems del XML, la comparación columna por columna con el SIRE, los hallazgos y las acciones.*
 
 ### Estado del XML
 
@@ -209,7 +219,7 @@ Si en tu entorno no ves las sugerencias exactas del XML, revisa esta variable co
 Además:
 
 - La lupa **no verifica la firma digital** del XML ni el CDR. No afirma que el XML sea auténtico.
-- No hay botón de PDF ni «Recordar para este proveedor» en esta versión.
+- No hay botón de PDF en esta versión.
 - Un XML que llega o se sube **no crea una versión nueva** de la fila ni cambia sus montos: solo vuelve a evaluar las reglas. Los montos cambian cuando tú aceptas una sugerencia o editas.
 
 ## Pruébalo con los datos de prueba
@@ -260,5 +270,5 @@ Usa el cliente `20700000002`, periodo `202610`, con la propuesta de compras ya d
 ## Para saber más
 
 - Curso técnico: [13 · La lupa del comprobante: XML UBL, parser seguro y re-evaluación](../curso/13-lupa-xml.md)
-- Spec: [`docs/specs/016-lupa-xml/spec.md`](../specs/016-lupa-xml/spec.md)
+- Specs: [`docs/specs/016-lupa-xml/spec.md`](../specs/016-lupa-xml/spec.md) · [`docs/specs/021-reglas-aprendidas/spec.md`](../specs/021-reglas-aprendidas/spec.md) («Recordar para este proveedor»)
 - Requisitos: RF-090 a RF-099 (con RF-097a y RF-097b), RF-061, RF-067 · HU-18, HU-20, HU-21, HU-22, HU-23, HU-24.

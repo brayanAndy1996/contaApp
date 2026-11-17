@@ -80,7 +80,7 @@ No hay un botón «Editar». Para cambiar una credencial, escribe los datos nuev
 
 ### Seguir los trabajos en el panel
 
-1. En el menú, haz clic en «Trabajos» (`/trabajos`), o en el enlace «Ver en el panel de trabajos» que aparece al encolar algo.
+1. En el menú (lateral en escritorio, barra inferior en celular), haz clic en «Trabajos» (`/trabajos`), o en el enlace «Ver en el panel de trabajos» que aparece al encolar algo.
 2. Verás los trabajos del estudio agrupados por tipo, los más recientes primero. Cada fila tiene el nombre del trabajo, su estado y, si terminó mal, el motivo.
 3. Deja la página abierta: los cambios llegan solos, sin recargar.
 4. Si un tipo tiene más de 10 trabajos, verás una línea de resumen, por ejemplo «Consultando datos de RUC: 8 de 12», y «3 con error» si los hay. Haz clic en «Ver detalle» para desplegar las filas y en «Ocultar detalle» para plegarlas.
@@ -96,9 +96,9 @@ No hay un botón «Editar». Para cambiar una credencial, escribe los datos nuev
 
 ## Qué ves en pantalla
 
-![Sección «Credenciales» de la ficha del cliente con SOL y SIRE verificadas](web/img/credenciales.png)
+![Sección «Credenciales» de la ficha del cliente con los recuadros de la credencial SOL y de la credencial SIRE](web/img/credenciales.png)
 
-*Captura real del entorno de prueba: las dos credenciales «Verificada el 14/11/2026». Los campos quedan vacíos porque las claves nunca se vuelven a mostrar.*
+*La sección «Credenciales» de la ficha del cliente: cada recuadro muestra el estado de la credencial y los botones «Guardar» y «Verificar». Los campos quedan vacíos porque las claves nunca se vuelven a mostrar.*
 
 ### Estados de una credencial (ficha del cliente y listado)
 

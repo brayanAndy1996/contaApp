@@ -6,7 +6,7 @@ Si quieres entender **cómo está construido** por dentro (PostgreSQL, colas, ci
 
 ## Antes de empezar: lee esto
 
-> **La apariencia cambió después de escribir esta guía.** La spec 038 (noviembre de 2026) aplicó el diseño nuevo, verde petróleo, a todas las pantallas: menú lateral en escritorio, barra inferior en celular y «Ventas» accesible desde la ficha del cliente. Los nombres de botones, los pasos y las reglas de esta guía siguen valiendo; lo que cambia es el aspecto y dónde está el menú. Las dos capturas de los módulos 06 y 09 muestran el diseño anterior. Las reglas aprendidas de la spec 021 todavía no tienen módulo en esta guía.
+> **Esta guía ya refleja el diseño nuevo.** La spec 038 (noviembre de 2026) aplicó el diseño verde petróleo a todas las pantallas: menú lateral en escritorio, barra inferior en celular y «Ventas» accesible desde la ficha del cliente. Los pasos, las capturas y la ubicación de los menús de esta guía corresponden a ese diseño. Las reglas aprendidas de la spec 021 tienen su propio módulo, el [13](13-reglas-aprendidas.md).
 
 > **ContApp todavía no se conecta con SUNAT.** La versión actual (Release 1) está completa y probada, pero las conexiones con SUNAT son **simulaciones**: la descarga de propuestas SIRE, la consulta RUC, la verificación de credenciales y los XML de los comprobantes devuelven datos de prueba. Con un RUC real no verás los comprobantes reales de tu cliente.
 
@@ -20,7 +20,7 @@ ContApp ayuda a un estudio contable a **revisar y corregir los registros de comp
 
 1. **Descarga la propuesta** de SUNAT (compras RCE y ventas RVIE) de cada cliente.
 2. **Detecta errores** con reglas de contador: IGV que no es 18 % ni 10 %, ISC registrado como base gravada, compras mixtas, redondeos, proveedores nuevos y posibles gastos personales.
-3. **Sugiere la corrección** y te deja aplicarla con un clic, o editar a mano en una grilla tipo Excel con el cuadre en vivo.
+3. **Sugiere la corrección** y te deja aplicarla con un clic, o editar a mano en una grilla tipo Excel con el cuadre en vivo. Si se lo pides, **recuerda cómo clasificaste a cada proveedor** y clasifica solas sus compras de los meses siguientes.
 4. **Compara con el XML** del comprobante (la «lupa») para confirmar qué dice la factura real.
 5. **Revisa la correlatividad** de las ventas (boletas o facturas que faltan).
 6. **Genera el archivo de reemplazo** (TXT dentro de un ZIP) solo si todo está correcto, y guarda cada versión con su huella para descargarla después.
@@ -43,17 +43,19 @@ ContApp ayuda a un estudio contable a **revisar y corregir los registros de comp
 | 10 | [Generar el archivo SIRE](10-generar-archivo.md) | Prevalidar el periodo, ver el resumen de cambios, generar el ZIP y descargar sus versiones. |
 | 11 | [Auditoría y notificaciones](11-auditoria-y-notificaciones.md) | Quién hizo qué y cuándo, y los avisos que te llegan dentro de ContApp. |
 | 12 | [Un mes de trabajo de punta a punta](12-un-mes-de-punta-a-punta.md) | El cierre de un periodo completo con todos los módulos, lo que aún no hace y cómo resolver problemas comunes. |
+| 13 | [Reglas aprendidas](13-reglas-aprendidas.md) | Recordar la clasificación de un proveedor, compras «Según historial», reglas del cliente y reglas del motor. |
 
 ## Orden recomendado
 
 ```text
-01 → 02 → 05 → 06 → 07 → 08 → 09 → 10 → 12
+01 → 02 → 05 → 06 → 07 → 08 → 09 → 10 → 12 → 13
               ↘ 03 → 04            ↘ 11
 ```
 
 - **Para probar rápido (1 hora):** 01, 02, 05, 08 y 10. Con eso levantas el sistema, creas un cliente, corriges sus compras y generas el archivo.
 - **Si vas a trabajar con un equipo:** agrega 03 (roles) y 11 (auditoría).
 - **Para ver el ciclo completo:** termina con el 12.
+- **Cuando ya clasifiques compras cada mes:** lee el 13 para que ContApp recuerde la clasificación de cada proveedor.
 
 ## Cómo está escrito cada módulo
 
@@ -81,6 +83,7 @@ ContApp ayuda a un estudio contable a **revisar y corregir los registros de comp
 | **Sugerencia** | Corrección que propone una regla (por ejemplo, mover un monto de base gravada a ISC). Tú decides si la aplicas. |
 | **Excluir** | Sacar una fila del archivo que se va a generar, con un motivo. No se borra: se puede restaurar. |
 | **Lupa** | Ventana con el detalle de un comprobante y su XML. |
+| **Regla aprendida** | El destino (DG, DGNG o DNG) que ContApp recuerda para un proveedor de un cliente. Las compras que llegan después se marcan «Según historial». |
 | **Previo** | La revisión del periodo antes de generar: errores que bloquean, avisos y resumen de cambios. |
 | **Trabajo** | Una tarea que corre en segundo plano (descargar, verificar credenciales, consultar RUC, generar). Se sigue en «Trabajos». |
 | **Versión del archivo** | Cada archivo generado queda guardado con número, fecha, autor y huella SHA-256. |

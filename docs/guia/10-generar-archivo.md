@@ -41,7 +41,7 @@ Es el último paso del mes para cada libro: primero corriges compras y ventas, y
 ### Abrir el panel «Generar archivo» y leer el previo
 
 1. Entra a las compras (o a las ventas) del cliente y del periodo.
-2. Junto al estado del periodo, pulsa «Generar archivo».
+2. Junto al estado del periodo, pulsa «Generar archivo». En un celular el botón está fijo al pie de la pantalla, sobre la barra del menú.
 3. Se abre el panel «Generar archivo» con el subtítulo del libro: «Archivo TXT del Registro de Compras Electrónico (RCE) para el SIRE» o «Archivo TXT del Registro de Ventas e Ingresos Electrónico (RVIE) para el SIRE». Mientras carga verás «Cargando el previo…».
 4. Lee el panel de arriba abajo:
    - El formato: «Formato RCE-REEMPLAZO · versión 0-provisional» (en ventas, «RVIE-REEMPLAZO»), y el recuadro «Provisional: no subir a SUNAT».
@@ -51,7 +51,7 @@ Es el último paso del mes para cada libro: primero corriges compras y ventas, y
    - «Resumen de cambios del archivo»: «Modificadas», «Excluidas», «Agregadas» e «Impacto en el IGV» por DG, DGNG, DNG y «Total».
    - «Versiones generadas».
 
-En compras, en una pantalla ancha el panel se abre como una columna al lado de la grilla; en una más angosta, debajo de ella. En ventas se abre a la derecha. Para cerrarlo, pulsa «Cerrar».
+En compras, en una pantalla ancha (desde 1400 px) el panel se abre como una columna al lado de la grilla; en una más angosta se abre debajo de ella y la pantalla baja sola hasta el panel. En ventas se abre a la derecha. Para cerrarlo, pulsa «Cerrar».
 
 **Resultado esperado:** sabes exactamente qué falta corregir antes de generar.
 
@@ -115,6 +115,10 @@ Reabrir nunca borra versiones.
 
 ## Qué ves en pantalla
 
+![Panel «Generar archivo» con el formato provisional, el veredicto, los errores, los avisos y las versiones generadas](web/img/generar-archivo.png)
+
+*El panel «Generar archivo»: el formato y la marca «Provisional: no subir a SUNAT», el veredicto, los errores con «Ubicar en la grilla», los avisos, el resumen de cambios y las versiones generadas.*
+
 ### Veredicto y motivos
 
 | Lo que ves | Qué significa |
@@ -138,7 +142,7 @@ Reabrir nunca borra versiones.
 | «Salto en la correlatividad de los comprobantes» (`SALTO_CORRELATIVIDAD`) | Solo ventas | «Falta B001-291» o «Faltan B003-402 a B003-404». Se justifica en el [módulo 07](07-ventas.md). | No |
 | `RAZON_SOCIAL_RECORTADA` | Compras y ventas | La razón social tenía más de 100 caracteres y se recortó a 100. | No |
 
-Si hay muchos errores, al final verás «Y N errores más que no se muestran.». Corrige los visibles y el previo mostrará los siguientes.
+Si hay muchos errores, al final verás «Y N errores más que no se muestran.». Corrige los visibles y el previo mostrará los siguientes. Con los avisos pasa lo mismo: el previo muestra los primeros 1.000 y el resto lo resume en «Y N avisos más que no se muestran.». Esos avisos tampoco impiden generar.
 
 ### Resumen de cambios
 

@@ -46,7 +46,7 @@ Si un botón no aparece, casi siempre es por el rol. Ocultarlo es solo comodidad
 - Haber guardado su credencial SIRE con una clave inventada ([06](06-credenciales-y-trabajos.md)). Sin credencial, «Descargar» responde «Primero guarda la credencial.».
 - Saber el periodo a revisar, en formato `AAAAMM`. Para probar: `202610`.
 
-Cómo llegar: en el detalle del cliente no hay enlace directo a Ventas. Entra por «Compras» y, en el encabezado de esa pantalla, haz clic en «Ventas». También puedes escribir la dirección `/clientes/<id del cliente>/ventas?periodo=202610`.
+Cómo llegar: «Clientes» → el cliente → enlace «Ventas» del encabezado de su ficha (junto a «Compras» y «Reglas aprendidas»). Desde «Compras», el enlace «Ventas» del encabezado te lleva con el mismo periodo ya escrito. También puedes escribir la dirección `/clientes/<id del cliente>/ventas?periodo=202610`. Al revés, el botón «Compras» del encabezado de Ventas te devuelve a las compras.
 
 ## Paso a paso
 
@@ -158,6 +158,10 @@ Una venta del SIRE que trae un error (por ejemplo, no cuadra o está en USD sin 
 **Resultado esperado:** «Venta excluida del archivo.»; la fila muestra «Excluida» y «Motivo: …», y el resumen dice «1 venta excluida del archivo.». Al restaurar: «Venta restaurada.».
 
 ## Qué ves en pantalla
+
+![Pantalla de ventas con el periodo, el estado, el resumen en soles y la correlatividad](web/img/ventas.png)
+
+*La pantalla «Ventas» de un cliente: arriba, el periodo, «Importar propuesta» y «Agregar venta manual»; debajo, el estado del periodo, la descarga, el resumen en soles, la correlatividad y la grilla.*
 
 **Grilla «Ventas del periodo»**
 
