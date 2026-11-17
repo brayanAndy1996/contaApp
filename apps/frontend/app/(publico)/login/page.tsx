@@ -5,6 +5,20 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { api } from "../../../lib/api";
 import { reiniciarSesion } from "../../../lib/sesion";
+import {
+  Alert,
+  Button,
+  Card,
+  Input,
+  Label,
+  enlace,
+} from "../../../components/ui";
+import { cn } from "../../../lib/utils";
+
+const ENLACE = cn(
+  enlace,
+  "text-sm max-lg:inline-flex max-lg:min-h-11 max-lg:items-center",
+);
 
 // Mensajes genéricos a propósito (CA-2, P3): el 401 es el mismo sea cual sea la causa.
 const CREDENCIALES_INVALIDAS = "Correo o contraseña incorrectos.";
@@ -55,49 +69,45 @@ export default function Login() {
 
   return (
     <main className="flex flex-1 items-center justify-center p-6">
-      <form onSubmit={ingresar} className="flex w-full max-w-sm flex-col gap-4">
-        <h1 className="text-2xl font-semibold">Ingresar a ContApp</h1>
-        <label className="flex flex-col gap-1 text-sm">
-          Correo
-          <input
-            type="email"
-            autoComplete="username"
-            required
-            value={correo}
-            onChange={(e) => setCorreo(e.target.value)}
-            className="rounded border px-3 py-2"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Contraseña
-          <input
-            type="password"
-            autoComplete="current-password"
-            required
-            value={contrasena}
-            onChange={(e) => setContrasena(e.target.value)}
-            className="rounded border px-3 py-2"
-          />
-        </label>
-        {error && (
-          <p role="alert" className="text-sm text-red-600">
-            {error}
-          </p>
-        )}
-        <button
-          type="submit"
-          disabled={enviando}
-          className="rounded bg-black px-4 py-2 text-white disabled:opacity-50"
-        >
-          Ingresar
-        </button>
-        <Link href="/recuperar" className="text-sm underline">
-          Olvidé mi contraseña
-        </Link>
-        <Link href="/registro" className="text-sm underline">
-          Crear estudio
-        </Link>
-      </form>
+      <Card className="w-full max-w-md">
+        <h1 className="m-0 font-titulo text-[28px] font-extrabold leading-tight tracking-tight text-tinta">
+          Ingresar a ContApp
+        </h1>
+        <form onSubmit={ingresar} className="flex flex-col gap-4">
+          <Label>
+            Correo
+            <Input
+              type="email"
+              autoComplete="username"
+              required
+              value={correo}
+              onChange={(e) => setCorreo(e.target.value)}
+              className="max-lg:h-11"
+            />
+          </Label>
+          <Label>
+            Contraseña
+            <Input
+              type="password"
+              autoComplete="current-password"
+              required
+              value={contrasena}
+              onChange={(e) => setContrasena(e.target.value)}
+              className="max-lg:h-11"
+            />
+          </Label>
+          {error && <Alert tono="error">{error}</Alert>}
+          <Button type="submit" disabled={enviando} className="max-lg:h-11">
+            Ingresar
+          </Button>
+          <Link href="/recuperar" className={ENLACE}>
+            Olvidé mi contraseña
+          </Link>
+          <Link href="/registro" className={ENLACE}>
+            Crear estudio
+          </Link>
+        </form>
+      </Card>
     </main>
   );
 }
