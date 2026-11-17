@@ -53,8 +53,14 @@ Copias de shadcn/ui adaptadas a los tokens (no se usa el CLI: requiere red hacia
 
 ## Orden de bloqueo con otras specs
 - Fase 1: no toca archivos de 021 ni de 022 (comprobado con `git diff --name-only origin/main...origin/spec/021-reglas-aprendidas` y lo mismo con 022, 2026-11-15). Comparte con ellas `pnpm-lock.yaml` solo si alguna agrega dependencias antes de fusionarse; hoy ninguna lo hace.
-- Fase 2: se planifica pantalla por pantalla al desbloquearse, partiendo de `main` con 021 y 022 ya dentro.
+- Fase 2: planificada en T6 (2026-11-17) sobre `main` con 021 y 022 dentro; reparto en la sección siguiente y en `tasks.md`.
+
+## Fase 2 · reparto
+- **T7 (primero)** amplía la base: `Table` con `desplazable` (sin contenedor `overflow-x-auto`, lo exige la tabla de reglas del cliente), `EncabezadoPagina` (título de página) y `components/ui/clases.ts` (`velo`, `panelDialogo`, `enlace`, `anilloFoco`, `cifra`) para estilar los diálogos y menús propios sin reemplazarlos.
+- **T8 a T17 en paralelo**, cada una dueña de un grupo de archivos sin solapes: marco, inicio y auth, clientes y ficha, compras (grilla · lupa y diálogos · página y generar archivo), ventas, trabajos y notificaciones, auditoría/equipo/admin, reglas del motor. `components/archivos/` es de T13 aunque ventas lo use.
+- Reglas comunes, comandos de control y preguntas abiertas (P-1 a P-7): `tasks.md`.
 
 ## Riesgos
 - **Los E2E y las pruebas unitarias buscan por rol, nombre y texto**: la fase 2 conserva esos contratos (D6). Si una prueba tiene que cambiar, es señal de que se cambió comportamiento y se revisa.
+- **jsdom no aplica CSS**: duplicar enlaces para escritorio y celular rompe `getByRole` en las pruebas unitarias; el menú cambia de disposición con CSS sobre el mismo árbol. Cinco pruebas afirman clases concretas (lista en `tasks.md`, regla 2).
 - **Tailwind 4 y `tailwind-merge` 3**: `cn` reconoce las utilidades generadas por los tokens de `@theme` si siguen los prefijos estándar (`bg-`, `text-`, `border-`, `rounded-`, `shadow-`).

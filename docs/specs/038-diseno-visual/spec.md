@@ -1,6 +1,6 @@
 # Spec 038 · Diseño visual (estilo A, verde petróleo)
 
-Estado: aprobada (decisiones del usuario 2026-11-15: estilo A, shadcn/ui, dos fases). Fase 1 en curso; fase 2 bloqueada hasta que 021 y 022 estén en `main`.
+Estado: aprobada (decisiones del usuario 2026-11-15: estilo A, shadcn/ui, dos fases). Fase 1 hecha; fase 2 planificada en `tasks.md` (T6, 2026-11-17, con 021 y 022 en `main`), pendiente de las preguntas P-1 a P-7.
 Nivel de riesgo: C — responde «sí» solo a (3) en casos aislados (un estado mal coloreado podría pasar inadvertido). No toca montos, permisos, datos ni concurrencia: solo la presentación. Pruebas después: un caso feliz y uno de error por componente público, más los E2E de R1 como regresión.
 Cubre: RNF de usabilidad y accesibilidad de `docs/02-requerimientos.md` (presentación de todas las pantallas de R1) · notas de la guía de uso (`docs/guia/12-un-mes-de-punta-a-punta.md`, «Detalles de pantalla que vas a notar»).
 
@@ -18,7 +18,7 @@ Hoy la app usa Tailwind con los estilos por defecto de Next.js (fuente Arial, bl
 **Fase 2 · Pantallas (después de que 021 y 022 estén en `main`)**
 - Marco de la app: menú lateral en escritorio y barra inferior en celular, con «Ventas», «Notificaciones» y «Cambiar contraseña» siempre accesibles.
 - Aplicar los componentes a: ingresar, registro y recuperación; inicio; clientes y ficha; credenciales; trabajos; usuarios; compras (grilla, resumen, barra masiva, historial); ventas; lupa; generar archivo; auditoría; notificaciones; consola del super-admin; y las pantallas nuevas de reglas que trae 021.
-- Diseño de celular de las pantallas principales según las maquetas (compras como tarjetas, «Generar archivo» fijo abajo).
+- Diseño de celular de las pantallas principales según las maquetas (compras como tarjetas, «Generar archivo» fijo abajo). Las tarjetas de compras dependen de P-3: cambian la semántica de la grilla y sus pruebas de 390 px.
 
 ## Fuera de alcance
 - Cambios de comportamiento, rutas, textos de negocio o permisos. Si una pantalla necesita un cambio de comportamiento (por ejemplo, sincronizar el periodo con la dirección), va en otra spec.
@@ -41,10 +41,11 @@ Hoy la app usa Tailwind con los estilos por defecto de Next.js (fuente Arial, bl
 - [x] CA-3: Existen los componentes base de `components/ui/` con sus variantes (botón principal, secundario, terciario, peligro y tamaños; chips ok/aviso/error/info/neutro; alertas de los cuatro tipos), y cada uno tiene pruebas de nivel C: un caso feliz y uno de error o borde (botón deshabilitado no dispara; diálogo se cierra con Esc y devuelve el foco; pestañas se recorren con flechas; menú se abre con teclado).
 - [ ] CA-4: `pnpm --filter @contapp/frontend typecheck`, `lint`, `test` y `build` pasan, y el CI (incluido E2E) queda en verde: la fase 1 no cambia ninguna pantalla salvo el fondo y la fuente.
 
-**Fase 2** (se detalla en `tasks.md` al desbloquearse)
+**Fase 2** (detallada en `tasks.md`, T7 a T17 y T-final)
 - [ ] CA-5: Todas las pantallas de R1 y las de 021 usan los componentes y tokens; ninguna usa colores sueltos.
-- [ ] CA-6: Los 89+ E2E pasan sin cambiar sus selectores (D6), y la revisión manual a 1440 px y 390 px no muestra desbordes.
-- [ ] CA-7: «Ventas», «Notificaciones» y «Cambiar contraseña» se alcanzan desde el menú en escritorio y en celular.
+- [ ] CA-6: Los 89+ E2E pasan sin cambiar sus selectores (D6); las pruebas unitarias existentes no cambian aserciones de comportamiento (un selector visual solo si es inevitable y está justificado), y la revisión manual a 1440 px y 390 px no muestra desbordes.
+- [ ] CA-7: «Ventas», «Notificaciones» y «Cambiar contraseña» se alcanzan desde el menú en escritorio y en celular (cómo se llega a «Ventas», que es por cliente, según P-4).
+- [ ] CA-8: Accesibilidad sin regresión en todas las pantallas: foco visible, contraste AA (D5) y los mismos textos y nombres accesibles de antes.
 - [ ] Casos reales aplicables: ninguno (no cambia cálculos). Las maquetas usan los datos de prueba (mixta, San Juan, zapatilla) solo como contenido.
 
 ## Dependencias
@@ -52,4 +53,4 @@ Hoy la app usa Tailwind con los estilos por defecto de Next.js (fuente Arial, bl
 - Externas: ninguna. Referencia visual: lienzo de diseño «ContApp: pantallas principales», estilo A.
 
 ## Preguntas abiertas
-- Modo oscuro (D4): ¿se quiere en una spec posterior?
+- P-1 a P-7 de la fase 2 (modo oscuro, densidad de grillas, compras en celular, «Ventas» en el menú, menú en celular, diálogos propios y comprobación de accesibilidad): en `tasks.md`.
