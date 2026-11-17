@@ -379,6 +379,27 @@
       "when": 1794866760880,
       "tag": "0053_compra_version_operacion_parcial",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1794949194602,
+      "tag": "0054_buzon_tablas",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1794949202739,
+      "tag": "0055_buzon_programacion",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1794949203705,
+      "tag": "0056_buzon_critico",
+      "breakpoints": true
     }
   ]
 }

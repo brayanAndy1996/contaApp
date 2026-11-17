@@ -5,7 +5,7 @@ import { tenant } from "./plataforma";
 
 /**
  * Catálogo cerrado de acciones (D-3), las 4 de la ronda adversarial R1 (0045: H-017-1 y H-017-2), `credencial.descifrada` (solo la
- * vista, D-6), `sunat.envio` (reservada, R2) y las 8 de la spec 021 (0049).
+ * vista, D-6), `sunat.envio` (reservada, R2) las 8 de la spec 021 (0049) y las 5 del buzón de la spec 023 (0054).
  */
 export const ACCIONES_AUDITORIA_BD = [
   "sesion.ingreso",
@@ -48,6 +48,12 @@ export const ACCIONES_AUDITORIA_BD = [
   "estudio.regla_motor",
   "estudio.aporte_catalogo",
   "compra.historial",
+  // Spec 023 (0054): buzón SOL. `contenido_obtenido` por trigger (actor trabajo); las otras cuatro por buzon_auditar (backend).
+  "buzon.captura_solicitada",
+  "buzon.apertura_solicitada",
+  "buzon.contenido_visto",
+  "buzon.adjunto_descargado",
+  "buzon.contenido_obtenido",
 ] as const;
 
 const lista = (valores: readonly string[]) => sql.raw(valores.map((v) => `'${v}'`).join(", "));

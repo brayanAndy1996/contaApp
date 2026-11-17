@@ -1,6 +1,7 @@
-// Repositorio del buzón SOL (spec 023). STUB de T4 (rojo): T11 lo implementa.
+// Repositorio del buzón SOL (spec 023): lectura (backend), escritura (worker), programación (funciones acotadas de 0055) y error.
 export { BuzonRepoError } from "./errores";
 export {
+  bloquearEstadoBuzon,
   leerEstadoBuzon,
   listarMensajesBuzon,
   leerMensajeBuzon,

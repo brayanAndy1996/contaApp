@@ -66,8 +66,15 @@ export async function purgarAuth(
   };
 }
 
-/* eslint-disable @typescript-eslint/no-unused-vars -- STUBS de T4 (rojo): T11 los reemplaza y quita esta línea */
-// ---- Spec 023 (T4, rojo): candado del ciclo del programador del buzón SOL. STUBS: T11 los implementa con las funciones de 0055. ----
+// ---- Spec 023 (D-5): candado del ciclo del programador del buzón SOL (funciones sistema.buzon_ciclo_* de 0055) y estudios con
+// suscripción vigente. Todo el tiempo sale del reloj de la BD; los relojes de los workers no cuentan.
+const SQL_ESTUDIOS_BUZON =
+  "select tenant_id, frecuencia_min from sistema.estudios_buzon()";
+const SQL_TOMAR_CICLO =
+  "select ahora, intervalo_min, reserva_interactiva, lote_estudio from sistema.buzon_ciclo_tomar($1::text)";
+const SQL_RENOVAR_CICLO = "select sistema.buzon_ciclo_renovar($1::text)";
+const SQL_SOLTAR_CICLO = "select sistema.buzon_ciclo_soltar($1::text)";
+
 export interface CicloBuzon {
   /** Reloj de la BD al tomar el ciclo. */
   ahora: Date;
@@ -78,30 +85,43 @@ export interface CicloBuzon {
 
 /** Estudios con suscripción activa o prueba vigente y la frecuencia de su plan (solo uuid y entero). */
 export async function estudiosBuzon(
-  _tx: TxConsulta,
+  tx: TxConsulta,
 ): Promise<{ tenantId: string; frecuenciaMin: number }[]> {
-  throw new Error("no implementado");
+  const r = await consultar(tx, SQL_ESTUDIOS_BUZON, []);
+  return r.rows.map((f) => ({
+    tenantId: String(f.tenant_id),
+    frecuenciaMin: Number(f.frecuencia_min),
+  }));
 }
 
 /** Toma el ciclo (`null` si otro lo tiene o aún no toca por el intervalo). */
 export async function tomarCiclo(
-  _tx: TxConsulta,
-  _dueno: string,
+  tx: TxConsulta,
+  dueno: string,
 ): Promise<CicloBuzon | null> {
-  throw new Error("no implementado");
+  const f = (await consultar(tx, SQL_TOMAR_CICLO, [dueno])).rows[0];
+  if (f === undefined) return null;
+  return {
+    ahora: f.ahora instanceof Date ? f.ahora : new Date(String(f.ahora)),
+    intervaloMin: Number(f.intervalo_min),
+    reservaInteractiva: Number(f.reserva_interactiva),
+    loteEstudio: Number(f.lote_estudio),
+  };
 }
 
-/** Extiende el candado; `false` si lo perdió. */
+/** Extiende el candado; `false` si lo perdió (otro dueño o vencido). */
 export async function renovarCiclo(
-  _tx: TxConsulta,
-  _dueno: string,
+  tx: TxConsulta,
+  dueno: string,
 ): Promise<boolean> {
-  throw new Error("no implementado");
+  const f = (await consultar(tx, SQL_RENOVAR_CICLO, [dueno])).rows[0];
+  return f !== undefined && Object.values(f)[0] === true;
 }
 
+/** Suelta el candado (fija ultimo_ciclo_fin); si `dueno` ya no lo tiene, no cambia nada. */
 export async function soltarCiclo(
-  _tx: TxConsulta,
-  _dueno: string,
+  tx: TxConsulta,
+  dueno: string,
 ): Promise<void> {
-  throw new Error("no implementado");
+  await consultar(tx, SQL_SOLTAR_CICLO, [dueno]);
 }
