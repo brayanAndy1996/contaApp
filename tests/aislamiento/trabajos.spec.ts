@@ -16,6 +16,9 @@
 // - esquema `sistema` (dueño contapp_migrator, USAGE solo contapp_worker) con sistema.estudios_ids() y
 //   sistema.estudios_con_trabajos(text[], integer): SECURITY DEFINER, dueño contapp_enumerador, STABLE,
 //   search_path = pg_catalog, pg_temp, EXECUTE solo contapp_worker, devuelven SETOF uuid.
+//   Spec 023 (T4, migraciones 0054-0056) añade cuatro funciones de dueño contapp_migrator (SECURITY DEFINER, VOLATILE,
+//   mismo search_path, EXECUTE solo contapp_worker): buzon_ciclo_tomar(text), buzon_ciclo_renovar(text),
+//   buzon_ciclo_soltar(text) y estudios_buzon(). La lista del esquema es cerrada: esas seis y ninguna otra.
 // - auth.purgar(interval, interval, interval, interval) -> TABLE(sesiones int, tokens int, intentos int, limites int):
 //   SECURITY DEFINER, dueño contapp_auth, search_path fijo, EXECUTE solo contapp_worker.
 import type { Pool } from "pg";
@@ -650,12 +653,16 @@ describe("esquema sistema y sus funciones (D18, CA-12)", () => {
     expect(publico, "PUBLIC sin privilegios en el esquema").toEqual([]);
   });
 
-  it("contiene exactamente estudios_ids() y estudios_con_trabajos(text[], integer)", async () => {
+  it("contiene exactamente las funciones de 008 (estudios_ids, estudios_con_trabajos) y las cuatro del buzón de 023", async () => {
     const r = await consulta(
       `select p.proname, pg_get_function_identity_arguments(p.oid) as args from pg_proc p
         where p.pronamespace = to_regnamespace('sistema') order by 1`,
     );
     expect(r).toEqual([
+      { proname: "buzon_ciclo_renovar", args: "p_dueno text" },
+      { proname: "buzon_ciclo_soltar", args: "p_dueno text" },
+      { proname: "buzon_ciclo_tomar", args: "p_dueno text" },
+      { proname: "estudios_buzon", args: "" },
       {
         proname: "estudios_con_trabajos",
         args: "estados text[], antiguedad_seg integer",
@@ -664,18 +671,61 @@ describe("esquema sistema y sus funciones (D18, CA-12)", () => {
     ]);
   });
 
-  it("SECURITY DEFINER, dueño contapp_enumerador, STABLE, SETOF uuid y search_path = pg_catalog, pg_temp", async () => {
+  it("SECURITY DEFINER, search_path = pg_catalog, pg_temp y dueño/volatilidad/retorno exactos de cada función", async () => {
     const r = await consulta(
       `select p.proname, p.prosecdef, o.rolname as dueno, p.provolatile, p.proretset, p.prorettype::regtype::text as retorna, p.proconfig
          from pg_proc p join pg_roles o on o.oid = p.proowner where p.pronamespace = to_regnamespace('sistema') order by 1`,
     );
-    expect(r).toHaveLength(2);
+    // Contrato por función: 008 (enumerador, STABLE, SETOF uuid) y 023 (migrator, VOLATILE; 0055).
+    const esperado: Record<
+      string,
+      { dueno: string; vol: string; set: boolean; retorna: string }
+    > = {
+      buzon_ciclo_renovar: {
+        dueno: "contapp_migrator",
+        vol: "v",
+        set: false,
+        retorna: "boolean",
+      },
+      buzon_ciclo_soltar: {
+        dueno: "contapp_migrator",
+        vol: "v",
+        set: false,
+        retorna: "void",
+      },
+      buzon_ciclo_tomar: {
+        dueno: "contapp_migrator",
+        vol: "v",
+        set: true,
+        retorna: "record",
+      },
+      estudios_buzon: {
+        dueno: "contapp_migrator",
+        vol: "v",
+        set: true,
+        retorna: "record",
+      },
+      estudios_con_trabajos: {
+        dueno: "contapp_enumerador",
+        vol: "s",
+        set: true,
+        retorna: "uuid",
+      },
+      estudios_ids: {
+        dueno: "contapp_enumerador",
+        vol: "s",
+        set: true,
+        retorna: "uuid",
+      },
+    };
+    expect(r.map((f) => f.proname)).toEqual(Object.keys(esperado).sort());
     for (const f of r) {
+      const e = esperado[f.proname as string];
       expect(f.prosecdef, `${f.proname} prosecdef`).toBe(true);
-      expect(f.dueno, `${f.proname} dueno`).toBe("contapp_enumerador");
-      expect(f.provolatile, `${f.proname} STABLE`).toBe("s");
-      expect(f.proretset, `${f.proname} SETOF`).toBe(true);
-      expect(f.retorna, `${f.proname} devuelve solo uuid`).toBe("uuid");
+      expect(f.dueno, `${f.proname} dueno`).toBe(e.dueno);
+      expect(f.provolatile, `${f.proname} volatilidad`).toBe(e.vol);
+      expect(f.proretset, `${f.proname} SETOF`).toBe(e.set);
+      expect(f.retorna, `${f.proname} retorno`).toBe(e.retorna);
       const sp = (f.proconfig as string[] | null)?.find((x) =>
         x.startsWith("search_path="),
       );
@@ -695,7 +745,7 @@ describe("esquema sistema y sus funciones (D18, CA-12)", () => {
               exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a where a.grantee = 0) as publico
          from pg_proc p where p.pronamespace = to_regnamespace('sistema') order by 1`,
     );
-    expect(r).toHaveLength(2);
+    expect(r).toHaveLength(6);
     for (const f of r) {
       expect(
         [f.worker, f.backend, f.platform, f.app, f.publico],
