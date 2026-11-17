@@ -21,7 +21,7 @@
   "dependencies": {
     "@contapp/shared": "workspace:*",
     "decimal.js": "10.6.0",
-    "fast-xml-parser": "5.11.2"
+    "fast-xml-parser": "5.12.0"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "5.0.5",

@@ -1,6 +1,6 @@
 # Spec 040 · Avisos de dependencias de `pnpm audit --prod`
 
-Estado: en curso (2026-11-17). CA-1 a CA-8 con evidencia en `tasks.md`; CA-9 (CI) lo confirma el orquestador tras el push.
+Estado: en curso (2026-11-17). Con evidencia en `tasks.md`: CA-1, CA-2, CA-3 y CA-5 a CA-8. CA-4 sin cumplir: `pnpm test` salió con 1 fallo en el frontend (T6, sin reintento; el frontend pasa en aislado con `TZ=America/Lima` y `TZ=UTC`, T8). Decide el orquestador. CA-9 (CI) lo confirma el orquestador tras el push.
 Nivel de riesgo: C — `multer` y `fflate` procesan lo que suben los usuarios (`zip-seguro.ts`) y `fast-xml-parser` lee XML de terceros (UBL de 016 y `lector-xlsx.ts`). Son bibliotecas de E/S y de parseo: no tocan montos ni reglas de negocio. Nivel fijado por el usuario (2026-11-17).
 Cubre: RNF-010 (dependencias revisadas; auditoría de vulnerabilidades en CI) · nota [dependencias] de `docs/specs/ESTADO.md`
 
@@ -12,7 +12,7 @@ Evidencia: `pnpm audit --prod --json`, `pnpm -r why <pkg>` y `pnpm view <pkg> ti
 
 | Paquete (hoy) | GHSA | Gravedad | Rango vulnerable | Parcheada (publicada) | Quién lo usa | Tipo | Acción |
 |---|---|---|---|---|---|---|---|
-| multer (2.4.0) | GHSA-q7qp-rjg7-q26m | alta | >=2.0.0 <2.5.0 | 2.5.0 (2026-10-22) | `@nestjs/platform-express` 12.2.0, directa en `apps/backend`; en `apps/worker` llega como peer de `@nestjs/core` | transitiva | Subir el padre: `@nestjs/platform-express` `^12.0.1` → `^12.3.0` (12.3.0, 2026-10-27, trae multer 2.5.0). Sin override. |
+| multer (2.4.0) | GHSA-q7qp-rjg7-q26m | alta | >=2.0.0 <2.5.0 | 2.5.0 (2026-10-22) | `@nestjs/platform-express` 12.2.0, directa en `apps/backend`; en `apps/worker` llega como peer de `@nestjs/core` | transitiva | Subir el padre: `@nestjs/platform-express` `^12.0.1` → `12.3.0` exacta (2026-10-27, trae multer 2.5.0). Sin override de multer. |
 | nodemailer (10.1.0) | GHSA-8c8m-p3m8-cjg8 | moderada | >=3.0.0 <10.1.4 | 10.1.4 (2026-10-18) | `apps/backend` (`infra/correo/smtp.ts`) | directa | `nodemailer` `10.1.0` → `10.1.4` |
 | nodemailer (10.1.0) | GHSA-m943-m63m-w62w | moderada | >=3.0.0 <10.1.4 | 10.1.4 (2026-10-18) | `apps/backend` | directa | Igual que la fila anterior |
 | nodemailer (10.1.0) | GHSA-85x2-q946-cp5h | moderada | >=3.0.0 <10.1.4 | 10.1.4 (2026-10-18) | `apps/backend` | directa | Igual que la fila anterior |
@@ -22,6 +22,7 @@ Evidencia: `pnpm audit --prod --json`, `pnpm -r why <pkg>` y `pnpm view <pkg> ti
 Efectos de la resolución, sin aviso propio:
 - `is-unsafe` (transitiva de fast-xml-parser): 5.12.0 exige `^2.0.3`, y el override de 007b (`2.0.2`) quedaría en conflicto. Se sube el override a `2.0.3` (publicada 2026-11-03 07:27 UTC, cumple 2 semanas). La 2.0.3 endurece la comprobación de entidades en contextos de marcado.
 - `fast-xml-builder` (transitiva de 5.12.0, rango `^1.3.1`): sin override, pnpm elegiría 1.3.2 (publicada 2026-11-13, 4 días). Se fija `fast-xml-builder: 1.3.1` (publicada 2026-08-14). Sin aviso: es la regla de 2 semanas.
+- `@nestjs/platform-express` en el worker: `@nestjs/core` declara `@nestjs/platform-express` como peer, y pnpm lo auto-instala en la versión más alta (12.5.1, 2026-11-16, 1 día) si nadie lo fija. Se fija `"@nestjs/platform-express": 12.3.0` en `overrides`. Sin esto, el worker resuelve 12.5.1 y el lock gana una versión que no cumple las dos semanas.
 - `@nodable/entities` 3.1.0 (2026-09-29) y `strnum` 2.5.1 (2026-10-10) son la versión más alta de su rango: no necesitan override.
 
 Alcanzabilidad (anotada; no justifica dejar avisos, todos se actualizan):
@@ -30,10 +31,10 @@ Alcanzabilidad (anotada; no justifica dejar avisos, todos se actualizan):
 - `multer` no tiene uso directo en `apps/backend/src`: no hay `FileInterceptor` ni `UploadedFile`, y `app.ts` pone `bodyParser: false`.
 
 ## Alcance
-- `apps/backend/package.json`: `fflate` `0.8.3`, `fast-xml-parser` `5.12.0` y `nodemailer` `10.1.4` (exactas, como hoy); `@nestjs/platform-express` `^12.3.0`.
+- `apps/backend/package.json`: `fflate` `0.8.3`, `fast-xml-parser` `5.12.0` y `nodemailer` `10.1.4` (exactas, como hoy); `@nestjs/platform-express` `12.3.0` (exacta).
 - `packages/sunat/package.json`: `fflate` `0.8.3`.
 - `packages/domain/package.json`: `fast-xml-parser` `5.12.0`.
-- `pnpm-workspace.yaml`, bloque `overrides`: `is-unsafe` `2.0.2` → `2.0.3` (comentario de 007b actualizado) y nuevo `fast-xml-builder: 1.3.1`, con comentario.
+- `pnpm-workspace.yaml`, bloque `overrides`: `is-unsafe` `2.0.2` → `2.0.3` (comentario de 007b actualizado), nuevo `fast-xml-builder: 1.3.1` y nuevo `"@nestjs/platform-express": 12.3.0`, cada uno con comentario.
 - `pnpm-lock.yaml` regenerado con `pnpm install`; no se edita a mano.
 - Sin cambios de código fuente, de configuración de la app ni de la BD (sin migraciones).
 
@@ -43,14 +44,14 @@ Alcanzabilidad (anotada; no justifica dejar avisos, todos se actualizan):
 - `next` (ya en 039) y el `engines` de Node (`>=24.1.0 <25`).
 
 ## Criterios de aceptación
-- [ ] CA-1: `pnpm audit --prod` sale sin avisos (de 6 a 0).
-- [ ] CA-2: Toda versión que entra o cambia en el lock (directa, padre, override o transitiva) tiene al menos 2 semanas publicada (`pnpm view <pkg> time`). La lista va en `tasks.md`.
-- [ ] CA-3: Pruebas adversariales del parser XML en verde: `packages/domain/src/ubl/` (DOCTYPE, entidades, 1 MiB, profundidad 32, 2.000 ítems) y las `*.adv.spec.ts` de `apps/backend/src/modules/importacion/`.
+- [x] CA-1: `pnpm audit --prod` sale sin avisos (de 6 a 0).
+- [x] CA-2: Toda versión que entra o cambia en el lock (directa, padre, override o transitiva) tiene al menos 2 semanas publicada (`pnpm view <pkg> time`). La lista va en `tasks.md`.
+- [x] CA-3: Pruebas adversariales del parser XML en verde: `packages/domain/src/ubl/` (DOCTYPE, entidades, 1 MiB, profundidad 32, 2.000 ítems) y las `*.adv.spec.ts` de `apps/backend/src/modules/importacion/`.
 - [ ] CA-4: `typecheck`, `lint` y pruebas unitarias en verde en todos los paquetes.
-- [ ] CA-5: Integración de `apps/backend` y `apps/worker` en verde, con BD propia `contapp_040`.
-- [ ] CA-6: `tests/aislamiento` en verde, con BD propia `contapp_040`.
-- [ ] CA-7: `typecheck`, `lint` y pruebas de `@contapp/frontend` en verde con `TZ=America/Lima` y con `TZ=UTC`.
-- [ ] CA-8: `pnpm e2e` completo y `pnpm e2e:volumen` en verde.
+- [x] CA-5: Integración de `apps/backend` y `apps/worker` en verde, con BD propia `contapp_040`.
+- [x] CA-6: `tests/aislamiento` en verde, con BD propia `contapp_040`.
+- [x] CA-7: `typecheck`, `lint` y pruebas de `@contapp/frontend` en verde con `TZ=America/Lima` y con `TZ=UTC`.
+- [x] CA-8: `pnpm e2e` completo y `pnpm e2e:volumen` en verde.
 - [ ] CA-9: CI en verde tras el push. Esta ejecución no hace push: lo confirma el orquestador.
 
 ## Dependencias
