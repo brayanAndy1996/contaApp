@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { Info, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   Fragment,
@@ -9,8 +9,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { MenuPrincipal } from "../../components/marco/menu-principal";
 import { Campana } from "../../components/notificaciones/campana";
-import { cargarYo, tiene, type Yo } from "../../lib/acceso";
+import { Alert, AlertDescription } from "../../components/ui";
+import { cargarYo, type Yo } from "../../lib/acceso";
 import { api, EVENTO_ESTUDIO_DESFASADO } from "../../lib/api";
 import { obtenerSesion, reiniciarSesion, type Sesion } from "../../lib/sesion";
 
@@ -125,47 +127,38 @@ export default function LayoutApp({ children }: { children: ReactNode }) {
 
   return (
     <>
-      <nav className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-4 py-3 text-sm sm:px-6">
-        <label className="flex min-w-0 max-w-full items-center gap-2">
-          Estudio
-          <select
-            value={sesion?.estudioActivo?.id ?? ""}
-            onChange={(e) => void cambiarEstudio(e.target.value)}
-            disabled={estudios.length === 0}
-            className="min-w-0 max-w-full rounded border px-2 py-1"
-          >
-            {estudios.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.nombre}
-              </option>
-            ))}
-          </select>
-        </label>
-        {tiene(yo, "clientes.ver") && <Link href="/clientes">Clientes</Link>}
-        {tiene(yo, "clientes.ver") && <Link href="/trabajos">Trabajos</Link>}
-        {tiene(yo, "usuarios.ver") && <Link href="/usuarios">Usuarios</Link>}
-        {tiene(yo, "auditoria.ver") && (
-          <Link href="/configuracion/auditoria">Auditoría</Link>
+      <MenuPrincipal
+        estudioActivoId={sesion?.estudioActivo?.id ?? ""}
+        estudios={estudios}
+        yo={yo}
+        campana={
+          sesion ? (
+            <Campana key={sesion.estudioActivo?.id ?? "sin-estudio"} />
+          ) : null
+        }
+        alCambiarEstudio={(id) => void cambiarEstudio(id)}
+        alCerrarSesion={() => void cerrarSesion()}
+      />
+      {/* Deja espacio al menú lateral (desde 1024 px) y a la barra inferior de celular. */}
+      <div className="min-h-dvh pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-64">
+        {(aviso || error) && (
+          <div className="flex flex-col gap-2 px-4 pt-4 sm:px-6">
+            {aviso && (
+              <Alert tono="info">
+                <Info aria-hidden="true" />
+                <AlertDescription>{aviso}</AlertDescription>
+              </Alert>
+            )}
+            {error && (
+              <Alert tono="error">
+                <TriangleAlert aria-hidden="true" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+          </div>
         )}
-        {tiene(yo, "reglas.ver") && (
-          <Link href="/configuracion/reglas">Reglas del motor</Link>
-        )}
-        {sesion && <Campana key={sesion.estudioActivo?.id ?? "sin-estudio"} />}
-        <button
-          type="button"
-          onClick={() => void cerrarSesion()}
-          className="ml-auto rounded border px-2 py-1"
-        >
-          Cerrar sesión
-        </button>
-        {aviso && <p role="status">{aviso}</p>}
-        {error && (
-          <p role="alert" className="text-red-600">
-            {error}
-          </p>
-        )}
-      </nav>
-      <Fragment key={epoca}>{children}</Fragment>
+        <Fragment key={epoca}>{children}</Fragment>
+      </div>
     </>
   );
 }

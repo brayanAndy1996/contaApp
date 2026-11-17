@@ -103,6 +103,23 @@ describe("(app)/layout · menú de estudio", () => {
     expect(within(barra).getByRole("button", { name: /^Notificaciones/ })).toBeTruthy();
   });
 
+  it("spec 038 T8: «Cambiar contraseña» lleva a /cuenta/contrasena y hay un solo menú con «Más» para celular", async () => {
+    instalarFetchFalso(rutas());
+    render(
+      <LayoutApp>
+        <p>contenido</p>
+      </LayoutApp>,
+    );
+    await screen.findByLabelText("Estudio");
+    const enlace = screen.getByRole("link", { name: "Cambiar contraseña" });
+    expect(enlace.getAttribute("href")).toBe("/cuenta/contrasena");
+    expect(screen.getAllByRole("navigation")).toHaveLength(1);
+    const mas = screen.getByRole("button", { name: "Más" });
+    expect(mas.getAttribute("aria-expanded")).toBe("false");
+    await userEvent.setup().click(mas);
+    expect(mas.getAttribute("aria-expanded")).toBe("true");
+  });
+
   it("al cambiar de estudio hace POST con tenantId y X-CSRF-Token", async () => {
     const f = instalarFetchFalso(rutas());
     render(
