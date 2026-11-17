@@ -9,6 +9,22 @@ import {
   useState,
   type ChangeEvent,
 } from "react";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  EncabezadoPagina,
+  Input,
+  Label,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  enlace,
+} from "../../../../../../components/ui";
 import { MENSAJES, cargarYo, tiene } from "../../../../../../lib/acceso";
 import { obtenerCliente } from "../../../../../../lib/clientes";
 import {
@@ -92,13 +108,11 @@ function Importar() {
   }, [permiso, clienteId, periodo, periodoValido]);
   const bloqueo = bloqueoPorEstado(estado, aprobarGenerar);
 
-  if (permiso === "cargando") return <main className="p-6">Cargando…</main>;
+  if (permiso === "cargando") return <main className="p-6 text-tinta-suave">Cargando…</main>;
   if (permiso === "no") {
     return (
       <main className="p-6">
-        <p role="alert" className="text-sm text-red-600">
-          {MENSAJES.sinPermiso}
-        </p>
+        <Alert tono="error">{MENSAJES.sinPermiso}</Alert>
       </main>
     );
   }
@@ -182,23 +196,28 @@ function Importar() {
   }
 
   return (
-    <main className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">{M.tituloImportar}</h1>
-        <Link href={hrefVentas} className="text-sm underline">
-          Volver a ventas
-        </Link>
-      </div>
+    <main className="flex flex-col gap-6 p-4 md:p-6">
+      <EncabezadoPagina
+        titulo={M.tituloImportar}
+        acciones={
+          <Link
+            href={hrefVentas}
+            className={`${enlace} text-sm max-lg:inline-flex max-lg:min-h-11 max-lg:items-center`}
+          >
+            Volver a ventas
+          </Link>
+        }
+      />
 
       {archivado ? (
-        <p role="status" className="rounded bg-amber-50 p-3 text-sm text-amber-900">
+        <Alert tono="aviso" role="status">
           {M.clienteArchivado}
-        </p>
+        </Alert>
       ) : (
-        <section className="space-y-3">
-          <label className="flex max-w-xs flex-col gap-1 text-sm">
+        <Card>
+          <Label className="max-w-xs">
             {M.etiquetaPeriodo}
-            <input
+            <Input
               type="text"
               inputMode="numeric"
               maxLength={6}
@@ -208,52 +227,44 @@ function Importar() {
               aria-describedby={
                 periodo !== "" && !periodoValido ? "periodo-ayuda" : undefined
               }
-              className="rounded border px-3 py-2"
+              className="font-mono font-normal max-lg:h-11"
             />
-          </label>
+          </Label>
           {periodo !== "" && !periodoValido && (
-            <p id="periodo-ayuda" className="text-sm text-red-600">
+            <p id="periodo-ayuda" className="m-0 text-sm text-error">
               {M.periodoInvalido}
             </p>
           )}
-          <div className="flex flex-col gap-1">
-            <label htmlFor="archivo-ventas" className="text-sm">
-              {M.archivo}
-            </label>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="archivo-ventas">{M.archivo}</Label>
             <input
               id="archivo-ventas"
               type="file"
               accept={ACEPTA}
               onChange={alElegir}
-              className="text-sm"
+              className="text-sm text-tinta file:mr-3 file:h-10 file:cursor-pointer file:rounded-control file:border file:border-linea-control file:bg-hoja file:px-4 file:text-sm file:font-semibold file:text-tinta hover:file:bg-neutro-fondo max-lg:file:h-11"
             />
           </div>
-          <button
-            type="button"
-            onClick={() => void revisar()}
-            disabled={!haySeleccion || !periodoValido || ocupado || bloqueo !== null}
-            title={bloqueo ?? undefined}
-            className="rounded bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
-          >
-            {M.revisarArchivo}
-          </button>
-          {bloqueo !== null && (
-            <p role="status" className="text-sm">
-              {bloqueo}
-            </p>
-          )}
-        </section>
+          <div>
+            <Button
+              type="button"
+              onClick={() => void revisar()}
+              disabled={!haySeleccion || !periodoValido || ocupado || bloqueo !== null}
+              title={bloqueo ?? undefined}
+              className="max-lg:h-11"
+            >
+              {M.revisarArchivo}
+            </Button>
+          </div>
+          {bloqueo !== null && <Alert tono="info">{bloqueo}</Alert>}
+        </Card>
       )}
 
-      {error && (
-        <p role="alert" className="text-sm text-red-600">
-          {error}
-        </p>
-      )}
+      {error && <Alert tono="error">{error}</Alert>}
 
       {vista && (
-        <section aria-label="Vista previa" className="space-y-3">
-          <ul className="text-sm">
+        <Card aria-label="Vista previa">
+          <ul className="m-0 flex flex-col gap-1 p-0 text-sm text-tinta">
             <li>{M.validas(vista.validas)}</li>
             <li>{M.conError(vista.conError)}</li>
             {vista.conAdvertencia > 0 && (
@@ -261,76 +272,96 @@ function Importar() {
             )}
           </ul>
           {vista.conError > 0 && (
-            <p className="text-sm">{M.corregirFilas}</p>
+            <p className="m-0 text-sm text-tinta-media">{M.corregirFilas}</p>
           )}
           {vista.conAdvertencia > 0 && vista.conError === 0 && (
-            <p className="text-sm">{M.avisoAdvertencias}</p>
+            <p className="m-0 text-sm text-tinta-media">{M.avisoAdvertencias}</p>
           )}
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr>
-                <th>Fila</th>
-                <th>Estado</th>
-                <th>Motivos</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Fila</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead>Motivos</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {filasListadas.map((f) => (
-                <tr key={f.n}>
-                  <td>{f.n}</td>
-                  <td>
-                    {f.estado !== "valida"
-                      ? M.estadoFila.conError
-                      : f.advertencias.length > 0
-                        ? M.estadoFila.conAdvertencia
-                        : M.estadoFila.valida}
-                  </td>
-                  <td>
+                <TableRow key={f.n}>
+                  <TableCell numerico className="align-top">
+                    {f.n}
+                  </TableCell>
+                  <TableCell className="align-top">
+                    <Badge
+                      tono={
+                        f.estado !== "valida"
+                          ? "error"
+                          : f.advertencias.length > 0
+                            ? "aviso"
+                            : "ok"
+                      }
+                    >
+                      {f.estado !== "valida"
+                        ? M.estadoFila.conError
+                        : f.advertencias.length > 0
+                          ? M.estadoFila.conAdvertencia
+                          : M.estadoFila.valida}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="align-top">
                     {f.motivos.map((m) => (
-                      <p key={m}>{M.motivos[m] ?? M.archivoInvalido}</p>
+                      <p key={m} className="m-0">
+                        {M.motivos[m] ?? M.archivoInvalido}
+                      </p>
                     ))}
                     {f.advertencias.map((a) => (
-                      <p key={a}>{M.advertencias[a]}</p>
+                      <p key={a} className="m-0">
+                        {M.advertencias[a]}
+                      </p>
                     ))}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-          {omitidas > 0 && <p className="text-sm">{M.filasOcultas(omitidas)}</p>}
-          <div className="flex gap-2">
-            <button
+            </TableBody>
+          </Table>
+          {omitidas > 0 && <p className="m-0 text-sm text-tinta-media">{M.filasOcultas(omitidas)}</p>}
+          <div className="flex flex-wrap gap-2">
+            <Button
               type="button"
               onClick={() => void confirmar()}
               disabled={
                 vista.conError > 0 || vista.validas === 0 || ocupado || bloqueo !== null
               }
               title={bloqueo ?? undefined}
-              className="rounded bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
+              className="max-lg:h-11"
             >
               {M.confirmarImportacion}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="secundario"
               onClick={cancelar}
               disabled={ocupado}
-              className="rounded border px-4 py-2 text-sm"
+              className="max-lg:h-11"
             >
               {M.cancelar}
-            </button>
+            </Button>
           </div>
-        </section>
+        </Card>
       )}
 
       {propuesta && (
-        <section aria-label="Resultado" className="space-y-3">
-          <p className="text-sm">
+        <Card aria-label="Resultado">
+          <p className="m-0 text-sm text-tinta">
             {M.resumenDescarga(propuesta.filasNuevas, propuesta.filasDistintas)}
           </p>
-          <Link href={hrefVentas} className="text-sm underline">
+          <Link
+            href={hrefVentas}
+            className={`${enlace} text-sm max-lg:inline-flex max-lg:min-h-11 max-lg:items-center`}
+          >
             {M.verVentas}
           </Link>
-        </section>
+        </Card>
       )}
     </main>
   );
@@ -339,7 +370,7 @@ function Importar() {
 // `useParams()` y `useSearchParams()` son datos de la URL en tiempo de petición: Next exige un límite de Suspense.
 export default function Pagina() {
   return (
-    <Suspense fallback={<main className="p-6">Cargando…</main>}>
+    <Suspense fallback={<main className="p-6 text-tinta-suave">Cargando…</main>}>
       <Importar />
     </Suspense>
   );

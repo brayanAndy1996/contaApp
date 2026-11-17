@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useRestaurarFoco } from "../../lib/restaurar-foco";
+import { Button } from "../ui";
 import { MENSAJES_VENTAS as M } from "../../lib/ventas";
 
 // Confirmación de una acción que no se deshace sola (spec 013, D23): revertir una justificación o quitar una venta
@@ -35,29 +36,25 @@ export function ConfirmarAccion({
       onKeyDown={(e) => {
         if (e.key === "Escape" && !ocupado) alCancelar();
       }}
-      className="flex max-w-xl flex-col gap-3 rounded border border-amber-300 bg-amber-50 p-4"
+      className="flex w-full max-w-xl flex-col gap-4 rounded-tarjeta border border-aviso-borde bg-hoja p-5 text-tinta shadow-flotante"
     >
-      <p id="confirmar-accion-texto" className="text-sm">
+      <p id="confirmar-accion-texto" className="m-0 text-sm">
         {mensaje}
       </p>
-      <div className="flex gap-2">
-        <button
-          type="button"
-          disabled={ocupado}
-          onClick={alConfirmar}
-          className="rounded bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
-        >
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" disabled={ocupado} onClick={alConfirmar} className="max-lg:h-11">
           {M.confirmar}
-        </button>
-        <button
+        </Button>
+        <Button
           ref={cancelar}
           type="button"
+          variant="secundario"
           disabled={ocupado}
           onClick={alCancelar}
-          className="rounded border px-4 py-2 text-sm"
+          className="max-lg:h-11"
         >
           {M.cancelar}
-        </button>
+        </Button>
       </div>
     </div>
   );

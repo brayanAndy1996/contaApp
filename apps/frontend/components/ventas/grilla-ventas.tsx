@@ -3,6 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import type { VentaDto } from "@contapp/shared";
 import { MENSAJES_VENTAS as M, NOMBRE_TIPO_COMPROBANTE } from "../../lib/ventas";
+import {
+  Badge,
+  Button,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  anilloFoco,
+} from "../ui";
 
 // Grilla de ventas del periodo (spec 013, D10; RF-052). Virtualizada a mano: solo se pintan las filas que
 // caben en la ventana de desplazamiento más un margen, con filas de alto fijo y dos filas separadoras
@@ -30,8 +41,9 @@ const COLUMNAS = [
   "Total",
 ] as const;
 
-const CELDA = "whitespace-nowrap px-2";
-const CELDA_MONTO = `${CELDA} text-right tabular-nums`;
+// Alto fijo de 36 px (P-2): las celdas no llevan relleno vertical y los botones de fila son compactos.
+const CELDA = "whitespace-nowrap px-2 py-0";
+const BOTON_FILA = "ml-2 h-7 px-2 text-xs";
 
 function FilaVenta({
   v,
@@ -52,85 +64,91 @@ function FilaVenta({
   const exclusion = (v as { exclusion?: VentaDto["exclusion"] }).exclusion ?? null;
   const clave = `${v.serie}-${v.numero}`;
   return (
-    <tr
+    <TableRow
       style={{ height: ALTO_FILA }}
       data-resaltada={resaltada ? "true" : undefined}
-      className={`border-t ${resaltada ? "bg-yellow-100" : ""} ${exclusion ? "text-gray-600" : ""}`}
+      className={`${resaltada ? "bg-aviso-fondo hover:bg-aviso-fondo" : ""} ${exclusion ? "text-tinta-suave" : ""}`}
     >
-      <td className={CELDA} title={NOMBRE_TIPO_COMPROBANTE[v.tipo]}>
+      <TableCell className={CELDA} title={NOMBRE_TIPO_COMPROBANTE[v.tipo]}>
         {v.tipo}
-      </td>
-      <td className={CELDA}>
+      </TableCell>
+      <TableCell className={`${CELDA} font-mono`}>
         {v.serie}-{v.numero}
         {v.origen === "manual" && (
-          <span className="ml-2 rounded border px-1 text-xs">Manual</span>
+          <Badge tono="neutro" className="ml-2 h-5 px-2 font-sans">
+            Manual
+          </Badge>
         )}
         {!v.cuadra && (
-          <span className="ml-2 rounded border border-red-700 px-1 text-xs font-medium text-red-700">
+          <Badge tono="error" className="ml-2 h-5 px-2 font-sans">
             {M.noCuadra}
-          </span>
+          </Badge>
         )}
         {exclusion && (
-          <span
-            className="ml-2 rounded border border-gray-700 px-1 text-xs font-medium"
+          <Badge
+            tono="aviso"
+            className="ml-2 h-5 px-2 font-sans"
             title={M.motivoDeExclusion(exclusion.motivo)}
           >
             {M.marcaExcluida}
-            <span className="ml-1 font-normal">{M.motivoDeExclusion(exclusion.motivo)}</span>
-          </span>
+            <span className="font-normal">{M.motivoDeExclusion(exclusion.motivo)}</span>
+          </Badge>
         )}
         {v.origen === "manual" && alQuitar && (
-          <button
+          <Button
             type="button"
+            variant="secundario"
             disabled={bloqueo !== null}
             title={bloqueo ?? undefined}
             onClick={() => alQuitar(v)}
-            className="ml-2 rounded border px-2 text-xs disabled:opacity-50"
+            className={`${BOTON_FILA} font-sans`}
           >
             {M.quitar}
-          </button>
+          </Button>
         )}
         {!exclusion && alExcluir && (
-          <button
+          <Button
             type="button"
+            variant="secundario"
             aria-label={M.excluirComprobante(clave)}
             disabled={bloqueo !== null}
             title={bloqueo ?? undefined}
             onClick={() => alExcluir(v)}
-            className="ml-2 rounded border px-2 text-xs disabled:opacity-50"
+            className={`${BOTON_FILA} font-sans`}
           >
             {M.excluir}
-          </button>
+          </Button>
         )}
         {exclusion && alRestaurar && (
-          <button
+          <Button
             type="button"
+            variant="secundario"
             aria-label={`${M.restaurar} ${clave}`}
             disabled={bloqueo !== null}
             title={bloqueo ?? undefined}
             onClick={() => alRestaurar(v)}
-            className="ml-2 rounded border px-2 text-xs disabled:opacity-50"
+            className={`${BOTON_FILA} font-sans`}
           >
             {M.restaurar}
-          </button>
+          </Button>
         )}
-      </td>
-      <td className={CELDA}>{v.fechaEmision}</td>
-      <td className={CELDA}>
+      </TableCell>
+      <TableCell className={CELDA}>{v.fechaEmision}</TableCell>
+      <TableCell className={`${CELDA} font-mono`}>
         {v.tipoDocContraparte ? `${v.tipoDocContraparte} ` : ""}
         {v.docContraparte}
-      </td>
-      <td className={CELDA}>{v.moneda}</td>
-      <td className={CELDA_MONTO}>{v.tipoCambio ?? ""}</td>
-      <td className={CELDA_MONTO}>{v.baseGravada}</td>
-      <td className={CELDA_MONTO}>{v.igv}</td>
-      <td className={CELDA_MONTO}>{v.exonerada}</td>
-      <td className={CELDA_MONTO}>{v.inafecta}</td>
-      <td className={CELDA_MONTO}>{v.isc}</td>
-      <td className={CELDA_MONTO}>{v.icbper}</td>
-      <td className={CELDA_MONTO}>{v.otros}</td>
-      <td className={CELDA_MONTO}>{v.total}</td>
-    </tr>
+      </TableCell>
+      <TableCell className={CELDA}>{v.moneda}</TableCell>
+      <TableCell numerico className={CELDA}>{v.tipoCambio ?? ""}</TableCell>
+      <TableCell numerico className={CELDA}>{v.baseGravada}</TableCell>
+      <TableCell numerico className={CELDA}>{v.igv}</TableCell>
+      <TableCell numerico className={CELDA}>{v.exonerada}</TableCell>
+      <TableCell numerico className={CELDA}>{v.inafecta}</TableCell>
+      <TableCell numerico className={CELDA}>{v.isc}</TableCell>
+      <TableCell numerico className={CELDA}>{v.icbper}</TableCell>
+      <TableCell numerico className={CELDA}>{v.otros}</TableCell>
+      <TableCell numerico className={CELDA}>{v.total}</TableCell>
+    </TableRow>
   );
 }
 
@@ -189,24 +207,24 @@ export function GrillaVentas({
       tabIndex={0}
       onScroll={(e) => setDesplazamiento(e.currentTarget.scrollTop)}
       style={{ maxHeight: ALTO_VENTANA }}
-      className="overflow-auto rounded border"
+      className={`overflow-auto rounded-control border border-linea bg-hoja ${anilloFoco}`}
     >
-      <table className="w-full text-left text-sm">
+      <Table desplazable={false}>
         <caption className="sr-only">{M.tablaVentas}</caption>
-        <thead className="sticky top-0 bg-white">
-          <tr>
+        <TableHeader className="sticky top-0 z-10 shadow-[0_1px_0_var(--color-linea)]">
+          <TableRow className="hover:bg-hoja-alterna">
             {COLUMNAS.map((c, i) => (
-              <th
+              <TableHead
                 key={c}
                 scope="col"
                 className={`${CELDA} py-2 ${i >= 5 ? "text-right" : ""}`}
               >
                 {c}
-              </th>
+              </TableHead>
             ))}
-          </tr>
-        </thead>
-        <tbody>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {inicio > 0 && (
             <tr aria-hidden="true" style={{ height: inicio * ALTO_FILA }}>
               <td colSpan={COLUMNAS.length} />
@@ -232,14 +250,14 @@ export function GrillaVentas({
             </tr>
           )}
           {filas.length === 0 && (
-            <tr>
-              <td colSpan={COLUMNAS.length} className="px-2 py-3">
+            <TableRow>
+              <TableCell colSpan={COLUMNAS.length} className="px-2 py-3 text-tinta-suave">
                 {M.sinVentas}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           )}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }
