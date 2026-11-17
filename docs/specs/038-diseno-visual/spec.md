@@ -1,6 +1,6 @@
 # Spec 038 · Diseño visual (estilo A, verde petróleo)
 
-Estado: aprobada (decisiones del usuario 2026-11-15: estilo A, shadcn/ui, dos fases). Fase 1 hecha; fase 2 planificada en `tasks.md` (T6, 2026-11-17, con 021 y 022 en `main`), pendiente de las preguntas P-1 a P-7.
+Estado: aprobada (decisiones del usuario 2026-11-15: estilo A, shadcn/ui, dos fases). Fase 1 hecha; fase 2 planificada en `tasks.md` (T6, 2026-11-17, con 021 y 022 en `main`), con P-1 a P-7 decididas por el usuario (2026-11-17).
 Nivel de riesgo: C — responde «sí» solo a (3) en casos aislados (un estado mal coloreado podría pasar inadvertido). No toca montos, permisos, datos ni concurrencia: solo la presentación. Pruebas después: un caso feliz y uno de error por componente público, más los E2E de R1 como regresión.
 Cubre: RNF de usabilidad y accesibilidad de `docs/02-requerimientos.md` (presentación de todas las pantallas de R1) · notas de la guía de uso (`docs/guia/12-un-mes-de-punta-a-punta.md`, «Detalles de pantalla que vas a notar»).
 
@@ -53,4 +53,11 @@ Hoy la app usa Tailwind con los estilos por defecto de Next.js (fuente Arial, bl
 - Externas: ninguna. Referencia visual: lienzo de diseño «ContApp: pantallas principales», estilo A.
 
 ## Preguntas abiertas
-- P-1 a P-7 de la fase 2 (modo oscuro, densidad de grillas, compras en celular, «Ventas» en el menú, menú en celular, diálogos propios y comprobación de accesibilidad): en `tasks.md`.
+Ninguna. Decisiones del usuario sobre la fase 2 (2026-11-17), todas la opción (a) recomendada:
+- **P-1:** modo oscuro en una spec propia (fuera de 038).
+- **P-2:** las grillas mantienen sus alturas actuales (compras 52 px, ventas 36 px).
+- **P-3:** compras en celular: grilla estilada con desplazamiento horizontal y «Generar archivo» fijo abajo; tarjetas en otra spec.
+- **P-4:** «Ventas» en la ficha del cliente, junto a Compras y Reglas (se reescribe CA-7).
+- **P-5:** menú en celular: barra inferior con Clientes, Trabajos, Notificaciones y «Más».
+- **P-6:** diálogos y menús propios se estilan sin cambiarlos por los de Radix.
+- **P-7:** accesibilidad y desbordes con revisión manual guiada (guion de Playwright fuera del repo).
