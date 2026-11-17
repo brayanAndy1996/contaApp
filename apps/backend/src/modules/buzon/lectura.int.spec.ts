@@ -538,6 +538,11 @@ describe("CA-9 · aislamiento: el mismo 404 para ajeno, no asignado e inexistent
     });
     expect((await lista(E.titular, c)).status).toBe(200); // control: la ruta existe
     expect((await detalle(E.titular, c, m.id)).status).toBe(200);
+    const vistos = async () =>
+      (await b.auditoria(E.tenantId, "buzon.contenido_visto")).filter(
+        (f) => f.entidad_id === m.id,
+      ).length;
+    const antes = await vistos(); // los controles del Dueño de E ya auditaron su lectura
     const l = await lista(F.titular, c);
     const d = await detalle(F.titular, c, m.id);
     for (const r of [l, d]) {
@@ -551,11 +556,7 @@ describe("CA-9 · aislamiento: el mismo 404 para ajeno, no asignado e inexistent
     expect(forma(d)).toEqual(
       forma(await detalle(F.titular, { id: randomUUID() }, randomUUID())),
     );
-    expect(
-      (await b.auditoria(E.tenantId, "buzon.contenido_visto")).filter(
-        (f) => f.entidad_id === m.id,
-      ),
-    ).toHaveLength(0);
+    expect(await vistos()).toBe(antes); // la lectura ajena no audita nada (+0)
   });
 
   it("ids cruzados entre estudios: el mensaje de E bajo un cliente propio de F es un 404", async () => {
@@ -628,6 +629,8 @@ describe("CA-10 · lo del buzón no sale por logs, auditoría ni trabajos", () =
       critico: true,
     });
     const a = await b.sembrarAdjunto(E.tenantId, c.id, m.id, { nombre });
+    // «abrir» solo encola (202) si el contenido aún no se obtuvo; con contenido responde 200 { trabajo: null } (abrir.int.spec).
+    const sinContenido = await b.sembrarMensaje(E.tenantId, c.id, { asunto });
     const { resultado: estados, logs } = await capturarLogs(async () => {
       const respuestas = [
         await lista(contador, c),
@@ -640,7 +643,7 @@ describe("CA-10 · lo del buzón no sale por logs, auditoría ni trabajos", () =
         await b.llamar(
           asistente,
           "POST",
-          `/clientes/${c.id}/buzon/mensajes/${m.id}/abrir`,
+          `/clientes/${c.id}/buzon/mensajes/${sinContenido.id}/abrir`,
         ),
         await b.llamar(contador, "POST", `/clientes/${c.id}/buzon/revisar`),
       ];
