@@ -6,16 +6,16 @@ Nivel A (spec). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 
 | #   | Tarea | Rol | Modelo | Depende de | TDD | ADV | Estado |
 | --- | ----- | --- | ------ | ---------- | --- | --- | ------ |
-| T1  | Pruebas de dominio: clasificación, franjas, plan de captura, aviso, adjuntos, HTML → texto (rojo) | tester | sonnet | — ∥ T2, T3, T4 | ✓ | — | [ ] |
-| T2  | Pruebas de `shared/buzon`, `buzon_critico`, acciones de auditoría y catálogo de la cola (rojo) | tester | sonnet | — ∥ T1, T3, T4 | ✓ | — | [ ] |
-| T3  | Pruebas del puerto `SolPortal` y de `MockSolPortal` (rojo) | tester | sonnet | — ∥ T1, T2, T4 | ✓ | — | [ ] |
-| T4  | Pruebas de BD: tablas, RLS, grants, funciones acotadas, candado del ciclo, aviso, auditoría, concurrencia (rojo) | tester | sonnet | — ∥ T1, T2, T3 | ✓ | — | [ ] |
+| T1  | Pruebas de dominio: clasificación, franjas, plan de captura, aviso, adjuntos, HTML → texto (rojo) | tester | sonnet | — ∥ T2, T3, T4 | ✓ | — | [x] |
+| T2  | Pruebas de `shared/buzon`, `buzon_critico`, acciones de auditoría y catálogo de la cola (rojo) | tester | sonnet | — ∥ T1, T3, T4 | ✓ | — | [x] |
+| T3  | Pruebas del puerto `SolPortal` y de `MockSolPortal` (rojo) | tester | sonnet | — ∥ T1, T2, T4 | ✓ | — | [x] |
+| T4  | Pruebas de BD: tablas, RLS, grants, funciones acotadas, candado del ciclo, aviso, auditoría, concurrencia (rojo) | tester | sonnet | — ∥ T1, T2, T3 | ✓ | — | [x] |
 | T5  | Pruebas del worker: captura, apertura y programador con varios workers (rojo) | tester | sonnet | T2 ∥ T6, T7, T8–T11 | ✓ | — | [ ] |
 | T6  | Pruebas HTTP y de fronteras: rutas de buzón, bajo demanda, lectura, descarga (rojo) | tester | sonnet | T2 ∥ T5, T7, T8–T11 | ✓ | — | [ ] |
-| T7  | Pruebas de componentes: botón, lista, detalle, campana, nombres de trabajos (rojo) | tester | sonnet | T2 ∥ T5, T6, T8–T11 | ✓ | — | [ ] |
-| T8  | Dominio: `packages/domain/src/buzon/` | backend | opus | T1 ∥ T9, T10, T11 | ✓ | — | [ ] |
-| T9  | `shared` y `queue`: contratos, tipos de trabajo y repetible de sistema | backend | sonnet | T2 ∥ T8, T10, T11 | ✓ | — | [ ] |
-| T10 | `sunat`: `SolPortal`, `MockSolPortal`, fixtures y selección en el worker | backend | sonnet | T3 ∥ T8, T9, T11 | ✓ | — | [ ] |
+| T7  | Pruebas de componentes: botón, lista, detalle, campana, nombres de trabajos (rojo) | tester | sonnet | T2 ∥ T5, T6, T8–T11 | ✓ | — | [x] |
+| T8  | Dominio: `packages/domain/src/buzon/` | backend | opus | T1 ∥ T9, T10, T11 | ✓ | — | [x] |
+| T9  | `shared` y `queue`: contratos, tipos de trabajo y repetible de sistema | backend | sonnet | T2 ∥ T8, T10, T11 | ✓ | — | [x] |
+| T10 | `sunat`: `SolPortal`, `MockSolPortal`, fixtures y selección en el worker | backend | sonnet | T3 ∥ T8, T9, T11 | ✓ | — | [x] |
 | T11 | Migraciones 0054–0056, esquema drizzle y `packages/db/src/buzon/` | backend | opus | T4 ∥ T8, T9, T10 | ✓ | — | [ ] |
 | T12 | Worker: `sol.buzon.revisar`, `sol.buzon.abrir` y `buzon.programar` | backend | opus | T5, T8, T9, T10, T11 ∥ T13, T14 | ✓ | — | [ ] |
 | T13 | Backend: módulo `buzon` | backend | sonnet | T6, T9, T11 ∥ T12, T14 | ✓ | — | [ ] |
