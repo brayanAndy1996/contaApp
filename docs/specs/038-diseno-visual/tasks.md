@@ -11,16 +11,16 @@ Leyenda: rol `arquitecto` · `backend` · `frontend` · `tester` · `adversario`
 | T5 | Verificar fase 1 (CA-1 a CA-4): typecheck, lint, test, build, CI | devops | haiku | T4 | — | — | [x] |
 | T6 | Planificar fase 2 pantalla por pantalla, con 021 y 022 ya en `main` | arquitecto | opus | T5, 021 y 022 hechas | — | — | [x] |
 | T7 | Base compartida de la fase 2 (`components/ui/`: `Table` sin contenedor, `EncabezadoPagina`, clases comunes) | frontend | sonnet | T6 | — | — | [x] |
-| T8 | Marco: layout y menú (lateral en escritorio, barra en celular) | frontend | sonnet | T7, P-4, P-5 | — | — | [ ] |
-| T9 | ∥ Inicio y auth (ingresar, registro, recuperación, invitación, estudios, inicio, cambiar contraseña) | frontend | sonnet | T7 | — | — | [ ] |
-| T10 | ∥ Clientes y ficha (listado, nuevo, importar, ficha, credenciales, datos fiscales, reglas del cliente) | frontend | sonnet | T7, P-4 | — | — | [ ] |
-| T11 | ∥ Compras · grilla (filtros, acciones de fila, barra masiva, informe, historial, Ctrl+Z, avisos «Recordar» y «Según historial») | frontend | sonnet | T7, P-2, P-3, P-6 | — | — | [ ] |
-| T12 | ∥ Compras · lupa y diálogos (lupa, XML, agregar, excluir, aceptar sugerencia) | frontend | sonnet | T7, P-6 | — | — | [ ] |
-| T13 | ∥ Compras · página, paneles y «Generar archivo» con su previo | frontend | sonnet | T7, P-3 | — | — | [ ] |
-| T14 | ∥ Ventas (pantalla, importar y componentes de ventas) | frontend | sonnet | T7, P-2, P-6 | — | — | [ ] |
-| T15 | ∥ Trabajos y notificaciones (página, campana y panel) | frontend | sonnet | T7, P-6 | — | — | [ ] |
-| T16 | ∥ Auditoría, equipo y planes/admin | frontend | sonnet | T7 | — | — | [ ] |
-| T17 | ∥ Reglas del motor | frontend | sonnet | T7 | — | — | [ ] |
+| T8 | Marco: layout y menú (lateral en escritorio, barra en celular) | frontend | sonnet | T7, P-4, P-5 | — | — | [x] |
+| T9 | ∥ Inicio y auth (ingresar, registro, recuperación, invitación, estudios, inicio, cambiar contraseña) | frontend | sonnet | T7 | — | — | [x] |
+| T10 | ∥ Clientes y ficha (listado, nuevo, importar, ficha, credenciales, datos fiscales, reglas del cliente) | frontend | sonnet | T7, P-4 | — | — | [x] |
+| T11 | ∥ Compras · grilla (filtros, acciones de fila, barra masiva, informe, historial, Ctrl+Z, avisos «Recordar» y «Según historial») | frontend | sonnet | T7, P-2, P-3, P-6 | — | — | [x] |
+| T12 | ∥ Compras · lupa y diálogos (lupa, XML, agregar, excluir, aceptar sugerencia) | frontend | sonnet | T7, P-6 | — | — | [x] |
+| T13 | ∥ Compras · página, paneles y «Generar archivo» con su previo | frontend | sonnet | T7, P-3 | — | — | [x] |
+| T14 | ∥ Ventas (pantalla, importar y componentes de ventas) | frontend | sonnet | T7, P-2, P-6 | — | — | [x] |
+| T15 | ∥ Trabajos y notificaciones (página, campana y panel) | frontend | sonnet | T7, P-6 | — | — | [x] |
+| T16 | ∥ Auditoría, equipo y planes/admin | frontend | sonnet | T7 | — | — | [x] |
+| T17 | ∥ Reglas del motor | frontend | sonnet | T7 | — | — | [x] |
 | T-final | Verificar CA-5 a CA-8: prueba estática de colores, revisión manual 1440/390 px, accesibilidad, E2E y CI; cierre | tester (sonnet) + devops (haiku) | sonnet | T7–T17, P-7 | — | — | [ ] |
 
 ## T2 · Dependencias, fuentes y tokens
