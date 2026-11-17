@@ -65,3 +65,43 @@ export async function purgarAuth(
     limites: Number(f.limites),
   };
 }
+
+/* eslint-disable @typescript-eslint/no-unused-vars -- STUBS de T4 (rojo): T11 los reemplaza y quita esta línea */
+// ---- Spec 023 (T4, rojo): candado del ciclo del programador del buzón SOL. STUBS: T11 los implementa con las funciones de 0055. ----
+export interface CicloBuzon {
+  /** Reloj de la BD al tomar el ciclo. */
+  ahora: Date;
+  intervaloMin: number;
+  reservaInteractiva: number;
+  loteEstudio: number;
+}
+
+/** Estudios con suscripción activa o prueba vigente y la frecuencia de su plan (solo uuid y entero). */
+export async function estudiosBuzon(
+  _tx: TxConsulta,
+): Promise<{ tenantId: string; frecuenciaMin: number }[]> {
+  throw new Error("no implementado");
+}
+
+/** Toma el ciclo (`null` si otro lo tiene o aún no toca por el intervalo). */
+export async function tomarCiclo(
+  _tx: TxConsulta,
+  _dueno: string,
+): Promise<CicloBuzon | null> {
+  throw new Error("no implementado");
+}
+
+/** Extiende el candado; `false` si lo perdió. */
+export async function renovarCiclo(
+  _tx: TxConsulta,
+  _dueno: string,
+): Promise<boolean> {
+  throw new Error("no implementado");
+}
+
+export async function soltarCiclo(
+  _tx: TxConsulta,
+  _dueno: string,
+): Promise<void> {
+  throw new Error("no implementado");
+}
