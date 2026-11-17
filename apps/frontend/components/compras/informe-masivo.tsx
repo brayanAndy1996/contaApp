@@ -6,6 +6,16 @@ import {
   MENSAJES_COMPRAS as M,
   mensajeDeRechazoMasivo,
 } from "../../lib/compras";
+import {
+  Button,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  panelDialogo,
+} from "../ui";
 import { comprobanteDe } from "./accion-compras";
 
 // Informe de una acción masiva (spec 015, D-8, CA-7): «N aplicadas» y la lista de rechazadas con el comprobante y
@@ -45,47 +55,38 @@ export function InformeMasivo({
       onKeyDown={(e) => {
         if (e.key === "Escape") alCerrar();
       }}
-      className="flex max-h-[80vh] w-[32rem] max-w-full flex-col gap-3 overflow-auto rounded border bg-white p-4 shadow-lg"
+      className={panelDialogo}
     >
-      <h3 className="text-base font-medium">{M.informeMasivo}</h3>
-      <p className="text-sm font-medium">{M.aplicadas(informe.aplicadas)}</p>
+      <h3 className="m-0 font-titulo text-lg font-bold">{M.informeMasivo}</h3>
+      <p className="m-0 text-sm font-semibold">{M.aplicadas(informe.aplicadas)}</p>
       {informe.rechazadas.length > 0 && (
         <>
-          <p className="text-sm font-medium text-red-700">
+          <p className="m-0 text-sm font-semibold text-error">
             {M.rechazadas(informe.rechazadas.length)}
           </p>
-          <table aria-label={M.tablaRechazadas} className="w-full text-sm">
-            <thead>
-              <tr className="text-left">
-                <th scope="col" className="py-1 pr-3">
-                  {M.columnas.comprobante}
-                </th>
-                <th scope="col" className="py-1">
-                  {M.columnaMotivo}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table aria-label={M.tablaRechazadas}>
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col">{M.columnas.comprobante}</TableHead>
+                <TableHead scope="col">{M.columnaMotivo}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {informe.rechazadas.map((r) => (
-                <tr key={r.compraId} className="border-t">
-                  <td className="py-1 pr-3 whitespace-nowrap">
+                <TableRow key={r.compraId}>
+                  <TableCell className="whitespace-nowrap py-2 font-mono">
                     {comprobanteDeId(filas, r.compraId)}
-                  </td>
-                  <td className="py-1">{mensajeDeRechazoMasivo(r.codigo)}</td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="py-2">{mensajeDeRechazoMasivo(r.codigo)}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </>
       )}
-      <button
-        ref={cerrar}
-        type="button"
-        onClick={alCerrar}
-        className="w-fit rounded border px-3 py-1 text-sm"
-      >
+      <Button ref={cerrar} variant="secundario" onClick={alCerrar} className="w-fit">
         {M.cerrar}
-      </button>
+      </Button>
     </div>
   );
 }

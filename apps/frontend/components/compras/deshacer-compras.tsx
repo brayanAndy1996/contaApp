@@ -9,6 +9,7 @@ import {
   rehacerCompras,
   type ContextoCompras,
 } from "../../lib/compras";
+import { Alert, Button } from "../ui";
 import { ConfirmarAccion } from "../ventas/confirmar-accion";
 import type { AlAvisar } from "./accion-compras";
 import { comprobanteDeId } from "./informe-masivo";
@@ -231,24 +232,26 @@ export function DeshacerCompras({ control }: { control: ControlDeshacer }) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex gap-2" role="group" aria-label={`${M.deshacer} / ${M.rehacer}`}>
-        <button
-          type="button"
+        <Button
+          variant="secundario"
+          size="sm"
           disabled={ocupado}
           onClick={control.deshacer}
           title="Ctrl+Z"
-          className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+          className="max-lg:h-11"
         >
           {M.deshacer}
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="secundario"
+          size="sm"
           disabled={ocupado}
           onClick={control.rehacer}
           title="Ctrl+Y"
-          className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+          className="max-lg:h-11"
         >
           {M.rehacer}
-        </button>
+        </Button>
       </div>
 
       {confirmar !== null && (
@@ -265,42 +268,31 @@ export function DeshacerCompras({ control }: { control: ControlDeshacer }) {
       )}
 
       {conflicto && (
-        <div
-          role="alert"
-          className="flex max-w-xl flex-col gap-2 rounded border border-red-300 bg-red-50 p-3 text-sm"
-        >
-          <p className="font-medium">{M.filaCambiada}</p>
-          <ul className="list-disc pl-5">
+        <Alert tono="error" className="max-w-xl flex-col items-stretch gap-2">
+          <p className="m-0 font-bold">{M.filaCambiada}</p>
+          <ul className="m-0 list-disc pl-5">
             {conflicto.comprobantes.map((c, i) => (
               <li key={`${c}-${conflicto.ids[i]}`}>{c}</li>
             ))}
           </ul>
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={control.verFilas}
-              className="rounded border px-3 py-1"
-            >
+            <Button variant="secundario" size="sm" onClick={control.verFilas} className="max-lg:h-11">
               {M.verFilas}
-            </button>
-            <button
-              type="button"
-              onClick={control.cerrarConflicto}
-              className="rounded border px-3 py-1"
-            >
+            </Button>
+            <Button variant="secundario" size="sm" onClick={control.cerrarConflicto} className="max-lg:h-11">
               {M.cerrar}
-            </button>
+            </Button>
           </div>
-        </div>
+        </Alert>
       )}
 
       {aviso &&
         (aviso.tipo === "error" ? (
-          <p role="alert" className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-error">
             {aviso.texto}
           </p>
         ) : (
-          <p role="status" className="text-sm">
+          <p role="status" className="text-sm text-tinta">
             {aviso.texto}
           </p>
         ))}

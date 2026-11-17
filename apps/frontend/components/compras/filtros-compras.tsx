@@ -8,6 +8,7 @@ import {
   type FiltrosCompras,
 } from "../../lib/compras";
 import { MENSAJES_REGLAS as R } from "../../lib/reglas";
+import { Button, Input, Label } from "../ui";
 
 // Filtros y selección del listado de compras (spec 015, T5; D-4, D-8; CA-2, CA-12). Los filtros no filtran en el
 // navegador: cada cambio sube a la página, que vuelve a pedir el listado al servidor con esos parámetros. La
@@ -50,7 +51,7 @@ export function FiltrosListado({
     <form
       role="search"
       aria-label={M.filtros}
-      className="flex flex-wrap items-end gap-4 text-sm"
+      className="flex flex-wrap items-end gap-4 text-sm text-tinta"
       onSubmit={(e) => {
         // Enter busca de inmediato; nunca recarga la página.
         e.preventDefault();
@@ -58,60 +59,64 @@ export function FiltrosListado({
         if (buscada !== filtros.q.trim()) alCambiar({ ...filtros, q: buscada });
       }}
     >
-      <fieldset className="flex items-center gap-3">
+      <fieldset className="flex flex-wrap items-center gap-x-4">
         <legend className="sr-only">{M.filtros}</legend>
         {VISTAS_COMPRAS.map((vista: VistaCompras) => (
-          <label key={vista} className="flex items-center gap-1">
+          <Label key={vista} className="flex min-h-11 flex-row items-center gap-2 text-sm font-normal text-tinta lg:min-h-0">
             <input
               type="radio"
               name="vista-compras"
+              className="size-4 cursor-pointer accent-primario"
               value={vista}
               checked={filtros.vista === vista}
               onChange={() => alCambiar({ ...filtros, vista })}
             />
             {M.vistas[vista]}
-          </label>
+          </Label>
         ))}
       </fieldset>
-      <label className="flex items-center gap-1">
+      <Label className="flex min-h-11 flex-row items-center gap-2 text-sm font-normal text-tinta lg:min-h-0">
         <input
           type="checkbox"
+          className="size-4 cursor-pointer accent-primario"
           checked={filtros.alertas}
           onChange={(e) => alCambiar({ ...filtros, alertas: e.target.checked })}
         />
         {M.filtroAlertas}
-      </label>
-      <label className="flex items-center gap-1">
+      </Label>
+      <Label className="flex min-h-11 flex-row items-center gap-2 text-sm font-normal text-tinta lg:min-h-0">
         <input
           type="checkbox"
+          className="size-4 cursor-pointer accent-primario"
           checked={filtros.proveedorNuevo}
           onChange={(e) =>
             alCambiar({ ...filtros, proveedorNuevo: e.target.checked })
           }
         />
         {M.filtroProveedorNuevo}
-      </label>
-      <label className="flex items-center gap-1">
+      </Label>
+      <Label className="flex min-h-11 flex-row items-center gap-2 text-sm font-normal text-tinta lg:min-h-0">
         <input
           type="checkbox"
+          className="size-4 cursor-pointer accent-primario"
           checked={filtros.segunHistorial === true}
           onChange={(e) =>
             alCambiar({ ...filtros, segunHistorial: e.target.checked })
           }
         />
         {R.segunHistorial}
-      </label>
-      <label className="flex min-w-64 flex-col gap-1">
+      </Label>
+      <Label className="min-w-64">
         {M.buscar}
-        <input
+        <Input
           type="search"
           autoComplete="off"
           maxLength={BUSQUEDA_MAX}
           value={texto}
           onChange={(e) => setTexto(sinControles(e.target.value))}
-          className="rounded border px-3 py-2"
+          className="max-lg:h-11"
         />
-      </label>
+      </Label>
     </form>
   );
 }
@@ -141,18 +146,19 @@ export function SeleccionDelFiltro({
       : null;
   const completa = seleccionadas === cantidad;
   return (
-    <div className="flex flex-wrap items-center gap-3 text-sm">
-      <button
-        type="button"
+    <div className="flex flex-wrap items-center gap-3 text-sm text-tinta">
+      <Button
+        variant="secundario"
+        size="sm"
         disabled={motivo !== null || completa}
         aria-describedby={motivo !== null ? "motivo-seleccion-filtro" : undefined}
         onClick={alSeleccionar}
-        className="rounded border px-3 py-1 disabled:opacity-60"
+        className="max-lg:h-11"
       >
         {M.seleccionarDelFiltro(cantidad)}
-      </button>
+      </Button>
       {motivo !== null && (
-        <span id="motivo-seleccion-filtro" role="status">
+        <span id="motivo-seleccion-filtro" role="status" className="text-tinta-media">
           {motivo}
         </span>
       )}

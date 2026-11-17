@@ -14,6 +14,7 @@ import {
   reglaDelProveedor,
 } from "../../lib/reglas";
 import { useErrorAnunciado } from "../compras/aviso-unico";
+import { Alert, Button } from "../ui";
 import type { AlAvisar } from "../compras/accion-compras";
 
 // Aviso «Recordar para este proveedor en este cliente» (spec 021, CA-1, P-2, P-3). No es modal: se anuncia con
@@ -125,34 +126,33 @@ export function RecordarProveedor({
 
   return (
     <div className="flex max-w-xl flex-col gap-1">
-      <div
-        role="status"
-        aria-live="polite"
-        className="flex flex-wrap items-center gap-2 rounded border bg-neutral-50 p-2 text-sm text-neutral-900"
-      >
+      <Alert tono="info" aria-live="polite" className="flex-wrap items-center gap-2">
         {hecho ? (
           <span>{M.recordada}</span>
         ) : (
           <>
             <span>{M.pregunta}</span>
             <span>{`${nombre} · ${destino}`}</span>{" "}
-            <button
-              type="button"
+            <Button
+              size="sm"
               disabled={ocupado}
               aria-keyshortcuts={M.atajo}
               onClick={() => void aceptar()}
-              className="rounded bg-black px-3 py-1 text-white disabled:opacity-50"
+              className="max-lg:h-11"
             >
               {M.recordar}
-            </button>
-            <kbd aria-hidden="true" className="rounded border px-1 text-xs">
+            </Button>
+            <kbd
+              aria-hidden="true"
+              className="rounded-control border border-linea-control bg-hoja px-1.5 font-mono text-xs text-tinta-media"
+            >
               {M.atajo}
             </kbd>
           </>
         )}
-      </div>
+      </Alert>
       {error !== null && (
-        <p role={rolDe(error)} className="text-sm text-red-600">
+        <p role={rolDe(error)} className="text-sm text-error">
           {error}
         </p>
       )}
