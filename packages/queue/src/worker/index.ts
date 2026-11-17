@@ -160,7 +160,7 @@ export function crearWorkers(o: OpcionesWorkers): WorkersBull {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Trabajos de sistema (D10): `kek.rotar` (lo encola el operador) y `auth.purgar` (repetible diario).
+// Trabajos de sistema (D10): `kek.rotar` (lo encola el operador), `auth.purgar` (repetible diario) y `buzon.programar` (repetible por minuto).
 // ---------------------------------------------------------------------------------------------------------------
 
 export const COLA_SISTEMA = "programados" satisfies NombreCola;
@@ -174,12 +174,16 @@ export const payloadSistemaSchema = z.discriminatedUnion("tipo", [
     .object({ tipo: z.literal("kek.rotar"), desde: z.string().regex(KEK_ID) })
     .strict(),
   z.object({ tipo: z.literal("auth.purgar") }).strict(),
+  // Spec 023 (D-5): tick del programador del buzón; solo pide el ciclo, el intervalo real lo decide la BD.
+  z.object({ tipo: z.literal("buzon.programar") }).strict(),
 ]);
 export type PayloadSistema = z.infer<typeof payloadSistemaSchema>;
 
 /** Purga diaria a las 03:30 de Lima (CA-13). */
 export const PURGA_PATRON = "30 3 * * *";
 export const PURGA_TZ = "America/Lima";
+/** Tick del programador del buzón: cada minuto (spec 023, D-5). */
+export const BUZON_TICK_MS = 60_000;
 const OPCIONES_JOB_SISTEMA = {
   attempts: 1,
   removeOnComplete: true,
@@ -191,6 +195,8 @@ export interface ColaSistema {
   encolar(data: PayloadSistema): Promise<void>;
   /** Registra (idempotente) `auth.purgar` como repetible diario. */
   programarPurga(): Promise<void>;
+  /** Registra (idempotente, id fijo) `buzon.programar` como repetible cada 60 s: N workers dejan UN repetible. */
+  programarBuzon(): Promise<void>;
   cerrar(): Promise<void>;
 }
 
@@ -213,6 +219,17 @@ export function crearColaSistema(o: OpcionesColas): ColaSistema {
         {
           name: "auth.purgar",
           data: { tipo: "auth.purgar" },
+          opts: OPCIONES_JOB_SISTEMA,
+        },
+      );
+    },
+    programarBuzon: async () => {
+      await cola().upsertJobScheduler(
+        "buzon.programar",
+        { every: BUZON_TICK_MS },
+        {
+          name: "buzon.programar",
+          data: { tipo: "buzon.programar" },
           opts: OPCIONES_JOB_SISTEMA,
         },
       );

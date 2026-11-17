@@ -229,12 +229,48 @@ export const ARCHIVO_GENERAR: DefinicionTrabajo<ParametrosGenerarArchivo> = {
     .strict(),
 };
 
+/**
+ * Spec 023 (D-5, D-6, P-1): captura del buzón SOL de un cliente (cola y canal `sol`, credencial `sol`). Parámetros `{}`
+ * estrictos: no hay dónde llevar una clave ni un cliente. Dos revisar del mismo cliente comparten clave de dedupe de 008,
+ * sea cual sea su origen (usuario o programador). Permiso `buzon.ver`: lo tiene también el rol Lectura.
+ */
+export const SOL_BUZON_REVISAR: DefinicionTrabajo<Record<string, never>> = {
+  tipo: "sol.buzon.revisar",
+  cola: "sol",
+  canal: "sol",
+  credencial: "sol",
+  permiso: "buzon.ver",
+  idempotente: true,
+  parametros: parametrosVacios as ZodType<Record<string, never>>,
+};
+
+export interface ParametrosAbrirMensaje {
+  mensajeId: string;
+}
+
+/**
+ * Spec 023 (D-5, D-6, P-1): obtención del contenido y los adjuntos de un mensaje del buzón (cola y canal `sol`). Parámetros
+ * estrictos `{mensajeId}`: dedupe por mensaje. Permiso `buzon.marcar_leido`: abrir un mensaje lo marca leído en SUNAT, así
+ * que el rol Lectura no lo tiene.
+ */
+export const SOL_BUZON_ABRIR: DefinicionTrabajo<ParametrosAbrirMensaje> = {
+  tipo: "sol.buzon.abrir",
+  cola: "sol",
+  canal: "sol",
+  credencial: "sol",
+  permiso: "buzon.marcar_leido",
+  idempotente: true,
+  parametros: z.object({ mensajeId: z.uuid() }).strict(),
+};
+
 registrarTipo(CLIENTE_CONSULTAR_RUC);
 registrarTipo(CREDENCIAL_VERIFICAR_SOL);
 registrarTipo(CREDENCIAL_VERIFICAR_SIRE);
 registrarTipo(SIRE_PROPUESTA_DESCARGAR);
 registrarTipo(XML_OBTENER);
 registrarTipo(ARCHIVO_GENERAR);
+registrarTipo(SOL_BUZON_REVISAR);
+registrarTipo(SOL_BUZON_ABRIR);
 
 /** Tipo de pruebas: solo existe con NODE_ENV=test (el worker le programa el comportamiento). */
 export const PRUEBA_ECO: DefinicionTrabajo<{ n?: number; rango?: string }> = {

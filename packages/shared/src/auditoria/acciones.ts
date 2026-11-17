@@ -45,6 +45,12 @@ export const ACCIONES_AUDITORIA = [
   "estudio.regla_motor",
   "estudio.aporte_catalogo",
   "compra.historial",
+  // Spec 023: buzón SOL. `contenido_obtenido` la registra un trigger (actor trabajo); las otras cuatro, el backend.
+  "buzon.contenido_obtenido",
+  "buzon.captura_solicitada",
+  "buzon.apertura_solicitada",
+  "buzon.contenido_visto",
+  "buzon.adjunto_descargado",
 ] as const;
 
 export type AccionAuditoria = (typeof ACCIONES_AUDITORIA)[number];
