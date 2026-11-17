@@ -1,6 +1,6 @@
 # Spec 038 · Diseño visual (estilo A, verde petróleo)
 
-Estado: aprobada (decisiones del usuario 2026-11-15: estilo A, shadcn/ui, dos fases). Fase 1 hecha; fase 2 planificada en `tasks.md` (T6, 2026-11-17, con 021 y 022 en `main`), con P-1 a P-7 decididas por el usuario (2026-11-17).
+Estado: hecha (2026-11-17). Fase 1 y fase 2 hechas; CA-1 a CA-8 verificados (T-final, dos pasadas en navegador sobre el build de producción). Decisiones del usuario: estilo A, shadcn/ui, dos fases (2026-11-15) y P-1 a P-7 de la fase 2 (2026-11-17).
 Nivel de riesgo: C — responde «sí» solo a (3) en casos aislados (un estado mal coloreado podría pasar inadvertido). No toca montos, permisos, datos ni concurrencia: solo la presentación. Pruebas después: un caso feliz y uno de error por componente público, más los E2E de R1 como regresión.
 Cubre: RNF de usabilidad y accesibilidad de `docs/02-requerimientos.md` (presentación de todas las pantallas de R1) · notas de la guía de uso (`docs/guia/12-un-mes-de-punta-a-punta.md`, «Detalles de pantalla que vas a notar»).
 
