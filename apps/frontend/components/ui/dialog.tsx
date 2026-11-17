@@ -4,6 +4,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { XIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 import { cn } from "../../lib/utils";
+import { panelDialogo, velo } from "./clases";
 
 /**
  * Diálogo del estilo A (spec 038), sobre Radix: atrapa el foco, se cierra con Esc y devuelve el foco
@@ -21,14 +22,10 @@ export function DialogContent({
 }: ComponentProps<typeof DialogPrimitive.Content> & { mostrarCerrar?: boolean }) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay data-slot="dialog-overlay" className="fixed inset-0 z-50 bg-tinta/70" />
+      <DialogPrimitive.Overlay data-slot="dialog-overlay" className={velo} />
       <DialogPrimitive.Content
         data-slot="dialog-content"
-        className={cn(
-          "fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100dvh-32px)] w-[calc(100%-32px)] max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto",
-          "rounded-dialogo bg-hoja p-6 text-tinta shadow-dialogo",
-          className,
-        )}
+        className={cn(panelDialogo, className)}
         {...props}
       >
         {children}

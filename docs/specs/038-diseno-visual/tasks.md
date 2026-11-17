@@ -10,7 +10,7 @@ Leyenda: rol `arquitecto` · `backend` · `frontend` · `tester` · `adversario`
 | T4 | Pruebas de nivel C de los componentes | tester | sonnet | T3 | — | — | [x] |
 | T5 | Verificar fase 1 (CA-1 a CA-4): typecheck, lint, test, build, CI | devops | haiku | T4 | — | — | [x] |
 | T6 | Planificar fase 2 pantalla por pantalla, con 021 y 022 ya en `main` | arquitecto | opus | T5, 021 y 022 hechas | — | — | [x] |
-| T7 | Base compartida de la fase 2 (`components/ui/`: `Table` sin contenedor, `EncabezadoPagina`, clases comunes) | frontend | sonnet | T6 | — | — | [ ] |
+| T7 | Base compartida de la fase 2 (`components/ui/`: `Table` sin contenedor, `EncabezadoPagina`, clases comunes) | frontend | sonnet | T6 | — | — | [x] |
 | T8 | Marco: layout y menú (lateral en escritorio, barra en celular) | frontend | sonnet | T7, P-4, P-5 | — | — | [ ] |
 | T9 | ∥ Inicio y auth (ingresar, registro, recuperación, invitación, estudios, inicio, cambiar contraseña) | frontend | sonnet | T7 | — | — | [ ] |
 | T10 | ∥ Clientes y ficha (listado, nuevo, importar, ficha, credenciales, datos fiscales, reglas del cliente) | frontend | sonnet | T7, P-4 | — | — | [ ] |
@@ -133,3 +133,8 @@ Rutas relativas a `apps/frontend/`. Cada tarea toca **solo sus archivos** (y arc
 - Orden: T7 primero (base que importan todas); luego T8 a T17 en paralelo; T-final al final. T8, T10, T11, T12, T13, T14 y T15 esperan además las P-n indicadas en su fila.
 - Hallazgos que fijan reglas: cinco pruebas con aserciones de clases (regla 2); `Table` siempre envuelve en `overflow-x-auto` y `tabla-reglas-cliente.spec.tsx` exige que no haya (T7 agrega `desplazable`); jsdom no aplica CSS, así que el menú de escritorio y el de celular deben ser el mismo árbol; `Alert` fija el rol por tono (regla 1); «Cambiar contraseña» (`/cuenta/contrasena`) no tiene hoy ningún enlace, y la ficha no enlaza a Ventas (solo Compras y Reglas aprendidas).
 - Decisiones abiertas: P-1 a P-7.
+
+## Resultado T7 (2026-11-17)
+- `components/ui/table.tsx`: `Table` con `desplazable` (por omisión `true`; con `false` devuelve solo `<table>`, sin `overflow-x-auto`). `components/ui/encabezado-pagina.tsx`: `EncabezadoPagina({ titulo, descripcion?, acciones?, className })`, con un único `h1` (`font-titulo`, 34 px en celular y 40 px desde `md`); `titulo` es el contenido del `h1` que ya tenía la pantalla. `components/ui/clases.ts`: `velo`, `panelDialogo`, `enlace`, `anilloFoco`, `cifra` (solo tokens). Todo exportado en `index.ts`; `dialog.tsx` pasó a usar `velo` y `panelDialogo` (mismo resultado).
+- `ui.spec.tsx`: 4 casos nuevos (`Table desplazable={false}` sin contenedor y con él por omisión; `EncabezadoPagina` con un `h1`, descripción y acciones, y solo con título; clases sin colores sueltos). `test ui`: 41 en verde.
+- Control: `test` completo del frontend con `TZ=America/Lima` y con `TZ=UTC` (975 pruebas cada uno), `typecheck` y `lint` en verde.

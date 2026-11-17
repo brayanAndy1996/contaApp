@@ -21,6 +21,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  EncabezadoPagina,
   Input,
   Label,
   Select,
@@ -32,6 +33,10 @@ import {
   TabsContent,
   TabsList,
   TabsTrigger,
+  cifra,
+  enlace,
+  panelDialogo,
+  velo,
 } from "./index";
 
 afterEach(cleanup);
@@ -260,5 +265,59 @@ describe("DropdownMenu", () => {
     expect(opcion.getAttribute("aria-disabled")).toBe("true");
     await userEvent.click(opcion).catch(() => undefined);
     expect(alElegir).not.toHaveBeenCalled();
+  });
+});
+
+describe("Table desplazable", () => {
+  it("con desplazable={false} no agrega el contenedor y conserva las clases propias; por omisión sí lo agrega", () => {
+    const { container, rerender } = render(
+      <Table desplazable={false} className="min-w-0">
+        <TableBody>
+          <TableRow>
+            <TableCell>x</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>,
+    );
+    expect(container.querySelector("[data-slot=table-container]")).toBeNull();
+    expect(container.querySelector(".overflow-x-auto")).toBeNull();
+    expect(screen.getByRole("table").className).toContain("min-w-0");
+    rerender(
+      <Table>
+        <TableBody>
+          <TableRow>
+            <TableCell>x</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>,
+    );
+    expect(container.querySelector("[data-slot=table-container]")).not.toBeNull();
+  });
+});
+
+describe("EncabezadoPagina", () => {
+  it("renderiza un solo h1 con su descripción y las acciones", () => {
+    render(<EncabezadoPagina titulo="Clientes" descripcion="Cartera del estudio" acciones={<Button>Nuevo cliente</Button>} />);
+    expect(screen.getAllByRole("heading")).toHaveLength(1);
+    expect(screen.getByRole("heading", { level: 1, name: "Clientes" }).className).toContain("font-titulo");
+    expect(screen.getByText("Cartera del estudio")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Nuevo cliente" })).toBeTruthy();
+  });
+
+  it("sin descripción ni acciones solo muestra el título", () => {
+    const { container } = render(<EncabezadoPagina titulo="Auditoría" />);
+    expect(screen.getByRole("heading", { level: 1, name: "Auditoría" })).toBeTruthy();
+    expect(container.querySelector("p")).toBeNull();
+    expect(container.querySelector("[data-slot=encabezado-pagina-acciones]")).toBeNull();
+  });
+});
+
+describe("clases comunes", () => {
+  it("exponen clases de tokens sin colores sueltos", () => {
+    expect(velo).toContain("bg-tinta/70");
+    expect(panelDialogo).toContain("rounded-dialogo");
+    expect(enlace).toContain("text-primario");
+    expect(cifra).toContain("cifras");
+    for (const c of [velo, panelDialogo, enlace, cifra]) expect(c).not.toMatch(/(?:text|bg|border)-(?:red|blue|gray|black|white)\b|#[0-9a-fA-F]{6}/);
   });
 });

@@ -1,11 +1,16 @@
 import type { ComponentProps } from "react";
 import { cn } from "../../lib/utils";
 
-/** Tabla del estilo A (spec 038). Va dentro de un contenedor con desplazamiento horizontal propio. */
-export function Table({ className, ...props }: ComponentProps<"table">) {
+/**
+ * Tabla del estilo A (spec 038). Por omisión va dentro de un contenedor con desplazamiento horizontal propio;
+ * con `desplazable={false}` no lo agrega (la pantalla decide cómo se adapta, p. ej. apilando celdas en celular).
+ */
+export function Table({ className, desplazable = true, ...props }: ComponentProps<"table"> & { desplazable?: boolean }) {
+  const tabla = <table data-slot="table" className={cn("w-full border-collapse text-sm", className)} {...props} />;
+  if (!desplazable) return tabla;
   return (
     <div data-slot="table-container" className="relative w-full overflow-x-auto">
-      <table data-slot="table" className={cn("w-full border-collapse text-sm", className)} {...props} />
+      {tabla}
     </div>
   );
 }
