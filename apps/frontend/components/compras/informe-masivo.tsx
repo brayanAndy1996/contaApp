@@ -1,7 +1,7 @@
 "use client";
 
 import type { FilaCompraVista, InformeMasiva } from "@contapp/shared";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type KeyboardEvent } from "react";
 import {
   MENSAJES_COMPRAS as M,
   mensajeDeRechazoMasivo,
@@ -16,12 +16,16 @@ import {
   TableRow,
   panelDialogo,
 } from "../ui";
+import { useRestaurarFoco } from "../../lib/restaurar-foco";
 import { comprobanteDe } from "./accion-compras";
 
 // Informe de una acción masiva (spec 015, D-8, CA-7): «N aplicadas» y la lista de rechazadas con el comprobante y
 // un motivo legible por código. Las masivas son parciales: lo rechazado no impide lo aplicado. Solo muestra; las
 // `version_obsoleta` las recarga quien lanzó la masiva (`BarraMasiva`). El comprobante sale de las filas cargadas;
 // si una fila ya no está, se muestra el id corto.
+
+const FOCALIZABLES =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /** Comprobante de una compra por su id, o el id corto si la fila no está cargada. */
 export function comprobanteDeId(
@@ -42,19 +46,46 @@ export function InformeMasivo({
   alCerrar: () => void;
 }) {
   const cerrar = useRef<HTMLButtonElement>(null);
+  const raiz = useRef<HTMLDivElement>(null);
 
+  // Al cerrar, el foco vuelve al control que abrió el informe (antes del efecto que lo mueve adentro).
+  useRestaurarFoco();
   useEffect(() => {
     cerrar.current?.focus();
   }, []);
 
+  // `aria-modal`: Tab y Shift+Tab ciclan dentro del informe; Esc lo cierra.
+  function alTeclear(e: KeyboardEvent<HTMLDivElement>): void {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      alCerrar();
+      return;
+    }
+    if (e.key !== "Tab" || !raiz.current) return;
+    const lista = Array.from(raiz.current.querySelectorAll<HTMLElement>(FOCALIZABLES));
+    const primero = lista[0];
+    const ultimo = lista[lista.length - 1];
+    if (!primero || !ultimo) return;
+    const activo = document.activeElement;
+    if (e.shiftKey && (activo === primero || activo === raiz.current)) {
+      e.preventDefault();
+      ultimo.focus();
+    } else if (!e.shiftKey && activo === ultimo) {
+      e.preventDefault();
+      primero.focus();
+    } else if (!raiz.current.contains(activo)) {
+      e.preventDefault();
+      (e.shiftKey ? ultimo : primero).focus();
+    }
+  }
+
   return (
     <div
+      ref={raiz}
       role="dialog"
       aria-modal="true"
       aria-label={M.informeMasivo}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") alCerrar();
-      }}
+      onKeyDown={alTeclear}
       className={panelDialogo}
     >
       <h3 className="m-0 font-titulo text-lg font-bold">{M.informeMasivo}</h3>
