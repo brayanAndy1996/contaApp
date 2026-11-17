@@ -3,6 +3,8 @@
 import { excluirCompraSchema, type FilaCompraVista } from "@contapp/shared";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { MENSAJES } from "../../lib/acceso";
+import { cn } from "../../lib/utils";
+import { Button, Input, Label, panelDialogo } from "../ui";
 import {
   MENSAJES_COMPRAS as M,
   excluirCompra,
@@ -92,47 +94,38 @@ export function ExcluirCompra({
         if (e.key === "Escape" && !ocupado) alCancelar();
       }}
       noValidate
-      className="flex w-96 max-w-full flex-col gap-3 rounded border bg-white p-4 shadow-lg"
+      className={cn(panelDialogo, "max-w-md")}
     >
-      <h3 className="text-base font-medium">{`${M.excluir} ${comprobante}`}</h3>
+      <h3 className="font-titulo text-lg font-semibold text-tinta">{`${M.excluir} ${comprobante}`}</h3>
       {fila.origen === "agregada" && (
-        <p className="rounded border border-amber-300 bg-amber-50 p-2 text-sm">
+        <p className="rounded-control border border-aviso-borde bg-aviso-fondo p-3 text-sm text-aviso">
           {M.confirmarExcluirAgregada}
         </p>
       )}
-      <label className="flex flex-col gap-1 text-sm">
+      <Label>
         {M.motivoExclusion}
-        <input
+        <Input
           ref={campo}
           type="text"
           autoComplete="off"
           value={motivo}
           onChange={(e) => setMotivo(e.target.value)}
           aria-invalid={error !== null && motivo.trim().length > 200}
-          className="rounded border px-3 py-2"
+          className="max-lg:h-11"
         />
-      </label>
+      </Label>
       {error && (
-        <p role={rolDe(error)} className="text-sm text-red-600">
+        <p role={rolDe(error)} className="text-sm font-medium text-error">
           {error}
         </p>
       )}
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={ocupado}
-          className="rounded bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
-        >
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" variant="peligro" disabled={ocupado} className="max-lg:h-11">
           {M.excluir}
-        </button>
-        <button
-          type="button"
-          onClick={alCancelar}
-          disabled={ocupado}
-          className="rounded border px-4 py-2 text-sm"
-        >
+        </Button>
+        <Button variant="secundario" onClick={alCancelar} disabled={ocupado} className="max-lg:h-11">
           {M.cancelar}
-        </button>
+        </Button>
       </div>
     </form>
   );
