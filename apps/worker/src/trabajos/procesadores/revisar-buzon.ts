@@ -25,8 +25,11 @@ import {
   TOPE_MENSAJES_CAPTURA,
   clasificarMensaje,
   debeAvisar,
+  idSunatValido,
   planificarCaptura,
+  sanearTextoPortal,
   type MensajeListado,
+  type PaginaListado,
 } from "@contapp/domain";
 import { SOL_BUZON_REVISAR } from "@contapp/queue";
 import { ErrorDatos, type SolPortal } from "@contapp/sunat";
@@ -66,6 +69,27 @@ function codigoTipoDe(c: string | null): string | null {
   if (c === null) return null;
   const v = c.trim();
   return v.length === 0 || v.length > LARGO_CODIGO_TIPO ? null : v;
+}
+
+/**
+ * H-023-1-4: id, asunto, remitente y código de tipo sin NUL ni controles (PostgreSQL no admite NUL en `text`), ANTES de buscar
+ * conocidos, planificar y clasificar: así un mensaje así no tumba la captura ni deja sin capturar lo más antiguo. Un mensaje cuyo
+ * id queda vacío o pasa de 64 caracteres no se puede guardar (CHECK de 0054) y se descarta.
+ */
+function sanearPagina(p: PaginaListado): PaginaListado {
+  const mensajes: MensajeListado[] = [];
+  for (const m of p.mensajes) {
+    const idSunat = sanearTextoPortal(m.idSunat);
+    if (!idSunatValido(idSunat)) continue;
+    mensajes.push({
+      ...m,
+      idSunat,
+      asunto: sanearTextoPortal(m.asunto),
+      remitente: sanearTextoPortal(m.remitente),
+      codigoTipo: m.codigoTipo === null ? null : sanearTextoPortal(m.codigoTipo),
+    });
+  }
+  return { ...p, mensajes };
 }
 
 export function revisarBuzon(d: DepsRevisarBuzon): Procesador {
@@ -150,10 +174,12 @@ export function revisarBuzon(d: DepsRevisarBuzon): Procesador {
     try {
       for (;;) {
         // (3) Sin transacción abierta.
-        const pagina = await d.solPortal.listarMensajes(cred, {
-          cursor,
-          limite: LIMITE_PAGINA_BUZON,
-        });
+        const pagina = sanearPagina(
+          await d.solPortal.listarMensajes(cred, {
+            cursor,
+            limite: LIMITE_PAGINA_BUZON,
+          }),
+        );
         const conocidos = await d.db.withTenant(ctx, (tx) =>
           conocidosBuzon(
             tx,

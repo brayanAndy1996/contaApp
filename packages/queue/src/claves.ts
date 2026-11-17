@@ -23,14 +23,21 @@ export function jsonCanonico(v: unknown): string {
   return canon(v);
 }
 
-/** SHA-256 (32 B) de [tipo, cliente, parámetros] en JSON canónico: sin colisiones por concatenación. */
+/**
+ * SHA-256 (32 B) de [tipo, cliente, parámetros] en JSON canónico: sin colisiones por concatenación. El id del cliente va en
+ * minúsculas (H-023-1-1): PostgreSQL acepta el UUID en cualquier grafía y el programador calcula la clave en SQL con `uuid::text`
+ * (minúsculas); las claves ya guardadas no cambian porque siempre se calcularon con el id que devuelve la BD.
+ */
 export function claveDedupe(
   tipo: string,
   clienteId: string,
   parametros: unknown,
 ): Buffer {
   return createHash("sha256")
-    .update(jsonCanonico([tipo, clienteId, parametros ?? null]), "utf8")
+    .update(
+      jsonCanonico([tipo, clienteId.toLowerCase(), parametros ?? null]),
+      "utf8",
+    )
     .digest();
 }
 

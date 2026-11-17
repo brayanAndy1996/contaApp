@@ -43,7 +43,9 @@ export class SolicitudBuzonService {
    * y auditoría. El estado se bloquea antes que el trabajo (orden de bloqueo del plan): cincuenta pedidos a la vez dejan un solo
    * trabajo. La pista de Redis se publica tras el commit, también al elevar (baja el puntaje del programado).
    */
-  async revisar(sesion: SesionResuelta, alcance: Alcance, clienteId: string): Promise<Solicitud> {
+  async revisar(sesion: SesionResuelta, alcance: Alcance, clienteCrudo: string): Promise<Solicitud> {
+    // La guarda de alcance acepta el UUID en cualquier grafía; clave de dedupe y auditoría van con el id en minúsculas (H-023-1-1).
+    const clienteId = clienteCrudo.toLowerCase();
     const ctx = contextoDe(sesion);
     let elevado = false;
     const r = await this.encolador.encolarCon(
@@ -79,9 +81,10 @@ export class SolicitudBuzonService {
   async abrir(
     sesion: SesionResuelta,
     alcance: Alcance,
-    clienteId: string,
+    clienteCrudo: string,
     mensajeCrudo: string,
   ): Promise<{ trabajo: TrabajoVista | null; nuevo: boolean }> {
+    const clienteId = clienteCrudo.toLowerCase();
     const mensajeId = idDe(mensajeCrudo).toLowerCase();
     const ctx = contextoDe(sesion);
     try {

@@ -104,6 +104,8 @@ describe("T13b · ronda adversarial 2b", () => {
       "TOPE_MENSAJES_CAPTURA", "TOPE_MENSAJE_BYTES", "TOPE_TEXTO_PLANO", "capturaVencida", "clasificarMensaje",
       "debeAvisar", "desfaseCliente", "htmlATextoPlano", "mimePorFirma", "normalizarAsunto", "planificarCaptura",
       "prepararAdjuntos", "sanearNombreAdjunto", "seleccionarVencidos", "ultimaFranja",
+      // 023 (T18, H-023-1-3 y H-023-1-4): saneo de los datos del portal SOL (buzon/saneo).
+      "idSunatValido", "sanearTextoPortal",
     ].sort();
     expect(Object.keys(Publico).sort()).toEqual(esperados);
 

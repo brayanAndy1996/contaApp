@@ -8,8 +8,12 @@
 //      saneado, MIME por firma, topes por adjunto y por mensaje).
 //  (4) Storage primero, con rutas `buzon/{estudio}/{cliente}/{uuid}.{ext}` (el nombre nunca va en la ruta); luego UNA transacción
 //      que inserta los adjuntos (guardados y omitidos) y DESPUÉS fija el contenido (el trigger de auditoría de 0056 cuenta lo ya
-//      insertado). Si algo falla, se borra lo escrito (mejor esfuerzo) y el error sigue al ejecutor.
-// `resultado` = {adjuntos, omitidos, marcoLeido}: solo conteos (D-10).
+//      insertado). Si algo falla, se borra lo escrito (mejor esfuerzo) y el error sigue al ejecutor; un error de datos de
+//      PostgreSQL (clases 22 y 23) sale como `ErrorDatos`, que no se reintenta: cada `obtenerMensaje` puede marcar el mensaje
+//      como leído en SUNAT (RF-126, H-023-1-3).
+// Un adjunto con id de SUNAT inválido (vacío, NUL o más de 64 caracteres) se descarta sin contarlo; con ids repetidos queda uno
+// por id (el guardado antes que el omitido). `resultado` = {adjuntos, omitidos, marcoLeido}: solo conteos de lo que se guardó en
+// BD (D-10, H-023-1-2).
 import { createHash, randomUUID } from "node:crypto";
 import {
   guardarContenidoBuzon,
@@ -22,6 +26,7 @@ import {
   TOPE_ADJUNTO_BYTES,
   TOPE_MENSAJE_BYTES,
   htmlATextoPlano,
+  idSunatValido,
   prepararAdjuntos,
 } from "@contapp/domain";
 import { SOL_BUZON_ABRIR } from "@contapp/queue";
@@ -49,6 +54,10 @@ const EXT_CONTENIDO = "txt";
 
 const sha256 = (b: Uint8Array): Buffer =>
   createHash("sha256").update(b).digest();
+
+/** Error de datos de PostgreSQL (clase 22, excepción de datos; clase 23, violación de restricción). */
+const esErrorDatosPg = (e: unknown): boolean =>
+  /^2[23][0-9A-Z]{3}$/.test(String((Object(e) as { code?: unknown }).code));
 
 export function abrirMensaje(d: DepsAbrirMensaje): Procesador {
   return async ({ trabajo: t }) => {
@@ -98,7 +107,9 @@ export function abrirMensaje(d: DepsAbrirMensaje): Procesador {
         ? htmlATextoPlano(recibido.contenido.cuerpo)
         : recibido.contenido.cuerpo;
     const bytesTexto = Buffer.from(texto, "utf8");
-    const { guardar, omitidos } = prepararAdjuntos(recibido.adjuntos);
+    // H-023-1-3: el id que la BD no admite se descarta antes de preparar (no cuenta ni consume el tope del mensaje).
+    const recibidos = recibido.adjuntos.filter((a) => idSunatValido(a.idSunat));
+    const { guardar, omitidos } = prepararAdjuntos(recibidos);
 
     // (4) Storage y luego una transacción; si algo falla, se borra lo escrito.
     const escritas: string[] = [];
@@ -108,6 +119,7 @@ export function abrirMensaje(d: DepsAbrirMensaje): Procesador {
       await d.storage.guardar(ruta, bytes);
       return ruta;
     };
+    let adjuntos: AdjuntoGuardarBuzon[];
     try {
       const contenidoRuta = await escribir(EXT_CONTENIDO, bytesTexto);
       const porId = new Map<string, AdjuntoGuardarBuzon>();
@@ -135,9 +147,9 @@ export function abrirMensaje(d: DepsAbrirMensaje): Procesador {
           omitido: a.motivo,
         });
       // En el orden en que llegaron.
-      const adjuntos = [
-        ...new Set(recibido.adjuntos.map((a) => a.idSunat)),
-      ].flatMap((id) => porId.get(id) ?? []);
+      adjuntos = [...new Set(recibidos.map((a) => a.idSunat))].flatMap(
+        (id) => porId.get(id) ?? [],
+      );
       await d.db.withTenant(ctx, (tx) =>
         guardarContenidoBuzon(tx, {
           clienteId: t.clienteId,
@@ -152,11 +164,14 @@ export function abrirMensaje(d: DepsAbrirMensaje): Procesador {
       await Promise.all(
         escritas.map((ruta) => d.storage.eliminar(ruta).catch(() => undefined)),
       );
+      // Sin la causa: el detalle de PostgreSQL puede repetir el nombre de un adjunto (D-10).
+      if (esErrorDatosPg(e)) throw new ErrorDatos();
       throw e;
     }
+    // H-023-1-2: lo que quedó en BD tras deduplicar por id.
     const r: ResultadoAbrirMensaje = {
-      adjuntos: guardar.length,
-      omitidos: omitidos.length,
+      adjuntos: adjuntos.filter((a) => a.ruta !== null).length,
+      omitidos: adjuntos.filter((a) => a.omitido !== null).length,
       marcoLeido: recibido.marcaLeido,
     };
     return r;

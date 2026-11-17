@@ -44,3 +44,4 @@ export type {
   MotivoOmision,
 } from "./adjunto";
 export { TOPE_TEXTO_PLANO, htmlATextoPlano } from "./texto-plano";
+export { idSunatValido, sanearTextoPortal } from "./saneo";

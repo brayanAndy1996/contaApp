@@ -1,5 +1,6 @@
 // Spec 023 (CA-8, D-4, P-10): adjuntos del buzón. Nombre saneado, MIME por firma (lo declarado
 // no cuenta) y topes por adjunto y por mensaje. El ZIP es opaco: nunca se abre.
+import { quitarInvisibles } from "./saneo";
 
 export const TOPE_ADJUNTO_BYTES = 20 * 1024 * 1024;
 export const TOPE_MENSAJE_BYTES = 50 * 1024 * 1024;
@@ -37,8 +38,6 @@ export interface AdjuntoOmitido {
 const LARGO_MAXIMO_NOMBRE = 120;
 const LARGO_MAXIMO_EXTENSION = 10;
 const NOMBRE_POR_DEFECTO = "adjunto";
-/** Controles, formato (bidi, ancho cero) y sustitutos sueltos. */
-const INVISIBLES = /[\p{Cc}\p{Cf}\p{Cs}]/gu;
 
 /** Primeros `largo` puntos de código (no parte un par sustituto). */
 function cortar(texto: string, largo: number): string {
@@ -50,7 +49,7 @@ function largoEnPuntos(texto: string): number {
 }
 
 export function sanearNombreAdjunto(nombre: string): string {
-  const limpio = nombre.normalize("NFC").replace(INVISIBLES, "");
+  const limpio = quitarInvisibles(nombre.normalize("NFC"));
   const corte = Math.max(limpio.lastIndexOf("/"), limpio.lastIndexOf("\\"));
   const base = limpio.slice(corte + 1).trim();
   if (base.length === 0 || base === "." || base === "..") {

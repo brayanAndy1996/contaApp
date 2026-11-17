@@ -3,7 +3,7 @@
 // grafía y un cliente desasignado con la sesión viva. Caja blanca: la clave de dedupe sale del `clienteId` crudo de la ruta
 // (`claveDedupe(tipo, clienteId, …)` en `encolar` de @contapp/queue) mientras la guarda de alcance acepta el UUID sin
 // distinguir mayúsculas; el programador calcula la clave en SQL con el UUID en minúsculas.
-// Hallazgos marcados con `it.fails` (H-023-1-n); sin la marca, quedan en rojo.
+// Hallazgos H-023-1-n: marcados con `it.fails` en T16; corregidos en T18, ya sin la marca.
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
@@ -40,7 +40,7 @@ const vivos = async (clienteId: string, tipo: string) =>
   );
 
 describe("H-023-1-1 · el UUID del cliente en mayúsculas parte la clave de dedupe (CA-2, CA-4, D-6)", () => {
-  it.fails(
+  it(
     "«Revisar ahora» con el id en mayúsculas y una captura programada en cola: devuelve la viva elevada (200), no crea otra",
     async () => {
       const c = await nuevo();
@@ -61,7 +61,7 @@ describe("H-023-1-1 · el UUID del cliente en mayúsculas parte la clave de dedu
     },
   );
 
-  it.fails(
+  it(
     "«Abrir» el mismo mensaje con el id del cliente en minúsculas y luego en mayúsculas: un solo trabajo (202 y 200)",
     async () => {
       const c = await nuevo();

@@ -4,7 +4,7 @@
 // on*, comentarios anidados, entidades) y datos del portal que la BD no admite tal cual. Caja blanca: `abrir-mensaje.ts`
 // (conteo del `resultado` frente a lo guardado con ids repetidos), `revisar-buzon.ts` (inserción por mensaje) y los grants de
 // 0054 (INSERT del worker sin acotar columnas).
-// Hallazgos marcados con `it.fails` (H-023-1-n); sin la marca, quedan en rojo.
+// Hallazgos H-023-1-n: marcados con `it.fails` en T16; corregidos en T18, ya sin la marca.
 import { randomBytes, randomUUID } from "node:crypto";
 import type { ContappDb } from "@contapp/db";
 import type { AdjuntoSol } from "@contapp/sunat";
@@ -318,7 +318,7 @@ describe("HTML hostil del contenido (CA-8, D-3)", () => {
 // ---------------------------------------------------------------------------------------------------------------
 
 describe("H-023-1-2 · ids de adjunto repetidos por el portal (D-10, CA-8)", () => {
-  it.fails(
+  it(
     "resultado.adjuntos y resultado.omitidos coinciden con lo guardado en BD y con la auditoría buzon.contenido_obtenido",
     async () => {
       const r = await abrirCon({
@@ -350,7 +350,7 @@ describe("H-023-1-2 · ids de adjunto repetidos por el portal (D-10, CA-8)", () 
 // ---------------------------------------------------------------------------------------------------------------
 
 describe("H-023-1-3 · id de adjunto hostil (CA-4, CA-8, D-4)", () => {
-  it.fails(
+  it(
     "un id de 65 caracteres o con NUL no impide guardar el contenido ni los demás adjuntos, y el portal se llama una vez",
     async () => {
       const r = await abrirCon({
@@ -383,7 +383,7 @@ describe("H-023-1-3 · id de adjunto hostil (CA-4, CA-8, D-4)", () => {
 // ---------------------------------------------------------------------------------------------------------------
 
 describe("H-023-1-4 · mensaje hostil en el listado (CA-3, CA-6, D-9)", () => {
-  it.fails(
+  it(
     "un asunto con NUL no impide capturar ni avisar la coactiva más antigua de la misma página",
     async () => {
       const m = await mundo();
@@ -412,7 +412,7 @@ describe("H-023-1-4 · mensaje hostil en el listado (CA-3, CA-6, D-9)", () => {
 // ---------------------------------------------------------------------------------------------------------------
 
 describe("H-023-1-5 · el worker escribe al insertar columnas que el plan reserva a otros (0054, D-3, D-5)", () => {
-  it.fails(
+  it(
     "estado: el worker no puede fijar ultima_programada_en ni ultima_solicitud_en (solo encolar_buzon_programados y el backend)",
     async () => {
       const m = await mundo();
@@ -428,7 +428,7 @@ describe("H-023-1-5 · el worker escribe al insertar columnas que el plan reserv
     },
   );
 
-  it.fails(
+  it(
     "mensaje: el worker no puede insertar un mensaje con el contenido ya fijado (se saltaría la auditoría buzon.contenido_obtenido)",
     async () => {
       const m = await mundo();
