@@ -29,11 +29,13 @@ import {
   MockSireApiClient,
   MockSireAuth,
   MockSolAuth,
+  MockSolPortal,
   MockXmlProvider,
   type ConsultaRuc,
   type SireApiClient,
   type SireAuth,
   type SolAuth,
+  type SolPortal,
   type XmlProvider,
 } from "@contapp/sunat";
 import { randomUUID } from "node:crypto";
@@ -42,12 +44,15 @@ import { crearServicioCredenciales } from "../credenciales/descifrar-credencial.
 import { Ejecutor, type Procesador } from "./ejecutor.js";
 import { dbGuardada, redisGuardado } from "./guardia.js";
 import { NotificadorEventos } from "./notificador.js";
+import { abrirMensaje } from "./procesadores/abrir-mensaje.js";
 import { authPurgar } from "./procesadores/auth-purgar.js";
 import { consultarRuc } from "./procesadores/consultar-ruc.js";
 import { descargarPropuesta } from "./procesadores/descargar-propuesta.js";
 import { generarArchivo } from "./procesadores/generar-archivo.js";
 import { kekRotar } from "./procesadores/kek-rotar.js";
 import { obtenerXml } from "./procesadores/obtener-xml.js";
+import { programarBuzon } from "./procesadores/programar-buzon.js";
+import { revisarBuzon } from "./procesadores/revisar-buzon.js";
 import {
   verificarSire,
   verificarSol,
@@ -93,6 +98,8 @@ export interface DepsTrabajos {
   consultaRuc?: ConsultaRuc;
   /** Puerto de `credencial.verificar_sol`; por defecto el mock. */
   solAuth?: SolAuth;
+  /** Puerto de `sol.buzon.revisar` y `sol.buzon.abrir` (023); por defecto el mock. */
+  solPortal?: SolPortal;
   credencialesSire?: CredencialesSire;
   /** Puerto de `xml.obtener` (016); por defecto el mock. */
   xmlProvider?: XmlProvider;
@@ -250,6 +257,7 @@ export async function iniciarTrabajos(
   const storage = deps.storage ?? storagePorDefecto();
   const notificador =
     deps.notificador ?? new NotificadorEventos(redis, { prefijo, logger });
+  const solPortal = deps.solPortal ?? new MockSolPortal();
   const ejecutor = new Ejecutor({
     db,
     redis,
@@ -290,6 +298,19 @@ export async function iniciarTrabajos(
               sireAuth,
               notificador,
             }),
+            // 023: buzón SOL (descifran la credencial SOL del cliente).
+            "sol.buzon.revisar": revisarBuzon({
+              db,
+              servicio,
+              solPortal,
+              notificador,
+            }),
+            "sol.buzon.abrir": abrirMensaje({
+              db,
+              servicio,
+              solPortal,
+              storage,
+            }),
           }
         : {}),
       ...deps.procesadores,
@@ -329,10 +350,14 @@ export async function iniciarTrabajos(
   });
 
   const sistema = crearColaSistema({ conexion, prefijo });
+  // 023 (D-5): un tick del programador del buzón; el dueño del candado es aleatorio por proceso.
+  const tickBuzon = programarBuzon({ db, redis, prefijo, logger });
   const procesarSistema = async (data: PayloadSistema): Promise<void> => {
     try {
       if (data.tipo === "auth.purgar") {
         await authPurgar({ db, reloj, logger });
+      } else if (data.tipo === "buzon.programar") {
+        await tickBuzon();
       } else if (deps.kek === undefined) {
         registrar(logger, "error", {
           evento: "kek_rotar_sin_llaves",
@@ -362,6 +387,8 @@ export async function iniciarTrabajos(
     procesar: procesarSistema,
   });
   await sistema.programarPurga();
+  // 023 (D-5): repetible de 1 min con id fijo (N workers dejan uno). `BUZON_PROGRAMADOR=off` lo apaga (E2E y pruebas).
+  if (process.env.BUZON_PROGRAMADOR !== "off") await sistema.programarBuzon();
 
   const bucleDespacho = bucle(async () => {
     await despachador.ciclo();

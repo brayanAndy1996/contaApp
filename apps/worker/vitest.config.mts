@@ -24,6 +24,8 @@ export default defineConfig(({ mode }) => {
         ? ["**/node_modules/**", ...(cierreAparte ? [] : [CIERRE_APARTE_GLOB])]
         : ["**/node_modules/**", "**/*.int.spec.ts"],
       fileParallelism: !integracion,
+      // 023 (D-5): en las unitarias la cola de sistema es un doble; el repetible del buzón se prueba en integración.
+      ...(integracion ? {} : { env: { BUZON_PROGRAMADOR: "off" } }),
       ...(cierreAparte ? { maxWorkers: 1 } : {}),
     },
   };
