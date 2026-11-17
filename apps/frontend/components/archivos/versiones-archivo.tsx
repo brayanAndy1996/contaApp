@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { VersionArchivoDto } from "@contapp/shared";
 import { fechaHoraLima } from "../../lib/fechas";
 import { Autor } from "../autor";
+import { Alert, Badge, Button } from "../ui";
 import {
   MENSAJES_ARCHIVO as M,
   descargarVersionArchivo,
@@ -63,48 +64,49 @@ export function VersionesArchivo({
 
   return (
     <section aria-label={M.tituloVersiones} className="flex flex-col gap-2">
-      <h4 className="font-medium">{M.tituloVersiones}</h4>
+      <h4 className="m-0 font-titulo text-[15px] font-bold">{M.tituloVersiones}</h4>
       {reabiertoTrasUltima && versiones.length > 0 && (
-        <p role="note" className="rounded bg-amber-50 p-2 text-sm text-amber-900">
+        <Alert tono="aviso" role="note">
           {M.reabiertoTrasUltima}
-        </p>
+        </Alert>
       )}
       {versiones.length === 0 ? (
-        <p className="text-sm">{M.sinVersiones}</p>
+        <p className="m-0 text-sm text-tinta-suave">{M.sinVersiones}</p>
       ) : (
-        <ul className="flex flex-col gap-2 text-sm">
+        <ul className="m-0 flex list-none flex-col gap-2 p-0 text-sm">
           {versiones.map((v) => (
-            <li key={v.id} className="flex flex-col gap-1 rounded border p-2">
-              <p>
+            <li key={v.id} className="flex flex-col gap-1.5 rounded-control border border-linea bg-hoja-alterna p-3">
+              <p className="m-0">
                 <strong>{M.version(v.version)}</strong> · {M.generadoEn(fechaHoraLima(v.generadoEn))}{" "}
                 {M.generadoPor} <Autor autor={v.autor} />
               </p>
-              <p>
+              <p className="m-0">
                 {v.nombreZip} · {M.lineas(v.lineas)}
               </p>
-              <p>
+              <p className="m-0 text-tinta-media">
                 {M.sha256Zip}: <code className="break-all font-mono text-xs">{v.sha256Zip}</code>
               </p>
-              {v.provisional && <p className="font-medium text-amber-900">{M.provisional}</p>}
-              <button
-                type="button"
+              {v.provisional && (
+                <p className="m-0">
+                  <Badge tono="aviso">{M.provisional}</Badge>
+                </p>
+              )}
+              <Button
+                variant="secundario"
+                size="sm"
                 aria-label={M.descargarVersion(v.version)}
                 disabled={descargando !== null}
                 onClick={() => void descargar(v)}
-                className="w-fit rounded border px-3 py-1 disabled:opacity-50"
+                className="min-h-11 w-fit lg:min-h-8"
               >
                 {descargando === v.id ? M.descargando : M.descargar}
-              </button>
+              </Button>
             </li>
           ))}
         </ul>
       )}
       <div aria-live="polite">
-        {error && (
-          <p role="alert" className="text-sm text-red-600">
-            {error}
-          </p>
-        )}
+        {error && <Alert tono="error">{error}</Alert>}
       </div>
     </section>
   );

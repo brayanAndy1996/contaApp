@@ -13,6 +13,7 @@ import {
   type ResultadoCompras,
 } from "../../lib/compras";
 import { Autor } from "../autor";
+import { Alert, Badge, Button, Card, CardTitle } from "../ui";
 import { ConfirmarAccion } from "../ventas/confirmar-accion";
 
 // Estado del periodo (spec 015, D-13; RF-071, 014 D-9, DU-23; CA-13). Insignia `abierto` / `revisado` /
@@ -25,6 +26,13 @@ export const TEXTOS_ESTADO = {
   titulo: "Estado del periodo",
   avisoReproceso: "Habrá que generar el archivo de nuevo.",
 } as const;
+
+/** Tono del chip de estado: el texto del estado siempre acompaña al color (D5). */
+const TONO_ESTADO: Record<EstadoPeriodoCompras, "info" | "aviso" | "ok"> = {
+  abierto: "info",
+  revisado: "aviso",
+  generado: "ok",
+};
 
 /**
  * Motivo legible por el que la grilla es de solo lectura, o `null` si se puede modificar (D-13). Orden: cliente
@@ -142,50 +150,43 @@ export function EstadoPeriodo({
   }
 
   return (
-    <section
-      aria-label={TEXTOS_ESTADO.titulo}
-      className="flex flex-col gap-3"
-    >
-      <h2 className="text-lg font-medium">{TEXTOS_ESTADO.titulo}</h2>
+    <Card aria-label={TEXTOS_ESTADO.titulo}>
+      <CardTitle>{TEXTOS_ESTADO.titulo}</CardTitle>
       <div className="flex flex-wrap items-center gap-3">
-        <span
-          data-estado={estado}
-          className="rounded-full border px-3 py-1 text-sm font-medium"
-        >
+        <Badge data-estado={estado} tono={TONO_ESTADO[estado]} className="h-8 px-3 text-sm">
           {M.estado[estado]}
-        </span>
+        </Badge>
         {en !== null && estado !== "abierto" && (
-          <span className="text-sm">
+          <span className="text-sm text-tinta-media">
             {M.estadoPorAutor(fechaCorta(en))} <Autor autor={autor} />
           </span>
         )}
         {puedeRevisar && (
-          <button
-            type="button"
+          <Button
             disabled={ocupado || pendiente !== null}
             onClick={() => {
               setAviso(null);
               setError(null);
               setPendiente({ tipo: "revisar" });
             }}
-            className="rounded border px-4 py-2 text-sm disabled:opacity-50"
+            className="min-h-11 lg:min-h-10"
           >
             {M.marcarRevisado}
-          </button>
+          </Button>
         )}
         {reabrible !== null && (
-          <button
-            type="button"
+          <Button
+            variant="secundario"
             disabled={ocupado || pendiente !== null}
             onClick={() => {
               setAviso(null);
               setError(null);
               setPendiente({ tipo: "reabrir", estadoVisto: reabrible });
             }}
-            className="rounded border px-4 py-2 text-sm disabled:opacity-50"
+            className="min-h-11 lg:min-h-10"
           >
             {M.reabrir}
-          </button>
+          </Button>
         )}
       </div>
 
@@ -198,18 +199,10 @@ export function EstadoPeriodo({
         />
       )}
 
-      <div aria-live="polite">
-        {aviso && (
-          <p role="status" className="text-sm">
-            {aviso}
-          </p>
-        )}
-        {error && (
-          <p role="alert" className="text-sm text-red-600">
-            {error}
-          </p>
-        )}
+      <div aria-live="polite" className="flex flex-col gap-2">
+        {aviso && <Alert tono="ok">{aviso}</Alert>}
+        {error && <Alert tono="error">{error}</Alert>}
       </div>
-    </section>
+    </Card>
   );
 }
