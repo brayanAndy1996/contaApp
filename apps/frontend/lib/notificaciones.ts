@@ -141,8 +141,14 @@ export async function marcarTodasLeidas(
   return { ok: p.success, status: r.status, datos: p.success ? p.data : null };
 }
 
-/** A dónde lleva una notificación: cliente → su ficha; trabajo → `/trabajos`; si no, a ningún lado. */
+/**
+ * A dónde lleva una notificación: crítica del buzón → la vista del mensaje; cliente → su ficha; trabajo → `/trabajos`;
+ * si no, a ningún lado.
+ */
 export function destinoDe(n: NotificacionVista): string | null {
+  if (n.tipo === "buzon_critico" && n.cliente) {
+    return `/clientes/${encodeURIComponent(n.cliente.id)}/buzon?mensaje=${encodeURIComponent(n.params.mensajeId)}`;
+  }
   if (n.cliente) return `/clientes/${encodeURIComponent(n.cliente.id)}`;
   if (n.trabajoId) return "/trabajos";
   return null;

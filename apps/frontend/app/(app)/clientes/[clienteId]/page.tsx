@@ -14,6 +14,7 @@ import {
   DatosFiscales,
   DatosFiscalesLectura,
 } from "../../../../components/datos-fiscales";
+import { RevisarBuzon } from "../../../../components/buzon/revisar-buzon";
 import { CredencialesCliente } from "../../../../components/credenciales-cliente";
 import { UsoPlan } from "../../../../components/uso-plan";
 import {
@@ -51,6 +52,7 @@ import {
   reactivarCliente,
   type ClienteDto,
 } from "../../../../lib/clientes";
+import { MENSAJES_BUZON } from "../../../../lib/buzon";
 import { MENSAJES_COMPRAS } from "../../../../lib/compras";
 import { MENSAJES_PLAN } from "../../../../lib/planes";
 import { MENSAJES_REGLAS } from "../../../../lib/reglas";
@@ -197,6 +199,7 @@ function DetalleCliente() {
   const puedeArchivar = usePuede("clientes.archivar");
   const puedeCredenciales = usePuede("credenciales.editar");
   const puedeVerReglas = usePuede("reglas.ver");
+  const puedeVerBuzon = usePuede("buzon.ver");
   const [cliente, setCliente] = useState<ClienteDto | null>(null);
   const [cargado, setCargado] = useState(false);
   const [asigna, setAsigna] = useState(false);
@@ -366,7 +369,7 @@ function DetalleCliente() {
             </>
           }
           acciones={
-            // Registros del cliente: Compras (spec 015, D-1), Ventas (spec 038, P-4) y Reglas aprendidas.
+            // Registros del cliente: Compras (spec 015, D-1), Ventas (spec 038, P-4), Reglas aprendidas y Buzón SOL (023).
             <nav
               aria-label="Registros del cliente"
               className="flex flex-wrap items-center gap-x-2 text-sm"
@@ -383,6 +386,14 @@ function DetalleCliente() {
                   {" · "}
                   <Link href={`/clientes/${hrefCliente}/reglas`} className={enlaceNav}>
                     {MENSAJES_REGLAS.enlaceReglasCliente}
+                  </Link>
+                </>
+              )}
+              {puedeVerBuzon === true && (
+                <>
+                  {" · "}
+                  <Link href={`/clientes/${hrefCliente}/buzon`} className={enlaceNav}>
+                    {MENSAJES_BUZON.enlaceBuzon}
                   </Link>
                 </>
               )}
@@ -417,6 +428,9 @@ function DetalleCliente() {
             />
           )}
         </div>
+      )}
+      {cliente && puedeVerBuzon === true && (
+        <RevisarBuzon clienteId={cliente.id} archivado={archivado} />
       )}
       {cliente?.perfil && (
         <Card aria-label="Datos fiscales" className="w-full max-w-xl">
