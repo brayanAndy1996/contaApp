@@ -46,6 +46,7 @@ export default defineConfig({
       "apps/worker/src/trabajos/procesadores/revisar-buzon*.spec.ts",
       "apps/worker/src/trabajos/procesadores/abrir-mensaje*.spec.ts",
       "apps/worker/src/trabajos/procesadores/programar-buzon*.spec.ts",
+      "apps/worker/src/trabajos/procesadores/credencial-sol*.spec.ts",
     ],
     exclude: ["**/node_modules/**"],
     // Las suites con BD y Redis comparten recursos: nada en paralelo.

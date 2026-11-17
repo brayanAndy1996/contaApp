@@ -417,3 +417,25 @@ describe("debeAvisar (CA-6, P-5)", () => {
     });
   });
 });
+
+describe("ramas restantes (T15)", () => {
+  it("planificarCaptura ignora un mensaje repetido dentro de la misma página", () => {
+    const p: PaginaListado = {
+      mensajes: [msg(1), msg(1), msg(2)],
+      siguiente: null,
+    };
+    const plan = planificarCaptura(estado(), p, new Set());
+    expect(plan.nuevos.map((m) => m.idSunat)).toEqual(["m0001", "m0002"]);
+  });
+
+  it("debeAvisar: un crítico con fecha ilegible avisa aunque sea la primera sincronización", () => {
+    expect(
+      debeAvisar({
+        critico: true,
+        fecha: new Date("no es fecha"),
+        sincronizadoEn: null,
+        ahora: new Date("2026-11-17T00:00:00Z"),
+      }),
+    ).toBe(true);
+  });
+});

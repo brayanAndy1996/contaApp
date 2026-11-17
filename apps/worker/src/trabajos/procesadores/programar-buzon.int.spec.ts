@@ -1,4 +1,4 @@
-import type { ContappDb } from "@contapp/db";
+import type { ContappDb, Tx } from "@contapp/db";
 import { crearColaSistema } from "@contapp/queue/worker";
 import type { Redis } from "ioredis";
 import {
@@ -108,12 +108,51 @@ afterAll(async () => {
 // Soporte local
 // ---------------------------------------------------------------------------------------------------------------
 
+/**
+ * Las suites con BD comparten la base: `sistema.estudios_buzon()` devuelve los estudios de TODAS. El programador de la prueba
+ * solo atiende los que sembró esta prueba (`e.estudios`), así que sus conteos (`estudios`, `encolados`) no dependen de lo que
+ * haya en la base. Todo lo demás (candado, intervalo, cola) pasa tal cual.
+ */
+function soloMisEstudios(base: ContappDb): ContappDb {
+  const propios = (tx: Tx): Tx =>
+    new Proxy(tx, {
+      get(t, p, r) {
+        if (p === "query")
+          return async (texto: unknown, ...resto: unknown[]) => {
+            const res = await (
+              t.query as unknown as (...a: unknown[]) => Promise<{
+                rows: { tenant_id?: unknown }[];
+              }>
+            )(texto, ...resto);
+            if (typeof texto !== "string" || !texto.includes("estudios_buzon"))
+              return res;
+            const mios = new Set(e.estudios);
+            return {
+              ...res,
+              rows: res.rows.filter((f) => mios.has(String(f.tenant_id))),
+            };
+          };
+        const v = Reflect.get(t, p, r);
+        return typeof v === "function" ? v.bind(t) : v;
+      },
+    });
+  return new Proxy(base, {
+    get(t, p, r) {
+      if (p === "withSistema")
+        return <T>(fn: (tx: Tx) => Promise<T>): Promise<T> =>
+          t.withSistema((tx) => fn(propios(tx)));
+      const v = Reflect.get(t, p, r);
+      return typeof v === "function" ? v.bind(t) : v;
+    },
+  });
+}
+
 /** Una instancia del programador (un «proceso» con su dueño propio). */
 async function instancia(
   o: { db?: ContappDb; logger?: LoggerTrabajos; dueno?: string } = {},
 ): Promise<Tick> {
   return programarBuzon({
-    db: o.db ?? worker,
+    db: soloMisEstudios(o.db ?? worker),
     redis,
     prefijo,
     ...(o.logger === undefined ? {} : { logger: o.logger }),

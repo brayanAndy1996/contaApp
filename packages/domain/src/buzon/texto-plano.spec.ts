@@ -202,3 +202,25 @@ describe("htmlATextoPlano: tamaño y entradas patológicas", () => {
     },
   );
 });
+
+describe("htmlATextoPlano: declaraciones y NUL (T15)", () => {
+  it("descarta DOCTYPE, instrucciones de proceso, CDATA y cierres sin nombre", () => {
+    const r = htmlATextoPlano(
+      '<!DOCTYPE html>A<?xml version="1.0"?>B<![CDATA[x]]>C</ >D</3>E',
+    );
+    expect(r.replace(/\s+/g, "")).toBe("ABCDE");
+    expect(r).not.toContain("DOCTYPE");
+    expect(r).not.toContain("xml");
+  });
+
+  it("una declaración sin cerrar descarta el resto", () => {
+    expect(htmlATextoPlano("Hola <!DOCTYPE html sin cierre").trim()).toBe(
+      "Hola",
+    );
+    expect(htmlATextoPlano("Hola <?php sin cierre").trim()).toBe("Hola");
+  });
+
+  it("descarta los NUL sin cortar el texto", () => {
+    expect(htmlATextoPlano("a\u0000b\u0000\u0000c")).toBe("abc");
+  });
+});

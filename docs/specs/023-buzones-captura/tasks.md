@@ -20,7 +20,7 @@ Nivel A (spec). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T12 | Worker: `sol.buzon.revisar`, `sol.buzon.abrir` y `buzon.programar` | backend | opus | T5, T8, T9, T10, T11 ∥ T13, T14 | ✓ | — | [x] |
 | T13 | Backend: módulo `buzon` | backend | sonnet | T6, T9, T11 ∥ T12, T14 | ✓ | — | [x] |
 | T14 | Frontend: botón en la ficha, vista mínima, campana y panel de trabajos (estilo A) | frontend | sonnet | T7, T9 ∥ T10–T13 | ✓ | — | [x] |
-| T15 | Cobertura ≥ 90 %: `domain/buzon`, `db/buzon`, mock, módulo `buzon`, procesadores; en CI | devops | haiku | T12, T13 ∥ T14 | — | — | [ ] |
+| T15 | Cobertura ≥ 90 %: `domain/buzon`, `db/buzon`, mock, módulo `buzon`, procesadores; en CI | devops | haiku | T12, T13 ∥ T14 | — | — | [x] |
 | T16 | Ronda adversarial 1: aislamiento, permisos, storage, adjuntos y contenido hostiles, secretos (≤ 15 pruebas) | adversario | opus | T12, T13, T15 ∥ T14, T22 | — | ✓ | [ ] |
 | T17 | Pruebas de las correcciones de la ronda 1 (rojo) | tester | sonnet | T16 | ✓ | — | [ ] |
 | T18 | Corregir los hallazgos de la ronda 1 (migración 0057 si hace falta) | backend | opus | T17 | — | — | [ ] |
@@ -124,7 +124,7 @@ Reglas comunes:
 - **Hacer**: `lib/buzon.ts`, `components/buzon/{revisar-buzon,lista-mensajes,detalle-mensaje}.tsx`, `clientes/[clienteId]/buzon/page.tsx`, botón y enlace en la ficha, caso `buzon_critico` en la campana, nombres de los tipos en el panel de trabajos y textos de las acciones de auditoría. Solo componentes de `components/ui` y tokens; nada de `dangerouslySetInnerHTML`; mensajes de 409/429 en español.
 - **Hecho cuando**: las de T7 pasan; las del frontend y `diseno.estatico.spec.ts` siguen verdes; typecheck y lint limpios. Commit `feat(023): revisar buzón, vista mínima y aviso en la campana`.
 
-## T15 · [ ] Cobertura (devops · haiku)
+## T15 · [x] Cobertura (devops · haiku)
 - **Contexto (leer solo esto)**: `package.json` (raíz: `cobertura:reglas` como modelo), `.github/workflows/ci.yml`, `packages/domain/vitest.cobertura*.config.mts`, `apps/worker/vitest.cobertura*.config.mts` (modelo).
 - **Hacer**: `cobertura:buzon` (`packages/domain/src/buzon/`, `packages/db/src/buzon/`, `packages/sunat/src/mock/sol-portal.mock.ts`, `apps/backend/src/modules/buzon/`, `apps/worker/src/trabajos/procesadores/{revisar-buzon,abrir-mensaje,programar-buzon}.ts`), umbral 90 % en líneas y ramas, paso en CI.
 - **Hecho cuando**: `pnpm cobertura:buzon` ≥ 90 % (o lista de lo que falta, sin bajar el umbral) y el paso aparece en `ci.yml`. Commit `chore(023): cobertura de buzones`.

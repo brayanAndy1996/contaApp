@@ -345,3 +345,64 @@ describe("prepararAdjuntos: tope de 50 MiB por mensaje, en orden de llegada", ()
     ]);
   });
 });
+
+describe("ramas restantes de nombres y XML (T15)", () => {
+  it("nombre largo con extensión demasiado larga: recorta todo el nombre", () => {
+    const n = `${"a".repeat(50)}.${"b".repeat(100)}`;
+    const r = sanearNombreAdjunto(n);
+    expect(Array.from(r).length).toBe(120);
+    expect(r.startsWith("aaaa")).toBe(true);
+  });
+
+  it("nombre largo sin punto: se recorta a 120 puntos de código", () => {
+    const r = sanearNombreAdjunto("x".repeat(500));
+    expect(r).toBe("x".repeat(120));
+  });
+
+  it("nombre largo con punto solo al inicio (sin extensión real): se recorta entero", () => {
+    const r = sanearNombreAdjunto(`.${"y".repeat(300)}`);
+    expect(Array.from(r).length).toBe(120);
+  });
+
+  it("nombre largo con extensión corta conserva la extensión", () => {
+    const r = sanearNombreAdjunto(`${"z".repeat(300)}.pdf`);
+    expect(Array.from(r).length).toBe(120);
+    expect(r.endsWith(".pdf")).toBe(true);
+  });
+
+  it("nombre largo que termina en punto (extensión de un solo carácter): recorta entero", () => {
+    const r = sanearNombreAdjunto(`${"w".repeat(300)}.`);
+    expect(Array.from(r).length).toBe(120);
+    expect(r).toBe("w".repeat(120));
+  });
+
+  const XML = Array.from("<?xml").map((c) => c.charCodeAt(0));
+  const BOM = [0xef, 0xbb, 0xbf];
+
+  it.each([
+    ["espacio", 0x20],
+    ["tabulación", 0x09],
+    ["salto de línea", 0x0a],
+    ["retorno de carro", 0x0d],
+  ])("XML con prólogo seguido de %s", (_n, byte) => {
+    expect(mimePorFirma(Uint8Array.from([...XML, byte, 0x76]))).toEqual({
+      mime: "application/xml",
+      ext: "xml",
+    });
+  });
+
+  it("XML con BOM de UTF-8 delante", () => {
+    expect(mimePorFirma(Uint8Array.from([...BOM, ...XML, 0x20, 0x76]))).toEqual(
+      { mime: "application/xml", ext: "xml" },
+    );
+  });
+
+  it("no es XML: prólogo seguido de otro carácter, o cortado, o BOM sin prólogo", () => {
+    expect(mimePorFirma(Uint8Array.from([...XML, 0x73]))).toBeNull();
+    expect(mimePorFirma(Uint8Array.from(XML))).toBeNull();
+    expect(mimePorFirma(Uint8Array.from(BOM))).toBeNull();
+    expect(
+      mimePorFirma(Uint8Array.from([...BOM, 0x20, ...XML, 0x20])),
+    ).toBeNull();
+  });
+});
