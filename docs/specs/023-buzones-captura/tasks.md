@@ -23,7 +23,7 @@ Nivel A (spec). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T15 | Cobertura ≥ 90 %: `domain/buzon`, `db/buzon`, mock, módulo `buzon`, procesadores; en CI | devops | haiku | T12, T13 ∥ T14 | — | — | [x] |
 | T16 | Ronda adversarial 1: aislamiento, permisos, storage, adjuntos y contenido hostiles, secretos (≤ 15 pruebas) | adversario | opus | T12, T13, T15 ∥ T14, T22 | — | ✓ | [x] |
 | T17 | Pruebas de las correcciones de la ronda 1 (rojo) | tester | sonnet | T16 | ✓ | — | [x] |
-| T18 | Corregir los hallazgos de la ronda 1 (migración 0057 si hace falta) | backend | opus | T17 | — | — | [ ] |
+| T18 | Corregir los hallazgos de la ronda 1 (migración 0057 si hace falta) | backend | opus | T17 | — | — | [x] |
 | T19 | Ronda adversarial 2: programador y cola, capturas cortadas, avisos, clasificación disfrazada (≤ 15 pruebas) | adversario | opus | T18 | — | ✓ | [ ] |
 | T20 | Pruebas de las correcciones de la ronda 2 (rojo) | tester | sonnet | T19 | ✓ | — | [ ] |
 | T21 | Corregir los hallazgos de la ronda 2 (migración 0058 si hace falta) | backend | opus | T20 | — | — | [ ] |
