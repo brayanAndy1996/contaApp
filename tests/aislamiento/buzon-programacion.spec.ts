@@ -296,13 +296,15 @@ describe("candado del ciclo: un solo ciclo vivo, con vencimiento y reloj de BD (
     expect(r.e.ciclo_dueno).toBe("dueno-B");
   });
 
-  it("candado vencido pero intervalo sin cumplir: no se ejecuta dos ciclos en un intervalo (vacio)", async () => {
+  // H-023-2-7 (T20): el candado VENCIDO de un ciclo muerto se retoma sin esperar el intervalo (CA-1; ver buzon-r2.spec.ts). Lo que
+  // sigue valiendo es que un ciclo SOLTADO (sin candado) no se repite dentro del intervalo.
+  it("ciclo soltado e intervalo sin cumplir: no se ejecuta dos ciclos en un intervalo (vacio)", async () => {
     const r = await enCiclo(async (c) => {
       await ajustar(c, {
         intervalo: 15,
         inicio: "-6 minutes",
         dueno: "dueno-A",
-        hasta: "-1 minute",
+        hasta: null,
       });
       return tomar(c, "dueno-B");
     });
