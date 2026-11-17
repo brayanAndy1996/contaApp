@@ -432,6 +432,7 @@ export {
   leerIdSunatBuzon,
   leerMensajeBuzon,
   listarMensajesBuzon,
+  marcarSolicitudBuzon,
 } from "./buzon";
 export type {
   AccionAuditoriaBuzon,

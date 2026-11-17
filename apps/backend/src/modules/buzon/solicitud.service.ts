@@ -4,6 +4,7 @@ import {
   bloquearEstadoBuzon,
   elevarPrioridadBuzon,
   leerMensajeBuzon,
+  marcarSolicitudBuzon,
   trabajoVivoPorClave,
   type Alcance,
 } from "@contapp/db";
@@ -15,7 +16,6 @@ import { contextoDe } from "../clientes/contexto.js";
 import { Encolador } from "../trabajos/encolador.js";
 import { esperaDeEnfriamiento, exigirCliente, exigirCredencialSol, idDe } from "./apoyo.js";
 import { BuzonError } from "./errores.js";
-import { marcarSolicitudBuzon } from "./estado.js";
 
 const REVISAR = "sol.buzon.revisar";
 const ABRIR = "sol.buzon.abrir";
