@@ -65,7 +65,7 @@ export const ENCABEZADOS: Readonly<Record<string, Encabezado>> = {
   icbper: simple(M.casilleros.icbper),
   otrosTributos: simple("Otros"),
   total: simple(M.casilleros.total),
-  lupa: simple(M.columnas.lupa),
+  lupa: { corto: "Lupa", completo: M.columnas.lupa },
   acciones: simple(M.columnas.acciones),
 };
 
@@ -118,7 +118,7 @@ export const COLUMNAS_COMPRAS = ayudante.columns([
   ayudante.accessor((f) => `${f.serie}-${f.numero}`, {
     id: "comprobante",
     header: M.columnas.comprobante,
-    size: 156,
+    size: 216,
   }),
   ayudante.accessor((f) => f.proveedor.razonSocial ?? "", {
     id: "proveedor",
@@ -127,7 +127,7 @@ export const COLUMNAS_COMPRAS = ayudante.columns([
   }),
   ayudante.accessor((f) => f.fecha, { id: "fecha", header: M.columnas.fecha, size: 100 }),
   ayudante.accessor((f) => f.moneda, { id: "moneda", header: M.columnas.moneda, size: 92 }),
-  ayudante.display({ id: "destino", header: M.columnas.destino, size: 96 }),
+  ayudante.display({ id: "destino", header: M.columnas.destino, size: 116 }),
   ayudante.display({ id: "alertas", header: M.conAlerta, size: 300 }),
   ...COLUMNAS_MONTO_GRILLA.map((id) =>
     ayudante.accessor((f) => montoDeFila(f, id), {

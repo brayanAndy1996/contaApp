@@ -72,7 +72,7 @@ export function HistorialCompra({
   return (
     <aside
       aria-label={M.tituloHistorial}
-      className="flex max-h-screen w-[28rem] max-w-full flex-col gap-3 overflow-auto border-l border-linea bg-hoja p-4 text-tinta shadow-flotante"
+      className="flex max-h-screen w-[28rem] max-w-[100vw] flex-col gap-3 overflow-auto border-l border-linea bg-hoja p-4 text-tinta shadow-flotante"
     >
       <div className="flex items-center justify-between gap-2">
         <h3 className="m-0 font-titulo text-lg font-bold">{M.tituloHistorial}</h3>

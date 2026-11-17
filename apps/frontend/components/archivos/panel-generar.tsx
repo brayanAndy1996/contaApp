@@ -18,7 +18,7 @@ import {
 } from "../../lib/archivos";
 import { MENSAJES } from "../../lib/acceso";
 import { useSecuencia } from "../../lib/secuencia";
-import { Alert, Button, enlace } from "../ui";
+import { Alert, Button, anilloFoco, enlace } from "../ui";
 import { seguirTrabajos } from "../../lib/trabajos";
 import { PrevioArchivo } from "./previo-archivo";
 import { VersionesArchivo } from "./versiones-archivo";
@@ -31,6 +31,13 @@ import { VersionesArchivo } from "./versiones-archivo";
 
 /** Bajo este ancho (el `lg` de Tailwind) el panel cubriría la grilla: al ubicar una fila se cierra. */
 const ANCHO_ANGOSTO = "(max-width: 1023px)";
+/** Bajo 1400 px el panel en columna queda debajo de la grilla (020 D-10): al abrirlo hay que llevarlo a la vista. */
+const ANCHO_SIN_COLUMNA = "(max-width: 1399px)";
+const sinColumnaLateral = (): boolean =>
+  typeof window !== "undefined" &&
+  typeof window.matchMedia === "function" &&
+  window.matchMedia(ANCHO_SIN_COLUMNA).matches;
+
 const esPantallaAngosta = (): boolean =>
   typeof window !== "undefined" &&
   typeof window.matchMedia === "function" &&
@@ -111,6 +118,18 @@ export function PanelGenerar({
   const [error, setError] = useState<string | null>(null);
   const secuencia = useSecuencia();
   const botonAbrir = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  const tituloRef = useRef<HTMLHeadingElement>(null);
+
+  // Con `destino` y bajo 1400 px el panel se pinta debajo de la grilla, fuera de la vista: al abrirlo se
+  // desplaza hasta él y el foco pasa a su título (038 T-final-d). Desde 1400 px va en su columna fija.
+  useEffect(() => {
+    if (!abierto || !destino || !sinColumnaLateral()) return;
+    const panel = panelRef.current;
+    if (!panel) return;
+    if (typeof panel.scrollIntoView === "function") panel.scrollIntoView({ block: "start" });
+    tituloRef.current?.focus({ preventScroll: true });
+  }, [abierto, destino]);
 
   const cargar = useCallback(async () => {
     const id = secuencia.nueva();
@@ -266,12 +285,19 @@ export function PanelGenerar({
       </Button>
       {abierto && destino !== null && ubicarPanel(
         <aside
+          ref={panelRef}
           aria-label={M.titulo}
           className={destino === undefined ? CLASE_PANEL_FIJO : CLASE_PANEL_COLUMNA}
         >
           <div className="flex items-start justify-between gap-2">
             <div className="flex flex-col gap-1">
-              <h3 className="m-0 font-titulo text-lg font-bold">{M.titulo}</h3>
+              <h3
+                ref={tituloRef}
+                tabIndex={-1}
+                className={`m-0 scroll-mt-4 font-titulo text-lg font-bold ${anilloFoco}`}
+              >
+                {M.titulo}
+              </h3>
               <p className="m-0 text-xs text-tinta-suave">{M.subtitulo(libro)}</p>
             </div>
             <Button variant="secundario" size="sm" onClick={cerrar} className="min-h-11 lg:min-h-8">

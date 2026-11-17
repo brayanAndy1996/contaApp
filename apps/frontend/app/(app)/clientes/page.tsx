@@ -259,14 +259,17 @@ export default function Clientes() {
                   <TableRow key={c.id}>
                     {asigna && (
                       <TableCell>
-                        <input
-                          type="checkbox"
-                          aria-label={`Seleccionar ${c.razonSocial}`}
-                          checked={seleccion.has(c.id)}
-                          disabled={c.archivado}
-                          onChange={() => alternar(c.id)}
-                          className="size-5 cursor-pointer accent-primario disabled:cursor-not-allowed disabled:opacity-45 max-lg:size-6"
-                        />
+                        {/* Bajo 1024 px la etiqueta envolvente da 44 × 44 px de área táctil. */}
+                        <label className="flex items-center justify-center max-lg:-m-2 max-lg:size-11">
+                          <input
+                            type="checkbox"
+                            aria-label={`Seleccionar ${c.razonSocial}`}
+                            checked={seleccion.has(c.id)}
+                            disabled={c.archivado}
+                            onChange={() => alternar(c.id)}
+                            className="size-5 cursor-pointer accent-primario disabled:cursor-not-allowed disabled:opacity-45 max-lg:size-6"
+                          />
+                        </label>
                       </TableCell>
                     )}
                     <TableCell className="font-mono">{c.ruc}</TableCell>

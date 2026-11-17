@@ -200,7 +200,7 @@ function FilaEstudio({
           value={planId}
           disabled={ocupado}
           onChange={(e) => setElegido(e.target.value)}
-          className="w-auto min-w-40"
+          className="w-auto min-w-40 max-lg:h-11"
         >
           {planId === "" && (
             <option value="" disabled>
@@ -221,7 +221,7 @@ function FilaEstudio({
           value={rucsExtra}
           disabled={ocupado}
           onChange={(e) => setRucsExtra(e.target.value)}
-          className="w-24"
+          className="w-24 max-lg:h-11"
         />
       </TableCell>
       <TableCell>

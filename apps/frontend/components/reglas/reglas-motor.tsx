@@ -106,18 +106,21 @@ export function ReglasMotor() {
             <ul className="m-0 flex list-none flex-col divide-y divide-linea p-0">
               {motor.reglas.map((r) => (
                 <li key={r.codigo} className="flex items-start gap-3 px-4 py-3 sm:px-5">
-                  <input
-                    id={`regla-motor-${r.codigo}`}
-                    type="checkbox"
-                    role="switch"
-                    checked={r.activa}
-                    aria-checked={r.activa}
-                    aria-labelledby={`regla-motor-${r.codigo}-nombre`}
-                    aria-describedby={`regla-motor-${r.codigo}-descripcion`}
-                    disabled={!puedeCambiar}
-                    onChange={(e) => void fijarRegla(r.codigo, e.target.checked)}
-                    className={`mt-1 h-5 w-5 shrink-0 cursor-pointer accent-primario disabled:cursor-not-allowed disabled:opacity-60 ${anilloFoco}`}
-                  />
+                  {/* Bajo 1024 px la etiqueta envolvente da 44 × 44 px de área táctil al interruptor. */}
+                  <label className="mt-1 flex shrink-0 items-center justify-center max-lg:-ml-2 max-lg:mt-0 max-lg:size-11">
+                    <input
+                      id={`regla-motor-${r.codigo}`}
+                      type="checkbox"
+                      role="switch"
+                      checked={r.activa}
+                      aria-checked={r.activa}
+                      aria-labelledby={`regla-motor-${r.codigo}-nombre`}
+                      aria-describedby={`regla-motor-${r.codigo}-descripcion`}
+                      disabled={!puedeCambiar}
+                      onChange={(e) => void fijarRegla(r.codigo, e.target.checked)}
+                      className={`h-5 w-5 shrink-0 cursor-pointer accent-primario disabled:cursor-not-allowed disabled:opacity-60 ${anilloFoco}`}
+                    />
+                  </label>
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <label
                       id={`regla-motor-${r.codigo}-nombre`}

@@ -56,4 +56,11 @@ describe("GrillaVentas · área táctil de los botones de fila", () => {
     }
     expect(botones[0]!.closest("tr")!.style.height).toBe("36px");
   });
+
+  it("el pseudo-elemento táctil llega a 44 px: el borde de 1 px no lo deja en 42 (038 T-final-g)", () => {
+    render(<GrillaVentas filas={[venta("v1", { origen: "manual" })]} alQuitar={vi.fn()} />);
+    const b = screen.getByRole("button", { name: "Quitar" });
+    expect(b.className).toContain("max-lg:before:min-h-11");
+    expect(b.className).toContain("max-lg:before:-translate-y-px");
+  });
 });

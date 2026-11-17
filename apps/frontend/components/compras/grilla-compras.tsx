@@ -796,14 +796,17 @@ export function GrillaCompras({
     if (id === "seleccionar") {
       return (
         <div key={id} {...comun} className={`${CELDA} items-center`}>
-          <input
-            type="checkbox"
-            className="size-5 cursor-pointer accent-primario"
-            checked={seleccion.has(f.id)}
-            onChange={() => alternarSeleccion(f.id)}
-            tabIndex={esActiva ? 0 : -1}
-            aria-label={M.seleccionarFila(comprobante)}
-          />
+          {/* Bajo 1024 px la etiqueta envolvente cubre toda la celda (44 × 44 px de área táctil). */}
+          <label className="flex items-center justify-center max-lg:-mx-2 max-lg:size-11">
+            <input
+              type="checkbox"
+              className="size-5 cursor-pointer accent-primario"
+              checked={seleccion.has(f.id)}
+              onChange={() => alternarSeleccion(f.id)}
+              tabIndex={esActiva ? 0 : -1}
+              aria-label={M.seleccionarFila(comprobante)}
+            />
+          </label>
         </div>
       );
     }
@@ -822,9 +825,13 @@ export function GrillaCompras({
           <span className="truncate font-mono font-medium">{comprobante}</span>
           <span className="flex flex-wrap items-center gap-x-1 text-xs">
             {f.hallazgos.length > 0 && (
-              <Badge tono="aviso" className="h-5 px-2" title={f.hallazgos.map((h) => h.explicacion).join(" · ")}>
-                <span aria-hidden="true">⚠ </span>
-                {T.alertaDe(reglas)}
+              <Badge
+                tono="aviso"
+                className="h-5 min-w-0 max-w-full gap-0 px-2"
+                title={`${T.alertaDe(reglas)} · ${f.hallazgos.map((h) => h.explicacion).join(" · ")}`}
+              >
+                <span aria-hidden="true" className="shrink-0">⚠ </span>
+                <span className="truncate">{T.alertaDe(reglas)}</span>
               </Badge>
             )}
             {f.origen === "agregada" && <Badge className="h-5 px-2">{M.agregada}</Badge>}

@@ -130,7 +130,7 @@ export default function ImportarClientes() {
       />
 
       <Card>
-        <a href={URL_PLANTILLA} download className={cn(enlace, "self-start text-sm")}>
+        <a href={URL_PLANTILLA} download className={cn(enlace, "self-start text-sm max-lg:flex max-lg:min-h-11 max-lg:items-center")}>
           {M.plantilla}
         </a>
         <div className="flex flex-col gap-1.5">

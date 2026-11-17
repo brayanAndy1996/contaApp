@@ -84,7 +84,7 @@ export function InformeMasivo({
           </Table>
         </>
       )}
-      <Button ref={cerrar} variant="secundario" onClick={alCerrar} className="w-fit">
+      <Button ref={cerrar} variant="secundario" onClick={alCerrar} className="w-fit max-lg:h-11">
         {M.cerrar}
       </Button>
     </div>
