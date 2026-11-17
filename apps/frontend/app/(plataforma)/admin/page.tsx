@@ -2,9 +2,26 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { CircleAlert, CircleCheck } from "lucide-react";
 import type { PlanDto } from "@contapp/shared";
 import { MENSAJES } from "../../../lib/acceso";
 import { api } from "../../../lib/api";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  CardTitle,
+  EncabezadoPagina,
+  Input,
+  Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../../components/ui";
 import {
   MENSAJES_PLATAFORMA,
   mensajeDeAsignacion,
@@ -77,11 +94,11 @@ export default function AdminPlataforma() {
     }
   }
 
-  if (acceso === undefined) return <main className="p-6">Cargando…</main>;
+  if (acceso === undefined) return <main className="p-4 text-tinta-suave sm:p-6">Cargando…</main>;
   if (acceso !== "admin") {
     return (
-      <main className="p-6">
-        <p>
+      <main className="p-4 sm:p-6">
+        <p className="m-0 text-tinta-media">
           {acceso === "sin_permiso"
             ? MENSAJES.sinPermiso
             : MENSAJES.errorGeneral}
@@ -91,37 +108,43 @@ export default function AdminPlataforma() {
   }
 
   return (
-    <main className="flex flex-col gap-6 p-6">
-      <h1 className="text-2xl font-semibold">Administración de plataforma</h1>
-      <nav className="text-sm">
-        <Link href="/admin/planes" className="underline">
-          Planes
-        </Link>
-      </nav>
+    <main className="flex min-w-0 flex-col gap-6 p-4 sm:p-6">
+      <EncabezadoPagina
+        titulo="Administración de plataforma"
+        acciones={
+          <nav>
+            <Button asChild variant="secundario" className="max-lg:h-11">
+              <Link href="/admin/planes">Planes</Link>
+            </Button>
+          </nav>
+        }
+      />
       {error && (
-        <div role="alert" className="text-sm text-red-600">
-          <p>{error}</p>
-        </div>
+        <Alert tono="error" role="alert">
+          <CircleAlert aria-hidden="true" />
+          <p className="m-0">{error}</p>
+        </Alert>
       )}
       {aviso && (
-        <p role="status" className="text-sm">
-          {aviso}
-        </p>
+        <Alert tono="ok" role="status">
+          <CircleCheck aria-hidden="true" />
+          <p className="m-0">{aviso}</p>
+        </Alert>
       )}
-      <section className="flex flex-col gap-2">
-        <h2 className="text-lg font-medium">Estudios</h2>
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr>
-              <th>Estudio</th>
-              <th>Plan actual</th>
-              <th>Estado</th>
-              <th>Nuevo plan</th>
-              <th>RUCs adicionales</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
+      <Card className="p-4 sm:p-6">
+        <CardTitle>Estudios</CardTitle>
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead>Estudio</TableHead>
+              <TableHead>Plan actual</TableHead>
+              <TableHead>Estado</TableHead>
+              <TableHead>Nuevo plan</TableHead>
+              <TableHead>RUCs adicionales</TableHead>
+              <TableHead>Acciones</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {estudios.map((e) => (
               <FilaEstudio
                 key={`${e.id}:${e.plan?.codigo ?? ""}`}
@@ -131,9 +154,9 @@ export default function AdminPlataforma() {
                 onAsignar={asignar}
               />
             ))}
-          </tbody>
-        </table>
-      </section>
+          </TableBody>
+        </Table>
+      </Card>
     </main>
   );
 }
@@ -165,19 +188,19 @@ function FilaEstudio({
   const planId = elegido ?? actual;
 
   return (
-    <tr>
-      <th scope="row" className="py-2 font-normal">
+    <TableRow>
+      <TableHead scope="row" className="border-b-0 px-3 py-3 text-sm font-normal text-tinta">
         {estudio.nombre}
-      </th>
-      <td>{estudio.plan?.nombre ?? "Sin plan"}</td>
-      <td>{estudio.estado ?? "—"}</td>
-      <td>
-        <select
+      </TableHead>
+      <TableCell>{estudio.plan?.nombre ?? "Sin plan"}</TableCell>
+      <TableCell>{estudio.estado ? <Badge>{estudio.estado}</Badge> : "—"}</TableCell>
+      <TableCell>
+        <Select
           aria-label="Plan"
           value={planId}
           disabled={ocupado}
           onChange={(e) => setElegido(e.target.value)}
-          className="rounded border px-2 py-1"
+          className="w-auto min-w-40"
         >
           {planId === "" && (
             <option value="" disabled>
@@ -189,28 +212,29 @@ function FilaEstudio({
               {p.nombre}
             </option>
           ))}
-        </select>
-      </td>
-      <td>
-        <input
+        </Select>
+      </TableCell>
+      <TableCell>
+        <Input
           aria-label="RUCs adicionales"
           inputMode="numeric"
           value={rucsExtra}
           disabled={ocupado}
           onChange={(e) => setRucsExtra(e.target.value)}
-          className="w-24 rounded border px-2 py-1"
+          className="w-24"
         />
-      </td>
-      <td>
-        <button
-          type="button"
+      </TableCell>
+      <TableCell>
+        <Button
+          variant="secundario"
+          size="sm"
           disabled={ocupado || planId === ""}
           onClick={() => void onAsignar(estudio, planId, rucsExtra)}
-          className="rounded border px-2 py-1"
+          className="max-lg:h-11"
         >
           Asignar plan
-        </button>
-      </td>
-    </tr>
+        </Button>
+      </TableCell>
+    </TableRow>
   );
 }
