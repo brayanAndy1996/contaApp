@@ -226,7 +226,7 @@ export function PanelNotificaciones({ alCerrar }: { alCerrar: () => void }) {
       role="dialog"
       aria-label={M.panel}
       tabIndex={-1}
-      className="absolute right-0 z-20 mt-2 w-96 max-w-[calc(100vw-2rem)] rounded-tarjeta border border-linea bg-hoja text-tinta shadow-flotante max-sm:fixed max-sm:inset-x-4 max-sm:w-auto"
+      className="absolute right-0 z-20 mt-2 w-96 max-w-[calc(100vw-2rem)] rounded-tarjeta border border-linea bg-hoja text-tinta shadow-flotante max-lg:bottom-full max-lg:mb-2 max-lg:mt-0 max-lg:max-h-[min(32rem,calc(100dvh-var(--alto-barra-inferior,4.5rem)-1.5rem))] max-lg:overflow-y-auto max-sm:fixed max-sm:inset-x-4 max-sm:bottom-[calc(var(--alto-barra-inferior,4.5rem)+0.5rem)] max-sm:mb-0 max-sm:w-auto"
     >
       <div className="flex items-center justify-between gap-2 border-b border-linea px-4 py-2 text-sm">
         <h2 className="m-0 text-base font-bold">{M.titulo}</h2>

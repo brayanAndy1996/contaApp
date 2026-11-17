@@ -74,7 +74,7 @@ export function Campana() {
 
   const conConteo = noLeidas !== null && noLeidas > 0;
   return (
-    <div ref={contenedor} className="relative ml-auto">
+    <div ref={contenedor} className="relative lg:ml-auto">
       <Button
         ref={boton}
         variant="secundario"

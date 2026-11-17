@@ -21,6 +21,7 @@ Leyenda: rol `arquitecto` · `backend` · `frontend` · `tester` · `adversario`
 | T15 | ∥ Trabajos y notificaciones (página, campana y panel) | frontend | sonnet | T7, P-6 | — | — | [x] |
 | T16 | ∥ Auditoría, equipo y planes/admin | frontend | sonnet | T7 | — | — | [x] |
 | T17 | ∥ Reglas del motor | frontend | sonnet | T7 | — | — | [x] |
+| T18 | Ajustes de integración de la fase 2 (velos, barra inferior, campana, ventas) | frontend | sonnet | T8–T17 | — | — | [x] |
 | T-final | Verificar CA-5 a CA-8: prueba estática de colores, revisión manual 1440/390 px, accesibilidad, E2E y CI; cierre | tester (sonnet) + devops (haiku) | sonnet | T7–T17, P-7 | — | — | [ ] |
 
 ## T2 · Dependencias, fuentes y tokens
@@ -138,3 +139,12 @@ Rutas relativas a `apps/frontend/`. Cada tarea toca **solo sus archivos** (y arc
 - `components/ui/table.tsx`: `Table` con `desplazable` (por omisión `true`; con `false` devuelve solo `<table>`, sin `overflow-x-auto`). `components/ui/encabezado-pagina.tsx`: `EncabezadoPagina({ titulo, descripcion?, acciones?, className })`, con un único `h1` (`font-titulo`, 34 px en celular y 40 px desde `md`); `titulo` es el contenido del `h1` que ya tenía la pantalla. `components/ui/clases.ts`: `velo`, `panelDialogo`, `enlace`, `anilloFoco`, `cifra` (solo tokens). Todo exportado en `index.ts`; `dialog.tsx` pasó a usar `velo` y `panelDialogo` (mismo resultado).
 - `ui.spec.tsx`: 4 casos nuevos (`Table desplazable={false}` sin contenedor y con él por omisión; `EncabezadoPagina` con un `h1`, descripción y acciones, y solo con título; clases sin colores sueltos). `test ui`: 41 en verde.
 - Control: `test` completo del frontend con `TZ=America/Lima` y con `TZ=UTC` (975 pruebas cada uno), `typecheck` y `lint` en verde.
+
+## Resultado T18 (2026-11-17)
+- Velos: `Ventana` de `acciones-fila-compras.tsx` y el envoltorio de `AgregarCompra` ya usaban `velo` (T11 y T13 lo habían resuelto); búsqueda en `app/` y `components/` de `bg-black`, `bg-white`, `/30` e `inset-0` sin tokens: vacía (solo `velo` en `components/ui/clases.ts`). Sin cambios.
+- `--alto-barra-inferior`: `menu-principal.tsx` la define en `<html>` con el alto medido de la `<nav>` (`getBoundingClientRect`, `ResizeObserver` y `resize`), `0px` desde 1024 px (menú lateral) y la quita al desmontarse. `app/(app)/layout.tsx` usa la variable en el relleno inferior (con la fórmula anterior como valor por omisión).
+- Ventas: `<main>` con `pb-28 md:pb-6` (igual que compras).
+- Campana: contenedor con `lg:ml-auto` (sin `ml-auto` en celular). Panel: bajo 1024 px se abre hacia arriba (`max-lg:bottom-full mb-2 mt-0`), con alto máximo y `overflow-y-auto`; bajo 640 px (fijo) queda sobre la barra con `bottom-[calc(var(--alto-barra-inferior,4.5rem)+0.5rem)]`. Escritorio igual.
+- Botones de fila de ventas: bajo 1024 px, pseudo-elemento `before` de 44 px de alto (`-inset-y-2` sobre el botón de 28 px); el tamaño visual y el alto de fila (36 px) no cambian. Limitación: con filas de 36 px las áreas de dos filas contiguas se solapan 8 px (en el hueco entre botones); cada botón conserva su propio recuadro visible y las tres acciones piden confirmación, pero no es un objetivo de 44 px libre de solapes. La primera y la última fila quedan recortadas por el contenedor desplazable.
+- Pruebas nuevas (5, sin cambiar aserciones): `components/marco/menu-principal.spec.tsx` (2), `components/notificaciones/campana.barra-inferior.spec.tsx` (2), `components/ventas/grilla-ventas.tactil.spec.tsx` (1), `ventas/page.espacio-barra.spec.tsx` (1). Total: 983 en verde con `TZ=America/Lima` y con `TZ=UTC`; `typecheck`, `lint` y el comando de la regla 4 sobre `apps/frontend`: limpios.
+- Pendiente de T-final: la revisión visual a 390 px (altura real de la barra, panel de la campana y botón fijo) no se hizo aquí.

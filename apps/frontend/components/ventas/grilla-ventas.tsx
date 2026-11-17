@@ -43,7 +43,9 @@ const COLUMNAS = [
 
 // Alto fijo de 36 px (P-2): las celdas no llevan relleno vertical y los botones de fila son compactos.
 const CELDA = "whitespace-nowrap px-2 py-0";
-const BOTON_FILA = "ml-2 h-7 px-2 text-xs";
+// Bajo 1024 px un pseudo-elemento amplía el área táctil a 44 px de alto sin cambiar el tamaño visual (P-2, regla 5).
+const BOTON_FILA =
+  "relative ml-2 h-7 px-2 text-xs max-lg:before:absolute max-lg:before:inset-x-0 max-lg:before:-inset-y-2 max-lg:before:content-['']";
 
 function FilaVenta({
   v,

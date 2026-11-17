@@ -559,7 +559,8 @@ function Ventas() {
   }`;
 
   return (
-    <main className="flex flex-col gap-6 p-4 md:p-6">
+    // En celular (P-3) «Generar archivo» queda fijo abajo: el `pb-28` deja ver el final de la página.
+    <main className="flex flex-col gap-6 p-4 pb-28 md:p-6 md:pb-6">
       <EncabezadoPagina
         titulo={M.titulo}
         descripcion={

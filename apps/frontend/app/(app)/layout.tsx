@@ -139,8 +139,8 @@ export default function LayoutApp({ children }: { children: ReactNode }) {
         alCambiarEstudio={(id) => void cambiarEstudio(id)}
         alCerrarSesion={() => void cerrarSesion()}
       />
-      {/* Deja espacio al menú lateral (desde 1024 px) y a la barra inferior de celular. */}
-      <div className="min-h-dvh pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-64">
+      {/* Deja espacio al menú lateral (desde 1024 px) y a la barra inferior de celular (su alto real lo publica el menú en `--alto-barra-inferior`). */}
+      <div className="min-h-dvh pb-[var(--alto-barra-inferior,calc(4.5rem+env(safe-area-inset-bottom)))] lg:pb-0 lg:pl-64">
         {(aviso || error) && (
           <div className="flex flex-col gap-2 px-4 pt-4 sm:px-6">
             {aviso && (

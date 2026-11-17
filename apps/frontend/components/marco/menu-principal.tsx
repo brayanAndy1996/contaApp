@@ -50,6 +50,9 @@ const entradaGrupo = cn(
   anilloFoco,
 );
 
+/** Variable CSS con el alto real de la barra inferior (solo bajo 1024 px; desde ahí el menú es lateral y vale 0). */
+export const VARIABLE_ALTO_BARRA = "--alto-barra-inferior";
+
 const activa = "bg-primario-suave text-primario hover:bg-primario-suave";
 
 function esActiva(ruta: string | null, href: string): boolean {
@@ -67,6 +70,32 @@ export function MenuPrincipal({
   const ruta = usePathname();
   const [masAbierto, setMasAbierto] = useState(false);
   const botonMas = useRef<HTMLButtonElement>(null);
+  const barra = useRef<HTMLElement>(null);
+
+  // Publica el alto real de la barra inferior para lo que se fija sobre ella (botón «Generar archivo», T13). El
+  // alto cambia con el área segura del dispositivo y si las entradas se parten en líneas; por eso se mide.
+  useEffect(() => {
+    const nav = barra.current;
+    if (!nav) return;
+    const raiz = document.documentElement;
+    const medir = () => {
+      const lateral =
+        typeof window.matchMedia === "function" &&
+        window.matchMedia("(min-width: 1024px)").matches;
+      const alto = lateral ? 0 : Math.ceil(nav.getBoundingClientRect().height);
+      raiz.style.setProperty(VARIABLE_ALTO_BARRA, `${alto}px`);
+    };
+    medir();
+    const observador =
+      typeof ResizeObserver === "function" ? new ResizeObserver(medir) : null;
+    observador?.observe(nav);
+    window.addEventListener("resize", medir);
+    return () => {
+      observador?.disconnect();
+      window.removeEventListener("resize", medir);
+      raiz.style.removeProperty(VARIABLE_ALTO_BARRA);
+    };
+  }, []);
 
   useEffect(() => {
     if (!masAbierto) return;
@@ -85,6 +114,7 @@ export function MenuPrincipal({
 
   return (
     <nav
+      ref={barra}
       className={cn(
         "fixed inset-x-0 bottom-0 z-40 flex flex-wrap items-stretch justify-around gap-1 border-t border-linea bg-hoja-alterna px-2 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] text-sm text-tinta shadow-flotante",
         "lg:inset-x-auto lg:inset-y-0 lg:left-0 lg:w-64 lg:flex-col lg:flex-nowrap lg:justify-start lg:gap-1 lg:overflow-y-auto lg:border-r lg:border-t-0 lg:p-4 lg:shadow-none",
