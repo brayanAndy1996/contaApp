@@ -84,6 +84,12 @@ interface Recursos {
   tokenHash: Buffer;
   /** 021: una regla aprendida del primer cliente (sembrada por SQL), con la que se prueban las rutas de reglas. */
   reglaId: string;
+  /** 023: un mensaje del buzón del primer cliente, con un adjunto omitido (sembrados por SQL), para las rutas del buzón. */
+  mensajeId: string;
+  adjuntoId: string;
+  /** Asunto y nombre del adjunto: textos únicos que tampoco deben verse desde el otro estudio. */
+  asuntoBuzon: string;
+  nombreAdjunto: string;
 }
 interface Sesion {
   cookie: string;
@@ -135,6 +141,8 @@ const sufijo = randomBytes(4).toString("hex");
 const clientesCreados: string[] = [];
 /** 021: reglas aprendidas sembradas por la prueba (se quitan antes que los clientes que referencian). */
 const reglasSembradas: string[] = [];
+/** 023: mensajes del buzón sembrados (sus adjuntos se quitan antes que ellos y ambos antes que los clientes). */
+const mensajesBuzonSembrados: string[] = [];
 /** Redis de las pruebas de `/trabajos`: base 15 y prefijo propio (la app recibe la misma URL y prefijo). */
 const prefijoRedis = nuevoPrefijo();
 let redis: RedisPrueba;
@@ -234,6 +242,20 @@ async function prepararEstudio(
     [tenantId, clientes[0], `20${String(Math.floor(Math.random() * 1e9)).padStart(9, "0")}`, dueno.id],
   );
   reglasSembradas.push(regla[0].id);
+  // 023: un mensaje del buzón en el primer cliente y un adjunto omitido (sin archivo: nada que leer del storage).
+  const asuntoBuzon = `HU40 ${etiqueta} buzon asunto ${sufijo}`;
+  const nombreAdjunto = `HU40-${etiqueta}-adjunto-${sufijo}.pdf`;
+  const mensaje = await h.sql(
+    `insert into buzon_mensaje (tenant_id, cliente_id, id_sunat, asunto, remitente, fecha, categoria, critico, version_catalogo, adjuntos_declarados)
+     values ($1, $2, $3, $4, 'SUNAT', now() - interval '1 day', 'otro', false, 1, 1) returning id`,
+    [tenantId, clientes[0], `HU40-${hex()}`, asuntoBuzon],
+  );
+  mensajesBuzonSembrados.push(mensaje[0].id);
+  const adjunto = await h.sql(
+    `insert into buzon_adjunto (tenant_id, cliente_id, mensaje_id, id_sunat, nombre, omitido)
+     values ($1, $2, $3, $4, $5, 'mime') returning id`,
+    [tenantId, clientes[0], mensaje[0].id, `HU40-${hex()}`, nombreAdjunto],
+  );
   return {
     tenantId,
     nombre,
@@ -249,6 +271,10 @@ async function prepararEstudio(
     invitacionCorreo,
     tokenHash,
     reglaId: regla[0].id,
+    mensajeId: mensaje[0].id,
+    adjuntoId: adjunto[0].id,
+    asuntoBuzon,
+    nombreAdjunto,
   };
 }
 
@@ -315,9 +341,11 @@ async function calcularMarcadores(
     de.asignacionId,
     ...de.trabajos.map((t) => t.id),
     de.reglaId,
+    de.mensajeId,
+    de.adjuntoId,
   ]);
   const correos = new Set<string>([de.invitacionCorreo]);
-  const otros = new Set<string>([de.nombre]);
+  const otros = new Set<string>([de.nombre, de.asuntoBuzon, de.nombreAdjunto]);
   for (const f of clientesDe) {
     ids.add(f.id);
     otros.add(f.razon_social);
@@ -367,6 +395,18 @@ async function instantanea(
     ),
     regla_aprendida: await q(
       "select to_jsonb(g) j from regla_aprendida g where tenant_id = $1 and cliente_id = any($2::uuid[]) order by id",
+      [r.tenantId, r.clientes],
+    ),
+    buzon_mensaje: await q(
+      "select to_jsonb(g) j from buzon_mensaje g where tenant_id = $1 and cliente_id = any($2::uuid[]) order by id",
+      [r.tenantId, r.clientes],
+    ),
+    buzon_adjunto: await q(
+      "select to_jsonb(g) j from buzon_adjunto g where tenant_id = $1 and cliente_id = any($2::uuid[]) order by id",
+      [r.tenantId, r.clientes],
+    ),
+    buzon_estado_cliente: await q(
+      "select to_jsonb(g) j from buzon_estado_cliente g where tenant_id = $1 and cliente_id = any($2::uuid[]) order by cliente_id",
       [r.tenantId, r.clientes],
     ),
   };
@@ -939,6 +979,177 @@ function casosReglas(): Caso[] {
           expect(f).toEqual([{ aportar_catalogo: true }]); // el valor por defecto, en el estudio de la sesión
         }
         expect(await filasMotor(c.ajeno.tenantId)).toEqual(motorAntes!.ajeno);
+      },
+    },
+  ];
+}
+
+/* ---------------------------- 023 · buzón SOL del cliente ----------------------------
+ * `/clientes/:clienteId/buzon/*` (buzon.ver para leer y revisar, buzon.marcar_leido para abrir; el Dueño y la asistente tienen ambos).
+ * Un cliente, mensaje o adjunto de B desde A (solo, cruzado con ids propios, de otra cosa de B o inexistente): el mismo 404
+ * `no_encontrado`, nunca un dato ni un efecto en B: ni trabajo, ni estado, ni mensaje, ni auditoría del buzón. La asistente solo ve el
+ * cliente que tiene asignado: el otro cliente propio le da el mismo 404 que uno inexistente. */
+let auditoriaBuzonAntes: { mio: number; ajeno: number } | null = null;
+const auditoriaBuzon = async (tenantId: string): Promise<number> =>
+  (await h.sql("select count(*)::int n from auditoria where tenant_id = $1 and accion like 'buzon.%'", [tenantId]))[0].n;
+const registrarAuditoriaBuzonAntes = async (c: Contexto): Promise<void> => {
+  auditoriaBuzonAntes = { mio: await auditoriaBuzon(c.mio.tenantId), ajeno: await auditoriaBuzon(c.ajeno.tenantId) };
+};
+
+/** El mensaje y el adjunto sembrados de `r` siguen en su sitio, sin contenido ni marca de lectura. */
+async function buzonIntacto(r: Recursos): Promise<void> {
+  const m = await h.sql(
+    "select asunto, leido_sunat, contenido_ruta, contenido_obtenido_en from buzon_mensaje where id = $1",
+    [r.mensajeId],
+  );
+  expect(m).toEqual([{ asunto: r.asuntoBuzon, leido_sunat: false, contenido_ruta: null, contenido_obtenido_en: null }]);
+  const a = await h.sql("select nombre, omitido from buzon_adjunto where id = $1", [r.adjuntoId]);
+  expect(a).toEqual([{ nombre: r.nombreAdjunto, omitido: "mime" }]);
+}
+
+/** Pares (cliente, mensaje) con ids del otro estudio solos y mezclados con los propios; ninguno existe para quien llama. */
+const paresDeMensaje = (c: Contexto): [string, string][] => [
+  [c.ajeno.clientes[0], c.ajeno.mensajeId], // todo ajeno y real
+  [c.mio.clientes[0], c.ajeno.mensajeId], // cliente propio (visible para la asistente), mensaje de B
+  [c.mio.clientes[1], c.ajeno.mensajeId], // cliente propio, mensaje de B
+  [c.ajeno.clientes[1], c.ajeno.mensajeId], // otro cliente de B con el mensaje de B
+  [c.ajeno.clientes[0], randomUUID()], // cliente de B, mensaje inexistente
+  [c.ajeno.asignacionId, c.ajeno.mensajeId], // id de otra cosa de B como cliente
+  [c.mio.clientes[0], c.ajeno.asignacionId], // id de otra cosa de B como mensaje
+];
+
+/** Ternas (cliente, mensaje, adjunto): lo de B solo y mezclado con lo propio, incluido el adjunto de B bajo el mensaje propio. */
+const ternasDeAdjunto = (c: Contexto): [string, string, string][] => [
+  [c.ajeno.clientes[0], c.ajeno.mensajeId, c.ajeno.adjuntoId], // todo ajeno y real
+  [c.mio.clientes[0], c.ajeno.mensajeId, c.ajeno.adjuntoId], // cliente propio, mensaje y adjunto de B
+  [c.mio.clientes[0], c.mio.mensajeId, c.ajeno.adjuntoId], // cliente y mensaje propios, adjunto de B
+  [c.mio.clientes[1], c.mio.mensajeId, c.ajeno.adjuntoId], // cliente propio sin el mensaje, adjunto de B
+  [c.ajeno.clientes[1], c.ajeno.mensajeId, c.ajeno.adjuntoId], // otro cliente de B
+  [c.ajeno.clientes[0], c.ajeno.mensajeId, randomUUID()], // mensaje de B, adjunto inexistente
+  [c.ajeno.asignacionId, c.ajeno.mensajeId, c.ajeno.adjuntoId], // id de otra cosa de B como cliente
+  [c.mio.clientes[0], c.ajeno.asignacionId, c.ajeno.invitacionId], // ids de otras cosas de B como mensaje y adjunto
+];
+
+function casosBuzon(): Caso[] {
+  /** Todas las respuestas son el 404 de un cliente inexistente (mismo texto) y el buzón de B y el propio quedan como estaban. */
+  const verificar404 = async (c: Contexto, respuestas: Resp[], escribe: boolean): Promise<void> => {
+    const noExiste = await c.pedir({ ruta: `/clientes/${randomUUID()}/buzon/mensajes` });
+    expect(noExiste.status, noExiste.text).toBe(404);
+    expect(noExiste.body).toEqual(NO_ENCONTRADO);
+    mismoNoEncontrado(respuestas, noExiste);
+    await buzonIntacto(c.ajeno);
+    await buzonIntacto(c.mio);
+    if (escribe) {
+      const despues = { mio: await auditoriaBuzon(c.mio.tenantId), ajeno: await auditoriaBuzon(c.ajeno.tenantId) };
+      expect(despues).toEqual(auditoriaBuzonAntes); // ni auditoría de solicitud en B ni en el propio estudio
+    }
+  };
+
+  return [
+    {
+      ruta: "GET /clientes/:clienteId/buzon/mensajes",
+      esperado: todos(404),
+      construir: (c) => idsDeCliente(c.ajeno).map((id) => ({ ruta: `/clientes/${id}/buzon/mensajes` })),
+      extra: async (c, respuestas) => {
+        await verificar404(c, respuestas, false);
+        // Propio y visible: solo su mensaje, nunca el de B; propio y no visible (la asistente solo ve su cliente asignado).
+        const propio = await c.pedir({ ruta: `/clientes/${c.mio.clientes[0]}/buzon/mensajes` });
+        expect(propio.status, propio.text).toBe(200);
+        expect((propio.body.mensajes as any[]).map((x) => x.id)).toEqual([c.mio.mensajeId]);
+        expect(JSON.stringify(propio.body)).not.toContain(c.ajeno.mensajeId);
+        // Las claves que no son del contrato (clienteId, tenantId) no cambian el alcance.
+        const intruso = await c.pedir({
+          ruta: `/clientes/${c.mio.clientes[0]}/buzon/mensajes?clienteId=${c.ajeno.clientes[0]}&tenantId=${c.ajeno.tenantId}`,
+        });
+        if (intruso.status === 200) expect((intruso.body.mensajes as any[]).map((x) => x.id)).toEqual([c.mio.mensajeId]);
+        else expect(intruso.status, intruso.text).toBe(400);
+        const noVisible = await c.pedir({ ruta: `/clientes/${c.mio.clientes[1]}/buzon/mensajes` });
+        if (c.yo.rol === "asistente") {
+          expect(noVisible.status, noVisible.text).toBe(404);
+          expect(noVisible.body).toEqual(NO_ENCONTRADO);
+        } else {
+          expect(noVisible.status, noVisible.text).toBe(200);
+          expect(noVisible.body.mensajes).toEqual([]);
+        }
+      },
+    },
+    {
+      ruta: "GET /clientes/:clienteId/buzon/mensajes/:mensajeId",
+      esperado: todos(404),
+      construir: (c) =>
+        paresDeMensaje(c).map(([cl, m]) => ({ ruta: `/clientes/${cl}/buzon/mensajes/${m}` })),
+      antes: registrarAuditoriaBuzonAntes,
+      extra: async (c, respuestas) => {
+        await verificar404(c, respuestas, false);
+        // Propio y visible: el detalle de su mensaje (sin contenido: no se audita), con su adjunto omitido.
+        const propio = await c.pedir({ ruta: `/clientes/${c.mio.clientes[0]}/buzon/mensajes/${c.mio.mensajeId}` });
+        expect(propio.status, propio.text).toBe(200);
+        expect(propio.body.mensaje.id).toBe(c.mio.mensajeId);
+        expect(propio.body.contenido).toBeNull();
+        expect((propio.body.adjuntos as any[]).map((x) => x.id)).toEqual([c.mio.adjuntoId]);
+        // El mensaje propio bajo el otro cliente propio (o bajo uno de B) no se cruza.
+        const cruzado = await c.pedir({ ruta: `/clientes/${c.mio.clientes[1]}/buzon/mensajes/${c.mio.mensajeId}` });
+        expect(cruzado.status, cruzado.text).toBe(404);
+        expect(cruzado.body).toEqual(NO_ENCONTRADO);
+        expect(await auditoriaBuzon(c.ajeno.tenantId)).toBe(auditoriaBuzonAntes!.ajeno);
+      },
+    },
+    {
+      ruta: "GET /clientes/:clienteId/buzon/mensajes/:mensajeId/adjuntos/:adjuntoId",
+      esperado: todos(404),
+      construir: (c) =>
+        ternasDeAdjunto(c).map(([cl, m, a]) => ({ ruta: `/clientes/${cl}/buzon/mensajes/${m}/adjuntos/${a}` })),
+      antes: registrarAuditoriaBuzonAntes,
+      extra: async (c, respuestas) => {
+        await verificar404(c, respuestas, false);
+        // Un adjunto omitido propio tampoco se descarga (no tiene archivo): el mismo 404, nunca los bytes ni un error distinto.
+        const omitido = await c.pedir({
+          ruta: `/clientes/${c.mio.clientes[0]}/buzon/mensajes/${c.mio.mensajeId}/adjuntos/${c.mio.adjuntoId}`,
+        });
+        expect(omitido.status, omitido.text).toBe(404);
+        expect(omitido.body).toEqual(NO_ENCONTRADO);
+        expect(await auditoriaBuzon(c.ajeno.tenantId)).toBe(auditoriaBuzonAntes!.ajeno);
+        expect(await auditoriaBuzon(c.mio.tenantId)).toBe(auditoriaBuzonAntes!.mio); // no se descargó nada: nada que auditar
+      },
+    },
+    {
+      // Abrir exige buzon.marcar_leido (el Dueño y la asistente lo tienen; Lectura recibiría 403, ver abrir.int.spec). Con ids de B:
+      // el mismo 404, sin trabajo ni auditoría de solicitud en ningún estudio.
+      ruta: "POST /clientes/:clienteId/buzon/mensajes/:mensajeId/abrir",
+      esperado: todos(404),
+      construir: (c) =>
+        paresDeMensaje(c).map(([cl, m]) => ({
+          metodo: "POST" as const,
+          ruta: `/clientes/${cl}/buzon/mensajes/${m}/abrir`,
+          cuerpo: { mensajeId: c.ajeno.mensajeId, clienteId: c.ajeno.clientes[0], tenantId: c.ajeno.tenantId },
+        })),
+      antes: registrarAuditoriaBuzonAntes,
+      extra: async (c, respuestas) => {
+        await verificar404(c, respuestas, true);
+        const n = await h.sql(
+          "select count(*)::int n from job_registro where cliente_id = any($1::uuid[]) and tipo = 'sol.buzon.abrir'",
+          [[...c.mio.clientes, ...c.ajeno.clientes]],
+        );
+        expect(n[0].n).toBe(0); // ningún «abrir» encolado
+      },
+    },
+    {
+      ruta: "POST /clientes/:clienteId/buzon/revisar",
+      esperado: todos(404),
+      construir: (c) =>
+        idsDeCliente(c.ajeno).map((id) => ({
+          metodo: "POST" as const,
+          ruta: `/clientes/${id}/buzon/revisar`,
+          cuerpo: { tenantId: c.ajeno.tenantId, clienteId: c.ajeno.clientes[0] },
+        })),
+      antes: registrarAuditoriaBuzonAntes,
+      extra: async (c, respuestas) => {
+        await verificar404(c, respuestas, true);
+        const n = await h.sql(
+          "select count(*)::int n from job_registro where cliente_id = any($1::uuid[]) and tipo = 'sol.buzon.revisar'",
+          [[...c.mio.clientes, ...c.ajeno.clientes]],
+        );
+        expect(n[0].n).toBe(0); // ningún «revisar» encolado
       },
     },
   ];
@@ -1941,6 +2152,9 @@ const CASOS: Caso[] = [
 
   /* ---------- 021: reglas aprendidas y reglas del motor ---------- */
   ...casosReglas(),
+
+  /* ---------- 023: buzón SOL del cliente ---------- */
+  ...casosBuzon(),
 ];
 
 const POR_RUTA = new Map(CASOS.map((c) => [c.ruta, c]));
@@ -1974,6 +2188,9 @@ async function limpiar(): Promise<void> {
   await borrarPorId("auditoria", todos.flatMap((x) => x.auditoria));
   await borrarPorId("auditoria_descifrado", todos.flatMap((x) => x.descifrado));
   await h.sql("delete from regla_aprendida where id = any($1::uuid[])", [reglasSembradas]).catch(() => undefined);
+  // 023: el adjunto referencia al mensaje y este al cliente: van antes que los clientes.
+  await h.sql("delete from buzon_adjunto where mensaje_id = any($1::uuid[])", [mensajesBuzonSembrados]).catch(() => undefined);
+  await h.sql("delete from buzon_mensaje where id = any($1::uuid[])", [mensajesBuzonSembrados]).catch(() => undefined);
   const filas = await h
     .sql("select id from usuario where nombre like $1", [`HU40 _ % ${sufijo}`])
     .catch(() => [] as { id: string }[]);
