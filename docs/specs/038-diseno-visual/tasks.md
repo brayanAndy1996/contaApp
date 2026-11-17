@@ -22,7 +22,7 @@ Leyenda: rol `arquitecto` · `backend` · `frontend` · `tester` · `adversario`
 | T16 | ∥ Auditoría, equipo y planes/admin | frontend | sonnet | T7 | — | — | [x] |
 | T17 | ∥ Reglas del motor | frontend | sonnet | T7 | — | — | [x] |
 | T18 | Ajustes de integración de la fase 2 (velos, barra inferior, campana, ventas) | frontend | sonnet | T8–T17 | — | — | [x] |
-| T-final | Verificar CA-5 a CA-8: prueba estática de colores, revisión manual 1440/390 px, accesibilidad, E2E y CI; cierre | tester (sonnet) + devops (haiku) | sonnet | T7–T17, P-7 | — | — | [~] |
+| T-final | Verificar CA-5 a CA-8: prueba estática de colores, revisión manual 1440/390 px, accesibilidad, E2E y CI; cierre | tester (sonnet) + devops (haiku) | sonnet | T7–T17, P-7 | — | — | [x] |
 
 ## T2 · Dependencias, fuentes y tokens
 - **Contexto**: `apps/frontend/package.json`, `apps/frontend/app/globals.css`, `apps/frontend/app/layout.tsx`, `plan.md#tokens-del-estilo-a`.
@@ -140,6 +140,29 @@ Rutas relativas a `apps/frontend/`. Cada tarea toca **solo sus archivos** (y arc
 - **Corrección de T-final-c a g (2026-11-17).** c: el historial usa `max-w-[100vw]` (el `max-w-full` no resolvía contra un contenedor `fixed` sin ancho). d: con `destino` y bajo 1400 px, al abrir «Generar archivo» el panel se desplaza a la vista y el foco pasa a su título (`panel-generar.tsx`); desde 1400 px sigue en su columna fija. e: columna Comprobante 156→216 px y Destino 96→116 px, chip con texto truncable y `title` completo, encabezado de la lupa «Lupa» (nombre accesible «Ver comprobante»); `ALTO_FILA` intacto. f: casillas de compras, clientes e interruptores de reglas dentro de una `label` de 44 px bajo 1024 px; «Cerrar» del informe, «Descargar plantilla», «Plan» y «RUCs adicionales» a 44 px. g: «Quitar» con `before:min-h-11` (44 px). Pruebas nuevas: `grilla-compras.tactil.spec.tsx`, `reglas-motor.tactil.spec.tsx`, casos en `panel-generar.spec.tsx` y `grilla-ventas.tactil.spec.tsx`. Sin verificar en navegador real (la revisión a 390 px queda para la repetición de T-final).
 - **T-final-h · BAJA · la campana no se ve como los demás ítems del menú.** Ruta: cualquiera de `(app)`; 1440 px: botón con borde y solo ícono y contador, desalineado respecto de los enlaces con texto; 390 px: ícono sin la etiqueta «Notificaciones» que sí tienen «Clientes», «Trabajos» y «Más». Archivos probables: `components/notificaciones/campana.tsx`, `components/marco/menu-principal.tsx`. Es solo estética (el nombre accesible es correcto).
 - **Observación (sin tarea):** en 390 px la barra masiva aparece al final de la grilla (`top ≈ 2407 px`), no a la vista tras seleccionar filas. No cambió con 038 (no era fija antes); se deja a criterio de P-3.
+
+### Resultado T-final · segunda pasada (2026-11-17)
+Sobre el build de producción (`next build` + `next start`, backend y worker en mock, BD propia `contapp_038s` migrada y sembrada). Guion `revision2.mjs` y capturas nuevas en `capturas2/` del scratchpad `.../scratchpad/t-final-038/` (fuera del repo, P-7a). 70 vistas (35 a 1440 px y 35 a 390 px, incl. paneles, menús y diálogos).
+- **CA-5 · cumplido.** `diseno.estatico.spec.ts` sigue en verde dentro de la suite completa del frontend (999 pruebas, 112 archivos).
+- **CA-6 · cumplido.** Desborde horizontal de la página: 0 en las 70 vistas (`scrollWidth <= clientWidth`). Cada defecto corregido, comprobado a ojo en captura y con medición:
+  - (b) campana a 1440 px: panel `left 272, right 656, bottom 884` dentro de 1440×900, con «Marcar todas como leídas» y «Ver todas» visibles (`capturas2/1440-notificaciones-campana-vp.png`);
+  - (c) Historial a 390 px: panel `0..390` (antes `-58..389`); la tabla de versiones desplaza dentro del panel (394 > 357 px, ver observaciones);
+  - (d) «Generar archivo» de compras a 390 px: botón fijo a 727..775 px sobre la barra (791 px); al abrirlo el panel queda en vista (`top 557`, `scrollY 2560`) y el foco pasa al `h3` «Generar archivo» (`capturas2/390-generar-abierto-vp.png`);
+  - (e) columna Comprobante 216 px, Destino 116 px: «Con alerta: R-MIX, R-NEW» y «Por clasificar» completos (0 hijos fuera de la celda), encabezados «Lupa» y «Por clasificar» sin recorte (`capturas2/1440-grilla-detalle-vp.png`);
+  - (f, g) a 390 px: 0 objetivos bajo 44 px en las 35 vistas (casillas con `label`, interruptores, «Cerrar» del informe, «Descargar plantilla», «Plan», «RUCs adicionales»); botones de la barra masiva 44 px de alto; «Quitar» de ventas sin hallazgo;
+  - (h) la campana es un ítem más del menú: en 1440 «Notificaciones 2» con ícono, etiqueta y contador alineados con «Clientes» y «Trabajos»; en 390 la barra inferior muestra «Notificaciones» con su etiqueta (`capturas2/390-notificaciones-campana-vp.png`).
+  - Panel de la campana a 390 px: `left 16, right 374, bottom 783 < barra 791` (dentro del viewport, abre hacia arriba).
+- **CA-7 · cumplido.** Rutas de ventas, cambio de contraseña y notificaciones alcanzables con el ratón a 1440 y 390 px; «Ver todas» ya se ve en escritorio (T-final-b).
+- **CA-8 · cumplido.** 70 vistas: 0 pares de texto bajo AA (mismo cálculo y umbrales de la primera pasada), 0 elementos enfocables sin anillo al recorrer con Tab (hasta 30 Tab por vista), 0 textos sueltos en inglés, 0 errores de consola o de red salvo el `403 /api/plataforma/yo` esperado de `/estudios`.
+- **E2E · en verde sin cambiar selectores.** `pnpm e2e --trace off`: 88 pasaron (1,1 min). `pnpm e2e:volumen --trace off`: 2 pasaron.
+- **Frontend.** `pnpm test` con `TZ=America/Lima` y con `TZ=UTC`: 999/999 en ambas (112 archivos); `typecheck`, `lint --max-warnings=0` y `build` sin errores (27 páginas).
+- **Observaciones (sin defecto, sin tarea):**
+  1. `next build` devuelve código 1 en la primera ejecución de cada ventana de 5 minutos: Next 16.4.3 avisa de una vulnerabilidad conocida (`SecurityFatalError`, referencia `registry.npmjs.org/-/npm/v1/security/advisories/bulk`), se detiene tras generar las páginas y el reintento inmediato continúa con código 0. Afecta también a `pnpm e2e` (`e2e:build`). No es de 038; queda para el usuario decidir la actualización de Next (el mensaje propone `next upgrade --agent=security`; no se ejecutó).
+  2. Historial a 390 px: la tabla «Valor original / Valor vigente» desborda 37 px y desplaza dentro del panel; la columna «Valor vigente» se ve cortada sin pista de desplazamiento. Baja; no es desborde de página.
+  3. Nombres largos de proveedor en la grilla de compras se truncan con puntos suspensivos (hasta 25 px de más sobre 234 px); es el comportamiento de `truncate`.
+  4. El informe de la acción masiva declara `aria-modal="true"` pero Tab sale del diálogo (igual que en la primera pasada, no cambió con 038); el historial y «Generar archivo» son paneles no modales.
+  5. A 390 px, «Recordar» tras clasificar no se pudo repetir (la compra ya estaba clasificada por la corrida de 1440 px); lo cubre la E2E `reglas.e2e.ts`. La barra masiva sigue al final de la grilla a 390 px (decisión de P-3).
+  6. Insignia de desarrollo de Next: ya no aparece, el modo producción quedó revisado.
 
 ## Preguntas abiertas de la fase 2 (decide el usuario)
 - **P-1 · Modo oscuro (D4).** (a) **(Recom.)** Fuera de 038: spec propia con su paleta y su revisión de contraste. (b) Fase 3 de 038, después de T-final. (c) Descartarlo: tema claro fijo.
