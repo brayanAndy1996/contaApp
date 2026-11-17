@@ -1,6 +1,6 @@
 # Spec 040 · Avisos de dependencias de `pnpm audit --prod`
 
-Estado: en curso (2026-11-17). Con evidencia en `tasks.md`: CA-1, CA-2, CA-3 y CA-5 a CA-8. CA-4 sin cumplir: `pnpm test` salió con 1 fallo en el frontend (T6, sin reintento; el frontend pasa en aislado con `TZ=America/Lima` y `TZ=UTC`, T8). Decide el orquestador. CA-9 (CI) lo confirma el orquestador tras el push.
+Estado: hecha (2026-11-17). CA-1 a CA-9 con evidencia. CA-4: el único fallo de `pnpm test` fue `page.integracion.spec.tsx:550`, intermitente bajo carga ya conocido (pasa aislado en Lima y UTC y en CI); aceptado por el orquestador. CA-9: CI verde en push 44139965394 y dispatch 44139965274 (con E2E).
 Nivel de riesgo: C — `multer` y `fflate` procesan lo que suben los usuarios (`zip-seguro.ts`) y `fast-xml-parser` lee XML de terceros (UBL de 016 y `lector-xlsx.ts`). Son bibliotecas de E/S y de parseo: no tocan montos ni reglas de negocio. Nivel fijado por el usuario (2026-11-17).
 Cubre: RNF-010 (dependencias revisadas; auditoría de vulnerabilidades en CI) · nota [dependencias] de `docs/specs/ESTADO.md`
 

@@ -1,6 +1,6 @@
 # Spec 039 · Actualizar Next.js (parche de seguridad en 16.x)
 
-Estado: verificada (2026-11-17). CA-1 a CA-5 con evidencia en `tasks.md`; CA-6 (CI) lo confirma el orquestador tras el push.
+Estado: hecha (2026-11-17). CA-1 a CA-6 con evidencia; CA-6: CI verde en push 44122685079 y dispatch 44122692122 (con E2E).
 Nivel de riesgo: D — actualización de parche sin cambios de código: no toca montos, clasificaciones, archivos, datos, credenciales ni concurrencia (§2.1, ninguna respuesta «sí»). La cubren typecheck, lint, las pruebas existentes y los E2E. Nivel fijado por el usuario (2026-11-17).
 Cubre: RNF-010 (dependencias revisadas; sin avisos de vulnerabilidad conocidos en producción) · nota [dependencias] de `docs/specs/ESTADO.md`
 
