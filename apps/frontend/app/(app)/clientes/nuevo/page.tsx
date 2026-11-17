@@ -13,6 +13,15 @@ import {
   PERFIL_INICIAL,
 } from "../../../../components/datos-fiscales";
 import { UsoPlan } from "../../../../components/uso-plan";
+import {
+  Alert,
+  Button,
+  Card,
+  EncabezadoPagina,
+  Input,
+  Label,
+  Select,
+} from "../../../../components/ui";
 import { api } from "../../../../lib/api";
 import {
   MENSAJES,
@@ -67,14 +76,14 @@ export default function NuevoCliente() {
     };
   }, [puedeAsignar]);
 
-  if (puedeCrear === undefined) return <main className="p-6">Cargando…</main>;
+  if (puedeCrear === undefined) return <main className="p-6 text-tinta-suave">Cargando…</main>;
 
   if (puedeCrear === false) {
     return (
       <main className="p-6">
-        <p role="alert" className="text-sm text-red-600">
+        <Alert tono="error" role="alert">
           {MENSAJES.sinPermiso}
-        </p>
+        </Alert>
       </main>
     );
   }
@@ -143,107 +152,101 @@ export default function NuevoCliente() {
 
   return (
     <main className="flex flex-col gap-6 p-6">
-      <h1 className="text-2xl font-semibold">Nuevo cliente</h1>
+      <EncabezadoPagina titulo="Nuevo cliente" />
 
-      <form
-        onSubmit={crear}
-        noValidate
-        className="flex w-full max-w-xl flex-col gap-5"
-      >
-        <div className="flex flex-col gap-1">
-          <label className="flex flex-col gap-1 text-sm">
-            RUC
-            <input
-              type="text"
-              inputMode="numeric"
-              autoComplete="off"
-              value={ruc}
-              disabled={ocupado}
-              aria-invalid={errorRuc ? true : undefined}
-              aria-describedby={errorRuc ? "ayuda-ruc error-ruc" : "ayuda-ruc"}
-              onChange={(e) => alCambiarRuc(e.target.value)}
-              onBlur={alSalirRuc}
-              className="rounded border px-3 py-2"
-            />
-          </label>
-          <p id="ayuda-ruc" className="text-xs text-neutral-600">
-            11 dígitos. Empieza con 10, 15, 16, 17 o 20.
-          </p>
-          {errorRuc && (
-            <p id="error-ruc" role="alert" className="text-sm text-red-600">
-              {errorRuc}
+      <Card className="w-full max-w-xl">
+        <form onSubmit={crear} noValidate className="flex flex-col gap-5">
+          <div className="flex flex-col gap-1">
+            <Label>
+              RUC
+              <Input
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                value={ruc}
+                disabled={ocupado}
+                aria-invalid={errorRuc ? true : undefined}
+                aria-describedby={errorRuc ? "ayuda-ruc error-ruc" : "ayuda-ruc"}
+                onChange={(e) => alCambiarRuc(e.target.value)}
+                onBlur={alSalirRuc}
+                className="font-mono max-lg:h-11"
+              />
+            </Label>
+            <p id="ayuda-ruc" className="m-0 text-xs text-tinta-suave">
+              11 dígitos. Empieza con 10, 15, 16, 17 o 20.
             </p>
+            {errorRuc && (
+              <p id="error-ruc" role="alert" className="m-0 text-sm font-semibold text-error">
+                {errorRuc}
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <Label>
+              Razón social
+              <Input
+                type="text"
+                value={razonSocial}
+                disabled={ocupado}
+                aria-describedby="ayuda-razon"
+                onChange={(e) => setRazonSocial(e.target.value)}
+                className="max-lg:h-11"
+              />
+            </Label>
+            <p id="ayuda-razon" className="m-0 text-xs text-tinta-suave">
+              {
+                "Opcional. Si la dejas vacía, se guarda «RUC <número>» hasta completarla."
+              }
+            </p>
+          </div>
+
+          {puedeAsignar === true && (
+            <Label>
+              Responsable
+              <Select
+                value={responsableId}
+                disabled={ocupado}
+                onChange={(e) => setResponsableId(e.target.value)}
+                className="max-lg:h-11"
+              >
+                <option value="">{MENSAJES.sinResponsable}</option>
+                {miembros
+                  .filter((m) => m.activo && puedeSerResponsable(m.rol))
+                  .map((m) => (
+                    <option key={m.usuarioId} value={m.usuarioId}>
+                      {m.nombre}
+                    </option>
+                  ))}
+              </Select>
+            </Label>
           )}
-        </div>
 
-        <div className="flex flex-col gap-1">
-          <label className="flex flex-col gap-1 text-sm">
-            Razón social
-            <input
-              type="text"
-              value={razonSocial}
-              disabled={ocupado}
-              aria-describedby="ayuda-razon"
-              onChange={(e) => setRazonSocial(e.target.value)}
-              className="rounded border px-3 py-2"
+          <fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-control border border-linea-control p-4">
+            <legend className="px-1 text-sm font-semibold text-tinta-media">
+              Datos fiscales (opcional)
+            </legend>
+            <DatosFiscales
+              perfil={perfil ?? PERFIL_INICIAL}
+              onChange={setPerfil}
+              deshabilitado={ocupado}
             />
-          </label>
-          <p id="ayuda-razon" className="text-xs text-neutral-600">
-            {
-              "Opcional. Si la dejas vacía, se guarda «RUC <número>» hasta completarla."
-            }
-          </p>
-        </div>
+          </fieldset>
 
-        {puedeAsignar === true && (
-          <label className="flex flex-col gap-1 text-sm">
-            Responsable
-            <select
-              value={responsableId}
-              disabled={ocupado}
-              onChange={(e) => setResponsableId(e.target.value)}
-              className="rounded border px-3 py-2"
-            >
-              <option value="">{MENSAJES.sinResponsable}</option>
-              {miembros
-                .filter((m) => m.activo && puedeSerResponsable(m.rol))
-                .map((m) => (
-                  <option key={m.usuarioId} value={m.usuarioId}>
-                    {m.nombre}
-                  </option>
-                ))}
-            </select>
-          </label>
-        )}
+          {error && (
+            <Alert tono="error" role="alert">
+              {error}
+            </Alert>
+          )}
+          {cupoLleno && (
+            <UsoPlan avisoRucsAnunciado={error === MENSAJES_PLAN.limiteRucs} />
+          )}
 
-        <fieldset className="flex flex-col gap-4 rounded border p-4">
-          <legend className="px-1 text-sm font-medium">
-            Datos fiscales (opcional)
-          </legend>
-          <DatosFiscales
-            perfil={perfil ?? PERFIL_INICIAL}
-            onChange={setPerfil}
-            deshabilitado={ocupado}
-          />
-        </fieldset>
-
-        {error && (
-          <p role="alert" className="text-sm text-red-600">
-            {error}
-          </p>
-        )}
-        {cupoLleno && (
-          <UsoPlan avisoRucsAnunciado={error === MENSAJES_PLAN.limiteRucs} />
-        )}
-
-        <button
-          type="submit"
-          disabled={ocupado}
-          className="self-start rounded bg-black px-4 py-2 text-white disabled:opacity-50"
-        >
-          Crear cliente
-        </button>
-      </form>
+          <Button type="submit" disabled={ocupado} className="self-start max-lg:h-11">
+            Crear cliente
+          </Button>
+        </form>
+      </Card>
     </main>
   );
 }

@@ -140,6 +140,22 @@ describe("/clientes/[clienteId]", () => {
     expect(within(asia).getByRole("button", { name: "Quitar" })).toBeTruthy();
   });
 
+  it("«Registros del cliente» lleva a Compras, Ventas y Reglas aprendidas del cliente (spec 038, P-4)", async () => {
+    instalarFetchFalso(
+      rutas("dueno", CON_RESPONSABLE, {
+        "GET /api/acceso/yo": { status: 200, cuerpo: yoDe("dueno", ["clientes.ver", "reglas.ver"]) },
+      }),
+    );
+    render(<Cliente />);
+    await screen.findByText("Alfa SAC");
+    const nav = await screen.findByRole("navigation", { name: "Registros del cliente" });
+    const href = async (nombre: string) =>
+      (await within(nav).findByRole("link", { name: nombre })).getAttribute("href");
+    expect(await href("Compras")).toBe("/clientes/c-1/compras");
+    expect(await href("Ventas")).toBe("/clientes/c-1/ventas");
+    expect(await href("Reglas aprendidas")).toBe("/clientes/c-1/reglas");
+  });
+
   it("Asistente (sin clientes.asignar): solo el detalle; no pide asignaciones ni usuarios", async () => {
     const f = instalarFetchFalso(rutas("asistente"));
     render(<Cliente />);

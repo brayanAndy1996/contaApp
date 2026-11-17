@@ -20,6 +20,8 @@ import {
   type TipoCredencial,
 } from "../lib/credenciales";
 import { ESPERA_INICIAL_MS, ESPERA_MAXIMA_MS } from "../lib/trabajos";
+import { Alert, Badge, Button, Card, CardTitle, Input, Label, enlace } from "./ui";
+import { cn } from "../lib/utils";
 
 // Sección «Credenciales» del detalle del cliente (spec 007b, D4–D6; CA-4 a CA-6, CA-10).
 // Formulario de solo escritura: los campos no son controlados, así el secreto vive en el DOM solo
@@ -67,6 +69,14 @@ type Verificando = Partial<
   Record<TipoCredencial, { estado: string; fecha: string | null }>
 >;
 
+// El estado se distingue por texto y por tono (el color nunca es la única señal).
+const TONO_ESTADO: Record<EstadoCredencial, "neutro" | "info" | "ok" | "error"> = {
+  no_configurada: "neutro",
+  configurada: "info",
+  verificada: "ok",
+  invalida: "error",
+};
+
 const ESTADOS_FINALES: ReadonlySet<string> = new Set([
   "verificada",
   "invalida",
@@ -83,24 +93,24 @@ function TextoEstado({
 }) {
   if (verificando) {
     return (
-      <p className="text-sm">
-        Estado: <span className="font-medium">Verificando…</span>
+      <p className="m-0 text-sm text-tinta-media">
+        Estado: <Badge tono="aviso">Verificando…</Badge>
       </p>
     );
   }
   if (!estado) {
     return (
-      <p className="text-sm">
+      <p className="m-0 text-sm text-tinta-media">
         {cargado ? "Estado no disponible." : "Cargando…"}
       </p>
     );
   }
   return (
-    <p className="text-sm">
+    <p className="m-0 text-sm text-tinta-media">
       Estado:{" "}
-      <span className="font-medium">
+      <Badge tono={TONO_ESTADO[estado.estado as EstadoCredencial] ?? "neutro"}>
         {ETIQUETA_ESTADO[estado.estado as EstadoCredencial]}
-      </span>
+      </Badge>
       {estado.estado === "verificada" && estado.fecha
         ? ` el ${fechaCorta(estado.fecha)}`
         : ""}
@@ -302,25 +312,22 @@ export function CredencialesCliente({
   }
 
   return (
-    <section
-      aria-label="Credenciales"
-      className="flex w-full max-w-xl flex-col gap-4"
-    >
-      <h2 className="text-lg font-medium">Credenciales</h2>
+    <Card aria-label="Credenciales" className="w-full max-w-xl">
+      <CardTitle>Credenciales</CardTitle>
 
       {GRUPOS.map((g) => (
         <fieldset
           key={g.tipo}
-          className="flex flex-col gap-3 rounded border p-4"
+          className="m-0 flex min-w-0 flex-col gap-3 rounded-control border border-linea-control p-4"
         >
-          <legend className="px-1 text-sm font-medium">{g.titulo}</legend>
+          <legend className="px-1 text-sm font-semibold text-tinta-media">{g.titulo}</legend>
           <TextoEstado
             estado={estados[g.tipo]}
             cargado={cargado}
             verificando={verificando[g.tipo] !== undefined}
           />
           {g.tipo === "sire_api" && (
-            <p className="text-sm text-amber-900">
+            <p className="m-0 text-sm text-aviso">
               {MENSAJES_CREDENCIALES.avisoClaveSol}
             </p>
           )}
@@ -332,34 +339,31 @@ export function CredencialesCliente({
               className="flex flex-col gap-3"
             >
               {g.campos.map((c) => (
-                <label key={c.nombre} className="flex flex-col gap-1 text-sm">
+                <Label key={c.nombre}>
                   {c.etiqueta}
-                  <input
+                  <Input
                     name={c.nombre}
                     type={c.secreto ? "password" : "text"}
                     autoComplete={c.secreto ? "new-password" : "off"}
                     spellCheck={false}
                     disabled={ocupado}
-                    className="rounded border px-3 py-2"
+                    className="max-lg:h-11"
                   />
-                </label>
+                </Label>
               ))}
-              <div className="flex gap-3">
-                <button
-                  type="submit"
-                  disabled={ocupado}
-                  className="rounded bg-black px-4 py-2 text-white disabled:opacity-50"
-                >
+              <div className="flex flex-wrap gap-3">
+                <Button type="submit" disabled={ocupado} className="max-lg:h-11">
                   Guardar
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="secundario"
                   disabled={ocupado}
                   onClick={() => void verificar(g.tipo)}
-                  className="rounded border px-4 py-2 disabled:opacity-50"
+                  className="max-lg:h-11"
                 >
                   Verificar
-                </button>
+                </Button>
               </div>
             </form>
           )}
@@ -367,20 +371,22 @@ export function CredencialesCliente({
       ))}
 
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <Alert tono="error" role="alert">
           {error}
-        </p>
+        </Alert>
       )}
       {aviso && (
-        <p role="status" className="text-sm">
-          {aviso}{" "}
-          {encolada && (
-            <Link href="/trabajos" className="underline">
-              {MENSAJES_CREDENCIALES.enlacePanel}
-            </Link>
-          )}
-        </p>
+        <Alert tono="ok" role="status">
+          <p className="m-0">
+            {aviso}{" "}
+            {encolada && (
+              <Link href="/trabajos" className={cn(enlace, "text-ok hover:text-ok")}>
+                {MENSAJES_CREDENCIALES.enlacePanel}
+              </Link>
+            )}
+          </p>
+        </Alert>
       )}
-    </section>
+    </Card>
   );
 }
