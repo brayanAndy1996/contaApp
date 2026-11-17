@@ -4,6 +4,7 @@ import { Info, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   Fragment,
+  Suspense,
   useCallback,
   useEffect,
   useState,
@@ -27,6 +28,10 @@ const ERROR_CARGA = "No se pudo cargar la sesión. Recarga la página.";
 const ERROR_CERRAR = "No se pudo cerrar la sesión. Inténtalo de nuevo.";
 const AVISO_DESFASADO =
   "El estudio activo cambió en otra pestaña. Se actualizaron los datos.";
+
+// Misma caja que el `<nav>` del menú (barra inferior en celular; lateral desde 1024 px), sin contenido.
+const CAJA_MENU =
+  "fixed inset-x-0 bottom-0 z-40 h-[var(--alto-barra-inferior,calc(4.5rem+env(safe-area-inset-bottom)))] border-t border-linea bg-hoja-alterna lg:inset-x-auto lg:inset-y-0 lg:left-0 lg:h-auto lg:w-64 lg:border-r lg:border-t-0";
 
 export default function LayoutApp({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -127,18 +132,22 @@ export default function LayoutApp({ children }: { children: ReactNode }) {
 
   return (
     <>
-      <MenuPrincipal
-        estudioActivoId={sesion?.estudioActivo?.id ?? ""}
-        estudios={estudios}
-        yo={yo}
-        campana={
-          sesion ? (
-            <Campana key={sesion.estudioActivo?.id ?? "sin-estudio"} />
-          ) : null
-        }
-        alCambiarEstudio={(id) => void cambiarEstudio(id)}
-        alCerrarSesion={() => void cerrarSesion()}
-      />
+      {/* `usePathname()` del menú es dato de la URL en tiempo de petición: Next exige un límite de Suspense. El
+          fallback es una barra fija vacía con la misma caja, así que el contenido no se mueve. */}
+      <Suspense fallback={<div aria-hidden="true" className={CAJA_MENU} />}>
+        <MenuPrincipal
+          estudioActivoId={sesion?.estudioActivo?.id ?? ""}
+          estudios={estudios}
+          yo={yo}
+          campana={
+            sesion ? (
+              <Campana key={sesion.estudioActivo?.id ?? "sin-estudio"} />
+            ) : null
+          }
+          alCambiarEstudio={(id) => void cambiarEstudio(id)}
+          alCerrarSesion={() => void cerrarSesion()}
+        />
+      </Suspense>
       {/* Deja espacio al menú lateral (desde 1024 px) y a la barra inferior de celular (su alto real lo publica el menú en `--alto-barra-inferior`). */}
       <div className="min-h-dvh pb-[var(--alto-barra-inferior,calc(4.5rem+env(safe-area-inset-bottom)))] lg:pb-0 lg:pl-64">
         {(aviso || error) && (

@@ -15,7 +15,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { tiene, type Yo } from "../../lib/acceso";
 import { cn } from "../../lib/utils";
-import { anilloFoco, Label, Select } from "../ui";
+import { Label, Select } from "../ui";
+import { entradaBarra, entradaGrupo } from "./entrada-menu";
 
 // Marco de navegación (spec 038, T8; P-5). Un solo `<nav>` con cada entrada una vez en el DOM: el CSS cambia
 // de disposición (menú lateral desde 1024 px; barra inferior con Clientes, Trabajos, Notificaciones y «Más» en
@@ -36,19 +37,6 @@ interface Props {
   alCambiarEstudio: (tenantId: string) => void;
   alCerrarSesion: () => void;
 }
-
-// Entrada de la barra inferior: ícono sobre texto en celular; fila en el menú lateral.
-const entradaBarra = cn(
-  "flex min-h-11 items-center gap-3 rounded-control px-3 text-sm font-semibold text-tinta-media hover:bg-neutro-fondo",
-  "max-lg:min-w-11 max-lg:flex-1 max-lg:flex-col max-lg:justify-center max-lg:gap-0.5 max-lg:px-1 max-lg:text-xs",
-  anilloFoco,
-);
-
-// Entrada del grupo secundario («Más» en celular): siempre en fila.
-const entradaGrupo = cn(
-  "flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-sm font-semibold text-tinta-media hover:bg-neutro-fondo",
-  anilloFoco,
-);
 
 /** Variable CSS con el alto real de la barra inferior (solo bajo 1024 px; desde ahí el menú es lateral y vale 0). */
 export const VARIABLE_ALTO_BARRA = "--alto-barra-inferior";
@@ -141,7 +129,7 @@ export function MenuPrincipal({
         </Link>
       )}
       {campana && (
-        <div className="flex min-h-11 items-center max-lg:min-w-11 max-lg:flex-1 max-lg:justify-center lg:order-4 lg:px-3">
+        <div className="flex items-stretch max-lg:min-w-11 max-lg:flex-1 lg:order-4">
           {campana}
         </div>
       )}

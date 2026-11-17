@@ -10,7 +10,9 @@ import {
   suscribirAvisos,
 } from "../../lib/notificaciones";
 import { Bell } from "lucide-react";
-import { Badge, Button } from "../ui";
+import { cn } from "../../lib/utils";
+import { Badge } from "../ui";
+import { entradaBarra } from "../marco/entrada-menu";
 import { PanelNotificaciones } from "./panel-notificaciones";
 
 // Campana de la barra superior (spec 017, D-11; CA-16). Muestra el conteo de no leídas («99+» desde 100), que se
@@ -42,7 +44,8 @@ export function Campana() {
       // Un clic en otro control (enlace, botón, campo) se queda con el foco; en un espacio vacío vuelve a la campana.
       const enControl =
         destino instanceof Element &&
-        destino.closest("a, button, input, select, textarea, [tabindex]") !== null;
+        destino.closest("a, button, input, select, textarea, [tabindex]") !==
+          null;
       cerrar(!enControl);
     };
     document.addEventListener("keydown", alTeclear);
@@ -74,25 +77,31 @@ export function Campana() {
 
   const conConteo = noLeidas !== null && noLeidas > 0;
   return (
-    <div ref={contenedor} className="relative lg:ml-auto">
-      <Button
+    <div ref={contenedor} className="relative flex-1 lg:ml-auto">
+      <button
         ref={boton}
-        variant="secundario"
+        type="button"
         aria-label={
           conConteo ? M.campanaConConteo(formatoConteo(noLeidas)) : M.campana
         }
         aria-expanded={abierta}
         aria-haspopup="dialog"
         onClick={() => (abierta ? cerrar() : setAbierta(true))}
-        className="relative px-3 max-lg:min-h-11 max-lg:min-w-11"
+        className={cn(entradaBarra, "relative w-full")}
       >
-        <Bell aria-hidden="true" />
+        <Bell aria-hidden="true" className="size-5 shrink-0" />
+        {/* Etiqueta visible como la de «Clientes» y «Trabajos»; el nombre accesible lo da `aria-label` (con el conteo). */}
+        <span aria-hidden="true">{M.campana}</span>
         {conConteo && (
-          <Badge tono="error" data-testid="conteo-notificaciones">
+          <Badge
+            tono="error"
+            data-testid="conteo-notificaciones"
+            className="max-lg:absolute max-lg:right-1 max-lg:top-0 lg:ml-auto"
+          >
             {formatoConteo(noLeidas)}
           </Badge>
         )}
-      </Button>
+      </button>
       {abierta && <PanelNotificaciones alCerrar={() => cerrar()} />}
     </div>
   );
