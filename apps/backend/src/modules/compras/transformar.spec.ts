@@ -2,6 +2,8 @@
 // `*.int.spec.ts` de este módulo; aquí los rechazos y las ramas que solo se alcanzan con una fila armada a mano.
 import { describe, expect, it, vi } from "vitest";
 import type { CompraConXml, HallazgoGuardadoCompra } from "@contapp/db";
+import { crearEvaluarCompras } from "@contapp/domain";
+import { aEvaluable } from "./evaluable.js";
 import {
   montosACadenas,
   montosDeDominio,
@@ -125,5 +127,62 @@ describe("transformarSugerencia", () => {
     expect(alPedirDato).toHaveBeenCalledWith("gravado");
     const sinOyente = transformarSugerencia({ ...base, regla: "R-MIX", confirmar: true, cargarHallazgos: async () => new Map([[ID, [mix]]]) });
     expect(await sinOyente(fila, {})).toEqual({ rechazo: "requiere_dato" });
+  });
+});
+
+describe("transformarSugerencia · R-GP con confirmación usa el XML vigente de la fila (021)", () => {
+  const detalle = (descripcion: string) => ({
+    raiz: "Invoice",
+    identidad: { tipo: "01", serie: "F001", numero: "1", emisor: { ruc: "20100070970", razonSocial: "PRUEBA" }, receptor: { tipoDoc: "6", numero: "20700000002" } },
+    fecha: "2026-10-01",
+    moneda: "PEN",
+    monedaUnica: true,
+    totales: { gravado: "100.00", igv: "18.00", noGravado: "0.00", isc: "0.00", icbper: "0.00", otros: "0.00", total: "118.00" },
+    items: [{ descripcion, cantidad: "1", unidad: "NIU", precioUnitario: "100.00", valor: "100.00", afectacion: "gravado", igv: "18.00", isc: "0.00", icbper: "0.00" }],
+  });
+  const conXml = (descripcion: string, origen: "subido" | "simulado" = "subido"): CompraConXml =>
+    compra({ xml: { origen, detalle: detalle(descripcion) } as CompraConXml["xml"] });
+  const CONOCIDOS = [{ tipo: "6", numero: "20100070970" }];
+  const evaluar = (xmlSimuladoEnReglas = false) => {
+    const f = crearEvaluarCompras(CONOCIDOS, { xmlSimuladoEnReglas });
+    return async (fila: CompraConXml) => f(aEvaluable(fila));
+  };
+  const guardado = (fila: CompraConXml, xmlSimuladoEnReglas = false): HallazgoGuardadoCompra => {
+    const h = crearEvaluarCompras(CONOCIDOS, { xmlSimuladoEnReglas })(aEvaluable(fila)).find((x) => x.regla === "R-GP")!;
+    return { compraId: ID, regla: "R-GP", sugerencia: h.sugerencia, lecturas: h.lecturas, requiereConfirmacion: h.requiereConfirmacion };
+  };
+  const armar = (fila: CompraConXml, o: { confirmar?: boolean; flag?: boolean; guardado?: HallazgoGuardadoCompra } = {}) =>
+    transformarSugerencia({
+      conocidos: CONOCIDOS,
+      enMasa: false,
+      confirmar: o.confirmar ?? true,
+      dato: undefined,
+      regla: "R-GP",
+      evaluar: evaluar(o.flag === true),
+      ...(o.flag === undefined ? {} : { xmlSimuladoEnReglas: o.flag }),
+      cargarHallazgos: async () => new Map([[ID, [o.guardado ?? guardado(fila, o.flag === true)]]]),
+    });
+  const ZAPATILLAS = "Par de zapatillas deportivas (PRUEBA)";
+
+  it("con el XML subido y confirmando: excluye la fila y deja los montos", async () => {
+    const fila = conXml(ZAPATILLAS);
+    expect(guardado(fila).requiereConfirmacion).toBe(true);
+    expect(await armar(fila)(fila, {})).toMatchObject({ excluida: true, montos: { biDg: "100.00", igvDg: "18.00", total: "118.00" } });
+  });
+
+  it("sin XML en la fila: revisar_de_nuevo", async () => {
+    const fila = conXml(ZAPATILLAS);
+    expect(await armar(fila)(compra(), {})).toEqual({ rechazo: "revisar_de_nuevo" });
+  });
+
+  it("si el XML cambió y ya no trae la palabra: revisar_de_nuevo", async () => {
+    const fila = conXml(ZAPATILLAS);
+    expect(await armar(fila)(conXml("Servicio de limpieza (PRUEBA)"), {})).toEqual({ rechazo: "revisar_de_nuevo" });
+  });
+
+  it("XML simulado: entra en la re-evaluación solo con la bandera P-4 (la misma de la evaluación)", async () => {
+    const fila = conXml(ZAPATILLAS, "simulado");
+    expect(await armar(fila, { flag: true })(fila, {})).toMatchObject({ excluida: true });
+    expect(await armar(fila, { flag: false, guardado: guardado(fila, true) })(fila, {})).toEqual({ rechazo: "revisar_de_nuevo" });
   });
 });

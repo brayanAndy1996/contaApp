@@ -1,8 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+} from "react";
 import { MENSAJES, cargarYo, mensajeDeError } from "../../../lib/acceso";
 import { listarClientes } from "../../../lib/clientes";
+import {
+  Alert,
+  Badge,
+  Button,
+  EncabezadoPagina,
+  Table,
+  TableBody,
+  TableCell,
+  TableRow,
+  type ButtonProps,
+} from "../../../components/ui";
 import { obtenerSesion } from "../../../lib/sesion";
 import {
   cancelarTrabajo,
@@ -46,6 +63,25 @@ const ESTADOS: Record<TrabajoVista["estado"], string> = {
   completado: "Completado",
   error: "Con error",
   cancelado: "Cancelado",
+};
+
+/** Tono del chip de cada estado: siempre va con su texto, el color no es la única señal. */
+const TONO_ESTADO: Record<
+  TrabajoVista["estado"],
+  NonNullable<ComponentProps<typeof Badge>["tono"]>
+> = {
+  en_cola: "neutro",
+  ejecutando: "info",
+  completado: "ok",
+  error: "error",
+  cancelado: "neutro",
+};
+
+/** Botones de la pantalla: 44 px de alto por debajo de 1024 px. */
+const BOTON: Pick<ButtonProps, "variant" | "size" | "className"> = {
+  variant: "secundario",
+  size: "sm",
+  className: "max-lg:min-h-11",
 };
 
 const MOTIVOS: Record<NonNullable<TrabajoVista["motivo"]>, string> = {
@@ -269,20 +305,12 @@ export default function Trabajos() {
   const totales = resumen ? conteos(resumen) : null;
 
   return (
-    <main className="mx-auto max-w-4xl space-y-4 p-6">
-      <h1 className="text-xl font-semibold">{MENSAJES_PANEL.titulo}</h1>
-      {error && (
-        <p role="alert" className="text-red-600">
-          {error}
-        </p>
-      )}
-      {errorCancelar && (
-        <p role="alert" className="text-red-600">
-          {errorCancelar}
-        </p>
-      )}
+    <main className="mx-auto max-w-4xl space-y-6 px-4 py-6 md:px-6">
+      <EncabezadoPagina titulo={MENSAJES_PANEL.titulo} />
+      {error && <Alert tono="error">{error}</Alert>}
+      {errorCancelar && <Alert tono="error">{errorCancelar}</Alert>}
       {cargado && !error && grupos.length === 0 && (
-        <p>{MENSAJES_PANEL.vacio}</p>
+        <p className="text-tinta-suave">{MENSAJES_PANEL.vacio}</p>
       )}
       {grupos.map(([tipo, lista]) => {
         // Con el resumen del servidor el total cubre más de los 100 que trae el listado; si falló, cuenta la lista.
@@ -291,60 +319,64 @@ export default function Trabajos() {
         const resumido = total > MAX_FILAS_POR_TIPO;
         const abierto = !resumido || desplegados.has(tipo);
         return (
-          <section key={tipo} className="space-y-2">
+          <section key={tipo} className="space-y-3">
             {resumido && (
               <div className="flex flex-wrap items-center gap-3">
-                <p>
+                <p className="m-0 font-semibold text-tinta">
                   {`${nombreDeTipo(tipo)}: ${conMiles(terminados)} de ${conMiles(total)}`}
                 </p>
                 {conError > 0 && (
-                  <span className="text-red-600">{`${conMiles(conError)} con error`}</span>
+                  <Badge tono="error">{`${conMiles(conError)} con error`}</Badge>
                 )}
-                <button
-                  type="button"
-                  className="rounded border px-2 py-1"
+                <Button
+                  {...BOTON}
                   aria-expanded={abierto}
                   onClick={() => alternar(tipo)}
                 >
                   {abierto
                     ? MENSAJES_PANEL.ocultarDetalle
                     : MENSAJES_PANEL.verDetalle}
-                </button>
+                </Button>
               </div>
             )}
             {abierto && (
-              <table className="w-full text-left text-sm">
-                <tbody>
-                  {lista.map((t) => (
-                    <tr key={t.id} className="border-b">
-                      <td className="py-1 pr-3">
-                        {nombreDeTipo(t.tipo)}
-                        {detalleDe(t, clientes) && (
-                          <span className="block text-xs text-gray-600">
-                            {detalleDe(t, clientes)}
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-1 pr-3">{ESTADOS[t.estado]}</td>
-                      <td className="py-1 pr-3">
-                        {t.motivo ? MOTIVOS[t.motivo] : ""}
-                      </td>
-                      <td className="py-1">
-                        {t.estado === "en_cola" &&
-                          puedeCancelar(quien.rol, quien.usuarioId, t) && (
-                            <button
-                              type="button"
-                              className="rounded border px-2 py-0.5"
-                              onClick={() => void cancelar(t.id)}
-                            >
-                              {MENSAJES_PANEL.cancelar}
-                            </button>
+              <div className="rounded-tarjeta border border-linea bg-hoja shadow-tarjeta">
+                <Table>
+                  <TableBody>
+                    {lista.map((t) => (
+                      <TableRow key={t.id}>
+                        <TableCell>
+                          {nombreDeTipo(t.tipo)}
+                          {detalleDe(t, clientes) && (
+                            <span className="block text-xs text-tinta-suave">
+                              {detalleDe(t, clientes)}
+                            </span>
                           )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        </TableCell>
+                        <TableCell>
+                          <Badge tono={TONO_ESTADO[t.estado]}>
+                            {ESTADOS[t.estado]}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-tinta-media">
+                          {t.motivo ? MOTIVOS[t.motivo] : ""}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {t.estado === "en_cola" &&
+                            puedeCancelar(quien.rol, quien.usuarioId, t) && (
+                              <Button
+                                {...BOTON}
+                                onClick={() => void cancelar(t.id)}
+                              >
+                                {MENSAJES_PANEL.cancelar}
+                              </Button>
+                            )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </section>
         );

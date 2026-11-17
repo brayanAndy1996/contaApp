@@ -357,3 +357,56 @@ describe("PanelGenerar · foco al cerrar (spec 012b T23a, P-2)", () => {
     expect(document.activeElement).toBe(screen.getByRole("button", { name: M.abrir }));
   });
 });
+
+describe("PanelGenerar · panel en columna a la vista en celular (038 T-final-d)", () => {
+  beforeEach(() => {
+    seguimiento.opciones = null;
+    reiniciarSesion();
+  });
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+  });
+
+  const conAncho = (angosta: boolean) =>
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((consulta: string) => ({
+        matches: angosta,
+        media: consulta,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+
+  it("feliz: bajo 1400 px el panel se desplaza a la vista y el foco pasa a su título", async () => {
+    instalarFetchArchivos();
+    conAncho(true);
+    const scrollIntoView = vi.fn();
+    (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView = scrollIntoView;
+    const destino = document.body.appendChild(document.createElement("div"));
+    montar({ destino });
+    const user = userEvent.setup();
+    const panel = await abrir(user);
+
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(within(panel).getByRole("heading", { name: M.titulo }));
+    destino.remove();
+  });
+
+  it("error: desde 1400 px el panel va en su columna fija y no roba el foco ni desplaza la página", async () => {
+    instalarFetchArchivos();
+    conAncho(false);
+    const scrollIntoView = vi.fn();
+    (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView = scrollIntoView;
+    const destino = document.body.appendChild(document.createElement("div"));
+    montar({ destino });
+    const user = userEvent.setup();
+    await abrir(user);
+
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: M.abrir }));
+    destino.remove();
+  });
+});

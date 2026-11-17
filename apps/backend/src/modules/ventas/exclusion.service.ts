@@ -2,7 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import {
   excluirVenta,
   leerClienteDto,
-  leerFilasVentas,
+  leerFilaVenta,
   restaurarVenta,
   VentasRepoError,
   type Alcance,
@@ -90,8 +90,8 @@ export class ExclusionVentasService {
 /** La venta de ESTE cliente y periodo (con su exclusión vigente); un id mal formado, ajeno o de otro periodo es un 404. */
 async function ventaDelPeriodo(tx: Tx, clienteId: string, periodo: string, ventaCruda: string): Promise<VentaFila> {
   const ventaId = idDe(ventaCruda);
-  const venta = (await leerFilasVentas(tx, clienteId, periodo)).find((v) => v.id === ventaId);
-  if (venta === undefined) throw new AccesoError("no_encontrado");
+  const venta = await leerFilaVenta(tx, clienteId, periodo, ventaId);
+  if (venta === null) throw new AccesoError("no_encontrado");
   return venta;
 }
 

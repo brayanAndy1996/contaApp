@@ -28,6 +28,8 @@ export interface FiltrosListado {
   vista?: VistaListado;
   alertas?: boolean;
   proveedorNuevo?: boolean;
+  /** Spec 021: solo las filas cuya versión vigente es la que dejó una regla aprendida (`true`) o las demás (`false`). */
+  segunHistorial?: boolean;
   q?: string;
 }
 
@@ -40,9 +42,15 @@ export interface HallazgoGuardadoFila {
   requiereConfirmacion: boolean;
 }
 
+/** La regla aprendida de la que viene la versión vigente («Según historial»); solo viaja su id (spec 021, D-1). */
+export interface SegunHistorialLeido {
+  reglaId: string;
+}
+
 export interface CompraListada {
   compra: CompraLeida;
   proveedorNuevo: boolean;
+  segunHistorial: SegunHistorialLeido | null;
   hallazgos: HallazgoGuardadoFila[];
 }
 
@@ -52,12 +60,20 @@ export interface PaginaListado {
 }
 
 /**
+ * R-NEW encendida en el estudio de `c` (021, RF-089, H-021-2-3): sin fila en `estudio_regla_motor` está encendida. Apagada, ninguna
+ * fila es «Proveedor nuevo» (listado, detalle y filtro). Búsqueda por la clave `(tenant_id, codigo)`; backend y worker tienen SELECT.
+ */
+const R_NEW_ACTIVA = `not exists (select 1 from estudio_regla_motor m where m.tenant_id = c.tenant_id and m.codigo = 'R-NEW'
+    and not m.activa)`;
+
+/**
  * La compra tiene proveedor nuevo si no está clasificada y el mismo cliente no tiene compras vivas o excluidas (las descartadas
- * no) del mismo proveedor en OTROS periodos (D-4, DU-7). Una agregada viva de otro periodo también cuenta.
+ * no) del mismo proveedor en OTROS periodos (D-4, DU-7). Una agregada viva de otro periodo también cuenta. Con R-NEW apagada
+ * en el estudio, nunca (021).
  */
 const PROVEEDOR_NUEVO = `(not v.clasificada and not exists (
     select 1 from compra h where h.cliente_id = c.cliente_id and h.periodo <> c.periodo and h.descartada_en is null
-      and h.doc_tipo = c.doc_tipo and h.doc_numero = c.doc_numero))`;
+      and h.doc_tipo = c.doc_tipo and h.doc_numero = c.doc_numero) and ${R_NEW_ACTIVA})`;
 
 /** Suma de los tres IGV de la versión vigente distinta de 0.00. */
 const CON_IGV = `(v.igv_dg + v.igv_dgng + v.igv_dng) <> 0`;
@@ -79,6 +95,30 @@ const VERSION_UNO_LATERAL = `(select * from compra_version x where x.tenant_id =
 const ULTIMA_EVALUACION = `(select max(e.n) from compra_evaluacion e where e.tenant_id = c.tenant_id and e.compra_id = c.id
     and e.version_n = c.version_vigente)`;
 
+/**
+ * Regla de la que viene la versión vigente `v` de `c` (021): `regla_aplicacion` tiene una fila por versión `historial` y solo esa,
+ * así que una fila corregida después (vigente distinta) o sin aplicación no se marca. Búsqueda por el único
+ * `(tenant_id, compra_id, version_n)`; sigue marcada aunque la regla se haya eliminado (P-9).
+ *
+ * H-021-2-2: si la vigente la escribió `deshacer` o `rehacer` (014) y deja la fila como la dejó la regla (los mismos montos,
+ * exclusión, motivo y clasificación que la versión `historial`, el mismo criterio por VALOR con el que `revertir` decide que una
+ * fila «sigue como la dejó» una operación), vuelve a ser «Según historial» de esa regla. Solo se busca cuando la vigente es de
+ * deshacer/rehacer, por el mismo único de `regla_aplicacion` (a lo sumo una fila por compra).
+ */
+const REGLA_HISTORIAL = `coalesce(
+  (select a.regla_id from regla_aplicacion a where a.tenant_id = c.tenant_id and a.compra_id = c.id
+    and a.version_n = c.version_vigente),
+  case when v.accion in ('deshacer', 'rehacer') then (
+    select a.regla_id from regla_aplicacion a
+      join compra_version h on h.tenant_id = a.tenant_id and h.compra_id = a.compra_id and h.n = a.version_n
+     where a.tenant_id = c.tenant_id and a.compra_id = c.id and a.version_n < v.n and h.accion = 'historial'
+       and h.bi_dg = v.bi_dg and h.igv_dg = v.igv_dg and h.bi_dgng = v.bi_dgng and h.igv_dgng = v.igv_dgng
+       and h.bi_dng = v.bi_dng and h.igv_dng = v.igv_dng and h.no_gravado = v.no_gravado and h.isc = v.isc
+       and h.icbper = v.icbper and h.otros_tributos = v.otros_tributos and h.total = v.total
+       and h.excluida = v.excluida and h.motivo is not distinct from v.motivo and h.clasificada = v.clasificada
+     order by a.version_n desc limit 1)
+  end)`;
+
 /** Número con ceros a la izquierda para ordenar «999» antes de «1000» (el número tiene hasta 15 caracteres). */
 const NUMERO_ORDEN = `lpad(c.numero, 20, '0') collate "C"`;
 const SERIE_ORDEN = `c.serie collate "C"`;
@@ -89,15 +129,17 @@ const SERIE_ORDEN = `c.serie collate "C"`;
  */
 const SQL_LISTADO = `with conocidos as materialized (
   select distinct doc_tipo, doc_numero from compra where cliente_id = $1 and periodo <> $2 and descartada_en is null
+), r_new as materialized (
+  select not exists (select 1 from estudio_regla_motor m where m.codigo = 'R-NEW' and not m.activa) as activa
 )
 select * from (
   select ${COLUMNAS_LEIDA},
-    (not v.clasificada and not exists (select 1 from conocidos k where k.doc_tipo = c.doc_tipo and k.doc_numero = c.doc_numero))
-      as proveedor_nuevo, ${SERIE_ORDEN} as orden_serie, ${NUMERO_ORDEN} as orden_numero,
-    c.fecha as orden_fecha,
+    (not v.clasificada and not exists (select 1 from conocidos k where k.doc_tipo = c.doc_tipo and k.doc_numero = c.doc_numero)
+      and r.activa) as proveedor_nuevo, ${SERIE_ORDEN} as orden_serie, ${NUMERO_ORDEN} as orden_numero,
+    c.fecha as orden_fecha, ${REGLA_HISTORIAL} as regla_historial,
     exists (select 1 from compra_hallazgo z where z.tenant_id = c.tenant_id and z.compra_id = c.id
       and z.version_n = c.version_vigente and z.evaluacion_n = ${ULTIMA_EVALUACION}) as con_hallazgos
-  from compra c cross join lateral ${VERSION_VIGENTE_LATERAL} v
+  from compra c cross join lateral ${VERSION_VIGENTE_LATERAL} v cross join r_new r
   where c.cliente_id = $1 and c.periodo = $2 and c.descartada_en is null
     and (case when $3::text = 'excluidas' then v.excluida else not v.excluida end)
     and (coalesce($3::text, '') not in ('con_igv', 'sin_igv') or (${CON_IGV}) = ($3::text = 'con_igv'))
@@ -110,6 +152,7 @@ select * from (
 ) t
 where ($4::boolean is null or t.proveedor_nuevo = $4::boolean)
   and ($5::boolean is null or not $5::boolean or t.con_hallazgos)
+  and ($13::boolean is null or (t.regla_historial is not null) = $13::boolean)
   and ($6::date is null or t.orden_fecha > $6::date
     or (t.orden_fecha = $6::date and (t.orden_serie > $7::text collate "C"
       or (t.orden_serie = $7::text collate "C" and (t.orden_numero > lpad($8::text, 20, '0') collate "C"
@@ -146,6 +189,9 @@ const SQL_HALLAZGOS = `select h.compra_id, h.regla, h.sugerencia, h.lecturas, h.
     and h.evaluacion_n = ${ULTIMA_EVALUACION}
   where c.id = any($1::uuid[])
   order by h.compra_id, array_position(array['R-ISC','R-MIX','R-RED','R-NEW','R-GP'], h.regla::text)`;
+
+const aSegunHistorial = (reglaId: unknown): SegunHistorialLeido | null =>
+  typeof reglaId === "string" ? { reglaId } : null;
 
 const aHallazgo = (f: Fila): HallazgoGuardadoFila => ({
   compraId: f.compra_id,
@@ -198,6 +244,7 @@ export async function listarCompras(
     q === null ? null : `%${q}%`,
     c?.id ?? null,
     filtros.limite + 1,
+    filtros.segunHistorial ?? null,
   ]);
   const hayMas = r.rows.length > filtros.limite;
   const filas = hayMas ? r.rows.slice(0, filtros.limite) : r.rows;
@@ -205,6 +252,7 @@ export async function listarCompras(
   const salida = filas.map((f) => ({
     compra: aCompraLeida(f),
     proveedorNuevo: f.proveedor_nuevo as boolean,
+    segunHistorial: aSegunHistorial(f.regla_historial),
     hallazgos: hallazgos.get(f.id) ?? [],
   }));
   const ultima = salida[salida.length - 1];
@@ -233,12 +281,24 @@ export interface VersionHistorial {
 export interface DetalleLeido {
   compra: CompraLeida;
   proveedorNuevo: boolean;
+  segunHistorial: SegunHistorialLeido | null;
   versiones: VersionHistorial[];
   hallazgos: HallazgoGuardadoFila[];
 }
 
-const SQL_DETALLE = `select ${COLUMNAS_LEIDA}, ${PROVEEDOR_NUEVO} as proveedor_nuevo from ${UNION_VIGENTE}
+const sqlDetalle = (conHistorial: boolean): string =>
+  `select ${COLUMNAS_LEIDA}, ${PROVEEDOR_NUEVO} as proveedor_nuevo, ${conHistorial ? REGLA_HISTORIAL : "null::uuid"} as regla_historial from ${UNION_VIGENTE}
   where c.id = $1 and c.cliente_id = $2 and c.periodo = $3 and c.descartada_en is null`;
+const SQL_DETALLE = sqlDetalle(true);
+const SQL_DETALLE_SIN_HISTORIAL = sqlDetalle(false);
+
+export interface OpcionesDetalle {
+  /**
+   * Resuelve `segunHistorial` desde `regla_aplicacion` (por defecto, sí: es lo que usa el backend). El worker pasa `false`: su rol
+   * no tiene SELECT sobre esa tabla (mínimo privilegio) y no necesita el dato; entonces `segunHistorial` queda en `null`.
+   */
+  conHistorial?: boolean;
+}
 const SQL_VERSIONES = `select v.n, v.accion, v.operacion_id, v.usuario_id, v.creada_en, v.excluida, v.motivo, v.clasificada,
     v.bi_dg::text as bi_dg, v.igv_dg::text as igv_dg, v.bi_dgng::text as bi_dgng, v.igv_dgng::text as igv_dgng,
     v.bi_dng::text as bi_dng, v.igv_dng::text as igv_dng, v.no_gravado::text as no_gravado, v.isc::text as isc,
@@ -254,9 +314,11 @@ export async function leerDetalleCompra(
   clienteId: string,
   periodo: string,
   compraId: string,
+  opciones: OpcionesDetalle = {},
 ): Promise<DetalleLeido | null> {
   if (!esUuid(compraId)) return null;
-  const c = await consultar(tx, SQL_DETALLE, [compraId, clienteId, periodo]);
+  const sql = opciones.conHistorial === false ? SQL_DETALLE_SIN_HISTORIAL : SQL_DETALLE;
+  const c = await consultar(tx, sql, [compraId, clienteId, periodo]);
   const fila = c.rows[0];
   if (fila === undefined) return null;
   const v = await consultar(tx, SQL_VERSIONES, [compraId]);
@@ -264,6 +326,7 @@ export async function leerDetalleCompra(
   return {
     compra: aCompraLeida(fila),
     proveedorNuevo: fila.proveedor_nuevo as boolean,
+    segunHistorial: aSegunHistorial(fila.regla_historial),
     versiones: v.rows.map((f) => ({
       n: f.n,
       accion: f.accion,

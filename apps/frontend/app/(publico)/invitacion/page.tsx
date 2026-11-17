@@ -6,6 +6,20 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ETIQUETA_ROL, type Rol } from "../../../lib/acceso";
 import { api } from "../../../lib/api";
 import { reiniciarSesion } from "../../../lib/sesion";
+import {
+  Alert,
+  Button,
+  Card,
+  Input,
+  Label,
+  enlace,
+} from "../../../components/ui";
+import { cn } from "../../../lib/utils";
+
+const ENLACE = cn(
+  enlace,
+  "text-sm max-lg:inline-flex max-lg:min-h-11 max-lg:items-center",
+);
 
 // Aceptación de una invitación (spec 005, D7, D15, CA-3, CA-14). El token viaja en el fragmento
 // `#t=`: se lee una vez, se borra de la URL y solo vive en memoria; nunca se imprime ni se pone en
@@ -217,52 +231,48 @@ export default function Invitacion() {
     </p>
   );
 
-  const alerta = error && (
-    <p role="alert" className="text-sm text-red-600">
-      {error}
-    </p>
-  );
+  const alerta = error && <Alert tono="error">{error}</Alert>;
 
   return (
     <main className="flex flex-1 items-center justify-center p-6">
-      <div className="flex w-full max-w-sm flex-col gap-4">
-        <h1 className="text-2xl font-semibold">Invitación a ContApp</h1>
+      <Card className="w-full max-w-md">
+        <h1 className="m-0 font-titulo text-[28px] font-extrabold leading-tight tracking-tight text-tinta">
+          Invitación a ContApp
+        </h1>
         {fase === "cargando" && <p>Verificando la invitación…</p>}
-        {fase === "invalida" && <p role="alert">{INVITACION_INVALIDA}</p>}
-        {fase === "error" && <p role="alert">{ERROR_GENERAL}</p>}
+        {fase === "invalida" && (
+          <Alert tono="error">{INVITACION_INVALIDA}</Alert>
+        )}
+        {fase === "error" && <Alert tono="error">{ERROR_GENERAL}</Alert>}
         {fase === "nueva" && (
           <form onSubmit={crearCuenta} className="flex flex-col gap-4">
             {resumen}
-            <label className="flex flex-col gap-1 text-sm">
+            <Label>
               Nombre
-              <input
+              <Input
                 type="text"
                 autoComplete="name"
                 required
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
-                className="rounded border px-3 py-2"
+                className="max-lg:h-11"
               />
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
+            </Label>
+            <Label>
               Contraseña
-              <input
+              <Input
                 type="password"
                 autoComplete="new-password"
                 required
                 value={contrasena}
                 onChange={(e) => setContrasena(e.target.value)}
-                className="rounded border px-3 py-2"
+                className="max-lg:h-11"
               />
-            </label>
+            </Label>
             {alerta}
-            <button
-              type="submit"
-              disabled={enviando}
-              className="rounded bg-black px-4 py-2 text-white disabled:opacity-50"
-            >
+            <Button type="submit" disabled={enviando} className="max-lg:h-11">
               Crear cuenta y aceptar
-            </button>
+            </Button>
           </form>
         )}
         {fase === "existente" && (
@@ -271,50 +281,46 @@ export default function Invitacion() {
             <p className="text-sm">
               Ya tienes una cuenta: inicia sesión para aceptar.
             </p>
-            <label className="flex flex-col gap-1 text-sm">
+            <Label>
               Contraseña
-              <input
+              <Input
                 type="password"
                 autoComplete="current-password"
                 required
                 value={contrasena}
                 onChange={(e) => setContrasena(e.target.value)}
-                className="rounded border px-3 py-2"
+                className="max-lg:h-11"
               />
-            </label>
+            </Label>
             {alerta}
-            <button
-              type="submit"
-              disabled={enviando}
-              className="rounded bg-black px-4 py-2 text-white disabled:opacity-50"
-            >
+            <Button type="submit" disabled={enviando} className="max-lg:h-11">
               Iniciar sesión y aceptar
-            </button>
+            </Button>
           </form>
         )}
         {fase === "creada" && (
           <>
-            <p role="status">{CUENTA_CREADA}</p>
-            <Link href="/login" className="text-sm underline">
+            <Alert tono="ok">{CUENTA_CREADA}</Alert>
+            <Link href="/login" className={ENLACE}>
               Ir a iniciar sesión
             </Link>
           </>
         )}
         {fase === "unido" && estudioUnido && (
           <>
-            <p role="status">{unidoA(estudioUnido.nombre)}</p>
+            <Alert tono="ok">{unidoA(estudioUnido.nombre)}</Alert>
             {alerta}
-            <button
+            <Button
               type="button"
               disabled={enviando}
               onClick={() => void cambiarDeEstudio()}
-              className="rounded bg-black px-4 py-2 text-white disabled:opacity-50"
+              className="max-lg:h-11"
             >
               Cambiar a este estudio
-            </button>
+            </Button>
           </>
         )}
-      </div>
+      </Card>
     </main>
   );
 }

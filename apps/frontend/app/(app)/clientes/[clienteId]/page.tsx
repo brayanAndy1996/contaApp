@@ -16,6 +16,26 @@ import {
 } from "../../../../components/datos-fiscales";
 import { CredencialesCliente } from "../../../../components/credenciales-cliente";
 import { UsoPlan } from "../../../../components/uso-plan";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  CardTitle,
+  EncabezadoPagina,
+  Input,
+  Label,
+  Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  enlace,
+  panelDialogo,
+  velo,
+} from "../../../../components/ui";
 import { api } from "../../../../lib/api";
 import {
   MENSAJES,
@@ -33,7 +53,9 @@ import {
 } from "../../../../lib/clientes";
 import { MENSAJES_COMPRAS } from "../../../../lib/compras";
 import { MENSAJES_PLAN } from "../../../../lib/planes";
+import { MENSAJES_REGLAS } from "../../../../lib/reglas";
 import { MENSAJES_REGISTRO } from "../../../../lib/registro";
+import { cn } from "../../../../lib/utils";
 
 // Detalle de un cliente (spec 005, CA-5, CA-7, CA-15, D18; spec 007a, D1, D3, D5; CA-4, CA-5, CA-9).
 // El 404 es el mismo para cliente inexistente, ajeno o no asignado: no se distingue en pantalla.
@@ -134,16 +156,16 @@ function FormularioFiscal({
 
   return (
     <form onSubmit={guardar} noValidate className="flex flex-col gap-4">
-      <label className="flex flex-col gap-1 text-sm">
+      <Label>
         Razón social
-        <input
+        <Input
           type="text"
           value={razonSocial}
           disabled={ocupado}
           onChange={(e) => setRazonSocial(e.target.value)}
-          className="rounded border px-3 py-2"
+          className="max-lg:h-11"
         />
-      </label>
+      </Label>
 
       <DatosFiscales
         perfil={perfil}
@@ -152,23 +174,19 @@ function FormularioFiscal({
       />
 
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <Alert tono="error" role="alert">
           {error}
-        </p>
+        </Alert>
       )}
       {guardado && (
-        <p role="status" className="text-sm">
+        <Alert tono="ok" role="status">
           {MENSAJES_DETALLE.datosGuardados}
-        </p>
+        </Alert>
       )}
 
-      <button
-        type="submit"
-        disabled={ocupado}
-        className="self-start rounded bg-black px-4 py-2 text-white disabled:opacity-50"
-      >
+      <Button type="submit" disabled={ocupado} className="self-start max-lg:h-11">
         Guardar datos fiscales
-      </button>
+      </Button>
     </form>
   );
 }
@@ -178,6 +196,7 @@ function DetalleCliente() {
   const puedeEditar = usePuede("clientes.editar");
   const puedeArchivar = usePuede("clientes.archivar");
   const puedeCredenciales = usePuede("credenciales.editar");
+  const puedeVerReglas = usePuede("reglas.ver");
   const [cliente, setCliente] = useState<ClienteDto | null>(null);
   const [cargado, setCargado] = useState(false);
   const [asigna, setAsigna] = useState(false);
@@ -326,52 +345,71 @@ function DetalleCliente() {
     }
   }
 
-  if (!cargado) return <main className="p-6">Cargando…</main>;
+  if (!cargado) return <main className="p-6 text-tinta-suave">Cargando…</main>;
+
+  const hrefCliente = cliente ? encodeURIComponent(cliente.id) : "";
+  const enlaceNav = cn(enlace, "max-lg:inline-flex max-lg:min-h-11 max-lg:items-center");
 
   return (
     <main className="flex flex-col gap-6 p-6">
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <Alert tono="error" role="alert">
           {error}
-        </p>
+        </Alert>
       )}
       {cliente && (
-        <header className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold">{cliente.razonSocial}</h1>
-          <p className="text-sm">RUC {cliente.ruc}</p>
-          {/* Enlace a la pantalla de compras (spec 015, D-1). */}
-          <nav aria-label="Registros del cliente" className="text-sm">
-            <Link
-              href={`/clientes/${encodeURIComponent(cliente.id)}/compras`}
-              className="underline"
+        <EncabezadoPagina
+          titulo={cliente.razonSocial}
+          descripcion={
+            <>
+              RUC <span className="font-mono">{cliente.ruc}</span>
+            </>
+          }
+          acciones={
+            // Registros del cliente: Compras (spec 015, D-1), Ventas (spec 038, P-4) y Reglas aprendidas.
+            <nav
+              aria-label="Registros del cliente"
+              className="flex flex-wrap items-center gap-x-2 text-sm"
             >
-              {MENSAJES_COMPRAS.enlaceCompras}
-            </Link>
-          </nav>
-        </header>
+              <Link href={`/clientes/${hrefCliente}/compras`} className={enlaceNav}>
+                {MENSAJES_COMPRAS.enlaceCompras}
+              </Link>
+              {" · "}
+              <Link href={`/clientes/${hrefCliente}/ventas`} className={enlaceNav}>
+                {MENSAJES_COMPRAS.enlaceVentas}
+              </Link>
+              {puedeVerReglas === true && (
+                <>
+                  {" · "}
+                  <Link href={`/clientes/${hrefCliente}/reglas`} className={enlaceNav}>
+                    {MENSAJES_REGLAS.enlaceReglasCliente}
+                  </Link>
+                </>
+              )}
+            </nav>
+          }
+        />
       )}
       {archivado && (
-        <p
-          role="status"
-          className="w-full max-w-xl rounded bg-amber-50 p-3 text-sm text-amber-900"
-        >
+        <Alert tono="aviso" role="status" className="w-full max-w-xl">
           {MENSAJES_DETALLE.clienteArchivado}
-        </p>
+        </Alert>
       )}
       {cliente && puedeArchivar === true && (
         <div className="flex w-full max-w-xl flex-col gap-3">
-          <button
+          <Button
             type="button"
+            variant="secundario"
             disabled={ocupadoAccion}
             onClick={() => setAccion(archivado ? "reactivar" : "archivar")}
-            className="self-start rounded border px-4 py-2"
+            className="self-start max-lg:h-11"
           >
             {archivado ? "Reactivar" : "Archivar"}
-          </button>
+          </Button>
           {errorAccion && (
-            <p role="alert" className="text-sm text-red-600">
+            <Alert tono="error" role="alert">
               {errorAccion}
-            </p>
+            </Alert>
           )}
           {mostrarUso && (
             <UsoPlan
@@ -381,17 +419,14 @@ function DetalleCliente() {
         </div>
       )}
       {cliente?.perfil && (
-        <section
-          aria-label="Datos fiscales"
-          className="flex w-full max-w-xl flex-col gap-4"
-        >
-          <h2 className="text-lg font-medium">Datos fiscales</h2>
+        <Card aria-label="Datos fiscales" className="w-full max-w-xl">
+          <CardTitle>Datos fiscales</CardTitle>
           {editable ? (
             <FormularioFiscal cliente={cliente} onCambio={setCliente} />
           ) : (
             <DatosFiscalesLectura perfil={cliente.perfil} />
           )}
-        </section>
+        </Card>
       )}
       {cliente && (
         <CredencialesCliente
@@ -400,46 +435,52 @@ function DetalleCliente() {
         />
       )}
       {cliente && asigna && (
-        <section className="flex flex-col gap-4">
-          <h2 className="text-lg font-medium">Asignaciones</h2>
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr>
-                <th>Nombre</th>
-                <th>Tipo</th>
-                {!archivado && <th>Acciones</th>}
-              </tr>
-            </thead>
-            <tbody>
+        <Card className="max-w-3xl">
+          <CardTitle>Asignaciones</CardTitle>
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Nombre</TableHead>
+                <TableHead>Tipo</TableHead>
+                {!archivado && <TableHead>Acciones</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {asignaciones.map((a) => (
-                <tr key={a.usuarioId}>
-                  <td>{a.nombre}</td>
-                  <td>{ETIQUETA_TIPO[a.tipo]}</td>
+                <TableRow key={a.usuarioId}>
+                  <TableCell>{a.nombre}</TableCell>
+                  <TableCell>
+                    <Badge tono={a.tipo === "responsable" ? "primario" : "neutro"}>
+                      {ETIQUETA_TIPO[a.tipo]}
+                    </Badge>
+                  </TableCell>
                   {!archivado && (
-                    <td>
-                      <button
+                    <TableCell>
+                      <Button
                         type="button"
+                        variant="secundario"
+                        size="sm"
                         disabled={ocupado}
                         onClick={() => void quitar(a.usuarioId)}
-                        className="rounded border px-2 py-1"
+                        className="max-lg:h-11"
                       >
                         Quitar
-                      </button>
-                    </td>
+                      </Button>
+                    </TableCell>
                   )}
-                </tr>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
 
           {!archivado && (
             <form onSubmit={asignar} className="flex flex-wrap items-end gap-3">
-              <label className="flex flex-col gap-1 text-sm">
+              <Label className="w-full sm:w-auto">
                 Usuario
-                <select
+                <Select
                   value={usuarioId}
                   onChange={(e) => setUsuarioId(e.target.value)}
-                  className="rounded border px-3 py-2"
+                  className="max-lg:h-11 sm:w-56"
                 >
                   <option value="">Elige un usuario</option>
                   {miembros
@@ -449,78 +490,76 @@ function DetalleCliente() {
                         {m.nombre}
                       </option>
                     ))}
-                </select>
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
+                </Select>
+              </Label>
+              <Label className="w-full sm:w-auto">
                 Tipo
-                <select
+                <Select
                   value={tipo}
                   onChange={(e) => setTipo(e.target.value as Tipo)}
-                  className="rounded border px-3 py-2"
+                  className="max-lg:h-11 sm:w-44"
                 >
                   <option value="colaborador">Colaborador</option>
                   <option value="responsable">Responsable</option>
-                </select>
-              </label>
+                </Select>
+              </Label>
               {tipo === "responsable" && hayOtroResponsable && (
-                <label className="flex flex-col gap-1 text-sm">
+                <Label className="w-full sm:w-auto">
                   Responsable anterior
-                  <select
+                  <Select
                     value={anterior}
                     onChange={(e) => setAnterior(e.target.value as Anterior)}
-                    className="rounded border px-3 py-2"
+                    className="max-lg:h-11 sm:w-52"
                   >
                     <option value="colaborador">Pasa a colaborador</option>
                     <option value="retirar">Se retira</option>
-                  </select>
-                </label>
+                  </Select>
+                </Label>
               )}
-              <button
-                type="submit"
-                disabled={ocupado || !usuarioId}
-                className="rounded bg-black px-4 py-2 text-white disabled:opacity-50"
-              >
+              <Button type="submit" disabled={ocupado || !usuarioId} className="max-lg:h-11">
                 Asignar
-              </button>
+              </Button>
             </form>
           )}
-        </section>
+        </Card>
       )}
 
       {accion && (
-        <div
-          role="alertdialog"
-          aria-labelledby="titulo-accion"
-          aria-describedby="cuerpo-accion"
-          className="fixed inset-0 z-10 flex items-center justify-center bg-black/40 p-4"
-        >
-          <div className="flex w-full max-w-md flex-col gap-4 rounded bg-white p-6 text-neutral-900 shadow-lg">
-            <h2 id="titulo-accion" className="text-lg font-medium">
+        <>
+          <div aria-hidden="true" className={velo} />
+          <div
+            role="alertdialog"
+            aria-labelledby="titulo-accion"
+            aria-describedby="cuerpo-accion"
+            className={panelDialogo}
+          >
+            <h2 id="titulo-accion" className="m-0 font-titulo text-lg font-bold">
               {TEXTO_ACCION[accion].titulo}
             </h2>
-            <p id="cuerpo-accion" className="text-sm">
+            <p id="cuerpo-accion" className="m-0 text-sm text-tinta-media">
               {TEXTO_ACCION[accion].cuerpo}
             </p>
-            <div className="flex justify-end gap-3">
-              <button
+            <div className="flex flex-wrap justify-end gap-3">
+              <Button
                 type="button"
+                variant="secundario"
                 disabled={ocupadoAccion}
                 onClick={() => setAccion(null)}
-                className="rounded border px-4 py-2"
+                className="max-lg:h-11"
               >
                 Cancelar
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
                 disabled={ocupadoAccion}
                 onClick={() => void ejecutarAccion()}
-                className="rounded bg-black px-4 py-2 text-white disabled:opacity-50"
+                className="max-lg:h-11"
               >
                 Confirmar
-              </button>
+              </Button>
             </div>
           </div>
-        </div>
+        </>
       )}
     </main>
   );
@@ -529,7 +568,7 @@ function DetalleCliente() {
 // `useParams()` es un dato de la URL en tiempo de petición: Next exige un límite de Suspense.
 export default function Pagina() {
   return (
-    <Suspense fallback={<main className="p-6">Cargando…</main>}>
+    <Suspense fallback={<main className="p-6 text-tinta-suave">Cargando…</main>}>
       <DetalleCliente />
     </Suspense>
   );

@@ -42,6 +42,12 @@ export interface FilaPreparada<D = unknown> extends FilaComplementable<D> {
   numero: string;
 }
 
+/** Lo que informa `insertar` al procesador (021, D-10): solo un conteo. Ventas no devuelve nada. */
+export interface ResultadoInsertar {
+  /** Compras nuevas que R-HIS movió al destino de su regla. */
+  segunHistorial: number;
+}
+
 export interface PersistidorLibro<D = unknown> {
   /**
    * Valida cada fila cruda del puerto y la normaliza. Una fila ilegible lanza `ErrorPropuesta("fila_invalida")` sin
@@ -59,7 +65,7 @@ export interface PersistidorLibro<D = unknown> {
     ctx: ContextoPersistidor,
     propuestaId: string,
     nuevas: readonly FilaPreparada<D>[],
-  ): Promise<void>;
+  ): Promise<void | ResultadoInsertar>;
   /**
    * Opcional (016). La descarga lo llama UNA vez, DESPUÉS del commit, con la propuesta creada. Su fallo no hace fallar la
    * descarga ni cambia su `resultado`: el procesador solo registra un código. Compras encola ahí los lotes de XML.

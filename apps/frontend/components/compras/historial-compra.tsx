@@ -10,6 +10,16 @@ import {
 import { etiquetaAutor } from "../../lib/autor";
 import { fechaHoraLima } from "../../lib/fechas";
 import { conMiles, iguales } from "../../lib/montos-compras";
+import {
+  Badge,
+  Button,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../ui";
 import { comprobanteDe } from "./accion-compras";
 
 // Panel lateral «Historial» de una compra (spec 015, P-6, D-2). Solo lectura, desde `GET …/:compraId`: el valor
@@ -62,21 +72,17 @@ export function HistorialCompra({
   return (
     <aside
       aria-label={M.tituloHistorial}
-      className="flex max-h-screen w-[28rem] max-w-full flex-col gap-3 overflow-auto border-l bg-white p-4 shadow-lg"
+      className="flex max-h-screen w-[28rem] max-w-[100vw] flex-col gap-3 overflow-auto border-l border-linea bg-hoja p-4 text-tinta shadow-flotante"
     >
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-base font-medium">{M.tituloHistorial}</h3>
-        <button
-          type="button"
-          onClick={alCerrar}
-          className="rounded border px-3 py-1 text-sm"
-        >
+        <h3 className="m-0 font-titulo text-lg font-bold">{M.tituloHistorial}</h3>
+        <Button variant="secundario" size="sm" onClick={alCerrar} className="max-lg:h-11">
           {M.cerrar}
-        </button>
+        </Button>
       </div>
 
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-error">
           {error}
         </p>
       )}
@@ -89,57 +95,60 @@ export function HistorialCompra({
       {detalle && (
         <>
           <section className="flex flex-col gap-1 text-sm">
-            <p className="font-medium">{comprobanteDe(detalle.vigente)}</p>
-            <p>{detalle.vigente.proveedor.numero}</p>
+            <p className="font-mono font-medium">{comprobanteDe(detalle.vigente)}</p>
+            <p className="font-mono">{detalle.vigente.proveedor.numero}</p>
             <p>{detalle.vigente.proveedor.razonSocial ?? ""}</p>
             {detalle.vigente.motivo && <p>{detalle.vigente.motivo}</p>}
           </section>
 
-          <table
-            aria-label={`${M.valorOriginal} / ${M.valorVigente}`}
-            className="w-full text-sm"
-          >
-            <thead>
-              <tr className="text-right">
-                <th scope="col" className="py-1 text-left" />
-                <th scope="col" className="py-1">
+          <Table aria-label={`${M.valorOriginal} / ${M.valorVigente}`}>
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col" className="py-1.5" />
+                <TableHead scope="col" className="py-1.5 text-right">
                   {M.valorOriginal}
-                </th>
-                <th scope="col" className="py-1">
+                </TableHead>
+                <TableHead scope="col" className="py-1.5 text-right">
                   {M.valorVigente}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {COLUMNAS_MOSTRADAS.map((c) => {
                 const original = detalle.original.montos[c];
                 const vigente = detalle.vigente.montos[c];
                 const cambio = !iguales(original, vigente);
                 return (
-                  <tr key={c} className="border-t text-right">
-                    <th scope="row" className="py-1 text-left font-normal">
+                  <TableRow key={c}>
+                    <TableHead scope="row" className="border-b-0 py-1.5 text-sm font-normal text-tinta">
                       {M.casilleros[c]}
-                    </th>
-                    <td className="py-1">{conMiles(original)}</td>
-                    <td className={`py-1 ${cambio ? "font-medium" : ""}`}>
+                    </TableHead>
+                    <TableCell numerico className="py-1.5">
+                      {conMiles(original)}
+                    </TableCell>
+                    <TableCell numerico className={`py-1.5 ${cambio ? "font-semibold" : ""}`}>
                       {conMiles(vigente)}
-                      {cambio && <span className="ml-1 text-xs">(cambió)</span>}
-                    </td>
-                  </tr>
+                      {cambio && <span className="ml-1 text-xs text-aviso">(cambió)</span>}
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
 
           <section aria-label={M.versiones} className="flex flex-col gap-1">
-            <h4 className="text-sm font-medium">{M.versiones}</h4>
+            <h4 className="m-0 text-sm font-semibold">{M.versiones}</h4>
             <ol className="flex flex-col gap-1 text-sm">
               {detalle.versiones.map((ver) => (
-                <li key={ver.n} className="rounded border p-2">
+                <li key={ver.n} className="rounded-control border border-linea p-2">
                   <p>
                     {M.versionPor(
                       ver.n,
-                      ver.usuarioId ? etiquetaAutor(ver.autor) : M.autorSire,
+                      ver.usuarioId
+                        ? etiquetaAutor(ver.autor)
+                        : ver.accion === "historial"
+                          ? M.accionesVersion.historial
+                          : M.autorSire,
                       fechaHoraLima(ver.creadaEn),
                     )}
                   </p>
@@ -155,16 +164,16 @@ export function HistorialCompra({
           </section>
 
           <section aria-label={M.tituloHallazgos} className="flex flex-col gap-1">
-            <h4 className="text-sm font-medium">{M.tituloHallazgos}</h4>
+            <h4 className="m-0 text-sm font-semibold">{M.tituloHallazgos}</h4>
             {detalle.hallazgos.length === 0 ? (
               <p className="text-sm">{M.sinHallazgos}</p>
             ) : (
               <ul className="flex flex-col gap-1 text-sm">
                 {detalle.hallazgos.map((h) => (
-                  <li key={h.regla} className="rounded border p-2">
-                    <span className="mr-2 rounded bg-amber-100 px-2 py-0.5 text-xs font-medium">
+                  <li key={h.regla} className="rounded-control border border-linea p-2">
+                    <Badge tono="aviso" className="mr-2 h-auto whitespace-normal py-0.5">
                       {`${h.regla} · ${M.hallazgos[h.regla]}`}
-                    </span>
+                    </Badge>
                     {h.explicacion}
                   </li>
                 ))}

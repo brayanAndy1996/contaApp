@@ -13,6 +13,9 @@ const capturado: { evaluar?: EvaluarCompra } = {};
 vi.mock("@contapp/db", async (original) => ({
   ...(await original<typeof import("@contapp/db")>()),
   leerProveedoresConocidos: vi.fn(async () => [{ tipo: "6", numero: "20700000045" }]),
+  // 021: el persistidor lee las reglas vigentes y los interruptores del estudio; aquí no hay reglas ni interruptores.
+  reglasHistorialVigentes: vi.fn(async () => []),
+  leerReglasMotor: vi.fn(async () => ({ filas: [], aportarCatalogo: true })),
   insertarCompras: vi.fn(async (_tx: unknown, _c: unknown, _n: unknown, f: { evaluar: EvaluarCompra }) => {
     capturado.evaluar = f.evaluar;
     return [];

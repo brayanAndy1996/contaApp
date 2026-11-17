@@ -6,6 +6,13 @@ import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { useAccesoPlataforma } from "../../lib/plataforma";
 import { reiniciarSesion } from "../../lib/sesion";
+import { Alert, Button, Card, enlace } from "../../components/ui";
+import { cn } from "../../lib/utils";
+
+const ENLACE = cn(
+  enlace,
+  "text-sm max-lg:inline-flex max-lg:min-h-11 max-lg:items-center",
+);
 
 interface Estudio {
   id: string;
@@ -61,36 +68,34 @@ export default function Estudios() {
 
   return (
     <main className="flex flex-1 items-center justify-center p-6">
-      <div className="flex w-full max-w-sm flex-col gap-4">
-        <h1 className="text-2xl font-semibold">Elige tu estudio</h1>
+      <Card className="w-full max-w-md">
+        <h1 className="m-0 font-titulo text-[28px] font-extrabold leading-tight tracking-tight text-tinta">
+          Elige tu estudio
+        </h1>
         {estudios?.length === 0 && <p>{SIN_ESTUDIOS}</p>}
         {estudios && estudios.length > 0 && (
           <ul className="flex flex-col gap-2">
             {estudios.map((e) => (
               <li key={e.id}>
-                <button
-                  type="button"
+                <Button
+                  variant="secundario"
                   aria-current={e.ultimoUsado ? "true" : undefined}
                   onClick={() => void elegir(e.id)}
-                  className="w-full rounded border px-4 py-2 text-left aria-[current=true]:border-black aria-[current=true]:font-semibold"
+                  className="h-auto min-h-11 w-full justify-start whitespace-normal py-2 text-left aria-[current=true]:border-primario aria-[current=true]:bg-primario-suave aria-[current=true]:font-bold"
                 >
                   {e.nombre}
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
         )}
-        {error && (
-          <p role="alert" className="text-sm text-red-600">
-            {error}
-          </p>
-        )}
+        {error && <Alert tono="error">{error}</Alert>}
         {acceso === "admin" && (
-          <Link href="/admin" className="text-sm underline">
+          <Link href="/admin" className={ENLACE}>
             Administración de plataforma
           </Link>
         )}
-      </div>
+      </Card>
     </main>
   );
 }

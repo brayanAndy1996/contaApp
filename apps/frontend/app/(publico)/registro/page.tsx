@@ -6,6 +6,20 @@ import { useState, type FormEvent } from "react";
 import { MENSAJES } from "../../../lib/acceso";
 import { api } from "../../../lib/api";
 import { MENSAJES_REGISTRO } from "../../../lib/registro";
+import {
+  Alert,
+  Button,
+  Card,
+  Input,
+  Label,
+  enlace,
+} from "../../../components/ui";
+import { cn } from "../../../lib/utils";
+
+const ENLACE = cn(
+  enlace,
+  "text-sm max-lg:inline-flex max-lg:min-h-11 max-lg:items-center",
+);
 
 // Registro público de un estudio (spec 006, D3, CA-3, CA-4, CA-10). Pide nombre del estudio, RUC
 // opcional, nombre y correo del Dueño; no pide contraseña (se fija al confirmar el correo). La respuesta
@@ -65,75 +79,69 @@ export default function Registro() {
 
   return (
     <main className="flex flex-1 items-center justify-center p-6">
-      <div className="flex w-full max-w-sm flex-col gap-4">
-        <h1 className="text-2xl font-semibold">Crear estudio en ContApp</h1>
+      <Card className="w-full max-w-md">
+        <h1 className="m-0 font-titulo text-[28px] font-extrabold leading-tight tracking-tight text-tinta">
+          Crear estudio en ContApp
+        </h1>
         {enviado ? (
           <>
-            <p role="status">{MENSAJES_REGISTRO.revisaCorreo}</p>
+            <Alert tono="ok">{MENSAJES_REGISTRO.revisaCorreo}</Alert>
             <p className="text-sm">{MENSAJES_REGISTRO.enlaceVence}</p>
           </>
         ) : (
           <form onSubmit={enviar} className="flex flex-col gap-4">
-            <label className="flex flex-col gap-1 text-sm">
+            <Label>
               Nombre del estudio
-              <input
+              <Input
                 name="estudio"
                 type="text"
                 required
                 autoComplete="organization"
-                className="rounded border px-3 py-2"
+                className="max-lg:h-11"
               />
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
+            </Label>
+            <Label>
               RUC del estudio (opcional)
-              <input
+              <Input
                 name="ruc"
                 type="text"
                 inputMode="numeric"
                 autoComplete="off"
                 aria-invalid={errorRuc ? true : undefined}
-                className="rounded border px-3 py-2"
+                className="max-lg:h-11"
               />
-            </label>
-            {errorRuc && <p className="text-sm text-red-600">{errorRuc}</p>}
-            <label className="flex flex-col gap-1 text-sm">
+            </Label>
+            {errorRuc && <p className="text-sm text-error">{errorRuc}</p>}
+            <Label>
               Tu nombre
-              <input
+              <Input
                 name="nombre"
                 type="text"
                 required
                 autoComplete="name"
-                className="rounded border px-3 py-2"
+                className="max-lg:h-11"
               />
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
+            </Label>
+            <Label>
               Correo
-              <input
+              <Input
                 name="correo"
                 type="email"
                 required
                 autoComplete="email"
-                className="rounded border px-3 py-2"
+                className="max-lg:h-11"
               />
-            </label>
-            {error && (
-              <p role="alert" className="text-sm text-red-600">
-                {error}
-              </p>
-            )}
-            <button
-              type="submit"
-              disabled={enviando}
-              className="rounded bg-black px-4 py-2 text-white disabled:opacity-50"
-            >
+            </Label>
+            {error && <Alert tono="error">{error}</Alert>}
+            <Button type="submit" disabled={enviando} className="max-lg:h-11">
               Crear estudio
-            </button>
+            </Button>
           </form>
         )}
-        <Link href="/login" className="text-sm underline">
+        <Link href="/login" className={ENLACE}>
           Ya tengo cuenta
         </Link>
-      </div>
+      </Card>
     </main>
   );
 }

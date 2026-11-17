@@ -8,6 +8,7 @@ import {
   agregarVenta,
   mensajeDeErrorVentas,
 } from "../../lib/ventas";
+import { Alert, Button, Input, Label, Select } from "../ui";
 import type { SaltoElegido } from "./correlatividad-ventas";
 
 // Formulario «Agregar venta» (spec 013, D9; RF-055, CA-8). Valida la forma con `ventaAgregarSchema` de shared
@@ -46,6 +47,9 @@ const MONTOS = [
 ] as const;
 
 const CERO = "0.00";
+
+/** Campos que se escriben en mono (D7): serie, número y documento de la contraparte. */
+const CON_MONO: ReadonlySet<Campo> = new Set<Campo>(["serie", "numero", "documento"]);
 
 function inicial(salto: SaltoElegido | null): Valores {
   return {
@@ -146,18 +150,18 @@ export function AgregarVenta({
     campo: Campo,
     opciones: { ancho?: string; modo?: "numeric" | "decimal"; ref?: boolean } = {},
   ) => (
-    <label className="flex flex-col gap-1 text-sm">
+    <Label>
       {M.campos[campo]}
-      <input
+      <Input
         ref={opciones.ref ? primero : undefined}
         type="text"
         inputMode={opciones.modo}
         autoComplete="off"
         value={valores[campo]}
         onChange={(e) => poner(campo)(e.target.value)}
-        className={`rounded border px-3 py-2 ${opciones.ancho ?? ""}`}
+        className={`font-normal max-lg:h-11 ${opciones.ancho ?? ""} ${opciones.modo === "decimal" ? "cifra" : ""} ${CON_MONO.has(campo) ? "font-mono" : ""}`}
       />
-    </label>
+    </Label>
   );
 
   return (
@@ -165,33 +169,33 @@ export function AgregarVenta({
       aria-label={M.formularioAgregar}
       onSubmit={(e) => void enviar(e)}
       noValidate
-      className="flex max-w-3xl flex-col gap-3 rounded border p-3"
+      className="flex w-full max-w-3xl flex-col gap-4 rounded-tarjeta border border-linea bg-hoja p-5 shadow-tarjeta"
     >
-      <h3 className="text-base font-medium">{M.formularioAgregar}</h3>
+      <h3 className="m-0 font-titulo text-base font-bold text-tinta">{M.formularioAgregar}</h3>
       <div className="flex flex-wrap gap-3">
         {texto("tipo", { ancho: "w-20", modo: "numeric", ref: true })}
         {texto("serie", { ancho: "w-28" })}
         {texto("numero", { ancho: "w-40", modo: "numeric" })}
-        <label className="flex flex-col gap-1 text-sm">
+        <Label>
           {M.campos.fecha}
-          <input
+          <Input
             type="date"
             value={valores.fecha}
             onChange={(e) => poner("fecha")(e.target.value)}
-            className="rounded border px-3 py-2"
+            className="w-44 font-normal max-lg:h-11"
           />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
+        </Label>
+        <Label>
           {M.campos.moneda}
-          <select
+          <Select
             value={valores.moneda}
             onChange={(e) => poner("moneda")(e.target.value)}
-            className="rounded border px-3 py-2"
+            className="w-28 font-normal max-lg:h-11"
           >
             <option value="PEN">PEN</option>
             <option value="USD">USD</option>
-          </select>
-        </label>
+          </Select>
+        </Label>
         {valores.moneda === "USD" &&
           texto("tipoCambio", { ancho: "w-32", modo: "decimal" })}
       </div>
@@ -204,27 +208,20 @@ export function AgregarVenta({
           <span key={m}>{texto(m, { ancho: "w-32", modo: "decimal" })}</span>
         ))}
       </div>
-      {error && (
-        <p role="alert" className="text-sm text-red-600">
-          {error}
-        </p>
-      )}
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={ocupado}
-          className="rounded bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
-        >
+      {error && <Alert tono="error">{error}</Alert>}
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" disabled={ocupado} className="max-lg:h-11">
           {M.agregar}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="secundario"
           onClick={alCancelar}
           disabled={ocupado}
-          className="rounded border px-4 py-2 text-sm"
+          className="max-lg:h-11"
         >
           {M.cancelar}
-        </button>
+        </Button>
       </div>
     </form>
   );

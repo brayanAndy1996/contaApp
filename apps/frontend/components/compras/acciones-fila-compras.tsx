@@ -24,6 +24,8 @@ import {
   type AccionCompraRespuesta,
 } from "../../lib/compras";
 import { destinoDe } from "../../lib/montos-compras";
+import { Button, velo } from "../ui";
+import { RecordarTrasClasificar } from "../reglas/recordar-tras-clasificar";
 import { ConfirmarAccion } from "../ventas/confirmar-accion";
 import {
   comprobanteDe,
@@ -48,7 +50,7 @@ type Panel = "aceptar" | "excluir" | "descartar" | null;
 // cortados dentro de la fila. Los eventos de React siguen subiendo por el árbol de componentes.
 function Ventana({ children }: { children: ReactNode }) {
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+    <div className={`${velo} flex items-center justify-center p-4`}>
       {children}
     </div>,
     document.body,
@@ -91,6 +93,8 @@ export function AccionesFilaCompras({
   const [panel, setPanel] = useState<Panel>(null);
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Spec 021: tras clasificar OK se ofrece «Recordar» con el destino elegido. `n` reinicia el aviso (y sus 10 s).
+  const [recordar, setRecordar] = useState<{ n: number; destino: DestinoCompra } | null>(null);
   const { avisarError, rolDe } = useErrorAnunciado(alAvisar);
   const menu = useRef<HTMLDivElement>(null);
   const boton = useRef<HTMLButtonElement>(null);
@@ -147,6 +151,7 @@ export function AccionesFilaCompras({
   async function ejecutar(
     pedir: () => Promise<ResultadoCompras<AccionCompraRespuesta>>,
     mensajeOk: string,
+    destinoOk?: DestinoCompra,
   ): Promise<void> {
     if (ocupado) return;
     setError(null);
@@ -156,6 +161,7 @@ export function AccionesFilaCompras({
       if (r.ok) {
         await recargarTrasExito(contexto, fila.id);
         alAvisar?.(mensajeOk, "ok");
+        if (destinoOk !== undefined) setRecordar((previo) => ({ n: (previo?.n ?? 0) + 1, destino: destinoOk }));
       } else {
         await recargarTrasError(contexto, fila.id, r);
         setError(r.mensaje);
@@ -177,6 +183,7 @@ export function AccionesFilaCompras({
           destino,
         }),
       M.compraClasificada,
+      destino,
     );
   };
 
@@ -223,7 +230,7 @@ export function AccionesFilaCompras({
       type="button"
       role="menuitem"
       onClick={alElegir}
-      className="w-full rounded px-3 py-1.5 text-left text-sm hover:bg-gray-100 focus:bg-gray-100"
+      className="w-full cursor-pointer rounded-control px-3 py-1.5 text-left text-sm text-tinta hover:bg-neutro-fondo focus:bg-neutro-fondo focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primario max-lg:min-h-11"
     >
       {texto}
     </button>
@@ -231,9 +238,10 @@ export function AccionesFilaCompras({
 
   return (
     <div className="relative inline-block text-left">
-      <button
+      <Button
         ref={boton}
-        type="button"
+        variant="secundario"
+        size="sm"
         aria-haspopup="menu"
         aria-expanded={abierto}
         aria-label={`${M.columnas.acciones} ${comprobante}`}
@@ -252,10 +260,10 @@ export function AccionesFilaCompras({
           }
           setAbierto((a) => !a);
         }}
-        className="rounded border px-2 py-1 text-sm disabled:opacity-50"
+        className="px-2 max-lg:h-11"
       >
         {ocupado ? M.guardando : M.columnas.acciones}
-      </button>
+      </Button>
 
       {abierto && bloqueo === null && createPortal(
         <div
@@ -264,7 +272,7 @@ export function AccionesFilaCompras({
           aria-label={`${M.columnas.acciones} ${comprobante}`}
           onKeyDown={alTeclear}
           style={{ position: "fixed", ...posicion }}
-          className="z-50 flex w-56 flex-col rounded border bg-white p-1 text-black shadow-lg"
+          className="z-50 flex w-56 flex-col rounded-control border border-linea bg-hoja p-1 text-tinta shadow-flotante"
         >
           {fila.excluida ? (
             item(M.restaurar, restaurar)
@@ -285,10 +293,27 @@ export function AccionesFilaCompras({
       )}
 
       {error && (
-        <p role={rolDe(error)} className="mt-1 text-xs text-red-600">
+        <p role={rolDe(error)} className="mt-1 text-xs text-error">
           {error}
         </p>
       )}
+
+      {recordar !== null &&
+        createPortal(
+          // Sale por un portal: la celda de la grilla recorta su contenido. No toma el foco (Alt+R lo acepta).
+          <div className="fixed bottom-4 left-4 z-[60]">
+            <RecordarTrasClasificar
+              key={recordar.n}
+              contexto={contexto}
+              compraIds={[fila.id]}
+              proveedor={fila.proveedor}
+              destino={recordar.destino}
+              alAvisar={alAvisar}
+              alTerminar={() => setRecordar(null)}
+            />
+          </div>,
+          document.body,
+        )}
 
       {panel === "aceptar" && (
         <Ventana>

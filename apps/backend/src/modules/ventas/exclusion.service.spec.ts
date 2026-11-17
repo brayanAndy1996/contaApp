@@ -9,7 +9,7 @@ vi.mock("@contapp/db", async (original) => ({
   ...(await original<typeof import("@contapp/db")>()),
   excluirVenta: vi.fn(),
   leerClienteDto: vi.fn(),
-  leerFilasVentas: vi.fn(),
+  leerFilaVenta: vi.fn(),
 }));
 vi.mock("@contapp/domain", async (original) => ({
   ...(await original<typeof import("@contapp/domain")>()),
@@ -21,7 +21,7 @@ vi.mock("./apoyo.js", async (original) => ({
   exigirEscrituraVentas: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { excluirVenta, leerClienteDto, leerFilasVentas, VentasRepoError, type Alcance } from "@contapp/db";
+import { excluirVenta, leerClienteDto, leerFilaVenta, VentasRepoError, type Alcance } from "@contapp/db";
 import { erroresDeFilaVenta } from "@contapp/domain";
 import type { SesionResuelta } from "../auth/auth.service.js";
 import { ExclusionVentasService } from "./exclusion.service.js";
@@ -42,7 +42,7 @@ const excluir = () => armar().excluir(sesion, alcance, PERMISOS, CLIENTE, "20261
 
 beforeEach(() => {
   vi.mocked(excluirVenta).mockReset();
-  vi.mocked(leerFilasVentas).mockResolvedValue([{ id: VENTA, origen: "sire", exclusion: null }] as never);
+  vi.mocked(leerFilaVenta).mockResolvedValue({ id: VENTA, origen: "sire", exclusion: null } as never);
   vi.mocked(leerClienteDto).mockResolvedValue({ ruc: "20100000001" } as never);
   vi.mocked(erroresDeFilaVenta).mockReturnValue([{ codigo: "IGV" }] as never);
 });

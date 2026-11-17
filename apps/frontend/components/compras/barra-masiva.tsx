@@ -22,6 +22,8 @@ import {
   type ContextoCompras,
   type ResultadoCompras,
 } from "../../lib/compras";
+import { RecordarTrasClasificar } from "../reglas/recordar-tras-clasificar";
+import { Button, Input, Label, velo } from "../ui";
 import type { AlAvisar } from "./accion-compras";
 import { useErrorAnunciado } from "./aviso-unico";
 import { InformeMasivo } from "./informe-masivo";
@@ -32,6 +34,26 @@ import { InformeMasivo } from "./informe-masivo";
 // su motivo; se recargan las aplicadas y las `version_obsoleta` (lo demás no cambió). Sin actualización optimista.
 
 type Modo = "barra" | "excluir";
+
+/** «Recordar» tras una masiva (spec 021, P-2): solo con un único proveedor en toda la selección y lo que se aplicó. */
+interface OfertaRecordar {
+  n: number;
+  compraIds: string[];
+  proveedor: FilaCompraVista["proveedor"];
+  destino: DestinoCompra;
+}
+
+/** El proveedor (tipo + número) común a todas las filas, o `null` si hay varios o ninguna. */
+function proveedorUnico(
+  filas: readonly FilaCompraVista[],
+): FilaCompraVista["proveedor"] | null {
+  const primera = filas[0];
+  if (primera === undefined) return null;
+  const mismo = filas.every(
+    (f) => f.proveedor.tipo === primera.proveedor.tipo && f.proveedor.numero === primera.proveedor.numero,
+  );
+  return mismo ? primera.proveedor : null;
+}
 
 export function BarraMasiva({
   contexto,
@@ -57,9 +79,10 @@ export function BarraMasiva({
   const { avisarError, rolDe } = useErrorAnunciado(alAvisar);
   const [ocupado, setOcupado] = useState(false);
   const [informe, setInforme] = useState<InformeMasiva | null>(null);
+  const [recordar, setRecordar] = useState<OfertaRecordar | null>(null);
 
   if (!contexto.permisos.clasificar) return null;
-  if (seleccion.size === 0 && informe === null) return null;
+  if (seleccion.size === 0 && informe === null && recordar === null) return null;
 
   const items = filas
     .filter((f) => seleccion.has(f.id))
@@ -73,9 +96,11 @@ export function BarraMasiva({
 
   async function aplicar(
     pedir: () => Promise<ResultadoCompras<InformeMasiva>>,
+    destinoOk?: DestinoCompra,
   ): Promise<void> {
     if (ocupado) return;
     setError(null);
+    setRecordar(null);
     setOcupado(true);
     try {
       const r = await pedir();
@@ -98,6 +123,17 @@ export function BarraMasiva({
         contexto.recargarResumen(),
       ]);
       if (r.datos.aplicadas > 0) alOperacion?.();
+      if (destinoOk !== undefined && aplicadas.length > 0) {
+        const proveedor = proveedorUnico(filas.filter((f) => seleccion.has(f.id)));
+        if (proveedor !== null) {
+          setRecordar((previo) => ({
+            n: (previo?.n ?? 0) + 1,
+            compraIds: aplicadas,
+            proveedor,
+            destino: destinoOk,
+          }));
+        }
+      }
       setInforme(r.datos);
       setModo("barra");
       setMotivo("");
@@ -120,8 +156,9 @@ export function BarraMasiva({
   const clasificar = (destino: DestinoCompra) => {
     const cuerpo = masivaClasificarSchema.safeParse({ items, destino });
     if (!cuerpo.success) return invalida();
-    void aplicar(() =>
-      masivaClasificarCompras(contexto.clienteId, contexto.periodo, cuerpo.data),
+    void aplicar(
+      () => masivaClasificarCompras(contexto.clienteId, contexto.periodo, cuerpo.data),
+      destino,
     );
   };
 
@@ -162,16 +199,17 @@ export function BarraMasiva({
     alPulsar: () => void,
     extra: { deshabilitado?: boolean; ayuda?: string } = {},
   ) => (
-    <button
+    <Button
       key={texto}
-      type="button"
+      variant="secundario"
+      size="sm"
       disabled={deshabilitado || extra.deshabilitado === true}
       title={bloqueo ?? extra.ayuda}
       onClick={alPulsar}
-      className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+      className="max-lg:h-11"
     >
       {texto}
-    </button>
+    </Button>
   );
 
   return (
@@ -180,10 +218,10 @@ export function BarraMasiva({
         <div
           role="toolbar"
           aria-label={M.barraMasiva}
-          className="flex flex-col gap-2 rounded border bg-gray-50 p-2"
+          className="flex flex-col gap-2 rounded-control border border-linea bg-hoja-alterna p-2 text-tinta"
         >
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium">
+            <span className="text-sm font-semibold">
               {M.seleccionadas(seleccion.size)}
             </span>
             {DESTINOS_COMPRA.map((d) =>
@@ -199,14 +237,15 @@ export function BarraMasiva({
               ayuda: hayRed ? undefined : M.aceptarRedSinSugerencia,
             })}
             {alLimpiarSeleccion && (
-              <button
-                type="button"
+              <Button
+                variant="terciario"
+                size="sm"
                 disabled={ocupado}
                 onClick={alLimpiarSeleccion}
-                className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+                className="max-lg:h-11"
               >
                 {M.limpiarSeleccion}
-              </button>
+              </Button>
             )}
           </div>
           {modo === "excluir" && (
@@ -216,49 +255,57 @@ export function BarraMasiva({
               noValidate
               className="flex flex-wrap items-end gap-2"
             >
-              <label className="flex flex-col gap-1 text-sm">
+              <Label>
                 {M.motivoExclusion}
-                <input
+                <Input
                   type="text"
                   autoComplete="off"
                   autoFocus
                   value={motivo}
                   onChange={(e) => setMotivo(e.target.value)}
-                  className="w-72 rounded border px-3 py-1"
+                  className="w-72 max-w-full max-lg:h-11"
                 />
-              </label>
-              <button
-                type="submit"
-                disabled={deshabilitado}
-                className="rounded bg-black px-3 py-1 text-sm text-white disabled:opacity-50"
-              >
+              </Label>
+              <Button type="submit" size="sm" disabled={deshabilitado} className="max-lg:h-11">
                 {M.excluir}
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="secundario"
+                size="sm"
                 disabled={ocupado}
                 onClick={() => setModo("barra")}
-                className="rounded border px-3 py-1 text-sm"
+                className="max-lg:h-11"
               >
                 {M.cancelar}
-              </button>
+              </Button>
             </form>
           )}
           {demasiadas && (
-            <p className="text-sm text-amber-700">
+            <p className="text-sm text-aviso">
               {M.seleccionarDemasiadas(TOPE_SELECCION)}
             </p>
           )}
           {bloqueo !== null && <p className="text-sm">{bloqueo}</p>}
           {error && (
-            <p role={rolDe(error)} className="text-sm text-red-600">
+            <p role={rolDe(error)} className="text-sm text-error">
               {error}
             </p>
           )}
         </div>
       )}
+      {recordar !== null && (
+        <RecordarTrasClasificar
+          key={recordar.n}
+          contexto={contexto}
+          compraIds={recordar.compraIds}
+          proveedor={recordar.proveedor}
+          destino={recordar.destino}
+          alAvisar={alAvisar}
+          alTerminar={() => setRecordar(null)}
+        />
+      )}
       {informe && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+        <div className={velo}>
           <InformeMasivo
             informe={informe}
             filas={filas}

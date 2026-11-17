@@ -2,6 +2,17 @@
 
 import type { DiferenciaVentasDto } from "@contapp/shared";
 import { MENSAJES_VENTAS as M } from "../../lib/ventas";
+import {
+  Badge,
+  Card,
+  CardTitle,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../ui";
 
 // Región «Diferencias de la última descarga» (spec 013, D16; CA-11): los comprobantes que el SIRE trajo con
 // valores distintos a los ya guardados, con el campo y el valor del SIRE. El texto del SIRE se muestra como
@@ -29,54 +40,51 @@ export function DiferenciasVentas({
   diferencias: DiferenciaVentasDto[] | null;
 }) {
   return (
-    <section
-      aria-label={M.tituloDiferencias}
-      className="flex flex-col gap-3"
-    >
-      <h2 className="text-lg font-medium">{M.tituloDiferencias}</h2>
+    <Card aria-label={M.tituloDiferencias}>
+      <CardTitle>{M.tituloDiferencias}</CardTitle>
       {diferencias && diferencias.length === 0 && (
-        <p className="text-sm">{M.sinDiferencias}</p>
+        <p className="m-0 text-sm text-tinta-suave">{M.sinDiferencias}</p>
       )}
       {diferencias && diferencias.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr>
-                <th scope="col" className="px-2 py-1">
-                  Comprobante
-                </th>
-                <th scope="col" className="px-2 py-1">
-                  Origen guardado
-                </th>
-                <th scope="col" className="px-2 py-1">
-                  Valor del SIRE
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {diferencias.map((d) => (
-                <tr key={d.clave} className="border-t align-top">
-                  <td className="whitespace-nowrap px-2 py-1">
-                    {d.serie}-{d.numero}
-                  </td>
-                  <td className="px-2 py-1">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead scope="col" className="px-2 py-1.5">
+                Comprobante
+              </TableHead>
+              <TableHead scope="col" className="px-2 py-1.5">
+                Origen guardado
+              </TableHead>
+              <TableHead scope="col" className="px-2 py-1.5">
+                Valor del SIRE
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {diferencias.map((d) => (
+              <TableRow key={d.clave}>
+                <TableCell className="whitespace-nowrap px-2 py-2 align-top font-mono">
+                  {d.serie}-{d.numero}
+                </TableCell>
+                <TableCell className="px-2 py-2 align-top">
+                  <Badge tono={d.origenExistente === "manual" ? "info" : "neutro"}>
                     {d.origenExistente === "manual" ? "Manual" : "SIRE"}
-                  </td>
-                  <td className="px-2 py-1">
-                    <ul>
-                      {d.campos.map((c) => (
-                        <li key={c}>
-                          {ETIQUETA_CAMPO[c] ?? c}: {d.valoresSire[c] ?? "-"}
-                        </li>
-                      ))}
-                    </ul>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </Badge>
+                </TableCell>
+                <TableCell className="px-2 py-2 align-top">
+                  <ul className="m-0 p-0">
+                    {d.campos.map((c) => (
+                      <li key={c}>
+                        {ETIQUETA_CAMPO[c] ?? c}: {d.valoresSire[c] ?? "-"}
+                      </li>
+                    ))}
+                  </ul>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
-    </section>
+    </Card>
   );
 }

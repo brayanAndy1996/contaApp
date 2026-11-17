@@ -11,6 +11,20 @@ import {
   type ConsultaRegistro,
 } from "../../../../lib/registro";
 import { reiniciarSesion } from "../../../../lib/sesion";
+import {
+  Alert,
+  Button,
+  Card,
+  Input,
+  Label,
+  enlace,
+} from "../../../../components/ui";
+import { cn } from "../../../../lib/utils";
+
+const ENLACE = cn(
+  enlace,
+  "text-sm max-lg:inline-flex max-lg:min-h-11 max-lg:items-center",
+);
 
 // Confirmación del registro (spec 006, D3, CA-3, CA-4, CA-10). Como /invitacion (005): el token viaja en
 // el fragmento `#t=`; se lee una vez, se borra de la URL y solo vive en memoria. Nunca va en una URL de
@@ -210,54 +224,46 @@ export default function ConfirmarRegistro() {
     </p>
   );
 
-  const alerta = error && (
-    <p role="alert" className="text-sm text-red-600">
-      {error}
-    </p>
-  );
+  const alerta = error && <Alert tono="error">{error}</Alert>;
 
   return (
     <main className="flex flex-1 items-center justify-center p-6">
-      <div className="flex w-full max-w-sm flex-col gap-4">
-        <h1 className="text-2xl font-semibold">Crear estudio en ContApp</h1>
+      <Card className="w-full max-w-md">
+        <h1 className="m-0 font-titulo text-[28px] font-extrabold leading-tight tracking-tight text-tinta">
+          Crear estudio en ContApp
+        </h1>
         {fase === "cargando" && <p>Verificando el enlace…</p>}
         {fase === "invalida" && (
           <>
-            <p role="alert">{MENSAJES_REGISTRO.registroInvalido}</p>
-            <Link href="/registro" className="text-sm underline">
+            <Alert tono="error">{MENSAJES_REGISTRO.registroInvalido}</Alert>
+            <Link href="/registro" className={ENLACE}>
               Solicitar un registro nuevo
             </Link>
           </>
         )}
         {fase === "error" && (
-          <p role="alert" className="text-sm text-red-600">
-            {MENSAJES.errorGeneral}
-          </p>
+          <Alert tono="error">{MENSAJES.errorGeneral}</Alert>
         )}
         {fase === "nueva" && info && (
           <form onSubmit={confirmar} className="flex flex-col gap-4">
             {resumen}
-            <label className="flex flex-col gap-1 text-sm">
+            <Label>
               Contraseña
-              <input
+              <Input
                 name="contrasena"
                 type="password"
                 required
                 autoComplete="new-password"
-                className="rounded border px-3 py-2"
+                className="max-lg:h-11"
               />
-            </label>
-            <p className="text-xs text-neutral-600">
+            </Label>
+            <p className="text-xs text-tinta-suave">
               Entre 12 y 128 caracteres.
             </p>
             {alerta}
-            <button
-              type="submit"
-              disabled={enviando}
-              className="rounded bg-black px-4 py-2 text-white disabled:opacity-50"
-            >
+            <Button type="submit" disabled={enviando} className="max-lg:h-11">
               Confirmar y crear estudio
-            </button>
+            </Button>
           </form>
         )}
         {fase === "existente" && info && (
@@ -267,53 +273,49 @@ export default function ConfirmarRegistro() {
               Ya tienes una cuenta con este correo: inicia sesión para crear el
               estudio.
             </p>
-            <label className="flex flex-col gap-1 text-sm">
+            <Label>
               Contraseña
-              <input
+              <Input
                 name="contrasena"
                 type="password"
                 required
                 autoComplete="current-password"
-                className="rounded border px-3 py-2"
+                className="max-lg:h-11"
               />
-            </label>
+            </Label>
             {alerta}
-            <button
-              type="submit"
-              disabled={enviando}
-              className="rounded bg-black px-4 py-2 text-white disabled:opacity-50"
-            >
+            <Button type="submit" disabled={enviando} className="max-lg:h-11">
               Iniciar sesión y crear estudio
-            </button>
+            </Button>
           </form>
         )}
         {fase === "creada" && (
           <>
-            <p role="status">{MENSAJES_REGISTRO.registroCreado}</p>
-            <Link href="/login" className="text-sm underline">
+            <Alert tono="ok">{MENSAJES_REGISTRO.registroCreado}</Alert>
+            <Link href="/login" className={ENLACE}>
               Ir a iniciar sesión
             </Link>
           </>
         )}
         {fase === "conEstudio" && creado && (
           <>
-            <p role="status">
+            <Alert tono="ok">
               {sinPlan
                 ? MENSAJES_REGISTRO.sinPlan
                 : MENSAJES_REGISTRO.estudioCreado(creado.nombre)}
-            </p>
+            </Alert>
             {alerta}
-            <button
+            <Button
               type="button"
               disabled={enviando}
               onClick={() => void cambiarDeEstudio()}
-              className="rounded bg-black px-4 py-2 text-white disabled:opacity-50"
+              className="max-lg:h-11"
             >
               Cambiar a este estudio
-            </button>
+            </Button>
           </>
         )}
-      </div>
+      </Card>
     </main>
   );
 }

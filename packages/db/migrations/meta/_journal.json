@@ -330,6 +330,55 @@
       "when": 1794514297698,
       "tag": "0046_notificacion_ms_validada",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1794578979728,
+      "tag": "0047_regla_aprendida",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1794578991497,
+      "tag": "0048_regla_aplicacion",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1794579004802,
+      "tag": "0049_regla_confirmacion",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1794587004626,
+      "tag": "0050_regla_correcciones_r1",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1794786890069,
+      "tag": "0051_regla_correcciones_r2",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1794856838011,
+      "tag": "0052_reglas_historial_lote",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1794866760880,
+      "tag": "0053_compra_version_operacion_parcial",
+      "breakpoints": true
     }
   ]
 }

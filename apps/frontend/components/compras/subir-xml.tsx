@@ -1,5 +1,6 @@
 "use client";
 
+import { CircleAlert, Upload } from "lucide-react";
 import { useId, useRef, useState, type DragEvent } from "react";
 import { MENSAJES } from "../../lib/acceso";
 import type { ContextoCompras } from "../../lib/compras";
@@ -9,6 +10,8 @@ import {
   subirXmlCompra,
   validarArchivoXml,
 } from "../../lib/lupa-compras";
+import { cn } from "../../lib/utils";
+import { Alert, buttonVariants } from "../ui";
 
 // «Subir XML» (spec 016, T16; CA-12, CA-13, D-3). Dos piezas:
 //  - `SelectorXml`: elegir o arrastrar un archivo. Comprueba que no esté vacío y que no pase de 1 MiB ANTES de enviar
@@ -73,12 +76,20 @@ export function SelectorXml({
         }}
         onDragLeave={() => setEncima(false)}
         onDrop={alSoltar}
-        className={`flex flex-wrap items-center gap-2 rounded border border-dashed p-2 ${encima ? "bg-gray-100" : ""}`}
+        className={cn(
+          "flex flex-wrap items-center gap-2 rounded-control border border-dashed border-linea-control p-2",
+          encima && "border-primario bg-hoja-alterna",
+        )}
       >
         <label
           title={titulo}
-          className={`rounded border px-3 py-1 text-sm focus-within:ring-2 ${inactivo ? "opacity-50" : "cursor-pointer"}`}
+          className={cn(
+            buttonVariants({ variant: "secundario", size: "sm" }),
+            "max-lg:h-11 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primario",
+            inactivo && "cursor-not-allowed opacity-45",
+          )}
         >
+          <Upload aria-hidden />
           {etiqueta}
           <input
             ref={entrada}
@@ -94,12 +105,13 @@ export function SelectorXml({
             className="sr-only"
           />
         </label>
-        <span className="text-xs text-gray-700">{L.subir.arrastrar}</span>
+        <span className="text-xs text-tinta-suave">{L.subir.arrastrar}</span>
       </div>
       {error && (
-        <p id={idError} role="alert" className="text-sm text-red-600">
+        <Alert id={idError} tono="error">
+          <CircleAlert aria-hidden />
           {error}
-        </p>
+        </Alert>
       )}
     </div>
   );
@@ -156,12 +168,13 @@ export function SubirXml({
         }}
       />
       <div aria-live="polite">
-        {ocupado && <p className="text-sm">{L.subir.subiendo}</p>}
-        {aviso && <p className="text-sm">{aviso}</p>}
+        {ocupado && <p className="text-sm text-tinta-media">{L.subir.subiendo}</p>}
+        {aviso && <p className="text-sm text-tinta-media">{aviso}</p>}
         {error && (
-          <p role="alert" className="text-sm text-red-600">
+          <Alert tono="error">
+            <CircleAlert aria-hidden />
             {error}
-          </p>
+          </Alert>
         )}
       </div>
     </div>

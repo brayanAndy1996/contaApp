@@ -9,8 +9,10 @@ import { MontosComprobante } from "../comprobante/index";
 import type { ColumnaCompra } from "../comprobante/index";
 import { DICCIONARIO_GLOSAS_BASE } from "../texto/index";
 import { DineroError } from "../dinero/index";
-import { ReglasError, evaluarReglas } from "../reglas/index";
-import type { ContextoReglas, DocProveedor, FilaEvaluable, Hallazgo, ResumenXml, Sugerencia } from "../reglas/index";
+import { ReglasError } from "../reglas/index";
+// Interno del paquete (como prevalidar): fuera de la superficie pública fijada por R2b-1.
+import { crearEvaluadorReglas } from "../reglas/motor";
+import type { CodigoReglaMotor, ContextoReglas, DocProveedor, FilaEvaluable, Hallazgo, ResumenXml, Sugerencia } from "../reglas/index";
 import { aResumenXml } from "../ubl/index";
 import type { DetalleXml } from "../ubl/index";
 
@@ -40,6 +42,10 @@ export interface XmlEvaluable {
 export interface OpcionesEvaluar {
   /** `XML_SIMULADO_EN_REGLAS`: si el XML simulado entra en las reglas (por defecto no). */
   readonly xmlSimuladoEnReglas: boolean;
+  /** Reglas apagadas por el estudio (021, RF-089). */
+  readonly reglasApagadas?: readonly CodigoReglaMotor[];
+  /** Proveedores con regla aprendida: cuentan como conocidos, no son R-NEW (021, D-7). */
+  readonly proveedoresConRegla?: readonly { tipo: string; numero: string }[];
 }
 
 /** Lo que la evaluación necesita de una compra (estructural: `packages/db` no depende de este paquete). */
@@ -119,7 +125,7 @@ export function hallazgoAJson(h: Hallazgo): HallazgoJson {
  * guardado con un monto ilegible se ignora (la fila se evalúa como sin XML) en vez de dejarla sin hallazgos; cualquier otro
  * error es un defecto de programa y se propaga.
  */
-function resumenXml(c: CompraEvaluable, opciones: OpcionesEvaluar): ResumenXml | null {
+export function resumenXml(c: CompraEvaluable, opciones: Pick<OpcionesEvaluar, "xmlSimuladoEnReglas">): ResumenXml | null {
   const xml = c.xml;
   if (xml === undefined || xml === null) return null;
   if (xml.origen === "simulado" && !opciones.xmlSimuladoEnReglas) return null;
@@ -136,17 +142,24 @@ function resumenXml(c: CompraEvaluable, opciones: OpcionesEvaluar): ResumenXml |
  * Se guarda UN hallazgo por regla y versión (la tabla lo exige): si una regla marca varios destinos de la misma compra queda
  * el primero, en el orden del dominio (DG, DGNG, DNG). Un R-NEW resuelto (la fila ya está `clasificada`) no reaparece (D-4).
  * Con XML (016): la fila lleva `xml: aResumenXml(detalle)` si el origen no es `simulado` o `xmlSimuladoEnReglas` está activa;
- * un XML ajeno o en otra moneda no respalda nada (011 lo deja como aviso).
+ * un XML ajeno o en otra moneda no respalda nada (011 lo deja como aviso). 021: `reglasApagadas` no se evalúan y
+ * `proveedoresConRegla` cuentan como conocidos (sin R-NEW).
  */
 export function crearEvaluarCompras(
   proveedoresConocidos: readonly { tipo: string; numero: string }[],
   opciones: OpcionesEvaluar = { xmlSimuladoEnReglas: false },
 ): (c: CompraEvaluable) => HallazgoJson[] {
   const contexto: ContextoReglas = {
-    proveedoresConocidos: proveedoresValidos(proveedoresConocidos),
+    // Un proveedor con regla aprendida no es nuevo (021, D-7): se suma al historial, normalizado igual.
+    proveedoresConocidos: proveedoresValidos([...proveedoresConocidos, ...(opciones.proveedoresConRegla ?? [])]),
     proveedoresIsc: [],
     diccionario: DICCIONARIO_GLOSAS_BASE,
+    ...(opciones.reglasApagadas === undefined ? {} : { reglasApagadas: [...opciones.reglasApagadas] }),
   };
+  // El contexto se valida UNA vez, aquí (T25c): un contexto inválido (p. ej. un código apagado desconocido) es un defecto del
+  // llamador y falla aquí (EntradaReglasInvalidaError) en vez de dejar cada compra sin hallazgos en silencio; cada compra solo
+  // valida su fila, así que el costo por fila no depende de cuántos proveedores y reglas tenga el contexto.
+  const evaluarReglas = crearEvaluadorReglas(contexto);
   return (c) => {
     try {
       const fila: FilaEvaluable = {
@@ -156,7 +169,7 @@ export function crearEvaluarCompras(
         montos: MontosComprobante.desde(c.moneda, c.montos),
       };
       const xml = resumenXml(c, opciones);
-      const resultado = evaluarReglas([xml === null ? fila : { ...fila, xml }], contexto);
+      const resultado = evaluarReglas([xml === null ? fila : { ...fila, xml }]);
       const porRegla = new Map<string, HallazgoJson>();
       for (const h of resultado.hallazgos) {
         if (h.regla === "R-NEW" && c.clasificada) continue;

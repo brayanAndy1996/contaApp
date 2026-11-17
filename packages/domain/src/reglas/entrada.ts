@@ -8,10 +8,12 @@ import type { Moneda } from "../dinero/index";
 import { DiccionarioGlosas } from "../texto/index";
 import { EntradaReglasInvalidaError } from "./errores";
 import { AVISO_XML_AJENO, AVISO_XML_MONEDA } from "./explicaciones";
+import { ORDEN_REGLAS } from "./tipos";
 import type {
   Aviso,
   CodigoAviso,
   CodigoRegla,
+  CodigoReglaMotor,
   ContextoReglas,
   DatoRequerido,
   FilaEvaluable,
@@ -54,6 +56,8 @@ export interface ContextoInterno {
   readonly conocidos: ReadonlySet<string>;
   readonly isc: ReadonlySet<string>;
   readonly diccionario: DiccionarioGlosas;
+  /** Reglas apagadas por el estudio (021, RF-089); vacío si no se recibió. */
+  readonly apagadas: ReadonlySet<CodigoReglaMotor>;
 }
 
 // ---------------------------------------------------------------- gramáticas
@@ -77,7 +81,10 @@ const CLAVES_COMPROBANTE = ["tipo", "serie", "numero"];
 const CLAVES_ORIGEN = ["montos", "tipoCambio"];
 const MONTOS_XML = ["gravado", "igv", "noGravado", "isc", "icbper", "total"];
 const CLAVES_XML = ["proveedor", "comprobante", "moneda", ...MONTOS_XML, "glosas"];
-const CLAVES_CONTEXTO = ["proveedoresConocidos", "proveedoresIsc", "diccionario"];
+const CLAVES_CONTEXTO = ["proveedoresConocidos", "proveedoresIsc", "diccionario", "reglasApagadas"];
+const REQUERIDAS_CONTEXTO = ["proveedoresConocidos", "proveedoresIsc", "diccionario"];
+/** Códigos que el estudio puede apagar (021): los de 011 y R-HIS, sin normalizar caja ni espacios. */
+const CODIGOS_MOTOR: readonly CodigoReglaMotor[] = Object.freeze([...ORDEN_REGLAS, "R-HIS"]);
 
 function invalida(): never {
   throw new EntradaReglasInvalidaError();
@@ -116,11 +123,6 @@ export function leerArreglo(a: unknown): unknown[] {
 }
 
 // ---------------------------------------------------------------- marcas de 010 y 011
-const CERO_MONTOS: Readonly<Record<Moneda, MontosComprobante>> = Object.freeze({
-  PEN: MontosComprobante.desde("PEN", { total: "0.00" }),
-  USD: MontosComprobante.desde("USD", { total: "0.00" }),
-});
-
 export function esMoneda(m: unknown): m is Moneda {
   return m === "PEN" || m === "USD";
 }
@@ -143,18 +145,14 @@ export function esMoneyReal(x: unknown): x is Money {
   return esMoneda(moneda) && esMoneyDe(x, moneda);
 }
 
-/** MontosComprobante real (marca privada de 010): `sumar` la comprueba. */
+/**
+ * MontosComprobante real (marca privada de 010) y de la misma moneda que declara. Antes lo comprobaba una suma `decimal.js`
+ * contra un cero; la marca privada y la moneda son exactamente lo que esa suma validaba, sin aritmética (022, RP-6).
+ */
 export function esMontosReal(x: unknown): x is MontosComprobante {
   if (typeof x !== "object" || x === null) return false;
   const moneda: unknown = (x as { moneda?: unknown }).moneda;
-  if (!esMoneda(moneda)) return false;
-  try {
-    CERO_MONTOS[moneda].sumar(x as MontosComprobante);
-    return true;
-  } catch {
-    // Con una instancia real estas llamadas no lanzan: cualquier error es una marca ausente.
-    return false;
-  }
+  return esMoneda(moneda) && MontosComprobante.esDeMoneda(x, moneda);
 }
 
 /** TipoCambio real: prototipo de TipoCambio (un Factor congelado no lo tiene) y marca privada. */
@@ -339,14 +337,26 @@ function clavesDe(a: unknown): ReadonlySet<string> {
   return claves;
 }
 
-/** Contexto validado: sin claves extra, documentos válidos y diccionario real. */
+/** `reglasApagadas` (021): ausente o `undefined` = ninguna; si no, arreglo de códigos de `CodigoReglaMotor` exactos. */
+function leerApagadas(a: unknown): ReadonlySet<CodigoReglaMotor> {
+  const apagadas = new Set<CodigoReglaMotor>();
+  if (a === undefined) return apagadas;
+  for (const c of leerArreglo(a)) {
+    if (typeof c !== "string" || !CODIGOS_MOTOR.includes(c as CodigoReglaMotor)) invalida();
+    apagadas.add(c as CodigoReglaMotor);
+  }
+  return apagadas;
+}
+
+/** Contexto validado: sin claves extra, documentos válidos, diccionario real y códigos apagados conocidos. */
 export function validarContexto(ctx: ContextoReglas): ContextoInterno {
-  const v = leerObjeto(ctx, CLAVES_CONTEXTO);
+  const v = leerObjeto(ctx, CLAVES_CONTEXTO, REQUERIDAS_CONTEXTO);
   const conocidos = clavesDe(v.get("proveedoresConocidos"));
   const isc = clavesDe(v.get("proveedoresIsc"));
   const diccionario = v.get("diccionario");
   if (!esDiccionarioReal(diccionario)) return invalida();
-  return Object.freeze({ conocidos, isc, diccionario });
+  const apagadas = leerApagadas(v.get("reglasApagadas"));
+  return Object.freeze({ conocidos, isc, diccionario, apagadas });
 }
 
 // ---------------------------------------------------------------- piezas internas de las reglas

@@ -6,6 +6,7 @@ import {
   type ColumnaMontoCompra,
   type FilaCompraVista,
 } from "@contapp/shared";
+import { CircleAlert } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { MENSAJES } from "../../lib/acceso";
 import {
@@ -20,9 +21,11 @@ import {
   type VistaPreviaDesdeXml,
 } from "../../lib/lupa-compras";
 import { conMiles, sumar, validarMonto } from "../../lib/montos-compras";
+import { cn } from "../../lib/utils";
 import type { AlAvisar } from "./accion-compras";
 import { AgregarDesdeXml } from "./agregar-desde-xml";
 import { SelectorXml } from "./subir-xml";
+import { Alert, AlertDescription, Button, Input, Label, Select, anilloFoco, cifra, panelDialogo } from "../ui";
 
 // Diálogo «Agregar compra» (spec 015, D-11, P-7, HU-18, CA-11). Comprobante, proveedor, fecha, moneda, tipo de
 // cambio (obligatorio solo en USD) y las 10 columnas de monto con el total en vivo (`sumar`, solo informativo: el
@@ -121,17 +124,13 @@ export function AgregarCompra({
         role="dialog"
         aria-modal="true"
         aria-label={M.formularioAgregar}
-        className="flex w-96 max-w-full flex-col gap-3 rounded border bg-white p-4 shadow-lg"
+        className={cn(panelDialogo, "max-w-md gap-3")}
       >
-        <h3 className="text-base font-medium">{M.formularioAgregar}</h3>
-        <p className="text-sm">{bloqueo}</p>
-        <button
-          type="button"
-          onClick={alCancelar}
-          className="w-fit rounded border px-3 py-1 text-sm"
-        >
+        <h3 className="font-titulo text-lg font-semibold text-tinta">{M.formularioAgregar}</h3>
+        <p className="text-sm text-tinta-media">{bloqueo}</p>
+        <Button variant="secundario" onClick={alCancelar} className="w-fit max-lg:h-11">
           {M.cerrar}
-        </button>
+        </Button>
       </div>
     );
   }
@@ -248,18 +247,18 @@ export function AgregarCompra({
     campo: Campo,
     opciones: { ancho?: string; modo?: "numeric" | "decimal"; ref?: boolean } = {},
   ) => (
-    <label className="flex flex-col gap-1 text-sm">
+    <Label>
       {M.campos[campo]}
-      <input
+      <Input
         ref={opciones.ref ? primero : undefined}
         type="text"
         inputMode={opciones.modo}
         autoComplete="off"
         value={v[campo]}
         onChange={(e) => poner(campo)(e.target.value)}
-        className={`rounded border px-3 py-2 ${opciones.ancho ?? ""}`}
+        className={cn("max-w-full max-lg:h-11", opciones.ancho)}
       />
-    </label>
+    </Label>
   );
 
   return (
@@ -272,10 +271,10 @@ export function AgregarCompra({
         if (e.key === "Escape" && !ocupado) alCancelar();
       }}
       noValidate
-      className="flex max-h-[90vh] w-[56rem] max-w-full flex-col gap-3 overflow-auto rounded border bg-white p-4 shadow-lg"
+      className={cn(panelDialogo, "max-w-4xl gap-3")}
     >
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-base font-medium">{M.formularioAgregar}</h3>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="font-titulo text-lg font-semibold text-tinta">{M.formularioAgregar}</h3>
         <SelectorXml
           etiqueta={M.subirXml}
           ocupado={leyendo || ocupado}
@@ -284,55 +283,56 @@ export function AgregarCompra({
         />
       </div>
       {leyendo && (
-        <p role="status" className="text-sm">
+        <p role="status" className="text-sm text-tinta-media">
           {L.subir.leyendo}
         </p>
       )}
       {errorXml && (
-        <p role="alert" className="text-sm text-red-600">
+        <Alert tono="error">
+          <CircleAlert aria-hidden />
           {errorXml}
-        </p>
+        </Alert>
       )}
 
       <div className="flex flex-wrap gap-3">
         {texto("tipo", { ancho: "w-20", modo: "numeric", ref: true })}
-        {texto("serie", { ancho: "w-28" })}
-        {texto("numero", { ancho: "w-40", modo: "numeric" })}
-        <label className="flex flex-col gap-1 text-sm">
+        {texto("serie", { ancho: "w-28 font-mono" })}
+        {texto("numero", { ancho: "w-40 font-mono", modo: "numeric" })}
+        <Label>
           {M.campos.fecha}
-          <input
+          <Input
             type="date"
             value={v.fecha}
             onChange={(e) => poner("fecha")(e.target.value)}
-            className="rounded border px-3 py-2"
+            className="max-lg:h-11"
           />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
+        </Label>
+        <Label>
           {M.campos.moneda}
-          <select
+          <Select
             value={v.moneda}
             onChange={(e) => poner("moneda")(e.target.value)}
-            className="rounded border px-3 py-2"
+            className="w-28 max-lg:h-11"
           >
             <option value="PEN">PEN</option>
             <option value="USD">USD</option>
-          </select>
-        </label>
-        {v.moneda === "USD" && texto("tipoCambio", { ancho: "w-32", modo: "decimal" })}
+          </Select>
+        </Label>
+        {v.moneda === "USD" && texto("tipoCambio", { ancho: "w-32 cifras", modo: "decimal" })}
       </div>
 
       <div className="flex flex-wrap gap-3">
         {texto("tipoDoc", { ancho: "w-20" })}
-        {texto("documento", { ancho: "w-48" })}
-        {texto("razonSocial", { ancho: "w-96" })}
+        {texto("documento", { ancho: "w-48 font-mono" })}
+        {texto("razonSocial", { ancho: "w-full sm:w-96" })}
       </div>
 
       <div className="flex flex-wrap gap-3">
         {revisadas.map((r) => (
           <div key={r.columna} className="flex flex-col gap-1">
-            <label className="flex flex-col gap-1 text-sm">
+            <Label>
               {M.casilleros[r.columna]}
-              <input
+              <Input
                 type="text"
                 inputMode="decimal"
                 autoComplete="off"
@@ -340,24 +340,27 @@ export function AgregarCompra({
                 onChange={(e) => poner(r.columna)(e.target.value)}
                 aria-invalid={!r.resultado.ok}
                 aria-describedby={r.resultado.ok ? undefined : `agregar-${r.columna}-error`}
-                className={`w-32 rounded border px-3 py-2 text-right ${r.resultado.ok ? "" : "border-red-500"}`}
+                className={cn("w-32 max-lg:h-11", cifra)}
               />
-            </label>
+            </Label>
             {!r.resultado.ok && (
               <span
                 id={`agregar-${r.columna}-error`}
-                className="max-w-32 text-xs text-red-600"
+                className="max-w-32 text-xs font-medium text-error"
               >
                 {r.resultado.motivo}
               </span>
             )}
           </div>
         ))}
-        <div className="flex flex-col gap-1 text-sm">
+        <div className="flex flex-col gap-1.5 text-[13px] font-semibold text-tinta-media">
           {M.casilleros.total}
           <output
             aria-label={M.casilleros.total}
-            className="w-32 rounded border bg-gray-50 px-3 py-2 text-right font-medium"
+            className={cn(
+              "flex h-10 w-32 items-center justify-end rounded-control border border-linea bg-hoja-alterna px-3 text-sm font-semibold text-tinta max-lg:h-11",
+              cifra,
+            )}
           >
             {totalVivo === null ? "—" : conMiles(totalVivo)}
           </output>
@@ -365,39 +368,33 @@ export function AgregarCompra({
       </div>
 
       {error && (
-        <p role="alert" className="text-sm text-red-600">
-          {error}
-          {duplicada !== null && (
-            <>
-              {" "}
-              <button
-                type="button"
-                onClick={() => alUbicarExistente(duplicada)}
-                className="underline"
-              >
-                {M.ubicarExistente}
-              </button>
-            </>
-          )}
-        </p>
+        <Alert tono="error">
+          <CircleAlert aria-hidden />
+          <AlertDescription>
+            {error}
+            {duplicada !== null && (
+              <>
+                {" "}
+                <button
+                  type="button"
+                  onClick={() => alUbicarExistente(duplicada)}
+                  className={cn(anilloFoco, "cursor-pointer rounded-control font-semibold underline underline-offset-2 max-lg:min-h-11")}
+                >
+                  {M.ubicarExistente}
+                </button>
+              </>
+            )}
+          </AlertDescription>
+        </Alert>
       )}
 
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={ocupado}
-          className="rounded bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
-        >
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" disabled={ocupado} className="max-lg:h-11">
           {M.agregar}
-        </button>
-        <button
-          type="button"
-          onClick={alCancelar}
-          disabled={ocupado}
-          className="rounded border px-4 py-2 text-sm"
-        >
+        </Button>
+        <Button variant="secundario" onClick={alCancelar} disabled={ocupado} className="max-lg:h-11">
           {M.cancelar}
-        </button>
+        </Button>
       </div>
     </form>
   );

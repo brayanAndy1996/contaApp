@@ -1,24 +1,71 @@
 @import "tailwindcss";
 
+/*
+ * Estilo A · verde petróleo (spec 038). Tokens de diseño como variables de Tailwind 4: cada `--color-*`
+ * genera utilidades (`bg-primario`, `text-tinta-suave`, `border-linea`…), cada `--radius-*` un `rounded-*`
+ * y cada `--shadow-*` un `shadow-*`. Tabla y contrastes en docs/specs/038-diseno-visual/plan.md.
+ * Tema claro fijo (D4): no hay modo oscuro automático.
+ */
+@theme {
+  --color-primario: #0e4f55;
+  --color-primario-hover: #0b4247;
+  --color-primario-activo: #082f33;
+  --color-primario-suave: #dce9e9;
+
+  --color-papel: #f6f4ee;
+  --color-hoja: #ffffff;
+  --color-hoja-alterna: #faf9f5;
+  --color-linea: #e4e1da;
+  --color-linea-control: #d9d6cf;
+
+  --color-tinta: #1c1c1c;
+  --color-tinta-media: #3d3d3d;
+  --color-tinta-suave: #5e5e5e;
+  --color-neutro-fondo: #edebe6;
+
+  --color-ok: #1f5e2e;
+  --color-ok-fondo: #e3f1e5;
+  --color-ok-borde: #a9d3b1;
+  --color-info: #24527a;
+  --color-info-fondo: #e3eef8;
+  --color-info-borde: #b9d2ea;
+  --color-aviso: #7a4e00;
+  --color-aviso-fondo: #fbf0d9;
+  --color-aviso-borde: #e7c98e;
+  --color-error: #9a2c24;
+  --color-error-fondo: #f9e1de;
+  --color-error-borde: #e8b4ae;
+
+  --font-sans: "Inter Variable", "Segoe UI", system-ui, sans-serif;
+  --font-titulo: "Inter Tight Variable", "Inter Variable", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  --radius-control: 8px;
+  --radius-tarjeta: 16px;
+  --radius-dialogo: 20px;
+
+  --shadow-tarjeta: 0 1px 2px rgb(28 28 28 / 0.04), 0 4px 12px rgb(28 28 28 / 0.04);
+  --shadow-flotante: 0 8px 24px rgb(28 28 28 / 0.18);
+  --shadow-dialogo: 0 24px 64px rgb(0 0 0 / 0.35);
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-papel);
+  color: var(--color-tinta);
+  font-family: var(--font-sans);
+}
+
+/* Montos: dígitos de igual ancho para que las columnas se alineen (D7). */
+.cifras {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Foco visible y consistente en toda la app (D5). */
+:focus-visible {
+  outline: 2px solid var(--color-primario);
+  outline-offset: 2px;
 }

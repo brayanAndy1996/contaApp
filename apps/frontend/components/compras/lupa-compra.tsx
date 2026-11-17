@@ -10,12 +10,19 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { ChevronLeft, ChevronRight, CircleAlert } from "lucide-react";
 import { MENSAJES_COMPRAS as M, type ContextoCompras } from "../../lib/compras";
+import { cn } from "../../lib/utils";
 import {
   MENSAJES_LUPA as L,
   obtenerDetalleLupa,
 } from "../../lib/lupa-compras";
 import { destinoDe } from "../../lib/montos-compras";
+import { MENSAJES_REGLAS as R, ofreceRecordar } from "../../lib/reglas";
+import {
+  RecordarTrasClasificar,
+  destinoRecordable,
+} from "../reglas/recordar-tras-clasificar";
 import { comprobanteDe, type AlAvisar } from "./accion-compras";
 import { AccionesFilaCompras } from "./acciones-fila-compras";
 import { AceptarSugerencias } from "./aceptar-sugerencia";
@@ -25,6 +32,19 @@ import { EstadoXmlLupa, bloqueoDeXml } from "./estado-xml";
 import { SubirXml } from "./subir-xml";
 import { HistorialCompra } from "./historial-compra";
 import { ItemsXml } from "./items-xml";
+import {
+  Alert,
+  Badge,
+  Button,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  panelDialogo,
+  velo,
+} from "../ui";
 
 // Lupa del comprobante (spec 016, T15; HU-20, CA-14 a CA-17; RF-091 a RF-097). Modal accesible (`aria-modal`, foco
 // atrapado, Esc cierra) con cabecera, estado del XML, ítems, comparación SIRE y XML, hallazgos y sugerencia, las
@@ -40,7 +60,7 @@ const FOCALIZABLES =
 /** Ventana encima de la lupa (sale por un portal: las acciones de 015 también lo hacen). */
 function Ventana({ children }: { children: ReactNode }) {
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+    <div className={cn(velo, "flex items-center justify-center p-4")}>
       {children}
     </div>,
     document.body,
@@ -93,6 +113,9 @@ export function LupaCompra({
   const [panel, setPanel] = useState(false);
   const [verHistorial, setVerHistorial] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
+  // «Recordar para este proveedor» (spec 021, 016 P-8): el aviso se pide con el botón; clasificar desde el menú lo
+  // ofrece por su cuenta (lo monta `AccionesFilaCompras`).
+  const [recordando, setRecordando] = useState(false);
 
   // Foco: entra en el modal y vuelve a quien lo abrió. Cambiar de compra no mueve el foco.
   useEffect(() => {
@@ -126,6 +149,7 @@ export function LupaCompra({
     setPanel(false);
     setVerHistorial(false);
     setAviso(null);
+    setRecordando(false);
   }, [compraId]);
 
   const actual = detalle.id === compraId ? detalle : { id: compraId, datos: null, error: null };
@@ -145,6 +169,15 @@ export function LupaCompra({
     !fila.excluida &&
     fila.hallazgos.length > 0;
   const bloqueo = contexto.soloLectura;
+  const destinoVigente = fila !== null ? destinoRecordable(fila) : null;
+  const reglasCliente = contexto.reglas;
+  const ofrecerRecordar =
+    fila !== null && contexto.permisos.gestionarReglas === true && reglasCliente !== undefined;
+  const yaRecordado =
+    fila !== null &&
+    destinoVigente !== null &&
+    reglasCliente !== undefined &&
+    !ofreceRecordar(reglasCliente.lista, fila.proveedor, destinoVigente, true);
 
   function cerrar(): void {
     void (async () => {
@@ -237,7 +270,7 @@ export function LupaCompra({
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4"
+      className={velo}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) cerrar();
       }}
@@ -249,60 +282,68 @@ export function LupaCompra({
         aria-labelledby="titulo-lupa-compra"
         tabIndex={-1}
         onKeyDown={alTeclear}
-        className="flex max-h-full w-full max-w-5xl flex-col gap-4 overflow-auto rounded bg-white p-4 shadow-lg outline-none"
+        className={cn(panelDialogo, "max-w-5xl gap-5 p-4 outline-none sm:p-6")}
       >
         <header className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="titulo-lupa-compra" className="text-lg font-semibold">
+          <h2 id="titulo-lupa-compra" className="font-titulo text-xl font-semibold text-tinta">
             {L.tituloModal(comprobante)}
           </h2>
           <div className="flex flex-wrap items-center gap-2">
             {indice >= 0 && (
               <>
-                <button
-                  type="button"
+                <Button
+                  variant="secundario"
+                  size="sm"
                   onClick={() => anterior !== undefined && alCambiar(anterior)}
                   disabled={anterior === undefined}
-                  className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+                  className="max-lg:h-11"
                 >
+                  <ChevronLeft aria-hidden />
                   {L.anterior}
-                </button>
-                <span className="text-sm">{L.posicion(indice + 1, orden.length)}</span>
-                <button
-                  type="button"
+                </Button>
+                <span className="cifras text-sm text-tinta-media">{L.posicion(indice + 1, orden.length)}</span>
+                <Button
+                  variant="secundario"
+                  size="sm"
                   onClick={() => siguiente !== undefined && alCambiar(siguiente)}
                   disabled={siguiente === undefined}
-                  className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+                  className="max-lg:h-11"
                 >
                   {L.siguiente}
-                </button>
+                  <ChevronRight aria-hidden />
+                </Button>
               </>
             )}
-            <button type="button" onClick={cerrar} className="rounded border px-3 py-1 text-sm">
+            <Button variant="secundario" size="sm" onClick={cerrar} className="max-lg:h-11">
               {L.cerrar}
-            </button>
+            </Button>
           </div>
         </header>
-        <p className="text-xs text-gray-700">{L.ayudaTeclado}</p>
+        <p className="text-xs text-tinta-suave">{L.ayudaTeclado}</p>
 
         {actual.error !== null && (
           <div className="flex flex-wrap items-center gap-3">
-            <p role="alert" className="text-sm text-red-600">
+            <Alert tono="error" className="flex-1">
+              <CircleAlert aria-hidden />
               {actual.error}
-            </p>
-            <button type="button" onClick={recargar} className="rounded border px-3 py-1 text-sm">
+            </Alert>
+            <Button variant="secundario" size="sm" onClick={recargar} className="max-lg:h-11">
               {L.reintentar}
-            </button>
+            </Button>
           </div>
         )}
         {datos === null && actual.error === null && (
-          <p role="status" className="text-sm">
+          <p role="status" className="text-sm text-tinta-suave">
             {L.cargando}
           </p>
         )}
 
         {datos !== null && (
           <>
-            <CabeceraLupaCompra cabecera={datos.cabecera} />
+            <CabeceraLupaCompra
+              cabecera={datos.cabecera}
+              segunHistorial={fila?.segunHistorial != null}
+            />
             <EstadoXmlLupa
               contexto={contexto}
               compraId={compraId}
@@ -324,16 +365,16 @@ export function LupaCompra({
             <ComparacionXml filas={datos.comparacion} hayXml={hayXml} />
 
             <section aria-label={L.secciones.hallazgos} className="flex flex-col gap-2">
-              <h3 className="text-sm font-medium">{L.secciones.hallazgos}</h3>
+              <h3 className="text-sm font-semibold text-tinta">{L.secciones.hallazgos}</h3>
               {datos.hallazgos.length === 0 ? (
-                <p className="text-sm">{L.hallazgos.sinHallazgos}</p>
+                <p className="text-sm text-tinta-media">{L.hallazgos.sinHallazgos}</p>
               ) : (
-                <ul className="flex flex-col gap-1 text-sm">
+                <ul className="flex flex-col gap-2 text-sm">
                   {datos.hallazgos.map((h) => (
-                    <li key={h.regla} className="rounded border p-2">
-                      <span className="mr-2 rounded bg-amber-100 px-2 py-0.5 text-xs font-medium">
+                    <li key={h.regla} className="rounded-control border border-linea p-3 text-tinta-media">
+                      <Badge tono="aviso" className="mr-2 h-auto min-h-6 whitespace-normal py-0.5">
                         {`${h.regla} · ${M.hallazgos[h.regla]}`}
-                      </span>
+                      </Badge>
                       {h.explicacion}
                     </li>
                   ))}
@@ -342,74 +383,102 @@ export function LupaCompra({
             </section>
 
             <section aria-label={L.secciones.historialProveedor} className="flex flex-col gap-2">
-              <h3 className="text-sm font-medium">{L.secciones.historialProveedor}</h3>
+              <h3 className="text-sm font-semibold text-tinta">{L.secciones.historialProveedor}</h3>
               {datos.historialProveedor.length === 0 ? (
-                <p className="text-sm">{L.proveedor.sinHistorial}</p>
+                <p className="text-sm text-tinta-media">{L.proveedor.sinHistorial}</p>
               ) : (
-                <table aria-label={L.proveedor.tabla} className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left">
-                      <th scope="col" className="py-1 pr-2">{L.proveedor.periodo}</th>
-                      <th scope="col" className="py-1 pr-2">{L.proveedor.comprobante}</th>
-                      <th scope="col" className="py-1 pr-2">{L.proveedor.destino}</th>
-                      <th scope="col" className="py-1">{L.proveedor.excluida}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <Table aria-label={L.proveedor.tabla}>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead scope="col">{L.proveedor.periodo}</TableHead>
+                      <TableHead scope="col">{L.proveedor.comprobante}</TableHead>
+                      <TableHead scope="col">{L.proveedor.destino}</TableHead>
+                      <TableHead scope="col">{L.proveedor.excluida}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {datos.historialProveedor.map((p) => (
-                      <tr key={`${p.periodo}|${p.serie}|${p.numero}`} className="border-t">
-                        <td className="py-1 pr-2">{p.periodo}</td>
-                        <td className="py-1 pr-2">{`${p.serie}-${p.numero}`}</td>
-                        <td className="py-1 pr-2">{M.destinos[destinoDe(p)]}</td>
-                        <td className="py-1">{p.excluida ? L.proveedor.si : L.proveedor.no}</td>
-                      </tr>
+                      <TableRow key={`${p.periodo}|${p.serie}|${p.numero}`}>
+                        <TableCell className="py-2">{p.periodo}</TableCell>
+                        <TableCell className="py-2 font-mono text-[13px]">{`${p.serie}-${p.numero}`}</TableCell>
+                        <TableCell className="py-2">{M.destinos[destinoDe(p)]}</TableCell>
+                        <TableCell className="py-2">{p.excluida ? L.proveedor.si : L.proveedor.no}</TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               )}
             </section>
           </>
         )}
 
-        <section aria-label={L.secciones.acciones} className="flex flex-col gap-2">
+        <section aria-label={L.secciones.acciones} className="flex flex-col gap-2 border-t border-linea pt-4">
           <div className="flex flex-wrap items-center gap-2">
             {fila !== null && (
               <AccionesFilaCompras contexto={contexto} fila={fila} alAvisar={avisar} />
             )}
             {puedeEditar && (
-              <button
-                type="button"
+              <Button
+                variant="secundario"
+                size="sm"
                 onClick={editar}
                 disabled={motivoSinEditar !== null}
                 title={motivoSinEditar ?? L.editarAyuda}
-                className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+                className="max-lg:h-11"
               >
                 {L.editar}
-              </button>
+              </Button>
             )}
             {puedeAceptar && (
-              <button
-                type="button"
+              <Button
+                variant="secundario"
+                size="sm"
                 onClick={abrirAceptacion}
                 disabled={bloqueo !== null}
                 title={bloqueo ?? undefined}
-                className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+                className="max-lg:h-11"
               >
                 {L.hallazgos.aceptar}
-              </button>
+              </Button>
             )}
-            <button
-              type="button"
+            {ofrecerRecordar && (
+              <Button
+                variant="secundario"
+                size="sm"
+                onClick={() => setRecordando(true)}
+                disabled={destinoVigente === null || yaRecordado || bloqueo !== null}
+                title={
+                  bloqueo ?? (yaRecordado ? R.yaRecordado : undefined)
+                }
+                className="max-lg:h-11"
+              >
+                {R.recordarProveedor}
+              </Button>
+            )}
+            <Button
+              variant="secundario"
+              size="sm"
               aria-expanded={verHistorial}
               onClick={() => setVerHistorial((v) => !v)}
-              className="rounded border px-3 py-1 text-sm"
+              className="max-lg:h-11"
             >
               {verHistorial ? L.ocultarHistorial : L.historial}
-            </button>
+            </Button>
           </div>
-          {fila === null && <p className="text-sm">{L.sinFila}</p>}
+          {fila === null && <p className="text-sm text-tinta-media">{L.sinFila}</p>}
+          {recordando && fila !== null && destinoVigente !== null && (
+            <RecordarTrasClasificar
+              key={`${compraId}|${destinoVigente}`}
+              contexto={contexto}
+              compraIds={[fila.id]}
+              proveedor={fila.proveedor}
+              destino={destinoVigente}
+              alAvisar={avisar}
+              alTerminar={() => setRecordando(false)}
+            />
+          )}
           {/* Con la pantalla de la grilla, ella anuncia el aviso (role="status"); aquí solo se muestra (018, P-2). */}
-          <div aria-live={alAvisarDe ? undefined : "polite"}>{aviso && <p className="text-sm">{aviso}</p>}</div>
+          <div aria-live={alAvisarDe ? undefined : "polite"}>{aviso && <p className="text-sm text-tinta-media">{aviso}</p>}</div>
           {verHistorial && (
             <div className="overflow-x-auto">
               <HistorialCompra

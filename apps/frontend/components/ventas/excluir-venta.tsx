@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { MENSAJES } from "../../lib/acceso";
 import { useRestaurarFoco } from "../../lib/restaurar-foco";
 import { MENSAJES_VENTAS as M, excluirVenta } from "../../lib/ventas";
+import { Alert, Button, Input, Label, panelDialogo } from "../ui";
 
 // Excluir una venta del SIRE cuyo error bloquea la generación (spec 012b, T15; D12, P-8; CA-15). `alertdialog`
 // con motivo obligatorio de 1 a 200 caracteres en una línea, el aviso de que la venta no irá en el archivo y
@@ -78,48 +79,41 @@ export function ExcluirVenta({
         if (e.key === "Escape" && !ocupado) alCancelar();
       }}
       noValidate
-      className="flex w-96 max-w-full flex-col gap-3 rounded border bg-white p-4 shadow-lg"
+      className={panelDialogo}
     >
-      <h3 className="text-base font-medium">{titulo}</h3>
+      <h3 className="m-0 font-titulo text-lg font-bold text-tinta">{titulo}</h3>
       <p
         id="excluir-venta-aviso"
-        className="rounded border border-amber-300 bg-amber-50 p-2 text-sm"
+        className="m-0 rounded-control border border-aviso-borde bg-aviso-fondo px-3.5 py-3 text-sm text-aviso"
       >
         {M.avisoExcluir}
       </p>
-      <label className="flex flex-col gap-1 text-sm">
+      <Label>
         {M.motivoExclusion}
-        <input
+        <Input
           ref={campo}
           type="text"
           autoComplete="off"
           value={motivo}
           onChange={(e) => setMotivo(e.target.value)}
           aria-invalid={error !== null}
-          className="rounded border px-3 py-2"
+          className="font-normal max-lg:h-11"
         />
-      </label>
-      {error && (
-        <p role="alert" className="text-sm text-red-600">
-          {error}
-        </p>
-      )}
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={ocupado}
-          className="rounded bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
-        >
+      </Label>
+      {error && <Alert tono="error">{error}</Alert>}
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" disabled={ocupado} className="max-lg:h-11">
           {M.confirmar}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="secundario"
           onClick={alCancelar}
           disabled={ocupado}
-          className="rounded border px-4 py-2 text-sm"
+          className="max-lg:h-11"
         >
           {M.cancelar}
-        </button>
+        </Button>
       </div>
     </form>
   );

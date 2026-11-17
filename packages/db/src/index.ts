@@ -195,7 +195,7 @@ export {
   tipoCambioConEscala,
 } from "./ventas/preparacion";
 export type { FilaVentaLegible } from "./ventas/preparacion";
-export { leerExistentes, leerFilasVentas, listarVentas, TOPE_TODAS } from "./ventas/lectura";
+export { leerExistentes, leerFilasVentas, leerFilaVenta, listarVentas, TOPE_TODAS } from "./ventas/lectura";
 export { crearVentaManual, insertarVentas, quitarVentaManual } from "./ventas/escritura";
 export { justificar, listarJustificados, revertirJustificacion } from "./ventas/justificados";
 export { VentasRepoError } from "./ventas/errores";
@@ -254,6 +254,7 @@ export type {
   FiltrosListado as FiltrosListadoCompras,
   HallazgoGuardadoFila as HallazgoGuardadoCompra,
   PaginaListado as PaginaListadoCompras,
+  SegunHistorialLeido as SegunHistorialCompra,
   VersionHistorial as VersionHistorialCompra,
   VistaListado as VistaListadoCompras,
 } from "./compras/lectura";
@@ -361,3 +362,44 @@ export type { FilaNotificacion, OpcionesNotificaciones, TipoNotificacion } from 
 export { resolverAutores } from "./acceso/autores";
 export type { AutorResuelto } from "./acceso/autores";
 export { marcarOrigenImportacion } from "./clientes/origen";
+
+// Spec 021: reglas aprendidas (cliente y estudio), interruptores del motor, aporte al catálogo y la aplicación de R-HIS en la
+// descarga (funciones acotadas de 0048 y, por lotes, 0052; solo el worker). Tablas de 0047–0049 aparte del índice del esquema.
+export {
+  aplicarReglaHistorial,
+  aplicarReglasHistorial,
+  LOTE_HISTORIAL,
+  datosHistorial,
+  editarRegla,
+  eliminarRegla,
+  esUuidRegla,
+  fijarAporte,
+  fijarReglaMotor,
+  leerRegla,
+  leerReglasMotor,
+  listarReglas,
+  recordarRegla,
+  reglasHistorialVigentes,
+} from "./reglas";
+export type {
+  AplicacionHistorial,
+  CodigoRegla,
+  DestinoRegla,
+  EntradaEditar as EntradaEditarRegla,
+  EntradaEliminar as EntradaEliminarRegla,
+  EntradaRecordar as EntradaRecordarRegla,
+  LecturaMotor as LecturaReglasMotor,
+  ReglaFila,
+  ReglaVigente,
+} from "./reglas";
+export type { HistorialDescarga } from "./compras/versiones";
+export {
+  CODIGOS_REGLA_MOTOR_BD,
+  DESTINOS_REGLA_BD,
+  estudioReglaMotor,
+  estudioReglasConfig,
+  reglaAceptacion,
+  reglaAplicacion,
+  reglaAprendida,
+  reglaConfirmacion,
+} from "./schema/reglas";

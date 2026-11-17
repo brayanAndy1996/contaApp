@@ -6,6 +6,8 @@ Si quieres entender **cómo está construido** por dentro (PostgreSQL, colas, ci
 
 ## Antes de empezar: lee esto
 
+> **La apariencia cambió después de escribir esta guía.** La spec 038 (noviembre de 2026) aplicó el diseño nuevo, verde petróleo, a todas las pantallas: menú lateral en escritorio, barra inferior en celular y «Ventas» accesible desde la ficha del cliente. Los nombres de botones, los pasos y las reglas de esta guía siguen valiendo; lo que cambia es el aspecto y dónde está el menú. Las dos capturas de los módulos 06 y 09 muestran el diseño anterior. Las reglas aprendidas de la spec 021 todavía no tienen módulo en esta guía.
+
 > **ContApp todavía no se conecta con SUNAT.** La versión actual (Release 1) está completa y probada, pero las conexiones con SUNAT son **simulaciones**: la descarga de propuestas SIRE, la consulta RUC, la verificación de credenciales y los XML de los comprobantes devuelven datos de prueba. Con un RUC real no verás los comprobantes reales de tu cliente.
 
 > **No ingreses claves SOL ni credenciales SIRE reales en tu entorno de prueba.** En modo desarrollo las credenciales se cifran con una llave de pruebas cuya parte privada está guardada en el propio repositorio (`packages/crypto/fixtures/mock-kek/`). Quien tenga acceso al repositorio podría descifrarlas. Usa siempre los datos de prueba que trae el proyecto y una clave inventada, como `CLAVEPRUEBA1`. Las credenciales reales se podrán usar cuando existan la configuración de producción y la conexión real con SUNAT.

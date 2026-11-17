@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   useEffect,
   useMemo,
   useRef,
@@ -31,6 +32,7 @@ import {
   type EstadoEdicion,
 } from "../../lib/edicion-compras";
 import { conMiles, destinoDe, validarMonto } from "../../lib/montos-compras";
+import { MENSAJES_REGLAS as R } from "../../lib/reglas";
 import {
   COLUMNAS_COMPRAS,
   ENCABEZADOS,
@@ -44,6 +46,8 @@ import {
   seccionDe,
   type SeccionCompras,
 } from "./columnas-compras";
+import { Search } from "lucide-react";
+import { Badge, Button, Input, cifra } from "../ui";
 import { debeEnfocar, type MarcaFoco } from "./foco-grilla";
 
 // Grilla de compras del periodo (spec 015, T4 y T6; D-5, D-6, D-16; P-3, P-5, P-8, P-9; RF-061, RF-064).
@@ -133,6 +137,22 @@ function tramosDeGrupo(centro: readonly ColumnaGrilla[]): { titulo: string; anch
   return tramos;
 }
 
+/** Bajo este ancho (el `lg` de Tailwind) las columnas fijas de los extremos no dejan sitio al resto de la grilla. */
+const ANCHO_ANGOSTO = "(max-width: 1023px)";
+
+function usePantallaAngosta(): boolean {
+  const [angosta, setAngosta] = useState(false);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const consulta = window.matchMedia(ANCHO_ANGOSTO);
+    const leer = () => setAngosta(consulta.matches);
+    leer();
+    consulta.addEventListener("change", leer);
+    return () => consulta.removeEventListener("change", leer);
+  }, []);
+  return angosta;
+}
+
 /** Rango por defecto más los índices que deben seguir en el DOM (la celda activa conserva el foco). */
 function conIndices(range: Range, extra: readonly number[]): number[] {
   const base = defaultRangeExtractor(range);
@@ -162,8 +182,8 @@ const idExplicacion = (columna: ColumnaMontoCompra) => `explicacion-edicion-${co
 const ID_PANEL_EDICION = "panel-edicion-compras";
 
 const CELDA =
-  "flex h-full shrink-0 flex-col justify-center overflow-hidden border-b border-gray-200 px-2 text-sm bg-inherit focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-700";
-const CELDA_MONTO = `${CELDA} items-end text-right tabular-nums`;
+  "flex h-full shrink-0 flex-col justify-center overflow-hidden border-b border-linea px-2 text-sm bg-inherit focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primario";
+const CELDA_MONTO = `${CELDA} items-end ${cifra}`;
 
 export function GrillaCompras({
   filas,
@@ -224,6 +244,16 @@ export function GrillaCompras({
     getRowId: (f) => f.id,
     initialState: { columnPinning: { start: [...FIJAS_COMPRAS.start], end: [...FIJAS_COMPRAS.end] } },
   });
+
+  // En pantalla angosta no se fijan columnas (T23a-1): las fijas suman 886 px y a 390 px la de la derecha tapaba
+  // Comprobante, Proveedor y Destino. Sin fijar, el orden de las columnas es el mismo y todo se alcanza desplazando.
+  const angosta = usePantallaAngosta();
+  useEffect(() => {
+    table.setColumnPinning(
+      angosta ? { start: [], end: [] } : { start: [...FIJAS_COMPRAS.start], end: [...FIJAS_COMPRAS.end] },
+    );
+    // `table` es estable entre renders; solo importa el cambio de ancho.
+  }, [angosta]);
 
   const filasTabla = table.getRowModel().rows;
   const inicio = table.getStartLeafColumns();
@@ -653,13 +683,16 @@ export function GrillaCompras({
     // virtualizador y `items` se leen del último pintado.
   }, [resaltadas, items.length]);
   const columnasVisibles = columnasVirtuales.getVirtualItems();
-  const margenIzq = columnasVisibles.length
-    ? (columnasVisibles[0]?.start ?? anchoInicio) - anchoInicio
-    : 0;
-  const finVisible = columnasVisibles.length
-    ? (columnasVisibles[columnasVisibles.length - 1]?.end ?? anchoInicio) - anchoInicio
-    : 0;
-  const margenDer = Math.max(0, anchoCentro - finVisible);
+  // Espacio vacío antes de cada columna de la ventana y tras la última. Las columnas de la ventana no siempre son
+  // contiguas: el extractor conserva la columna activa aunque quede lejos (sin columnas fijas, la de «seleccionar»), y
+  // un único margen a la izquierda pegaba las demás a ella, fuera de la vista (F-4).
+  const huecosColumnas: number[] = [];
+  let bordeColumnas = anchoInicio;
+  for (const v of columnasVisibles) {
+    huecosColumnas.push(Math.max(0, v.start - bordeColumnas));
+    bordeColumnas = v.end;
+  }
+  const margenDer = Math.max(0, anchoInicio + anchoCentro - bordeColumnas);
 
   // Posición fija de una columna de los extremos (sticky) dentro de su fila.
   function estiloFija(columna: ColumnaGrilla, region: "start" | "end"): CSSProperties {
@@ -720,9 +753,9 @@ export function GrillaCompras({
       const tocada = ed.estado.borrador[id] !== undefined;
       const valido = errorDeCelda(ed.estado, id) === null;
       const color = invalida
-        ? "bg-red-50 text-red-800 ring-2 ring-inset ring-red-600"
+        ? "bg-error-fondo text-error ring-2 ring-inset ring-error"
         : tocada
-          ? "bg-yellow-50 font-semibold"
+          ? "bg-info-fondo font-semibold"
           : "";
       const nombre = M.celdaDe(M.casilleros[id], comprobante);
       const descripcion = invalida ? idExplicacion(id) : undefined;
@@ -735,7 +768,7 @@ export function GrillaCompras({
           className={`${CELDA_MONTO} ${color}`}
         >
           {ed.columna === id ? (
-            <input
+            <Input
               data-edicion=""
               type="text"
               inputMode="decimal"
@@ -750,7 +783,7 @@ export function GrillaCompras({
               onChange={(e) => alEscribirEnCampo(id, e.target.value)}
               onKeyDown={alTeclearCampo}
               onPaste={alPegarEnCampo}
-              className="w-full rounded border border-blue-700 bg-white px-1 py-0.5 text-right tabular-nums text-black"
+              className={`h-8 px-1.5 ${cifra}`}
             />
           ) : (
             <span>{tocada && valido ? conMiles(validarValor(texto)) : texto}</span>
@@ -763,13 +796,17 @@ export function GrillaCompras({
     if (id === "seleccionar") {
       return (
         <div key={id} {...comun} className={`${CELDA} items-center`}>
-          <input
-            type="checkbox"
-            checked={seleccion.has(f.id)}
-            onChange={() => alternarSeleccion(f.id)}
-            tabIndex={esActiva ? 0 : -1}
-            aria-label={M.seleccionarFila(comprobante)}
-          />
+          {/* Bajo 1024 px la etiqueta envolvente cubre toda la celda (44 × 44 px de área táctil). */}
+          <label className="flex items-center justify-center max-lg:-mx-2 max-lg:size-11">
+            <input
+              type="checkbox"
+              className="size-5 cursor-pointer accent-primario"
+              checked={seleccion.has(f.id)}
+              onChange={() => alternarSeleccion(f.id)}
+              tabIndex={esActiva ? 0 : -1}
+              aria-label={M.seleccionarFila(comprobante)}
+            />
+          </label>
         </div>
       );
     }
@@ -785,17 +822,21 @@ export function GrillaCompras({
       const resaltada = resaltadas?.has(f.id) === true;
       return (
         <div key={id} {...comun} className={CELDA}>
-          <span className="truncate font-medium">{comprobante}</span>
+          <span className="truncate font-mono font-medium">{comprobante}</span>
           <span className="flex flex-wrap items-center gap-x-1 text-xs">
             {f.hallazgos.length > 0 && (
-              <span className="font-medium text-amber-900" title={f.hallazgos.map((h) => h.explicacion).join(" · ")}>
-                <span aria-hidden="true">⚠ </span>
-                {T.alertaDe(reglas)}
-              </span>
+              <Badge
+                tono="aviso"
+                className="h-5 min-w-0 max-w-full gap-0 px-2"
+                title={`${T.alertaDe(reglas)} · ${f.hallazgos.map((h) => h.explicacion).join(" · ")}`}
+              >
+                <span aria-hidden="true" className="shrink-0">⚠ </span>
+                <span className="truncate">{T.alertaDe(reglas)}</span>
+              </Badge>
             )}
-            {f.origen === "agregada" && <span className="rounded border px-1">{M.agregada}</span>}
-            {f.excluida && <span className="rounded border px-1">{M.excluida}</span>}
-            {resaltada && <span className="rounded border border-blue-700 px-1 text-blue-900">{T.actualizada}</span>}
+            {f.origen === "agregada" && <Badge className="h-5 px-2">{M.agregada}</Badge>}
+            {f.excluida && <Badge className="h-5 px-2">{M.excluida}</Badge>}
+            {resaltada && <Badge tono="info" className="h-5 px-2">{T.actualizada}</Badge>}
           </span>
         </div>
       );
@@ -807,14 +848,19 @@ export function GrillaCompras({
           <span className="truncate" title={razon ?? undefined}>
             {razon ?? T.sinRazonSocial}
           </span>
-          <span className="flex items-center gap-1 text-xs text-gray-700">
-            <span>
+          <span className="flex items-center gap-1 text-xs text-tinta-suave">
+            <span className="font-mono">
               {f.proveedor.tipo} {f.proveedor.numero}
             </span>
             {f.proveedorNuevo && (
-              <span className="rounded border border-blue-700 px-1 font-medium text-blue-900">
+              <Badge tono="info" className="h-5 px-2">
                 {M.proveedorNuevo}
-              </span>
+              </Badge>
+            )}
+            {f.segunHistorial && (
+              <Badge tono="ok" className="h-5 px-2">
+                {R.segunHistorial}
+              </Badge>
             )}
           </span>
         </div>
@@ -832,7 +878,7 @@ export function GrillaCompras({
         <div key={id} {...comun} className={CELDA}>
           <span>{f.moneda}</span>
           {f.tipoCambio !== null && (
-            <span className="text-xs text-gray-700" title={M.columnas.tipoCambio}>
+            <span className="cifras text-xs text-tinta-suave" title={M.columnas.tipoCambio}>
               TC {f.tipoCambio}
             </span>
           )}
@@ -844,7 +890,7 @@ export function GrillaCompras({
       return (
         <div key={id} {...comun} className={CELDA}>
           <span title={M.destinoAyuda}>{M.destinos[destino]}</span>
-          <span className="text-xs text-gray-700">{f.clasificada ? M.clasificada : M.porClasificar}</span>
+          <span className="text-xs text-tinta-suave">{f.clasificada ? M.clasificada : M.porClasificar}</span>
         </div>
       );
     }
@@ -853,7 +899,7 @@ export function GrillaCompras({
       return (
         <div key={id} {...comun} className={CELDA}>
           {texto && (
-            <span className="line-clamp-2 text-xs" title={texto}>
+            <span className="line-clamp-2 text-xs text-tinta-media" title={texto}>
               {texto}
             </span>
           )}
@@ -864,25 +910,27 @@ export function GrillaCompras({
       return (
         <div key={id} {...comun} className={`${CELDA} items-center`}>
           {alAbrirLupa ? (
-            <button
-              type="button"
+            <Button
+              variant="secundario"
+              size="sm"
               onClick={() => alAbrirLupa(f.id, datos.map((d) => d.id))}
               tabIndex={esActiva ? 0 : -1}
               aria-label={`${M.columnas.lupa} ${comprobante}`}
-              className="rounded border px-1"
+              className="px-2 max-lg:h-11 max-lg:min-w-11"
             >
-              <span aria-hidden="true">🔍</span>
-            </button>
+              <Search aria-hidden="true" />
+            </Button>
           ) : (
-            <button
-              type="button"
+            <Button
+              variant="secundario"
+              size="sm"
               disabled
               title={M.lupaDeshabilitada}
               aria-label={`${M.columnas.lupa}: ${M.lupaDeshabilitada}`}
-              className="rounded border px-1 text-gray-500"
+              className="px-2 max-lg:h-11 max-lg:min-w-11"
             >
-              <span aria-hidden="true">🔍</span>
-            </button>
+              <Search aria-hidden="true" />
+            </Button>
           )}
         </div>
       );
@@ -891,15 +939,16 @@ export function GrillaCompras({
       return (
         <div key={id} {...comun} className={`${CELDA} flex-row items-center gap-1`}>
           {renderAcciones(f)}
-          <button
-            type="button"
+          <Button
+            variant="secundario"
+            size="sm"
             onClick={() => alAbrirHistorial(f.id)}
             tabIndex={esActiva ? 0 : -1}
             aria-label={T.abrirHistorial(comprobante)}
-            className="rounded border px-2 py-0.5 text-xs"
+            className="px-2 text-xs max-lg:h-11"
           >
             {T.historial}
-          </button>
+          </Button>
         </div>
       );
     }
@@ -909,7 +958,7 @@ export function GrillaCompras({
           <div key={id} {...comun} className={`${CELDA_MONTO} font-medium`}>
             <span>{conMiles(totalLocal(enEdicion.estado))}</span>
             {enEdicion.estado.cuadreNoVerificado && (
-              <span className="text-xs font-normal text-amber-900">{M.cuadreNoVerificado}</span>
+              <span className="text-xs font-normal text-aviso">{M.cuadreNoVerificado}</span>
             )}
           </div>
         );
@@ -931,15 +980,15 @@ export function GrillaCompras({
     const seleccionada = seleccion.has(f.id);
     const resaltada = resaltadas?.has(f.id) === true;
     const color = seleccionada
-      ? "bg-blue-50"
+      ? "bg-primario-suave"
       : resaltada
-        ? "bg-sky-100"
+        ? "bg-info-fondo"
         : f.hallazgos.length > 0
-          ? "bg-amber-50"
+          ? "bg-aviso-fondo"
           : f.excluida
-            ? "bg-gray-100 text-gray-600"
-            : "bg-white";
-    const borde = f.hallazgos.length > 0 ? "border-l-4 border-l-amber-600" : "border-l-4 border-l-transparent";
+            ? "bg-neutro-fondo text-tinta-suave"
+            : "bg-hoja";
+    const borde = f.hallazgos.length > 0 ? "border-l-4 border-l-aviso" : "border-l-4 border-l-transparent";
     return (
       <div
         key={item.clave}
@@ -948,15 +997,19 @@ export function GrillaCompras({
         aria-selected={seleccionada}
         data-fila={f.id}
         data-seccion={seccionDe(f)}
-        className={`absolute left-0 top-0 flex text-black ${color} ${borde}`}
+        className={`absolute left-0 top-0 flex text-tinta ${color} ${borde}`}
         style={{ width: anchoTotal, height: ALTO_FILA, transform: `translateY(${start}px)` }}
       >
         {inicio.map((col, i) => celda(col, item.fila, item.r, i, estiloFija(col, "start")))}
-        <div aria-hidden="true" style={{ width: margenIzq, flexShrink: 0 }} />
-        {columnasVisibles.map((v) => {
+        {columnasVisibles.map((v, k) => {
           const col = centro[v.index];
           if (!col) return null;
-          return celda(col, item.fila, item.r, inicio.length + v.index, { width: col.getSize() });
+          return (
+            <Fragment key={col.id}>
+              <div aria-hidden="true" style={{ width: huecosColumnas[k] ?? 0, flexShrink: 0 }} />
+              {celda(col, item.fila, item.r, inicio.length + v.index, { width: col.getSize() })}
+            </Fragment>
+          );
         })}
         <div aria-hidden="true" style={{ width: margenDer, flexShrink: 0 }} />
         {fin.map((col, i) =>
@@ -984,37 +1037,41 @@ export function GrillaCompras({
       aria-multiselectable="true"
       aria-busy={cargando}
       onKeyDown={alTeclear}
-      className="relative h-[65vh] min-h-[360px] overflow-auto rounded border bg-white text-black"
+      className="relative h-[65vh] min-h-[360px] overflow-auto rounded-control border border-linea bg-hoja text-tinta"
     >
       <div style={{ width: anchoTotal, minWidth: "100%" }}>
-        <div role="rowgroup" className="sticky top-0 z-30 bg-gray-50 text-black" style={{ width: anchoTotal }}>
+        <div role="rowgroup" className="sticky top-0 z-30 bg-hoja-alterna text-tinta-media" style={{ width: anchoTotal }}>
           <div role="row" aria-rowindex={1} className="flex" style={{ height: ALTO_GRUPO, width: anchoTotal }}>
-            <div
-              role="columnheader"
-              aria-colspan={inicio.length}
-              className="sticky left-0 z-20 shrink-0 truncate border-b bg-gray-100 px-2 text-xs font-semibold leading-7"
-              style={{ width: anchoInicio }}
-            >
-              {T.grupoIdentidad}
-            </div>
+            {inicio.length > 0 && (
+              <div
+                role="columnheader"
+                aria-colspan={inicio.length}
+                className="sticky left-0 z-20 shrink-0 truncate border-b border-linea bg-neutro-fondo px-2 text-xs font-semibold leading-7"
+                style={{ width: anchoInicio }}
+              >
+                {T.grupoIdentidad}
+              </div>
+            )}
             {tramos.map((t, i) => (
               <div
                 key={`${t.titulo}-${i}`}
                 role="columnheader"
-                className="shrink-0 truncate border-b border-l bg-gray-100 px-2 text-xs font-semibold leading-7"
+                className="shrink-0 truncate border-b border-l border-linea bg-neutro-fondo px-2 text-xs font-semibold leading-7"
                 style={{ width: t.ancho }}
               >
                 {t.titulo}
               </div>
             ))}
-            <div
-              role="columnheader"
-              aria-colspan={fin.length}
-              className="sticky right-0 z-20 shrink-0 truncate border-b border-l bg-gray-100 px-2 text-xs font-semibold leading-7"
-              style={{ width: anchoFin }}
-            >
-              {T.grupoFin}
-            </div>
+            {fin.length > 0 && (
+              <div
+                role="columnheader"
+                aria-colspan={fin.length}
+                className="sticky right-0 z-20 shrink-0 truncate border-b border-l border-linea bg-neutro-fondo px-2 text-xs font-semibold leading-7"
+                style={{ width: anchoFin }}
+              >
+                {T.grupoFin}
+              </div>
+            )}
           </div>
           <div role="row" aria-rowindex={2} className="flex" style={{ height: ALTO_ENCABEZADO, width: anchoTotal }}>
             {todas.map((col, c) => {
@@ -1027,8 +1084,8 @@ export function GrillaCompras({
                   aria-colindex={c + 1}
                   aria-label={enc?.completo}
                   title={enc?.completo}
-                  className={`shrink-0 truncate border-b px-2 text-xs font-semibold leading-9 ${
-                    region ? "bg-gray-100" : "bg-gray-50"
+                  className={`shrink-0 truncate border-b border-linea px-2 text-xs font-semibold leading-9 ${
+                    region ? "bg-neutro-fondo" : "bg-hoja-alterna"
                   } ${esMonto(col.id) ? "text-right" : ""}`}
                   style={region ? estiloFija(col, region) : { width: col.getSize() }}
                 >
@@ -1063,7 +1120,7 @@ export function GrillaCompras({
                   role="row"
                   aria-rowindex={v.index + 3}
                   data-seccion-titulo={item.seccion}
-                  className="absolute left-0 top-0 bg-gray-200 text-black"
+                  className="absolute left-0 top-0 bg-primario-suave text-primario"
                   style={{ width: anchoTotal, height: ALTO_SECCION, transform: `translateY(${v.start}px)` }}
                 >
                   <div
@@ -1104,7 +1161,7 @@ function PanelEdicion({ edicion, comprobante }: { edicion: EdicionFila; comproba
       id={ID_PANEL_EDICION}
       aria-label={M.editandoFila(comprobante)}
       aria-live="polite"
-      className="sticky bottom-0 z-40 flex flex-col gap-1 rounded border border-blue-700 bg-white p-2 text-sm text-black"
+      className="sticky bottom-0 z-40 flex flex-col gap-1 rounded-control border border-primario bg-hoja p-2 text-sm text-tinta shadow-flotante"
     >
       <p className="font-medium">
         {M.editandoFila(comprobante)} · {M.totalLocal} {conMiles(totalLocal(edicion.estado))}
@@ -1118,7 +1175,7 @@ function PanelEdicion({ edicion, comprobante }: { edicion: EdicionFila; comproba
             <li
               key={x.columna}
               id={idExplicacion(x.columna)}
-              className="font-medium text-red-800"
+              className="font-medium text-error"
             >
               <span aria-hidden="true">⚠ </span>
               {M.explicacionCelda(M.casilleros[x.columna], x.texto)}
@@ -1128,11 +1185,11 @@ function PanelEdicion({ edicion, comprobante }: { edicion: EdicionFila; comproba
         </ul>
       )}
       {edicion.aviso && (
-        <p role="alert" className="font-medium text-red-800">
+        <p role="alert" className="font-medium text-error">
           {edicion.aviso}
         </p>
       )}
-      <p className="text-xs text-gray-700">{M.ayudaEdicion}</p>
+      <p className="text-xs text-tinta-suave">{M.ayudaEdicion}</p>
     </section>
   );
 }

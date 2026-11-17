@@ -78,6 +78,14 @@ const ACCIONES: Record<AccionAuditoria, string> = {
   "archivo.generado": "Generó un archivo",
   "credencial.descifrada": "Descifró una credencial",
   "sunat.envio": "Envió a SUNAT",
+  "regla.creada": "Recordó una regla para un proveedor",
+  "regla.editada": "Editó una regla de un proveedor",
+  "regla.activada": "Activó una regla de un proveedor",
+  "regla.desactivada": "Desactivó una regla de un proveedor",
+  "regla.eliminada": "Eliminó una regla de un proveedor",
+  "estudio.regla_motor": "Cambió una regla del motor del estudio",
+  "estudio.aporte_catalogo": "Cambió el aporte al catálogo compartido",
+  "compra.historial": "Aplicó el destino según el historial",
 };
 
 /** Acción en español; una clave fuera del catálogo (no debería llegar) sale genérica, nunca el código crudo. */

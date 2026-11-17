@@ -18,7 +18,24 @@ import {
   filtrosDeEstado,
   type EstadoFiltros,
 } from "../../../components/filtros-clientes";
-import type { ClienteDto } from "@contapp/shared";
+import {
+  Alert,
+  Badge,
+  Button,
+  EncabezadoPagina,
+  Label,
+  Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  buttonVariants,
+  enlace,
+} from "../../../components/ui";
+import { cn } from "../../../lib/utils";
+import type { ClienteDto, EstadoCredencial } from "@contapp/shared";
 
 // Clientes visibles para el usuario (el backend ya filtra por alcance), filtros (spec 007a, D7, CA-9) y
 // asignación masiva (spec 005, CA-5, CA-8, CA-15, D20). Sin cálculos: solo muestra y envía lo elegido.
@@ -29,6 +46,14 @@ const ESPERA_BUSQUEDA_MS = 400;
 // responden filas mínimas sin ellos).
 type Fila = Omit<ClienteDto, "credenciales" | "archivado"> &
   Partial<Pick<ClienteDto, "credenciales" | "archivado">>;
+
+// El estado se distingue por texto y por tono (el color nunca es la única señal).
+const TONO_ESTADO = {
+  no_configurada: "neutro",
+  configurada: "info",
+  verificada: "ok",
+  invalida: "error",
+} as const satisfies Record<EstadoCredencial, "neutro" | "info" | "ok" | "error">;
 
 type Tipo = "colaborador" | "responsable";
 type Anterior = "colaborador" | "retirar";
@@ -166,7 +191,7 @@ export default function Clientes() {
     }
   }
 
-  if (!cargado) return <main className="p-6">Cargando…</main>;
+  if (!cargado) return <main className="p-6 text-tinta-suave">Cargando…</main>;
 
   const puedeVer = puedeVerClientes;
   const asigna = tiene(yo, "clientes.asignar");
@@ -176,32 +201,38 @@ export default function Clientes() {
 
   return (
     <main className="flex flex-col gap-6 p-6">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Clientes</h1>
-        {crea && (
-          <div className="flex gap-2">
-            <Link
-              href="/clientes/importar"
-              className="rounded border px-4 py-2 text-sm"
-            >
-              Importar clientes
-            </Link>
-            <Link
-              href="/clientes/nuevo"
-              className="rounded bg-black px-4 py-2 text-sm text-white"
-            >
-              Nuevo cliente
-            </Link>
-          </div>
-        )}
-      </div>
+      <EncabezadoPagina
+        titulo="Clientes"
+        acciones={
+          crea && (
+            <>
+              <Link
+                href="/clientes/importar"
+                className={cn(buttonVariants({ variant: "secundario" }), "max-lg:h-11")}
+              >
+                Importar clientes
+              </Link>
+              <Link
+                href="/clientes/nuevo"
+                className={cn(buttonVariants({ variant: "primario" }), "max-lg:h-11")}
+              >
+                Nuevo cliente
+              </Link>
+            </>
+          )
+        }
+      />
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <Alert tono="error" role="alert">
           {error}
-        </p>
+        </Alert>
       )}
-      {aviso && <p role="status">{aviso}</p>}
-      {yo && !puedeVer && <p>{MENSAJES.sinPermiso}</p>}
+      {aviso && (
+        <Alert tono="ok" role="status">
+          {aviso}
+        </Alert>
+      )}
+      {yo && !puedeVer && <p className="m-0 text-tinta-media">{MENSAJES.sinPermiso}</p>}
       {yo && puedeVer && (
         <FiltrosClientes
           valor={filtros}
@@ -211,69 +242,79 @@ export default function Clientes() {
       )}
       {yo && puedeVer && (
         <form onSubmit={asignar} className="flex flex-col gap-4">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr>
-                {asigna && <th aria-label="Selección" />}
-                <th>RUC</th>
-                <th>Razón social</th>
-                <th>Responsable</th>
-                <th>Credenciales</th>
-                {archiva && <th>Acciones</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {clientes.map((c) => (
-                <tr key={c.id}>
-                  {asigna && (
-                    <td>
-                      <input
-                        type="checkbox"
-                        aria-label={`Seleccionar ${c.razonSocial}`}
-                        checked={seleccion.has(c.id)}
-                        disabled={c.archivado}
-                        onChange={() => alternar(c.id)}
-                      />
-                    </td>
-                  )}
-                  <td>{c.ruc}</td>
-                  <td>
-                    <Link href={`/clientes/${c.id}`} className="underline">
-                      {c.razonSocial}
-                    </Link>
-                  </td>
-                  <td>{c.responsable?.nombre ?? MENSAJES.sinResponsable}</td>
-                  <td>
-                    {c.archivado && <p>Archivado</p>}
-                    {c.credenciales && (
-                      <>
-                        <p>SOL: {ETIQUETA_ESTADO[c.credenciales.sol]}</p>
-                        <p>
-                          SIRE API: {ETIQUETA_ESTADO[c.credenciales.sire_api]}
-                        </p>
-                      </>
+          <div className="overflow-hidden rounded-tarjeta border border-linea bg-hoja shadow-tarjeta">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  {asigna && <TableHead aria-label="Selección" />}
+                  <TableHead>RUC</TableHead>
+                  <TableHead>Razón social</TableHead>
+                  <TableHead>Responsable</TableHead>
+                  <TableHead>Credenciales</TableHead>
+                  {archiva && <TableHead>Acciones</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {clientes.map((c) => (
+                  <TableRow key={c.id}>
+                    {asigna && (
+                      <TableCell>
+                        {/* Bajo 1024 px la etiqueta envolvente da 44 × 44 px de área táctil. */}
+                        <label className="flex items-center justify-center max-lg:-m-2 max-lg:size-11">
+                          <input
+                            type="checkbox"
+                            aria-label={`Seleccionar ${c.razonSocial}`}
+                            checked={seleccion.has(c.id)}
+                            disabled={c.archivado}
+                            onChange={() => alternar(c.id)}
+                            className="size-5 cursor-pointer accent-primario disabled:cursor-not-allowed disabled:opacity-45 max-lg:size-6"
+                          />
+                        </label>
+                      </TableCell>
                     )}
-                  </td>
-                  {archiva && (
-                    <td>
-                      <Link href={`/clientes/${c.id}`} className="underline">
-                        {c.archivado ? "Reactivar" : "Archivar"}
+                    <TableCell className="font-mono">{c.ruc}</TableCell>
+                    <TableCell>
+                      <Link href={`/clientes/${c.id}`} className={cn(enlace, "font-semibold")}>
+                        {c.razonSocial}
                       </Link>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    </TableCell>
+                    <TableCell>{c.responsable?.nombre ?? MENSAJES.sinResponsable}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1.5">
+                        {c.archivado && <Badge tono="neutro">Archivado</Badge>}
+                        {c.credenciales && (
+                          <>
+                            <Badge tono={TONO_ESTADO[c.credenciales.sol]}>
+                              SOL: {ETIQUETA_ESTADO[c.credenciales.sol]}
+                            </Badge>
+                            <Badge tono={TONO_ESTADO[c.credenciales.sire_api]}>
+                              SIRE API: {ETIQUETA_ESTADO[c.credenciales.sire_api]}
+                            </Badge>
+                          </>
+                        )}
+                      </div>
+                    </TableCell>
+                    {archiva && (
+                      <TableCell>
+                        <Link href={`/clientes/${c.id}`} className={enlace}>
+                          {c.archivado ? "Reactivar" : "Archivar"}
+                        </Link>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
 
           {asigna && (
             <div className="flex flex-wrap items-end gap-3">
-              <label className="flex flex-col gap-1 text-sm">
+              <Label className="w-full sm:w-auto">
                 Usuario
-                <select
+                <Select
                   value={usuarioId}
                   onChange={(e) => setUsuarioId(e.target.value)}
-                  className="rounded border px-3 py-2"
+                  className="max-lg:h-11 sm:w-56"
                 >
                   <option value="">Elige un usuario</option>
                   {activos.map((m) => (
@@ -281,39 +322,39 @@ export default function Clientes() {
                       {m.nombre}
                     </option>
                   ))}
-                </select>
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
+                </Select>
+              </Label>
+              <Label className="w-full sm:w-auto">
                 Tipo
-                <select
+                <Select
                   value={tipo}
                   onChange={(e) => setTipo(e.target.value as Tipo)}
-                  className="rounded border px-3 py-2"
+                  className="max-lg:h-11 sm:w-44"
                 >
                   <option value="colaborador">Colaborador</option>
                   <option value="responsable">Responsable</option>
-                </select>
-              </label>
+                </Select>
+              </Label>
               {tipo === "responsable" && (
-                <label className="flex flex-col gap-1 text-sm">
+                <Label className="w-full sm:w-auto">
                   Responsable anterior
-                  <select
+                  <Select
                     value={anterior}
                     onChange={(e) => setAnterior(e.target.value as Anterior)}
-                    className="rounded border px-3 py-2"
+                    className="max-lg:h-11 sm:w-52"
                   >
                     <option value="colaborador">Pasa a colaborador</option>
                     <option value="retirar">Se retira</option>
-                  </select>
-                </label>
+                  </Select>
+                </Label>
               )}
-              <button
+              <Button
                 type="submit"
                 disabled={enviando || seleccion.size === 0 || !usuarioId}
-                className="rounded bg-black px-4 py-2 text-white disabled:opacity-50"
+                className="max-lg:h-11"
               >
                 Asignar seleccionados
-              </button>
+              </Button>
             </div>
           )}
         </form>

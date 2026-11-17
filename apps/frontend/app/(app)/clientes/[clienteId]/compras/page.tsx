@@ -15,6 +15,7 @@ import type {
   EstadoPeriodoRespuesta,
   FilaCompraVista,
   PropuestaComprasDto,
+  ReglaVista,
   ResumenComprasVista,
   VistaCompras,
 } from "@contapp/shared";
@@ -45,6 +46,7 @@ import {
   type ResultadoGuardado,
 } from "../../../../../components/compras/grilla-compras";
 import { ResumenCompras } from "../../../../../components/compras/resumen-compras";
+import { Alert, Button, EncabezadoPagina, Input, Label, enlace, velo } from "../../../../../components/ui";
 import { MENSAJES, cargarYo, mensajeDeError, tiene } from "../../../../../lib/acceso";
 import { obtenerCliente, type ClienteDto } from "../../../../../lib/clientes";
 import {
@@ -66,6 +68,11 @@ import {
   type PermisosCompras,
 } from "../../../../../lib/compras";
 import type { CambiosFila } from "../../../../../lib/edicion-compras";
+import {
+  MENSAJES_REGLAS,
+  PERMISO_REGLAS_GESTIONAR,
+  listarReglas,
+} from "../../../../../lib/reglas";
 import { useFilasCompras } from "../../../../../lib/filas-compras";
 import { MENSAJES_LUPA } from "../../../../../lib/lupa-compras";
 import { useSecuencia } from "../../../../../lib/secuencia";
@@ -86,6 +93,7 @@ const SIN_PERMISOS: PermisosCompras = {
   descargar: false,
   clasificar: false,
   aprobarGenerar: false,
+  gestionarReglas: false,
 };
 
 function Compras() {
@@ -138,6 +146,7 @@ function Compras() {
         descargar: tiene(yo, PERMISO_DESCARGAR),
         clasificar: tiene(yo, PERMISO_CLASIFICAR),
         aprobarGenerar: tiene(yo, PERMISO_APROBAR_GENERAR),
+        gestionarReglas: tiene(yo, PERMISO_REGLAS_GESTIONAR),
       });
       if (!ver) return;
       const c = await obtenerCliente(clienteId);
@@ -152,6 +161,26 @@ function Compras() {
       vigente = false;
     };
   }, [clienteId]);
+
+  // Reglas aprendidas del cliente (spec 021): se leen UNA vez, solo con `reglas.gestionar`, y se vuelven a leer tras
+  // crear o actualizar una. Si no se pueden leer, no se ofrece «Recordar» (no se adivina qué reglas hay).
+  const [reglas, setReglas] = useState<readonly ReglaVista[] | null>(null);
+  const puedeGestionarReglas = permisos?.gestionarReglas === true;
+  const recargarReglas = useCallback(async () => {
+    const r = await listarReglas(clienteId);
+    if (r.ok) setReglas(r.datos);
+  }, [clienteId]);
+  useEffect(() => {
+    setReglas(null);
+    if (!puedeGestionarReglas) return;
+    let vigente = true;
+    void listarReglas(clienteId).then((r) => {
+      if (vigente && r.ok) setReglas(r.datos);
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [clienteId, puedeGestionarReglas]);
 
   const falla = useCallback((status: number, mensaje: string) => {
     if (status !== 401) setErrorGeneral(mensaje);
@@ -342,6 +371,7 @@ function Compras() {
       recargarFila,
       recargarFilas,
       recargarResumen: cargarResumen,
+      reglas: reglas === null ? undefined : { lista: reglas, recargar: recargarReglas },
     }),
     [
       clienteId,
@@ -352,6 +382,8 @@ function Compras() {
       cargarResumen,
       recargarFila,
       recargarFilas,
+      reglas,
+      recargarReglas,
     ],
   );
 
@@ -420,20 +452,19 @@ function Compras() {
     if (tipo !== "ok") return;
     const noSeDeshace =
       texto === M.compraDescartada ||
+      texto === MENSAJES_REGLAS.recordada ||
       (fila.origen === "agregada" && texto === M.compraExcluida);
     if (!noSeDeshace) registrar();
   };
 
   if (permisos === null) {
-    return <main className="p-6">{M.cargandoPantalla}</main>;
+    return <main className="p-4 text-tinta-suave md:p-6">{M.cargandoPantalla}</main>;
   }
 
   if (!permisos.ver) {
     return (
-      <main className="flex flex-col gap-4 p-6">
-        <p role="alert" className="text-sm text-red-600">
-          {errorGeneral ?? M.sinPermisoVer}
-        </p>
+      <main className="flex flex-col gap-4 p-4 md:p-6">
+        <Alert tono="error">{errorGeneral ?? M.sinPermisoVer}</Alert>
       </main>
     );
   }
@@ -445,42 +476,42 @@ function Compras() {
   }`;
 
   return (
-    <main className="flex flex-col gap-6 p-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">{M.titulo}</h1>
-        <p className="text-sm">{M.subtitulo}</p>
-        {cliente && (
-          <p className="text-sm">
-            {cliente.razonSocial} · RUC {cliente.ruc}
-          </p>
-        )}
-        <nav aria-label="Registros del cliente" className="flex gap-3 text-sm">
-          <Link href={hrefVentas} className="underline">
-            {M.enlaceVentas}
-          </Link>
-        </nav>
-      </header>
+    // En celular (P-3) «Generar archivo» queda fijo abajo: el `pb-28` deja ver el final de la página.
+    <main className="flex flex-col gap-6 p-4 pb-28 md:p-6 md:pb-6">
+      <EncabezadoPagina
+        titulo={M.titulo}
+        descripcion={
+          <>
+            <span className="block">{M.subtitulo}</span>
+            {cliente && (
+              <span className="block">
+                {cliente.razonSocial} · RUC {cliente.ruc}
+              </span>
+            )}
+          </>
+        }
+        acciones={
+          <nav aria-label="Registros del cliente" className="flex gap-3 text-sm">
+            <Link href={hrefVentas} className={`inline-flex min-h-11 items-center lg:min-h-0 ${enlace}`}>
+              {M.enlaceVentas}
+            </Link>
+          </nav>
+        }
+      />
       <div className="flex flex-col gap-6 min-[1400px]:flex-row min-[1400px]:items-start">
         <div className="flex min-w-0 flex-1 flex-col gap-6">
 
         {soloLectura !== null && (
-          <p
-            role="status"
-            className="w-full max-w-xl rounded bg-amber-50 p-3 text-sm text-amber-900"
-          >
+          <Alert tono="aviso" role="status" className="w-full max-w-xl">
             {soloLectura}
-          </p>
+          </Alert>
         )}
-        {errorGeneral && (
-          <p role="alert" className="text-sm text-red-600">
-            {errorGeneral}
-          </p>
-        )}
+        {errorGeneral && <Alert tono="error">{errorGeneral}</Alert>}
 
         <div className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1 text-sm">
+          <Label className="w-44">
             {M.etiquetaPeriodo}
-            <input
+            <Input
               type="text"
               inputMode="numeric"
               maxLength={6}
@@ -490,9 +521,9 @@ function Compras() {
               aria-describedby={
                 periodo !== "" && !periodoValido ? "periodo-ayuda" : undefined
               }
-              className="rounded border px-3 py-2"
+              className="font-mono min-h-11 lg:min-h-10"
             />
-          </label>
+          </Label>
           <ExportarCompras
             key={`exportar|${clienteId}|${periodo}`}
             clienteId={clienteId}
@@ -501,7 +532,7 @@ function Compras() {
           />
         </div>
         {periodo !== "" && !periodoValido && (
-          <p id="periodo-ayuda" className="text-sm text-red-600">
+          <p id="periodo-ayuda" className="m-0 text-sm font-semibold text-error">
             {M.periodoInvalido}
           </p>
         )}
@@ -564,7 +595,7 @@ function Compras() {
               aria-labelledby="titulo-lista-compras"
               className="flex flex-col gap-3"
             >
-              <h2 id="titulo-lista-compras" className="text-lg font-semibold">
+              <h2 id="titulo-lista-compras" className="m-0 font-titulo text-lg font-bold">
                 {M.tituloListado}
               </h2>
               <FiltrosListado
@@ -573,7 +604,7 @@ function Compras() {
                 alCambiar={setFiltros}
               />
               <div className="flex flex-wrap items-center gap-3 text-sm">
-                <p role="status">
+                <p role="status" className="m-0 text-tinta-suave">
                   {carga === "cargando"
                     ? filas.length === 0
                       ? M.cargando
@@ -594,17 +625,13 @@ function Compras() {
                           ? undefined
                           : "alert"
                       }
-                      className="text-red-600"
+                      className="m-0 font-semibold text-error"
                     >
                       {errorCarga ?? M.errorCarga}
                     </p>
-                    <button
-                      type="button"
-                      onClick={reintentar}
-                      className="rounded border px-3 py-1"
-                    >
+                    <Button variant="secundario" size="sm" onClick={reintentar} className="min-h-11 lg:min-h-8">
                       {M.reintentar}
-                    </button>
+                    </Button>
                   </>
                 )}
               </div>
@@ -623,13 +650,14 @@ function Compras() {
                     title={soloLectura ?? undefined}
                     className="m-0 flex min-w-0 flex-wrap items-start gap-3 border-0 p-0"
                   >
-                    <button
-                      type="button"
+                    <Button
+                      variant="secundario"
+                      size="sm"
                       onClick={() => setAgregando(true)}
-                      className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+                      className="min-h-11 lg:min-h-8"
                     >
                       {M.agregarCompra}
-                    </button>
+                    </Button>
                     <DeshacerCompras control={deshacer} />
                   </fieldset>
                 )}
@@ -644,12 +672,7 @@ function Compras() {
                 />
               </div>
               {aviso && (
-                <p
-                  role={aviso.tipo === "error" ? "alert" : "status"}
-                  className={`text-sm ${aviso.tipo === "error" ? "text-red-600" : ""}`}
-                >
-                  {aviso.texto}
-                </p>
+                <Alert tono={aviso.tipo === "error" ? "error" : "ok"}>{aviso.texto}</Alert>
               )}
               {/* Ctrl+Z / Ctrl+Y con el foco en la grilla (P-4): dentro de un campo en edición son del campo. */}
               <div className="contents" onKeyDown={deshacer.alTeclear}>
@@ -684,7 +707,7 @@ function Compras() {
             {agregando && (
               <div
                 key={`agregar|${clienteId}|${periodo}`}
-                className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+                className={`${velo} flex items-center justify-center p-4`}
               >
                 <AgregarCompra
                   contexto={contexto}
@@ -750,7 +773,7 @@ function Compras() {
 // `useParams()` y `useSearchParams()` son datos de la URL en tiempo de petición: Next exige un límite de Suspense.
 export default function Pagina() {
   return (
-    <Suspense fallback={<main className="p-6">{M.cargandoPantalla}</main>}>
+    <Suspense fallback={<main className="p-4 text-tinta-suave md:p-6">{M.cargandoPantalla}</main>}>
       <Compras />
     </Suspense>
   );

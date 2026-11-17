@@ -27,10 +27,13 @@ const cred = async () => ({
 
 describe("CacheTokenSire (unitarias)", () => {
   it("caso feliz: guarda el token cifrado con un id de proceso aleatorio por defecto", async () => {
+    // Token largo: con uno de 2 bytes ("T1") el texto cifrado, aleatorio, lo contenía por azar (~0,05 % de las corridas).
+    // Con 48 bytes esa coincidencia es imposible en la práctica (2^-384) y la prueba es determinista.
+    const TOKEN = "T1-token-sire-largo-0123456789-abcdefghijklmnopqrstuv";
     const redis = redisMemoria();
     const auth: SireAuth = {
       obtenerToken: vi.fn(async () => ({
-        token: "T1",
+        token: TOKEN,
         expiraEn: new Date(Date.now() + 600_000),
       })),
     };
@@ -39,10 +42,14 @@ describe("CacheTokenSire (unitarias)", () => {
       sireAuth: auth,
       credenciales: cred,
     });
-    expect(await c.obtener(ctx)).toBe("T1");
+    expect(await c.obtener(ctx)).toBe(TOKEN);
     const [clave] = [...redis.m.keys()];
     expect(clave).toMatch(/^contapp:sire:token:[0-9a-f-]{36}:t:c$/);
-    expect(redis.m.get(clave!)!.toString("latin1")).not.toContain("T1");
+    const guardado = redis.m.get(clave!)!;
+    // nonce (12) ‖ texto cifrado (largo del token) ‖ etiqueta GCM (16); el token no aparece en claro.
+    expect(guardado.length).toBe(12 + Buffer.byteLength(TOKEN) + 16);
+    expect(guardado.includes(Buffer.from(TOKEN))).toBe(false);
+    expect(guardado.includes(Buffer.from(TOKEN.slice(0, 8)))).toBe(false);
   });
 
   it("un token que vence antes del margen no se guarda (se pide otra vez)", async () => {
