@@ -205,19 +205,12 @@ test.describe("E-11 · buzón SOL", () => {
       1,
     );
   });
-  // DEFECTO DE PRODUCTO (T22, no se corrige aquí): el enlace del adjunto es un `<a href="/api/clientes/…/adjuntos/…">`
-  // (apps/frontend/components/buzon/detalle-mensaje.tsx:166, `hrefAdjunto` en apps/frontend/lib/buzon.ts:120). Una
-  // navegación del navegador no manda `X-Estudio`, y `EstudioGuard` (apps/backend/src/modules/auth/guards/estudio.guard.ts:30)
-  // responde 409 `estudio_desfasado`: el contador ve un JSON de error en vez de la descarga (CA-8). El ZIP del archivo lo
-  // resuelve con `fetch` + `X-Estudio` + blob (apps/frontend/lib/archivos.ts:281). Cuando se corrija, quitar `test.fail`.
-  test("el clic en el adjunto del detalle descarga el archivo (DEFECTO: 409 estudio_desfasado)", async ({
+  // El enlace del adjunto no navega: baja el archivo con `fetch` + `X-Estudio` (apps/frontend/lib/buzon.ts).
+  test("el clic en el adjunto del detalle descarga el archivo", async ({
     siembra,
     sesiones,
     api,
-    vigilancia,
   }) => {
-    test.fail();
-    vigilancia.permitirError(/status of 409/);
     const esperado = coactivaDelFixture();
     const estudio = await siembra.estudio();
     const cliente = await siembra.cliente(estudio.tenantId, {
@@ -259,8 +252,19 @@ test.describe("E-11 · buzón SOL", () => {
     const respuesta = page.waitForResponse((r) =>
       r.url().includes("/adjuntos/"),
     );
+    const descarga = page.waitForEvent("download");
     await enlaceAdjunto(page, esperado.pdf).click();
     expect((await respuesta).status()).toBe(200);
+    const archivo = await descarga;
+    expect(archivo.suggestedFilename()).toBe(esperado.pdf);
+    const flujo = await archivo.createReadStream();
+    const trozos: Buffer[] = [];
+    for await (const trozo of flujo) trozos.push(Buffer.from(trozo as Buffer));
+    expect(
+      createHash("sha256").update(Buffer.concat(trozos)).digest("hex"),
+    ).toBe(esperado.sha256);
+    // Ningún aviso de error: el clic no mostró un JSON ni un 409.
+    await expect(alerta(page, /.+/)).toHaveCount(0);
   });
 });
 

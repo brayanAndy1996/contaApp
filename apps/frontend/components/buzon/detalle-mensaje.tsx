@@ -21,6 +21,7 @@ import {
   MENSAJES_BUZON as M,
   PERMISO_BUZON_MARCAR_LEIDO,
   abrirMensaje,
+  descargarAdjuntoBuzon,
   etiquetaCategoria,
   hrefAdjunto,
   obtenerMensaje,
@@ -54,6 +55,8 @@ export function DetalleMensaje({ clienteId, mensajeId }: { clienteId: string; me
   const [confirmando, setConfirmando] = useState(false);
   const [ocupado, setOcupado] = useState(false);
   const [aviso, setAviso] = useState<Aviso | null>(null);
+  const [descargando, setDescargando] = useState<string | null>(null);
+  const [errorDescarga, setErrorDescarga] = useState<string | null>(null);
 
   const cargar = useCallback(async (): Promise<void> => {
     try {
@@ -114,6 +117,32 @@ export function DetalleMensaje({ clienteId, mensajeId }: { clienteId: string; me
   const sinContenido = contenido === null;
   const ofrecerAbrir = puedeAbrir && sinContenido && aviso?.tipo !== "encolada";
 
+
+  // El enlace conserva su `href` (ruta de descarga por id), pero el clic baja el archivo con `fetch` + `X-Estudio`:
+  // una navegación directa no manda esa cabecera y el servidor respondería 409 (CA-8).
+  async function descargar(adjuntoId: string, nombre: string): Promise<void> {
+    if (descargando !== null) return;
+    setDescargando(adjuntoId);
+    setErrorDescarga(null);
+    try {
+      const r = await descargarAdjuntoBuzon(clienteId, mensajeId, adjuntoId);
+      if (!r.ok) {
+        if (r.status !== 401) setErrorDescarga(r.mensaje);
+        return;
+      }
+      const url = URL.createObjectURL(r.archivo);
+      const enlaceDescarga = document.createElement("a");
+      enlaceDescarga.href = url;
+      enlaceDescarga.download = nombre;
+      enlaceDescarga.rel = "noopener";
+      document.body.appendChild(enlaceDescarga);
+      enlaceDescarga.click();
+      enlaceDescarga.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDescargando(null);
+    }
+  }
   return (
     <article className="flex min-w-0 flex-col gap-4">
       <Card>
@@ -163,7 +192,16 @@ export function DetalleMensaje({ clienteId, mensajeId }: { clienteId: string; me
             {adjuntos.map((a) => (
               <li key={a.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 {a.omitido === null ? (
-                  <a href={hrefAdjunto(clienteId, mensajeId, a.id)} className={cn(enlaceTactil, "break-all")}>
+                  <a
+                    href={hrefAdjunto(clienteId, mensajeId, a.id)}
+                    className={cn(enlaceTactil, "break-all")}
+                    aria-busy={descargando === a.id || undefined}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      void descargar(a.id, a.nombre);
+                    }}
+                    onAuxClick={(e) => e.preventDefault()}
+                  >
                     {a.nombre}
                   </a>
                 ) : (
@@ -177,6 +215,7 @@ export function DetalleMensaje({ clienteId, mensajeId }: { clienteId: string; me
               </li>
             ))}
           </ul>
+          {errorDescarga !== null && <Alert tono="error">{errorDescarga}</Alert>}
         </Card>
       )}
 

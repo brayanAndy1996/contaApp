@@ -11,7 +11,9 @@ import {
   type PaginaMensajesBuzon,
   type RevisarBuzonRespuesta,
 } from "@contapp/shared";
+import { mensajeDeError, MENSAJES } from "./acceso";
 import { api, type RespuestaApi } from "./api";
+import { obtenerSesion } from "./sesion";
 
 // Buzón SOL (spec 023, T14; plan, Contratos: Frontend). Cliente HTTP y textos de las pantallas del buzón de un
 // cliente: botón «Revisar buzón ahora», lista y detalle de mensajes. Toda respuesta con cuerpo se valida con
@@ -119,6 +121,39 @@ export const hrefMensaje = (clienteId: string, mensajeId: string): string =>
 /** Ruta de descarga de un adjunto (el backend, por el rewrite de `/api`): siempre por id, nunca por nombre. */
 export const hrefAdjunto = (clienteId: string, mensajeId: string, adjuntoId: string): string =>
   `/api${base(clienteId)}/mensajes/${encodeURIComponent(mensajeId)}/adjuntos/${encodeURIComponent(adjuntoId)}`;
+
+export type ResultadoDescargaAdjunto = { ok: true; archivo: Blob } | { ok: false; status: number; mensaje: string };
+
+/**
+ * Baja un adjunto (CA-8). Una navegación del navegador no manda `X-Estudio` y el servidor la rechaza con 409
+ * `estudio_desfasado`; por eso se usa `fetch` con las cabeceras de la sesión (como el ZIP de archivos) y se entrega el
+ * `Blob`. El error se traduce a un aviso en español: nunca se muestra el cuerpo de la respuesta.
+ */
+export async function descargarAdjuntoBuzon(
+  clienteId: string,
+  mensajeId: string,
+  adjuntoId: string,
+): Promise<ResultadoDescargaAdjunto> {
+  try {
+    const sesion = await obtenerSesion();
+    if (!sesion) return { ok: false, status: 401, mensaje: MENSAJES.errorGeneral };
+    const headers: Record<string, string> = {};
+    if (sesion.estudioActivo) headers["X-Estudio"] = sesion.estudioActivo.id;
+    const respuesta = await fetch(hrefAdjunto(clienteId, mensajeId, adjuntoId), {
+      method: "GET",
+      credentials: "same-origin",
+      headers,
+    });
+    if (!respuesta.ok) {
+      // 404 «no se encontró», 403 sin permiso, cualquier otro (409, 5xx) el aviso genérico.
+      const status = respuesta.status === 403 || respuesta.status === 404 ? respuesta.status : 500;
+      return { ok: false, status: respuesta.status, mensaje: mensajeDeError(status, null) };
+    }
+    return { ok: true, archivo: await respuesta.blob() };
+  } catch {
+    return { ok: false, status: 0, mensaje: MENSAJES.errorGeneral };
+  }
+}
 
 function validar<T>(
   r: RespuestaApi<unknown>,

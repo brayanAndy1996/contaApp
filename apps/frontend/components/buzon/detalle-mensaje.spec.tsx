@@ -175,6 +175,71 @@ describe("<DetalleMensaje /> · adjuntos", () => {
   });
 });
 
+describe("<DetalleMensaje /> · descarga del adjunto (CA-8)", () => {
+  const crearUrl = vi.fn(() => "blob:adjunto-1");
+  const revocarUrl = vi.fn();
+  const clics: { descarga: string; href: string }[] = [];
+
+  beforeEach(() => {
+    clics.length = 0;
+    crearUrl.mockClear();
+    revocarUrl.mockClear();
+    Object.assign(URL, { createObjectURL: crearUrl, revokeObjectURL: revocarUrl });
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+      clics.push({ descarga: this.download, href: this.href });
+    });
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  const instalarConAdjunto = (descarga: Manejador) =>
+    instalar(detalleBuzon({ contenido: "Ver adjunto.", adjuntos: [adjuntoBuzon()] }), {
+      extra: { [`GET ${hrefAdjunto()}`]: descarga },
+    });
+
+  it("el clic pide el adjunto con X-Estudio y baja el archivo con el nombre del adjunto", async () => {
+    const f = instalarConAdjunto({ status: 200, cuerpo: { pdf: true } });
+    const { usuario } = montar();
+    await usuario.click(await screen.findByRole("link", { name: /resolucion\.pdf/ }));
+
+    await vi.waitFor(() => expect(clics).toHaveLength(1));
+    const pedidos = f.de(`GET ${hrefAdjunto()}`);
+    expect(pedidos).toHaveLength(1);
+    expect(pedidos[0]!.headers["x-estudio"]).toBe("e-a");
+    expect(pedidos[0]!.credentials).toBe("same-origin");
+    expect(clics[0]!.descarga).toBe("resolucion.pdf");
+    expect(clics[0]!.href).toBe("blob:adjunto-1");
+    expect(revocarUrl).toHaveBeenCalledWith("blob:adjunto-1");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it.each([
+    [404, MENSAJES_ACCESO.noEncontrado],
+    [403, MENSAJES_ACCESO.sinPermiso],
+    [500, MENSAJES_ACCESO.errorGeneral],
+    [409, MENSAJES_ACCESO.errorGeneral],
+  ])("el error %i se avisa en español, sin JSON, y no se baja nada", async (status, texto) => {
+    instalarConAdjunto({ status, cuerpo: { codigo: "estudio_desfasado", detalle: "interno" } });
+    const { usuario } = montar();
+    await usuario.click(await screen.findByRole("link", { name: /resolucion\.pdf/ }));
+
+    const aviso = await screen.findByRole("alert");
+    expect(aviso.textContent).toBe(texto);
+    expect(aviso.textContent).not.toMatch(/[{}]|estudio_desfasado|interno/);
+    expect(clics).toHaveLength(0);
+    expect(crearUrl).not.toHaveBeenCalled();
+  });
+
+  it("el control tiene nombre, es alcanzable con teclado y mide 44 px en celular", async () => {
+    instalarConAdjunto({ status: 200, cuerpo: {} });
+    const { usuario } = montar();
+    const control = await screen.findByRole("link", { name: /resolucion\.pdf/ });
+    expect(control.className).toContain("max-lg:min-h-11");
+    expect(control.className).toContain("focus-visible:outline");
+    await usuario.tab();
+    expect(document.activeElement).toBe(control);
+  });
+});
+
 describe("<DetalleMensaje /> · errores de lectura", () => {
   it("404 → «no se encontró», igual para inexistente, ajeno o no asignado (CA-9)", async () => {
     instalar({ codigo: "no_encontrado" }, { status: 404 });
