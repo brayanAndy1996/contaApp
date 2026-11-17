@@ -46,6 +46,52 @@ export interface SolAuth {
   verificar(credencial: CredencialSol): Promise<void>;
 }
 
+/** Metadatos de un mensaje del buzón SOL, tal como los lista el portal (spec 023, D-1). */
+export interface MetadatosMensajeSol {
+  idSunat: string;
+  asunto: string;
+  remitente: string;
+  /** ISO 8601 con zona. */
+  fecha: string;
+  codigoTipo: string | null;
+  leidoEnSunat: boolean;
+  adjuntos: { idSunat: string; nombre: string }[];
+}
+
+export interface PaginaMensajesSol {
+  /** De los más recientes a los más antiguos. */
+  mensajes: MetadatosMensajeSol[];
+  siguiente: string | null;
+}
+
+export type AdjuntoSol =
+  | { idSunat: string; nombre: string; bytes: Uint8Array }
+  | { idSunat: string; nombre: string; omitido: "tamano" };
+
+export interface MensajeSol {
+  idSunat: string;
+  contenido: { formato: "texto" | "html"; cuerpo: string };
+  adjuntos: AdjuntoSol[];
+  /** `true` si abrir el mensaje lo marcó como leído en SUNAT (RF-126). */
+  marcaLeido: boolean;
+}
+
+/**
+ * Puerto del buzón SOL. Solo el worker lo usa. `listarMensajes` nunca marca como leído; `obtenerMensaje` sí
+ * puede hacerlo y lo declara en `marcaLeido`. Lanza `ErrorCredencial`, `ErrorTransitorio`, `ErrorDatos` o `ErrorPortal`.
+ */
+export interface SolPortal {
+  listarMensajes(
+    credencial: CredencialSol,
+    opciones: { cursor: string | null; limite: number },
+  ): Promise<PaginaMensajesSol>;
+  obtenerMensaje(
+    credencial: CredencialSol,
+    idSunat: string,
+    opciones: { maxBytesAdjunto: number; maxBytesMensaje: number },
+  ): Promise<MensajeSol>;
+}
+
 export type LibroSire = "compras" | "ventas";
 
 /**
