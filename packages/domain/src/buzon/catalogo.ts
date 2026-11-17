@@ -1,4 +1,6 @@
-// STUB (spec 023, T1): solo tipos y constantes para compilar. La lógica la implementa T8.
+// Spec 023 (D-7, CA-5; plan, Contratos: Dominio): catálogo versionado de mensajes críticos del
+// buzón SOL. Los códigos de categoría (`CATEGORIAS_BUZON`) viven en `shared`; aquí solo están los
+// códigos de tipo de SUNAT y los patrones sobre el asunto normalizado (`normalizarAsunto`).
 
 export type CategoriaCritica =
   | "coactiva"
@@ -19,15 +21,85 @@ export interface CatalogoBuzon {
   readonly categorias: readonly CategoriaCatalogo[];
 }
 
-function noImplementado(nombre: string): never {
-  throw new Error(`no implementado: ${nombre}`);
+/**
+ * Patrones de una categoría sobre el asunto normalizado. Sin expresiones regulares:
+ * - `frases`: subcadenas del asunto sin espacios ("resoluciondemulta"), así un espacio de más o
+ *   de menos no evita el patrón.
+ * - `siglas`: palabras exactas ("rd", "rm"), porque como subcadena aparecerían en cualquier lado.
+ * - `debiles`: subcadenas del asunto sin espacios que, sin patrón completo, dan crítico con
+ *   motivo `duda` (D-7: ante la duda, crítico).
+ */
+export interface PatronesAsunto {
+  readonly categoria: CategoriaCritica;
+  readonly frases: readonly string[];
+  readonly siglas: readonly string[];
+  readonly debiles: readonly string[];
 }
 
-export const CATALOGO_BUZON: CatalogoBuzon = {
-  get version(): number {
-    return noImplementado("CATALOGO_BUZON.version");
+function congelar<T>(valor: T): T {
+  if (typeof valor === "object" && valor !== null && !Object.isFrozen(valor)) {
+    for (const v of Object.values(valor)) congelar(v);
+    Object.freeze(valor);
+  }
+  return valor;
+}
+
+/**
+ * Versión 1. Los códigos de tipo son provisionales hasta que el adaptador real (Playwright)
+ * confirme los de SUNAT; cambiar códigos o patrones sube la versión (se guarda en cada mensaje).
+ * El orden decide el empate entre categorías.
+ */
+export const CATALOGO_BUZON: CatalogoBuzon = congelar({
+  version: 1,
+  categorias: [
+    { categoria: "coactiva", codigosTipo: ["REC", "COA"] },
+    { categoria: "resolucion_determinacion", codigosTipo: ["RD"] },
+    { categoria: "resolucion_multa", codigosTipo: ["RM"] },
+    { categoria: "requerimiento_fiscalizacion", codigosTipo: ["RQF", "FIS"] },
+  ],
+});
+
+export const PATRONES_ASUNTO: readonly PatronesAsunto[] = congelar([
+  {
+    categoria: "coactiva",
+    frases: ["coactiv"],
+    siglas: ["rec"],
+    debiles: ["embargo"],
   },
-  get categorias(): readonly CategoriaCatalogo[] {
-    return noImplementado("CATALOGO_BUZON.categorias");
+  {
+    categoria: "resolucion_determinacion",
+    frases: [
+      "resoluciondedeterminacion",
+      "resoluciondeterminacion",
+      "resdedeterminacion",
+      "resdeterminacion",
+    ],
+    siglas: ["rd"],
+    debiles: ["determinacion"],
   },
-};
+  {
+    categoria: "resolucion_multa",
+    frases: [
+      "resoluciondemulta",
+      "resolucionmulta",
+      "resdemulta",
+      "resmulta",
+    ],
+    siglas: ["rm"],
+    debiles: ["multa"],
+  },
+  {
+    categoria: "requerimiento_fiscalizacion",
+    frases: [
+      "requerimientodefiscalizacion",
+      "requerimientofiscalizacion",
+      "reqdefiscalizacion",
+      "reqfiscalizacion",
+    ],
+    siglas: [],
+    debiles: ["fiscalizacion", "requerimiento"],
+  },
+] as const);
+
+/** Frases que contienen una palabra débil sin ser críticas ("sin embargo"); se quitan antes. */
+export const EXCEPCIONES_DEBILES: readonly string[] = congelar(["sinembargo"]);

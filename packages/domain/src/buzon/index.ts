@@ -1,3 +1,4 @@
+// API pública de buzon/ (spec 023, plan, Contratos: Dominio).
 export { CATALOGO_BUZON } from "./catalogo";
 export type {
   CategoriaBuzon,

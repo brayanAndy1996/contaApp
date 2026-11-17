@@ -1,6 +1,14 @@
-// STUB (spec 023, T1).
-/* eslint-disable @typescript-eslint/no-unused-vars */
-import type { CategoriaBuzon, MotivoCritico } from "./catalogo";
+// Spec 023 (D-7, CA-5, P-3): clasificación de un mensaje del buzón SOL. El código de tipo gana
+// sobre el asunto; una palabra débil sin patrón completo da crítico con motivo `duda`.
+import {
+  CATALOGO_BUZON,
+  EXCEPCIONES_DEBILES,
+  PATRONES_ASUNTO,
+  type CategoriaBuzon,
+  type CategoriaCritica,
+  type MotivoCritico,
+} from "./catalogo";
+import { normalizarAsunto } from "./normalizar";
 
 export interface EntradaClasificacion {
   readonly codigoTipo: string | null;
@@ -15,8 +23,61 @@ export interface Clasificacion {
   readonly versionCatalogo: number;
 }
 
-export function clasificarMensaje(
-  _entrada: EntradaClasificacion,
+function critico(
+  categoria: CategoriaCritica,
+  motivo: MotivoCritico,
 ): Clasificacion {
-  throw new Error("no implementado: clasificarMensaje");
+  return {
+    categoria,
+    critico: true,
+    motivo,
+    versionCatalogo: CATALOGO_BUZON.version,
+  };
+}
+
+function porCodigo(codigoTipo: string | null): CategoriaCritica | null {
+  if (codigoTipo === null) return null;
+  const codigo = codigoTipo.trim().toUpperCase();
+  if (codigo.length === 0) return null;
+  for (const c of CATALOGO_BUZON.categorias) {
+    if (c.codigosTipo.includes(codigo)) return c.categoria;
+  }
+  return null;
+}
+
+export function clasificarMensaje(
+  entrada: EntradaClasificacion,
+): Clasificacion {
+  const categoriaCodigo = porCodigo(entrada.codigoTipo);
+  if (categoriaCodigo !== null) return critico(categoriaCodigo, "codigo");
+
+  const normalizado = normalizarAsunto(entrada.asunto);
+  const palabras = new Set(normalizado.split(" "));
+  const compacto = normalizado.split(" ").join("");
+
+  for (const p of PATRONES_ASUNTO) {
+    if (
+      p.frases.some((f) => compacto.includes(f)) ||
+      p.siglas.some((s) => palabras.has(s))
+    ) {
+      return critico(p.categoria, "asunto");
+    }
+  }
+
+  let sinExcepciones = compacto;
+  for (const e of EXCEPCIONES_DEBILES) {
+    sinExcepciones = sinExcepciones.split(e).join(" ");
+  }
+  for (const p of PATRONES_ASUNTO) {
+    if (p.debiles.some((d) => sinExcepciones.includes(d))) {
+      return critico(p.categoria, "duda");
+    }
+  }
+
+  return {
+    categoria: "otro",
+    critico: false,
+    motivo: null,
+    versionCatalogo: CATALOGO_BUZON.version,
+  };
 }
