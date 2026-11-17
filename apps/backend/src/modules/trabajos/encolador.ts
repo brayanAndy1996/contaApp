@@ -65,17 +65,24 @@ export class Encolador {
    * Como `encolar`, pero ejecuta `antes(tx)` en la MISMA transacción, antes de encolar: lo que `antes` valide o escriba (el
    * estado `pendiente` del XML de 016, por ejemplo) y el trabajo se confirman juntos o ninguno. Si `antes` lanza, o `encolar`
    * rechaza (cola llena, parámetros), no queda nada escrito. La publicación sigue siendo posterior al commit.
+   * `despues(tx, resultado)` (opcional) escribe en la misma transacción lo que dependa del trabajo (auditoría, marcas de estado).
    */
   async encolarCon(
     ctx: ContextoEncolar,
     e: EntradaEncolar,
     antes: (tx: Tx) => Promise<void>,
+    despues?: (tx: Tx, r: ResultadoEncolar) => Promise<boolean | void>,
   ): Promise<ResultadoEncolar> {
+    let republicar = false;
     const r = await this.db.withTenant(ctx, async (tx) => {
       await antes(tx);
-      return encolar(tx, e);
+      const resultado = await encolar(tx, e);
+      // `despues` corre en la misma transacción, con el trabajo ya encolado (o el vivo); `true` pide publicar la pista aunque
+      // el trabajo no sea nuevo (p. ej. uno programado que pasó a interactivo y debe bajar de puntaje en Redis).
+      if (despues !== undefined) republicar = (await despues(tx, resultado)) === true;
+      return resultado;
     });
-    if (r.nuevo) await this.publicar(ctx.tenantId, r.trabajo, e);
+    if (r.nuevo || republicar) await this.publicar(ctx.tenantId, r.trabajo, e);
     return r;
   }
 

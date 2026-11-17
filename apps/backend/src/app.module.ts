@@ -5,6 +5,7 @@ import { AccesoModule } from "./modules/acceso/acceso.module.js";
 import { ArchivosModule } from "./modules/archivos/archivos.module.js";
 import { AuditoriaModule } from "./modules/auditoria/auditoria.module.js";
 import { AuthModule } from "./modules/auth/auth.module.js";
+import { BuzonModule } from "./modules/buzon/buzon.module.js";
 import { ClientesModule } from "./modules/clientes/clientes.module.js";
 import { ComprasModule } from "./modules/compras/compras.module.js";
 import { CredencialesModule } from "./modules/credenciales/credenciales.module.js";
@@ -48,6 +49,8 @@ export class AppModule {
         VentasModule,
         ComprasModule,
         ReglasModule,
+        // Spec 023: rutas bajo `/clientes/:clienteId/buzon`; no chocan con ningún `:id` anterior.
+        BuzonModule,
         // Spec 017: rutas estáticas de `/notificaciones` y `/auditoria`; no chocan con ningún `:id` anterior.
         NotificacionesModule,
         AuditoriaModule,
