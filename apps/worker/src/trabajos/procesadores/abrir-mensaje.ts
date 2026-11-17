@@ -13,6 +13,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
   guardarContenidoBuzon,
+  leerIdSunatBuzon,
   leerMensajeBuzon,
   type AdjuntoGuardarBuzon,
   type ContappDb,
@@ -46,10 +47,6 @@ export interface ResultadoAbrirMensaje {
 /** Extensión del contenido guardado (siempre texto plano). */
 const EXT_CONTENIDO = "txt";
 
-// `leerMensajeBuzon` no expone el id de SUNAT, que es lo que pide el portal.
-const SQL_ID_SUNAT =
-  "select id_sunat from buzon_mensaje where cliente_id = $1::uuid and id = $2::uuid";
-
 const sha256 = (b: Uint8Array): Buffer =>
   createHash("sha256").update(b).digest();
 
@@ -64,12 +61,12 @@ export function abrirMensaje(d: DepsAbrirMensaje): Procesador {
     const leido = await d.db.withTenant(ctx, async (tx) => {
       const mensaje = await leerMensajeBuzon(tx, t.clienteId, mensajeId);
       if (mensaje === null) return null;
-      const f = (await tx.query(SQL_ID_SUNAT, [t.clienteId, mensajeId]))
-        .rows[0] as { id_sunat?: unknown } | undefined;
-      if (f === undefined) return null;
+      // `leerMensajeBuzon` no expone el id de SUNAT, que es lo que pide el portal.
+      const idSunat = await leerIdSunatBuzon(tx, t.clienteId, mensajeId);
+      if (idSunat === null) return null;
       return {
         mensaje,
-        idSunat: String(f.id_sunat),
+        idSunat,
         credencialId:
           mensaje.contenidoRuta === null
             ? await ubicarCredencialSol(tx, t.clienteId)

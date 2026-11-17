@@ -429,6 +429,7 @@ export {
   insertarMensajeBuzon,
   leerAdjuntoBuzon,
   leerEstadoBuzon,
+  leerIdSunatBuzon,
   leerMensajeBuzon,
   listarMensajesBuzon,
 } from "./buzon";

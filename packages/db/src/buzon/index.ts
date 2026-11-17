@@ -7,6 +7,7 @@ export {
   leerMensajeBuzon,
   leerAdjuntoBuzon,
 } from "./lectura";
+export { leerIdSunatBuzon } from "./id-sunat";
 export type {
   AdjuntoBuzon,
   DetalleMensajeBuzon,
