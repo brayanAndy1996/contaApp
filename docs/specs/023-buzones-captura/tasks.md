@@ -26,7 +26,7 @@ Nivel A (spec). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T18 | Corregir los hallazgos de la ronda 1 (migración 0057 si hace falta) | backend | opus | T17 | — | — | [x] |
 | T19 | Ronda adversarial 2: programador y cola, capturas cortadas, avisos, clasificación disfrazada (≤ 15 pruebas) | adversario | opus | T18 | — | ✓ | [ ] |
 | T20 | Pruebas de las correcciones de la ronda 2 (rojo) | tester | sonnet | T19 | ✓ | — | [ ] |
-| T21 | Corregir los hallazgos de la ronda 2 (migración 0058 si hace falta) | backend | opus | T20 | — | — | [ ] |
+| T21 | Corregir los hallazgos de la ronda 2 (migración 0058 si hace falta) | backend | opus | T20 | — | — | [[x] |
 | T22 | E2E prioridad 1: «Revisar buzón ahora» → crítico → campana → «Abrir» → contenido y adjunto | tester | sonnet | T12, T13, T14 ∥ T16–T21 | — | — | [x] |
 | T23 | Prueba manual con el sistema levantado y adaptadores en `mock` | tester | sonnet | T21, T22 | — | — | [ ] |
 | T24 | Verificar CA-1 a CA-13 con evidencia, suites completas, `db:migrate` ×2 y cobertura | tester | sonnet | T23 | — | — | [ ] |
@@ -153,7 +153,7 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: resultado de T19, sus pruebas, `spec.md` (los CA citados).
 - **Hacer / Hecho cuando**: como T17. Commit `test(023): correcciones de la ronda 2 en rojo`.
 
-## T21 · [ ] Corregir la ronda 2 (backend · opus)
+## T21 · [x] Corregir la ronda 2 (backend · opus)
 - **Contexto (leer solo esto)**: hallazgos de T19, pruebas de T19 y T20, solo los archivos que señalan.
 - **Hacer / Hecho cuando**: como T18; un cambio de BD va en **0058**. Commit `fix(023): hallazgos de la ronda 2`.
 

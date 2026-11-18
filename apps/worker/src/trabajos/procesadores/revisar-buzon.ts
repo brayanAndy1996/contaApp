@@ -1,12 +1,17 @@
 // Procesador `sol.buzon.revisar` (spec 023, plan «Worker»; D-1, D-3, D-7, D-9, D-10, P-1, P-4, P-5, P-8; CA-3, CA-4, CA-6, CA-7,
 // CA-11). Captura los METADATOS del buzón SOL del cliente; nunca abre un mensaje (`obtenerMensaje` no se llama, CA-4).
-//  (1) `withTenant` corto: credencial SOL y estado de captura (`cursor_pendiente`, `sincronizado_en`).
+//  (1) `withTenant` corto: credencial SOL, estado de captura (`cursor_pendiente`, `sincronizado_en`) y el reloj de la BD, con
+//      el que se decide el aviso y la fecha de un mensaje ilegible (H-023-2-4, H-023-2-5).
 //  (2) Descifrado auditado, UNA vez por trabajo (003).
 //  (3) Páginas del portal SIN transacción abierta (008 D6), con `limite` ≤ TOPE_MENSAJES_CAPTURA (así un corte a mitad de
 //      página nunca cae en la primera), siempre desde la primera: `planificarCaptura` decide qué es nuevo, qué se actualiza y
-//      dónde termina (el primer conocido termina, salvo relleno de una captura cortada, P-5).
-//  (4) Cada mensaje nuevo en su propia transacción con el trabajo en el contexto: clasificación del dominio, `avisado` con
-//      `debeAvisar`, INSERT ... ON CONFLICT DO NOTHING (si otra captura lo insertó, no cuenta ni avisa); tras el commit, el
+//      dónde termina (el primer conocido termina, salvo relleno: captura anterior cortada o cliente aún sin sincronizar,
+//      P-5, H-023-2-1). Los ids ya vistos en esta captura se saltan (paginación corrida, H-023-2-2) y solo las páginas con
+//      nuevos cuentan para `MAX_PAGINAS_CAPTURA` (H-023-2-3).
+//  (4) Antes del primer mensaje nuevo de un cliente ya sincronizado, la marca de relleno en BD (`cursor_pendiente`): si el
+//      proceso muere a mitad, la captura siguiente no se detiene en lo que esta alcanzó a guardar (H-023-2-1).
+//      Cada mensaje nuevo en su propia transacción con el trabajo en el contexto: clasificación del dominio, fecha con
+//      `fechaMensaje`, `avisado` con `debeAvisar` y el reloj de la BD, INSERT ... ON CONFLICT DO NOTHING (si otra captura lo insertó, no cuenta ni avisa); tras el commit, el
 //      aviso en vivo a quien recibió la notificación (017). Los conocidos de cada página se actualizan en un solo lote.
 //  (5) Al final, el estado: `ultima_captura_en`, `cursor_pendiente` y, si llegó al final, `sincronizado_en` (el que ya tenía el
 //      cliente se conserva). Si el portal o la BD fallan a mitad, lo confirmado queda y se guarda la página que falló como
@@ -19,12 +24,16 @@ import {
   guardarEstadoCapturaBuzon,
   insertarMensajeBuzon,
   leerEstadoBuzon,
+  marcarRellenoBuzon,
+  relojBdBuzon,
   type ContappDb,
 } from "@contapp/db";
 import {
+  CURSOR_RELLENO,
   TOPE_MENSAJES_CAPTURA,
   clasificarMensaje,
   debeAvisar,
+  fechaMensaje,
   idSunatValido,
   planificarCaptura,
   sanearTextoPortal,
@@ -98,11 +107,15 @@ export function revisarBuzon(d: DepsRevisarBuzon): Procesador {
       throw new ErrorDatos(); // sin repetir lo recibido
     const ctx = { tenantId: t.tenantId, trabajoId: t.id };
 
-    // (1) Credencial y estado de captura.
-    const { credencialId, estado } = await d.db.withTenant(ctx, async (tx) => ({
-      credencialId: await ubicarCredencialSol(tx, t.clienteId),
-      estado: await leerEstadoBuzon(tx, t.clienteId),
-    }));
+    // (1) Credencial, estado de captura y reloj de la BD.
+    const { credencialId, estado, ahora } = await d.db.withTenant(
+      ctx,
+      async (tx) => ({
+        credencialId: await ubicarCredencialSol(tx, t.clienteId),
+        estado: await leerEstadoBuzon(tx, t.clienteId),
+        ahora: await relojBdBuzon(tx),
+      }),
+    );
     // (2) Una sola vez por trabajo.
     const cred = await descifrarCredencialSol(d, t, credencialId);
 
@@ -121,12 +134,12 @@ export function revisarBuzon(d: DepsRevisarBuzon): Procesador {
         codigoTipo: m.codigoTipo,
         asunto: m.asunto,
       });
-      const fecha = new Date(m.fecha);
+      const fecha = fechaMensaje(m.fecha, ahora);
       const avisado = debeAvisar({
         critico: c.critico,
         fecha,
         sincronizadoEn,
-        ahora: new Date(),
+        ahora,
       });
       const { insertado, destinatarios } = await d.db.withTenant(
         ctx,
@@ -169,7 +182,13 @@ export function revisarBuzon(d: DepsRevisarBuzon): Procesador {
 
     let cursor: string | null = null;
     let acumulados = 0;
+    /** Páginas con algún nuevo (las que cuentan para MAX_PAGINAS_CAPTURA). */
     let paginas = 0;
+    /** Páginas leídas y procesadas, cuenten o no. */
+    let leidas = 0;
+    const vistos = new Set<string>();
+    // Sin sincronizar, o con un relleno pendiente, una muerte a mitad ya deja la captura siguiente en relleno.
+    let marcado = cursorPendiente !== null || sincronizadoEn === null;
     let fin: { cursorPendiente: string | null; sincronizado: boolean };
     try {
       for (;;) {
@@ -193,17 +212,19 @@ export function revisarBuzon(d: DepsRevisarBuzon): Procesador {
             cursorActual: cursor,
             nuevosAcumulados: acumulados,
             paginasLeidas: paginas,
+            sincronizado: sincronizadoEn !== null,
+            vistos,
           },
           pagina,
           new Set(conocidos.keys()),
         );
-        // (4) Los conocidos de la página: leído en SUNAT y última captura, en un lote.
-        const vistos = new Set<string>();
+        // (4) Los conocidos de la página: leído en SUNAT y última captura, en un lote (los ya vistos en esta captura, no).
         const actualizar = pagina.mensajes.filter((m) => {
           if (!conocidos.has(m.idSunat) || vistos.has(m.idSunat)) return false;
           vistos.add(m.idSunat);
           return true;
         });
+        for (const m of pagina.mensajes) vistos.add(m.idSunat);
         if (actualizar.length > 0)
           r.actualizados += await d.db.withTenant(ctx, (tx) =>
             actualizarConocidosBuzon(
@@ -215,9 +236,16 @@ export function revisarBuzon(d: DepsRevisarBuzon): Procesador {
               })),
             ),
           );
+        if (plan.nuevos.length > 0 && !marcado) {
+          await d.db.withTenant(ctx, (tx) =>
+            marcarRellenoBuzon(tx, t.clienteId, CURSOR_RELLENO),
+          );
+          marcado = true;
+        }
         for (const m of plan.nuevos) await guardarNuevo(m);
         acumulados += plan.nuevos.length;
-        paginas += 1;
+        if (plan.nuevos.length > 0) paginas += 1;
+        leidas += 1;
         if (plan.terminada) {
           fin = {
             cursorPendiente: plan.sincronizado ? null : plan.siguienteCursor,
@@ -228,9 +256,10 @@ export function revisarBuzon(d: DepsRevisarBuzon): Procesador {
         cursor = plan.siguienteCursor;
       }
     } catch (e) {
-      // P-4: lo confirmado queda; la captura siguiente rellena desde la página que falló (sin huecos).
-      const pendiente = cursor ?? cursorPendiente;
-      if (paginas > 0 && pendiente !== null)
+      // P-4: lo confirmado queda; la captura siguiente rellena (sin huecos). Mejor esfuerzo: si el proceso muere aquí, la
+      // marca de relleno previa (4) o el cliente sin sincronizar ya lo garantizan.
+      const pendiente = cursor ?? cursorPendiente ?? CURSOR_RELLENO;
+      if (leidas > 0)
         await d.db
           .withTenant(ctx, (tx) =>
             guardarEstadoCapturaBuzon(tx, t.clienteId, {

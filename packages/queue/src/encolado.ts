@@ -143,17 +143,21 @@ const puntaje = (t: TrabajoPublicable): number =>
 /**
  * Pista en Redis tras el commit: ZADD pend:{cola}:{tenant} y SADD tenants:{cola}. Idempotente; los
  * errores de Redis se registran sin datos y no se propagan (el reconciliador repone).
+ * Con `noBajarPrioridad` (spec 023, H-023-2-8) es ZADD LT: si la pista ya existe con un puntaje menor (otro la elevó a
+ * interactivo en el hueco entre el commit y esta llamada), no se pisa; si no existe, se crea igual.
  */
 export async function publicar(
   redis: Pick<ClienteRedis, "zadd" | "sadd">,
   trabajos: readonly TrabajoPublicable[],
-  opciones: { prefijo?: string } = {},
+  opciones: { prefijo?: string; noBajarPrioridad?: boolean } = {},
 ): Promise<void> {
   if (trabajos.length === 0) return;
   const k = crearClaves(opciones.prefijo);
   for (const t of trabajos) {
     try {
-      await redis.zadd(k.pend(t.cola, t.tenantId), puntaje(t), t.id);
+      if (opciones.noBajarPrioridad === true)
+        await redis.zadd(k.pend(t.cola, t.tenantId), "LT", puntaje(t), t.id);
+      else await redis.zadd(k.pend(t.cola, t.tenantId), puntaje(t), t.id);
     } catch {
       registrarFallo(
         "publicar: fallo de Redis en la pista; el reconciliador repone",

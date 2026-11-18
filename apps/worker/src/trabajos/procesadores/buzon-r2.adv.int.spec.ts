@@ -9,7 +9,7 @@
 // relleno), `abrir-mensaje.ts` (borra lo escrito si `withTenant` lanza, aunque el COMMIT ya se hiciera), `programar-buzon.ts`
 // (pista `programado` publicada tras el commit, sin mirar la prioridad actual), 0055 (`buzon_ciclo_tomar` exige el intervalo
 // aunque el candado haya vencido) y 0054/0056 (la BD solo mira `critico`, no la categoría).
-// Hallazgos H-023-2-n: marcados con `it.fails`.
+// Hallazgos H-023-2-n: marcados con `it.fails` en T19; T21 los corrige y vuelven a `it`.
 import { randomBytes, randomUUID } from "node:crypto";
 import {
   bloquearEstadoBuzon,
@@ -335,7 +335,7 @@ describe("H-023-2-1 · captura cortada antes, durante y después del commit de u
   // primera página (o la muerte del proceso en cualquiera) no deja relleno, y la captura siguiente termina en el primer
   // conocido (`planificarCaptura` sin `cursorPendiente`). Lo que venía detrás del mensaje cortado, incluida una coactiva,
   // no se captura nunca y nadie se entera.
-  it.fails(
+  it(
     "tras el corte, la captura siguiente guarda todo el buzón y avisa la coactiva que estaba detrás",
     async () => {
       const faltan: string[] = [];
@@ -370,7 +370,7 @@ describe("H-023-2-2 · un mensaje nuevo que llega durante la captura corre la pa
   // Alta. Si entra un mensaje mientras se pagina (cursor por desplazamiento, el del mock), el último de la página 1 reaparece
   // como primero de la 2: ya es «conocido» (lo guardó ESTA captura) y, sin relleno, termina la captura sin cursor pendiente.
   // Las siguientes paran en el primer conocido: el resto del buzón no se captura nunca.
-  it.fails(
+  it(
     "con 250 mensajes y uno nuevo entre la página 1 y la 2, cuatro capturas los guardan todos",
     async () => {
       const m = await mundo();
@@ -407,7 +407,7 @@ describe("H-023-2-3 · un portal con páginas de menos de 10 mensajes nunca term
   // mismo cursor. El tamaño de página es del portal (D-1), no del worker: con SUNAT real el buzón queda a medias para siempre
   // y el cliente nunca pasa a sincronizado (los críticos antiguos que falten no se ven y los nuevos se avisan con la regla de
   // 30 días).
-  it.fails(
+  it(
     "con 450 mensajes en páginas de 10, cinco capturas guardan los 450 y el cliente queda sincronizado",
     async () => {
       const m = await mundo();
@@ -429,7 +429,7 @@ describe("H-023-2-4 · reloj del proceso adelantado y el borde de 30 días de la
   // `clock_timestamp()` de la BD. Con el reloj del worker 2 h adelantado, una coactiva de hace 29 días y 23 h (para la BD)
   // sale «sin aviso» y la BD la rechaza (42501): la captura entera falla, se reintenta y vuelve a fallar hasta que pasen las
   // 2 h; y entonces H-023-2-1 deja todo lo de detrás sin capturar. El plan pide que el tiempo salga de la BD.
-  it.fails(
+  it(
     "con el reloj del worker 2 h adelantado, la coactiva en el borde se guarda y se avisa, y la captura termina",
     async () => {
       const m = await mundo();
@@ -457,7 +457,7 @@ describe("H-023-2-5 · fecha ilegible en el listado (D-1, D-9, CA-3, CA-6)", () 
   // Alta. `sanearPagina` (H-023-1-4) limpia textos e ids pero no valida `fecha`: `new Date("17/11/2026 10:00")` es Invalid Date,
   // el INSERT falla (22007/22008) y tumba la captura en ese mensaje. Como en H-023-2-1, la siguiente para en el primer conocido:
   // la coactiva de detrás no se guarda ni se avisa nunca, captura tras captura.
-  it.fails(
+  it(
     "un mensaje con fecha en formato dd/mm/aaaa no deja sin capturar ni sin aviso la coactiva que viene detrás",
     async () => {
       const m = await mundo();
@@ -515,7 +515,7 @@ describe("H-023-2-6 · apertura con el COMMIT hecho y la respuesta perdida (D-3,
   // conexión cae tras el COMMIT, la fila queda con `contenido_ruta` y el adjunto apuntando a archivos borrados; como el contenido
   // «ya se obtuvo», un nuevo «Abrir» termina sin llamar al portal y el contenido (ya marcado como leído en SUNAT) no se puede
   // leer nunca más.
-  it.fails(
+  it(
     "si la BD confirmó, el contenido y el adjunto siguen en storage",
     async () => {
       const m = await mundo();
@@ -578,7 +578,7 @@ describe("H-023-2-7 · el worker muere con el candado a mitad de un ciclo (D-5, 
   // Baja. `buzon_ciclo_tomar` (0055) exige el candado vencido Y el intervalo cumplido desde el INICIO del ciclo muerto. Con el
   // intervalo de 15 min y el candado de 5, si el dueño muere tras el primer estudio nadie retoma el ciclo al vencer el candado
   // (CA-1: «otro lo toma al vencer el candado») sino 10 min después: los estudios que faltaban esperan un intervalo entero.
-  it.fails(
+  it(
     "candado vencido hace 1 s de un ciclo que empezó hace 6 min: uno de tres workers lo toma y encola",
     async () => {
       const S = await e.estudioConSub();
@@ -692,7 +692,7 @@ describe("H-023-2-8 · «Revisar ahora» entre el commit del programador y su pi
   // «Revisar ahora» (50 pedidos), el backend eleva el trabajo a `interactivo` y publica su pista; luego el programador la pisa
   // con el puntaje de programado (ZADD sin condición). La BD dice interactivo pero el despachador lo ordena detrás de todas
   // las programadas del estudio (CA-2: «sale antes que todas ellas»), y el reconciliador no corrige pistas existentes.
-  it.fails(
+  it(
     "con 50 pedidos en el hueco, queda un trabajo interactivo y su pista en Redis tiene puntaje interactivo",
     async () => {
       const S = await e.estudioConSub();
@@ -741,7 +741,7 @@ describe("H-023-2-9 · el worker guarda una coactiva reciente como no crítica y
   // `critico`: nada ata `categoria` (o `motivo_critico`) con `critico`. Un worker con un error o comprometido inserta
   // `categoria = 'coactiva'`, `critico = false`, `avisado = false` de hoy y la BD lo acepta sin notificación; reclasificar
   // después no avisa (D-7).
-  it.fails(
+  it(
     "la BD rechaza una categoría crítica con critico = false, o un motivo sin crítico",
     async () => {
       const m = await mundo();

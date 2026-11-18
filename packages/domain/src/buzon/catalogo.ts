@@ -28,13 +28,20 @@ export interface CatalogoBuzon {
  * - `siglas`: palabras exactas ("rd", "rm"), porque como subcadena aparecerían en cualquier lado.
  * - `debiles`: subcadenas del asunto sin espacios que, sin patrón completo, dan crítico con
  *   motivo `duda` (D-7: ante la duda, crítico).
+ * - `abreviables`: palabras que SUNAT abrevia en las esquelas ("Coact.", "Fisc.", "Determ.", "Det.", "Mult."). Una palabra
+ *   del asunto de al menos `LARGO_MINIMO_ABREVIATURA` letras que es el comienzo de una de ellas da crítico con motivo `duda`
+ *   (H-023-2-11).
  */
 export interface PatronesAsunto {
   readonly categoria: CategoriaCritica;
   readonly frases: readonly string[];
   readonly siglas: readonly string[];
   readonly debiles: readonly string[];
+  readonly abreviables: readonly string[];
 }
+
+/** Letras mínimas de una abreviatura ("det", "req"): con menos, "de" sería el comienzo de "determinacion". */
+export const LARGO_MINIMO_ABREVIATURA = 3;
 
 function congelar<T>(valor: T): T {
   if (typeof valor === "object" && valor !== null && !Object.isFrozen(valor)) {
@@ -65,6 +72,7 @@ export const PATRONES_ASUNTO: readonly PatronesAsunto[] = congelar([
     frases: ["coactiv"],
     siglas: ["rec"],
     debiles: ["embargo"],
+    abreviables: ["coactiva", "coactivo"],
   },
   {
     categoria: "resolucion_determinacion",
@@ -76,6 +84,7 @@ export const PATRONES_ASUNTO: readonly PatronesAsunto[] = congelar([
     ],
     siglas: ["rd"],
     debiles: ["determinacion"],
+    abreviables: ["determinacion"],
   },
   {
     categoria: "resolucion_multa",
@@ -87,6 +96,7 @@ export const PATRONES_ASUNTO: readonly PatronesAsunto[] = congelar([
     ],
     siglas: ["rm"],
     debiles: ["multa"],
+    abreviables: ["multa"],
   },
   {
     categoria: "requerimiento_fiscalizacion",
@@ -98,8 +108,12 @@ export const PATRONES_ASUNTO: readonly PatronesAsunto[] = congelar([
     ],
     siglas: [],
     debiles: ["fiscalizacion", "requerimiento"],
+    abreviables: ["fiscalizacion", "requerimiento"],
   },
 ] as const);
+
+/** Palabras corrientes que empiezan como una palabra clave sin abreviarla ("domicilio fiscal"): no son abreviaturas. */
+export const EXCEPCIONES_ABREVIATURAS: readonly string[] = congelar(["fiscal"]);
 
 /** Frases que contienen una palabra débil sin ser críticas ("sin embargo"); se quitan antes. */
 export const EXCEPCIONES_DEBILES: readonly string[] = congelar(["sinembargo"]);

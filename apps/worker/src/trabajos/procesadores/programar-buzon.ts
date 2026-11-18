@@ -4,7 +4,8 @@
 //  (2) `sistema.estudios_buzon()`: estudios con suscripción activa o prueba vigente y su frecuencia (solo uuid y entero).
 //  (3) Por estudio, en su propio `withTenant`: candidatos (elegibles sin captura viva), `seleccionarVencidos` con el reloj de la
 //      BD y `cupo = min(lote, max_pendientes_tenant − pendientes − reserva)`, y `encolar_buzon_programados` (que revalida todo
-//      y fija la franja); tras el commit, la pista y el evento en Redis (si se pierden, el reconciliador repone).
+//      y fija la franja); tras el commit, la pista (sin bajar la de un trabajo ya elevado a interactivo, H-023-2-8) y el
+//      evento en Redis (si se pierden, el reconciliador repone).
 //  (4) Tras cada estudio, `buzon_ciclo_renovar(dueno)`; `false` = perdió el candado: se detiene sin encolar más. Al final, en
 //      `finally`, `buzon_ciclo_soltar(dueno)` (no toca un candado ajeno).
 // Sin doble encolado: un solo ciclo vivo (candado), revalidación dentro de la función y el índice único de dedupe de 008.
@@ -99,10 +100,11 @@ export function programarBuzon(
       const vistas = filas.map((f) =>
         vistaDeFila(f, { estado: "en_cola", motivo: null }),
       );
+      // H-023-2-8: si «Revisar ahora» elevó el trabajo a interactivo entre el commit y aquí, su pista no se baja (ZADD LT).
       await publicar(
         redis,
         vistas.map((v) => aPublicable(estudio.tenantId, v, "programado")),
-        opciones,
+        { ...opciones, noBajarPrioridad: true },
       );
       for (const v of vistas)
         await publicarEvento(redis, estudio.tenantId, v, opciones);

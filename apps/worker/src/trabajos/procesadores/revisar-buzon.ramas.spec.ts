@@ -18,6 +18,9 @@ vi.mock("@contapp/db", async (original) => ({
   ...(await original<typeof import("@contapp/db")>()),
   estadoCredenciales: vi.fn(async () => [{ id: "cred-1", tipo: "sol" }]),
   leerEstadoBuzon: vi.fn(async () => h.estado),
+  // T21 (H-023-2-4, H-023-2-1): reloj de la BD y marca de relleno, también dobles.
+  relojBdBuzon: vi.fn(async () => new Date()),
+  marcarRellenoBuzon: vi.fn(async () => undefined),
   conocidosBuzon: vi.fn(async () => new Map<string, boolean>()),
   actualizarConocidosBuzon: vi.fn(async () => 0),
   insertarMensajeBuzon: h.insertar,

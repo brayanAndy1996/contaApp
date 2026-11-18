@@ -54,6 +54,14 @@ on conflict (tenant_id, cliente_id) do update
    set ultima_captura_en = excluded.ultima_captura_en,
        cursor_pendiente = excluded.cursor_pendiente,
        sincronizado_en = coalesce(buzon_estado_cliente.sincronizado_en, excluded.sincronizado_en)`;
+// H-023-2-1: marca de relleno ANTES de guardar el primer mensaje nuevo de un cliente ya sincronizado. Si el proceso muere a
+// mitad, la captura siguiente no se detiene en el primer conocido. No pisa un cursor que ya estuviera guardado.
+const SQL_MARCAR_RELLENO = `insert into buzon_estado_cliente (cliente_id, cursor_pendiente)
+values ($1::uuid, $2::text)
+on conflict (tenant_id, cliente_id) do update
+   set cursor_pendiente = coalesce(buzon_estado_cliente.cursor_pendiente, excluded.cursor_pendiente)`;
+// H-023-2-4: el reloj de la BD, el mismo con el que el trigger de 0056 exige el aviso.
+const SQL_RELOJ = "select clock_timestamp() as ahora";
 const SQL_INSERTAR_ADJUNTO = `insert into buzon_adjunto (cliente_id, mensaje_id, id_sunat, nombre, mime, tamano, sha256, ruta, omitido)
 values ($1::uuid, $2::uuid, $3::text, $4::text, $5::text, $6::bigint, $7::bytea, $8::text, $9::text)
 on conflict (tenant_id, mensaje_id, id_sunat) do nothing`;
@@ -132,6 +140,24 @@ export async function guardarEstadoCapturaBuzon(
     e.cursorPendiente,
     e.sincronizado,
   ]);
+}
+
+/** Deja un cursor pendiente (relleno) si no había uno: se llama antes de guardar el primer mensaje nuevo (H-023-2-1). */
+export async function marcarRellenoBuzon(
+  tx: TxConsulta,
+  clienteId: string,
+  cursor: string,
+): Promise<void> {
+  await consultar(tx, SQL_MARCAR_RELLENO, [clienteId, cursor]);
+}
+
+/** Reloj de la BD (`clock_timestamp()`): la regla de los 30 días del aviso se mide con él, no con el del proceso (H-023-2-4). */
+export async function relojBdBuzon(tx: TxConsulta): Promise<Date> {
+  const r = await consultar(tx, SQL_RELOJ, []);
+  const v: unknown = r.rows[0]?.ahora;
+  const fecha = v instanceof Date ? v : new Date(String(v));
+  if (Number.isNaN(fecha.getTime())) throw new BuzonRepoError("desconocido");
+  return fecha;
 }
 
 /**

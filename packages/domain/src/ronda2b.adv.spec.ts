@@ -106,6 +106,8 @@ describe("T13b · ronda adversarial 2b", () => {
       "prepararAdjuntos", "sanearNombreAdjunto", "seleccionarVencidos", "ultimaFranja",
       // 023 (T18, H-023-1-3 y H-023-1-4): saneo de los datos del portal SOL (buzon/saneo).
       "idSunatValido", "sanearTextoPortal",
+      // 023 (T21, H-023-2-1 y H-023-2-5): cursor de relleno y fecha del mensaje con la de captura si es ilegible.
+      "CURSOR_RELLENO", "fechaMensaje",
     ].sort();
     expect(Object.keys(Publico).sort()).toEqual(esperados);
 

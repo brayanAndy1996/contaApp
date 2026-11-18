@@ -407,6 +407,13 @@
       "when": 1794949204705,
       "tag": "0057_buzon_insert_acotado",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1794969412913,
+      "tag": "0058_buzon_r2",
+      "breakpoints": true
     }
   ]
 }

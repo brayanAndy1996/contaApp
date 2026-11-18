@@ -18,10 +18,12 @@ export {
 } from "./programacion";
 export type { CandidatoCaptura } from "./programacion";
 export {
+  CURSOR_RELLENO,
   DIAS_AVISO_PRIMERA_SINCRONIZACION,
   MAX_PAGINAS_CAPTURA,
   TOPE_MENSAJES_CAPTURA,
   debeAvisar,
+  fechaMensaje,
   planificarCaptura,
 } from "./captura";
 export type {

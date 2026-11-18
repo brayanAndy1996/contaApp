@@ -94,6 +94,8 @@ const FUNCIONES_017: { firma: string; dueno: string }[] = [
   // Spec 023 (T11, migraciones 0054-0056): candado del ciclo y estudios vigentes del programador del buzón (sistema.*, EXECUTE solo
   // contapp_worker), candidatos y encolado programado (worker), elevación de prioridad, bloqueo del estado y auditoría (backend),
   // destinatarios del aviso (interno, sin EXECUTE para la app) y los triggers de aviso y de auditoría del contenido.
+  // T21 (migración 0058, revisadas): sistema.buzon_ciclo_tomar (H-023-2-7) y buzon_mensaje_aviso_obligatorio (H-023-2-9) se
+  // reemplazan con el mismo dueño, search_path fijo y los mismos EXECUTE; no hay funciones nuevas.
   ...["buzon_ciclo_tomar(text)", "buzon_ciclo_renovar(text)", "buzon_ciclo_soltar(text)", "estudios_buzon()"].map((f) => ({
     firma: `sistema.${f}`,
     dueno: MIGRATOR,

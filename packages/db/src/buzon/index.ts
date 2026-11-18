@@ -22,6 +22,8 @@ export {
   guardarContenidoBuzon,
   guardarEstadoCapturaBuzon,
   insertarMensajeBuzon,
+  marcarRellenoBuzon,
+  relojBdBuzon,
 } from "./escritura";
 export type {
   AccionAuditoriaBuzon,

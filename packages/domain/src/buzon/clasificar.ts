@@ -1,8 +1,11 @@
 // Spec 023 (D-7, CA-5, P-3): clasificación de un mensaje del buzón SOL. El código de tipo gana
-// sobre el asunto; una palabra débil sin patrón completo da crítico con motivo `duda`.
+// sobre el asunto; una palabra débil o una abreviatura de una palabra clave ("Coact.", "Res. Det.") sin patrón completo
+// da crítico con motivo `duda`.
 import {
   CATALOGO_BUZON,
+  EXCEPCIONES_ABREVIATURAS,
   EXCEPCIONES_DEBILES,
+  LARGO_MINIMO_ABREVIATURA,
   PATRONES_ASUNTO,
   type CategoriaBuzon,
   type CategoriaCritica,
@@ -70,6 +73,22 @@ export function clasificarMensaje(
   }
   for (const p of PATRONES_ASUNTO) {
     if (p.debiles.some((d) => sinExcepciones.includes(d))) {
+      return critico(p.categoria, "duda");
+    }
+  }
+
+  // H-023-2-11: abreviaturas ("cob coact", "req fisc", "res det"): una palabra que es el comienzo de una palabra clave.
+  const abreviaturas = [...palabras].filter(
+    (w) =>
+      w.length >= LARGO_MINIMO_ABREVIATURA &&
+      !EXCEPCIONES_ABREVIATURAS.includes(w),
+  );
+  for (const p of PATRONES_ASUNTO) {
+    if (
+      p.abreviables.some((clave) =>
+        abreviaturas.some((w) => clave.startsWith(w)),
+      )
+    ) {
       return critico(p.categoria, "duda");
     }
   }

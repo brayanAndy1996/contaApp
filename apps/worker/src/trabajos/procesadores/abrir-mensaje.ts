@@ -8,7 +8,9 @@
 //      saneado, MIME por firma, topes por adjunto y por mensaje).
 //  (4) Storage primero, con rutas `buzon/{estudio}/{cliente}/{uuid}.{ext}` (el nombre nunca va en la ruta); luego UNA transacción
 //      que inserta los adjuntos (guardados y omitidos) y DESPUÉS fija el contenido (el trigger de auditoría de 0056 cuenta lo ya
-//      insertado). Si algo falla, se borra lo escrito (mejor esfuerzo) y el error sigue al ejecutor; un error de datos de
+//      insertado). Si algo falla, se borra lo escrito (mejor esfuerzo) y el error sigue al ejecutor, salvo que el COMMIT
+//      haya podido aplicarse (H-023-2-6): si la transacción falló, antes de borrar se relee la fila y, si ya referencia el
+//      contenido escrito (o no se puede saber), el storage se conserva. Un error de datos de
 //      PostgreSQL (clases 22 y 23) sale como `ErrorDatos`, que no se reintenta: cada `obtenerMensaje` puede marcar el mensaje
 //      como leído en SUNAT (RF-126, H-023-1-3).
 // Un adjunto con id de SUNAT inválido (vacío, NUL o más de 64 caracteres) se descarta sin contarlo; con ids repetidos queda uno
@@ -111,8 +113,10 @@ export function abrirMensaje(d: DepsAbrirMensaje): Procesador {
     const recibidos = recibido.adjuntos.filter((a) => idSunatValido(a.idSunat));
     const { guardar, omitidos } = prepararAdjuntos(recibidos);
 
-    // (4) Storage y luego una transacción; si algo falla, se borra lo escrito.
+    // (4) Storage y luego una transacción; si algo falla, se borra lo escrito salvo que la fila ya lo referencie.
     const escritas: string[] = [];
+    let contenidoRuta: string | null = null;
+    let enTransaccion = false;
     const escribir = async (ext: string, bytes: Uint8Array): Promise<string> => {
       const ruta = rutaBuzon(t.tenantId, t.clienteId, randomUUID(), ext);
       escritas.push(ruta);
@@ -121,7 +125,8 @@ export function abrirMensaje(d: DepsAbrirMensaje): Procesador {
     };
     let adjuntos: AdjuntoGuardarBuzon[];
     try {
-      const contenidoRuta = await escribir(EXT_CONTENIDO, bytesTexto);
+      contenidoRuta = await escribir(EXT_CONTENIDO, bytesTexto);
+      const rutaContenido = contenidoRuta;
       const porId = new Map<string, AdjuntoGuardarBuzon>();
       for (const a of guardar) {
         if (porId.has(a.idSunat)) continue; // id repetido: cuenta el primero
@@ -150,20 +155,34 @@ export function abrirMensaje(d: DepsAbrirMensaje): Procesador {
       adjuntos = [...new Set(recibidos.map((a) => a.idSunat))].flatMap(
         (id) => porId.get(id) ?? [],
       );
+      enTransaccion = true;
       await d.db.withTenant(ctx, (tx) =>
         guardarContenidoBuzon(tx, {
           clienteId: t.clienteId,
           mensajeId,
-          contenidoRuta,
+          contenidoRuta: rutaContenido,
           contenidoBytes: bytesTexto.byteLength,
           marcoLeido: recibido.marcaLeido,
           adjuntos,
         }),
       );
     } catch (e) {
-      await Promise.all(
-        escritas.map((ruta) => d.storage.eliminar(ruta).catch(() => undefined)),
-      );
+      // H-023-2-6: la respuesta del COMMIT pudo perderse con el COMMIT hecho. Se borra solo si la BD dice que la fila no
+      // referencia lo escrito; si no se puede consultar, se conserva (un archivo huérfano antes que una fila rota).
+      const borrar =
+        !enTransaccion ||
+        (await d.db
+          .withTenant(ctx, (tx) => leerMensajeBuzon(tx, t.clienteId, mensajeId))
+          .then(
+            (m) => m === null || m.contenidoRuta !== contenidoRuta,
+            () => false,
+          ));
+      if (borrar)
+        await Promise.all(
+          escritas.map((ruta) =>
+            d.storage.eliminar(ruta).catch(() => undefined),
+          ),
+        );
       // Sin la causa: el detalle de PostgreSQL puede repetir el nombre de un adjunto (D-10).
       if (esErrorDatosPg(e)) throw new ErrorDatos();
       throw e;

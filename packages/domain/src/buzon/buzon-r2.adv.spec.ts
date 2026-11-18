@@ -3,7 +3,7 @@
 // Caja blanca: `normalizar.ts` (mapa cerrado de homoglifos, invisibles = Cc/Cf/Cs) y `catalogo.ts` (frases, siglas y débiles
 // como subcadenas exactas).
 // Los caracteres raros se arman con su punto de código (`u(0x200b)`) para que ningún formateador los deje invisibles en el fuente.
-// Hallazgos H-023-2-n marcados con `it.fails`.
+// Hallazgos H-023-2-n: marcados con `it.fails` en T19; T21 los corrige y vuelven a `it`.
 import { describe, expect, it } from "vitest";
 import { clasificarMensaje } from "./index";
 
@@ -37,7 +37,7 @@ describe("H-023-2-10 · homoglifos fuera del mapa y letras invisibles (D-7, CA-5
   // Media: el mapa cerrado de `normalizar.ts` solo cubre cirílico y griego. Letras latinas extendidas, armenias, cheroquis y
   // los «rellenos» Hangul (U+3164, U+FFA0, U+115F) son \p{L}: no se quitan como invisibles ni se mapean, y parten la frase.
   // Un crítico así sale «otro», sin aviso.
-  it.fails(
+  it(
     "ı latina sin punto, ɑ latina, օ armenia, ᴏ versalita, Ꮯ cheroqui y rellenos Hangul invisibles no esconden el crítico",
     () => {
       const asuntos = [
@@ -59,7 +59,7 @@ describe("H-023-2-11 · abreviaturas nuevas de SUNAT (D-7, CA-5)", () => {
   // Media: frases y débiles son subcadenas completas ("coactiv", "fiscalizacion", "determinacion", "multa"). Las abreviaturas
   // usuales en las esquelas ("Cob. Coact.", "Req. Fisc.", "Resol. Determ.", "Res. Mult.") no contienen ninguna y salen
   // «otro»; ni siquiera llegan a `duda`, contra «ante la duda, gana crítico».
-  it.fails(
+  it(
     "Cob. Coact., Ejec. Coact., Req. Fisc., Requer. de Fiscaliz., Resol. Determ., Res. Det. y Res. Mult. son críticos",
     () => {
       const asuntos = [
