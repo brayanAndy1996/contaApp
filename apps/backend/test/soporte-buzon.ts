@@ -140,10 +140,11 @@ export interface BancoBuzon {
     clienteId: string,
     n: number,
   ): Promise<string[]>;
-  /** Lleva el trabajo a un estado terminal por SQL. */
+  /** Lleva el trabajo a un estado terminal por SQL; `motivo` (p. ej. `credencial_invalida`) solo tiene sentido con `error`. */
   terminar(
     trabajoId: string,
     estado?: "completado" | "error" | "cancelado",
+    motivo?: string | null,
   ): Promise<void>;
   /** Puntaje de la pista de Redis del trabajo en la cola `sol` (`null` si no está). */
   puntaje(tenantId: string, trabajoId: string): Promise<number | null>;
@@ -397,11 +398,11 @@ export async function abrirBancoBuzon(): Promise<BancoBuzon> {
       await pipe.exec();
       return filas.map((f: any) => f.id as string);
     },
-    terminar: async (trabajoId, estado = "completado") => {
+    terminar: async (trabajoId, estado = "completado", motivo = null) => {
       await sql(
-        `update job_registro set estado = $2, iniciado_en = coalesce(iniciado_en, now()), terminado_en = now(), actualizado_en = now()
+        `update job_registro set estado = $2, motivo = $3, iniciado_en = coalesce(iniciado_en, now()), terminado_en = now(), actualizado_en = now()
           where id = $1`,
-        [trabajoId, estado],
+        [trabajoId, estado, motivo],
       );
     },
     puntaje: async (tenantId, trabajoId) => {
