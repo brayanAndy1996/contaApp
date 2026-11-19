@@ -34,7 +34,7 @@ Nivel A (spec). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T25 | Revisión final contra la spec | arquitecto | opus | T24 | — | — | [x] |
 | T25a | Pruebas de los defectos de la revisión final (rojo) | tester | sonnet | T25 | ✓ | — | [x] |
 | T25b | Corregir los defectos de la revisión final | backend | opus | T25a | — | — | [x] |
-| T26 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T25b | — | — | [ ] |
+| T26 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T25b | — | — | [x] |
 
 Paralelismo (por oleadas; dentro de una oleada no se comparten archivos):
 - **Oleada 1**: T1 (`packages/domain/src/buzon/*.spec.ts`) ∥ T2 (`packages/shared/src/buzon/`, `packages/queue/src/*-023.spec.ts`) ∥ T3 (`packages/sunat/src/mock/sol-portal*.spec.ts`) ∥ T4 (`tests/aislamiento/buzon-*`, `packages/db/src/buzon/*.spec.ts`).
@@ -276,7 +276,7 @@ Suites (todas en verde salvo la cobertura de `db`):
 - **Hacer**: R-1: en `planificarCaptura`, una página sin mensajes (tras sanear) con `siguiente` corta como «todo repetido»; `MAX_PAGINAS_LECTURA` (holgado, p. ej. 500) en el dominio, `EstadoCaptura` recibe las páginas leídas y corta con relleno pendiente; el worker pasa `leidas`. R-2: `estado in ('error','cancelado') and motivo = 'credencial_invalida'`. Sin migración ni cambios de contrato HTTP.
 - **Hecho cuando**: las de T25a pasan; `domain`, `db`, `worker`, `backend test:int` (buzón) y `pnpm cobertura:buzon` en verde; typecheck y lint limpios. Commit `fix(023): defectos de la revisión final`. Después, T25 se repite solo sobre R-1 y R-2 y se marca `[x]`.
 
-## T26 · [ ] Cierre (devops · haiku)
+## T26 · [x] Cierre (devops · haiku)
 - **Contexto (leer solo esto)**: resultado de T25, `tasks.md`, `spec.md` (estado y CA).
 - **Hacer**: marcar tareas y CA, estado de la spec «hecha (fecha)». Commit `docs(023): cierre` con rutas explícitas. El orquestador actualiza `ESTADO.md` (migraciones usadas y la siguiente libre).
 - **Hecho cuando**: `git status` limpio en los archivos de 023 y el commit hecho.
