@@ -45,6 +45,21 @@ export const textoMotivoCredencial = (motivo: string): string =>
 /** Tope de sondeo tras «Verificar»: pasado este tiempo la ficha deja de leer sola y se recarga a mano. */
 export const TOPE_VERIFICANDO_MS = 120_000;
 
+// Aviso entre componentes de la misma pantalla (spec 023, T23a-1): cuando la ficha guarda una credencial o termina de
+// verificarla, quien dependa de su estado (p. ej. «Revisar buzón ahora») vuelve a leerlo sin recargar la página.
+const oyentesCredenciales = new Set<(clienteId: string) => void>();
+
+export const alCambiarCredenciales = (oyente: (clienteId: string) => void): (() => void) => {
+  oyentesCredenciales.add(oyente);
+  return () => {
+    oyentesCredenciales.delete(oyente);
+  };
+};
+
+export const avisarCambioCredenciales = (clienteId: string): void => {
+  for (const oyente of [...oyentesCredenciales]) oyente(clienteId);
+};
+
 const base = (clienteId: string): string =>
   `/clientes/${encodeURIComponent(clienteId)}/credenciales`;
 

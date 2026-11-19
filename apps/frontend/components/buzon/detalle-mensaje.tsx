@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Badge,
@@ -47,7 +47,19 @@ const formatoTamano = (bytes: number): string =>
       ? `${Math.round(bytes / 1024)} KB`
       : `${bytes} B`;
 
-export function DetalleMensaje({ clienteId, mensajeId }: { clienteId: string; mensajeId: string }) {
+// Sondeo acotado tras «Apertura encolada.» (T23a-5): cada 3 s, hasta 3 min; se detiene al llegar el contenido.
+const ESPERA_SONDEO_MS = 3000;
+const MAX_SONDEOS = 60;
+
+export function DetalleMensaje({
+  clienteId,
+  mensajeId,
+  archivado = false,
+}: {
+  clienteId: string;
+  mensajeId: string;
+  archivado?: boolean;
+}) {
   const puedeAbrir = usePuede(PERMISO_BUZON_MARCAR_LEIDO) === true;
   const [detalle, setDetalle] = useState<DetalleDto | null>(null);
   const [cargado, setCargado] = useState(false);
@@ -57,6 +69,7 @@ export function DetalleMensaje({ clienteId, mensajeId }: { clienteId: string; me
   const [aviso, setAviso] = useState<Aviso | null>(null);
   const [descargando, setDescargando] = useState<string | null>(null);
   const [errorDescarga, setErrorDescarga] = useState<string | null>(null);
+  const botonAbrirRef = useRef<HTMLButtonElement>(null);
 
   const cargar = useCallback(async (): Promise<void> => {
     try {
@@ -81,6 +94,34 @@ export function DetalleMensaje({ clienteId, mensajeId }: { clienteId: string; me
     setAviso(null);
     void cargar();
   }, [cargar]);
+
+  const esperandoContenido = aviso?.tipo === "encolada" && detalle !== null && detalle.contenido === null;
+  useEffect(() => {
+    if (!esperandoContenido) return;
+    let vigente = true;
+    let intentos = 0;
+    let temporizador: ReturnType<typeof setTimeout> | undefined;
+    const sondear = async (): Promise<void> => {
+      intentos += 1;
+      try {
+        const r = await obtenerMensaje(clienteId, mensajeId);
+        if (!vigente) return;
+        if (r.ok && r.datos && r.datos.contenido !== null) {
+          setDetalle(r.datos);
+          setAviso({ tipo: "obtenido" });
+          return;
+        }
+      } catch {
+        // Una lectura fallida se reintenta en el siguiente turno; no se levanta alerta por un sondeo pasivo.
+      }
+      if (vigente && intentos < MAX_SONDEOS) temporizador = setTimeout(() => void sondear(), ESPERA_SONDEO_MS);
+    };
+    temporizador = setTimeout(() => void sondear(), ESPERA_SONDEO_MS);
+    return () => {
+      vigente = false;
+      if (temporizador !== undefined) clearTimeout(temporizador);
+    };
+  }, [esperandoContenido, clienteId, mensajeId]);
 
   async function confirmarApertura() {
     setConfirmando(false);
@@ -115,8 +156,7 @@ export function DetalleMensaje({ clienteId, mensajeId }: { clienteId: string; me
 
   const { mensaje, contenido, adjuntos } = detalle;
   const sinContenido = contenido === null;
-  const ofrecerAbrir = puedeAbrir && sinContenido && aviso?.tipo !== "encolada";
-
+  const ofrecerAbrir = puedeAbrir && !archivado && sinContenido && aviso?.tipo !== "encolada";
 
   // El enlace conserva su `href` (ruta de descarga por id), pero el clic baja el archivo con `fetch` + `X-Estudio`:
   // una navegación directa no manda esa cabecera y el servidor respondería 409 (CA-8).
@@ -156,13 +196,18 @@ export function DetalleMensaje({ clienteId, mensajeId }: { clienteId: string; me
         </header>
 
         {sinContenido ? (
-          <p className="m-0 text-sm text-tinta-suave">{M.sinContenido}</p>
+          <>
+            <p className="m-0 text-sm text-tinta-suave">{M.sinContenido}</p>
+            {!puedeAbrir && <p className="m-0 text-sm text-tinta-suave">{M.sinPermisoAbrir}</p>}
+            {puedeAbrir && archivado && <p className="m-0 text-sm text-tinta-suave">{M.archivado}</p>}
+          </>
         ) : (
           <div className="whitespace-pre-wrap break-words text-sm">{contenido}</div>
         )}
 
         {ofrecerAbrir && (
           <Button
+            ref={botonAbrirRef}
             type="button"
             variant="secundario"
             disabled={ocupado}
@@ -220,7 +265,16 @@ export function DetalleMensaje({ clienteId, mensajeId }: { clienteId: string; me
       )}
 
       <Dialog open={confirmando} onOpenChange={setConfirmando}>
-        <DialogContent mostrarCerrar={false}>
+        <DialogContent
+          mostrarCerrar={false}
+          // Sin disparador, Radix no sabe a dónde devolver el foco: vuelve a «Abrir en SUNAT» (T23a-3a).
+          onCloseAutoFocus={(e) => {
+            if (botonAbrirRef.current) {
+              e.preventDefault();
+              botonAbrirRef.current.focus();
+            }
+          }}
+        >
           <DialogHeader>
             <DialogTitle>{M.tituloAbrir}</DialogTitle>
             <DialogDescription>{M.avisoAbrir}</DialogDescription>

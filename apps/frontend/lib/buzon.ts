@@ -44,6 +44,8 @@ export const MENSAJES_BUZON = {
   // Detalle
   abrirEnSunat: "Abrir en SUNAT",
   sinContenido: "El contenido aún no se obtuvo.",
+  sinPermisoAbrir:
+    "Para obtenerlo, una persona con permiso para abrir mensajes en SUNAT debe abrirlo desde esta pantalla.",
   avisoAbrir:
     "Para obtener el contenido se abrirá el mensaje en el portal de SUNAT y SUNAT puede marcar este mensaje como leído. Esta acción no se deshace.",
   aperturaEncolada: "Apertura encolada.",

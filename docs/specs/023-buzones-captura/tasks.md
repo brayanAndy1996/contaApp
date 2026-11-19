@@ -29,7 +29,7 @@ Nivel A (spec). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T21 | Corregir los hallazgos de la ronda 2 (migración 0058 si hace falta) | backend | opus | T20 | — | — | [[x] |
 | T22 | E2E prioridad 1: «Revisar buzón ahora» → crítico → campana → «Abrir» → contenido y adjunto | tester | sonnet | T12, T13, T14 ∥ T16–T21 | — | — | [x] |
 | T23 | Prueba manual con el sistema levantado y adaptadores en `mock` | tester | sonnet | T21, T22 | — | — | [x] |
-| T23a | Defectos de pantalla de la prueba manual (T23a-1 a T23a-5) | frontend | sonnet | T23 | — | — | [ ] |
+| T23a | Defectos de pantalla de la prueba manual (T23a-1 a T23a-5) | frontend | sonnet | T23 | — | — | [x] |
 | T24 | Verificar CA-1 a CA-13 con evidencia, suites completas, `db:migrate` ×2 y cobertura | tester | sonnet | T23 | — | — | [ ] |
 | T25 | Revisión final contra la spec | arquitecto | opus | T24 | — | — | [ ] |
 | T26 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T25 | — | — | [ ] |
@@ -196,7 +196,7 @@ Reglas comunes:
 
 *Cierre.* Backend, frontend, los dos workers y los monitores detenidos; Redis índice 11 vaciado (`FLUSHDB`); puertos 4230 y 3230 libres; `contapp_023m` se deja sin borrar. No se tocó código de producción ni `contapp`.
 
-## T23a · [ ] Defectos de pantalla de la prueba manual (frontend · sonnet)
+## T23a · [x] Defectos de pantalla de la prueba manual (frontend · sonnet)
 - **Contexto (leer solo esto)**: la sección «Defectos de pantalla» del resultado de T23 (T23a-1 a T23a-5) y los archivos que cita.
 - **Hacer**: corregir los cinco defectos con prueba de componente por cada uno (la ficha habilita el botón al guardar la clave; la lista a 390 px muestra la categoría; foco devuelto al cerrar el diálogo y conservado al revisar; «Abrir» no se ofrece en archivados; el detalle refresca el contenido y explica a Lectura).
 - **Hecho cuando**: pruebas del paquete `frontend` en verde y `pnpm e2e -- buzon` sigue pasando; se anota el commit aquí.

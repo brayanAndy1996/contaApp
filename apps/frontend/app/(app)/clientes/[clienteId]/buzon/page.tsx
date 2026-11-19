@@ -88,7 +88,7 @@ function BuzonDelCliente() {
     <main className="flex min-w-0 flex-col gap-4 p-4 sm:p-6">
       <EncabezadoPagina titulo={M.titulo} acciones={volver} />
       {mensajeId ? (
-        <DetalleMensaje clienteId={clienteId} mensajeId={mensajeId} />
+        <DetalleMensaje clienteId={clienteId} mensajeId={mensajeId} archivado={archivado} />
       ) : (
         <>
           <RevisarBuzon clienteId={clienteId} archivado={archivado} />

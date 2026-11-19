@@ -13,6 +13,7 @@ import {
   MENSAJES_CREDENCIALES,
   TOPE_VERIFICANDO_MS,
   guardarCredencial,
+  avisarCambioCredenciales,
   listarCredenciales,
   textoMotivoCredencial,
   verificarCredencial,
@@ -198,6 +199,7 @@ export function CredencialesCliente({
               for (const t of terminadas) delete resto[t];
               return resto;
             });
+            avisarCambioCredenciales(clienteId);
           }
         }
       } catch {
@@ -273,6 +275,7 @@ export function CredencialesCliente({
           return resto;
         });
         setAviso(MENSAJES_CREDENCIALES.guardada);
+        avisarCambioCredenciales(clienteId);
       } else if (r.status !== 401) {
         setError(mensajeDeFallo(r.status, r.datos));
       }

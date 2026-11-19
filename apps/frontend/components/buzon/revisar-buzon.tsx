@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, Button, enlace } from "../ui";
 import { mensajeDeError } from "../../lib/acceso";
 import {
@@ -11,7 +11,7 @@ import {
   revisarBuzon,
   textoConflictoBuzon,
 } from "../../lib/buzon";
-import { listarCredenciales } from "../../lib/credenciales";
+import { alCambiarCredenciales, listarCredenciales } from "../../lib/credenciales";
 import { cn } from "../../lib/utils";
 
 // Botón «Revisar buzón ahora» de la ficha del cliente (spec 023, CA-2, P-6). Lee por su cuenta el estado de la
@@ -30,6 +30,17 @@ export function RevisarBuzon({ clienteId, archivado }: { clienteId: string; arch
   const [sol, setSol] = useState<EstadoSol>("cargando");
   const [ocupado, setOcupado] = useState(false);
   const [resultado, setResultado] = useState<Resultado | null>(null);
+  // Sube cuando la ficha guarda o verifica una credencial: el estado se vuelve a leer sin recargar (T23a-1).
+  const [lectura, setLectura] = useState(0);
+  const enCurso = useRef(false);
+
+  useEffect(
+    () =>
+      alCambiarCredenciales((id) => {
+        if (id === clienteId) setLectura((n) => n + 1);
+      }),
+    [clienteId],
+  );
 
   useEffect(() => {
     let vigente = true;
@@ -46,7 +57,7 @@ export function RevisarBuzon({ clienteId, archivado }: { clienteId: string; arch
     return () => {
       vigente = false;
     };
-  }, [clienteId]);
+  }, [clienteId, lectura]);
 
   const motivo = archivado
     ? M.archivado
@@ -55,9 +66,12 @@ export function RevisarBuzon({ clienteId, archivado }: { clienteId: string; arch
       : sol === "invalida"
         ? M.credencialInvalida
         : null;
-  const deshabilitado = motivo !== null || sol === "cargando" || ocupado;
+  const deshabilitado = motivo !== null || sol === "cargando";
 
+  // Mientras se revisa, el botón usa `aria-disabled` y no `disabled`: así conserva el foco del teclado (T23a-3b).
   async function revisar() {
+    if (enCurso.current) return;
+    enCurso.current = true;
     setOcupado(true);
     setResultado(null);
     try {
@@ -79,6 +93,7 @@ export function RevisarBuzon({ clienteId, archivado }: { clienteId: string; arch
     } catch {
       setResultado({ tipo: "error", texto: mensajeDeError(0, null) });
     } finally {
+      enCurso.current = false;
       setOcupado(false);
     }
   }
@@ -89,8 +104,9 @@ export function RevisarBuzon({ clienteId, archivado }: { clienteId: string; arch
         type="button"
         variant="secundario"
         disabled={deshabilitado}
+        aria-disabled={ocupado || undefined}
         onClick={() => void revisar()}
-        className="self-start max-lg:h-11"
+        className="self-start max-lg:h-11 aria-disabled:cursor-not-allowed aria-disabled:opacity-45"
       >
         {M.revisar}
       </Button>
