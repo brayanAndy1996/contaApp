@@ -30,7 +30,7 @@ Nivel A (spec). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T22 | E2E prioridad 1: «Revisar buzón ahora» → crítico → campana → «Abrir» → contenido y adjunto | tester | sonnet | T12, T13, T14 ∥ T16–T21 | — | — | [x] |
 | T23 | Prueba manual con el sistema levantado y adaptadores en `mock` | tester | sonnet | T21, T22 | — | — | [x] |
 | T23a | Defectos de pantalla de la prueba manual (T23a-1 a T23a-5) | frontend | sonnet | T23 | — | — | [x] |
-| T24 | Verificar CA-1 a CA-13 con evidencia, suites completas, `db:migrate` ×2 y cobertura | tester | sonnet | T23 | — | — | [ ] |
+| T24 | Verificar CA-1 a CA-13 con evidencia, suites completas, `db:migrate` ×2 y cobertura | tester | sonnet | T23 | — | — | [ [x] |
 | T25 | Revisión final contra la spec | arquitecto | opus | T24 | — | — | [ ] |
 | T26 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T25 | — | — | [ ] |
 
@@ -201,7 +201,7 @@ Reglas comunes:
 - **Hacer**: corregir los cinco defectos con prueba de componente por cada uno (la ficha habilita el botón al guardar la clave; la lista a 390 px muestra la categoría; foco devuelto al cerrar el diálogo y conservado al revisar; «Abrir» no se ofrece en archivados; el detalle refresca el contenido y explica a Lectura).
 - **Hecho cuando**: pruebas del paquete `frontend` en verde y `pnpm e2e -- buzon` sigue pasando; se anota el commit aquí.
 
-## T24 · [ ] Verificar (tester · sonnet)
+## T24 · [x] Verificar (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (CA-1 a CA-13), `tasks.md` (resultados), `package.json` (scripts).
 - **Hacer**: cada CA con su evidencia (prueba o comando); suites de `domain`, `shared`, `sunat`, `queue`, `db`, `backend`, `worker`, `frontend`, `test:aislamiento`, `tests/limites`, typecheck, lint, `pnpm db:migrate` ×2, `pnpm cobertura:buzon`, `pnpm ci:db` y `pnpm e2e`.
 - **Hecho cuando**: tabla CA → evidencia → OK/falta en el resultado; todo en verde o la lista de lo que falta.
@@ -243,9 +243,11 @@ Suites (todas en verde salvo la cobertura de `db`):
 | CA-12 | tabla de suites de arriba, `pnpm ci:db`, `pnpm e2e` (90/90), `db:migrate` ×2 sobre BD nueva | OK |
 | CA-13 | `tests/aislamiento/buzon-tablas.spec.ts` (archivar conserva filas, rutas), `buzon-estado-bloquear.spec.ts` | OK |
 
-**Falta (T24 sigue `[ ]`)**:
+**Falta (T24 estaba `[ ]`; cerrado con T24a)**:
 - `pnpm cobertura:buzon`, parte `db` (repetida una vez, mismo resultado): `packages/db/src/buzon/solicitud.ts:32` · ramas 88,88 % < 90 %; la rama `t instanceof Date ? t : new Date(String(t))` de `fallaPorCredencialBuzon` (commit 76dd485) no tiene prueba para el caso no-`Date`. Por eso el script encadenado no llegó a `backend` y `worker`; corridos aparte pasan (backend 96,96 % rama; worker 97,32 %).
 - Corrección: prueba nueva (tester) que cubra la rama; no se tocó producción.
+
+**T24a (2026-11-19, tester · sonnet)**: dos pruebas nuevas en `packages/db/src/buzon/solicitud.spec.ts` (`terminado_en` como string ISO y como texto de pg con desfase → `Date` del mismo instante). `pnpm cobertura:buzon` completo en verde (exit 0), todo ≥ 90 %: `db` ramas 96,29 % (`solicitud.ts` ya no figura entre los archivos bajo el umbral); `domain` 94,4 %, `sunat` 95,05 %, `backend` 96,96 %, `worker` 97,32 %. Producción sin tocar. Con esto T24 queda `[x]`.
 
 ## T25 · [ ] Revisión final (arquitecto · opus)
 - **Contexto (leer solo esto)**: `spec.md`, `plan.md`, resultado de T24, `git diff main...HEAD --stat` y los archivos que la revisión necesite.

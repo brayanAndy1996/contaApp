@@ -47,6 +47,28 @@ describe("fallaPorCredencialBuzon", () => {
     expect(llamadas[0]!.valores).toEqual([C]);
   });
 
+  it("si terminado_en no llega como Date (string ISO), lo devuelve como Date con el mismo instante", async () => {
+    const { tx } = txFalso({
+      rows: [
+        { estado: "error", motivo: "credencial_invalida", terminado_en: "2026-11-17T15:00:00.000Z" },
+      ],
+    });
+    const r = await fallaPorCredencialBuzon(tx, C);
+    expect(r).toBeInstanceOf(Date);
+    expect(r).toEqual(new Date("2026-11-17T15:00:00Z"));
+  });
+
+  it("un string con desfase horario (formato texto de pg) se convierte al mismo instante", async () => {
+    const { tx } = txFalso({
+      rows: [
+        { estado: "error", motivo: "credencial_invalida", terminado_en: "2026-11-17 10:00:00-05" },
+      ],
+    });
+    const r = await fallaPorCredencialBuzon(tx, C);
+    expect(r).toBeInstanceOf(Date);
+    expect(r!.getTime()).toBe(Date.parse("2026-11-17T15:00:00Z"));
+  });
+
   it.each([
     [[]],
     [[{ estado: "completado", motivo: null, terminado_en: new Date() }]],
