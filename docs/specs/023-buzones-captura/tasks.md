@@ -206,6 +206,47 @@ Reglas comunes:
 - **Hacer**: cada CA con su evidencia (prueba o comando); suites de `domain`, `shared`, `sunat`, `queue`, `db`, `backend`, `worker`, `frontend`, `test:aislamiento`, `tests/limites`, typecheck, lint, `pnpm db:migrate` ×2, `pnpm cobertura:buzon`, `pnpm ci:db` y `pnpm e2e`.
 - **Hecho cuando**: tabla CA → evidencia → OK/falta en el resultado; todo en verde o la lista de lo que falta.
 
+**Resultado (2026-11-19, rama `spec/023-buzones-captura` sobre `76dd485`, Node 22.22.0, BD limpia `contapp_023v`: `db:migrate` ×2 y `db:seed`)**
+
+Suites (todas en verde salvo la cobertura de `db`):
+
+| Suite | Archivos | Pruebas |
+|---|---|---|
+| `domain` | 130 | 2808 (+3 todo) |
+| `shared` | 52 | 2257 |
+| `sunat` (`test:int`: sin archivos) | 23 | 353 |
+| `queue` / `queue test:int` | 25 / 15 | 559 / 116 |
+| `db` | 74 | 1060 |
+| `backend` / `backend test:int` | 103 / 125 | 1259 / 3040 |
+| `worker` / `worker test:int` | 45 / 42 | 459 / 434 |
+| `frontend` | 120 | 1076 |
+| `tests/limites` | 14 | 347 |
+| `test:aislamiento` | 102 | 2893 |
+| `pnpm ci:db` (build, migrate ×2, seed, aislamiento, worker int, backend int) | — | OK |
+| `pnpm typecheck` / `pnpm lint` | — | OK / OK |
+| `pnpm e2e` (`E2E_CORREO=consola`) | — | 90 pasan, incl. `flujos/buzon.e2e.ts` (2) |
+| `pnpm cobertura:buzon` | domain 10/216, sunat 3/91, db 17/241 (FALLA), backend 9/170 (OK), worker 8/78 (OK) | `db`: umbral de 90 % por archivo |
+
+| CA | Evidencia | Estado |
+|---|---|---|
+| CA-1 | `packages/domain/src/buzon/programacion.spec.ts`, `tests/aislamiento/buzon-programacion.spec.ts`, `buzon-concurrencia.spec.ts`, `apps/worker/src/trabajos/procesadores/programar-buzon.int.spec.ts` | OK |
+| CA-2 | `apps/backend/src/modules/buzon/revisar.int.spec.ts` (403, 429 `captura_reciente` con `Retry-After`, 50 pedidos → 1 trabajo), `tests/aislamiento/buzon-programacion.spec.ts` (`buzon_elevar_prioridad`, reserva), `packages/db/src/buzon/solicitud.spec.ts`. Nota (decisión del usuario): una captura que terminó por credencial inválida no cuenta para el enfriamiento de 10 min (`fallaPorCredencialBuzon`; `revisar-credencial-invalida.int.spec.ts`, `solicitud.spec.ts`) | OK |
+| CA-3 | `packages/domain/src/buzon/captura.spec.ts`, `captura-r2.spec.ts`, `revisar-buzon.int.spec.ts` (450 en tres capturas, repetir no duplica) | OK |
+| CA-4 | `revisar-buzon.int.spec.ts` (`leidosMarcados()` vacío, 0 `obtenerMensaje`), `abrir.int.spec.ts`, `abrir-mensaje.int.spec.ts`, `packages/sunat/src/mock/sol-portal.mock.spec.ts` | OK |
+| CA-5 | `packages/domain/src/buzon/clasificar.spec.ts` | OK |
+| CA-6 | `tests/aislamiento/buzon-aviso.spec.ts` (responsable, Dueños/Administradores, 42501, primera sincronización, rollback, `ON CONFLICT`), `revisar-buzon.int.spec.ts`, `apps/frontend/components/buzon/buzon-critico.spec.tsx`. Nota (decisión del usuario, tras la ronda 2): una fecha ilegible se guarda con la fecha de captura y la regla de 30 días usa el reloj de la BD (`packages/db/src/buzon/escritura-r2.spec.ts`, `tests/aislamiento/buzon-r2.spec.ts`, `packages/domain/src/buzon/captura-r2.spec.ts`, `sol-portal.mock.validacion.spec.ts`) | OK |
+| CA-7 | `revisar-buzon.int.spec.ts`, `buzon-r1.int.spec.ts`, `buzon-r2.int.spec.ts` (`ErrorCredencial` antes del login y en la página 2; `ErrorTransitorio`) | OK |
+| CA-8 | `adjunto.spec.ts`, `texto-plano.spec.ts`, `saneo.spec.ts`, `abrir-mensaje.int.spec.ts`, `descarga.int.spec.ts`, `tests/e2e/flujos/buzon.e2e.ts` (descarga idéntica) | OK |
+| CA-9 | `tests/aislamiento/buzon-tablas.spec.ts`, `buzon-r1.spec.ts`, `lectura.int.spec.ts`, `abrir.int.spec.ts`, `r1.adv.int.spec.ts`, `descarga.int.spec.ts` | OK |
+| CA-10 | `buzon-r1.adv.int.spec.ts`, `buzon-r2.adv.int.spec.ts`, `packages/db/src/buzon/buzon-r2.adv.spec.ts`, `tests/limites/buzon-fronteras.spec.ts` | OK |
+| CA-11 | `tests/aislamiento/buzon-concurrencia.spec.ts`, `programar-buzon.int.spec.ts`, `abrir-mensaje.int.spec.ts` | OK |
+| CA-12 | tabla de suites de arriba, `pnpm ci:db`, `pnpm e2e` (90/90), `db:migrate` ×2 sobre BD nueva | OK |
+| CA-13 | `tests/aislamiento/buzon-tablas.spec.ts` (archivar conserva filas, rutas), `buzon-estado-bloquear.spec.ts` | OK |
+
+**Falta (T24 sigue `[ ]`)**:
+- `pnpm cobertura:buzon`, parte `db` (repetida una vez, mismo resultado): `packages/db/src/buzon/solicitud.ts:32` · ramas 88,88 % < 90 %; la rama `t instanceof Date ? t : new Date(String(t))` de `fallaPorCredencialBuzon` (commit 76dd485) no tiene prueba para el caso no-`Date`. Por eso el script encadenado no llegó a `backend` y `worker`; corridos aparte pasan (backend 96,96 % rama; worker 97,32 %).
+- Corrección: prueba nueva (tester) que cubra la rama; no se tocó producción.
+
 ## T25 · [ ] Revisión final (arquitecto · opus)
 - **Contexto (leer solo esto)**: `spec.md`, `plan.md`, resultado de T24, `git diff main...HEAD --stat` y los archivos que la revisión necesite.
 - **Hacer**: contrastar cada CA, D-n y P-n con la evidencia; ratificar o rechazar desvíos del plan (sección «Desvíos ratificados» en `plan.md`).
