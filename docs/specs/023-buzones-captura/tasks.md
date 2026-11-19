@@ -24,15 +24,17 @@ Nivel A (spec). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T16 | Ronda adversarial 1: aislamiento, permisos, storage, adjuntos y contenido hostiles, secretos (≤ 15 pruebas) | adversario | opus | T12, T13, T15 ∥ T14, T22 | — | ✓ | [x] |
 | T17 | Pruebas de las correcciones de la ronda 1 (rojo) | tester | sonnet | T16 | ✓ | — | [x] |
 | T18 | Corregir los hallazgos de la ronda 1 (migración 0057 si hace falta) | backend | opus | T17 | — | — | [x] |
-| T19 | Ronda adversarial 2: programador y cola, capturas cortadas, avisos, clasificación disfrazada (≤ 15 pruebas) | adversario | opus | T18 | — | ✓ | [ ] |
-| T20 | Pruebas de las correcciones de la ronda 2 (rojo) | tester | sonnet | T19 | ✓ | — | [ ] |
-| T21 | Corregir los hallazgos de la ronda 2 (migración 0058 si hace falta) | backend | opus | T20 | — | — | [[x] |
+| T19 | Ronda adversarial 2: programador y cola, capturas cortadas, avisos, clasificación disfrazada (≤ 15 pruebas) | adversario | opus | T18 | — | ✓ | [x] |
+| T20 | Pruebas de las correcciones de la ronda 2 (rojo) | tester | sonnet | T19 | ✓ | — | [x] |
+| T21 | Corregir los hallazgos de la ronda 2 (migración 0058 si hace falta) | backend | opus | T20 | — | — | [x] |
 | T22 | E2E prioridad 1: «Revisar buzón ahora» → crítico → campana → «Abrir» → contenido y adjunto | tester | sonnet | T12, T13, T14 ∥ T16–T21 | — | — | [x] |
 | T23 | Prueba manual con el sistema levantado y adaptadores en `mock` | tester | sonnet | T21, T22 | — | — | [x] |
 | T23a | Defectos de pantalla de la prueba manual (T23a-1 a T23a-5) | frontend | sonnet | T23 | — | — | [x] |
-| T24 | Verificar CA-1 a CA-13 con evidencia, suites completas, `db:migrate` ×2 y cobertura | tester | sonnet | T23 | — | — | [ [x] |
+| T24 | Verificar CA-1 a CA-13 con evidencia, suites completas, `db:migrate` ×2 y cobertura | tester | sonnet | T23 | — | — | [x] |
 | T25 | Revisión final contra la spec | arquitecto | opus | T24 | — | — | [ ] |
-| T26 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T25 | — | — | [ ] |
+| T25a | Pruebas de los defectos de la revisión final (rojo) | tester | sonnet | T25 | ✓ | — | [ ] |
+| T25b | Corregir los defectos de la revisión final | backend | opus | T25a | — | — | [ ] |
+| T26 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T25b | — | — | [ ] |
 
 Paralelismo (por oleadas; dentro de una oleada no se comparten archivos):
 - **Oleada 1**: T1 (`packages/domain/src/buzon/*.spec.ts`) ∥ T2 (`packages/shared/src/buzon/`, `packages/queue/src/*-023.spec.ts`) ∥ T3 (`packages/sunat/src/mock/sol-portal*.spec.ts`) ∥ T4 (`tests/aislamiento/buzon-*`, `packages/db/src/buzon/*.spec.ts`).
@@ -253,6 +255,21 @@ Suites (todas en verde salvo la cobertura de `db`):
 - **Contexto (leer solo esto)**: `spec.md`, `plan.md`, resultado de T24, `git diff main...HEAD --stat` y los archivos que la revisión necesite.
 - **Hacer**: contrastar cada CA, D-n y P-n con la evidencia; ratificar o rechazar desvíos del plan (sección «Desvíos ratificados» en `plan.md`).
 - **Hecho cuando**: veredicto con lo que falta; si hay defectos, T25a y T25b.
+
+**Resultado (2026-11-19, arquitecto · opus, sobre `8591319`)**: **no aprobado; dos defectos** (T25a/T25b). CA-1 a CA-13 tienen la evidencia de T24 (suites, `ci:db`, `e2e` y `cobertura:buzon` en verde); D-1 a D-10 y P-1 a P-10 se cumplen salvo lo de abajo. Decisiones del usuario U-1 a U-4 añadidas a `spec.md`; desvíos en «Desvíos ratificados» de `plan.md` (cuatro ratificados, uno rechazado).
+- **R-1 · alta (D-9, CA-3; disponibilidad).** Una captura no termina si el portal devuelve una página sin mensajes utilizables con `siguiente` no nulo (vacía, o con todos los ids inválidos y descartados por `sanearPagina`): `packages/domain/src/buzon/captura.ts:140` solo corta la página «todo repetido» si `mensajes.length > 0`, y `apps/worker/src/trabajos/procesadores/revisar-buzon.ts:247` no cuenta esa página para `MAX_PAGINAS_CAPTURA`; el `for (;;)` de `revisar-buzon.ts:194` no tiene tope de páginas leídas. Con un cursor que se repite, el trabajo corre sin fin con el lock del RUC y un hueco de la cola `sol` (`concurrencia_global` 2). Comprobado: `planificarCaptura({cursorPendiente:"relleno", …, paginasLeidas:0}, {mensajes:[], siguiente:"p2"}, ∅)` → `terminada: false`.
+- **R-2 · baja (D-6, U-4, CA-2).** `fallaPorCredencialBuzon` (`packages/db/src/buzon/solicitud.ts:30`) solo reconoce `estado = 'error'`; una captura que el despachador cancela con `cancelado` + `credencial_invalida` (`packages/queue/src/despachador.ts:257`, credencial invalidada por otro trabajo del cliente mientras esperaba) no se excluye, y tras corregir la clave «Revisar buzón ahora» da 429 hasta 10 min.
+- Observaciones sin tarea: los hallazgos `H-023-1-n` y `H-023-2-n` solo constan en comentarios del código, no en el resultado de T16/T19; el enfriamiento usa `Date.now()` del backend frente a instantes de la BD (ver `plan.md`).
+
+## T25a · [ ] Pruebas de los defectos de la revisión final, rojo (tester · sonnet)
+- **Contexto (leer solo esto)**: resultado de T25 (R-1, R-2), `plan.md` («Desvíos ratificados»), `spec.md` (U-4), `packages/domain/src/buzon/captura-r2.spec.ts` (modelo), `apps/worker/src/trabajos/procesadores/buzon-r2.int.spec.ts` (modelo con `fallar`/`inyectar`), `packages/db/src/buzon/solicitud.spec.ts`.
+- **Hacer**: R-1: en `packages/domain/src/buzon/captura-r3.spec.ts`, una página sin mensajes con `siguiente` no nulo → `terminada: true`, `sincronizado: false` y cursor pendiente no nulo (con y sin relleno); el tope `MAX_PAGINAS_LECTURA` corta con relleno pendiente aunque las páginas sean de conocidos distintos. En `apps/worker/src/trabajos/procesadores/buzon-r3.int.spec.ts`, mock que devuelve siempre una página vacía (y otra con todos los ids inválidos) con un `siguiente` que se repite: el trabajo termina, `listarMensajes` se llama un número acotado de veces y `cursor_pendiente` queda no nulo. R-2: en `solicitud.spec.ts`, la última captura `cancelado` + `credencial_invalida` devuelve su `terminado_en`; `cancelado` con otro motivo devuelve `null`.
+- **Hecho cuando**: las nuevas fallan por el defecto; las demás de `domain`, `db` y `worker` siguen verdes. Commit `test(023): defectos de la revisión final en rojo`.
+
+## T25b · [ ] Corregir los defectos de la revisión final (backend · opus)
+- **Contexto (leer solo esto)**: resultado de T25, pruebas de T25a, `packages/domain/src/buzon/captura.ts`, `apps/worker/src/trabajos/procesadores/revisar-buzon.ts`, `packages/db/src/buzon/solicitud.ts`.
+- **Hacer**: R-1: en `planificarCaptura`, una página sin mensajes (tras sanear) con `siguiente` corta como «todo repetido»; `MAX_PAGINAS_LECTURA` (holgado, p. ej. 500) en el dominio, `EstadoCaptura` recibe las páginas leídas y corta con relleno pendiente; el worker pasa `leidas`. R-2: `estado in ('error','cancelado') and motivo = 'credencial_invalida'`. Sin migración ni cambios de contrato HTTP.
+- **Hecho cuando**: las de T25a pasan; `domain`, `db`, `worker`, `backend test:int` (buzón) y `pnpm cobertura:buzon` en verde; typecheck y lint limpios. Commit `fix(023): defectos de la revisión final`. Después, T25 se repite solo sobre R-1 y R-2 y se marca `[x]`.
 
 ## T26 · [ ] Cierre (devops · haiku)
 - **Contexto (leer solo esto)**: resultado de T25, `tasks.md`, `spec.md` (estado y CA).

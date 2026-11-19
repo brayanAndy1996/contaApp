@@ -75,3 +75,10 @@ Preguntas P-1 a P-10 respondidas el 2026-11-17, todas con la opción (a). Se con
 - **P-9 = (a) · Interfaz en 023.** El botón «Revisar buzón ahora» en la ficha del cliente, el texto del aviso en la campana y una vista mínima de mensajes del cliente; la bandeja y el resaltado en rojo, en 024.
 - **P-10 = (a) · Retención de contenido y adjuntos.** Mientras exista el cliente; el borrado total del cliente (Ley 29733) los borra de BD y storage. Tope de 20 MB por adjunto y 50 MB por mensaje.
 - **Detalles del plan aprobados por el usuario (2026-11-17):** (1) un cliente nunca capturado entra en el ciclo siguiente; (2) la espera de 10 min cuenta desde la última solicitud bajo demanda o la última captura terminada; (3) «Revisar ahora» con una captura programada en cola la sube a interactiva; (4) ZIP como archivo opaco sin descomprimir y PDF tal cual, solo descarga; (5) una captura programada que agota reintentos espera a la franja siguiente.
+
+## Decisiones del usuario posteriores a la aprobación (2026-11-18 y 2026-11-19)
+Surgieron en la ronda adversarial 2 (T19–T21) y en la prueba manual (T23). Precisan D-6, D-7, CA-2 y CA-6 sin cambiar su alcance.
+- **U-1 · Fecha ilegible del portal (CA-6, D-3).** Si la fecha de un mensaje no es ISO 8601 con zona o queda fuera de los años 1900–9999, el mensaje se guarda con la fecha de la captura (reloj de la BD). Si el asunto o el código lo hacen crítico, se marca crítico y se avisa (cuenta como reciente).
+- **U-2 · Regla de 30 días (CA-6, P-5).** Se mide con el reloj de la BD: el worker decide `avisado` con el `ahora` de la BD y el trigger de aviso obligatorio con `clock_timestamp()`. El reloj del worker no cuenta.
+- **U-3 · Crítico disfrazado (D-7, CA-6).** La BD rechaza con 42501 un mensaje con categoría crítica o con `motivo_critico` y `critico = false`, para todos los roles.
+- **U-4 · Enfriamiento de 10 min (D-6, P-6, CA-2).** Una captura terminada por credencial inválida, y la solicitud que la originó, no cuentan para el enfriamiento: tras corregir la clave, «Revisar buzón ahora» se puede pedir enseguida. Una solicitud o captura posterior a ese fallo sí cuenta.
