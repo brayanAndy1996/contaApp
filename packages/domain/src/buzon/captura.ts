@@ -2,6 +2,11 @@
 
 export const TOPE_MENSAJES_CAPTURA = 200;
 export const MAX_PAGINAS_CAPTURA = 20;
+/**
+ * Tope de páginas LEÍDAS en una captura, con o sin nuevos (T25 R-1): un portal que entrega sin fin páginas de conocidos
+ * distintos no retiene el trabajo para siempre. Holgado: solo corta lo patológico, con relleno pendiente.
+ */
+export const MAX_PAGINAS_LECTURA = 500;
 export const DIAS_AVISO_PRIMERA_SINCRONIZACION = 30;
 /**
  * Cursor pendiente cuando la captura se corta sin un cursor del portal a mano (H-023-2-1): la captura siempre vuelve a
@@ -43,6 +48,10 @@ export interface EstadoCaptura {
    * sincronización.
    */
   readonly paginasLeidas: number;
+  /** Páginas ya leídas en esta captura, con o sin nuevos, sin contar esta (`MAX_PAGINAS_LECTURA`). Sin el dato, 0. */
+  readonly leidas?: number;
+  /** Tope de páginas leídas; por omisión `MAX_PAGINAS_LECTURA`. */
+  readonly maxPaginasLectura?: number;
   /**
    * El cliente ya llegó alguna vez al final de su buzón. Mientras no (`false`), la captura no se detiene en el primer
    * conocido: lo que hay detrás puede faltar (captura anterior cortada, H-023-2-1). Sin el dato se toma como sincronizado.
@@ -83,8 +92,9 @@ const DIA_MS = 86_400_000;
  *   cliente sin sincronizar), el primer conocido termina la captura: lo que sigue ya se tiene.
  * - Un nuevo se acepta mientras no se llegue a `TOPE_MENSAJES_CAPTURA` en esta captura; el que ya
  *   no cabe corta la captura y la página se vuelve a pedir (`cursorActual`) en la siguiente.
- * - Al terminar la página: sin `siguiente` → sincronizado; en la página `MAX_PAGINAS_CAPTURA` o
- *   con el tope justo lleno → corte con `siguiente` como cursor pendiente.
+ * - Al terminar la página: sin `siguiente` → sincronizado; en la página `MAX_PAGINAS_CAPTURA` (con nuevos), en la
+ *   página leída `MAX_PAGINAS_LECTURA` (cualquiera, T25 R-1) o con el tope justo lleno → corte con `siguiente` como cursor
+ *   pendiente. Una página sin mensajes con `siguiente` corta como «todo repetido» (T25 R-1).
  * Un corte siempre deja un cursor pendiente no nulo (`CURSOR_RELLENO` si no hay otro): sin él, la captura siguiente se
  * detendría en el primer conocido y lo que faltaba no se capturaría nunca (H-023-2-1).
  * Quien pide las páginas usa un `limite` ≤ `TOPE_MENSAJES_CAPTURA`: así un corte a mitad de
@@ -137,8 +147,9 @@ export function planificarCaptura(
     nuevos.push(m);
   }
 
-  if (pagina.mensajes.length > 0 && sinVer === 0 && pagina.siguiente !== null) {
-    // Todo repetido: el portal se repite o la página se corrió entera. Se corta con relleno pendiente.
+  if (sinVer === 0 && pagina.siguiente !== null) {
+    // Todo repetido o nada utilizable (página vacía tras sanear, T25 R-1): el portal se repite o la página se corrió entera.
+    // Se corta con relleno pendiente.
     return {
       nuevos,
       actualizar,
@@ -159,6 +170,7 @@ export function planificarCaptura(
   }
   const cortada =
     estado.paginasLeidas + 1 >= MAX_PAGINAS_CAPTURA ||
+    (estado.leidas ?? 0) + 1 >= (estado.maxPaginasLectura ?? MAX_PAGINAS_LECTURA) ||
     estado.nuevosAcumulados + nuevos.length >= TOPE_MENSAJES_CAPTURA;
   return {
     nuevos,

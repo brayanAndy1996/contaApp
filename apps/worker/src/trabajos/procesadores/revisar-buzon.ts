@@ -7,7 +7,8 @@
 //      página nunca cae en la primera), siempre desde la primera: `planificarCaptura` decide qué es nuevo, qué se actualiza y
 //      dónde termina (el primer conocido termina, salvo relleno: captura anterior cortada o cliente aún sin sincronizar,
 //      P-5, H-023-2-1). Los ids ya vistos en esta captura se saltan (paginación corrida, H-023-2-2) y solo las páginas con
-//      nuevos cuentan para `MAX_PAGINAS_CAPTURA` (H-023-2-3).
+//      nuevos cuentan para `MAX_PAGINAS_CAPTURA` (H-023-2-3); todas cuentan para `MAX_PAGINAS_LECTURA` y una página sin
+//      mensajes utilizables con `siguiente` corta (T25 R-1): la captura siempre termina.
 //  (4) Antes del primer mensaje nuevo de un cliente ya sincronizado, la marca de relleno en BD (`cursor_pendiente`): si el
 //      proceso muere a mitad, la captura siguiente no se detiene en lo que esta alcanzó a guardar (H-023-2-1).
 //      Cada mensaje nuevo en su propia transacción con el trabajo en el contexto: clasificación del dominio, fecha con
@@ -53,6 +54,8 @@ export interface DepsRevisarBuzon {
   solPortal: SolPortal;
   /** 017: aviso en vivo tras el commit de cada mensaje crítico avisado. Opcional. */
   notificador?: Notificador;
+  /** Tope de páginas leídas por captura (T25 R-1); por omisión `MAX_PAGINAS_LECTURA` del dominio. */
+  maxPaginasLectura?: number;
 }
 
 export interface ResultadoRevisarBuzon {
@@ -212,6 +215,10 @@ export function revisarBuzon(d: DepsRevisarBuzon): Procesador {
             cursorActual: cursor,
             nuevosAcumulados: acumulados,
             paginasLeidas: paginas,
+            leidas,
+            ...(d.maxPaginasLectura !== undefined
+              ? { maxPaginasLectura: d.maxPaginasLectura }
+              : {}),
             sincronizado: sincronizadoEn !== null,
             vistos,
           },

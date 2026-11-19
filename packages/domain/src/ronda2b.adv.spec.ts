@@ -108,6 +108,8 @@ describe("T13b · ronda adversarial 2b", () => {
       "idSunatValido", "sanearTextoPortal",
       // 023 (T21, H-023-2-1 y H-023-2-5): cursor de relleno y fecha del mensaje con la de captura si es ilegible.
       "CURSOR_RELLENO", "fechaMensaje",
+      // 023 (T25b, R-1): tope de páginas leídas en una captura.
+      "MAX_PAGINAS_LECTURA",
     ].sort();
     expect(Object.keys(Publico).sort()).toEqual(esperados);
 

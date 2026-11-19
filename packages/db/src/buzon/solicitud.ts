@@ -19,7 +19,8 @@ const SQL_ULTIMA_TERMINADA = `select estado, motivo, terminado_en from job_regis
  order by terminado_en desc, id desc limit 1`;
 
 /**
- * Instante en que terminó la última captura del cliente SI terminó por credencial inválida (`error` + `credencial_invalida`);
+ * Instante en que terminó la última captura del cliente SI terminó por credencial inválida (`error` o `cancelado` por el
+ * despachador, T25 R-2, con `credencial_invalida`);
  * `null` si no hay capturas terminadas o la última terminó de otro modo. Una captura posterior bien terminada la reemplaza.
  */
 export async function fallaPorCredencialBuzon(
@@ -27,7 +28,12 @@ export async function fallaPorCredencialBuzon(
   clienteId: string,
 ): Promise<Date | null> {
   const f = (await consultar(tx, SQL_ULTIMA_TERMINADA, [clienteId])).rows[0];
-  if (f === undefined || f.estado !== "error" || f.motivo !== "credencial_invalida") return null;
+  if (
+    f === undefined ||
+    (f.estado !== "error" && f.estado !== "cancelado") ||
+    f.motivo !== "credencial_invalida"
+  )
+    return null;
   const t = f.terminado_en;
   return t instanceof Date ? t : new Date(String(t));
 }

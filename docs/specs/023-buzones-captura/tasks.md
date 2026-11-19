@@ -33,7 +33,7 @@ Nivel A (spec). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T24 | Verificar CA-1 a CA-13 con evidencia, suites completas, `db:migrate` ×2 y cobertura | tester | sonnet | T23 | — | — | [x] |
 | T25 | Revisión final contra la spec | arquitecto | opus | T24 | — | — | [ ] |
 | T25a | Pruebas de los defectos de la revisión final (rojo) | tester | sonnet | T25 | ✓ | — | [ ] |
-| T25b | Corregir los defectos de la revisión final | backend | opus | T25a | — | — | [ ] |
+| T25b | Corregir los defectos de la revisión final | backend | opus | T25a | — | — | [x] |
 | T26 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T25b | — | — | [ ] |
 
 Paralelismo (por oleadas; dentro de una oleada no se comparten archivos):
@@ -266,7 +266,7 @@ Suites (todas en verde salvo la cobertura de `db`):
 - **Hacer**: R-1: en `packages/domain/src/buzon/captura-r3.spec.ts`, una página sin mensajes con `siguiente` no nulo → `terminada: true`, `sincronizado: false` y cursor pendiente no nulo (con y sin relleno); el tope `MAX_PAGINAS_LECTURA` corta con relleno pendiente aunque las páginas sean de conocidos distintos. En `apps/worker/src/trabajos/procesadores/buzon-r3.int.spec.ts`, mock que devuelve siempre una página vacía (y otra con todos los ids inválidos) con un `siguiente` que se repite: el trabajo termina, `listarMensajes` se llama un número acotado de veces y `cursor_pendiente` queda no nulo. R-2: en `solicitud.spec.ts`, la última captura `cancelado` + `credencial_invalida` devuelve su `terminado_en`; `cancelado` con otro motivo devuelve `null`.
 - **Hecho cuando**: las nuevas fallan por el defecto; las demás de `domain`, `db` y `worker` siguen verdes. Commit `test(023): defectos de la revisión final en rojo`.
 
-## T25b · [ ] Corregir los defectos de la revisión final (backend · opus)
+## T25b · [x] Corregir los defectos de la revisión final (backend · opus)
 - **Contexto (leer solo esto)**: resultado de T25, pruebas de T25a, `packages/domain/src/buzon/captura.ts`, `apps/worker/src/trabajos/procesadores/revisar-buzon.ts`, `packages/db/src/buzon/solicitud.ts`.
 - **Hacer**: R-1: en `planificarCaptura`, una página sin mensajes (tras sanear) con `siguiente` corta como «todo repetido»; `MAX_PAGINAS_LECTURA` (holgado, p. ej. 500) en el dominio, `EstadoCaptura` recibe las páginas leídas y corta con relleno pendiente; el worker pasa `leidas`. R-2: `estado in ('error','cancelado') and motivo = 'credencial_invalida'`. Sin migración ni cambios de contrato HTTP.
 - **Hecho cuando**: las de T25a pasan; `domain`, `db`, `worker`, `backend test:int` (buzón) y `pnpm cobertura:buzon` en verde; typecheck y lint limpios. Commit `fix(023): defectos de la revisión final`. Después, T25 se repite solo sobre R-1 y R-2 y se marca `[x]`.
