@@ -22,9 +22,19 @@ export async function exigirCredencialSol(tx: Tx, clienteId: string): Promise<vo
   if (sol.estado === "invalida") throw new BuzonError("credencial_invalida");
 }
 
-/** Segundos hasta que vence el enfriamiento (1..600), o `null` si ya pasó o nunca hubo solicitud ni captura. */
-export function esperaDeEnfriamiento(estado: EstadoBuzon, ahora: number): number | null {
-  const instantes = [estado.ultimaSolicitudEn, estado.ultimaCapturaEn].filter((f): f is Date => f !== null);
+/**
+ * Segundos hasta que vence el enfriamiento (1..600), o `null` si ya pasó o nunca hubo solicitud ni captura. `fallaPorCredencialEn`
+ * es cuándo terminó la última captura por credencial inválida (si fue la última): ni ella ni la solicitud que la originó cuentan,
+ * es decir, no cuenta ninguna fecha anterior o igual a ese instante; lo posterior sí.
+ */
+export function esperaDeEnfriamiento(
+  estado: EstadoBuzon,
+  ahora: number,
+  fallaPorCredencialEn: Date | null = null,
+): number | null {
+  const instantes = [estado.ultimaSolicitudEn, estado.ultimaCapturaEn].filter(
+    (f): f is Date => f !== null && (fallaPorCredencialEn === null || f.getTime() > fallaPorCredencialEn.getTime()),
+  );
   if (instantes.length === 0) return null;
   const fin = Math.max(...instantes.map((f) => f.getTime())) + ENFRIAMIENTO_MS;
   if (fin <= ahora) return null;

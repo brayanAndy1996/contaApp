@@ -30,6 +30,13 @@ describe("esperaDeEnfriamiento", () => {
     expect(esperaDeEnfriamiento(estado(-5, null), ahora)).toBe(600);
   });
 
+  it("la captura terminada por credencial inválida y lo anterior a ella no cuentan; lo posterior sí", () => {
+    const falla = new Date(ahora - 30_000);
+    expect(esperaDeEnfriamiento(estado(1, 0.6), ahora, falla)).toBeNull();
+    expect(esperaDeEnfriamiento(estado(1, 0.1), ahora, falla)).toBe(594);
+    expect(esperaDeEnfriamiento(estado(1, null), ahora, null)).toBe(540);
+  });
+
   it("sin solicitud ni captura, o pasados los 10 min, no hay espera", () => {
     expect(esperaDeEnfriamiento(estado(null, null), ahora)).toBeNull();
     expect(esperaDeEnfriamiento(estado(10, 30), ahora)).toBeNull();

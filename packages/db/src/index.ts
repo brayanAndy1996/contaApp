@@ -419,6 +419,7 @@ export {
   actualizarConocidosBuzon,
   auditarBuzon,
   bloquearEstadoBuzon,
+  fallaPorCredencialBuzon,
   BuzonRepoError,
   candidatosBuzon,
   conocidosBuzon,

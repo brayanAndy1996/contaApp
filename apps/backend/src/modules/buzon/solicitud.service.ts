@@ -2,6 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import {
   auditarBuzon,
   bloquearEstadoBuzon,
+  fallaPorCredencialBuzon,
   elevarPrioridadBuzon,
   leerMensajeBuzon,
   marcarSolicitudBuzon,
@@ -61,7 +62,7 @@ export class SolicitudBuzonService {
           elevado = await elevarPrioridadBuzon(tx, vivo.id);
           return;
         }
-        const espera = esperaDeEnfriamiento(estado, Date.now());
+        const espera = esperaDeEnfriamiento(estado, Date.now(), await fallaPorCredencialBuzon(tx, clienteId));
         if (espera !== null) throw new BuzonError("captura_reciente", espera);
       },
       async (tx, resultado) => {

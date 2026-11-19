@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { errorPg, txFalso } from "../trabajos/soporte-prueba";
 import { BuzonRepoError } from "./errores";
-import { marcarSolicitudBuzon } from "./solicitud";
+import { fallaPorCredencialBuzon, marcarSolicitudBuzon } from "./solicitud";
 
 const C = "0190a000-0000-7000-8000-0000000000c1";
 
@@ -32,6 +32,34 @@ describe("marcarSolicitudBuzon", () => {
     expect(e).toBeInstanceOf(BuzonRepoError);
     expect((e as BuzonRepoError).codigo).toBe("42501");
     expect(JSON.stringify(e)).not.toContain("CANARIO");
+    expect((e as Error).message).not.toContain("CANARIO");
+  });
+});
+
+describe("fallaPorCredencialBuzon", () => {
+  it("devuelve cuándo terminó la última captura si fue error por credencial inválida; el cliente va como parámetro", async () => {
+    const fin = new Date("2026-11-17T15:00:00Z");
+    const { tx, llamadas } = txFalso({
+      rows: [{ estado: "error", motivo: "credencial_invalida", terminado_en: fin }],
+    });
+    expect(await fallaPorCredencialBuzon(tx, C)).toEqual(fin);
+    expect(llamadas[0]!.texto).toMatch(/tipo = 'sol\.buzon\.revisar'/);
+    expect(llamadas[0]!.valores).toEqual([C]);
+  });
+
+  it.each([
+    [[]],
+    [[{ estado: "completado", motivo: null, terminado_en: new Date() }]],
+    [[{ estado: "error", motivo: "sunat_no_responde", terminado_en: new Date() }]],
+  ])("sin capturas terminadas o terminada de otro modo: null", async (rows) => {
+    const { tx } = txFalso({ rows });
+    expect(await fallaPorCredencialBuzon(tx, C)).toBeNull();
+  });
+
+  it("un fallo de pg sale como BuzonRepoError con solo el SQLSTATE", async () => {
+    const { tx } = txFalso(errorPg("42501"));
+    const e = await fallaPorCredencialBuzon(tx, C).catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(BuzonRepoError);
     expect((e as Error).message).not.toContain("CANARIO");
   });
 });

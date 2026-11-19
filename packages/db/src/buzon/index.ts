@@ -8,7 +8,7 @@ export {
   leerAdjuntoBuzon,
 } from "./lectura";
 export { leerIdSunatBuzon } from "./id-sunat";
-export { marcarSolicitudBuzon } from "./solicitud";
+export { fallaPorCredencialBuzon, marcarSolicitudBuzon } from "./solicitud";
 export type {
   AdjuntoBuzon,
   DetalleMensajeBuzon,
