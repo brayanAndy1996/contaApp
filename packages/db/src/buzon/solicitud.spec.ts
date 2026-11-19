@@ -69,6 +69,21 @@ describe("fallaPorCredencialBuzon", () => {
     expect(r!.getTime()).toBe(Date.parse("2026-11-17T15:00:00Z"));
   });
 
+  it("R-2: una captura cancelada por credencial inválida (despachador) también cuenta y devuelve su terminado_en", async () => {
+    const fin = new Date("2026-11-17T16:30:00Z");
+    const { tx } = txFalso({
+      rows: [{ estado: "cancelado", motivo: "credencial_invalida", terminado_en: fin }],
+    });
+    expect(await fallaPorCredencialBuzon(tx, C)).toEqual(fin);
+  });
+
+  it("R-2: cancelada por otro motivo (acceso retirado) no cuenta: null", async () => {
+    const { tx } = txFalso({
+      rows: [{ estado: "cancelado", motivo: "acceso_retirado", terminado_en: new Date() }],
+    });
+    expect(await fallaPorCredencialBuzon(tx, C)).toBeNull();
+  });
+
   it.each([
     [[]],
     [[{ estado: "completado", motivo: null, terminado_en: new Date() }]],
