@@ -31,8 +31,8 @@ Nivel A (spec). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T23 | Prueba manual con el sistema levantado y adaptadores en `mock` | tester | sonnet | T21, T22 | — | — | [x] |
 | T23a | Defectos de pantalla de la prueba manual (T23a-1 a T23a-5) | frontend | sonnet | T23 | — | — | [x] |
 | T24 | Verificar CA-1 a CA-13 con evidencia, suites completas, `db:migrate` ×2 y cobertura | tester | sonnet | T23 | — | — | [x] |
-| T25 | Revisión final contra la spec | arquitecto | opus | T24 | — | — | [ ] |
-| T25a | Pruebas de los defectos de la revisión final (rojo) | tester | sonnet | T25 | ✓ | — | [ ] |
+| T25 | Revisión final contra la spec | arquitecto | opus | T24 | — | — | [x] |
+| T25a | Pruebas de los defectos de la revisión final (rojo) | tester | sonnet | T25 | ✓ | — | [x] |
 | T25b | Corregir los defectos de la revisión final | backend | opus | T25a | — | — | [x] |
 | T26 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T25b | — | — | [ ] |
 
@@ -251,7 +251,7 @@ Suites (todas en verde salvo la cobertura de `db`):
 
 **T24a (2026-11-19, tester · sonnet)**: dos pruebas nuevas en `packages/db/src/buzon/solicitud.spec.ts` (`terminado_en` como string ISO y como texto de pg con desfase → `Date` del mismo instante). `pnpm cobertura:buzon` completo en verde (exit 0), todo ≥ 90 %: `db` ramas 96,29 % (`solicitud.ts` ya no figura entre los archivos bajo el umbral); `domain` 94,4 %, `sunat` 95,05 %, `backend` 96,96 %, `worker` 97,32 %. Producción sin tocar. Con esto T24 queda `[x]`.
 
-## T25 · [ ] Revisión final (arquitecto · opus)
+## T25 · [x] Revisión final (arquitecto · opus)
 - **Contexto (leer solo esto)**: `spec.md`, `plan.md`, resultado de T24, `git diff main...HEAD --stat` y los archivos que la revisión necesite.
 - **Hacer**: contrastar cada CA, D-n y P-n con la evidencia; ratificar o rechazar desvíos del plan (sección «Desvíos ratificados» en `plan.md`).
 - **Hecho cuando**: veredicto con lo que falta; si hay defectos, T25a y T25b.
@@ -261,7 +261,12 @@ Suites (todas en verde salvo la cobertura de `db`):
 - **R-2 · baja (D-6, U-4, CA-2).** `fallaPorCredencialBuzon` (`packages/db/src/buzon/solicitud.ts:30`) solo reconoce `estado = 'error'`; una captura que el despachador cancela con `cancelado` + `credencial_invalida` (`packages/queue/src/despachador.ts:257`, credencial invalidada por otro trabajo del cliente mientras esperaba) no se excluye, y tras corregir la clave «Revisar buzón ahora» da 429 hasta 10 min.
 - Observaciones sin tarea: los hallazgos `H-023-1-n` y `H-023-2-n` solo constan en comentarios del código, no en el resultado de T16/T19; el enfriamiento usa `Date.now()` del backend frente a instantes de la BD (ver `plan.md`).
 
-## T25a · [ ] Pruebas de los defectos de la revisión final, rojo (tester · sonnet)
+**Repetición (2026-11-19, arquitecto · opus, solo R-1 y R-2, sobre `de47d5d` con las pruebas de `c622432`)**: **aprobado**.
+- **R-1 · cerrado.** `planificarCaptura` corta toda página sin ids sin ver con `siguiente` (vacía o vacía tras `sanearPagina`) y toda página leída número `MAX_PAGINAS_LECTURA` (500); ambos cortes dejan `siguiente` (no nulo) como cursor pendiente y `sincronizado: false`, así que H-023-2-1 se mantiene; H-023-2-2 (`vistos`) y H-023-2-3 (solo las páginas con nuevos cuentan para `MAX_PAGINAS_CAPTURA`) no cambian. El `for (;;)` de `revisar-buzon.ts` solo sigue si `siguiente ≠ null`, hay ids sin ver y `leidas + 1 < 500`; las demás salidas son `break` o excepción: no queda vía sin límite. Evidencia: `captura-r3.spec.ts` y `domain` `src/buzon` (228 en verde); `buzon-r3.int.spec.ts` (página vacía, ids inválidos, cursor repetido o distinto, tope inyectable, corte sin pérdidas ni duplicados) y `buzon` del worker `test:int` (60 en verde, dos corridas; una tercera tras `db:migrate` tuvo un fallo de `revisar-buzon.int.spec.ts` que no se reprodujo en aislado ni en las dos siguientes).
+- **R-2 · cerrado.** `fallaPorCredencialBuzon` acepta `error` o `cancelado` con `credencial_invalida`; `descartar` del despachador pasa por `transicionar`, que fija `terminado_en`, así que la consulta la ve. Evidencia: `solicitud.spec.ts` (`db` `src/buzon`, 103 en verde).
+- **Limitación aceptada** (en `plan.md`): con más de unos 100 000 mensajes conocidos por encima de un hueco, el relleno se queda en el tope porque cada captura arranca en la página 1. Observación sin tarea: `DepsRevisarBuzon.maxPaginasLectura` no se valida (un `NaN` quitaría el tope); hoy solo lo fijan las pruebas.
+
+## T25a · [x] Pruebas de los defectos de la revisión final, rojo (tester · sonnet)
 - **Contexto (leer solo esto)**: resultado de T25 (R-1, R-2), `plan.md` («Desvíos ratificados»), `spec.md` (U-4), `packages/domain/src/buzon/captura-r2.spec.ts` (modelo), `apps/worker/src/trabajos/procesadores/buzon-r2.int.spec.ts` (modelo con `fallar`/`inyectar`), `packages/db/src/buzon/solicitud.spec.ts`.
 - **Hacer**: R-1: en `packages/domain/src/buzon/captura-r3.spec.ts`, una página sin mensajes con `siguiente` no nulo → `terminada: true`, `sincronizado: false` y cursor pendiente no nulo (con y sin relleno); el tope `MAX_PAGINAS_LECTURA` corta con relleno pendiente aunque las páginas sean de conocidos distintos. En `apps/worker/src/trabajos/procesadores/buzon-r3.int.spec.ts`, mock que devuelve siempre una página vacía (y otra con todos los ids inválidos) con un `siguiente` que se repite: el trabajo termina, `listarMensajes` se llama un número acotado de veces y `cursor_pendiente` queda no nulo. R-2: en `solicitud.spec.ts`, la última captura `cancelado` + `credencial_invalida` devuelve su `terminado_en`; `cancelado` con otro motivo devuelve `null`.
 - **Hecho cuando**: las nuevas fallan por el defecto; las demás de `domain`, `db` y `worker` siguen verdes. Commit `test(023): defectos de la revisión final en rojo`.
