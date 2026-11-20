@@ -414,6 +414,20 @@
       "when": 1794969412913,
       "tag": "0058_buzon_r2",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1795196071621,
+      "tag": "0059_buzon_atencion",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1795196174379,
+      "tag": "0060_buzon_atencion_funcion",
+      "breakpoints": true
     }
   ]
 }

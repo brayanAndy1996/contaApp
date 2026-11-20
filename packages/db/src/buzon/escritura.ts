@@ -44,10 +44,20 @@ on conflict (tenant_id, cliente_id, id_sunat) do nothing
 returning id`;
 const SQL_CONOCIDOS = `select id, id_sunat, leido_sunat from buzon_mensaje
  where cliente_id = $1::uuid and id_sunat = any($2::text[])`;
-const SQL_ACTUALIZAR_CONOCIDOS = `update buzon_mensaje m
-   set leido_sunat = x.leido, ultima_captura_en = now()
-  from unnest($2::text[], $3::boolean[]) as x(id_sunat, leido)
- where m.cliente_id = $1::uuid and m.id_sunat = x.id_sunat`;
+// Spec 024 (orden de bloqueo del plan): primero bloquea los mensajes en orden de id (el mismo modo que toma el UPDATE, como
+// buzon_atencion_aplicar de 0060) y solo actualiza esas filas: un lote de atención y la captura no se interbloquean (40P01).
+const SQL_ACTUALIZAR_CONOCIDOS = `with bloqueados as materialized (
+  select m.id, x.leido
+    from buzon_mensaje m
+    join unnest($2::text[], $3::boolean[]) as x(id_sunat, leido) on x.id_sunat = m.id_sunat
+   where m.cliente_id = $1::uuid
+   order by m.id
+     for no key update of m
+)
+update buzon_mensaje m
+   set leido_sunat = b.leido, ultima_captura_en = now()
+  from bloqueados b
+ where m.id = b.id`;
 const SQL_ESTADO_CAPTURA = `insert into buzon_estado_cliente (cliente_id, ultima_captura_en, cursor_pendiente, sincronizado_en)
 values ($1::uuid, now(), $2::text, case when $3::boolean then now() end)
 on conflict (tenant_id, cliente_id) do update

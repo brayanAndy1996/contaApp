@@ -36,3 +36,19 @@ export {
   encolarBuzonProgramados,
 } from "./programacion";
 export type { CandidatoBuzon } from "./programacion";
+// Spec 024: bandeja, detalle de atención, indicador de nuevos y la función acotada de la atención (backend).
+export { detalleAtencion, listarBandeja } from "./bandeja";
+export type {
+  AtencionVigente,
+  DetalleAtencionBuzon,
+  EstadoAtencionBuzon,
+  EventoAtencionBuzon,
+  FilaBandejaBuzon,
+  FiltroAtencionBuzon,
+  FiltrosBandejaBuzon,
+  PosicionBandeja,
+} from "./bandeja";
+export { indicadorBuzon } from "./indicador";
+export type { IndicadorBuzon } from "./indicador";
+export { aplicarAtencionBuzon } from "./atencion";
+export type { EntradaAtencionBuzon, ResultadoAtencionBuzon } from "./atencion";

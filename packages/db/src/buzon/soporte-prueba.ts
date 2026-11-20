@@ -419,8 +419,9 @@ export async function sembrarEstudio(
            as x(id uuid, c uuid, s text, a text, rm text, f text, cat text, cr boolean, mo text, av boolean, le boolean)`,
       [tenantId, JSON.stringify(filas)],
     );
+    // Todas las filas (no solo las marcadas): el trigger de 0059 fija `historico` al insertar según el reloj (D-12, también para el
+    // superusuario), así que la siembra impone el estado del modelo en cada mensaje.
     const estados = mensajes
-      .filter((m) => m.historico || m.atendidoEn !== null)
       .map((m) => ({
         id: m.id,
         h: m.historico,

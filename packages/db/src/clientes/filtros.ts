@@ -10,7 +10,7 @@ export interface FiltrosListado {
   credencial?: string;
   archivados?: boolean;
   q?: string;
-  /** Spec 024 (D-9): solo clientes con algún mensaje nuevo (no atendido ni histórico). STUB de T3: lo implementa T7. */
+  /** Spec 024 (D-9): solo clientes con algún mensaje nuevo (sin atender y no histórico); `false` o ausente no filtra. */
   conMensajesNuevos?: boolean;
 }
 
@@ -48,6 +48,12 @@ export function condicionesFiltros(f: FiltrosListado): SQL[] {
         ? sql`${cliente.razonSocial} ilike ${`%${f.q}%`} escape '\\'`
         : sql`${cliente.razonSocial} ilike ('%' || ${esc}::text || '%') escape '\\'`;
     c.push(sql`(${cliente.ruc}::text ilike ${`${esc}%`} escape '\\' or ${fragmento})`);
+  }
+  if (f.conMensajesNuevos === true) {
+    // EXISTS sobre el índice parcial buzon_mensaje_cliente_pendiente_idx (0059), con tenant_id primero como la RLS.
+    c.push(
+      sql`exists (select 1 from buzon_mensaje bm where bm.tenant_id = ${cliente.tenantId} and bm.cliente_id = ${cliente.id} and bm.atendido_en is null and not bm.historico)`,
+    );
   }
   return c;
 }
