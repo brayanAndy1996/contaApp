@@ -10,6 +10,7 @@ vi.mock("@contapp/db", async (original) => ({
   reactivarCliente: vi.fn(),
   leerClienteDto: vi.fn(),
   listarClientesFiltrado: vi.fn(),
+  indicadorBuzon: vi.fn(),
   asignar: vi.fn(),
 }));
 
@@ -20,6 +21,7 @@ import {
   ClienteArchivadoError,
   crearCliente,
   editarCliente,
+  indicadorBuzon,
   leerClienteDto,
   listarClientesFiltrado,
   reactivarCliente,
@@ -228,6 +230,36 @@ describe("listar y leer", () => {
         expect.objectContaining({ codigo: "solicitud_invalida" }),
       );
     }
+    expect(withTenant).not.toHaveBeenCalled();
+  });
+
+  it("con buzon.ver cada cliente trae el indicador (ceros si no hay) y se calcula una sola vez para todo el listado", async () => {
+    vi.mocked(listarClientesFiltrado).mockResolvedValue([{ id: "a" }, { id: "b" }] as never);
+    vi.mocked(indicadorBuzon).mockResolvedValue(new Map([["a", { nuevos: 3, criticosNuevos: 1 }]]));
+    const r = await armar().servicio.listar(sesion, { tipo: "global" }, {}, true);
+    expect(r).toEqual([
+      { id: "a", buzon: { nuevos: 3, criticosNuevos: 1 } },
+      { id: "b", buzon: { nuevos: 0, criticosNuevos: 0 } },
+    ]);
+    expect(indicadorBuzon).toHaveBeenCalledTimes(1);
+    expect(indicadorBuzon).toHaveBeenCalledWith(TX, ["a", "b"]);
+  });
+
+  it("sin buzon.ver el listado no lleva `buzon` ni consulta el indicador", async () => {
+    vi.mocked(listarClientesFiltrado).mockResolvedValue([{ id: "a" }] as never);
+    expect(await armar().servicio.listar(sesion, { tipo: "global" }, {})).toEqual([{ id: "a" }]);
+    expect(indicadorBuzon).not.toHaveBeenCalled();
+  });
+
+  it("conMensajesNuevos=1 llega al repositorio con buzon.ver y es 403 sin él, sin transacción", async () => {
+    vi.mocked(listarClientesFiltrado).mockResolvedValue([] as never);
+    vi.mocked(indicadorBuzon).mockResolvedValue(new Map());
+    await armar().servicio.listar(sesion, { tipo: "global" }, { conMensajesNuevos: "1" }, true);
+    expect(listarClientesFiltrado).toHaveBeenLastCalledWith(TX, { tipo: "global" }, { conMensajesNuevos: true });
+    const { servicio, withTenant } = armar();
+    expect(() => servicio.listar(sesion, { tipo: "global" }, { conMensajesNuevos: "1" })).toThrowError(
+      expect.objectContaining({ codigo: "permiso_denegado" }),
+    );
     expect(withTenant).not.toHaveBeenCalled();
   });
 

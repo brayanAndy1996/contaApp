@@ -1,10 +1,18 @@
-import { Controller, Get, Header, HttpCode, Inject, Param, Post, Query, Req, Res, StreamableFile } from "@nestjs/common";
-import type { AbrirMensajeRespuesta, DetalleMensaje, PaginaMensajesBuzon, RevisarBuzonRespuesta } from "@contapp/shared";
+import { Body, Controller, Get, Header, HttpCode, Inject, Param, Post, Query, Req, Res, StreamableFile } from "@nestjs/common";
+import type {
+  AbrirMensajeRespuesta,
+  AtencionDetalle,
+  DetalleMensaje,
+  PaginaMensajesBuzon,
+  RevisarBuzonRespuesta,
+} from "@contapp/shared";
 import type { SesionResuelta } from "../auth/auth.service.js";
 import { Sesion } from "../auth/guards/decoradores.js";
 import { Permiso, type PeticionAcceso } from "../acceso/guards/decoradores.js";
 import { alcanceDe } from "../clientes/contexto.js";
 import { disposicionAdjunta, mimeSeguro } from "./apoyo.js";
+import { AtencionBuzonService } from "./atencion.service.js";
+import { BandejaBuzonService } from "./bandeja.service.js";
 import { BuzonError } from "./errores.js";
 import { LecturaBuzonService } from "./lectura.service.js";
 import { SolicitudBuzonService } from "./solicitud.service.js";
@@ -25,6 +33,8 @@ export class BuzonController {
   constructor(
     @Inject(SolicitudBuzonService) private readonly solicitud: SolicitudBuzonService,
     @Inject(LecturaBuzonService) private readonly lectura: LecturaBuzonService,
+    @Inject(BandejaBuzonService) private readonly bandeja: BandejaBuzonService,
+    @Inject(AtencionBuzonService) private readonly atencion: AtencionBuzonService,
   ) {}
 
   /** 202 `{ trabajo }` nuevo · 200 con el vivo · 409 · 429 `captura_reciente` con `Retry-After`. Solo encola: no llama a SUNAT. */
@@ -48,6 +58,7 @@ export class BuzonController {
     }
   }
 
+  /** Bandeja fijada en el cliente (024, D-10): la lista de 023 con `cliente`, `atencion` y los filtros de la bandeja. */
   @Permiso("buzon.ver")
   @Header("Cache-Control", "no-store")
   @Get("mensajes")
@@ -57,7 +68,7 @@ export class BuzonController {
     @Param("clienteId") clienteId: string,
     @Query() query: unknown,
   ): Promise<PaginaMensajesBuzon> {
-    return this.lectura.listar(sesion, alcanceDe(req.acceso), clienteId, query);
+    return this.bandeja.listarDeCliente(sesion, alcanceDe(req.acceso), clienteId, query);
   }
 
   @Permiso("buzon.ver")
@@ -70,6 +81,28 @@ export class BuzonController {
     @Param("mensajeId") mensajeId: string,
   ): Promise<DetalleMensaje> {
     return this.lectura.detalle(sesion, alcanceDe(req.acceso), clienteId, mensajeId);
+  }
+
+  /**
+   * Marcar como atendido o deshacer (spec 024). 200 `{ atencion }` con el estado resultante; 409 `{ codigo: "atencion_cambiada",
+   * atencion }` si otra persona ya cambió el mensaje (con el estado vigente). Los demás errores salen como `{ codigo }`.
+   */
+  @Permiso("buzon.atender")
+  @Header("Cache-Control", "no-store")
+  @Post("mensajes/:mensajeId/atencion")
+  @HttpCode(200)
+  async atender(
+    @Sesion() sesion: SesionResuelta,
+    @Req() req: PeticionAcceso,
+    @Param("clienteId") clienteId: string,
+    @Param("mensajeId") mensajeId: string,
+    @Body() cuerpo: unknown,
+    @Res({ passthrough: true }) res: RespuestaHttp,
+  ): Promise<{ atencion: AtencionDetalle } | { codigo: "atencion_cambiada"; atencion: AtencionDetalle }> {
+    const r = await this.atencion.atender(sesion, alcanceDe(req.acceso), clienteId, mensajeId, cuerpo);
+    if (!r.cambiada) return { atencion: r.atencion };
+    res.status(409);
+    return { codigo: "atencion_cambiada", atencion: r.atencion };
   }
 
   /** 202 `{ trabajo }` nuevo · 200 `{ trabajo }` vivo · 200 `{ trabajo: null }` si el contenido ya se obtuvo. */

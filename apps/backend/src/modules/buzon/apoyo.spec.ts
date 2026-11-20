@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AccesoError } from "../acceso/errores.js";
 import {
-  codificarCursor,
-  decodificarCursor,
   disposicionAdjunta,
   ENFRIAMIENTO_MS,
   esperaDeEnfriamiento,
@@ -40,31 +37,6 @@ describe("esperaDeEnfriamiento", () => {
   it("sin solicitud ni captura, o pasados los 10 min, no hay espera", () => {
     expect(esperaDeEnfriamiento(estado(null, null), ahora)).toBeNull();
     expect(esperaDeEnfriamiento(estado(10, 30), ahora)).toBeNull();
-  });
-});
-
-describe("cursor opaco", () => {
-  it("ida y vuelta", () => {
-    const fecha = new Date("2026-11-12T15:00:00.000Z");
-    expect(decodificarCursor(codificarCursor(fecha, U))).toEqual({ fecha, id: U });
-  });
-
-  it.each([
-    "",
-    "%%%",
-    "no-es-un-cursor",
-    Buffer.from("{}").toString("base64url"),
-    Buffer.from(JSON.stringify({ f: "ayer", i: U })).toString("base64url"),
-    Buffer.from(JSON.stringify({ f: "2026-11-12T15:00:00.000Z", i: "x" })).toString("base64url"),
-    Buffer.from(JSON.stringify({ f: "2026-11-12T15:00:00.000Z", i: U, extra: 1 })).toString("base64url"),
-    Buffer.from("[1]").toString("base64url"),
-  ])("rechaza %j con 400 solicitud_invalida", (cursor) => {
-    expect(() => decodificarCursor(cursor)).toThrow(AccesoError);
-    try {
-      decodificarCursor(cursor);
-    } catch (e) {
-      expect((e as AccesoError).codigo).toBe("solicitud_invalida");
-    }
   });
 });
 

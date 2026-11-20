@@ -121,7 +121,8 @@ describe("CA-1 · alta correcta, razón social provisional y lectura posterior",
 
     const lista = await llamar(E.titular, "GET", "/clientes");
     expect(lista.status).toBe(200);
-    expect(lista.body.find((x: any) => x.id === r.body.id)).toEqual(r.body);
+    // 024: el listado agrega el indicador `buzon` (en ceros para un cliente recién creado).
+    expect(lista.body.find((x: any) => x.id === r.body.id)).toEqual({ ...r.body, buzon: { nuevos: 0, criticosNuevos: 0 } });
     const detalle = await llamar(E.titular, "GET", `/clientes/${r.body.id}`);
     expect(detalle.status).toBe(200);
     expect(detalle.body).toEqual(r.body);

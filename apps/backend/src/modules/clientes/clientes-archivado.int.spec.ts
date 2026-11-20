@@ -65,7 +65,7 @@ describe("CA-3 · asistente con 15 de 120 clientes: listado, búsqueda y URL aje
     const nombres = r.body.map((x: any) => x.razonSocial);
     expect(nombres).toEqual([...nombres].sort());
     expect(Object.keys(r.body[0]).sort()).toEqual(
-      ["archivado", "condicionContribuyente", "credenciales", "estadoContribuyente", "id", "perfil", "razonSocial", "responsable", "ruc"],
+      ["archivado", "buzon", "condicionContribuyente", "credenciales", "estadoContribuyente", "id", "perfil", "razonSocial", "responsable", "ruc"], // 024: indicador `buzon`
     );
     expect(r.body[14].responsable).toEqual({ id: asistente.id, nombre: expect.any(String) });
     expect(r.body[0].responsable).toBeNull();
