@@ -160,12 +160,12 @@ describe("CA-1 · tabla 5 roles x endpoints de 005 (D2)", () => {
     expect(observado).toEqual(esperado);
   });
 
-  it("GET /acceso/yo informa rol, permisos y alcance de cada rol (22 / 21 / 12 / 7 / 4)", async () => {
+  it("GET /acceso/yo informa rol, permisos y alcance de cada rol (23 / 22 / 13 / 8 / 4)", async () => {
     const esperados: Record<RolSistema, { n: number; alcance: string }> = {
-      dueno: { n: 22, alcance: "global" },
-      admin: { n: 21, alcance: "global" },
-      contador: { n: 12, alcance: "asignado" },
-      asistente: { n: 7, alcance: "asignado" },
+      dueno: { n: 23, alcance: "global" },
+      admin: { n: 22, alcance: "global" },
+      contador: { n: 13, alcance: "asignado" },
+      asistente: { n: 8, alcance: "asignado" },
       lectura: { n: 4, alcance: "asignado" },
     };
     for (const rol of ROLES) {
@@ -199,7 +199,7 @@ describe("CA-1 · tabla 5 roles x endpoints de 005 (D2)", () => {
     }
     // Y los permisos del asistente no cambiaron.
     const yo = await b.llamar(actores.asistente, "GET", "/acceso/yo");
-    expect(yo.body.permisos).toHaveLength(7);
+    expect(yo.body.permisos).toHaveLength(8);
   });
 });
 
