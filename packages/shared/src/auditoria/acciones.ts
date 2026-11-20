@@ -51,6 +51,9 @@ export const ACCIONES_AUDITORIA = [
   "buzon.apertura_solicitada",
   "buzon.contenido_visto",
   "buzon.adjunto_descargado",
+  // Spec 024: atención de mensajes (la registra la función acotada en la misma transacción).
+  "buzon.atendido",
+  "buzon.atencion_deshecha",
 ] as const;
 
 export type AccionAuditoria = (typeof ACCIONES_AUDITORIA)[number];

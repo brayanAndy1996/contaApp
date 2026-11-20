@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { IndicadorBuzon } from "../buzon/bandeja.js";
 import { validarRuc } from "./ruc.js";
 
 export const REGIMENES = ["rg", "rmt", "rer", "nrus"] as const;
@@ -40,6 +41,8 @@ export interface FiltrosClientes {
   credencial?: EstadoCredencial;
   archivados?: boolean;
   q?: string;
+  /** Spec 024 (D-9): solo clientes con pendientes no históricos. Requiere `buzon.ver`. */
+  conMensajesNuevos?: boolean;
 }
 
 /** Cliente tal como lo ve la API: solo estados de credencial, ningún secreto. */
@@ -53,6 +56,8 @@ export interface ClienteDto {
   archivado: boolean;
   responsable: { id: string; nombre: string | null } | null;
   credenciales: { sol: EstadoCredencial; sire_api: EstadoCredencial };
+  /** Spec 024 (D-9): solo con `buzon.ver`. */
+  buzon?: IndicadorBuzon;
 }
 
 const RAZON_SOCIAL_MAX = 200;
@@ -88,4 +93,8 @@ export const filtrosClientesSchema = z.object({
     .transform(() => true)
     .optional(),
   q: z.string().max(Q_MAX).optional(),
+  conMensajesNuevos: z
+    .literal("1")
+    .transform(() => true)
+    .optional(),
 });

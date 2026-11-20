@@ -18,6 +18,7 @@ export const PERMISOS = [
   "ajustes.generar",
   "buzon.ver",
   "buzon.marcar_leido",
+  "buzon.atender",
   "reglas.ver",
   "reglas.gestionar",
   "prorrata.ver",

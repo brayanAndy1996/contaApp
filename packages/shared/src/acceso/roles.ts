@@ -23,6 +23,7 @@ const ASISTENTE: readonly Permiso[] = [
   "sire.descargar",
   "sire.clasificar",
   "buzon.marcar_leido",
+  "buzon.atender",
 ];
 
 const CONTADOR: readonly Permiso[] = [

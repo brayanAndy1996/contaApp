@@ -19,8 +19,9 @@ import * as raiz from "../index.js";
 //  - adjuntoVistaSchema = {id: uuid, nombre: string 1..120, mime: string|null, tamano: entero ≥ 0, omitido: mime|tamano|tope_mensaje|null}.
 //    Nunca la ruta de storage ni el sha256.
 //  - detalleMensajeSchema = {mensaje: fila, contenido: string | null, adjuntos: AdjuntoVista[]}; contenido null = aún no obtenido.
+//    (024 suma `atencion` e `historial`, obligatorios; ver bandeja-024.spec.ts.)
 //  - estadoBuzonSchema = {ultimaCaptura: ISO|null, sincronizado: boolean, revisarDesde: ISO|null}.
-//  - paginaMensajesBuzonSchema = {estado, mensajes: fila[] (≤ 100), siguiente: string (cursor opaco) | null}.
+//  - paginaMensajesBuzonSchema = {estado, mensajes: fila[] (≤ 100; desde 024, filas de bandeja con cliente y atencion), siguiente: string (cursor opaco) | null}.
 //  - revisarBuzonRespuestaSchema = {trabajo: TrabajoVista} (202 nuevo y 200 vivo); abrirMensajeRespuestaSchema = {trabajo: TrabajoVista | null}
 //    (null = el contenido ya se obtuvo).
 interface Esquema {
@@ -44,6 +45,13 @@ const fila = (o: Record<string, unknown> = {}) => ({
   leidoEnSunat: false,
   contenidoObtenido: false,
   adjuntosDeclarados: 1,
+  ...o,
+});
+// Spec 024: en la ruta del cliente la fila lleva `cliente` y `atencion` (filaBandejaSchema).
+const filaBandeja = (o: Record<string, unknown> = {}) => ({
+  ...fila(),
+  cliente: { id: randomUUID(), razonSocial: "San Juan SAC", archivado: false },
+  atencion: { estado: "pendiente", por: null, en: null },
   ...o,
 });
 const adjunto = (o: Record<string, unknown> = {}) => ({
@@ -185,6 +193,9 @@ describe("detalleMensajeSchema", () => {
     mensaje: fila({ contenidoObtenido: true }),
     contenido: "Se le notifica la Resolución Coactiva…\nSaludos.",
     adjuntos: [adjunto()],
+    // Spec 024: atención e historial son obligatorios (el detalle de 023 los suma).
+    atencion: { estado: "pendiente", por: null, en: null, comentario: null },
+    historial: [],
     ...o,
   });
 
@@ -252,7 +263,7 @@ describe("estadoBuzonSchema", () => {
 });
 
 describe("paginaMensajesBuzonSchema", () => {
-  const pagina = (o: Record<string, unknown> = {}) => ({ estado: estado(), mensajes: [fila()], siguiente: null, ...o });
+  const pagina = (o: Record<string, unknown> = {}) => ({ estado: estado(), mensajes: [filaBandeja()], siguiente: null, ...o });
 
   it("acepta una página con cursor y la devuelve igual", () => {
     const p = pagina({ siguiente: "eyJhIjoxfQ" });
@@ -262,14 +273,14 @@ describe("paginaMensajesBuzonSchema", () => {
     expect(ok(paginaMensajesBuzonSchema, pagina({ mensajes: [], siguiente: null }))).toBe(true);
   });
   it("acepta 100 filas y rechaza 101", () => {
-    expect(ok(paginaMensajesBuzonSchema, pagina({ mensajes: Array.from({ length: 100 }, () => fila()) }))).toBe(true);
-    expect(ok(paginaMensajesBuzonSchema, pagina({ mensajes: Array.from({ length: 101 }, () => fila()) }))).toBe(false);
+    expect(ok(paginaMensajesBuzonSchema, pagina({ mensajes: Array.from({ length: 100 }, () => filaBandeja()) }))).toBe(true);
+    expect(ok(paginaMensajesBuzonSchema, pagina({ mensajes: Array.from({ length: 101 }, () => filaBandeja()) }))).toBe(false);
   });
   it.each([5, undefined, "", ["a"]])("rechaza siguiente = %j", (siguiente) => {
     expect(ok(paginaMensajesBuzonSchema, pagina({ siguiente }))).toBe(false);
   });
   it("rechaza una fila inválida y un estado inválido", () => {
-    expect(ok(paginaMensajesBuzonSchema, pagina({ mensajes: [fila({ categoria: "x" })] }))).toBe(false);
+    expect(ok(paginaMensajesBuzonSchema, pagina({ mensajes: [filaBandeja({ categoria: "x" })] }))).toBe(false);
     expect(ok(paginaMensajesBuzonSchema, pagina({ estado: { sincronizado: "x" } }))).toBe(false);
     expect(ok(paginaMensajesBuzonSchema, pagina({ estado: undefined }))).toBe(false);
   });

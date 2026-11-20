@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { trabajoVistaSchema } from "../trabajos/esquemas.js";
-import { LIMITE_MAX_MENSAJES_BUZON, MOTIVOS_CRITICO_BUZON, MOTIVOS_OMITIDO_BUZON, categoriaBuzonSchema } from "./esquemas.js";
+import { atencionDetalleSchema, eventoAtencionSchema } from "./atencion.js";
+import { MOTIVOS_CRITICO_BUZON, MOTIVOS_OMITIDO_BUZON, categoriaBuzonSchema } from "./esquemas.js";
 
 // Spec 023 (plan: Contratos HTTP; D-3, D-4, D-8; CA-4, CA-8, CA-10). `z.object` descarta las claves desconocidas:
 // nunca salen idSunat, tenantId, clienteId, rutas de storage ni sha256.
@@ -30,11 +31,13 @@ export const adjuntoVistaSchema = z.object({
 });
 export type AdjuntoVista = z.infer<typeof adjuntoVistaSchema>;
 
-/** `contenido` null = aún no obtenido. */
+/** `contenido` null = aún no obtenido. `historial` en orden cronológico (024). */
 export const detalleMensajeSchema = z.object({
   mensaje: mensajeBuzonFilaSchema,
   contenido: z.string().nullable(),
   adjuntos: z.array(adjuntoVistaSchema),
+  atencion: atencionDetalleSchema,
+  historial: z.array(eventoAtencionSchema),
 });
 export type DetalleMensaje = z.infer<typeof detalleMensajeSchema>;
 
@@ -44,13 +47,6 @@ export const estadoBuzonSchema = z.object({
   revisarDesde: fechaIso.nullable(),
 });
 export type EstadoBuzon = z.infer<typeof estadoBuzonSchema>;
-
-export const paginaMensajesBuzonSchema = z.object({
-  estado: estadoBuzonSchema,
-  mensajes: z.array(mensajeBuzonFilaSchema).max(LIMITE_MAX_MENSAJES_BUZON),
-  siguiente: z.string().min(1).nullable(),
-});
-export type PaginaMensajesBuzon = z.infer<typeof paginaMensajesBuzonSchema>;
 
 /** 202 trabajo nuevo, 200 trabajo vivo. */
 export const revisarBuzonRespuestaSchema = z.object({ trabajo: trabajoVistaSchema });
