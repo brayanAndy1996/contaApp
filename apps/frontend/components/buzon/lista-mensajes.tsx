@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import {
   Badge,
@@ -20,6 +22,7 @@ import {
   type EstadoAtencion,
   type FilaBandeja,
 } from "../../lib/buzon";
+import { useEsMovil } from "../../lib/pantalla";
 import { cn } from "../../lib/utils";
 
 // Lista de mensajes del buzón (spec 023, CA-6, P-9, D-4; spec 024, D-4, D-10, CA-3, CA-7, CA-11). Presentacional: la
@@ -53,6 +56,7 @@ export function ListaMensajes({
   /** Casillas para el lote; solo con `buzon.atender`. */
   seleccion?: SeleccionLista;
 }) {
+  const movil = useEsMovil();
   if (mensajes.length === 0) {
     return <p className="m-0 text-sm text-tinta-suave">{M.listaVacia}</p>;
   }
@@ -66,7 +70,12 @@ export function ListaMensajes({
   }
 
   return (
-    <div className="md:overflow-x-clip md:rounded-tarjeta md:border md:border-linea md:bg-hoja md:shadow-tarjeta">
+    // Desde 768 px la tabla se desplaza dentro de su contenedor (con el detalle abierto la lista queda en 3/5 del ancho y
+    // «Atención» no cabe): la página no desborda y nada queda cortado. A 390 px va apilada y no se desplaza.
+    <div
+      {...(movil ? {} : { role: "region", "aria-label": M.tablaMensajes, tabIndex: 0 })}
+      className="min-w-0 md:overflow-x-auto md:rounded-tarjeta md:border md:border-linea md:bg-hoja md:shadow-tarjeta"
+    >
       <Table desplazable={false} aria-label={M.tablaMensajes} className="max-md:block">
         <TableHeader className="max-md:sr-only">
           <TableRow className="hover:bg-transparent">

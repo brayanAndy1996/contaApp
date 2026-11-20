@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { fechaHoraLima } from "../../lib/fechas";
 import { reiniciarSesion } from "../../lib/sesion";
 import { MENSAJES_ACCESO, asentar } from "../../pruebas/acceso";
@@ -321,3 +321,73 @@ describe("<DetalleMensaje /> · con la atención integrada (024, P-9)", () => {
     expect(f.llamadas.filter((l) => l.ruta.startsWith("/api/notificaciones"))).toHaveLength(0);
   });
 });
+
+describe("<AtencionMensaje /> · foco y comentario (T15a-3, T15a-4)", () => {
+  const propsBase = { clienteId: CLIENTE_A, mensajeId: MENSAJE, critico: false, historial: [] as never[] };
+
+  it("marcar con Enter deja el foco en el botón «Deshacer», y deshacer lo deja en «Marcar como atendido»", async () => {
+    // jsdom no suelta el foco de un botón que se deshabilita; los navegadores sí (el foco cae a `body`).
+    const vigilante = new MutationObserver((cambios) => {
+      for (const c of cambios) {
+        const el = c.target as HTMLButtonElement;
+        if (el.disabled && document.activeElement === el) {
+          // jsdom ignora `blur()` en un botón deshabilitado: se suelta con el botón habilitado un instante.
+          el.disabled = false;
+          el.blur();
+          el.disabled = true;
+          vigilante.takeRecords();
+        }
+      }
+    });
+    vigilante.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["disabled"] });
+    onTestFinished(() => vigilante.disconnect());
+    const alCambiar = vi.fn();
+    instalarFetchFalso(rutasBase(PERMISOS_ATENDER, { [RUTA]: { status: 200, cuerpo: { atencion: ATENDIDO } } }));
+    const usuario = userEvent.setup();
+    const { rerender } = render(<AtencionMensaje {...propsBase} atencion={{ ...PENDIENTE }} alCambiar={alCambiar} />);
+    (await botonMarcar()).focus();
+    await usuario.keyboard("{Enter}");
+    await vi.waitFor(() => expect(alCambiar).toHaveBeenCalledTimes(1));
+    rerender(<AtencionMensaje {...propsBase} atencion={{ ...ATENDIDO }} historial={[EVENTOS[0]]} alCambiar={alCambiar} />);
+    const deshacer = (await screen.findByRole("button", { name: B.deshacer })) as HTMLButtonElement;
+    await vi.waitFor(() => expect(document.activeElement).toBe(deshacer));
+
+    await usuario.keyboard("{Enter}");
+    await vi.waitFor(() => expect(alCambiar).toHaveBeenCalledTimes(2));
+    rerender(<AtencionMensaje {...propsBase} atencion={{ ...PENDIENTE }} historial={[EVENTOS[0], EVENTOS[1]]} alCambiar={alCambiar} />);
+    const marcar = await botonMarcar();
+    await vi.waitFor(() => expect(document.activeElement).toBe(marcar));
+  });
+
+  it("el foco no se mueve si la persona no lo tenía en el botón (clic en otro lado)", async () => {
+    const alCambiar = vi.fn();
+    instalarFetchFalso(rutasBase(PERMISOS_ATENDER, { [RUTA]: { status: 200, cuerpo: { atencion: ATENDIDO } } }));
+    const { rerender } = render(<AtencionMensaje {...propsBase} atencion={{ ...PENDIENTE }} alCambiar={alCambiar} />);
+    const area = await caja();
+    const boton = await botonMarcar();
+    boton.focus();
+    area.focus();
+    boton.click();
+    await vi.waitFor(() => expect(alCambiar).toHaveBeenCalledTimes(1));
+    rerender(<AtencionMensaje {...propsBase} atencion={{ ...ATENDIDO }} historial={[EVENTOS[0]]} alCambiar={alCambiar} />);
+    await screen.findByRole("button", { name: B.deshacer });
+    await asentar(40);
+    expect(document.activeElement).not.toBe(screen.getByRole("button", { name: B.deshacer }));
+  });
+
+  it("tras un 409 atencion_cambiada el comentario escrito se limpia y no pasa al estado nuevo", async () => {
+    const alCambiar = vi.fn();
+    instalarFetchFalso(
+      rutasBase(PERMISOS_ATENDER, { [RUTA]: { status: 409, cuerpo: { codigo: "atencion_cambiada", atencion: ATENDIDO } } }),
+    );
+    const usuario = userEvent.setup();
+    const { rerender } = render(<AtencionMensaje {...propsBase} atencion={{ ...PENDIENTE }} alCambiar={alCambiar} />);
+    await usuario.type(await caja(), "Lo llamé por teléfono");
+    await usuario.click(await botonMarcar());
+    expect(await screen.findByText(B.conflicto)).toBeTruthy();
+    rerender(<AtencionMensaje {...propsBase} atencion={{ ...ATENDIDO }} historial={[EVENTOS[0]]} alCambiar={alCambiar} />);
+    expect(((await caja()) as HTMLTextAreaElement).value).toBe("");
+    expect(screen.getByText(B.contador(0))).toBeTruthy();
+  });
+});
+

@@ -2,7 +2,7 @@
 
 import { SlidersHorizontal } from "lucide-react";
 import { FILTROS_ATENCION } from "@contapp/shared";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Button,
@@ -190,6 +190,7 @@ export function FiltrosBandeja({ valores, clientes, clienteId, alCambiar, alEleg
   const [abierto, setAbierto] = useState(false);
   const [borrador, setBorrador] = useState<ValoresFiltros>(normalizar(valores));
   const [invertidas, setInvertidas] = useState(false);
+  const botonRef = useRef<HTMLButtonElement>(null);
 
   // Cada vez que el Dialog se abre parte de lo aplicado; cerrarlo sin «Aplicar» descarta lo tocado.
   useEffect(() => {
@@ -240,11 +241,26 @@ export function FiltrosBandeja({ valores, clientes, clienteId, alCambiar, alEleg
 
   return (
     <Dialog open={abierto} onOpenChange={setAbierto}>
-      <Button type="button" variant="secundario" onClick={() => setAbierto(true)} className="h-11 self-start">
+      <Button
+        ref={botonRef}
+        type="button"
+        variant="secundario"
+        onClick={() => setAbierto(true)}
+        className="h-11 self-start"
+      >
         <SlidersHorizontal aria-hidden="true" />
         {B.abrirFiltros}
       </Button>
-      <DialogContent mostrarCerrar={false}>
+      <DialogContent
+        mostrarCerrar={false}
+        // El botón «Filtros» no es un `DialogTrigger`: al cerrar (Escape, Aplicar o Limpiar) el foco vuelve a él.
+        onCloseAutoFocus={(e) => {
+          if (botonRef.current) {
+            e.preventDefault();
+            botonRef.current.focus();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>{B.tituloFiltros}</DialogTitle>
           <DialogDescription>{B.descripcionFiltros}</DialogDescription>

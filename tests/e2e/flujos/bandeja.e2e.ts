@@ -293,4 +293,47 @@ test.describe("E-12 · bandeja de buzones", () => {
       ),
     ).toBe(true);
   });
+
+  // T15a-1 y T15a-3: con el detalle abierto (dos columnas) a 1440 y 1280 la lista se desplaza dentro de su contenedor y
+  // «Atención» se alcanza; la página no desborda. Marcar con Enter deja el foco en «Deshacer» (y deshacer, en «Marcar»).
+  for (const ancho of [1440, 1280]) {
+    test(`a ${ancho} px con el detalle abierto la lista se lee completa y el foco no se pierde al atender`, async ({
+      siembra,
+      sesiones,
+      api,
+    }) => {
+      const estudio = await siembra.estudio();
+      const llamadas = api(await sesiones.entrar(estudio.dueno));
+      const cliente = await clienteConBuzonCapturado(siembra, estudio, llamadas);
+      const { page } = await sesiones.paginaDe(estudio.dueno);
+      await page.setViewportSize({ width: ancho, height: 900 });
+      await page.goto(`/clientes/${cliente.id}/buzon?atencion=pendientes`);
+      await enlaceMensaje(page, ASUNTO_COACTIVA).click();
+      await expect(
+        page.getByRole("heading", { level: 2, name: ASUNTO_COACTIVA }),
+      ).toBeVisible();
+
+      const lista = page.getByRole("region", { name: "Mensajes del buzón SOL" });
+      const medidas = await lista.evaluate((el) => {
+        el.scrollLeft = el.scrollWidth;
+        const cabecera = el.querySelector("th:last-child")!.getBoundingClientRect();
+        const caja = el.getBoundingClientRect();
+        return {
+          pagina: document.documentElement.scrollWidth <= window.innerWidth,
+          atencionVisible: cabecera.right <= caja.right + 1 && cabecera.left >= caja.left,
+        };
+      });
+      expect(medidas.pagina).toBe(true);
+      expect(medidas.atencionVisible).toBe(true);
+
+      await campoComentario(page).fill(COMENTARIO);
+      await botonMarcar(page).focus();
+      await page.keyboard.press("Enter");
+      await expect(botonDeshacer(page)).toBeFocused();
+      await page.keyboard.press("Enter");
+      // Un crítico pide comentario para volver a marcarse: el botón queda inactivo y el foco va al cuadro del comentario.
+      await expect(botonMarcar(page)).toBeDisabled();
+      await expect(campoComentario(page)).toBeFocused();
+    });
+  }
 });

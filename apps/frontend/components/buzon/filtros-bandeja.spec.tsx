@@ -180,4 +180,18 @@ describe("<FiltrosBandeja /> · 390 px, en un Dialog (CA-11)", () => {
     await usuario.click(screen.getByRole("button", { name: B.abrirFiltros }));
     expect((within(await screen.findByRole("dialog")).getByLabelText(B.filtroLeido) as HTMLSelectElement).value).toBe("");
   });
+
+  it("al cerrar el Dialog (Escape, Aplicar o Limpiar) el foco vuelve al botón «Filtros» (T15a-2)", async () => {
+    simularPantalla("movil");
+    const { usuario } = montar();
+    const boton = () => screen.getByRole("button", { name: B.abrirFiltros });
+    for (const cierre of ["escape", B.aplicar, B.limpiar]) {
+      await usuario.click(boton());
+      const dialogo = await screen.findByRole("dialog");
+      if (cierre === "escape") await usuario.keyboard("{Escape}");
+      else await usuario.click(within(dialogo).getByRole("button", { name: cierre }));
+      await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      await vi.waitFor(() => expect(document.activeElement).toBe(boton()));
+    }
+  });
 });

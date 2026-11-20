@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { MENSAJES_BUZON as ML } from "../../lib/buzon";
-import { MENSAJES_BANDEJA as B } from "../../pruebas/bandeja";
+import { MENSAJES_BANDEJA as B, simularPantalla } from "../../pruebas/bandeja";
 import { filaBuzon } from "../../pruebas/buzon";
 import { uuidDe } from "../../pruebas/compras";
 import { ListaMensajes } from "./lista-mensajes";
@@ -11,7 +11,10 @@ import { ListaMensajes } from "./lista-mensajes";
 // defecto (`TablaReglasCliente`, 021 T23a-5): sin contenedor `overflow-x-auto` y con la etiqueta de su columna en cada
 // celda (`data-etiqueta`, que el CSS muestra como prefijo en móvil), de modo que nada queda fuera de la vista.
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe("<ListaMensajes /> · 390 px (T23a-2)", () => {
   it("cada celda lleva la etiqueta de su columna y la tabla no esconde nada tras un desplazamiento interior", () => {
@@ -66,5 +69,25 @@ describe("<ListaMensajes /> · insignia crítica a 390 px (024 CA-3, RNF-071)", 
     expect(clases).toContain("max-w-full");
     expect(clases).toContain("h-auto");
     expect(clases).not.toContain("h-6");
+  });
+});
+
+describe("<ListaMensajes /> · detalle abierto en dos columnas (T15a-1)", () => {
+  it("a partir de 768 px la tabla se desplaza dentro de su contenedor (no se corta la columna «Atención») y se alcanza con teclado", () => {
+    const { container } = render(<ListaMensajes mensajes={[filaBuzon({ id: uuidDe(23, 35) })]} />);
+    const contenedor = container.querySelector("table")!.parentElement!;
+    const clases = contenedor.className.split(/\s+/);
+    expect(clases).toContain("md:overflow-x-auto");
+    expect(clases).not.toContain("md:overflow-x-clip");
+    expect(clases).toContain("min-w-0");
+    expect(contenedor.getAttribute("tabindex")).toBe("0");
+    expect(contenedor.getAttribute("role")).toBe("region");
+    expect(contenedor.getAttribute("aria-label")).toBe(ML.tablaMensajes);
+  });
+
+  it("a 390 px el contenedor no recibe foco (la tabla va apilada y no se desplaza)", () => {
+    simularPantalla("movil");
+    const { container } = render(<ListaMensajes mensajes={[filaBuzon({ id: uuidDe(23, 36) })]} />);
+    expect(container.querySelector("table")!.parentElement!.hasAttribute("tabindex")).toBe(false);
   });
 });

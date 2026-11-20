@@ -48,6 +48,11 @@ export function AtencionMensaje({
   // no vuelve a enviar mientras el detalle se vuelve a leer.
   const [esperandoEstado, setEsperandoEstado] = useState(false);
   const enCurso = useRef(false);
+  // El botón se inactiva mientras se envía y el navegador suelta su foco (cae a `body`): si lo tenía, se le devuelve al
+  // terminar; el botón es el mismo elemento y ya dice la acción nueva («Deshacer» / «Marcar como atendido»).
+  const botonRef = useRef<HTMLButtonElement>(null);
+  const comentarioRef = useRef<HTMLTextAreaElement>(null);
+  const devolverFoco = useRef(false);
   const huellaEstado = `${atencion.estado}|${atencion.en ?? ""}|${historial.length}`;
 
   useEffect(() => setEsperandoEstado(false), [huellaEstado]);
@@ -56,6 +61,14 @@ export function AtencionMensaje({
     const t = setTimeout(() => setEsperandoEstado(false), ESPERA_ESTADO_MS);
     return () => clearTimeout(t);
   }, [esperandoEstado]);
+
+  useEffect(() => {
+    if (!devolverFoco.current || enviando || esperandoEstado) return;
+    devolverFoco.current = false;
+    const boton = botonRef.current;
+    // Si el botón sigue inactivo (p. ej. un crítico que vuelve a pedir comentario), el foco va al cuadro del comentario.
+    (boton && !boton.disabled ? boton : comentarioRef.current)?.focus();
+  });
 
   const atendido = atencion.estado === "atendido";
   const accion = atendido ? "deshacer" : "marcar";
@@ -66,6 +79,7 @@ export function AtencionMensaje({
   async function enviar() {
     if (enCurso.current || esperandoEstado || falta) return;
     enCurso.current = true;
+    devolverFoco.current = document.activeElement !== null && document.activeElement === botonRef.current;
     setEnviando(true);
     setError(null);
     try {
@@ -77,8 +91,12 @@ export function AtencionMensaje({
         alCambiar();
       } else {
         setError(textoErrorAtencion(r.status, r.datos));
-        // 409 `atencion_cambiada`: otra persona ya cambió el estado; se vuelve a leer para mostrar el vigente.
-        if (r.status === 409 && (r.datos as { codigo?: string } | null)?.codigo === "atencion_cambiada") alCambiar();
+        // 409 `atencion_cambiada`: otra persona ya cambió el estado; se vuelve a leer para mostrar el vigente. Lo escrito
+        // era para el estado anterior: no pasa al bloque nuevo.
+        if (r.status === 409 && (r.datos as { codigo?: string } | null)?.codigo === "atencion_cambiada") {
+          setComentario("");
+          alCambiar();
+        }
       }
     } catch {
       setError(textoErrorAtencion(0, null));
@@ -113,6 +131,7 @@ export function AtencionMensaje({
           <Label>
             {B.comentario}
             <Textarea
+              ref={comentarioRef}
               value={comentario}
               maxLength={LARGO_MAX_COMENTARIO_ATENCION}
               onChange={(e) => setComentario(e.target.value)}
@@ -122,6 +141,7 @@ export function AtencionMensaje({
           <p className="m-0 text-xs text-tinta-suave">{B.contador(comentario.length)}</p>
           {falta && <p className="m-0 text-sm text-error">{B.comentarioObligatorio}</p>}
           <Button
+            ref={botonRef}
             type="button"
             variant={atendido ? "secundario" : "primario"}
             disabled={enviando || esperandoEstado || falta}
