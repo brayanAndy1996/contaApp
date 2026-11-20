@@ -91,6 +91,8 @@ const ACCIONES: Record<AccionAuditoria, string> = {
   "buzon.apertura_solicitada": "Pidió abrir un mensaje del buzón SOL",
   "buzon.contenido_visto": "Vio el contenido de un mensaje del buzón SOL",
   "buzon.adjunto_descargado": "Descargó un adjunto del buzón SOL",
+  "buzon.atendido": "Marcó como atendido un mensaje del buzón SOL",
+  "buzon.atencion_deshecha": "Deshizo la atención de un mensaje del buzón SOL",
 };
 
 /** Acción en español; una clave fuera del catálogo (no debería llegar) sale genérica, nunca el código crudo. */

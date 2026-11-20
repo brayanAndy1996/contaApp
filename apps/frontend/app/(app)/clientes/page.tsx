@@ -11,6 +11,7 @@ import {
   type Yo,
 } from "../../../lib/acceso";
 import { api } from "../../../lib/api";
+import { IndicadorBuzon } from "../../../components/clientes/indicador-buzon";
 import { ETIQUETA_ESTADO, listarClientes } from "../../../lib/clientes";
 import {
   FILTROS_VACIOS,
@@ -76,7 +77,7 @@ export default function Clientes() {
   const [version, setVersion] = useState(0);
 
   const puedeVerClientes = tiene(yo, "clientes.ver");
-  const { responsable, credencial, archivados } = filtros;
+  const { responsable, credencial, archivados, conMensajesNuevos } = filtros;
 
   // La búsqueda por texto se envía un momento después de dejar de escribir.
   useEffect(() => {
@@ -92,7 +93,7 @@ export default function Clientes() {
     if (!puedeVerClientes) return;
     let vigente = true;
     listarClientes(
-      filtrosDeEstado({ responsable, credencial, archivados, q: qEnviada }),
+      filtrosDeEstado({ responsable, credencial, archivados, q: qEnviada, conMensajesNuevos }),
     )
       .then((r) => {
         if (!vigente) return;
@@ -118,6 +119,7 @@ export default function Clientes() {
     responsable,
     credencial,
     archivados,
+    conMensajesNuevos,
     qEnviada,
     version,
   ]);
@@ -197,6 +199,7 @@ export default function Clientes() {
   const asigna = tiene(yo, "clientes.asignar");
   const crea = tiene(yo, "clientes.crear");
   const archiva = tiene(yo, "clientes.archivar");
+  const verBuzon = tiene(yo, "buzon.ver");
   const activos = miembros.filter((m) => m.activo);
 
   return (
@@ -238,6 +241,7 @@ export default function Clientes() {
           valor={filtros}
           onCambio={setFiltros}
           responsables={activos}
+          conBuzon={verBuzon}
         />
       )}
       {yo && puedeVer && (
@@ -251,6 +255,7 @@ export default function Clientes() {
                   <TableHead>Razón social</TableHead>
                   <TableHead>Responsable</TableHead>
                   <TableHead>Credenciales</TableHead>
+                  {verBuzon && <TableHead>Buzón</TableHead>}
                   {archiva && <TableHead>Acciones</TableHead>}
                 </TableRow>
               </TableHeader>
@@ -294,6 +299,11 @@ export default function Clientes() {
                         )}
                       </div>
                     </TableCell>
+                    {verBuzon && (
+                      <TableCell>
+                        <IndicadorBuzon clienteId={c.id} buzon={c.buzon} />
+                      </TableCell>
+                    )}
                     {archiva && (
                       <TableCell>
                         <Link href={`/clientes/${c.id}`} className={enlace}>

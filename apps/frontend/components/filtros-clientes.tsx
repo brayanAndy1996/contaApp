@@ -9,6 +9,7 @@ import {
   OPCIONES_CREDENCIAL,
   Q_MAX,
 } from "../lib/clientes";
+import { MENSAJES_BANDEJA } from "../lib/buzon";
 import { Input, Label, Select } from "./ui";
 
 // Filtros del listado de clientes (spec 007a, D7). Controlado: el padre decide cuándo pedir los datos
@@ -19,6 +20,8 @@ export interface EstadoFiltros {
   credencial: EstadoCredencial | "";
   archivados: boolean;
   q: string;
+  /** Spec 024 (D-9): solo clientes con mensajes pendientes en el buzón. Requiere `buzon.ver`. */
+  conMensajesNuevos: boolean;
 }
 
 export const FILTROS_VACIOS: EstadoFiltros = {
@@ -26,6 +29,7 @@ export const FILTROS_VACIOS: EstadoFiltros = {
   credencial: "",
   archivados: false,
   q: "",
+  conMensajesNuevos: false,
 };
 
 /** Filtros de la API a partir del estado de la pantalla (omite los vacíos). */
@@ -35,6 +39,7 @@ export function filtrosDeEstado(estado: EstadoFiltros): FiltrosApi {
     ...(estado.credencial ? { credencial: estado.credencial } : {}),
     ...(estado.archivados ? { archivados: true } : {}),
     ...(estado.q.trim() ? { q: estado.q.trim() } : {}),
+    ...(estado.conMensajesNuevos ? { conMensajesNuevos: true } : {}),
   };
 }
 
@@ -42,9 +47,11 @@ interface Props {
   valor: EstadoFiltros;
   onCambio: (siguiente: EstadoFiltros) => void;
   responsables: { usuarioId: string; nombre: string }[];
+  /** Con `buzon.ver`: ofrece «Con mensajes nuevos» (sin el permiso, la API respondería 403). */
+  conBuzon?: boolean;
 }
 
-export function FiltrosClientes({ valor, onCambio, responsables }: Props) {
+export function FiltrosClientes({ valor, onCambio, responsables, conBuzon = false }: Props) {
   return (
     <div className="flex flex-wrap items-end gap-3">
       <Label className="w-full sm:w-auto">
@@ -103,6 +110,17 @@ export function FiltrosClientes({ valor, onCambio, responsables }: Props) {
         />
         Mostrar archivados
       </Label>
+      {conBuzon && (
+        <Label className="min-h-10 flex-row items-center gap-2 font-normal text-tinta max-lg:min-h-11">
+          <input
+            type="checkbox"
+            checked={valor.conMensajesNuevos}
+            onChange={(e) => onCambio({ ...valor, conMensajesNuevos: e.target.checked })}
+            className="size-5 cursor-pointer accent-primario max-lg:size-6"
+          />
+          {MENSAJES_BANDEJA.filtroConMensajesNuevos}
+        </Label>
+      )}
     </div>
   );
 }

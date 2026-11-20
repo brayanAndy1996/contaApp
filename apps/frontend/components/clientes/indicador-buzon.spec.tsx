@@ -97,7 +97,7 @@ const CON_BUZON = [
   clienteDe({ id: "c-1", ruc: "20100000009", razonSocial: "Alfa SAC", buzon: { nuevos: 4, criticosNuevos: 1 } }),
   clienteDe({ id: "c-2", ruc: "20600000005", razonSocial: "Beta SRL", buzon: { nuevos: 0, criticosNuevos: 0 } }),
 ];
-const SIN_BUZON = CON_BUZON.map(({ buzon: _omitido, ...cliente }) => cliente);
+const SIN_BUZON = CON_BUZON.map((c) => Object.fromEntries(Object.entries(c).filter(([clave]) => clave !== "buzon")));
 
 function rutas(permisos: string[], clientes: unknown[], extra: Record<string, Manejador> = {}) {
   return {
