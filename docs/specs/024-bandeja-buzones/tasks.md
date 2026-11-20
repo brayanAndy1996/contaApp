@@ -127,6 +127,38 @@ Reglas comunes:
 - **Hacer**: cada CA con su evidencia (prueba o comando); suites de `domain` (incluida `ronda2b.adv.spec.ts`, sin cambios de exports), `shared`, `db`, `backend`, `worker`, `frontend`, `test:aislamiento`, `tests/limites`, typecheck, lint, `pnpm db:migrate` ×2, `pnpm cobertura:bandeja`, `pnpm cobertura:buzon`, `pnpm ci:db` y `pnpm e2e`.
 - **Hecho cuando**: tabla CA → evidencia → OK/falta en el resultado; todo en verde o la lista de lo que falta.
 
+**Resultado de T16 (tester · sonnet, 2026-11-20, rama `spec/024-bandeja-buzones` en 06dd107)**
+
+Entorno: BD propia `contapp_024t16` creada, `pnpm db:migrate` ×2 (61 migraciones, la 2.ª «sin cambios»; `buzon_atencion` existe) y `db:seed` OK. Sin tocar `contapp` ni `contapp_e2e`. Dependencias de `@contapp/*` construidas.
+
+| CA | Evidencia (todo ejecutado en esta tarea y en verde, salvo lo indicado) | Estado |
+| -- | -------------------------------------------------------------------- | ------ |
+| CA-1 | `bandeja.int.spec.ts:225` (15 de 120, Lectura, responsable también Dueño), `:282` (403 sin `buzon.ver`), `:575-618` (atender/desasignar a mitad del recorrido); `packages/db/src/buzon/bandeja.spec.ts:246-380` y `:645-692` | OK |
+| CA-2 | `bandeja.int.spec.ts:349` (tabla de casos vs oráculo), `:407-428` (orden y recorrido completo), `:441-563` (cursor); `bandeja.adv.int.spec.ts:199-332`; `cursor.spec.ts`; `bandeja.spec.tsx:128-160` (abre en «Pendientes», «Críticos pendientes» en un toque) | OK |
+| CA-3 | `lista-mensajes.spec.tsx:182`, `lista-mensajes-t23a.spec.tsx:61` (390 px), `indicador-buzon.spec.tsx:51` (críticos en rojo con texto en clientes); E2E `bandeja.e2e.ts:241` (390) y `:300` (1440 y 1280) | OK |
+| CA-4 | `atencion.int.spec.ts:104-225` (usuario, fecha y comentario; `comentario_requerido` 400; `leido_sunat` y sin SUNAT/trabajos `:159-185`); `buzon-atencion-funcion.spec.ts:644-665` (captura posterior en `buzon-atencion-concurrencia.spec.ts:274`); `atencion-mensaje.spec.tsx:146`; E2E `bandeja.e2e.ts:88` | OK |
+| CA-5 | `atencion.int.spec.ts:226-272` (deshacer por otra persona, U-2); `buzon-atencion-funcion.spec.ts:367,533` (tres eventos en orden, auditoría sin texto); `buzon-atencion-tablas.spec.ts:272-465` (UPDATE/DELETE del historial 42501, grants, estado sin evento); `detalle-atencion.int.spec.ts:118` | OK |
+| CA-6 | `atencion.int.spec.ts:322-405` (Lectura 403, 404 igual que inexistente); `atencion-mensaje.spec.tsx:87-115` (Lectura sin botones) | OK |
+| CA-7 | `atencion.int.spec.ts:274-320` (409 `atencion_cambiada`, un solo evento), `:454-600` (lote 100/101, ajeno 404, omitidos, crítico sin comentario); `buzon-atencion-concurrencia.spec.ts:76,167,234,311`; `bandeja.adv.int.spec.ts:332-455` | OK |
+| CA-8 | `indicador-buzon.int.spec.ts:84,155,204` (HTTP: números, filtro, sin `buzon.ver` no viaja); `packages/db/src/buzon/indicador.spec.ts:62,247`; `indicador-buzon.spec.tsx:113`; E2E `bandeja.e2e.ts:88` (el indicador baja y vuelve) | OK |
+| CA-9 | `bandeja.rendimiento.int.spec.ts:87` (siembra 2.000 clientes / 100.000 mensajes), `:124` y `:157` (p95 < 300 ms, aserción activa fuera de cobertura; pasó en `backend test:int`), `:221-320` (ningún `Seq Scan` sobre `buzon_mensaje`, indicador en una consulta). No se registran los milisegundos: la prueba solo informa si falla | OK |
+| CA-10 | `buzon-atencion-tablas.spec.ts:87,466,549` (RLS FORCE, FK compuesta, sin `withTenant` 0 filas); `catalogo.spec.ts:195`; `escalada.adv.spec.ts:114-115`; `atencion.int.spec.ts:364`; `detalle-atencion.int.spec.ts:190`; `hu40-api.int.spec.ts` (rutas nuevas) | OK |
+| CA-11 | `bandeja.spec.tsx:382`, `filtros-bandeja.spec.tsx:138`, `menu-principal-024.spec.tsx:37-75`, `atencion-mensaje.spec.tsx:251,265`, fuente sin `dangerouslySetInnerHTML` en `bandeja/atencion-mensaje/atender-lote/indicador-buzon`; `diseno.estatico.spec.ts` verde en `frontend test`; E2E `bandeja.e2e.ts:241,278,300`; foco en `atencion-mensaje.spec.tsx:325` y `filtros-bandeja.spec.tsx:184`. Contraste AA y 44 px: cubiertos por T15 (manual), no medidos de nuevo aquí | OK |
+| CA-12 | `buzon-critico-024.spec.tsx:50,55`; `atencion.int.spec.ts:600` (no crea ni marca notificaciones); `buzon-atencion-funcion.spec.ts:644`; E2E `bandeja.e2e.ts:88` (campana → bandeja con el detalle abierto) | OK |
+| CA-13 | `buzon-atencion-tablas.spec.ts:594-710` (29/31 días, cliente ya sincronizado, el worker manda otra cosa y el trigger lo ignora) y `:710` (migración 0059 sobre filas de 023 = `NOT avisado` en críticos) | OK |
+| CA-14 | Ver «Fallos»: `backend test:int` con 2 pruebas en rojo y `cobertura:buzon` (023) roto por 024 | **NO** |
+
+Suites (cada una desde la raíz, con la BD `contapp_024t16`):
+- `domain` 2.820 (+3 todo; incluye `ronda2b.adv.spec.ts`, sin cambios de exports), `shared` 2.564, `db` 1.215, `backend` (unit) 1.300, `worker` (unit) 460, `frontend` 1.189, `tests/limites` 347, `test:aislamiento` 2.961, `worker test:int` 439: todas verdes.
+- `typecheck` (18 tareas) y `lint` (11 tareas, `--max-warnings=0`): verdes.
+- `pnpm e2e` (con `E2E_CORREO=consola`, `--trace off`): 95 pasaron, exit 0 (incluye `bandeja.e2e.ts` ×5 y `buzon.e2e.ts`; los ✘ de `soporte.e2e.ts:147-187` son pruebas de «la vigilancia hace fallar», esperadas).
+- `pnpm cobertura:bandeja`: db 6 archivos / 202 pruebas y backend 247 pruebas; todo ≥ 90 % por archivo (db: líneas 100, ramas 95; `bandeja.ts` ramas 93,75 en 216, 268, 304. backend: líneas 100, ramas 98,82; `atencion.service.ts` 98,03 / 95,83). OK.
+- `pnpm ci:db`: no se corrió como un solo comando; sus pasos se corrieron por separado (migrate ×2, seed, aislamiento, `worker test:int`, `backend test:int`) y el último falla (abajo).
+
+Fallos (CA-14 no se cumple; no se corrigió nada):
+1. `apps/backend/src/modules/acceso/permisos.int.spec.ts:176` (`GET /acceso/yo ... 22 / 21 / 12 / 7 / 4`): «expected length 22 but got 23», y `:202` (asistente «7» recibe 8). La prueba de 005 quedó con la cuenta anterior a `buzon.atender`; los valores actuales de `PERMISOS_POR_ROL` son dueno 23, admin 22, contador 13, asistente 8, lectura 4 (`permisos-024.spec.ts:15` y `permisos.spec.ts:73` ya usan 23). Corrección: actualizar esas cifras, en las dos pruebas y en el título (T17b).
+2. `pnpm cobertura:buzon` (023) ahora sale con error por 024: `packages/db/src/buzon/soporte-prueba.ts` (soporte de pruebas nuevo de 024, 611 líneas dentro de la carpeta medida por `packages/db/vitest.cobertura-buzon.config.mts:56`) tiene funciones 86,84 % < 90 %; y `apps/backend/src/modules/buzon/lectura.service.ts` ramas 86,36 % < 90 % (la rama nueva de `lectura.service.ts:69`, `atencion === null`, solo la cubren las pruebas de 024). Los paquetes `domain`, `sunat` y `worker` de `cobertura:buzon` pasan. Corrección posible, a decidir: excluir `soporte-prueba.ts` en la config de 023 y añadir `detalle-atencion.int.spec.ts` a la de 023 (o fijar la rama con una prueba).
+
 ## T17 · [ ] Revisión final (arquitecto · opus)
 - **Contexto (leer solo esto)**: `spec.md`, `plan.md`, resultados de T11, T15 y T16, `git diff` de la rama desde `8538750` limitado a 0059–0061, `packages/db/src/buzon/{bandeja,atencion,indicador}.ts` y `apps/backend/src/modules/buzon/{bandeja.service,atencion.service,cursor}.ts`.
 - **Hacer**: comprobar cada CA con su evidencia, los desvíos del plan (ratificar o rechazar con motivo) y las decisiones U-1 a U-3 tal como quedaron. Defectos → T17a (pruebas en rojo, tester · sonnet) y T17b (corrección, backend · opus).
