@@ -190,6 +190,23 @@ describe("CA-3 catalogo de RLS", () => {
     }
   });
 
+  // Spec 024 (T2, D-5, CA-10, rojo hasta la migracion 0059): el historial de atencion del buzon entra al catalogo con tenant_id
+  // uuid NOT NULL, RLS ENABLE + FORCE y la politica tenant_isolation FOR ALL (las pruebas anteriores la recorren sola); no es de plataforma.
+  it("buzon_atencion (024) esta en el catalogo de tablas con tenant_id, con RLS ENABLE y FORCE y tenant_isolation FOR ALL", async () => {
+    const fila = (await tablasConTenantId()).find((x) => x.tabla === "buzon_atencion");
+    expect(fila, "buzon_atencion en el catalogo").toBeDefined();
+    expect({ rls: fila!.rls, forzada: fila!.forzada, no_nula: fila!.no_nula, tipo: fila!.tipo }, "buzon_atencion").toEqual({
+      rls: true,
+      forzada: true,
+      no_nula: true,
+      tipo: "uuid",
+    });
+    const p = (await politicas()).find((x) => x.tablename === "buzon_atencion" && x.policyname === "tenant_isolation");
+    expect(p?.cmd).toBe("ALL");
+    expect(p?.qual).toContain("app.tenant_id");
+    expect(p?.with_check).toContain("app.tenant_id");
+  });
+
   it("tenant_id es uuid NOT NULL en toda tabla de negocio", async () => {
     const tablas = await tablasConTenantId();
     expect(tablas.length).toBeGreaterThan(0);

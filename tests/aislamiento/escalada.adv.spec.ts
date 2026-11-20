@@ -109,6 +109,10 @@ const FUNCIONES_017: { firma: string; dueno: string }[] = [
   { firma: "buzon_mensaje_aviso()", dueno: MIGRATOR },
   { firma: "auditoria_capturar_buzon_contenido()", dueno: MIGRATOR },
   { firma: "interno.destinatarios_cliente(uuid,uuid)", dueno: MIGRATOR },
+  // Spec 024 (T2, rojo hasta las migraciones 0059-0060 de T7): la función acotada de la atención del buzón (EXECUTE solo
+  // contapp_backend) y el trigger que fija histórico y deja en blanco el estado de atención al insertar (D-5, D-12).
+  { firma: "buzon_atencion_aplicar(uuid,uuid[],text,text)", dueno: MIGRATOR },
+  { firma: "buzon_mensaje_atencion_inicial()", dueno: MIGRATOR },
 ];
 const nombre017 = (f: string) => (f.includes(".") && f.indexOf(".") < f.indexOf("(") ? f : `public.${f}`).replace(/\(.*$/, "");
 
