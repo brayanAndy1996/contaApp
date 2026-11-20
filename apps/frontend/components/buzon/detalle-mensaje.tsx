@@ -19,6 +19,7 @@ import {
 import { MENSAJES, mensajeDeError, usePuede } from "../../lib/acceso";
 import { AtencionMensaje } from "./atencion-mensaje";
 import {
+  BADGE_PARTE_LINEA,
   MENSAJES_BUZON as M,
   PERMISO_BUZON_MARCAR_LEIDO,
   abrirMensaje,
@@ -195,7 +196,7 @@ export function DetalleMensaje({
           <h2 className="m-0 break-words font-titulo text-lg font-bold">{mensaje.asunto}</h2>
           <p className="m-0 break-words text-sm text-tinta-media">{mensaje.remitente}</p>
           <div className="flex flex-wrap items-center gap-2 text-sm text-tinta-suave">
-            {mensaje.critico && <Badge tono="error">{M.critico(etiquetaCategoria(mensaje.categoria))}</Badge>}
+            {mensaje.critico && <Badge tono="error" className={BADGE_PARTE_LINEA}>{M.critico(etiquetaCategoria(mensaje.categoria))}</Badge>}
             <span>{fechaHoraLima(mensaje.fecha)}</span>
           </div>
         </header>

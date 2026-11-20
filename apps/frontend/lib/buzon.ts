@@ -45,6 +45,9 @@ export type {
   RevisarBuzonRespuesta,
 };
 
+/** La insignia «Crítico · <categoría>» puede partir línea: a 390 px no ensancha la tarjeta apilada (RNF-071). */
+export const BADGE_PARTE_LINEA = "h-auto min-h-6 max-w-full whitespace-normal break-words py-0.5 text-left";
+
 export const PERMISO_BUZON_VER = "buzon.ver";
 export const PERMISO_BUZON_MARCAR_LEIDO = "buzon.marcar_leido";
 export const PERMISO_BUZON_ATENDER = "buzon.atender";

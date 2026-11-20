@@ -54,3 +54,17 @@ describe("<ListaMensajes /> · 390 px con cliente (024 T5)", () => {
     expect(fila.className).toContain("max-md:flex-col");
   });
 });
+
+describe("<ListaMensajes /> · insignia crítica a 390 px (024 CA-3, RNF-071)", () => {
+  it("la insignia «Crítico · <categoría>» puede partir línea: sin nowrap y sin ancho que ensanche la tarjeta", () => {
+    render(<ListaMensajes mensajes={[filaBuzon({ id: uuidDe(23, 34), critico: true })]} />);
+    const insignia = screen.getByText(/^Crítico · /);
+    expect(insignia.getAttribute("data-slot")).toBe("badge");
+    const clases = insignia.className.split(/\s+/);
+    expect(clases).toContain("whitespace-normal");
+    expect(clases).not.toContain("whitespace-nowrap");
+    expect(clases).toContain("max-w-full");
+    expect(clases).toContain("h-auto");
+    expect(clases).not.toContain("h-6");
+  });
+});

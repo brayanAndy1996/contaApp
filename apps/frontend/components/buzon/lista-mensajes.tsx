@@ -11,6 +11,7 @@ import {
 } from "../ui";
 import { fechaHoraLima } from "../../lib/fechas";
 import {
+  BADGE_PARTE_LINEA,
   MENSAJES_BANDEJA as B,
   MENSAJES_BUZON as M,
   etiquetaAtencion,
@@ -116,7 +117,7 @@ export function ListaMensajes({
                   </Link>
                 </TableCell>
                 <TableCell data-etiqueta={M.columnas.categoria} className={CELDA}>
-                  <Badge tono={m.critico ? "error" : "neutro"}>{m.critico ? M.critico(categoria) : categoria}</Badge>
+                  <Badge tono={m.critico ? "error" : "neutro"} className={BADGE_PARTE_LINEA}>{m.critico ? M.critico(categoria) : categoria}</Badge>
                 </TableCell>
                 <TableCell data-etiqueta={M.columnas.fecha} className={cn(CELDA, "md:whitespace-nowrap")}>
                   {fechaHoraLima(m.fecha)}

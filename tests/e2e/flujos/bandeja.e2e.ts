@@ -273,15 +273,13 @@ test.describe("E-12 · bandeja de buzones", () => {
     await expect(filaMensaje(page, ASUNTO_COACTIVA)).toHaveCount(1);
   });
 
-  // DEFECTO DE PRODUCCIÓN (CA-3 a 390 px): la insignia «Crítico · <categoría>» es `whitespace-nowrap` y, con una categoría
-  // larga («Crítico · Requerimiento de fiscalización»), ensancha la tarjeta apilada y la página se desplaza en
-  // horizontal (scrollWidth 405 > 390). Cuando se corrija, esta prueba pasará y `test.fail()` avisará para quitarlo.
-  test("a 390 × 844 la página no se desplaza en horizontal (defecto conocido: insignia crítica con nowrap)", async ({
+  // CA-3 a 390 px: la insignia «Crítico · <categoría>» parte línea y, con una categoría larga («Crítico · Requerimiento
+  // de fiscalización»), no ensancha la tarjeta apilada (antes `whitespace-nowrap` desplazaba la página: scrollWidth 405).
+  test("a 390 × 844 la página no se desplaza en horizontal", async ({
     siembra,
     sesiones,
     api,
   }) => {
-    test.fail();
     const estudio = await siembra.estudio();
     const llamadas = api(await sesiones.entrar(estudio.dueno));
     await clienteConBuzonCapturado(siembra, estudio, llamadas);
