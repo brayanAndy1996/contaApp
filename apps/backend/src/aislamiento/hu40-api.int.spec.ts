@@ -16,6 +16,10 @@
 // de la asistente), su auditoría y un descifrado sembrados por SQL; los ids de B y sus razones sociales son marcas de fuga. Un usuario
 // de A, con los ids, el usuarioId o el tenantId de B en URL, consulta o cuerpo, recibe 404/400/403 o su propia lista, y las notificaciones
 // y la auditoría de B quedan intactas. Rojo hasta T10 (rutas) y T7 (tablas): hasta entonces los casos nuevos fallan, los demás no.
+// 024 (T4) agrega las 3 rutas de la bandeja (`GET /buzon/mensajes`, `POST /buzon/atencion` y `POST /clientes/:clienteId/buzon/mensajes/
+// :mensajeId/atencion`) y amplía `GET /clientes` con el indicador `buzon` y el filtro `conMensajesNuevos`: ids de B, solos o mezclados
+// con los propios, dan 404 (400 si el parámetro o el cursor no es del contrato) y nada de B en la respuesta; `buzon_mensaje`,
+// `buzon_atencion` y la auditoría de ambos estudios quedan intactos. Rojo hasta T7 (tablas y columnas) y T8 (rutas).
 // 006 (T3) agrega los casos de `/registro/*`, `GET /plan/uso` y las 6 rutas `/plataforma/*` (CA-8): los usuarios de A
 // (ninguno super-admin) con IDs, tokens y correos de B. Rojo hasta T7 (uso), T8 (registro) y T9 (plataforma).
 import { createHash, randomBytes, randomUUID } from "node:crypto";
@@ -409,6 +413,14 @@ async function instantanea(
       "select to_jsonb(g) j from buzon_estado_cliente g where tenant_id = $1 and cliente_id = any($2::uuid[]) order by cliente_id",
       [r.tenantId, r.clientes],
     ),
+    // 024: historial de atención (0059). Mientras la tabla no exista (rojo) la instantánea no la incluye y no rompe los casos de 004 a 023.
+    buzon_atencion: await q(
+      "select to_jsonb(g) j from buzon_atencion g where tenant_id = $1 and cliente_id = any($2::uuid[]) order by id",
+      [r.tenantId, r.clientes],
+    ).catch((e: { code?: string }) => {
+      if (e.code === "42P01") return [];
+      throw e;
+    }),
   };
   if (completo) {
     s.usuario = await q(
@@ -1007,6 +1019,25 @@ async function buzonIntacto(r: Recursos): Promise<void> {
   expect(a).toEqual([{ nombre: r.nombreAdjunto, omitido: "mime" }]);
 }
 
+/** 024: el mensaje sembrado de `r` sigue pendiente (sin atención ni marca de histórico) y sus clientes no tienen eventos de atención. */
+async function atencionIntacta(r: Recursos): Promise<void> {
+  const m = await h.sql("select atendido_en, atendido_por, historico from buzon_mensaje where id = $1", [r.mensajeId]);
+  expect(m).toEqual([{ atendido_en: null, atendido_por: null, historico: false }]);
+  const e = await h.sql("select count(*)::int n from buzon_atencion where tenant_id = $1 and cliente_id = any($2::uuid[])", [r.tenantId, r.clientes]);
+  expect(e[0].n).toBe(0);
+}
+const CANARIO_ATENCION = "CANARIO-hu40-atencion-comentario";
+/** Ningún estudio guardó el texto del comentario (ni en la auditoría ni en el historial). */
+async function sinCanarioDeAtencion(): Promise<void> {
+  const aud = await h.sql("select count(*)::int n from auditoria where datos::text like $1", [`%${CANARIO_ATENCION}%`]);
+  expect(aud[0].n).toBe(0);
+  const ev = await h.sql("select count(*)::int n from buzon_atencion where comentario like $1", [`%${CANARIO_ATENCION}%`]);
+  expect(ev[0].n).toBe(0);
+}
+/** Cursor armado a mano con el formato del plan 024 (`{v, f, i, h}`) y el id de un mensaje de B como posición. */
+const cursorConId = (id: string): string =>
+  Buffer.from(JSON.stringify({ v: 1, f: "2026-11-19T12:00:00.000000Z", i: id, h: "0000000000000000" }), "utf8").toString("base64url");
+
 /** Pares (cliente, mensaje) con ids del otro estudio solos y mezclados con los propios; ninguno existe para quien llama. */
 const paresDeMensaje = (c: Contexto): [string, string][] => [
   [c.ajeno.clientes[0], c.ajeno.mensajeId], // todo ajeno y real
@@ -1150,6 +1181,117 @@ function casosBuzon(): Caso[] {
           [[...c.mio.clientes, ...c.ajeno.clientes]],
         );
         expect(n[0].n).toBe(0); // ningún «revisar» encolado
+      },
+    },
+    /* ---------- 024: bandeja unificada y atención ---------- */
+    {
+      // La ruta no lleva ids en la URL: el alcance lo aplica la consulta. Con la query de B (clienteId, tenantId, un cursor con un
+      // mensaje de B) es 400; sin ella, solo las filas propias: nunca el mensaje, el cliente ni el asunto de B.
+      ruta: "GET /buzon/mensajes",
+      esperado: todos(200, 400),
+      construir: (c) => [
+        { ruta: "/buzon/mensajes" },
+        { ruta: "/buzon/mensajes?atencion=todos&archivados=1&limite=100" },
+        { ruta: `/buzon/mensajes?clienteId=${c.ajeno.clientes[0]}` },
+        { ruta: `/buzon/mensajes?tenantId=${c.ajeno.tenantId}&clienteId=${c.ajeno.clientes[1]}&atencion=todos` },
+        { ruta: `/buzon/mensajes?cursor=${cursorConId(c.ajeno.mensajeId)}` },
+        { ruta: "/buzon/mensajes?responsable=yo&atencion=pendientes" },
+      ],
+      antes: registrarAuditoriaBuzonAntes,
+      extra: async (c, respuestas) => {
+        const [base, todos, conCliente, conTenant, conCursor, responsable] = respuestas as [Resp, Resp, Resp, Resp, Resp, Resp];
+        for (const r of [conCliente, conTenant]) {
+          expect(r.status, r.text).toBe(400);
+          expect(r.body).toEqual({ codigo: "solicitud_invalida" });
+        }
+        expect(conCursor.status, conCursor.text).toBe(400);
+        expect(conCursor.body).toEqual({ codigo: "cursor_invalido" });
+        const deB = new Set<string>(c.ajeno.clientes);
+        for (const r of [base, todos, responsable]) {
+          expect(r.status, r.text).toBe(200);
+          expect(Array.isArray(r.body.mensajes), r.text).toBe(true);
+          for (const f of r.body.mensajes as any[]) expect(deB.has(f.cliente.id), `cliente ${f.cliente.id} es del otro estudio`).toBe(false);
+          expect(JSON.stringify(r.body)).not.toContain(c.ajeno.mensajeId);
+        }
+        // Control no vacío: el mensaje propio sí está, con la forma de la bandeja (la asistente solo ve su cliente asignado).
+        const fila = (base.body.mensajes as any[]).find((f) => f.id === c.mio.mensajeId);
+        expect(fila, "falta el mensaje propio en la bandeja").toBeDefined();
+        expect(fila.cliente).toMatchObject({ id: c.mio.clientes[0], archivado: false });
+        expect(fila.atencion).toEqual({ estado: "pendiente", por: null, en: null });
+        if (c.yo.rol === "asistente") for (const f of base.body.mensajes as any[]) expect(f.cliente.id).toBe(c.mio.clientes[0]);
+        await buzonIntacto(c.ajeno);
+        await buzonIntacto(c.mio);
+        expect(await auditoriaBuzon(c.ajeno.tenantId)).toBe(auditoriaBuzonAntes!.ajeno);
+      },
+    },
+    {
+      // Lote: un id de B (o inexistente), solo o junto a uno propio, da el mismo 404 a todo el lote sin cambiar nada; la query de B
+      // en el cuerpo y `accion` (no se deshace en lote) son 400. El comentario no se guarda en ninguna parte.
+      ruta: "POST /buzon/atencion",
+      esperado: todos(400, 404),
+      construir: (c) => [
+        { metodo: "POST" as const, ruta: "/buzon/atencion", cuerpo: { mensajes: [c.ajeno.mensajeId], comentario: CANARIO_ATENCION } },
+        { metodo: "POST" as const, ruta: "/buzon/atencion", cuerpo: { mensajes: [c.mio.mensajeId, c.ajeno.mensajeId], comentario: CANARIO_ATENCION } },
+        { metodo: "POST" as const, ruta: "/buzon/atencion", cuerpo: { mensajes: [c.ajeno.mensajeId, randomUUID()], comentario: CANARIO_ATENCION } },
+        { metodo: "POST" as const, ruta: "/buzon/atencion", cuerpo: { mensajes: [c.ajeno.asignacionId, c.ajeno.mensajeId] } },
+        { metodo: "POST" as const, ruta: "/buzon/atencion", cuerpo: { mensajes: [randomUUID()] } },
+        {
+          metodo: "POST" as const,
+          ruta: "/buzon/atencion",
+          cuerpo: { mensajes: [c.ajeno.mensajeId], tenantId: c.ajeno.tenantId, clienteId: c.ajeno.clientes[0] },
+        },
+        { metodo: "POST" as const, ruta: "/buzon/atencion", cuerpo: { mensajes: [c.mio.mensajeId], accion: "deshacer" } },
+      ],
+      antes: registrarAuditoriaBuzonAntes,
+      extra: async (c, respuestas) => {
+        const inexistente = respuestas[4]!;
+        expect(inexistente.status, inexistente.text).toBe(404);
+        expect(inexistente.body).toEqual(NO_ENCONTRADO);
+        for (const r of respuestas.slice(0, 4)) {
+          expect(r.status, r.text).toBe(404);
+          expect(r.body).toEqual(NO_ENCONTRADO);
+          expect(r.text).toBe(inexistente.text);
+        }
+        for (const r of respuestas.slice(5)) {
+          expect(r.status, r.text).toBe(400);
+          expect(r.body).toEqual({ codigo: "solicitud_invalida" });
+        }
+        await atencionIntacta(c.ajeno);
+        await atencionIntacta(c.mio);
+        await buzonIntacto(c.ajeno);
+        await buzonIntacto(c.mio);
+        expect({ mio: await auditoriaBuzon(c.mio.tenantId), ajeno: await auditoriaBuzon(c.ajeno.tenantId) }).toEqual(auditoriaBuzonAntes);
+        await sinCanarioDeAtencion();
+      },
+    },
+    {
+      // Individual: los pares de ids de B (solos, cruzados con los propios, de otra cosa de B o inexistentes) dan el 404 de un cliente
+      // inexistente, tanto al marcar como al deshacer, sin evento ni auditoría en ningún estudio.
+      ruta: "POST /clientes/:clienteId/buzon/mensajes/:mensajeId/atencion",
+      esperado: todos(404),
+      construir: (c) =>
+        paresDeMensaje(c).flatMap(([cl, m]) =>
+          (["marcar", "deshacer"] as const).map((accion) => ({
+            metodo: "POST" as const,
+            ruta: `/clientes/${cl}/buzon/mensajes/${m}/atencion`,
+            cuerpo: { accion, comentario: CANARIO_ATENCION },
+          })),
+        ),
+      antes: registrarAuditoriaBuzonAntes,
+      extra: async (c, respuestas) => {
+        await verificar404(c, respuestas, true);
+        await atencionIntacta(c.ajeno);
+        await atencionIntacta(c.mio);
+        await sinCanarioDeAtencion();
+        // Control no vacío: el detalle del mensaje propio trae la atención pendiente y un historial vacío.
+        const propio = await c.pedir({ ruta: `/clientes/${c.mio.clientes[0]}/buzon/mensajes/${c.mio.mensajeId}` });
+        expect(propio.status, propio.text).toBe(200);
+        expect(propio.body.atencion).toEqual({ estado: "pendiente", por: null, en: null, comentario: null });
+        expect(propio.body.historial).toEqual([]);
+        // Y el detalle de un mensaje de B bajo un cliente propio sigue siendo el mismo 404 (sin historial de B).
+        const cruzado = await c.pedir({ ruta: `/clientes/${c.mio.clientes[0]}/buzon/mensajes/${c.ajeno.mensajeId}` });
+        expect(cruzado.status, cruzado.text).toBe(404);
+        expect(cruzado.body).toEqual(NO_ENCONTRADO);
       },
     },
   ];
@@ -1430,7 +1572,30 @@ const CASOS: Caso[] = [
     construir: (c) => [
       { ruta: "/clientes" },
       { ruta: `/clientes?tenantId=${c.ajeno.tenantId}` },
+      // 024 (D-9): indicador `buzon` y filtro «con mensajes nuevos»; la query de B no cambia el alcance ni los conteos.
+      { ruta: "/clientes?conMensajesNuevos=1" },
+      { ruta: `/clientes?conMensajesNuevos=1&tenantId=${c.ajeno.tenantId}&q=${encodeURIComponent("HU40")}` },
+      { ruta: "/clientes?conMensajesNuevos=1&archivados=1" },
     ],
+    extra: async (c, respuestas) => {
+      const [todos, conTenant, conFiltro, conFiltroYTenant, conArchivados] = respuestas as [Resp, Resp, Resp, Resp, Resp];
+      const deB = new Set<string>(c.ajeno.clientes);
+      for (const r of [todos, conTenant]) {
+        for (const f of lista(r)) {
+          expect(deB.has(f.id), `cliente ${f.id} es del otro estudio`).toBe(false);
+          expect(f.buzon, `${f.razonSocial} sin indicador`).toEqual({ nuevos: expect.any(Number), criticosNuevos: expect.any(Number) });
+        }
+      }
+      // El cliente con el mensaje sembrado (pendiente, no crítico, de hace un día) cuenta uno; nada de B suma.
+      const conMensaje = lista(todos).find((f) => f.id === c.mio.clientes[0]);
+      expect(conMensaje, "falta el cliente propio con mensaje").toBeDefined();
+      expect(conMensaje.buzon).toEqual({ nuevos: 1, criticosNuevos: 0 });
+      for (const r of [conFiltro, conFiltroYTenant, conArchivados]) {
+        expect(r.status, r.text).toBe(200);
+        expect(lista(r).map((f) => f.id)).toEqual([c.mio.clientes[0]]);
+        expect(lista(r)[0].buzon).toEqual({ nuevos: 1, criticosNuevos: 0 });
+      }
+    },
   },
   {
     ruta: "GET /clientes/:clienteId",

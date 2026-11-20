@@ -154,6 +154,12 @@ jobs:
           CORREO_PROVIDER: consola
           APP_ORIGIN: http://localhost:3000
 
+      - name: Cobertura de 024 bandeja de buzones en db y backend (umbral 90 % por archivo)
+        run: pnpm cobertura:bandeja
+        env:
+          CORREO_PROVIDER: consola
+          APP_ORIGIN: http://localhost:3000
+
       - name: Cobertura de packages/db (umbral 90 %)
         run: pnpm cobertura:db
 

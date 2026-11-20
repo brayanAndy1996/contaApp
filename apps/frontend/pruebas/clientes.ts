@@ -50,6 +50,8 @@ export function clienteDe(
       sol: EstadoCredencialPrueba;
       sire_api: EstadoCredencialPrueba;
     };
+    /** 024 (D-9): solo viaja con `buzon.ver`; sin él, el campo no existe. */
+    buzon: { nuevos: number; criticosNuevos: number };
   }> = {},
 ) {
   return {
@@ -65,5 +67,6 @@ export function clienteDe(
       sol: "no_configurada",
       sire_api: "no_configurada",
     },
+    ...(parcial.buzon ? { buzon: parcial.buzon } : {}),
   };
 }

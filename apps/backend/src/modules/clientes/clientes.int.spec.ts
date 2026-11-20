@@ -48,7 +48,7 @@ describe("CA-5 · lo que ve cada rol (HU-08)", () => {
     const nombres = r.body.map((x: any) => x.razonSocial);
     expect(nombres).toEqual([...nombres].sort());
     // 007a: el listado devuelve el ClienteDto completo (responsable = {id, nombre}).
-    expect(Object.keys(r.body[0]).sort()).toEqual(["archivado", "condicionContribuyente", "credenciales", "estadoContribuyente", "id", "perfil", "razonSocial", "responsable", "ruc"]);
+    expect(Object.keys(r.body[0]).sort()).toEqual(["archivado", "buzon", "condicionContribuyente", "credenciales", "estadoContribuyente", "id", "perfil", "razonSocial", "responsable", "ruc"]); // 024: el listado trae el indicador `buzon`
     expect(r.body.find((x: any) => x.id === clientes[1])!.responsable).toEqual({
       id: asistente.id,
       nombre: expect.any(String),

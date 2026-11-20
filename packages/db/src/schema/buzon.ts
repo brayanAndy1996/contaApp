@@ -17,8 +17,12 @@ import {
 } from "drizzle-orm/pg-core";
 import { cliente } from "./clientes";
 import { id, tenantIdPorDefecto } from "./comun";
-import { tenant } from "./plataforma";
+import { tenant, usuario } from "./plataforma";
 
+// Spec 024 (D-5, D-12; 0059-0060): `buzon_mensaje` suma el estado de atención vigente (`historico`, `atendido_en`, `atendido_por`;
+// solo lo cambia la función acotada buzon_atencion_aplicar y la marca de histórico la fija el trigger buzon_mensaje_atencion_inicial)
+// y `buzon_atencion` guarda el historial (solo inserción). Índices de la bandeja (CA-9) en 0059; el parcial por cliente lleva
+// además `INCLUDE (critico)` en el SQL (drizzle no lo expresa).
 // Spec 023 (D-3, D-4, D-5, P-10). Buzón SOL: estado de captura por cliente, metadatos de cada mensaje y sus adjuntos (solo al
 // abrir). RLS ENABLE + FORCE, tenant_isolation, grants por columna, triggers y funciones acotadas en 0054–0056. Va aparte del
 // índice del esquema, como 014–021. `buzon_programacion` (0055) es la fila única del candado del ciclo del programador: sin
@@ -99,6 +103,10 @@ export const buzonMensaje = pgTable(
     contenidoRuta: text("contenido_ruta"),
     contenidoBytes: integer("contenido_bytes"),
     contenidoObtenidoEn: timestamp("contenido_obtenido_en", { withTimezone: true }),
+    // 0059 (spec 024).
+    historico: boolean("historico").notNull().default(false),
+    atendidoEn: timestamp("atendido_en", { withTimezone: true }),
+    atendidoPor: uuid("atendido_por").references(() => usuario.id),
   },
   (t) => [
     unique("buzon_mensaje_id_sunat_unique").on(t.tenantId, t.clienteId, t.idSunat),
@@ -109,6 +117,18 @@ export const buzonMensaje = pgTable(
       foreignColumns: [cliente.tenantId, cliente.id],
     }),
     index("buzon_mensaje_lista_idx").on(t.tenantId, t.clienteId, t.fecha.desc(), t.id.desc()),
+    // 0059 (spec 024, CA-9): `tenant_id` primero por la RLS; DESC sin NULLS LAST, como el ORDER BY de la bandeja.
+    index("buzon_mensaje_bandeja_idx").on(t.tenantId, t.fecha.desc().nullsFirst(), t.id.desc().nullsFirst()),
+    index("buzon_mensaje_pendiente_idx")
+      .on(t.tenantId, t.fecha.desc().nullsFirst(), t.id.desc().nullsFirst())
+      .where(sql`${t.atendidoEn} IS NULL AND NOT ${t.historico}`),
+    index("buzon_mensaje_critico_pendiente_idx")
+      .on(t.tenantId, t.fecha.desc().nullsFirst(), t.id.desc().nullsFirst())
+      .where(sql`${t.critico} AND ${t.atendidoEn} IS NULL AND NOT ${t.historico}`),
+    index("buzon_mensaje_cliente_pendiente_idx")
+      .on(t.tenantId, t.clienteId, t.fecha.desc().nullsFirst(), t.id.desc().nullsFirst())
+      .where(sql`${t.atendidoEn} IS NULL AND NOT ${t.historico}`),
+    check("buzon_mensaje_atendido_coherente", sql`(${t.atendidoEn} IS NULL) = (${t.atendidoPor} IS NULL)`),
     check("buzon_mensaje_id_sunat_largo", sql`char_length(${t.idSunat}) BETWEEN 1 AND 64`),
     check("buzon_mensaje_asunto_largo", sql`char_length(${t.asunto}) <= 500`),
     check("buzon_mensaje_remitente_largo", sql`char_length(${t.remitente}) <= 200`),
@@ -166,6 +186,42 @@ export const buzonAdjunto = pgTable(
     check("buzon_adjunto_tamano_no_negativo", sql`${t.tamano} >= 0`),
     check("buzon_adjunto_sha256_largo", sql`octet_length(${t.sha256}) = 32`),
     check("buzon_adjunto_ruta", rutaDeLaFila(t.ruta, t.tenantId, t.clienteId)),
+  ],
+);
+
+/** Acciones del historial de atención (0059). */
+export const ACCIONES_ATENCION_BUZON_BD = ["atendido", "deshecho"] as const;
+
+/** Comentario: nulo o 1..500 sin controles (salvo el salto de línea) ni marcas bidi (0059; el recorte lo hace la función). */
+const comentarioValido = (c: unknown) =>
+  sql`${c} IS NULL OR (char_length(${c}) BETWEEN 1 AND 500 AND ${c} !~ '[\\u0001-\\u0009\\u000B-\\u001F\\u007F-\\u009F\\u200E\\u200F\\u061C\\u202A-\\u202E\\u2066-\\u2069]')`;
+
+// 0059 (spec 024, D-5). Historial de atención: solo inserción (trigger buzon_atencion_inmutable) y solo por la función acotada.
+export const buzonAtencion = pgTable(
+  "buzon_atencion",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    clienteId: uuid("cliente_id").notNull(),
+    mensajeId: uuid("mensaje_id").notNull(),
+    accion: text("accion").notNull(),
+    comentario: text("comentario"),
+    usuarioId: uuid("usuario_id")
+      .notNull()
+      .references(() => usuario.id),
+    creadoEn: timestamp("creado_en", { withTimezone: true })
+      .notNull()
+      .default(sql`clock_timestamp()`),
+  },
+  (t) => [
+    foreignKey({
+      name: "buzon_atencion_mensaje_fk",
+      columns: [t.tenantId, t.clienteId, t.mensajeId],
+      foreignColumns: [buzonMensaje.tenantId, buzonMensaje.clienteId, buzonMensaje.id],
+    }),
+    index("buzon_atencion_mensaje_idx").on(t.tenantId, t.mensajeId, t.creadoEn, t.id),
+    check("buzon_atencion_accion_valida", sql`${t.accion} IN (${lista(ACCIONES_ATENCION_BUZON_BD)})`),
+    check("buzon_atencion_comentario_valido", comentarioValido(t.comentario)),
   ],
 );
 

@@ -28,7 +28,8 @@ export class ClientesController {
     @Req() req: PeticionAcceso,
     @Query() query: unknown,
   ): Promise<ClienteDto[]> {
-    return this.servicio.listar(sesion, alcanceDe(req.acceso), query);
+    // Spec 024: el indicador y su filtro dependen de `buzon.ver`, que `PermisoGuard` ya resolvió para este rol.
+    return this.servicio.listar(sesion, alcanceDe(req.acceso), query, req.acceso?.permisos.has("buzon.ver") === true);
   }
 
   @Permiso("clientes.ver")

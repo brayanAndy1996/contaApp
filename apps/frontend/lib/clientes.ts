@@ -35,6 +35,7 @@ export function consultaDeFiltros(filtros: FiltrosClientes): string {
   if (filtros.responsable) params.set("responsable", filtros.responsable);
   if (filtros.credencial) params.set("credencial", filtros.credencial);
   if (filtros.archivados) params.set("archivados", "1");
+  if (filtros.conMensajesNuevos) params.set("conMensajesNuevos", "1");
   const q = filtros.q?.trim().slice(0, Q_MAX);
   if (q) params.set("q", q);
   const texto = params.toString();

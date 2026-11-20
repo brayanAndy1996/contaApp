@@ -21,9 +21,11 @@ describe("acciones de auditoría de 023", () => {
   it.each(NUEVAS)("accionAuditoriaSchema acepta %s", (a) => {
     expect(accionAuditoriaSchema.safeParse(a).success).toBe(true);
   });
-  it("suma exactamente cinco acciones con prefijo buzon.", () => {
-    expect(ACCIONES_AUDITORIA.filter((a) => a.startsWith("buzon."))).toHaveLength(5);
-    expect(ACCIONES_AUDITORIA.filter((a) => a.startsWith("buzon.")).sort()).toEqual([...NUEVAS].sort());
+  it("suma cinco acciones con prefijo buzon. (024 suma dos más)", () => {
+    expect(ACCIONES_AUDITORIA.filter((a) => a.startsWith("buzon."))).toHaveLength(7); // 5 de 023 + buzon.atendido y buzon.atencion_deshecha (024)
+    expect(ACCIONES_AUDITORIA.filter((a) => a.startsWith("buzon.")).sort()).toEqual(
+      [...NUEVAS, "buzon.atendido", "buzon.atencion_deshecha"].sort(),
+    );
   });
   it("no repite acciones y todas tienen forma entidad.hecho", () => {
     expect(new Set(ACCIONES_AUDITORIA).size).toBe(ACCIONES_AUDITORIA.length);

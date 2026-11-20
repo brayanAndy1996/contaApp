@@ -7,6 +7,7 @@ import {
   ClienteArchivadoError,
   crearCliente,
   editarCliente,
+  indicadorBuzon,
   leerClienteDto,
   listarClientesFiltrado,
   reactivarCliente,
@@ -86,18 +87,28 @@ export class ClientesService {
     @Optional() @Inject(NOTIFICADOR) private readonly notificador?: Notificador,
   ) {}
 
-  listar(sesion: SesionResuelta, alcance: Alcance, query: unknown): Promise<ClienteDto[]> {
+  /**
+   * Con `verBuzon` (el actor tiene `buzon.ver`; lo decide el controlador con el permiso de la petición) cada cliente trae el
+   * indicador `buzon` (spec 024, D-9: una sola consulta para todo el listado) y vale el filtro `conMensajesNuevos`; sin él el
+   * campo no viaja y el filtro es 403 `permiso_denegado`.
+   */
+  listar(sesion: SesionResuelta, alcance: Alcance, query: unknown, verBuzon = false): Promise<ClienteDto[]> {
     const f = parsear(filtrosClientesSchema, query);
     // Postgres no admite NUL en texto: sería un 500 al enlazar el parámetro. Es una entrada inválida (400).
     if (f.q?.includes("\u0000")) throw new AccesoError("solicitud_invalida");
-    return this.db.withTenant(contextoDe(sesion), (tx) =>
-      listarClientesFiltrado(tx, alcance, {
+    if (f.conMensajesNuevos === true && !verBuzon) throw new AccesoError("permiso_denegado");
+    return this.db.withTenant(contextoDe(sesion), async (tx) => {
+      const clientes = await listarClientesFiltrado(tx, alcance, {
         ...(f.responsable === undefined ? {} : { responsable: f.responsable }),
         ...(f.credencial === undefined ? {} : { credencial: f.credencial }),
         ...(f.archivados === undefined ? {} : { archivados: f.archivados }),
         ...(f.q === undefined ? {} : { q: f.q }),
-      }),
-    );
+        ...(f.conMensajesNuevos === true ? { conMensajesNuevos: true } : {}),
+      });
+      if (!verBuzon) return clientes;
+      const indicador = await indicadorBuzon(tx, clientes.map((c) => c.id));
+      return clientes.map((c) => ({ ...c, buzon: indicador.get(c.id) ?? { nuevos: 0, criticosNuevos: 0 } }));
+    });
   }
 
   async leer(sesion: SesionResuelta, clienteId: string): Promise<ClienteDto> {

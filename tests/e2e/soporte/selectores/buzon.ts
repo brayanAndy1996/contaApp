@@ -44,3 +44,53 @@ export const adjuntos = (page: Page): Locator =>
 
 export const enlaceAdjunto = (page: Page, nombre: string): Locator =>
   adjuntos(page).getByRole("link", { name: nombre, exact: true });
+
+// ---- Bandeja de buzones (spec 024, T14; CA-3, CA-4, CA-8, CA-12). Los textos salen de `MENSAJES_BANDEJA`.
+
+/** La entrada «Buzones» del menú principal (barra inferior en celular, menú lateral desde 1024 px). */
+export const entradaBuzones = (page: Page): Locator =>
+  page.getByRole("navigation").getByRole("link", { name: "Buzones" });
+
+/** Los chips de la bandeja («Pendientes» y «Críticos pendientes»); `aria-pressed` dice cuál está activo. */
+export const chipPendientes = (page: Page): Locator =>
+  page.getByRole("button", { name: "Pendientes", exact: true });
+
+export const chipCriticosPendientes = (page: Page): Locator =>
+  page.getByRole("button", { name: "Críticos pendientes", exact: true });
+
+/** El enlace del asunto de un mensaje en la lista de la bandeja. */
+export const enlaceMensaje = (page: Page, asunto: string | RegExp): Locator =>
+  tablaMensajes(page).getByRole("link", { name: asunto });
+
+/** El bloque «Atención del mensaje» del detalle y sus partes. */
+export const atencion = (page: Page): Locator =>
+  page.getByRole("region", { name: "Atención del mensaje" });
+
+export const campoComentario = (page: Page): Locator =>
+  atencion(page).getByLabel("Comentario", { exact: true });
+
+export const botonMarcar = (page: Page): Locator =>
+  atencion(page).getByRole("button", { name: "Marcar como atendido" });
+
+export const botonDeshacer = (page: Page): Locator =>
+  atencion(page).getByRole("button", { name: "Deshacer", exact: true });
+
+export const historialAtencion = (page: Page): Locator =>
+  atencion(page).getByRole("list", { name: "Historial de atención" });
+
+/** El botón «Filtros» (solo a 390 px) y su diálogo. */
+export const botonFiltros = (page: Page): Locator =>
+  page.getByRole("button", { name: "Filtros", exact: true });
+
+export const dialogoFiltros = (page: Page): Locator =>
+  page.getByRole("dialog", { name: "Filtros del buzón" });
+
+/** El indicador del listado de clientes: el enlace de la fila con «N nuevos» y, aparte, «M críticos». */
+export const indicadorCliente = (fila: Locator): Locator =>
+  fila.getByRole("link", { name: /nuev[oa]s?|crític/i });
+
+/** Los textos del indicador (singular y plural como `MENSAJES_BANDEJA`). */
+export const textoNuevos = (n: number): string =>
+  n === 1 ? "1 nuevo" : `${n} nuevos`;
+export const textoCriticos = (n: number): string =>
+  n === 1 ? "1 crítico" : `${n} críticos`;

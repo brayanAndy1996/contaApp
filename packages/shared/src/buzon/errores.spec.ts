@@ -14,9 +14,9 @@ describe("CODIGOS_ERROR_BUZON", () => {
       expect(CODIGOS_ERROR_BUZON as readonly string[]).toContain(c);
     },
   );
-  it("son exactamente cuatro y no se repiten", () => {
-    expect(CODIGOS_ERROR_BUZON).toHaveLength(4);
-    expect(new Set(CODIGOS_ERROR_BUZON).size).toBe(4);
+  it("son exactamente siete (cuatro de 023 y tres de 024) y no se repiten", () => {
+    expect(CODIGOS_ERROR_BUZON).toHaveLength(7);
+    expect(new Set(CODIGOS_ERROR_BUZON).size).toBe(7);
   });
   it("cada código es minúscula con guion bajo", () => {
     for (const c of CODIGOS_ERROR_BUZON) expect(c).toMatch(/^[a-z]+(_[a-z]+)*$/);

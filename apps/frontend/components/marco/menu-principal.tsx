@@ -2,6 +2,7 @@
 
 import {
   Ellipsis,
+  Inbox,
   KeyRound,
   ListChecks,
   LogOut,
@@ -19,7 +20,7 @@ import { Label, Select } from "../ui";
 import { entradaBarra, entradaGrupo } from "./entrada-menu";
 
 // Marco de navegación (spec 038, T8; P-5). Un solo `<nav>` con cada entrada una vez en el DOM: el CSS cambia
-// de disposición (menú lateral desde 1024 px; barra inferior con Clientes, Trabajos, Notificaciones y «Más» en
+// de disposición (menú lateral desde 1024 px; barra inferior con Clientes, Buzones, Trabajos, Notificaciones y «Más» en
 // celular). jsdom no aplica CSS, así que ninguna entrada se oculta con estado de React: «Más» solo muestra u
 // oculta el grupo secundario por clase.
 
@@ -116,6 +117,16 @@ export function MenuPrincipal({
         >
           <Users aria-hidden="true" className="size-5 shrink-0" />
           Clientes
+        </Link>
+      )}
+      {tiene(yo, "buzon.ver") && (
+        <Link
+          href="/buzon"
+          aria-current={actual("/buzon")}
+          className={clase("/buzon", cn(entradaBarra, "lg:order-2"))}
+        >
+          <Inbox aria-hidden="true" className="size-5 shrink-0" />
+          Buzones
         </Link>
       )}
       {tiene(yo, "clientes.ver") && (

@@ -120,7 +120,10 @@ test.describe("E-11 · buzón SOL", () => {
           name: /Resolución de Ejecución Coactiva/,
         }),
       ).toBeVisible();
-      await expect(page.getByText("Crítico · Coactiva")).toBeVisible();
+      // Con la bandeja (024) la lista y el detalle comparten pantalla: la insignia crítica del detalle.
+      await expect(
+        page.getByRole("article").getByText("Crítico · Coactiva"),
+      ).toBeVisible();
       await expect(
         page.getByText("El contenido aún no se obtuvo."),
       ).toBeVisible();

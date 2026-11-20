@@ -55,6 +55,8 @@ export default defineConfig({
       provider: "v8",
       include: ["packages/db/src/buzon/**/*.ts"],
       exclude: [
+        // Soporte de pruebas de 024: lo mide la cobertura de 024 (cobertura:bandeja), no la de 023.
+        "packages/db/src/buzon/soporte-prueba.ts",
         "**/*.spec.ts",
         "**/*.adv.spec.ts",
         "**/*.int.spec.ts",

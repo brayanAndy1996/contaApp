@@ -44,16 +44,18 @@ const EXTRAS = ["credencial.descifrada", "sunat.envio"];
 // Spec 021 (T8): 8 acciones de reglas aprendidas (31 + 8 = 39).
 const REGLAS_021 = ["regla.creada", "regla.editada", "regla.activada", "regla.desactivada", "regla.eliminada", "estudio.regla_motor", "estudio.aporte_catalogo", "compra.historial"];
 // Spec 023 (T9): 5 acciones del buzón SOL (39 + 5 = 44).
+// Spec 024 (T6): 2 acciones de atención (44 + 2 = 46).
+const BUZON_024 = ["buzon.atendido", "buzon.atencion_deshecha"];
 const BUZON_023 = ["buzon.contenido_obtenido", "buzon.captura_solicitada", "buzon.apertura_solicitada", "buzon.contenido_visto", "buzon.adjunto_descargado"];
 
 describe("ACCIONES_AUDITORIA", () => {
-  it("es exactamente el catálogo de D-3, las 4 de la ronda R1, credencial.descifrada, sunat.envio y las 8 de 021 y las 5 de 023", () => {
-    expect([...ACCIONES_AUDITORIA].sort()).toEqual([...CATALOGO_D3, ...RONDA_R1, ...EXTRAS, ...REGLAS_021, ...BUZON_023].sort());
+  it("es exactamente el catálogo de D-3, las 4 de la ronda R1, credencial.descifrada, sunat.envio y las 8 de 021, las 5 de 023 y las 2 de 024", () => {
+    expect([...ACCIONES_AUDITORIA].sort()).toEqual([...CATALOGO_D3, ...RONDA_R1, ...EXTRAS, ...REGLAS_021, ...BUZON_023, ...BUZON_024].sort());
   });
 
   it("no repite acciones", () => {
     expect(new Set(ACCIONES_AUDITORIA).size).toBe(ACCIONES_AUDITORIA.length);
-    expect(ACCIONES_AUDITORIA).toHaveLength(44);
+    expect(ACCIONES_AUDITORIA).toHaveLength(46);
   });
 
   it("todas son minúsculas con forma entidad.hecho", () => {

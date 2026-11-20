@@ -414,11 +414,15 @@ export {
 } from "./schema/reglas";
 // Spec 023: buzón SOL (tablas y funciones acotadas en 0054–0056). Lectura y auditoría con la `tx` del backend; escritura, candidatos
 // y encolado programado con la del worker; el candado del ciclo y los estudios vigentes (arriba) con la de withSistema.
-export { buzonAdjunto, buzonEstadoCliente, buzonMensaje, buzonProgramacion } from "./schema/buzon";
+export { buzonAdjunto, buzonAtencion, buzonEstadoCliente, buzonMensaje, buzonProgramacion } from "./schema/buzon";
 export {
   actualizarConocidosBuzon,
+  aplicarAtencionBuzon,
   auditarBuzon,
   bloquearEstadoBuzon,
+  detalleAtencion,
+  indicadorBuzon,
+  listarBandeja,
   fallaPorCredencialBuzon,
   BuzonRepoError,
   candidatosBuzon,
@@ -441,9 +445,20 @@ export type {
   AccionAuditoriaBuzon,
   AdjuntoBuzon,
   AdjuntoGuardarBuzon,
+  AtencionVigente,
   CandidatoBuzon,
+  DetalleAtencionBuzon,
   DetalleMensajeBuzon,
+  EntradaAtencionBuzon,
   EntradaMensajeBuzon,
+  EstadoAtencionBuzon,
   EstadoBuzon,
+  EventoAtencionBuzon,
+  FilaBandejaBuzon,
+  FiltroAtencionBuzon,
+  FiltrosBandejaBuzon,
+  IndicadorBuzon,
   MensajeBuzonFila,
+  PosicionBandeja,
+  ResultadoAtencionBuzon,
 } from "./buzon";

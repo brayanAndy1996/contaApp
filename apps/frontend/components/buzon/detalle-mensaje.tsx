@@ -17,7 +17,9 @@ import {
   enlace,
 } from "../ui";
 import { MENSAJES, mensajeDeError, usePuede } from "../../lib/acceso";
+import { AtencionMensaje } from "./atencion-mensaje";
 import {
+  BADGE_PARTE_LINEA,
   MENSAJES_BUZON as M,
   PERMISO_BUZON_MARCAR_LEIDO,
   abrirMensaje,
@@ -34,7 +36,8 @@ import { cn } from "../../lib/utils";
 // Vista mínima de un mensaje del buzón (spec 023, CA-4, CA-8, P-1, P-9, D-4). El contenido llega como texto plano
 // ya convertido por el servidor y se muestra como texto de React (`whitespace-pre-wrap`): nunca se interpreta como
 // HTML. Los adjuntos se descargan por id. «Abrir en SUNAT» pide confirmación porque SUNAT puede marcar el mensaje como
-// leído; solo se ofrece con `buzon.marcar_leido` y mientras no haya contenido.
+// leído; solo se ofrece con `buzon.marcar_leido` y mientras no haya contenido. Debajo va el bloque de atención
+// (spec 024): estado, historial y, con `buzon.atender`, marcar o deshacer.
 
 const enlaceTactil = cn(enlace, "max-lg:inline-flex max-lg:min-h-11 max-lg:items-center");
 
@@ -55,10 +58,13 @@ export function DetalleMensaje({
   clienteId,
   mensajeId,
   archivado = false,
+  alCambiarAtencion,
 }: {
   clienteId: string;
   mensajeId: string;
   archivado?: boolean;
+  /** La atención cambió (la bandeja vuelve a leer su lista). */
+  alCambiarAtencion?: () => void;
 }) {
   const puedeAbrir = usePuede(PERMISO_BUZON_MARCAR_LEIDO) === true;
   const [detalle, setDetalle] = useState<DetalleDto | null>(null);
@@ -190,7 +196,7 @@ export function DetalleMensaje({
           <h2 className="m-0 break-words font-titulo text-lg font-bold">{mensaje.asunto}</h2>
           <p className="m-0 break-words text-sm text-tinta-media">{mensaje.remitente}</p>
           <div className="flex flex-wrap items-center gap-2 text-sm text-tinta-suave">
-            {mensaje.critico && <Badge tono="error">{M.critico(etiquetaCategoria(mensaje.categoria))}</Badge>}
+            {mensaje.critico && <Badge tono="error" className={BADGE_PARTE_LINEA}>{M.critico(etiquetaCategoria(mensaje.categoria))}</Badge>}
             <span>{fechaHoraLima(mensaje.fecha)}</span>
           </div>
         </header>
@@ -199,7 +205,6 @@ export function DetalleMensaje({
           <>
             <p className="m-0 text-sm text-tinta-suave">{M.sinContenido}</p>
             {!puedeAbrir && <p className="m-0 text-sm text-tinta-suave">{M.sinPermisoAbrir}</p>}
-            {puedeAbrir && archivado && <p className="m-0 text-sm text-tinta-suave">{M.archivado}</p>}
           </>
         ) : (
           <div className="whitespace-pre-wrap break-words text-sm">{contenido}</div>
@@ -228,6 +233,21 @@ export function DetalleMensaje({
             </Link>
           </Alert>
         )}
+      </Card>
+
+      <Card>
+        <AtencionMensaje
+          clienteId={clienteId}
+          mensajeId={mensajeId}
+          critico={mensaje.critico}
+          atencion={detalle.atencion}
+          historial={detalle.historial}
+          archivado={archivado}
+          alCambiar={() => {
+            void cargar();
+            alCambiarAtencion?.();
+          }}
+        />
       </Card>
 
       {adjuntos.length > 0 && (

@@ -66,12 +66,15 @@ const retryAfter = (r: { headers: Record<string, unknown> }): number =>
   Number(r.headers["retry-after"]);
 
 describe("contrato de rutas del módulo buzón (D-8, CA-9)", () => {
-  it("las cinco rutas existen y declaran buzon.ver (abrir, buzon.marcar_leido)", () => {
+  it("las ocho rutas existen y declaran su permiso (buzon.ver; abrir, buzon.marcar_leido; atención de 024, buzon.atender)", () => {
     const rutas = rutasDeBuzon(b.v.b.c.p.b.h.app)
       .map((r) => `${r.metodo} ${r.ruta} ${r.permiso}`)
       .sort();
     expect(rutas).toEqual(
       [
+        "GET /buzon/mensajes buzon.ver",
+        "POST /buzon/atencion buzon.atender",
+        "POST /clientes/:clienteId/buzon/mensajes/:mensajeId/atencion buzon.atender",
         "GET /clientes/:clienteId/buzon/mensajes buzon.ver",
         "GET /clientes/:clienteId/buzon/mensajes/:mensajeId buzon.ver",
         "GET /clientes/:clienteId/buzon/mensajes/:mensajeId/adjuntos/:adjuntoId buzon.ver",

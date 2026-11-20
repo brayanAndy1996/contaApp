@@ -16,9 +16,9 @@ describe("acciones de auditoría de 021", () => {
   it.each(NUEVAS)("accionAuditoriaSchema acepta %s", (a) => {
     expect(accionAuditoriaSchema.safeParse(a).success).toBe(true);
   });
-  it("son 8 nuevas y el catálogo queda en 44 (con las 5 de 023) sin repetidos", () => {
+  it("son 8 nuevas y el catálogo queda en 46 (con las 5 de 023 y las 2 de 024) sin repetidos", () => {
     expect(NUEVAS).toHaveLength(8);
-    expect(ACCIONES_AUDITORIA).toHaveLength(44);
+    expect(ACCIONES_AUDITORIA).toHaveLength(46);
     expect(new Set(ACCIONES_AUDITORIA).size).toBe(ACCIONES_AUDITORIA.length);
   });
   it("todas son minúsculas con forma entidad.hecho", () => {

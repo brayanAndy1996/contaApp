@@ -8,8 +8,8 @@ import {
   type Rol,
 } from "./index.js";
 
-// Contrato (plan 005, packages/shared/src/acceso): catalogo de 22 permisos (01 §4), 5 roles de
-// sistema y la matriz de D2/D17. Se prueba por TABLA 5 roles x 22 permisos (CA-1). La lista
+// Contrato (plan 005, packages/shared/src/acceso): catalogo de 23 permisos (01 §4), 5 roles de
+// sistema y la matriz de D2/D17. Se prueba por TABLA 5 roles x 23 permisos (CA-1). La lista
 // esperada se escribe aqui a mano, no se deriva de la implementacion.
 const TODOS = [
   "estudio.configurar",
@@ -30,6 +30,7 @@ const TODOS = [
   "ajustes.generar",
   "buzon.ver",
   "buzon.marcar_leido",
+  "buzon.atender",
   "reglas.ver",
   "reglas.gestionar",
   "prorrata.ver",
@@ -49,6 +50,7 @@ const ESPERADOS: Record<Rol, readonly Permiso[]> = {
     "ajustes.generar",
     "buzon.ver",
     "buzon.marcar_leido",
+    "buzon.atender",
     "reglas.ver",
     "reglas.gestionar",
     "prorrata.ver",
@@ -59,6 +61,7 @@ const ESPERADOS: Record<Rol, readonly Permiso[]> = {
     "sire.clasificar",
     "buzon.ver",
     "buzon.marcar_leido",
+    "buzon.atender",
     "reglas.ver",
     "prorrata.ver",
   ],
@@ -66,9 +69,9 @@ const ESPERADOS: Record<Rol, readonly Permiso[]> = {
 };
 
 describe("catalogo de permisos (01 §4)", () => {
-  it("son exactamente los 22 permisos atomicos, sin repetidos", () => {
-    expect(PERMISOS).toHaveLength(22);
-    expect(new Set(PERMISOS).size).toBe(22);
+  it("son exactamente los 23 permisos atomicos, sin repetidos", () => {
+    expect(PERMISOS).toHaveLength(23);
+    expect(new Set(PERMISOS).size).toBe(23);
     expect([...PERMISOS].sort()).toEqual([...TODOS].sort());
   });
 
@@ -90,14 +93,14 @@ describe("catalogo de permisos (01 §4)", () => {
   });
 });
 
-describe("matriz rol x permiso (D2, D17, CA-1): tabla 5 x 22", () => {
+describe("matriz rol x permiso (D2, D17, CA-1): tabla 5 x 23", () => {
   const casos = ROLES.flatMap((rol) =>
     TODOS.map(
       (permiso) => [rol, permiso, ESPERADOS[rol].includes(permiso)] as const,
     ),
   );
-  it("la tabla cubre 5 x 22 = 110 casos", () => {
-    expect(casos).toHaveLength(110);
+  it("la tabla cubre 5 x 23 = 115 casos", () => {
+    expect(casos).toHaveLength(115);
   });
 
   it.each(casos)("%s / %s -> %s", (rol, permiso, esperado) => {
@@ -106,10 +109,10 @@ describe("matriz rol x permiso (D2, D17, CA-1): tabla 5 x 22", () => {
   });
 
   it.each([
-    ["dueno", 22],
-    ["admin", 21],
-    ["contador", 12],
-    ["asistente", 7],
+    ["dueno", 23],
+    ["admin", 22],
+    ["contador", 13],
+    ["asistente", 8],
     ["lectura", 4],
   ] as const)("%s tiene %i permisos", (rol, n) => {
     expect(PERMISOS_POR_ROL[rol].size).toBe(n);

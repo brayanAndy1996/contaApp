@@ -8,12 +8,12 @@ import { ClientesController } from "./clientes.controller.js";
 const USUARIO = "0190a000-0000-7000-8000-0000000000b1";
 const CLIENTE = "0190a000-0000-7000-8000-0000000000c1";
 const sesion = { tenantActivo: "t", usuarioId: USUARIO } as SesionResuelta;
-const peticion = (alcance: "global" | "asignado" | null) =>
+const peticion = (alcance: "global" | "asignado" | null, permisos: string[] = []) =>
   ({
     acceso:
       alcance === null
         ? undefined
-        : { usuarioId: USUARIO, rol: "x", permisos: new Set(), alcance },
+        : { usuarioId: USUARIO, rol: "x", permisos: new Set(permisos), alcance },
   }) as unknown as PeticionAcceso;
 
 function armar() {
@@ -38,9 +38,15 @@ describe("ClientesController", () => {
   it("GET /clientes: alcance global y asignado según el acceso, con la query cruda", async () => {
     const { ctl, servicio } = armar();
     await ctl.listar(sesion, peticion("global"), { q: "a" });
-    expect(servicio.listar).toHaveBeenLastCalledWith(sesion, { tipo: "global" }, { q: "a" });
+    expect(servicio.listar).toHaveBeenLastCalledWith(sesion, { tipo: "global" }, { q: "a" }, false);
     await ctl.listar(sesion, peticion("asignado"), {});
-    expect(servicio.listar).toHaveBeenLastCalledWith(sesion, { tipo: "asignado", usuarioId: USUARIO }, {});
+    expect(servicio.listar).toHaveBeenLastCalledWith(sesion, { tipo: "asignado", usuarioId: USUARIO }, {}, false);
+  });
+
+  it("GET /clientes avisa al servicio si el rol tiene buzon.ver (indicador y filtro de 024)", async () => {
+    const { ctl, servicio } = armar();
+    await ctl.listar(sesion, peticion("global", ["clientes.ver", "buzon.ver"]), {});
+    expect(servicio.listar).toHaveBeenLastCalledWith(sesion, { tipo: "global" }, {}, true);
   });
 
   it("GET /clientes sin acceso en la petición falla cerrado sin llamar al servicio", () => {

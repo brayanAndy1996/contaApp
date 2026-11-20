@@ -1,8 +1,8 @@
-// Auxiliares del módulo buzón (spec 023): enfriamiento, credencial SOL, cursor opaco y ruta de storage del cliente.
-import { leerEstadoCredenciales, type EstadoBuzon, type Tx } from "@contapp/db";
+// Auxiliares del módulo buzón (spec 023): enfriamiento, credencial SOL, estado de captura y ruta de storage del cliente.
+import { leerEstadoCredenciales, type EstadoBuzon as EstadoBuzonFila, type Tx } from "@contapp/db";
+import type { EstadoBuzon } from "@contapp/shared";
 import { validarRuta } from "@contapp/storage";
 import { AccesoError } from "../acceso/errores.js";
-import { esUuid } from "../clientes/contexto.js";
 import { BuzonError } from "./errores.js";
 
 export { exigirCliente, idDe } from "../ventas/apoyo.js";
@@ -28,7 +28,7 @@ export async function exigirCredencialSol(tx: Tx, clienteId: string): Promise<vo
  * es decir, no cuenta ninguna fecha anterior o igual a ese instante; lo posterior sí.
  */
 export function esperaDeEnfriamiento(
-  estado: EstadoBuzon,
+  estado: EstadoBuzonFila,
   ahora: number,
   fallaPorCredencialEn: Date | null = null,
 ): number | null {
@@ -41,27 +41,16 @@ export function esperaDeEnfriamiento(
   return Math.min(Math.ceil((fin - ahora) / 1000), ENFRIAMIENTO_MS / 1000);
 }
 
-/** Cursor opaco de la lista: base64url de `{ f: fecha ISO, i: id }` del último mensaje de la página. */
-export function codificarCursor(fecha: Date, id: string): string {
-  return Buffer.from(JSON.stringify({ f: fecha.toISOString(), i: id }), "utf8").toString("base64url");
-}
-
-/** Decodifica un cursor propio; cualquier otra cosa es 400 `solicitud_invalida` (nunca llega a la consulta). */
-export function decodificarCursor(cursor: string): { fecha: Date; id: string } {
-  const invalido = new AccesoError("solicitud_invalida");
-  if (!/^[A-Za-z0-9_-]+$/.test(cursor)) throw invalido;
-  let valor: unknown;
-  try {
-    valor = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
-  } catch {
-    throw invalido;
-  }
-  if (typeof valor !== "object" || valor === null || Array.isArray(valor)) throw invalido;
-  const { f, i, ...resto } = valor as Record<string, unknown>;
-  if (Object.keys(resto).length > 0 || typeof f !== "string" || typeof i !== "string" || !esUuid(i)) throw invalido;
-  const fecha = new Date(f);
-  if (Number.isNaN(fecha.getTime()) || fecha.toISOString() !== f) throw invalido;
-  return { fecha, id: i.toLowerCase() };
+/** Estado de captura para la pantalla; sin fila de estado: todo en blanco. `revisarDesde` es el fin del enfriamiento de 10 min. */
+export function aEstado(e: EstadoBuzonFila | null, ahora: number): EstadoBuzon {
+  if (e === null) return { ultimaCaptura: null, sincronizado: false, revisarDesde: null };
+  const instantes = [e.ultimaSolicitudEn, e.ultimaCapturaEn].filter((f): f is Date => f !== null);
+  const fin = instantes.length === 0 ? null : Math.max(...instantes.map((f) => f.getTime())) + ENFRIAMIENTO_MS;
+  return {
+    ultimaCaptura: e.ultimaCapturaEn === null ? null : e.ultimaCapturaEn.toISOString(),
+    sincronizado: e.sincronizadoEn !== null,
+    revisarDesde: fin !== null && fin > ahora ? new Date(fin).toISOString() : null,
+  };
 }
 
 /**
@@ -87,4 +76,36 @@ export function disposicionAdjunta(nombre: string): string {
   const ascii = nombre.replace(/[^A-Za-z0-9._-]/g, "_");
   const codificado = encodeURIComponent(nombre).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
   return `attachment; filename="${ascii}"; filename*=UTF-8''${codificado}`;
+}
+
+/** SQLSTATE de un error de la BD (el de un repositorio o el de `pg` directo), o `null`. */
+export function sqlstateDe(e: unknown): string | null {
+  if (typeof e !== "object" || e === null) return null;
+  const { codigo, code } = e as { codigo?: unknown; code?: unknown };
+  const valor = typeof codigo === "string" ? codigo : code;
+  return typeof valor === "string" && /^[0-9A-Z]{5}$/.test(valor) ? valor : null;
+}
+
+/** SQLSTATE de BD que se mapean a la API (spec 024): el interbloqueo y el fallo de serialización se reintentan una vez. */
+export function esReintentable(e: unknown): boolean {
+  const c = sqlstateDe(e);
+  return c === "40P01" || c === "40001";
+}
+
+/**
+ * Corre una transacción de escritura y la repite UNA vez si falla por interbloqueo (`40P01`) o serialización (`40001`): el orden de
+ * bloqueo de 0060 los hace raros, no imposibles. Si falla otra vez, 503 `atenciones_ocupadas`. `fn` abre su propio `withTenant`.
+ */
+export async function conReintentoUnico<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (e) {
+    if (!esReintentable(e)) throw e;
+  }
+  try {
+    return await fn();
+  } catch (e) {
+    if (esReintentable(e)) throw new BuzonError("atenciones_ocupadas");
+    throw e;
+  }
 }
