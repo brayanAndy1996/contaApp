@@ -95,6 +95,7 @@ describe("lista: forma, orden y estado de captura", () => {
     const r = await lista(contador, c);
     expect(r.status, r.text).toBe(200);
     expect(cumple("paginaMensajesBuzonSchema", r.body)).toBe(true);
+    // Spec 024 (P-9, D-10): la fila de la lista lleva además `cliente` (id, razón social, archivado) y `atencion` (sin comentario).
     expect(r.body.mensajes).toEqual([
       {
         id: m.id,
@@ -107,11 +108,12 @@ describe("lista: forma, orden y estado de captura", () => {
         leidoEnSunat: true,
         contenidoObtenido: false,
         adjuntosDeclarados: 2,
+        cliente: { id: c.id, razonSocial: expect.any(String), archivado: false },
+        atencion: { estado: "pendiente", por: null, en: null },
       },
     ]);
     for (const interno of [
       E.tenantId,
-      c.id,
       c.ruc,
       "CANARIO-idsunat-0001",
       "buzon/",
@@ -323,18 +325,28 @@ describe("lista: cursor y límite", () => {
     expect(r.body).toEqual({ codigo: "solicitud_invalida" });
   });
 
+  // Spec 024 (D-4): un cursor que no es una posición válida es 400 `cursor_invalido` (antes `solicitud_invalida`); el vacío y el de
+  // más de 256 caracteres los rechaza la validación de parámetros.
   it.each([
-    "cursor=",
     "cursor=%%%",
     "cursor=no-es-un-cursor",
-    `cursor=${"a".repeat(600)}`,
     "cursor=e30",
-  ])("un cursor inválido (%s) es 400 solicitud_invalida", async (query) => {
+  ])("un cursor inválido (%s) es 400 cursor_invalido", async (query) => {
     const c = await nuevo();
     const r = await lista(contador, c, `?${query}`);
     expect(r.status, r.text).toBe(400);
-    expect(r.body).toEqual({ codigo: "solicitud_invalida" });
+    expect(r.body).toEqual({ codigo: "cursor_invalido" });
   });
+
+  it.each(["cursor=", `cursor=${"a".repeat(600)}`])(
+    "un cursor vacío o de más de 256 caracteres (%s) es 400",
+    async (query) => {
+      const c = await nuevo();
+      const r = await lista(contador, c, `?${query}`);
+      expect(r.status, r.text).toBe(400);
+      expect(["solicitud_invalida", "cursor_invalido"]).toContain(r.body.codigo);
+    },
+  );
 
   it("un cursor de otro cliente no filtra sus mensajes: o es 400 o solo trae los del cliente pedido", async () => {
     const a = await nuevo();
