@@ -82,7 +82,7 @@ Preguntas P-1 a P-10 respondidas el 2026-11-20, todas con la opción (a). Se con
 - **P-10 = (a) · Nivel.** B con una ronda adversarial sobre alcance, lote, cursor e indicador (D-11).
 
 ## Requiere usuario (aparecidas al planificar)
-El plan sigue la opción propuesta; si el usuario elige otra, se ajustan las pruebas de T1–T4 antes de implementar.
-- **U-1 · Atender en un cliente archivado.** Propuesta: no se puede (409 `cliente_archivado`, como «Revisar» y «Abrir» de 023: archivado = solo lectura); el historial se sigue viendo. Alternativa: se puede, porque la atención es interna y no toca SUNAT.
-- **U-2 · Deshacer un histórico atendido.** Propuesta: vuelve a «Históricos» (la marca de histórico es del mensaje y no cambia). Alternativa: vuelve a «Pendientes» y cuenta como nuevo.
-- **U-3 · Deshacer en lote.** Propuesta: no (P-3 habla de atender en lote; deshacer es individual y queda como nota). Alternativa: lote también para deshacer, con las mismas reglas.
+Resueltas por el usuario el 2026-11-20: U-1, U-2 y U-3 según la propuesta.
+- **U-1 · Atender en un cliente archivado.** **Decidido (propuesta):** no se puede (409 `cliente_archivado`, como «Revisar» y «Abrir» de 023: archivado = solo lectura); el historial se sigue viendo. Alternativa: se puede, porque la atención es interna y no toca SUNAT.
+- **U-2 · Deshacer un histórico atendido.** **Decidido (propuesta):** vuelve a «Históricos» (la marca de histórico es del mensaje y no cambia). Alternativa: vuelve a «Pendientes» y cuenta como nuevo.
+- **U-3 · Deshacer en lote.** **Decidido (propuesta):** no (P-3 habla de atender en lote; deshacer es individual y queda como nota). Alternativa: lote también para deshacer, con las mismas reglas.
