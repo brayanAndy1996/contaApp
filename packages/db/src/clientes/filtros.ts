@@ -10,6 +10,8 @@ export interface FiltrosListado {
   credencial?: string;
   archivados?: boolean;
   q?: string;
+  /** Spec 024 (D-9): solo clientes con algún mensaje nuevo (no atendido ni histórico). STUB de T3: lo implementa T7. */
+  conMensajesNuevos?: boolean;
 }
 
 /** Escapa los comodines de LIKE (\, % y _) del usuario; se usa con `ESCAPE '\'`. */
