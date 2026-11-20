@@ -80,7 +80,8 @@ describe("lista: forma, orden y estado de captura", () => {
   });
 
   it("devuelve la fila pública de cada mensaje y nada interno", async () => {
-    const c = await nuevo();
+    // La razón social no debe contener el RUC: la prohibición es sobre el RUC suelto.
+    const c = await nuevo({ razonSocial: "CANARIO-razon-fila" });
     const m = await b.sembrarMensaje(E.tenantId, c.id, {
       idSunat: "CANARIO-idsunat-0001",
       asunto: "Resolución de Intendencia N° 0150140012345",
@@ -369,7 +370,7 @@ describe("lista: cursor y límite", () => {
     else expect(r.status).toBe(400);
   });
 
-  it("las claves de la query que no son del contrato (clienteId, tenantId) no cambian el alcance", async () => {
+  it("las claves de la query que no son del contrato (clienteId, tenantId) se rechazan con 400", async () => {
     const a = await nuevo();
     const otro = await nuevo();
     await b.sembrarMensaje(E.tenantId, otro.id);
@@ -378,8 +379,9 @@ describe("lista: cursor y límite", () => {
       a,
       `?clienteId=${otro.id}&tenantId=${randomUUID()}`,
     );
-    expect(r.status, r.text).toBe(200);
-    expect(r.body.mensajes).toEqual([]);
+    // Contrato de la bandeja (D-3, esquema .strict()): claves ajenas al contrato se rechazan.
+    expect(r.status, r.text).toBe(400);
+    expect(r.body).toEqual({ codigo: "solicitud_invalida" });
   });
 });
 
