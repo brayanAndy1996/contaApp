@@ -39,6 +39,9 @@ export const MENSAJES_BUZON = {
     tamano: "Supera los 20 MB",
     tope_mensaje: "Superó el tope de 50 MB del mensaje",
   },
+  // Pantalla (textos propios; 024 los usa en la bandeja)
+  cargarMas: "Cargar más",
+  errorCarga: "No se pudo cargar el buzón. Inténtalo de nuevo.",
   // Notificación y panel de trabajos
   tipoRevisar: "Revisión de buzón SOL",
   tipoAbrir: "Apertura de mensaje SOL",
@@ -78,9 +81,21 @@ export interface FilaBuzonPrueba {
   leidoEnSunat: boolean;
   contenidoObtenido: boolean;
   adjuntosDeclarados: number;
+  /** 024 (P-9): la fila de la bandeja lleva el cliente y la atención. */
+  cliente: { id: string; razonSocial: string; archivado: boolean };
+  atencion: {
+    estado: "pendiente" | "atendido" | "historico";
+    por: { id: string; nombre: string } | null;
+    en: string | null;
+  };
 }
 
-/** `MensajeBuzonFila` del contrato HTTP (plan 023): crítico de coactiva, sin leer y sin contenido, por omisión. */
+/**
+ * `MensajeBuzonFila` del contrato HTTP (plan 023) con lo que 024 le suma (P-9): crítico de coactiva, sin leer y sin
+ * contenido, pendiente de atención y del cliente `CLIENTE_BUZON`, por omisión. Esta forma sirve para pintar filas
+ * directo en un componente; para una respuesta HTTP validada con `shared` (cliente con uuid) usa `filaBandeja`
+ * de `pruebas/bandeja.ts`.
+ */
 export function filaBuzon(o: Partial<FilaBuzonPrueba> = {}): FilaBuzonPrueba {
   return {
     id: MENSAJE_ID,
@@ -93,6 +108,8 @@ export function filaBuzon(o: Partial<FilaBuzonPrueba> = {}): FilaBuzonPrueba {
     leidoEnSunat: false,
     contenidoObtenido: false,
     adjuntosDeclarados: 1,
+    cliente: { id: CLIENTE_BUZON, razonSocial: "Alfa SAC", archivado: false },
+    atencion: { estado: "pendiente", por: null, en: null },
     ...o,
   };
 }
@@ -116,18 +133,41 @@ export function adjuntoBuzon(o: Partial<AdjuntoPrueba> = {}): AdjuntoPrueba {
   };
 }
 
-/** Cuerpo de `GET …/buzon/mensajes/:id` (`{mensaje, contenido, adjuntos}`). */
+/** Evento del historial de atención (024). */
+export interface EventoAtencionPrueba {
+  accion: "atendido" | "deshecho";
+  comentario: string | null;
+  usuario: { id: string; nombre: string };
+  en: string;
+}
+
+/** Atención del detalle (024): estado vigente, quién y cuándo, y el comentario vigente. */
+export interface AtencionDetallePrueba {
+  estado: "pendiente" | "atendido" | "historico";
+  por: { id: string; nombre: string } | null;
+  en: string | null;
+  comentario: string | null;
+}
+
+/**
+ * Cuerpo de `GET …/buzon/mensajes/:id` (`{mensaje, contenido, adjuntos, atencion, historial}`). Desde 024 (P-9) el
+ * detalle trae `atencion` e `historial`; por omisión, pendiente y sin historial.
+ */
 export function detalleBuzon(
   o: {
     mensaje?: Partial<FilaBuzonPrueba>;
     contenido?: string | null;
     adjuntos?: AdjuntoPrueba[];
+    atencion?: Partial<AtencionDetallePrueba>;
+    historial?: EventoAtencionPrueba[];
   } = {},
 ) {
   return {
     mensaje: filaBuzon(o.mensaje),
     contenido: o.contenido === undefined ? null : o.contenido,
     adjuntos: o.adjuntos ?? [],
+    atencion: { estado: "pendiente", por: null, en: null, comentario: null, ...o.atencion },
+    historial: o.historial ?? [],
   };
 }
 
