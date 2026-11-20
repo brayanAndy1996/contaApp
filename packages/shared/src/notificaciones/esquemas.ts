@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { MOTIVOS_TRABAJO } from "../trabajos/esquemas.js";
+import { CATEGORIAS_CRITICAS_BUZON } from "../buzon/esquemas.js";
 
 // Spec 017 (D-8, D-11, D-12; P-3, P-5; CA-12). Notificaciones y aviso en vivo. Los `params` son códigos y números,
 // discriminados por `tipo` y estrictos: nunca viaja un secreto, un RUC ni una razón social dentro de ellos.
-export const TIPOS_NOTIFICACION = ["credencial_invalida", "trabajo_terminado", "plan_limite"] as const;
+export const TIPOS_NOTIFICACION = ["credencial_invalida", "trabajo_terminado", "plan_limite", "buzon_critico"] as const;
 export type TipoNotificacion = (typeof TIPOS_NOTIFICACION)[number];
 
 const fechaIso = z.iso.datetime();
@@ -22,6 +23,9 @@ const paramsPlanLimite = z.strictObject({
   limite: entero,
 });
 
+// Spec 023 (D-7, D-10): solo código de categoría crítica e id del mensaje; nunca asunto, RUC ni remitente.
+const paramsBuzonCritico = z.strictObject({ categoria: z.enum(CATEGORIAS_CRITICAS_BUZON), mensajeId: z.uuid() });
+
 const baseNotificacion = z.object({
   id: z.uuid(),
   creadaEn: fechaIso,
@@ -34,6 +38,7 @@ export const notificacionSchema = z.discriminatedUnion("tipo", [
   baseNotificacion.extend({ tipo: z.literal("credencial_invalida"), params: paramsCredencialInvalida }),
   baseNotificacion.extend({ tipo: z.literal("trabajo_terminado"), params: paramsTrabajoTerminado }),
   baseNotificacion.extend({ tipo: z.literal("plan_limite"), params: paramsPlanLimite }),
+  baseNotificacion.extend({ tipo: z.literal("buzon_critico"), params: paramsBuzonCritico }),
 ]);
 export type Notificacion = z.infer<typeof notificacionSchema>;
 

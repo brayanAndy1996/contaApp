@@ -1,7 +1,7 @@
 // Unitarias del ensamblado `iniciarTrabajos` (T10): cableado, trabajos de sistema, cierre ordenado con tiempo
 // agotado y muerte. BullMQ, despachador, reconciliador, ejecutor y caché de token son dobles; la integración real está
 // en *.int.spec.ts (T5).
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   workers: [] as Array<{
@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
   sistema: {
     encolar: vi.fn(),
     programarPurga: vi.fn(async () => undefined),
+    programarBuzon: vi.fn(async () => undefined),
     cerrar: vi.fn(async () => undefined),
   },
   workerSistema: {
@@ -168,6 +169,8 @@ function deps(extra: Partial<DepsTrabajos> = {}) {
 }
 
 beforeEach(() => {
+  // La config unitaria fija BUZON_PROGRAMADOR=off y la de cobertura no: se fija aquí para no depender de ninguna.
+  vi.stubEnv("BUZON_PROGRAMADOR", "on");
   h.workers = [];
   h.despachador.ciclos = 0;
   h.despachador.fallar = false;
@@ -176,12 +179,17 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe("iniciarTrabajos (unitarias)", () => {
   it("caso feliz: una cola BullMQ por cola configurada, purga programada, bucles en marcha y concurrencia ajustada", async () => {
     const { d, logs } = deps({ antiguedadSeg: 7 });
     const en = await iniciarTrabajos(d);
     expect(h.workers[0]!.colas).toEqual([{ cola: "sire", concurrencia: 4 }]);
     expect(h.sistema.programarPurga).toHaveBeenCalledTimes(1);
+    expect(h.sistema.programarBuzon).toHaveBeenCalledTimes(1);
     expect(h.reconciliador.opciones).toMatchObject({
       antiguedadSeg: 7,
       prefijo: "contapp:",
@@ -207,6 +215,15 @@ describe("iniciarTrabajos (unitarias)", () => {
       "trabajos_iniciados",
       "trabajos_detenidos",
     ]);
+  });
+
+  it("023 · con BUZON_PROGRAMADOR=off no se registra el programador de buzones", async () => {
+    vi.stubEnv("BUZON_PROGRAMADOR", "off");
+    const { d } = deps();
+    const en = await iniciarTrabajos(d);
+    expect(h.sistema.programarPurga).toHaveBeenCalledTimes(1);
+    expect(h.sistema.programarBuzon).not.toHaveBeenCalled();
+    await en.detener();
   });
 
   // Spec 017 · T4 (rojo): el notificador por defecto es el adaptador Redis (`NotificadorEventos`), no el log.

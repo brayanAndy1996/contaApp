@@ -1,5 +1,6 @@
 import type { NotificacionVista } from "../../lib/notificaciones";
 import { MENSAJES_NOTIFICACIONES } from "../../lib/notificaciones";
+import { etiquetaCategoria } from "../../lib/buzon";
 
 // Texto en español de una notificación (spec 017, D-11; CA-16), armado desde `tipo` y `params`. Un tipo o un código
 // que este cliente no conoce da un texto genérico: nunca se muestra el código crudo. Todo sale como texto de React
@@ -62,6 +63,9 @@ export function textoNotificacion(n: NotificacionVista): string {
         ? `Superaste el 90 % del límite de tu plan: ${uso}.`
         : `Estás por llegar al límite de tu plan: ${uso}.`;
     }
+    case "buzon_critico":
+      // El asunto no viaja en `params` (D-10): solo la categoría, siempre en español.
+      return `Mensaje crítico en el buzón SOL${de}: ${etiquetaCategoria(n.params.categoria)}`;
     default:
       return MENSAJES_NOTIFICACIONES.genericoTexto;
   }

@@ -8,11 +8,13 @@ import {
   MockSireApiClient,
   MockSireAuth,
   MockSolAuth,
+  MockSolPortal,
   MockXmlProvider,
   type ConsultaRuc,
   type SireApiClient,
   type SireAuth,
   type SolAuth,
+  type SolPortal,
   type XmlProvider,
 } from "@contapp/sunat";
 
@@ -42,19 +44,21 @@ export const VARIABLES_ADAPTADOR = [
 ] as const;
 type VariableAdaptador = (typeof VARIABLES_ADAPTADOR)[number];
 
-/** Tokens de inyección de Nest de los 5 puertos (`SireAuth` y `SireApiClient` comparten `SIRE_CLIENT`). */
+/** Tokens de inyección de Nest de los 6 puertos (`SireAuth` y `SireApiClient` comparten `SIRE_CLIENT`; `SolAuth` y `SolPortal`, `SOL_PORTAL`). */
 export const SIRE_AUTH = "SIRE_AUTH";
 export const SIRE_API_CLIENT = "SIRE_API_CLIENT";
 export const SOL_AUTH = "SOL_AUTH";
+export const SOL_PORTAL = "SOL_PORTAL";
 export const CONSULTA_RUC = "CONSULTA_RUC";
 export const XML_PROVIDER = "XML_PROVIDER";
-/** Token del conjunto ya creado (y validado) de los 5 puertos. */
+/** Token del conjunto ya creado (y validado) de los 6 puertos. */
 export const ADAPTADORES = "ADAPTADORES";
 
 export interface Adaptadores {
   sireAuth: SireAuth;
   sireApiClient: SireApiClient;
   solAuth: SolAuth;
+  solPortal: SolPortal;
   consultaRuc: ConsultaRuc;
   xmlProvider: XmlProvider;
 }
@@ -85,6 +89,25 @@ export function consultaRucDesdeEntorno(env: Entorno): ConsultaRuc {
 export function solAuthDesdeEntorno(env: Entorno): SolAuth {
   soloMock(env, "SOL_PORTAL");
   return new MockSolAuth();
+}
+
+/**
+ * Buzón SOL (spec 023, D-2); comparte `SOL_PORTAL` con `SolAuth`. Solo `mock`, con `SOL_MOCK_LATENCIA_MS` opcional
+ * (entero de ms). Un valor inválido falla nombrando la variable y sin imprimir el valor.
+ */
+export function solPortalDesdeEntorno(env: Entorno): SolPortal {
+  soloMock(env, "SOL_PORTAL");
+  const cruda = env.SOL_MOCK_LATENCIA_MS?.trim();
+  let latenciaMs: number | undefined;
+  if (cruda !== undefined && cruda !== "") {
+    if (!/^\d{1,7}$/.test(cruda))
+      throw new ConfiguracionAdaptadoresError(
+        "SOL_MOCK_LATENCIA_MS inválido: se espera un entero de milisegundos",
+        "SOL_MOCK_LATENCIA_MS",
+      );
+    latenciaMs = Number(cruda);
+  }
+  return new MockSolPortal(latenciaMs !== undefined ? { latenciaMs } : {});
 }
 
 /** Cliente de la API del SIRE; comparte `SIRE_CLIENT` con `SireAuth`. Solo `mock`. */
@@ -141,7 +164,7 @@ export function verificarGuardaProduccion(
   );
 }
 
-/** Crea los 5 puertos del entorno. Primero valida cada variable y luego aplica la guarda de producción. */
+/** Crea los 6 puertos del entorno. Primero valida cada variable y luego aplica la guarda de producción. */
 export function crearAdaptadores(
   env: Entorno,
   logger: LoggerAdaptadores = new Logger("Adaptadores"),
@@ -150,6 +173,7 @@ export function crearAdaptadores(
     sireAuth: sireAuthDesdeEntorno(env),
     sireApiClient: sireApiClientDesdeEntorno(env),
     solAuth: solAuthDesdeEntorno(env),
+    solPortal: solPortalDesdeEntorno(env),
     consultaRuc: consultaRucDesdeEntorno(env),
     xmlProvider: xmlProviderDesdeEntorno(env),
   };
@@ -157,7 +181,7 @@ export function crearAdaptadores(
   return adaptadores;
 }
 
-/** Exporta los 5 puertos por token (D9: hoy solo los consume `TrabajosService`). Falla el arranque si el entorno es inválido. */
+/** Exporta los 6 puertos por token (D9: hoy solo los consume `TrabajosService`). Falla el arranque si el entorno es inválido. */
 @Global()
 @Module({
   providers: [
@@ -178,6 +202,11 @@ export function crearAdaptadores(
       inject: [ADAPTADORES],
     },
     {
+      provide: SOL_PORTAL,
+      useFactory: (a: Adaptadores) => a.solPortal,
+      inject: [ADAPTADORES],
+    },
+    {
       provide: CONSULTA_RUC,
       useFactory: (a: Adaptadores) => a.consultaRuc,
       inject: [ADAPTADORES],
@@ -193,6 +222,7 @@ export function crearAdaptadores(
     SIRE_AUTH,
     SIRE_API_CLIENT,
     SOL_AUTH,
+    SOL_PORTAL,
     CONSULTA_RUC,
     XML_PROVIDER,
   ],

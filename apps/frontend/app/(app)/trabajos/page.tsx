@@ -8,6 +8,7 @@ import {
   type ComponentProps,
 } from "react";
 import { MENSAJES, cargarYo, mensajeDeError } from "../../../lib/acceso";
+import { MENSAJES_BUZON } from "../../../lib/buzon";
 import { listarClientes } from "../../../lib/clientes";
 import {
   Alert,
@@ -55,6 +56,8 @@ const TIPOS: Record<string, string> = {
   "credencial.verificar_sol": "Verificando clave SOL",
   "credencial.verificar_sire": "Verificando credencial SIRE",
   "sire.propuesta.descargar": "Descargando propuesta del SIRE",
+  "sol.buzon.revisar": MENSAJES_BUZON.tipoRevisar,
+  "sol.buzon.abrir": MENSAJES_BUZON.tipoAbrir,
 };
 
 const ESTADOS: Record<TrabajoVista["estado"], string> = {

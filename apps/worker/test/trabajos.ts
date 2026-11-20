@@ -31,6 +31,10 @@ import type {
   Procesador,
 } from "../src/trabajos/ejecutor.js";
 
+// 023 (D-5): el repetible `buzon.programar` no corre en las suites salvo que una lo pida (su ciclo es global en la BD y
+// encolaría capturas de los estudios de otras pruebas). Quien quiera probarlo borra la variable antes de `arrancar()`.
+process.env.BUZON_PROGRAMADOR ??= "off";
+
 export const dormir = (ms: number): Promise<void> =>
   new Promise((r) => setTimeout(r, ms));
 

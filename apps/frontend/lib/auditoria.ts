@@ -86,6 +86,11 @@ const ACCIONES: Record<AccionAuditoria, string> = {
   "estudio.regla_motor": "Cambió una regla del motor del estudio",
   "estudio.aporte_catalogo": "Cambió el aporte al catálogo compartido",
   "compra.historial": "Aplicó el destino según el historial",
+  "buzon.contenido_obtenido": "Obtuvo el contenido de un mensaje del buzón SOL",
+  "buzon.captura_solicitada": "Pidió revisar el buzón SOL",
+  "buzon.apertura_solicitada": "Pidió abrir un mensaje del buzón SOL",
+  "buzon.contenido_visto": "Vio el contenido de un mensaje del buzón SOL",
+  "buzon.adjunto_descargado": "Descargó un adjunto del buzón SOL",
 };
 
 /** Acción en español; una clave fuera del catálogo (no debería llegar) sale genérica, nunca el código crudo. */

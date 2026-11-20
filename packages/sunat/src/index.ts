@@ -6,3 +6,4 @@ export * from "./mock/sol-auth.mock.js";
 export * from "./mock/sire-api-client.mock.js";
 export * from "./mock/xml-provider.mock.js";
 export * from "./formatos/index.js";
+export * from "./mock/sol-portal.mock.js";

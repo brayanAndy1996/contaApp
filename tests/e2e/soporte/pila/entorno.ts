@@ -132,6 +132,8 @@ export function entornoDeLaPila(
     REDIS_URL: config.urlRedis,
     SIRE_CLIENT: "mock",
     SOL_PORTAL: "mock",
+    // 023 (D-5): sin el repetible del programador, ninguna captura ocurre fuera de las que pide la prueba.
+    BUZON_PROGRAMADOR: "off",
     RUC_CLIENT: "mock",
     XML_PROVIDER: "mock",
     KEY_PROVIDER: "mock",

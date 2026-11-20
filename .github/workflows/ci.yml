@@ -148,6 +148,12 @@ jobs:
           CORREO_PROVIDER: consola
           APP_ORIGIN: http://localhost:3000
 
+      - name: Cobertura de 023 buzones en domain, sunat, db, backend y worker (umbral 90 % por archivo)
+        run: pnpm cobertura:buzon
+        env:
+          CORREO_PROVIDER: consola
+          APP_ORIGIN: http://localhost:3000
+
       - name: Cobertura de packages/db (umbral 90 %)
         run: pnpm cobertura:db
 

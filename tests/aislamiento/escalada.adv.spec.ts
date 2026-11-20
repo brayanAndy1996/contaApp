@@ -91,6 +91,24 @@ const FUNCIONES_017: { firma: string; dueno: string }[] = [
   { firma: "notificaciones_de_esta_transaccion()", dueno: REGISTRADOR },
   { firma: "plan_aviso_disparar()", dueno: MIGRATOR },
   { firma: "plan_aviso_recalcular(uuid)", dueno: REGISTRADOR },
+  // Spec 023 (T11, migraciones 0054-0056): candado del ciclo y estudios vigentes del programador del buzón (sistema.*, EXECUTE solo
+  // contapp_worker), candidatos y encolado programado (worker), elevación de prioridad, bloqueo del estado y auditoría (backend),
+  // destinatarios del aviso (interno, sin EXECUTE para la app) y los triggers de aviso y de auditoría del contenido.
+  // T21 (migración 0058, revisadas): sistema.buzon_ciclo_tomar (H-023-2-7) y buzon_mensaje_aviso_obligatorio (H-023-2-9) se
+  // reemplazan con el mismo dueño, search_path fijo y los mismos EXECUTE; no hay funciones nuevas.
+  ...["buzon_ciclo_tomar(text)", "buzon_ciclo_renovar(text)", "buzon_ciclo_soltar(text)", "estudios_buzon()"].map((f) => ({
+    firma: `sistema.${f}`,
+    dueno: MIGRATOR,
+  })),
+  { firma: "buzon_candidatos()", dueno: MIGRATOR },
+  { firma: "encolar_buzon_programados(uuid[])", dueno: MIGRATOR },
+  { firma: "buzon_elevar_prioridad(uuid)", dueno: MIGRATOR },
+  { firma: "buzon_estado_bloquear(uuid)", dueno: MIGRATOR },
+  { firma: "buzon_auditar(text,uuid,uuid,uuid)", dueno: MIGRATOR },
+  { firma: "buzon_mensaje_aviso_obligatorio()", dueno: MIGRATOR },
+  { firma: "buzon_mensaje_aviso()", dueno: MIGRATOR },
+  { firma: "auditoria_capturar_buzon_contenido()", dueno: MIGRATOR },
+  { firma: "interno.destinatarios_cliente(uuid,uuid)", dueno: MIGRATOR },
 ];
 const nombre017 = (f: string) => (f.includes(".") && f.indexOf(".") < f.indexOf("(") ? f : `public.${f}`).replace(/\(.*$/, "");
 
@@ -350,6 +368,8 @@ describe("ADV escalada desde DATABASE_URL", () => {
     // auditoria, notificaciones y aviso del plan); contapp_migrator o contapp_registrador como dueño.
     // Ajuste de 016 (T23, migracion 0038, H-016-8): se admite ademas public.bloquear_compras_reevaluar(uuid[]) (solo bloquea
     // compras vivas del estudio; mismo dueño, search_path fijo y EXECUTE solo contapp_worker).
+    // Ajuste de 023 (T11, migraciones 0054-0056): se admiten las 13 del buzón (en FUNCIONES_017, dueño contapp_migrator); las
+    // cuatro de `sistema` las devuelve la lista general y no la de `public`.
     expect(defs.map((d) => d.f).sort()).toEqual(
       [
         ...FUNCIONES_AUTH.map((n) => `auth.${n}`),
@@ -360,7 +380,7 @@ describe("ADV escalada desde DATABASE_URL", () => {
       ].sort(),
     );
     expect([...defsPublic].sort()).toEqual(
-      [FIRMA_BLOQUEAR_REEVALUAR, FIRMA_ENCOLAR_XML, ...FUNCIONES_017.filter((f) => !f.firma.startsWith("interno.")).map((f) => f.firma)].sort(),
+      [FIRMA_BLOQUEAR_REEVALUAR, FIRMA_ENCOLAR_XML, ...FUNCIONES_017.filter((f) => !/^(interno|sistema)\./.test(f.firma)).map((f) => f.firma)].sort(),
     );
     // Cada SECURITY DEFINER de 017: existe, dueño esperado, search_path fijo, sin EXECUTE para PUBLIC.
     // El orden de la consulta depende de la colación de la BD (CI y local difieren con `_`): se ordena aquí igual que lo esperado.

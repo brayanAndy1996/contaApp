@@ -124,7 +124,16 @@ export type {
 } from "./trabajos/registro";
 export { leerConfig } from "./trabajos/config";
 export type { ConfigCola } from "./trabajos/config";
-export { estudiosConTrabajos, estudiosIds, purgarAuth } from "./trabajos/sistema";
+export {
+  estudiosBuzon,
+  estudiosConTrabajos,
+  estudiosIds,
+  purgarAuth,
+  renovarCiclo,
+  soltarCiclo,
+  tomarCiclo,
+} from "./trabajos/sistema";
+export type { CicloBuzon } from "./trabajos/sistema";
 export type { ConteosPurga, RetencionesAuth } from "./trabajos/sistema";
 export { TrabajosRepoError } from "./trabajos/errores";
 export {
@@ -403,3 +412,38 @@ export {
   reglaAprendida,
   reglaConfirmacion,
 } from "./schema/reglas";
+// Spec 023: buzón SOL (tablas y funciones acotadas en 0054–0056). Lectura y auditoría con la `tx` del backend; escritura, candidatos
+// y encolado programado con la del worker; el candado del ciclo y los estudios vigentes (arriba) con la de withSistema.
+export { buzonAdjunto, buzonEstadoCliente, buzonMensaje, buzonProgramacion } from "./schema/buzon";
+export {
+  actualizarConocidosBuzon,
+  auditarBuzon,
+  bloquearEstadoBuzon,
+  fallaPorCredencialBuzon,
+  BuzonRepoError,
+  candidatosBuzon,
+  conocidosBuzon,
+  elevarPrioridadBuzon,
+  encolarBuzonProgramados,
+  guardarContenidoBuzon,
+  guardarEstadoCapturaBuzon,
+  insertarMensajeBuzon,
+  leerAdjuntoBuzon,
+  leerEstadoBuzon,
+  leerIdSunatBuzon,
+  leerMensajeBuzon,
+  listarMensajesBuzon,
+  marcarRellenoBuzon,
+  marcarSolicitudBuzon,
+  relojBdBuzon,
+} from "./buzon";
+export type {
+  AccionAuditoriaBuzon,
+  AdjuntoBuzon,
+  AdjuntoGuardarBuzon,
+  CandidatoBuzon,
+  DetalleMensajeBuzon,
+  EntradaMensajeBuzon,
+  EstadoBuzon,
+  MensajeBuzonFila,
+} from "./buzon";

@@ -86,6 +86,7 @@ export class TrabajosService
       sireApi: adaptadores.sireApiClient,
       consultaRuc: adaptadores.consultaRuc,
       solAuth: adaptadores.solAuth,
+      solPortal: adaptadores.solPortal,
       xmlProvider: adaptadores.xmlProvider,
       storage: crearStorage(env, new Logger("Storage")),
       xmlSimuladoEnReglas: env.XML_SIMULADO_EN_REGLAS === "1",

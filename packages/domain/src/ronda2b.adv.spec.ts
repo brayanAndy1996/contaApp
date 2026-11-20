@@ -99,6 +99,17 @@ describe("T13b · ronda adversarial 2b", () => {
       "canonHuella", "compraLeidaAFila", "erroresDeFilaVenta", "permiteProvisional", "prepararArchivo", "ventaAFila",
       // 021 (T7): catálogo del motor, RUC aportable y R-HIS (reglas/catalogo, reglas/r-his).
       "CATALOGO_REGLAS_MOTOR", "esRucAportable", "planificarHistorial",
+      // 023 (T8): buzon/ (clasificación, franjas, captura, adjuntos y texto plano).
+      "CATALOGO_BUZON", "DIAS_AVISO_PRIMERA_SINCRONIZACION", "MAX_PAGINAS_CAPTURA", "TOPE_ADJUNTO_BYTES",
+      "TOPE_MENSAJES_CAPTURA", "TOPE_MENSAJE_BYTES", "TOPE_TEXTO_PLANO", "capturaVencida", "clasificarMensaje",
+      "debeAvisar", "desfaseCliente", "htmlATextoPlano", "mimePorFirma", "normalizarAsunto", "planificarCaptura",
+      "prepararAdjuntos", "sanearNombreAdjunto", "seleccionarVencidos", "ultimaFranja",
+      // 023 (T18, H-023-1-3 y H-023-1-4): saneo de los datos del portal SOL (buzon/saneo).
+      "idSunatValido", "sanearTextoPortal",
+      // 023 (T21, H-023-2-1 y H-023-2-5): cursor de relleno y fecha del mensaje con la de captura si es ilegible.
+      "CURSOR_RELLENO", "fechaMensaje",
+      // 023 (T25b, R-1): tope de páginas leídas en una captura.
+      "MAX_PAGINAS_LECTURA",
     ].sort();
     expect(Object.keys(Publico).sort()).toEqual(esperados);
 
