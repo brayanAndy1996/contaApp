@@ -6,24 +6,26 @@ Nivel B con una ronda adversarial (P-10, D-11). Flujo 04 §1.3: pruebas primero 
 
 | #   | Tarea | Rol | Modelo | Depende de | TDD | ADV | Estado |
 | --- | ----- | --- | ------ | ---------- | --- | --- | ------ |
-| T1  | Pruebas de `shared`: filtros, atención, comentario, lote, permiso, acciones e indicador (rojo) | tester | sonnet | — ∥ T2, T3 | ✓ | — | [ ] |
-| T2  | Pruebas de BD: tablas, histórico, función acotada, grants, auditoría, concurrencia, catálogo y escalada (rojo) | tester | sonnet | — ∥ T1, T3 | ✓ | — | [ ] |
-| T3  | Pruebas del repositorio: bandeja contra oráculo, posición, indicador, detalle (rojo) | tester | sonnet | — ∥ T1, T2 | ✓ | — | [ ] |
-| T4  | Pruebas HTTP: rutas nuevas y ampliadas, HU-40, rendimiento CA-9 (rojo) | tester | sonnet | T1 ∥ T5, T6, T7 | ✓ | — | [ ] |
-| T5  | Pruebas de componentes: bandeja, filtros, atención, lote, indicador, menú, campana (rojo) | tester | sonnet | T1 ∥ T4, T6, T7 | ✓ | — | [ ] |
-| T6  | `shared`: esquemas, códigos, permiso, acciones e indicador | backend | sonnet | T1 ∥ T4, T5, T7 | ✓ | — | [ ] |
-| T7  | Migraciones 0059–0060, esquema drizzle y `packages/db/src/buzon/` | backend | opus | T2, T3 ∥ T4, T5, T6 | ✓ | — | [ ] |
-| T8  | Backend: bandeja, atención, detalle, cursor e indicador en clientes | backend | sonnet | T4, T6, T7 ∥ T9 | ✓ | — | [ ] |
-| T9  | Frontend: `/buzon`, bandeja fijada, atención, lote, indicador y menú (estilo A) | frontend | sonnet | T5, T6 ∥ T7, T8 | ✓ | — | [ ] |
-| T10 | Cobertura ≥ 90 %: `cobertura:bandeja` en CI | devops | haiku | T7, T8 ∥ T9 | — | — | [ ] |
-| T11 | Ronda adversarial: alcance, lote, cursor e indicador (≤ 15 pruebas) | adversario | opus | T8, T10 ∥ T9, T14 | — | ✓ | [ ] |
-| T12 | Pruebas de las correcciones de la ronda (rojo) | tester | sonnet | T11 | ✓ | — | [ ] |
-| T13 | Corregir los hallazgos de la ronda (migración 0061 si hace falta) | backend | opus | T12 | — | — | [ ] |
-| T14 | E2E: campana → bandeja → «Críticos pendientes» → atender → indicador | tester | sonnet | T8, T9 ∥ T11–T13 | — | — | [ ] |
-| T15 | Prueba manual con el sistema levantado y adaptadores en `mock` | tester | sonnet | T13, T14 | — | — | [ ] |
-| T16 | Verificar CA-1 a CA-14 con evidencia, suites, `db:migrate` ×2 y cobertura | tester | sonnet | T15 (y T15a si existe) | — | — | [ ] |
-| T17 | Revisión final contra la spec | arquitecto | opus | T16 | — | — | [[x] |
-| T18 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T17 (y T17b si existe) | — | — | [ ] |
+| T1  | Pruebas de `shared`: filtros, atención, comentario, lote, permiso, acciones e indicador (rojo) | tester | sonnet | — ∥ T2, T3 | ✓ | — | [x] |
+| T2  | Pruebas de BD: tablas, histórico, función acotada, grants, auditoría, concurrencia, catálogo y escalada (rojo) | tester | sonnet | — ∥ T1, T3 | ✓ | — | [x] |
+| T3  | Pruebas del repositorio: bandeja contra oráculo, posición, indicador, detalle (rojo) | tester | sonnet | — ∥ T1, T2 | ✓ | — | [x] |
+| T4  | Pruebas HTTP: rutas nuevas y ampliadas, HU-40, rendimiento CA-9 (rojo) | tester | sonnet | T1 ∥ T5, T6, T7 | ✓ | — | [x] |
+| T5  | Pruebas de componentes: bandeja, filtros, atención, lote, indicador, menú, campana (rojo) | tester | sonnet | T1 ∥ T4, T6, T7 | ✓ | — | [x] |
+| T6  | `shared`: esquemas, códigos, permiso, acciones e indicador | backend | sonnet | T1 ∥ T4, T5, T7 | ✓ | — | [x] |
+| T7  | Migraciones 0059–0060, esquema drizzle y `packages/db/src/buzon/` | backend | opus | T2, T3 ∥ T4, T5, T6 | ✓ | — | [x] |
+| T8  | Backend: bandeja, atención, detalle, cursor e indicador en clientes | backend | sonnet | T4, T6, T7 ∥ T9 | ✓ | — | [x] |
+| T9  | Frontend: `/buzon`, bandeja fijada, atención, lote, indicador y menú (estilo A) | frontend | sonnet | T5, T6 ∥ T7, T8 | ✓ | — | [x] |
+| T10 | Cobertura ≥ 90 %: `cobertura:bandeja` en CI | devops | haiku | T7, T8 ∥ T9 | — | — | [x] |
+| T11 | Ronda adversarial: alcance, lote, cursor e indicador (≤ 15 pruebas) | adversario | opus | T8, T10 ∥ T9, T14 | — | ✓ | [x] |
+| T12 | Pruebas de las correcciones de la ronda (rojo) | tester | sonnet | T11 | ✓ | — | [x] |
+| T13 | Corregir los hallazgos de la ronda (migración 0061 si hace falta) | backend | opus | T12 | — | — | [x] |
+| T14 | E2E: campana → bandeja → «Críticos pendientes» → atender → indicador | tester | sonnet | T8, T9 ∥ T11–T13 | — | — | [x] |
+| T15 | Prueba manual con el sistema levantado y adaptadores en `mock` | tester | sonnet | T13, T14 | — | — | [x] |
+| T15a | Corrección de los defectos de pantalla de T15 | frontend | sonnet | T15 | — | — | [x] |
+| T16 | Verificar CA-1 a CA-14 con evidencia, suites, `db:migrate` ×2 y cobertura | tester | sonnet | T15 (y T15a si existe) | — | — | [x] |
+| T16a | Corrección de los dos fallos de CA-14 (permisos y cobertura), sin tocar producción | — | — | T16 | — | — | [x] |
+| T17 | Revisión final contra la spec | arquitecto | opus | T16 | — | — | [x] |
+| T18 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T17 (y T17b si existe) | — | — | [x] |
 
 Paralelismo (por oleadas; dentro de una oleada no se comparten archivos):
 - **Oleada 1**: T1 (`packages/shared/src/buzon/*-024*.spec.ts`, `acceso/permisos-024.spec.ts`) ∥ T2 (`tests/aislamiento/buzon-atencion-*`, `catalogo.spec.ts`, `escalada.adv.spec.ts`) ∥ T3 (`packages/db/src/buzon/{bandeja,atencion,indicador}.spec.ts`).
@@ -47,82 +49,112 @@ Reglas comunes:
 - Tiempo: el estado y el histórico usan `clock_timestamp()` de la BD. Ninguna prueba duerme: filas fijadas como `contapp_migrator` o reloj inyectable.
 - Una ambigüedad nueva que cambie la spec no se decide: `requiere usuario` y se informa al orquestador.
 
-## T1 · [ ] Pruebas de `shared`, rojo (tester · sonnet)
+## T1 · [x] Pruebas de `shared`, rojo (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (D-3 a D-9, D-13; CA-2, CA-4, CA-6, CA-7, CA-8), `plan.md` (Contratos: shared), `packages/shared/src/buzon/{index,esquemas}.ts` y un `*.spec.ts` de esa carpeta (modelo), `packages/shared/src/acceso/{permisos,roles}.ts`, `packages/shared/src/auditoria/acciones.ts`, `packages/shared/src/clientes/esquemas.ts` (líneas 30–100).
 - **Hacer**: `packages/shared/src/buzon/{bandeja-024,atencion-024}.spec.ts` y `packages/shared/src/acceso/permisos-024.spec.ts`. Filtros: cada valor válido; claves desconocidas, categoría inexistente, `desde > hasta`, fecha imposible, `limite` 0 y 101, cursor de 257 caracteres → error; `atencion` por defecto `todos`; el esquema del cliente rechaza `responsable` y `archivados`. Comentario: recorte; vacío o solo espacios; 500 y 501; `‮`, `⁦`, `\u0000`, `\r`; `\n` aceptado; `<script>` aceptado como texto. `comentarioRequerido` en las cuatro combinaciones. Cuerpos: `accion` inválida, clave extra, lote con 0, 100, 101 y repetidos, no uuid. Respuestas de bandeja, detalle con `atencion` e `historial`, lote y `ClienteDto.buzon`; `conMensajesNuevos`. Permiso `buzon.atender` en Asistente, Contador, Administrador y Dueño y no en Lectura; `buzon.marcar_leido` sin cambios. Acciones `buzon.atendido` y `buzon.atencion_deshecha`.
 - **Hecho cuando**: fallan por «no implementado» o export ausente; las de `shared` existentes siguen verdes. Commit `test(024): contratos de la bandeja en rojo`.
 
-## T2 · [ ] Pruebas de BD, rojo (tester · sonnet)
+**Resultado de T1 (tester · sonnet):** commit `4d5d969`.
+
+## T2 · [x] Pruebas de BD, rojo (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (D-5 a D-8, D-12, D-14; U-1, U-2; CA-4, CA-5, CA-7, CA-10, CA-13), `plan.md` (Contratos: BD, Orden de bloqueo, Índices), `packages/db/migrations/0058_buzon_r2.sql` (patrón de `SECURITY DEFINER` y regla de los 30 días), `tests/aislamiento/buzon-soporte.ts`, `buzon-tablas.spec.ts` y `buzon-concurrencia.spec.ts` (modelo; no repetir), `tests/aislamiento/escalada.adv.spec.ts` (líneas 60–115 y 380–420), `tests/aislamiento/catalogo.spec.ts` (cómo se declara una tabla).
 - **Hacer**: `tests/aislamiento/buzon-atencion-{tablas,funcion,concurrencia}.spec.ts`; ampliar `catalogo.spec.ts` con `buzon_atencion` y `escalada.adv.spec.ts` con `buzon_atencion_aplicar(uuid,uuid[],text,text)` y `buzon_mensaje_atencion_inicial()` (dueño `contapp_migrator`, `search_path` fijo, sin `EXECUTE` para `PUBLIC`). Tablas: RLS `FORCE`; sin `withTenant` no se ve nada; grants (backend solo `SELECT` en `buzon_atencion`; nadie `INSERT`, `UPDATE` ni `DELETE` directo; nadie `UPDATE` de `historico`, `atendido_en`, `atendido_por`); `UPDATE` y `DELETE` del historial → 42501 para backend, worker y migrator no superusuario; FK compuesta: evento con mensaje de otro cliente o de otro estudio imposible; CHECK del comentario. Histórico (CA-13): primera sincronización con mensajes de 29 y 31 días; cliente ya sincronizado con uno de 400 días → pendiente; el worker manda `historico`, `atendido_en` o `atendido_por` y el trigger los ignora; la reclasificación de 0059 sobre filas sembradas antes (migrar sobre una BD con mensajes de 023) coincide con `NOT avisado` en los críticos. Función: sin estudio, sin usuario o miembro desactivado → 42501; acción inválida, 0 y 101 ids, nulos, repetidos, comentario inválido → 22023; id inexistente, de otro estudio o de otro cliente que `p_cliente` → `P0002` sin cambios; cliente archivado → `55000` (U-1); crítico sin comentario → `22004` a todo el lote; marcar, deshacer y volver a marcar dejan tres eventos y el estado correcto; deshacer un histórico atendido lo deja histórico (U-2); ya atendido → `aplicado = false` sin evento; auditoría por mensaje con `datos` sin el comentario (canario); ninguna fila nueva en `notificacion`, `buzon_estado_cliente` ni `job_registro`; `leido_sunat` intacto. Concurrencia: 10 rondas de dos marcas simultáneas del mismo mensaje → un evento y un `aplicado = false`; dos lotes de 100 solapados en orden inverso → sin `40P01`; lote ∥ actualización de conocidos de la captura (`packages/db/src/buzon/escritura.ts`) → sin `40P01`; archivar el cliente ∥ marcar → uno de los dos resultados válidos, nunca evento en un archivado.
 - **Hecho cuando**: fallan por «no implementado»; las de 002–023 siguen verdes. Commit `test(024): BD de la atención en rojo`.
 
-## T3 · [ ] Pruebas del repositorio, rojo (tester · sonnet)
+**Resultado de T2 (tester · sonnet):** commit `99b2701`.
+
+## T3 · [x] Pruebas del repositorio, rojo (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (D-2 a D-4, D-9, D-12; CA-1, CA-2, CA-8), `plan.md` (Contratos: Consultas, Cursor, Índices), `packages/db/src/buzon/{index,lectura}.ts` y `lectura.spec.ts` (modelo de arnés), `packages/db/src/acceso/alcance.ts`, `packages/db/src/clientes/repositorio.ts` (líneas 200–240).
 - **Hacer**: `packages/db/src/buzon/{bandeja,atencion,indicador}.spec.ts`. Bandeja (CA-1, CA-2): estudio con 120 clientes (algunos archivados, responsable y colaborador), mensajes con fechas repetidas al microsegundo y las cinco categorías, leídos y no, pendientes, atendidos e históricos; oráculo en memoria; tabla de casos con cada filtro solo y combinaciones (al menos 30), para alcance global, asignado a 15 y «solo donde soy responsable», con y sin archivados, y la bandeja fijada en un cliente archivado; orden fecha desc e id desc; recorrer todas las páginas con límite 7 da cada fila una vez, también atendiendo filas a mitad; desasignar a mitad saca al cliente de la página siguiente; días de Lima en `desde`/`hasta` (un mensaje a las 23:30 de Lima cae en su día). Indicador (CA-8): nuevos y críticos nuevos por cliente con históricos y atendidos que no cuentan; una sola consulta para N clientes (contar consultas); `conMensajesNuevos` en el listado. Detalle: estado, comentario vigente e historial en orden con nombre de usuario. Atención: el repositorio llama a la función y traduce `aplicado`, `P0002`, `55000`, `22004` a `BuzonRepoError` con el SQLSTATE.
 - **Hecho cuando**: fallan por «no implementado»; las de `db` siguen verdes. Commit `test(024): repositorio de la bandeja en rojo`.
 
-## T4 · [ ] Pruebas HTTP, rojo (tester · sonnet)
+**Resultado de T3 (tester · sonnet):** commit `736203d`.
+
+## T4 · [x] Pruebas HTTP, rojo (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (D-2 a D-9, D-13; CA-1, CA-2, CA-4 a CA-10), `plan.md` (Contratos: HTTP, Cursor), `apps/backend/src/modules/buzon/lectura.int.spec.ts` (arnés y sembrado de 023), `apps/backend/src/modules/clientes/clientes-filtros.int.spec.ts` (listado), `apps/backend/src/modules/compras/detalle.int.spec.ts` (líneas 470–500, modelo de p95), `apps/backend/src/aislamiento/hu40-api.int.spec.ts` (líneas 980–1060 y 1150–1170 y 2160–2250).
 - **Hacer**: `apps/backend/src/modules/buzon/{bandeja,atencion,detalle-atencion}.int.spec.ts`, `bandeja.rendimiento.int.spec.ts` y `apps/backend/src/modules/clientes/indicador-buzon.int.spec.ts`. Bandeja (CA-1, CA-2): Contador con 15 de 120, Dueño, Administrador, Lectura, sin `buzon.ver` → 403; parámetros desconocidos → 400; cursor alterado, truncado, de otros filtros, de otra ruta de cliente → 400 `cursor_invalido`; cursor de otro estudio con los mismos filtros no trae filas ajenas; la ruta del cliente sin filtros devuelve lo mismo que en 023 más `cliente` y `atencion`. Atención (CA-4 a CA-7): marcar con y sin comentario, crítico sin comentario → 400, deshacer por otra persona, 409 `atencion_cambiada` con el estado vigente, Lectura → 403, cliente no visible, de otro estudio o mensaje cruzado → 404 igual al inexistente, archivado → 409 (U-1), lote de 100 con un ajeno → 404 sin cambios, de 101 → 400, con ya atendidos → omitidos, con un crítico sin comentario → 400; `MockSolPortal` sin llamadas, ninguna notificación nueva (CA-12); canario del comentario fuera de logs y auditoría. Detalle: `atencion` e `historial`. Indicador (CA-8): números por cliente, cambian tras atender y deshacer, históricos fuera, `conMensajesNuevos`, sin `buzon.ver` (rol simulado) el campo no viaja y el filtro da 403. Rendimiento (CA-9): 2.000 clientes y 100 000 mensajes (70 % pendientes) sembrados con `generate_series` como `contapp_migrator` y `ANALYZE`; 30 lecturas de la página 1 y de la 20 para global, asignado a 15 y a 500, sin filtros, «Pendientes» y «Críticos pendientes», y del listado de clientes con indicador: p95 < 300 ms; `EXPLAIN (FORMAT JSON)` de cada consulta sin `Seq Scan` sobre `buzon_mensaje`. HU-40: un caso por ruta nueva (`GET /buzon/mensajes`, `POST /buzon/atencion`, `POST /clientes/:clienteId/buzon/mensajes/:mensajeId/atencion`) y el del listado de clientes ampliado con el indicador: ids de B → 404 o nada de B, y `buzon_mensaje`/`buzon_atencion` de ambos estudios intactos.
 - **Hecho cuando**: fallan por «no implementado» (404 de ruta o campo ausente); «toda ruta tiene caso» pasa con las rutas nuevas declaradas; las del backend siguen verdes. Commit `test(024): rutas de la bandeja en rojo`.
 
-## T5 · [ ] Pruebas de componentes, rojo (tester · sonnet)
+**Resultado de T4 (tester · sonnet):** commit `7629f9c`.
+
+## T5 · [x] Pruebas de componentes, rojo (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (D-4, D-7, D-9, D-10, D-14; CA-2 a CA-6, CA-8, CA-11, CA-12), `plan.md` (Contratos: Frontend), `apps/frontend/components/buzon/{lista-mensajes,detalle-mensaje}.spec.tsx` y `*-t23a.spec.tsx` (modelo y lo que cambia por P-9), `apps/frontend/components/notificaciones/notificaciones.spec.tsx` (simulación de la API), `apps/frontend/components/marco/menu-principal.spec.tsx`, `apps/frontend/app/(app)/clientes/listado.spec.tsx`, `apps/frontend/diseno.estatico.spec.ts`.
 - **Hacer**: `apps/frontend/components/buzon/{bandeja,filtros-bandeja,atencion-mensaje,atender-lote}.spec.tsx`, `components/clientes/indicador-buzon.spec.tsx`, `components/marco/menu-principal-024.spec.tsx`; ajustar solo lo que P-9 cambia en las de 023 (lista con cliente y atención; página del cliente = bandeja fijada). Bandeja: abre en «Pendientes»; «Críticos pendientes» en un toque; filtros en la URL; «Cargar más»; elegir cliente navega; `?mensaje=` abre el detalle aunque no esté en la página. Crítico con texto «Crítico · Coactiva» y clase del token de error. Atención: botones solo con `buzon.atender`; comentario obligatorio en crítico (botón inactivo con motivo), contador 0/500; 409 → aviso y estado recargado; comentario con `<img onerror>` mostrado como texto (ningún nodo `img` ni atributo `on*`). Lote: selección, `Dialog`, comentario obligatorio con un crítico, resultado con omitidos. Indicador: «N nuevos» y «N críticos» con texto, enlace a `/clientes/:id/buzon`, filtro «Con mensajes nuevos», sin indicador si falta `buzon.ver`. Menú: «Buzones» en la barra inferior y en el menú lateral, activo en `/buzon`. Campana: el enlace de `buzon_critico` sigue en `/clientes/:id/buzon?mensaje=` y abre el detalle en la bandeja fijada. A 390 px (clase o `matchMedia` simulado): tarjetas, filtros en `Dialog`, detalle con «Volver». Solo `components/ui` y tokens.
 - **Hecho cuando**: fallan por componente ausente; las del frontend siguen verdes salvo las de 023 ajustadas a P-9. Commit `test(024): pantallas de la bandeja en rojo`.
 
-## T6 · [ ] `shared` (backend · sonnet)
+**Resultado de T5 (tester · sonnet):** commit `dcde61b`.
+
+## T6 · [x] `shared` (backend · sonnet)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: shared), pruebas de T1, `packages/shared/src/buzon/{index,esquemas,errores}.ts`, `packages/shared/src/{index.ts,acceso/permisos.ts,acceso/roles.ts,auditoria/acciones.ts,clientes/esquemas.ts}`.
 - **Hacer**: `packages/shared/src/buzon/{bandeja,atencion}.ts` y exports; códigos; `buzon.atender`; acciones; `ClienteDto.buzon` y `conMensajesNuevos`; `detalleMensajeSchema` ampliado.
 - **Hecho cuando**: las de T1 y todas las de `shared` pasan; `build` y typecheck de los consumidores limpios (un `switch` exhaustivo que falle por las acciones nuevas se anota para T8/T9, no se arregla aquí). Commit `feat(024): contratos de la bandeja y permiso buzon.atender`.
 
-## T7 · [ ] Migraciones y `packages/db` (backend · opus)
+**Resultado de T6 (backend · sonnet):** commit `19cb060`.
+
+## T7 · [x] Migraciones y `packages/db` (backend · opus)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: BD, Orden de bloqueo, Índices, Consultas; Riesgos), pruebas de T2 y T3, `packages/db/migrations/0054_buzon_tablas.sql` (líneas 1–100), `0056_buzon_critico.sql` (`buzon_auditar`, inserción en auditoría), `0058_buzon_r2.sql`, `meta/_journal.json` (última entrada), `packages/db/src/schema/buzon.ts`, `packages/db/src/buzon/{index,lectura,escritura,errores}.ts`, `packages/db/src/acceso/alcance.ts`, `packages/db/src/clientes/repositorio.ts`.
 - **Hacer**: 0059 y 0060 según el plan (repetibles; DDL de drizzle para la tabla y las columnas), entradas 59–60 del diario y snapshots, `schema/buzon.ts`, `src/buzon/{bandeja,atencion,indicador}.ts` y exports, orden de id en `SQL_ACTUALIZAR_CONOCIDOS` y `conMensajesNuevos` en `listarClientesFiltrado`. Medir con el sembrado de CA-9 las formas (b) y (c) de `listarBandeja` y el indicador (`EXPLAIN ANALYZE`) y anotar los tiempos en el resultado; si alguno no cumple, parar y avisar (escalamiento).
 - **Hecho cuando**: `pnpm db:migrate` dos veces en verde; las de T2 y T3 pasan (`pnpm test:aislamiento -- tests/aislamiento/buzon-atencion-*`, `catalogo`, `escalada` y `pnpm --filter @contapp/db test`); las de 002–023 siguen verdes; typecheck y lint limpios. Commit `feat(024): historial de atención, históricos y consultas de la bandeja`.
 
-## T8 · [ ] Backend (backend · sonnet)
+**Resultado de T7 (backend · opus):** commit `deba94c`. Migraciones `0059_buzon_atencion` y `0060_buzon_atencion_funcion`. El indicador usa `unnest` + `LATERAL`, que da un Index Only Scan del parcial por cliente (`packages/db/src/buzon/indicador.ts`). Los tiempos de `EXPLAIN ANALYZE` no se anotaron entonces; la medida de CA-9 es `bandeja.rendimiento.int.spec.ts`.
+
+## T8 · [x] Backend (backend · sonnet)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: HTTP, Cursor; Decisiones técnicas), pruebas de T4, `apps/backend/src/modules/buzon/{buzon.controller,buzon.module,lectura.service,errores,apoyo}.ts`, `apps/backend/src/modules/clientes/{clientes.controller,clientes.service}.ts`, `apps/backend/src/modules/acceso/guards/cliente-scope.guard.ts`, exports de `packages/db/src/buzon/index.ts`.
 - **Hacer**: `bandeja.controller.ts` (`GET /buzon/mensajes`, `POST /buzon/atencion`), `bandeja.service.ts`, `atencion.service.ts`, `cursor.ts`; filtros en la lista del cliente, detalle ampliado y `POST …/atencion` en `buzon.controller.ts`; visibilidad del lote en la misma transacción; mapeo de errores y reintento único; indicador y `conMensajesNuevos` en clientes. Registrar el controlador.
 - **Hecho cuando**: las de T4 pasan (incluida la de rendimiento) y las del backend siguen verdes (HU-40 incluida); typecheck y lint limpios. Commit `feat(024): rutas de la bandeja y la atención`.
 
-## T9 · [ ] Frontend (frontend · sonnet)
+**Resultado de T8 (backend · sonnet):** commits `dde6264` y `1118666`.
+
+## T9 · [x] Frontend (frontend · sonnet)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: Frontend), pruebas de T5, `docs/specs/038-diseno-visual/plan.md` (solo «Tokens del estilo A» y la lista de componentes), `apps/frontend/components/ui/index.ts`, `apps/frontend/lib/{api,buzon,clientes,auditoria}.ts`, `apps/frontend/components/buzon/*.tsx`, `apps/frontend/app/(app)/clientes/[clienteId]/buzon/page.tsx`, `apps/frontend/app/(app)/clientes/page.tsx`, `apps/frontend/components/marco/{menu-principal,entrada-menu}.tsx`.
 - **Hacer**: `app/(app)/buzon/page.tsx`, bandeja fijada en la página del cliente, `components/buzon/{bandeja,filtros-bandeja,atencion-mensaje,atender-lote}.tsx`, cambios en `lista-mensajes.tsx` y `detalle-mensaje.tsx`, `components/clientes/indicador-buzon.tsx` y su lugar en el listado, entrada «Buzones», textos de las acciones de auditoría. Nada de `dangerouslySetInnerHTML`; mensajes de 400/409 en español.
 - **Hecho cuando**: las de T5 pasan; las del frontend y `diseno.estatico.spec.ts` siguen verdes; typecheck y lint limpios. Commit `feat(024): bandeja de buzones, atención e indicador`.
 
-## T10 · [ ] Cobertura (devops · haiku)
+**Resultado de T9 (frontend · sonnet):** commit `58dc617`.
+
+## T10 · [x] Cobertura (devops · haiku)
 - **Contexto (leer solo esto)**: `package.json` (raíz: `cobertura:buzon` como modelo), `.github/workflows/ci.yml` (paso de `cobertura:buzon`), `packages/db/vitest.cobertura-buzon.config.mts`, `apps/backend/vitest.cobertura-buzon.config.mts`.
 - **Hacer**: `cobertura:bandeja` sobre `packages/db/src/buzon/{bandeja,atencion,indicador}.ts`, `apps/backend/src/modules/buzon/{bandeja.controller,bandeja.service,atencion.service,cursor}.ts`; configs `vitest.cobertura-bandeja.config.mts` en `db` y `backend`; umbral 90 % en líneas y ramas; paso en CI junto al de `cobertura:buzon`.
 - **Hecho cuando**: `pnpm cobertura:bandeja` ≥ 90 % (o lista de lo que falta, sin bajar el umbral) y el paso aparece en `ci.yml`. Commit `chore(024): cobertura de la bandeja`.
 
-## T11 · [ ] Ronda adversarial (adversario · opus)
+**Resultado de T10 (devops · haiku):** commit `7d0164d`.
+
+## T11 · [x] Ronda adversarial (adversario · opus)
 - **Contexto (leer solo esto)**: `spec.md` (completo), `plan.md` (Contratos), 04 §2.3 (catálogo: aislamiento, permisos y alcance). Caja negra primero (rutas y la función pública); luego caja blanca (0059–0060, `packages/db/src/buzon/{bandeja,atencion,indicador}.ts`, `apps/backend/src/modules/buzon/{bandeja.controller,bandeja.service,atencion.service,cursor}.ts`, indicador en `apps/backend/src/modules/clientes/clientes.service.ts`).
 - **Hacer**: ≤ 15 pruebas `*.adv.spec.ts` / `*.adv.int.spec.ts`, solo sobre D-11. Alcance: Contador desasignado con sesión viva a mitad del recorrido y a mitad de un lote; parámetros repetidos (`?atencion=a&atencion=b`), arrays y mayúsculas para colar un cliente o saltar el filtro de archivados; `responsable=yo` de un Dueño. Lote: ids de otro estudio, de un cliente no asignado, mezclados con propios, repetidos con otra capitalización, 100 ids válidos + 1 ajeno; lote ∥ deshacer ∥ archivar; función llamada directo con `set_config` de otro estudio, sin usuario o desde el worker. Cursor: forjado con fecha futura o pasada, id de otro estudio, huella copiada de otros filtros, base64 con relleno, JSON con claves extra, fecha con zona distinta y microsegundos alterados (filas repetidas u omitidas). Indicador: números que delaten mensajes de clientes no visibles o de otro estudio, críticos históricos contados, `conMensajesNuevos` sin `buzon.ver`.
 - **Hecho cuando**: las pruebas están en el repo; cada fallo es un hallazgo `H-024-1-n` con severidad en el resultado de la tarea. Commit `test(024): ronda adversarial`.
 
-## T12 · [ ] Pruebas de las correcciones de la ronda, rojo (tester · sonnet)
+**Resultado de T11 (adversario · opus):** `apps/backend/src/modules/buzon/bandeja.adv.int.spec.ts`, 15 pruebas, sin hallazgos (commit `bc530ac`).
+
+## T12 · [x] Pruebas de las correcciones de la ronda, rojo (tester · sonnet)
 - **Contexto (leer solo esto)**: resultado de T11 (hallazgos), sus pruebas, `spec.md` (los CA citados).
 - **Hacer**: una prueba normal (no adversarial) por hallazgo que fije el comportamiento esperado por la spec.
 - **Hecho cuando**: fallan por el defecto; commit `test(024): correcciones de la ronda en rojo`.
 
-## T13 · [ ] Corregir la ronda (backend · opus)
+**Resultado de T12 (tester · sonnet):** sin hallazgos; sin pruebas de corrección ni commit.
+
+## T13 · [x] Corregir la ronda (backend · opus)
 - **Contexto (leer solo esto)**: hallazgos de T11, pruebas de T11 y T12, solo los archivos que señalan.
 - **Hacer**: corregir sin quitar aserciones. Un cambio de BD va en **0061** (repetible; si cambia una función `SECURITY DEFINER`, conserva dueño, `search_path`, errores fijos y repite `REVOKE`/`GRANT`, y `escalada.adv.spec.ts` sigue en verde). Un hallazgo que exija cambiar la spec se escala: `requiere usuario`. Si toca el frontend, la parte de pantalla la hace `frontend · sonnet` en la misma tarea.
 - **Hecho cuando**: las de T11 y T12 pasan; las suites de los paquetes tocados siguen verdes. Commit `fix(024): hallazgos de la ronda adversarial`.
 
-## T14 · [ ] E2E (tester · sonnet)
+**Resultado de T13 (backend · opus):** sin hallazgos que corregir; sin commit ni migración 0061 (la última es `0060_buzon_atencion_funcion`).
+
+## T14 · [x] E2E (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (CA-3, CA-4, CA-8, CA-12, CA-14), `tests/e2e/flujos/buzon.e2e.ts` (modelo de 023, sin editarlo), `tests/e2e/soporte/{siembra,cola,api}.ts`, `tests/e2e/soporte/selectores/{buzon,notificaciones}.ts`.
 - **Hacer**: `tests/e2e/flujos/bandeja.e2e.ts` y selectores nuevos en `soporte/selectores/buzon.ts`, con `BUZON_PROGRAMADOR=off`: cliente con el RUC del fixture capturado → aviso en la campana → enlace a la bandeja con el detalle abierto → `/buzon` → «Críticos pendientes» → marcar la coactiva con comentario → sale de «Pendientes» y el detalle muestra usuario, fecha y comentario → listado de clientes: el indicador baja en uno (nuevos y críticos) → deshacer → vuelve. A 390 × 844 una pasada corta: «Buzones» en la barra inferior, tarjeta crítica, filtros en `Dialog`.
 - **Hecho cuando**: `pnpm e2e -- bandeja` y `pnpm e2e -- buzon` pasan 3 veces seguidas, sin `retry` ni `test.only`. Commit `test(024): e2e de la bandeja`.
 
-## T15 · [ ] Prueba manual (tester · sonnet)
+**Resultado de T14 (tester · sonnet):** `tests/e2e/flujos/bandeja.e2e.ts` (commit `d1ab5fe`); ajuste de la insignia de crítico, que partía línea a 390 px (commit `1f29baf`).
+
+## T15 · [x] Prueba manual (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (CA), `docs/specs/019-docker-local/` (solo la sección de arranque), resultado de T23 de `docs/specs/023-buzones-captura/tasks.md` (formato del informe y cómo se preparó el entorno).
 - **Hacer**: sistema completo (BD nueva migrada dos veces y sembrada, Redis en un índice propio, backend, frontend y un worker) con adaptadores en `mock`. Un estudio con Dueño, Administrador, Contador (asignado a parte de los clientes, responsable de algunos), Asistente y Lectura; clientes con buzón capturado (primera sincronización con mensajes de más y menos de 30 días) y uno archivado. A mano y por la interfaz: `/buzon` por cada rol (qué clientes salen); filtros y «Críticos pendientes»; «solo donde soy responsable» e «incluir archivados»; marcar con y sin comentario, crítico sin comentario, deshacer por otra persona, dos pestañas que marcan el mismo mensaje (409); lote de varios con un crítico; históricos fuera de «Pendientes» y del indicador; indicador y su filtro y enlace; campana → bandeja; Lectura sin botones; 1440 × 900 y 390 × 844 (barra inferior con cinco entradas, tarjetas, `Dialog` de filtros, detalle con «Volver»), teclado y foco. Defectos de pantalla → T15a.
 - **Hecho cuando**: resultado con entorno, pasos, lo visto y los defectos (o «sin defectos»); procesos detenidos y Redis vaciado; no se toca código de producción.
 
-## T16 · [ ] Verificar (tester · sonnet)
+**Resultado de T15 (tester · sonnet):** prueba manual con defectos de pantalla: lista recortada a 1440 y 1280 px, foco en Filtros, foco al atender y comentario residual tras un 409. Corregidos en `06dd107` (T15a).
+
+## T16 · [x] Verificar (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (CA-1 a CA-14), `tasks.md` (resultados), `package.json` (scripts).
 - **Hacer**: cada CA con su evidencia (prueba o comando); suites de `domain` (incluida `ronda2b.adv.spec.ts`, sin cambios de exports), `shared`, `db`, `backend`, `worker`, `frontend`, `test:aislamiento`, `tests/limites`, typecheck, lint, `pnpm db:migrate` ×2, `pnpm cobertura:bandeja`, `pnpm cobertura:buzon`, `pnpm ci:db` y `pnpm e2e`.
 - **Hecho cuando**: tabla CA → evidencia → OK/falta en el resultado; todo en verde o la lista de lo que falta.
@@ -200,7 +232,9 @@ Desvíos del plan (todos **ratificados**):
 
 Notas para T18 (no son defectos): `tasks.md` no recoge los resultados de T7 (tiempos de `EXPLAIN ANALYZE`), T11 («sin hallazgos», 15 pruebas), T12 y T13 («sin hallazgos»), T14, T15 ni T15a (`1f29baf`, `06dd107`); anotarlos al cerrar. Nota de UX para el usuario (no bloquea): abrir un mensaje desde `/buzon` cambia a la bandeja del cliente; si prefiere el detalle al costado dentro de `/buzon`, se hace en otra spec.
 
-## T18 · [ ] Cierre (devops · haiku)
+## T18 · [x] Cierre (devops · haiku)
 - **Contexto (leer solo esto)**: `tasks.md`, `spec.md` (estado y casillas de CA), resultado de T16 y T17.
 - **Hacer**: marcar tareas y CA, estado de la spec «hecha (fecha)», notas que quedan para otras specs (búsqueda por asunto, exportar, asignar mensaje, deshacer en lote, tiempo real, contador por cliente si se pospuso).
 - **Hecho cuando**: commit `docs(024): cierre`; el orquestador actualiza `ESTADO.md`.
+
+**Resultado de T18 (devops · haiku):** `tasks.md` y `spec.md` cerrados; tareas y CA-1 a CA-14 marcados; spec «hecha (2026-11-20)». Quedan para otras specs (`spec.md`, «Fuera de alcance»): búsqueda por asunto, exportar a Excel, asignar un mensaje, deshacer en lote y actualización en vivo. El contador por cliente no se pospuso: el agregado cumple CA-9 (T16). Nota de UX para el usuario (T17): abrir un mensaje desde `/buzon` lleva a la bandeja del cliente; si prefiere el detalle junto a la lista, es otra spec.
