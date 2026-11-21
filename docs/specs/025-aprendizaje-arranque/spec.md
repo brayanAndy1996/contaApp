@@ -52,7 +52,7 @@ Que un cliente nuevo no empiece de cero: el contador importa los periodos ya pre
 - [x] CA-12 (D-11): ningún log, error ni `resultado` contiene montos, RUC ni razón social (prueba con canarios).
 - [x] CA-13 (volumen): importar 12 periodos (máximo de U-5) de 5.000 compras cada uno termina en < 60 s en CI con el mock, y la lista de 1.000 candidatas responde con p95 < 300 ms (RNF-034).
 - [x] CA-14: suites de `domain`, `shared`, `db`, `queue`, `worker`, `backend` y `frontend` tocadas, `test:aislamiento`, typecheck, lint, `db:migrate` ×2 y `pnpm e2e` (un caso: importar 6 periodos → revisar → activar → descarga siguiente «Según historial»; y cliente de la selva → sugerencia DNG → aceptar en masa) en verde.
-- [ ] Casos reales aplicables: ninguno de la lista. Fixture de 01 §7 regla 3 (cliente de Huánuco con ventas exoneradas).
+- [x] Casos reales aplicables: ninguno de la lista. Fixture de 01 §7 regla 3 (cliente de Huánuco con ventas exoneradas), cubierto en `aprendizaje.e2e.ts`.
 
 ## Dependencias
 - Specs: 007a (perfil fiscal, RF-036), 007b (credencial SIRE), 008 (cola), 009 (mock SIRE), 010 (`cambiarDestino`), 011 (`evaluarReglas`, R-NEW), 014/016 (descarga, evaluación, 0038), 015 (masiva, filtros), 017 (auditoría), 021 (reglas, R-HIS, catálogo RF-089, `aplicar_regla_historial`). La consumen 032 (adaptador real del registro) y 037 (borrado del cliente).
