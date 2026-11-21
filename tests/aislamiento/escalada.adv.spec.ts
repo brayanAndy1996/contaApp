@@ -64,7 +64,7 @@ const FIRMA_BLOQUEAR_REEVALUAR = "bloquear_compras_reevaluar(uuid[])";
 // search_path = pg_catalog, pg_temp y sin EXECUTE para PUBLIC (se verifica abajo, una por una).
 const REGISTRADOR = "contapp_registrador";
 const MIGRATOR = "contapp_migrator";
-// Spec 025 (T3): firma (regprocedure) y unico rol de la app con EXECUTE de cada funcion de la migracion 0062.
+// Spec 025 (T3): firma (regprocedure) y unico rol de la app con EXECUTE de cada funcion de las migraciones 0062 y 0063.
 const FUNCIONES_025: { firma: string; ejecuta: string }[] = [
   { firma: "reglas_importacion_iniciar(uuid,character[])", ejecuta: "contapp_backend" },
   { firma: "reglas_importacion_trabajo(uuid,uuid)", ejecuta: "contapp_backend" },
@@ -73,6 +73,8 @@ const FUNCIONES_025: { firma: string; ejecuta: string }[] = [
   { firma: "reglas_candidatas_activar(uuid,jsonb,uuid)", ejecuta: "contapp_backend" },
   { firma: "reglas_candidata_reemplazar(uuid,uuid,text,integer)", ejecuta: "contapp_backend" },
   { firma: "reglas_candidatas_descartar(uuid,uuid[])", ejecuta: "contapp_backend" },
+  // T11a (migracion 0063): los proveedores con regla activa del cliente para R-STD, solo el worker.
+  { firma: "reglas_proveedores_con_regla(uuid)", ejecuta: "contapp_worker" },
 ];
 const FUNCIONES_017: { firma: string; dueno: string }[] = [
   ...[

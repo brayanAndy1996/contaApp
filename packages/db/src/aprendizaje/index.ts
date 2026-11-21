@@ -32,3 +32,5 @@ export type {
   MotivoOmitida,
   PosicionCandidata,
 } from "./candidatas";
+export { proveedoresConReglaActiva } from "./proveedores";
+export type { ProveedorConRegla } from "./proveedores";

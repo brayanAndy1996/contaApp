@@ -442,6 +442,13 @@
       "when": 1795235026269,
       "tag": "0062_reglas_importacion_funciones",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1795239456573,
+      "tag": "0063_reglas_proveedores_con_regla",
+      "breakpoints": true
     }
   ]
 }

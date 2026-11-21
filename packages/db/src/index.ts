@@ -421,7 +421,8 @@ export {
   reglaImportacion,
 } from "./schema/reglas";
 // Spec 025: aprendizaje de arranque (tablas de 0061, funciones acotadas de 0062). Iniciar, fijar el trabajo, listar, activar,
-// reemplazar y descartar con la `tx` del backend; leer, completar y fallar con la del worker.
+// reemplazar y descartar con la `tx` del backend; leer, completar y fallar con la del worker. T11a (0063): los proveedores con regla
+// activa del cliente para R-STD, con la del worker.
 export {
   activarCandidatas,
   AprendizajeRepoError,
@@ -433,6 +434,7 @@ export {
   iniciarImportacion,
   leerImportacion,
   listarCandidatas,
+  proveedoresConReglaActiva,
   reemplazarCandidata,
   ultimaImportacion,
 } from "./aprendizaje";
@@ -448,6 +450,7 @@ export type {
   ImportacionParaTrabajo,
   MotivoOmitida,
   PosicionCandidata,
+  ProveedorConRegla,
   ResumenImportacion,
 } from "./aprendizaje";
 // Spec 023: buzón SOL (tablas y funciones acotadas en 0054–0056). Lectura y auditoría con la `tx` del backend; escritura, candidatos
