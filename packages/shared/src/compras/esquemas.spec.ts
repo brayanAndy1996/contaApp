@@ -199,7 +199,7 @@ describe("editarCompraSchema y calcularCompraSchema (D-5, D-16)", () => {
 });
 
 describe("aceptarSugerenciaSchema (D-4)", () => {
-  it.each(["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP"])("acepta la regla %s", (regla) => {
+  it.each(["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP", "R-STD"])("acepta la regla %s", (regla) => {
     expect(ok(aceptarSugerenciaSchema, { versionBase: 1, regla })).toBe(true);
   });
 

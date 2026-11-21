@@ -137,10 +137,10 @@ describe("eliminarReglaSchema (query string de DELETE)", () => {
 });
 
 describe("CODIGOS_REGLA_MOTOR y codigoReglaMotorSchema (RF-089, P-8)", () => {
-  it("son los seis códigos, en este orden", () => {
-    expect([...CODIGOS_REGLA_MOTOR]).toEqual(["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP", "R-HIS"]);
+  it("son los siete códigos, en este orden (R-STD al final, 025)", () => {
+    expect([...CODIGOS_REGLA_MOTOR]).toEqual(["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP", "R-HIS", "R-STD"]);
   });
-  it.each(["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP", "R-HIS"])("acepta %s", (c) => {
+  it.each(["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP", "R-HIS", "R-STD"])("acepta %s", (c) => {
     expect(codigoReglaMotorSchema.safeParse(c).success).toBe(true);
   });
   it.each(["prevalidacion", "PREVALIDACION", "R-PRE", "R-XML", "r-his", "R-HIS ", "", null, 1, undefined])("rechaza %j (la prevalidación no se apaga)", (c) => {

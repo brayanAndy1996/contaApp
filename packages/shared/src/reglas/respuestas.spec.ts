@@ -7,7 +7,8 @@ import { reglaVistaSchema, reglasMotorSchema } from "./index.js";
 //  - reglaVistaSchema = {id: uuid, proveedor: {tipo, numero, razonSocial: string|null}, destino: DG|DGNG|DNG, activa, version >= 1,
 //    periodoAprendido: AAAAMM, aplicada >= 0, aceptada >= 0 (enteros), creadaPor: autor|null, creadaEn: ISO, actualizadaEn: ISO}.
 //    El único dato de RUC viaja dentro de `proveedor`; ninguna otra clave (ruc, docNumero, tenantId, clienteId, eliminadaEn) sale.
-//  - reglasMotorSchema = {reglas: [{codigo: R-ISC|R-MIX|R-RED|R-NEW|R-GP|R-HIS, descripcion, activa}], aportarCatalogo: boolean}.
+//  - 025: reglaVistaSchema suma `origen`: "contador" | "importacion" (obligatorio; D-5).
+//  - reglasMotorSchema = {reglas: [{codigo: R-ISC|R-MIX|R-RED|R-NEW|R-GP|R-HIS|R-STD, descripcion, activa}], aportarCatalogo: boolean}.
 interface Esquema {
   safeParse: (v: unknown) => { success: boolean; data?: unknown };
 }
@@ -21,6 +22,7 @@ const regla = (o: Record<string, unknown> = {}) => ({
   periodoAprendido: "202609",
   aplicada: 0,
   aceptada: 0,
+  origen: "contador",
   creadaPor: { id: randomUUID(), nombre: "Ana Pérez", activo: true },
   creadaEn: "2026-11-13T10:00:00.000Z",
   actualizadaEn: "2026-11-13T10:00:00.000Z",
@@ -41,6 +43,18 @@ describe("reglaVistaSchema", () => {
   });
   it("acepta contadores grandes (aplicada y aceptada)", () => {
     expect(ok(reglaVistaSchema, regla({ aplicada: 4800, aceptada: 4799, version: 12 }))).toBe(true);
+  });
+
+  it.each(["contador", "importacion"])("acepta el origen %s (025, D-5)", (origen) => {
+    expect((reglaVistaSchema.parse(regla({ origen })) as Record<string, unknown>).origen).toBe(origen);
+  });
+  it.each(["Importacion", "importado", "sistema", "", null, 1])("rechaza el origen %j", (origen) => {
+    expect(ok(reglaVistaSchema, regla({ origen }))).toBe(false);
+  });
+  it("el origen es obligatorio", () => {
+    const { origen, ...sinOrigen } = regla();
+    void origen;
+    expect(ok(reglaVistaSchema, sinOrigen)).toBe(false);
   });
 
   it.each(["DG", "DGNG", "DNG"])("acepta el destino %s", (destino) => {
@@ -91,7 +105,7 @@ describe("reglaVistaSchema", () => {
 
   it("sin campos de RUC fuera de `proveedor`: la forma son exactamente las claves del contrato", () => {
     expect(Object.keys(reglaVistaSchema.shape).sort()).toEqual(
-      ["aceptada", "actualizadaEn", "aplicada", "activa", "creadaEn", "creadaPor", "destino", "id", "periodoAprendido", "proveedor", "version"].sort(),
+      ["aceptada", "actualizadaEn", "aplicada", "activa", "creadaEn", "creadaPor", "destino", "id", "origen", "periodoAprendido", "proveedor", "version"].sort(),
     );
   });
   it("descarta claves ajenas (ruc, docNumero, tenantId, clienteId, eliminadaEn) al analizar", () => {
@@ -114,16 +128,17 @@ describe("reglasMotorSchema (RF-089)", () => {
     { codigo: "R-NEW", descripcion: "Avisa de proveedores nuevos", activa: true },
     { codigo: "R-GP", descripcion: "Detecta gastos personales", activa: true },
     { codigo: "R-HIS", descripcion: "Aplica lo aprendido del cliente", activa: true },
+    { codigo: "R-STD", descripcion: "Sugiere DNG en clientes de la Amazonía con ventas exoneradas y sin ventas mixtas", activa: true },
   ];
   const motor = (o: Record<string, unknown> = {}) => ({ reglas, aportarCatalogo: true, ...o });
 
-  it("acepta los seis códigos con su descripción y estado", () => {
+  it("acepta los siete códigos con su descripción y estado", () => {
     expect(reglasMotorSchema.parse(motor())).toEqual(motor());
   });
   it("acepta el aporte apagado", () => {
     expect(ok(reglasMotorSchema, motor({ aportarCatalogo: false }))).toBe(true);
   });
-  it("la prevalidación no figura: un código fuera de las seis se rechaza", () => {
+  it("la prevalidación no figura: un código fuera de los siete se rechaza", () => {
     for (const codigo of ["prevalidacion", "PREVALIDACION", "R-PRE", "R-XML"]) {
       expect(ok(reglasMotorSchema, motor({ reglas: [...reglas, { codigo, descripcion: "x", activa: true }] }))).toBe(false);
     }

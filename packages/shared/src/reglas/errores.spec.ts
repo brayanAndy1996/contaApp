@@ -7,13 +7,13 @@ import { CODIGOS_ERROR_REGLA, errorReglaSchema } from "./index.js";
 //    (`cliente_archivado`, 404 y 403 son de las rutas existentes.)
 //  - errorReglaSchema = {codigo: uno de ellos}; el cuerpo es solo `{codigo}`: sin datos (D-10), las claves ajenas se descartan.
 describe("CODIGOS_ERROR_REGLA", () => {
-  it("son regla_cambiada, proveedores_distintos y periodos_distintos (H-021-1-1)", () => {
-    expect([...CODIGOS_ERROR_REGLA].sort()).toEqual(["periodos_distintos", "proveedores_distintos", "regla_cambiada"]);
+  it("son regla_cambiada, proveedores_distintos y periodos_distintos (H-021-1-1) e importacion_en_curso (025, 409)", () => {
+    expect([...CODIGOS_ERROR_REGLA].sort()).toEqual(["importacion_en_curso", "periodos_distintos", "proveedores_distintos", "regla_cambiada"]);
   });
 });
 
 describe("errorReglaSchema", () => {
-  it.each(["regla_cambiada", "proveedores_distintos", "periodos_distintos"])("acepta {codigo: %s}", (codigo) => {
+  it.each(["regla_cambiada", "proveedores_distintos", "periodos_distintos", "importacion_en_curso"])("acepta {codigo: %s}", (codigo) => {
     expect(errorReglaSchema.parse({ codigo })).toEqual({ codigo });
   });
   it.each(["version_obsoleta", "Regla_cambiada", "regla_cambiada ", "", null, 409, undefined])("rechaza el código %j", (codigo) => {
