@@ -55,7 +55,7 @@ const aporte = () => screen.findByRole("switch", { name: R.aporte }) as Promise<
 const marcado = (el: HTMLElement) => el.getAttribute("aria-checked") === "true" || (el as HTMLInputElement).checked === true;
 
 describe("<ReglasMotor /> · lista (CA-8, P-8)", () => {
-  it("feliz: los seis códigos con su descripción y estado; sin prevalidación; interruptor del aporte", async () => {
+  it("feliz: los siete códigos con su descripción y estado; sin prevalidación; interruptor del aporte", async () => {
     instalar(motorDe(["R-NEW"], false));
     render(<ReglasMotor />);
 
@@ -65,8 +65,8 @@ describe("<ReglasMotor /> · lista (CA-8, P-8)", () => {
       expect(screen.getAllByText(descripcionDe(codigo), { exact: false }).length).toBeGreaterThan(0);
     }
     expect((await aporte()).getAttribute("aria-checked")).toBe("false");
-    // Seis reglas + el aporte; ningún interruptor de la prevalidación.
-    expect(screen.getAllByRole("switch")).toHaveLength(7);
+    // Siete reglas (025 suma R-STD) + el aporte; ningún interruptor de la prevalidación.
+    expect(screen.getAllByRole("switch")).toHaveLength(8);
     expect(document.body.textContent).not.toMatch(/prevalidaci[oó]n/i);
     expect(screen.queryByText(R.soloAlcanceGlobal)).toBeNull();
   });
@@ -139,7 +139,7 @@ describe("<ReglasMotor /> · sin rol global (P-8, RF-089)", () => {
 
     await interruptor("R-ISC");
     const todos = screen.getAllByRole("switch") as HTMLInputElement[];
-    expect(todos).toHaveLength(7);
+    expect(todos).toHaveLength(8);
     expect(todos.every((el) => el.disabled || el.getAttribute("aria-disabled") === "true")).toBe(true);
     expect(screen.getByText(R.soloAlcanceGlobal)).toBeTruthy();
 
