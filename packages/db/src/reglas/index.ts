@@ -12,6 +12,7 @@ export type {
   EntradaEliminar,
   EntradaRecordar,
   LecturaMotor,
+  OrigenRegla,
   ReglaFila,
   ReglaVigente,
 } from "./tipos";

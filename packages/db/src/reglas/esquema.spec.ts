@@ -41,6 +41,7 @@ describe("esquema 021: regla_aprendida", () => {
       [
         "id", "tenant_id", "cliente_id", "doc_tipo", "doc_numero", "destino", "activa", "version", "periodo_aprendido",
         "creada_por", "creada_en", "actualizada_por", "actualizada_en", "eliminada_en", "eliminada_por",
+        "origen", // Spec 025 (T10, 0061): 'contador' | 'importacion', NOT NULL DEFAULT 'contador'
       ].sort(),
     );
     expect(nombres(c).filter((n) => /_at$/.test(n))).toEqual([]);

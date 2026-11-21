@@ -1,7 +1,9 @@
-// STUB de la spec 025 (T4, rojo): T10 lo reemplaza. Repositorio de importaciones y candidatas del aprendizaje del historial.
+// Repositorio de importaciones y candidatas del aprendizaje del historial (spec 025). Escribe solo por las funciones acotadas de
+// 0062; lee con la RLS del estudio. `packages/db` no depende de `domain`: la deducción la hace el worker con `aprenderDeHistorial`.
 export {
   AprendizajeRepoError,
   completarImportacion,
+  esUuidAprendizaje,
   fallarImportacion,
   fijarTrabajoImportacion,
   iniciarImportacion,

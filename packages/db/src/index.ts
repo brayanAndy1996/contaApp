@@ -398,6 +398,7 @@ export type {
   EntradaEliminar as EntradaEliminarRegla,
   EntradaRecordar as EntradaRecordarRegla,
   LecturaMotor as LecturaReglasMotor,
+  OrigenRegla,
   ReglaFila,
   ReglaVigente,
 } from "./reglas";
@@ -405,13 +406,49 @@ export type { HistorialDescarga } from "./compras/versiones";
 export {
   CODIGOS_REGLA_MOTOR_BD,
   DESTINOS_REGLA_BD,
+  ESTADOS_CANDIDATA_BD,
+  ESTADOS_IMPORTACION_BD,
+  MOTIVOS_IMPORTACION_BD,
+  ORIGENES_REGLA_BD,
   estudioReglaMotor,
   estudioReglasConfig,
   reglaAceptacion,
   reglaAplicacion,
   reglaAprendida,
+  reglaCandidata,
   reglaConfirmacion,
+  reglaImportacion,
 } from "./schema/reglas";
+// Spec 025: aprendizaje de arranque (tablas de 0061, funciones acotadas de 0062). Iniciar, fijar el trabajo, listar, activar,
+// reemplazar y descartar con la `tx` del backend; leer, completar y fallar con la del worker.
+export {
+  activarCandidatas,
+  AprendizajeRepoError,
+  completarImportacion,
+  descartarCandidatas,
+  esUuidAprendizaje,
+  fallarImportacion,
+  fijarTrabajoImportacion,
+  iniciarImportacion,
+  leerImportacion,
+  listarCandidatas,
+  reemplazarCandidata,
+  ultimaImportacion,
+} from "./aprendizaje";
+export type {
+  CandidataFila,
+  CandidataNueva,
+  ConflictoCandidata,
+  EntradaActivar,
+  EstadoCandidata,
+  EstadoImportacion,
+  GrupoCandidatas,
+  ImportacionFila,
+  ImportacionParaTrabajo,
+  MotivoOmitida,
+  PosicionCandidata,
+  ResumenImportacion,
+} from "./aprendizaje";
 // Spec 023: buzón SOL (tablas y funciones acotadas en 0054–0056). Lectura y auditoría con la `tx` del backend; escritura, candidatos
 // y encolado programado con la del worker; el candado del ciclo y los estudios vigentes (arriba) con la de withSistema.
 export { buzonAdjunto, buzonAtencion, buzonEstadoCliente, buzonMensaje, buzonProgramacion } from "./schema/buzon";

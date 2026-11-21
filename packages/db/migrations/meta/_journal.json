@@ -428,6 +428,20 @@
       "when": 1795196174379,
       "tag": "0060_buzon_atencion_funcion",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1795234962839,
+      "tag": "0061_reglas_importacion",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1795235026269,
+      "tag": "0062_reglas_importacion_funciones",
+      "breakpoints": true
     }
   ]
 }

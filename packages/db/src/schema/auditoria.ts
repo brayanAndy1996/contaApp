@@ -57,6 +57,9 @@ export const ACCIONES_AUDITORIA_BD = [
   // Spec 024 (0059): atención de mensajes, por la función acotada buzon_atencion_aplicar (actor usuario).
   "buzon.atendido",
   "buzon.atencion_deshecha",
+  // Spec 025 (0061): importación del historial y candidata descartada, por las funciones acotadas de 0062 (actor usuario).
+  "regla.historial_importado",
+  "regla.candidata_descartada",
 ] as const;
 
 const lista = (valores: readonly string[]) => sql.raw(valores.map((v) => `'${v}'`).join(", "));
