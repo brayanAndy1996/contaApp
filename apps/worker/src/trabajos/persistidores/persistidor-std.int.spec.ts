@@ -129,14 +129,19 @@ const CUMPLE: PerfilCliente = {
   ventasMixtas: false,
 };
 
-/** Worker con el XmlProvider y el storage de la prueba y, si se da, el puerto SIRE de la prueba. */
+/**
+ * Worker con el XmlProvider y el storage de la prueba y, si se da, el puerto SIRE de la prueba. `simulado` enciende la
+ * re-evaluación simulada de `xml.obtener` (evaluación 2): solo para las pruebas que esperan el XML; las demás leen
+ * la BD mientras corre y no deben competir con una evaluación 2 que agrega hallazgos R-STD.
+ */
 async function conWorker<T>(
   p: PuertosXml,
   fn: (w: ProcesoWorker) => Promise<T>,
   api?: SireApiControlado,
+  simulado = false,
 ): Promise<T> {
   const w = await arrancarXml(prefijo, p, {
-    simuladoEnReglas: true,
+    simuladoEnReglas: simulado,
     ...(api === undefined ? {} : { sireApi: api }),
   });
   if (api !== undefined) api.contarTx = () => w.dbEstado.abiertas;
@@ -295,7 +300,12 @@ describe("CA-9: R-STD en la descarga de un cliente que cumple U-4", () => {
   it("convive con R-NEW, R-ISC y R-MIX en la misma compra y no cambia la versión 1 (RNF-052)", async () => {
     const m = await mundoVentas(e, backend, { ruc: RUC_FIXTURE });
     await fijarPerfil(admin, m.c.id, CUMPLE);
-    const r = await conWorker(puertosXml(), () => descargar(m));
+    const r = await conWorker(
+      puertosXml(),
+      () => descargar(m),
+      undefined,
+      true,
+    );
     expect(r).toEqual({ estado: "completado", motivo: null });
 
     const compras = new Map(
@@ -411,24 +421,31 @@ describe("CA-11: el perfil se lee al evaluar; lo guardado no cambia (D-9)", () =
     const p = puertosXml();
     // El XML llega después de la descarga (queda detenido en el proveedor): entre una cosa y otra se marca el perfil.
     p.xml.pausar();
-    const lote = await conWorker(p, async () => {
-      expect((await descargar(m)).estado).toBe("completado");
-      await esperarHasta(
-        () => p.xml.llamadas.length > 0,
-        "el proveedor recibe el pedido",
-      );
-      const compras0 = await comprasDe(admin, m.c.id);
-      for (const c of compras0)
-        expect(await hallazgosStdDe(admin, c.id), c.numero).toEqual([]);
+    const lote = await conWorker(
+      p,
+      async () => {
+        expect((await descargar(m)).estado).toBe("completado");
+        await esperarHasta(
+          () => p.xml.llamadas.length > 0,
+          "el proveedor recibe el pedido",
+        );
+        const compras0 = await comprasDe(admin, m.c.id);
+        for (const c of compras0)
+          expect(await hallazgosStdDe(admin, c.id), c.numero).toEqual([]);
 
-      const antes = await fotoDe(admin, m.c.id);
-      await fijarPerfil(admin, m.c.id, CUMPLE);
-      // Cambiar el perfil no toca nada de lo guardado.
-      expect(cambiosGuardados(antes, await fotoDe(admin, m.c.id))).toEqual([]);
-      p.xml.abrir();
-      const l = await lotes(m, 1);
-      return { l, antes };
-    });
+        const antes = await fotoDe(admin, m.c.id);
+        await fijarPerfil(admin, m.c.id, CUMPLE);
+        // Cambiar el perfil no toca nada de lo guardado.
+        expect(cambiosGuardados(antes, await fotoDe(admin, m.c.id))).toEqual(
+          [],
+        );
+        p.xml.abrir();
+        const l = await lotes(m, 1);
+        return { l, antes };
+      },
+      undefined,
+      true,
+    );
     expect(lote.l[0]).toMatchObject({
       estado: "completado",
       resultado: { guardados: 5 },
@@ -519,23 +536,28 @@ describe("CA-9, CA-10: R-STD en la re-evaluación de xml.obtener", () => {
   ) {
     const p = puertosXml();
     p.xml.pausar();
-    return conWorker(p, async () => {
-      expect((await descargar(m)).estado).toBe("completado");
-      await esperarHasta(
-        () => p.xml.llamadas.length > 0,
-        "el proveedor recibe el pedido",
-      );
-      await antesDelXml();
-      p.xml.abrir();
-      const l = await lotes(m, 1);
-      expect(l[0]).toMatchObject({
-        estado: "completado",
-        resultado: { guardados: 5 },
-      });
-      return new Map(
-        (await comprasDe(admin, m.c.id)).map((c) => [c.numero, c]),
-      );
-    });
+    return conWorker(
+      p,
+      async () => {
+        expect((await descargar(m)).estado).toBe("completado");
+        await esperarHasta(
+          () => p.xml.llamadas.length > 0,
+          "el proveedor recibe el pedido",
+        );
+        await antesDelXml();
+        p.xml.abrir();
+        const l = await lotes(m, 1);
+        expect(l[0]).toMatchObject({
+          estado: "completado",
+          resultado: { guardados: 5 },
+        });
+        return new Map(
+          (await comprasDe(admin, m.c.id)).map((c) => [c.numero, c]),
+        );
+      },
+      undefined,
+      true,
+    );
   }
 
   it("R-STD apagada entre la descarga y el XML: la evaluación 2 no la trae y la 1 guardada no se borra", async () => {

@@ -290,7 +290,7 @@ describe("CA-1: importar seis periodos del mock", () => {
         motivo: null,
       });
     });
-    const compras = await comprasDe(admin, m.c.id);
+    const compras = await comprasDe(admin, m.c.id, PROXIMO);
     expect(compras.map((c) => c.numero)).toEqual(["9001"]);
     const c = compras[0]!;
     expect(c.version_vigente).toBe(1);
@@ -322,7 +322,7 @@ describe("CA-1: importar seis periodos del mock", () => {
       true,
     );
     expect(reglas.every((x) => x.periodo_aprendido === "202610")).toBe(true);
-    const c = (await comprasDe(admin, m.c.id))[0]!;
+    const c = (await comprasDe(admin, m.c.id, PROXIMO))[0]!;
     expect(c.version_vigente).toBe(2);
     expect(
       (await versionesDe(admin, c.id)).map((v) => [v.n, v.accion]),
