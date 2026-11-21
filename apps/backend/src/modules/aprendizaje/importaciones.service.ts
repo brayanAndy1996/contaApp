@@ -27,7 +27,7 @@ const CREDENCIALES_DESCARGA: readonly TipoCredencial[] = ["sol", "sire_api"];
  * Importar el historial presentado y ver la última importación (spec 025, D-1, D-2, D-4, D-11; CA-1, CA-5, CA-6). Toda consulta va
  * dentro de `withTenant`. El backend NUNCA llama al SIRE ni lee compras: valida, crea la importación (`reglas_importacion_iniciar`,
  * que cierra antes una colgada y rechaza una segunda en curso), encola `reglas.historial.importar` con solo `{importacionId}` y fija
- * el trabajo en la fila. Los errores salen como códigos, sin RUC, razón social ni montos.
+ * el trabajo en la fila, todo en una sola transacción. Los errores salen como códigos, sin RUC, razón social ni montos.
  */
 @Injectable()
 export class ImportacionesService {
@@ -48,36 +48,30 @@ export class ImportacionesService {
     const periodos = periodosAImportar(v.data.periodos, Date.now());
     const ctx = contextoDe(sesion);
     try {
-      // Paso 1: comprobaciones e importación en curso, atómicas. Cliente archivado gana a las credenciales (409).
-      const importacionId = await conReintentoUnico(() =>
-        this.db.withTenant(ctx, async (tx) => {
-          await exigirCliente(tx, clienteId, alcance, true);
-          await exigirCredencialesDeImportacion(tx, clienteId);
-          return iniciarImportacion(tx, { clienteId, periodos });
-        }),
-      );
-      // Paso 2: el trabajo y su id en la fila, en la misma transacción. Si este paso fallara, la importación queda sin trabajo y el
-      // autocierre de `reglas_importacion_iniciar` la cierra como `interrumpido` pasados 10 minutos (plan 025: «o perdido»).
+      // UNA transacción (H-025-1-1): comprobaciones, importación en curso, trabajo y su id en la fila se confirman juntos o
+      // ninguno. Si encolar falla (cola llena, parámetros) no queda una importación en curso sin trabajo que bloquee el siguiente
+      // intento hasta el autocierre. Cliente archivado gana a las credenciales (409). El id de la importación lo da `iniciar`
+      // dentro de `antes`, antes de que `encolar` lea los parámetros.
+      const parametros = { importacionId: "" };
       const hecho: { importacion: ImportacionVista | null } = { importacion: null };
-      const r = await conReintentoUnico(() =>
-        this.encolador.encolarCon(
+      const r = await conReintentoUnico(() => {
+        hecho.importacion = null;
+        return this.encolador.encolarCon(
           { tenantId: ctx.tenantId, userId: ctx.userId },
-          {
-            tipo: "reglas.historial.importar",
-            clienteId,
-            parametros: { importacionId },
-            prioridad: "interactivo",
-            creadoPor: ctx.userId,
+          { tipo: "reglas.historial.importar", clienteId, parametros, prioridad: "interactivo", creadoPor: ctx.userId },
+          async (tx) => {
+            await exigirCliente(tx, clienteId, alcance, true);
+            await exigirCredencialesDeImportacion(tx, clienteId);
+            parametros.importacionId = await iniciarImportacion(tx, { clienteId, periodos });
           },
-          async () => undefined,
           async (tx, encolado) => {
-            await fijarTrabajoImportacion(tx, { importacionId, trabajoId: encolado.trabajo.id });
+            await fijarTrabajoImportacion(tx, { importacionId: parametros.importacionId, trabajoId: encolado.trabajo.id });
             const fila = await ultimaImportacion(tx, clienteId);
             if (fila === null) throw new AccesoError("no_encontrado");
             hecho.importacion = aImportacionVista(fila, await autoresDe(tx, [fila.solicitadaPor.id]));
           },
-        ),
-      );
+        );
+      });
       if (hecho.importacion === null) throw new AccesoError("no_encontrado");
       return { importacion: hecho.importacion, trabajoId: r.trabajo.id };
     } catch (e) {

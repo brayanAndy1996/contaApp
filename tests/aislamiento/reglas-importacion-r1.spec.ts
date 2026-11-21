@@ -46,7 +46,8 @@ describe("T16 · H-025-1-3: reemplazar sobre una regla viva desactivada", () => 
     const doc = ei.docNuevo();
     const cand = await ei.candidata(X, c, imp, { docNumero: doc }); // propone DNG
     const regla = await ei.regla(X, c, { docNumero: doc, destino: "DG", activa: false, version: 2, periodoAprendido: "202601" });
-    const antes = await llamar(backend, comoX(), "select * from public.reglas_proveedores_con_regla($1::uuid)", [c.id]);
+    // T17: la función de 0063 solo la ejecuta contapp_worker (T11a fija 42501 para el backend); se consulta como el worker.
+    const antes = await llamar(worker, comoWorker(), "select * from public.reglas_proveedores_con_regla($1::uuid)", [c.id]);
     expect(antes.ok && antes.rows.some((x) => x.doc_numero === doc), "control: desactivada, el proveedor no cuenta como con regla").toBe(false);
 
     const r = await reemplazar(c, cand, null, 2);
@@ -57,7 +58,7 @@ describe("T16 · H-025-1-3: reemplazar sobre una regla viva desactivada", () => 
     expect(viva).toMatchObject({ id: regla, destino: "DNG", version: 3, periodo_aprendido: "202607" });
     expect(viva.activa, "candidata activada ⇒ regla activa").toBe(true);
     expect((await ei.filaCandidata(cand)).estado).toBe("activada");
-    const despues = await llamar(backend, comoX(), "select * from public.reglas_proveedores_con_regla($1::uuid)", [c.id]);
+    const despues = await llamar(worker, comoWorker(), "select * from public.reglas_proveedores_con_regla($1::uuid)", [c.id]);
     expect(despues.ok && despues.rows.some((x) => x.doc_numero === doc), "el proveedor tiene regla activa: sale de R-STD").toBe(true);
   });
 

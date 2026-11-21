@@ -449,6 +449,13 @@
       "when": 1795239456573,
       "tag": "0063_reglas_proveedores_con_regla",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1795244205713,
+      "tag": "0064_reglas_importacion_ronda1",
+      "breakpoints": true
     }
   ]
 }

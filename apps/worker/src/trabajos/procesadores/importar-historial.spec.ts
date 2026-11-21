@@ -116,7 +116,10 @@ const fila = (
     ...extra,
   }) as FilaPropuestaSire;
 
-/** Puerto cuya respuesta (o error) sale de `responder(periodo)`. */
+/**
+ * Puerto cuya respuesta (o error) sale de `responder(periodo)`. Como el mock y el adaptador, el registro devuelto es del periodo
+ * pedido (T17: desde H-025-1-7 un registro de otro periodo es «sin datos»; eso lo fijan `importar-historial.r1.spec.ts` y ADV-10).
+ */
 const puerto = (
   responder: (periodo: string) => unknown,
 ): SireApiClient & { periodos: string[] } => {
@@ -133,7 +136,9 @@ const puerto = (
       periodos.push(s.periodo);
       const r = responder(s.periodo);
       if (r instanceof Error) throw r;
-      return r;
+      return typeof r === "object" && r !== null
+        ? { ...r, periodo: s.periodo }
+        : r;
     },
   } as never;
 };
@@ -260,16 +265,15 @@ describe("importarHistorial: lectura y escritura", () => {
     });
   });
 
-  it("todos los periodos sin datos: se completa con cero candidatas", async () => {
+  // Invertida en T17 (H-025-1-6, decisión del orquestador): antes fijaba «se completa con cero candidatas»; una importación sin
+  // ningún periodo leído reemplazaba la revisión pendiente de la anterior sin haber leído nada.
+  it("todos los periodos sin datos (ErrorDatos): falla con datos_invalidos y no completa", async () => {
     const b = bd();
-    const r = await correr({ bd: b, api: puerto(() => new ErrorDatos()) });
-    expect(r).toEqual({
-      periodosLeidos: 0,
-      periodosSinDatos: 2,
-      candidatas: 0,
-      sinCriterio: 0,
-    });
-    expect(b.registro.completar[0]!.candidatas).toEqual([]);
+    await expect(
+      correr({ bd: b, api: puerto(() => new ErrorDatos()) }),
+    ).rejects.toBeInstanceOf(ErrorDatos);
+    expect(b.registro.fallar).toEqual(["datos_invalidos"]);
+    expect(b.registro.completar).toEqual([]);
   });
 
   it("T10: las filas cuyo documento la BD rechazaría no son candidatas y no tumban la importación", async () => {

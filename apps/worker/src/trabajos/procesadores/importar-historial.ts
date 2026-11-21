@@ -1,7 +1,9 @@
 // Procesador de `reglas.historial.importar` (spec 025, D-1, D-2, D-11; CA-1, CA-6, CA-12; plan Contratos: Worker).
 //  (1) Lee la importación y el RUC del cliente en una `withTenant` corta y la cierra. Los periodos salen de la fila, no del payload.
-//  (2) Por periodo, del más reciente al más antiguo, llama al puerto SIN transacción abierta (008 D6). `ErrorDatos` del puerto =
-//      «sin datos» y sigue. Cada respuesta se reduce de inmediato a `FilaHistorial` (el registro crudo no se conserva).
+//  (2) Por periodo, del más reciente al más antiguo, llama al puerto SIN transacción abierta (008 D6). `ErrorDatos` del puerto, o
+//      un registro de otro periodo que el pedido, = «sin datos» y sigue; si no se lee NINGÚN periodo, la importación falla con
+//      `datos_invalidos` sin llamar a `completar` (no reemplaza la revisión anterior). Cada respuesta se reduce de inmediato a
+//      `FilaHistorial` (el registro crudo no se conserva).
 //  (3) `aprenderDeHistorial` (dominio) deduce las candidatas; las que la BD rechazaría por la gramática del documento (p. ej.
 //      un RUC que no tiene 11 dígitos) no son candidatas: una sola fila rara no puede tumbar toda la importación.
 //  (4) UNA transacción con `reglas_importacion_completar`, sin SAVEPOINT. Nunca toca compras, versiones ni reglas (D-2, D-4).
@@ -166,11 +168,20 @@ export function importarHistorial(
         }
         if (registro.libro !== "compras" || !Array.isArray(registro.filas))
           throw new ErrorPropuesta("respuesta_inconsistente");
+        // H-025-1-7: un registro de otro periodo que el pedido no es de este periodo: «sin datos» de este periodo, sin contarlo
+        // como leído ni pasar sus filas a la deducción.
+        if (registro.periodo !== periodo) {
+          sinDatos.push(periodo);
+          continue;
+        }
         if (registro.filas.length > TOPE_FILAS)
           throw new ErrorPropuesta("propuesta_demasiado_grande");
         for (const f of registro.filas) filas.push(aFilaHistorial(f, periodo));
         leidos += 1;
       }
+      // H-025-1-6: sin ningún periodo leído (todos `ErrorDatos` o mal atribuidos) no hay importación que completar: completarla
+      // reemplazaría la revisión pendiente de la anterior sin haber leído nada. Se cierra fallida con `datos_invalidos`.
+      if (leidos === 0) throw new ErrorDatos();
 
       // (3) Deducción (dominio, sin IO). Un monto que no es decimal es una fila ilegible.
       let candidatas: CandidataDeducida[];

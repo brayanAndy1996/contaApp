@@ -99,15 +99,23 @@ describe("T15 · importarHistorial", () => {
     expect(vacias, "ninguna importación con 0 periodos leídos llega a completar").toEqual([]);
   });
 
-  it("ADV-10 el registro devuelto es de OTRO periodo que el pedido: se rechaza, no se cuenta como del pedido", async () => {
+  it("ADV-10 el registro devuelto es de OTRO periodo que el pedido: no se cuenta como del pedido", async () => {
+    // Ajustada en T17 por decisión del orquestador sobre H-025-1-7: un registro de otro periodo que el pedido es «sin datos» de ese
+    // periodo (no falla el trabajo entero). Antes exigía que el trabajo fallara y no escribiera nada; ahora, que lo mal atribuido no
+    // se cuente como leído ni sus filas lleguen a las candidatas. Aquí solo 202610 coincide con lo pedido.
     const b = bd();
     // El puerto contesta siempre el registro de 202610, pida lo que pida (mismo libro): tres «periodos» con el mismo comprobante.
     const api = puerto(() => ({ libro: "compras", periodo: "202610", filas: [fila("20100070970", "1")] }));
-    const r = await correr(b, api).then(
-      (x) => ({ ok: true as const, x }),
-      (e: unknown) => ({ ok: false as const, e }),
-    );
-    expect(r.ok, "respuesta inconsistente con lo pedido").toBe(false);
-    expect(b.completar, "nada se escribe con periodos mal atribuidos").toEqual([]);
+    await correr(b, api);
+    expect(b.completar).toHaveLength(1);
+    const c = b.completar[0]!;
+    expect(c.resumen, "los periodos mal atribuidos quedan «sin datos»").toMatchObject({
+      periodos_leidos: 1,
+      periodos_sin_datos: ["202609", "202608"],
+    });
+    const cands = c.candidatas as Array<{ n_total: number; periodos_con_proveedor: number }>;
+    const comprobantes = cands.reduce((n, x) => n + x.n_total, 0);
+    expect(comprobantes, "las filas de los periodos mal atribuidos no llegan a las candidatas").toBeLessThanOrEqual(1);
+    for (const x of cands) expect(x.periodos_con_proveedor).toBeLessThanOrEqual(1);
   });
 });

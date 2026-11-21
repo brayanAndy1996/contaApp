@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
+  AprendizajeRepoError,
   activarCandidatas,
   descartarCandidatas,
   leerRegla,
@@ -120,6 +121,13 @@ export class CandidatasService {
         }),
       );
     } catch (e) {
+      // H-025-1-2: el 55000 de `reemplazar` es también «cliente archivado» cuando el archivado se confirmó mientras la función
+      // esperaba el FOR SHARE del cliente (la comprobación previa leyó sin bloquear). Ya confirmado, se relee: si está archivado,
+      // 409 `cliente_archivado`; si no, el estado de la candidata o de la regla cambió (409 `regla_cambiada`).
+      if (e instanceof AprendizajeRepoError && e.codigo === "55000")
+        await this.db.withTenant(ctx, (tx) => exigirCliente(tx, clienteId, alcance, true)).catch((x: unknown) => {
+          if (x instanceof AccesoError) throw x;
+        });
       throw aErrorHttp(e, true);
     }
   }
