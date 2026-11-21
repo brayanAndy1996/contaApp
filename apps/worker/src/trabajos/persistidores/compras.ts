@@ -30,6 +30,7 @@ import {
   codigosApagados,
   planificarHistorialDescarga,
 } from "./compras-historial.js";
+import { leerPerfilCliente, leerProveedoresConRegla } from "./compras-std.js";
 import { ErrorPropuesta } from "./errores.js";
 import type {
   ContextoPersistidor,
@@ -229,6 +230,10 @@ export const persistidorCompras: PersistidorLibro<CompraNueva> = {
     const reglas = await reglasHistorialVigentes(tx, ctx.clienteId, ctx.periodo);
     const reglasApagadas = codigosApagados(await leerReglasMotor(tx));
     const rHisActiva = !reglasApagadas.includes("R-HIS");
+    // Spec 025 (D-8, D-9): el perfil del cliente (R-STD) y los proveedores con regla activa, sea cual sea su periodo: R-NEW y R-STD
+    // no los sugieren. Se leen en esta transacción, después de las reglas de R-HIS (mismo orden de bloqueo).
+    const perfil = await leerPerfilCliente(tx, ctx.clienteId);
+    const conRegla = await leerProveedoresConRegla(tx, ctx.clienteId);
     const datos = nuevas.map((n) => n.datos);
     // Sin reglas vigentes (o con R-HIS apagado, que no las devuelve) no hay nada que planificar: `insertarCompras` igual que antes.
     const planificado =
@@ -245,10 +250,8 @@ export const persistidorCompras: PersistidorLibro<CompraNueva> = {
         evaluar: crearEvaluarCompras(conocidos, {
           xmlSimuladoEnReglas: process.env.XML_SIMULADO_EN_REGLAS === "1",
           reglasApagadas,
-          proveedoresConRegla: reglas.map((r) => ({
-            tipo: r.docTipo,
-            numero: r.docNumero,
-          })),
+          proveedoresConRegla: conRegla,
+          perfil,
         }),
         ...(planificado === null ? {} : { historial: planificado.historial }),
       },

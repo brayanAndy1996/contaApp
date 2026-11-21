@@ -49,6 +49,7 @@ import { authPurgar } from "./procesadores/auth-purgar.js";
 import { consultarRuc } from "./procesadores/consultar-ruc.js";
 import { descargarPropuesta } from "./procesadores/descargar-propuesta.js";
 import { generarArchivo } from "./procesadores/generar-archivo.js";
+import { importarHistorial } from "./procesadores/importar-historial.js";
 import { kekRotar } from "./procesadores/kek-rotar.js";
 import { obtenerXml } from "./procesadores/obtener-xml.js";
 import { programarBuzon } from "./procesadores/programar-buzon.js";
@@ -275,6 +276,12 @@ export async function iniciarTrabajos(
         redis,
         prefijo,
         logger,
+      }),
+      // 025: importación del historial (cola `sire`, credencial `sire_api`): lee fuera de transacción y escribe una vez.
+      "reglas.historial.importar": importarHistorial({
+        db,
+        sireApi: deps.sireApi ?? new MockSireApiClient(),
+        config,
       }),
       "xml.obtener": obtenerXml({
         db,

@@ -22,6 +22,12 @@ vi.mock("@contapp/db", async (original) => ({
   }),
 }));
 
+// 025: el persistidor lee además el perfil del cliente y los proveedores con regla activa (R-STD); aquí, un cliente general sin reglas.
+vi.mock("./compras-std.js", () => ({
+  leerPerfilCliente: vi.fn(async () => ({ zona: "general", ventasExoneradas: false, ventasMixtas: false })),
+  leerProveedoresConRegla: vi.fn(async () => []),
+}));
+
 const { persistidorCompras } = await import("./compras.js");
 
 const CONOCIDOS = [{ tipo: "6", numero: "20700000045" }];
