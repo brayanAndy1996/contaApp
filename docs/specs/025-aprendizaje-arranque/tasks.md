@@ -22,7 +22,7 @@ Nivel A (U-7). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T13 | Frontend: importar, revisar y activar; origen; R-STD en la grilla y en el motor | frontend | sonnet | T7, T9 ∥ T10–T12 | ✓ | — | [x] |
 | T14 | Cobertura ≥ 90 % por archivo: `cobertura:aprendizaje` en CI; `cobertura:reglas` y `cobertura:sunat` en verde | devops | haiku | T8, T10, T11, T12 ∥ T13 | — | — | [x] |
 | T15 | Ronda adversarial 1: aislamiento, permisos, funciones acotadas, cola y concurrencia (≤ 15 pruebas) | adversario | opus | T11, T12, T14 ∥ T13, T21 | — | ✓ | [x] |
-| T16 | Pruebas de las correcciones de la ronda 1 (rojo) | tester | sonnet | T15 | ✓ | — | [ ] |
+| T16 | Pruebas de las correcciones de la ronda 1 (rojo) | tester | sonnet | T15 | ✓ | — | [x] |
 | T17 | Corregir los hallazgos de la ronda 1 (migración 0064 si hace falta) | backend | opus | T16 | — | — | [ ] |
 | T18 | Ronda adversarial 2: deducción, R-STD y dinero, RNF-052, interruptor, entradas del registro y secretos (≤ 15 pruebas) | adversario | opus | T17 | — | ✓ | [ ] |
 | T19 | Pruebas de las correcciones de la ronda 2 (rojo) | tester | sonnet | T18 | ✓ | — | [ ] |
@@ -161,10 +161,19 @@ Reglas comunes:
   - **H-025-1-6 · Media** · `apps/worker/src/trabajos/procesadores/importar-historial.ts:150-187` (ADV-9). Si TODOS los periodos dan `ErrorDatos` (sin registro, centinela de datos, archivo ilegible del adaptador), el trabajo completa una importación con 0 periodos leídos y `completar` pasa a `reemplazada` todas las pendientes de la anterior: un SIRE que contesta «sin datos» a todo borra el trabajo de revisión del contador. Con 0 leídos debería fallar (o no reemplazar).
   - **H-025-1-7 · Baja** · `apps/worker/src/trabajos/procesadores/importar-historial.ts:167` (ADV-10). Se valida `libro` pero no `registro.periodo`: un registro de otro periodo se cuenta como el pedido (periodos y frecuencias falsos en «N de M periodos»). Con el mock no ocurre; con el adaptador real de 032 sí podría.
 
-## T16 · [ ] Pruebas de las correcciones de la ronda 1, rojo (tester · sonnet)
+## T16 · [x] Pruebas de las correcciones de la ronda 1, rojo (tester · sonnet)
 - **Contexto (leer solo esto)**: resultado de T15 (hallazgos), sus pruebas, `spec.md` (los CA citados).
 - **Hacer**: una prueba normal (no adversarial) por hallazgo que fije lo que pide la spec.
 - **Hecho cuando**: fallan por el defecto. Commit `test(025): correcciones de la ronda 1 en rojo`.
+- **Resultado T16** (7 hallazgos, 14 pruebas, BD `contapp_025t15`: 8 en rojo por el defecto, 6 controles en verde que deben seguir verdes):
+  - `apps/backend/src/modules/aprendizaje/aprendizaje-r1.int.spec.ts`: H1 (cola llena → 429 `cola_llena`, sin importación en curso y, liberada la cola, el siguiente POST da 202 y no 409); H2 (archivar confirmado con `reemplazar` en espera → 409 `cliente_archivado`; control: candidata descartada → 409 `regla_cambiada`); H4 (dos sin criterio con destino en un lote → 400 `solicitud_invalida` y nada cambia; una sin criterio con destino junto a una propuesta → 400; controles: una sola con destino se activa, una sin destino junto a otras se omite como `sin_criterio`).
+  - `tests/aislamiento/reglas-importacion-r1.spec.ts`: H3 (`reemplazar` sobre regla desactivada: destino nuevo, versión + 1, `activa = true`, candidata `activada`, proveedor en `reglas_proveedores_con_regla`; control con regla activa); H5 (`completar` con el cliente archivado → 55000, 0 candidatas, pendiente anterior intacta, importación no `completada`; control sin archivar reemplaza las pendientes).
+  - `apps/worker/src/trabajos/procesadores/importar-historial.r1.spec.ts`: H6 (todos `ErrorDatos` → `fallar` con `datos_invalidos` y `completar` no se llama; control con un periodo leído); H7 (periodo mal atribuido = «sin datos» de ese periodo: `periodos_leidos` 2, `periodos_sin_datos` [«202609»] y sus filas no llegan a las candidatas; control con periodos coherentes).
+  - **Decisiones tomadas por el tester (anotadas para T17)**:
+    - H4: U-8 («solo de una en una eligiendo el destino a mano») se fija como: una petición que activaría una sin criterio con destino debe traerla SOLA; dos o más con destino, o una con destino más cualquier otra candidata → 400 `solicitud_invalida`, sin activar nada. Una sin criterio SIN destino no se rechaza: sigue siendo el parcial `sin_criterio` (T3 «sin criterio claro» y T12 «lote mixto es parcial» lo fijan y siguen verdes). Solo la BD conoce qué candidatas son sin criterio: la regla va en la función (`22023`, que T3 y T12 deben ajustar si cambian) o en el servicio antes de llamarla. T3 `reglas-importacion-funciones.spec.ts:632` (una sin destino + una con destino en un lote) solo se rompe si la regla va en la función con criterio «una con destino + otra cualquiera».
+    - H5: el motivo elegido es 55000 (el worker ya lo traduce a «omitida»: trabajo termina bien sin escribir; la importación queda en curso hasta su autocierre); coincide con ADV-4.
+    - H6 contradice una prueba de T11: `importar-historial.spec.ts` «todos los periodos sin datos: se completa con cero candidatas» (≈ línea 263) debe retirarse o invertirse en T17; la ADV-9 ya exigía lo mismo.
+    - H7: se lee «`datos_invalidos` de ese periodo (no se cuenta)» como periodo «sin datos» (sigue el resto). ADV-10 (`importar-historial.adv.spec.ts`) exige en cambio que el trabajo falle y no escriba nada cuando el puerto contesta siempre el mismo periodo (aquí 202610 coincide con el pedido y se completaría con 1 leído): con esta lectura ADV-10 seguiría en rojo; T17 debe decidir con el orquestador si se ajusta ADV-10 (p. ej. que ningún periodo mal atribuido cuente) o si H7 pasa a fallar el trabajo entero.
 
 ## T17 · [ ] Corregir la ronda 1 (backend · opus)
 - **Contexto (leer solo esto)**: hallazgos de T15, pruebas de T15 y T16, solo los archivos que señalan.
