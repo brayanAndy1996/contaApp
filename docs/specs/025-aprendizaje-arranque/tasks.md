@@ -28,7 +28,7 @@ Nivel A (U-7). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T19 | Pruebas de las correcciones de la ronda 2 (rojo) | tester | sonnet | T18 | ✓ | — | [x] |
 | T20 | Corregir los hallazgos de la ronda 2 (sin migración: 0065 no hizo falta) | backend | opus | T19 | — | — | [x] |
 | T21 | E2E: importar 6 periodos → revisar → activar → descarga siguiente «Según historial»; selva → R-STD → aceptar en masa | tester | sonnet | T11, T12, T13 ∥ T15–T20 | — | — | [x] |
-| T22 | Prueba manual con el sistema levantado y adaptadores en `mock` | tester | sonnet | T20, T21 | — | — | [ ] |
+| T22 | Prueba manual con el sistema levantado y adaptadores en `mock` | tester | sonnet | T20, T21 | — | — | [x] |
 | T23 | Verificar CA-1 a CA-14 con evidencia, suites completas, `db:migrate` ×2 y coberturas | tester | sonnet | T22 (y T22a si existe) | — | — | [ ] |
 | T24 | Revisión final contra la spec | arquitecto | opus | T23 | — | — | [ ] |
 | T25 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T24 (y T24b si existe) | — | — | [ ] |
@@ -219,10 +219,37 @@ Reglas comunes:
 - **Hecho cuando**: `pnpm e2e -- aprendizaje` y `pnpm e2e -- reglas` pasan 3 veces seguidas, sin `retry` ni `test.only`. Commit `test(025): e2e del aprendizaje`.
 - **Resultado (T21, hecho)**: `tests/e2e/flujos/aprendizaje.e2e.ts` (3 escenarios) y selectores nuevos en `soporte/selectores/reglas.ts`: (1) importar 6 desde la UI → resumen «6 periodos leídos · 7 candidatas · 3 sin criterio claro», 4 propuestas con frecuencia, 3 «sin criterio», sin reglas tras importar → cambiar DG→DNG y activar una → «Activar todas» con confirmación (3) → 4 reglas «Importado del historial» → descarga del periodo siguiente en DNG, «Según historial», versión 2; (2) Huánuco (Amazonía, exoneradas, sin mixtas) → 4 filas con «R-STD: DNG por perfil del cliente» (la ya DNG no) → filtro → «Aceptar R-STD» 4 aplicadas → Base DG 1,005.00→0.00, DGNG 150.00→0.00, DNG 200.00→1,355.00; (3) 390 × 844: candidatas, «Activar todas» y diálogo sin desborde horizontal. Verde 3 veces seguidas con `reglas` (4/4 cada vez), sin retry ni `.only`; typecheck y lint de `tests/e2e` limpios. Sin defectos de producción. Nota: la descarga previa a activar no se hizo porque el «periodo siguiente» al último importado es el mes en curso y el que sigue es futuro (400); reimportar el mismo periodo no re-evalúa (filas iguales), por eso CA-1 «ninguna se aplica» se fija con 0 reglas tras importar.
 
-## T22 · [ ] Prueba manual (tester · sonnet)
+## T22 · [x] Prueba manual (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (CA), `docs/specs/019-docker-local/` (solo la sección de arranque), resultado de T15 de `docs/specs/024-bandeja-buzones/tasks.md` (formato del informe).
 - **Hacer**: sistema completo (BD nueva migrada dos veces y sembrada, Redis en un índice propio, backend, frontend y un worker) con adaptadores en `mock`. Un estudio con Dueño, Contador (asignado a parte), Asistente y Lectura; un cliente con registro de 12 periodos (uno sin datos) y reglas previas; el cliente de Huánuco. A mano: importar 6 y 12; revisar pestañas; activar una, varias y todas; conflicto y «Reemplazar»; descartar; segunda importación; dos pestañas que activan la misma candidata; Asistente y Lectura sin botones; descarga siguiente «Según historial»; R-STD una a una y en masa, «Recordar» tras aceptar, apagar R-STD; aviso de U-6; 1440 × 900 y 390 × 844.
 - **Hecho cuando**: resultado con entorno, pasos, lo visto y defectos (o «sin defectos»); procesos detenidos y Redis vaciado; no se toca código de producción.
+
+**Resultado de T22 (tester · sonnet, 2026-11-21, rama `spec/025-aprendizaje-arranque` en 5d9c764): sin defectos funcionales; 4 defectos menores de pantalla y 1 observación (abajo). Proponer T22a (frontend · sonnet) para D1 y D2.**
+
+E2E previo (T20 cambió el mock SIRE): `E2E_CORREO=consola E2E_CONSERVAR_BD=1 flock /tmp/contapp-e2e.lock pnpm e2e aprendizaje --trace off` → 3 de 3 en verde (importar 6 → revisar → activar → descarga siguiente «Según historial»; Huánuco → R-STD en masa; 390 × 844).
+
+Entorno: Node 24.22.3 (npm local), PostgreSQL 17, BD nueva `contapp_025t22` (`db:migrate` ×2 y seed; borrada al final), Redis índice 9 (vaciado), backend `:4210`, worker y frontend `next start :3210` con los builds del E2E, todo en `mock`, `espera_ruc_ms = 0`. Estudio con Dueño, Contador (responsable solo del cliente A), Asistente y Lectura (colaboradores de A y de Huánuco); cliente A (RUC 20700000002; registro genérico de 12 periodos y `20700000002-registro-sin-datos.json` temporal con `["202512"]`, ya retirado) con una regla previa del proveedor 20700000096 → DNG creada con «Recordar»; cliente de Huánuco (RUC 20700000100, perfil Amazonía / exoneradas / sin mixtas, 5 compras de 202610). Playwright con Chromium, 1440 × 900 y 390 × 844 (capturas en el scratchpad `025-t22/`, sin commit). Sesión por la pantalla de login (una vez por rol); credenciales, perfil y descargas por API como preparación.
+
+Pasos y lo visto (por la interfaz, salvo lo dicho):
+- Importar 6 y 12: el diálogo trae 6 por omisión y «No se aplica nada hasta que actives las reglas que se propongan.»; resumen «6 periodos leídos · 7 candidatas · 3 sin criterio claro» y con 12 «11 periodos leídos … Sin datos en: 202512». Nada se aplicó hasta activar.
+- Pestañas: Propuestas (frecuencia «18 de 18 comprobantes en DNG · en 6 de 6 periodos»), Sin criterio claro («18 en DG, 6 en DNG de 24 comprobantes»), Con conflicto (096: «Regla vigente: DNG», y «Ya aprendida» cuando coincide el destino), Resueltas.
+- Activar: una con el destino cambiado (070 DG→DNG; regla DNG, «Importado del historial», `periodoAprendido` 202610), varias (2), «Activar todas» con confirmación (activó 2 y omitió 1 «conflicto con una regla vigente»), sin criterio con destino elegido; descartar (queda «Descartada» en Resueltas y no crea regla).
+- Conflicto: «Reemplazar» 096 → DG (v2); en una segunda pestaña con la versión vieja, «La regla cambió mientras tanto. Revisa las reglas del cliente e inténtalo de nuevo.» y la regla no cambió.
+- Segunda importación: reemplaza las pendientes y conserva en BD las activadas y descartadas (importación 1: 3 activadas + 4 reemplazadas).
+- Dos pestañas activando la misma candidata a la vez (061): una sola regla en BD; la pestaña perdedora no muestra error (D2).
+- Roles: el Contador ve solo el cliente A, importa y activa; sobre Huánuco la API da 404. Asistente y Lectura ven candidatas y reglas sin ningún botón de acción; importar y activar por API → 403 `permiso_denegado`.
+- Descarga siguiente (202611) de A con la regla 096 → DNG: filas «Según historial», DNG, «Clasificada»; el aviso de U-6 y su enlace «Ver compras del periodo» aparecen tras activar.
+- R-STD en Huánuco: cuatro filas con «R-STD: DNG por perfil del cliente» y F003-8004 solo R-NEW; «Aceptar sugerencias» → «Aceptar R-STD» en F001-8001 → DNG y aviso «¿Recordar para este proveedor en este cliente?» → «Recordar» crea la regla (origen `contador`); F001-8002 clasificada a mano en DG: sin R-STD; F002-8003 en masa con el filtro y «Aceptar R-STD» («1 aplicada»); F004-8005 sigue sugerida. Apagar R-STD en «Reglas del motor»: una descarga nueva sin regla no trae la sugerencia y la ya guardada se conserva; al encender, vuelve en el periodo siguiente. Con regla activa del proveedor tampoco aparece.
+- 390 × 844: sin desborde horizontal de la página (`scrollWidth − innerWidth = 0`) en reglas, diálogo de importar, pestañas, «Activar todas», compras, barra de selección, informe de la masiva y reglas del motor; las candidatas y las reglas pasan a tarjetas.
+- Logs de backend, worker y frontend: sin RUC, razón social ni credenciales.
+
+Defectos y observaciones (no se tocó código):
+- **D1** `apps/frontend/components/reglas/candidatas-importadas.tsx:307`: el diálogo «Activar todas» cuenta las omitidas con `resumen.sinCriterio` (3) y dice «Se omitirán 3 con conflicto o sin criterio claro» aunque hay además 1 candidata con conflicto; el resultado real informa «1 omitida · conflicto con una regla vigente» (las «sin criterio» no entran en «todas»). El número no coincide con ninguna de las dos cosas.
+- **D2** pestaña perdedora de la carrera: tras activar una candidata que ya activó otra pestaña muestra «0 reglas activadas.» y el enlace «Ver compras del periodo» sin explicar «ya no estaba pendiente», y su tabla de reglas no incluye la regla creada hasta recargar.
+- **D3** cliente no visible (404): la pantalla de reglas muestra tres avisos «No se encontró lo que buscas.» y el botón «Importar historial».
+- **D4** (observación) «Resueltas» solo lista la última importación: tras una segunda importación no se ven las activadas y descartadas de la primera (siguen en BD, CA-5 se cumple).
+- **D5** (observación) «Sin criterio claro» y «Con conflicto» no ofrecen «Descartar»; solo «Propuestas».
+- Nota de entorno (no es defecto): el límite de login por IP (`login_ip`, 20 cada 10 min) dio 429 tras ~25 inicios de sesión de la prueba; se vació `auth.limite_tasa` de `contapp_025t22`.
 
 ## T23 · [ ] Verificar (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (CA-1 a CA-14), `tasks.md` (resultados), `package.json` (scripts).
