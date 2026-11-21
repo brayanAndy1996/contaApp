@@ -75,4 +75,4 @@ Preguntas U-1 a U-7 respondidas el 2026-11-21, todas con la opción (a). Se cons
 - **U-7 = (a) · Nivel.** A: TDD y rondas adversariales completas (hasta dos, 04 §2.3).
 
 ## Requiere usuario (aparecidas al planificar)
-- **U-8 · Candidatas «sin criterio claro».** **Propuesta (rige mientras el usuario no diga otra cosa):** se listan aparte con sus conteos y se pueden activar solo de una en una eligiendo el destino a mano; «Activar todas» nunca las incluye. Alternativa: solo informativas, sin activar (el contador usa «Recordar» en la descarga siguiente).
+- **U-8 = (a) · Candidatas «sin criterio claro».** **Decidida por el usuario el 2026-11-21:** se listan aparte con sus conteos y se pueden activar solo de una en una eligiendo el destino a mano; «Activar todas» nunca las incluye. Alternativa: solo informativas, sin activar (el contador usa «Recordar» en la descarga siguiente).
