@@ -13,6 +13,8 @@ export const reglaVistaSchema = z.object({
   destino: destinoCompraSchema,
   activa: z.boolean(),
   version: versionBaseSchema,
+  /** Spec 025 (D-5): quién la originó; `importacion` = activada desde las candidatas del historial. */
+  origen: z.enum(["contador", "importacion"]),
   /** AAAAMM */
   periodoAprendido: z.string().regex(/^[0-9]{4}(0[1-9]|1[0-2])$/),
   aplicada: entero,

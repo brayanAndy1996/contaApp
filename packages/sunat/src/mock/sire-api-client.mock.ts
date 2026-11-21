@@ -11,8 +11,10 @@ import type {
   FilaVentaSire,
   LibroSire,
   PropuestaSire,
+  RegistroPresentadoSire,
   SireApiClient,
   SolicitudPropuesta,
+  SolicitudRegistroPresentado,
   TokenSire,
 } from "../puertos.js";
 
@@ -43,6 +45,8 @@ const DIR_POR_DEFECTO = join(
 );
 
 const TOPE_BYTES = 1_048_576;
+/** Tope del archivo del registro presentado: 5.000 compras superan 1 MiB (spec 025, CA-13). */
+const TOPE_BYTES_REGISTRO = 16 * 1_048_576;
 const RUC = /^\d{11}$/;
 const PERIODO = /^(\d{4})(0[1-9]|1[0-2])$/;
 
@@ -156,24 +160,9 @@ export class MockSireApiClient implements SireApiClient {
       throw new ErrorCredencial();
     }
 
-    if (this.modo !== null) {
-      const modo = this.modo;
-      if (this.restantes !== null) {
-        this.restantes -= 1;
-        if (this.restantes <= 0) {
-          this.modo = null;
-          this.restantes = null;
-        }
-      }
-      if (modo === "401") throw new ErrorCredencial();
-      if (modo === "datos") throw new ErrorDatos();
-      throw new ErrorTransitorio();
-    }
+    this.aplicarFallaForzada();
 
-    const ultimo = ruc.slice(-1);
-    if (ultimo === "7") throw new ErrorTransitorio();
-    if (ultimo === "8") throw new ErrorDatos();
-    if (ultimo === "9") throw new ErrorCredencial();
+    this.aplicarCentinela(ruc);
 
     const propio = this.leer(`${ruc}-${libro}-${periodo}.json`);
     if (propio !== null) return armar(libro, periodo, propio);
@@ -193,8 +182,104 @@ export class MockSireApiClient implements SireApiClient {
     return armar(libro, periodo, filas);
   }
 
+  /** `fallar(modo)` tiene prioridad sobre los centinelas. */
+  private aplicarFallaForzada(): void {
+    if (this.modo === null) return;
+    const modo = this.modo;
+    if (this.restantes !== null) {
+      this.restantes -= 1;
+      if (this.restantes <= 0) {
+        this.modo = null;
+        this.restantes = null;
+      }
+    }
+    if (modo === "401") throw new ErrorCredencial();
+    if (modo === "datos") throw new ErrorDatos();
+    throw new ErrorTransitorio();
+  }
+
+  /** Centinelas por último dígito del RUC: 7 transitorio, 8 datos, 9 credencial. */
+  private aplicarCentinela(ruc: string): void {
+    const ultimo = ruc.slice(-1);
+    if (ultimo === "7") throw new ErrorTransitorio();
+    if (ultimo === "8") throw new ErrorDatos();
+    if (ultimo === "9") throw new ErrorCredencial();
+  }
+
+  /**
+   * Spec 025 (D-2): registro presentado de compras de un periodo. `{ruc}-registro-compras-{periodo}.json`; si no existe,
+   * `generico-registro-compras.json` con el periodo y las fechas del mes pedido. `{ruc}-registro-sin-datos.json` (lista de
+   * periodos AAAAMM) marca los periodos sin registro: `ErrorDatos`. Mismas validaciones, centinelas y fallas que la propuesta.
+   */
+  descargarRegistroPresentado(
+    token: TokenSire,
+    solicitud: SolicitudRegistroPresentado,
+  ): Promise<RegistroPresentadoSire> {
+    try {
+      return Promise.resolve(this.resolverRegistro(token, solicitud));
+    } catch (e) {
+      return Promise.reject(e as Error);
+    }
+  }
+
+  private resolverRegistro(
+    token: TokenSire,
+    solicitud: SolicitudRegistroPresentado,
+  ): RegistroPresentadoSire {
+    const { ruc, periodo } = solicitud;
+    this.total += 1;
+    if (typeof ruc === "string") {
+      this.porRuc.set(ruc, this.llamadasDe(ruc) + 1);
+    }
+    const coincidencia = typeof periodo === "string" ? PERIODO.exec(periodo) : null;
+    if (typeof ruc !== "string" || !RUC.test(ruc) || coincidencia === null) {
+      throw new ErrorDatos();
+    }
+    this.historial.push({ ruc, periodo, libro: "compras" });
+
+    if (typeof token?.token !== "string" || token.token.length === 0) {
+      throw new ErrorCredencial();
+    }
+    this.aplicarFallaForzada();
+    this.aplicarCentinela(ruc);
+
+    if (this.periodosSinDatos(ruc).includes(periodo)) throw new ErrorDatos();
+
+    const propio = this.leer(`${ruc}-registro-compras-${periodo}.json`, TOPE_BYTES_REGISTRO);
+    const filas = propio ?? this.generico(coincidencia[1] ?? "", coincidencia[2] ?? "");
+    return { libro: "compras", periodo, filas: filas as FilaPropuestaSire[] };
+  }
+
+  /** Genérico del registro con las fechas del mes pedido (mismo día, sin pasar del fin de mes). */
+  private generico(anio: string, mes: string): FilaSire[] {
+    const plantilla = this.leer("generico-registro-compras.json", TOPE_BYTES_REGISTRO);
+    if (plantilla === null) throw new ErrorDatos();
+    const tope = ultimoDia(Number(anio), Number(mes));
+    return plantilla.map((fila) => {
+      const dia = Math.min(Number(fila.fechaEmision.slice(8, 10)) || 1, tope);
+      return { ...fila, fechaEmision: `${anio}-${mes}-${String(dia).padStart(2, "0")}` };
+    });
+  }
+
+  /** Periodos sin registro de ese RUC (`{ruc}-registro-sin-datos.json`, lista JSON de AAAAMM); sin archivo, ninguno. */
+  private periodosSinDatos(ruc: string): string[] {
+    const ruta = join(this.dir, `${ruc}-registro-sin-datos.json`);
+    try {
+      statSync(ruta);
+    } catch {
+      return [];
+    }
+    try {
+      const datos: unknown = JSON.parse(readFileSync(ruta, "utf8"));
+      if (!Array.isArray(datos)) throw new ErrorDatos();
+      return datos.filter((p): p is string => typeof p === "string");
+    } catch {
+      throw new ErrorDatos();
+    }
+  }
+
   /** Filas del archivo, o `null` si no existe. Un archivo ilegible o fuera de forma es `ErrorDatos`. */
-  private leer(nombre: string): FilaSire[] | null {
+  private leer(nombre: string, tope: number = TOPE_BYTES): FilaSire[] | null {
     const ruta = join(this.dir, nombre);
     let tamano: number;
     try {
@@ -202,7 +287,7 @@ export class MockSireApiClient implements SireApiClient {
     } catch {
       return null;
     }
-    if (tamano > TOPE_BYTES) throw new ErrorDatos();
+    if (tamano > tope) throw new ErrorDatos();
     try {
       const datos: unknown = JSON.parse(readFileSync(ruta, "utf8"));
       const filas = (datos as { filas?: unknown } | null)?.filas;

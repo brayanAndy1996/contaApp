@@ -54,6 +54,9 @@ export const ACCIONES_AUDITORIA = [
   // Spec 024: atención de mensajes (la registra la función acotada en la misma transacción).
   "buzon.atendido",
   "buzon.atencion_deshecha",
+  // Spec 025: aprendizaje de arranque (las registran las funciones acotadas de 0062 en la misma transacción).
+  "regla.historial_importado",
+  "regla.candidata_descartada",
 ] as const;
 
 export type AccionAuditoria = (typeof ACCIONES_AUDITORIA)[number];

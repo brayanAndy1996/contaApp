@@ -40,5 +40,11 @@
     "rol": "proveedor de los conjuntos genéricos",
     "razonSocial": "PRUEBA PROVEEDOR GENERICO S.A.C.",
     "direccion": "JR. DE PRUEBA 206 (PRUEBA), LIMA"
+  },
+  {
+    "ruc": "20700000100",
+    "rol": "cliente de Huánuco (zona Amazonía, ventas exoneradas; spec 025)",
+    "razonSocial": "PRUEBA CONTRIBUYENTE HUANUCO S.A.C.",
+    "direccion": "JR. DE PRUEBA 300 (PRUEBA), HUÁNUCO"
   }
 ]

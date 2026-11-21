@@ -149,6 +149,20 @@ export interface SolicitudPropuesta {
   libro: LibroSire;
 }
 
+/** Solicitud del registro presentado de compras (spec 025): sin `libro`, es solo de compras. */
+export interface SolicitudRegistroPresentado {
+  ruc: string;
+  /** AAAAMM */
+  periodo: string;
+}
+
+/** Registro presentado de compras de un periodo (spec 025): sus filas son `FilaPropuestaSire`. */
+export interface RegistroPresentadoSire {
+  libro: "compras";
+  periodo: string;
+  filas: FilaPropuestaSire[];
+}
+
 /**
  * Fila de la propuesta del SIRE. Montos como cadenas decimales. En ventas solo se usan `biDg`, `igvDg`,
  * `noGravado`, `isc`, `icbper`, `otros` y `total`.
@@ -229,4 +243,9 @@ export type PropuestaSire = PropuestaComprasSire | PropuestaVentasSire;
  */
 export interface SireApiClient {
   descargarPropuesta(token: TokenSire, solicitud: SolicitudPropuesta): Promise<PropuestaSire>;
+  /**
+   * Spec 025 (D-2): registro de compras YA presentado de un periodo, para deducir reglas del historial (layout provisional
+   * hasta 032). Mismos errores que `descargarPropuesta`; `ErrorDatos` también si el periodo no tiene registro («sin datos»).
+   */
+  descargarRegistroPresentado(token: TokenSire, solicitud: SolicitudRegistroPresentado): Promise<RegistroPresentadoSire>;
 }
