@@ -15,6 +15,9 @@ export interface FilaHistorial {
   readonly numeroDocProveedor: string;
   readonly razonSocial?: string | null;
   readonly tipoComprobante: string;
+  /** Serie y número del comprobante: con ambos (no vacíos) el comprobante es identificable y cuenta una sola vez. */
+  readonly serie?: string | null;
+  readonly numero?: string | null;
   readonly biDg: string;
   readonly biDgng: string;
   readonly biDng: string;
@@ -90,14 +93,41 @@ function propuesto(c: Conteos): Destino | null {
   return cumplen.length === 1 ? (cumplen[0] as Destino) : null;
 }
 
+/** Parte normalizada de la clave del comprobante (`trim` y mayúsculas ASCII); "" si falta. */
+const parte = (v: unknown): string => (typeof v === "string" ? enMayusculas(v.trim()) : "");
+
+/** Clave del comprobante (proveedor + tipo + serie + número); null si no es identificable (sin serie o sin número). */
+function claveComprobante(proveedor: string, f: FilaHistorial): string | null {
+  const serie = parte(f.serie);
+  const numero = parte(f.numero);
+  if (serie === "" || numero === "") return null;
+  return JSON.stringify([proveedor, parte(f.tipoComprobante), serie, numero]);
+}
+
+/** Lo que una fila aporta a los conteos: el periodo, la clave de montos para desempatar y en qué destinos tiene base. */
+interface Aporte {
+  readonly acumulado: Acumulado;
+  readonly periodo: string;
+  readonly montos: string;
+  readonly conBase: readonly boolean[];
+}
+
+/** Gana la fila del periodo más reciente; en el mismo periodo, la de mayor `biDg|biDgng|biDng` por unidades de código. */
+const gana = (x: Aporte, y: Aporte): boolean =>
+  comparar(x.periodo, y.periodo) > 0 || (x.periodo === y.periodo && comparar(x.montos, y.montos) > 0);
+
 /**
  * Candidatas por proveedor (D-3): un comprobante con base ≠ 0 en un solo destino suma a ese destino; en dos o más, a `mixto`;
- * sin base no cuenta (`descartadas.sinBase`). Sin proveedor identificable (número vacío, «-» o fuera de la gramática de
- * `DocProveedor`) no cuenta (`descartadas.sinProveedor`). Un proveedor sin ningún comprobante contado no da candidata. No muta
- * la entrada; el resultado no depende del orden de las filas.
+ * sin base no cuenta (`descartadas.sinBase`). Se cuentan COMPROBANTES (H-025-2-1): con serie y número, el mismo comprobante
+ * (proveedor + tipo + serie + número) repetido en un periodo o en varios cuenta una vez, con la fila que gana según `gana`; sin
+ * serie o sin número, cada fila cuenta por sí misma. `periodosConProveedor` y `razonSocial` salen de todas las filas. Sin
+ * proveedor identificable (número vacío, «-» o fuera de la gramática de `DocProveedor`) no cuenta (`descartadas.sinProveedor`).
+ * Un proveedor sin ningún comprobante contado no da candidata. No muta la entrada; el resultado no depende del orden de las filas.
  */
 export function aprenderDeHistorial(filas: readonly FilaHistorial[]): ResultadoAprendizaje {
   const porClave = new Map<string, Acumulado>();
+  const porComprobante = new Map<string, Aporte>();
+  const sueltos: Aporte[] = [];
   let sinProveedor = 0;
   let sinBase = 0;
   for (const f of filas) {
@@ -121,15 +151,31 @@ export function aprenderDeHistorial(filas: readonly FilaHistorial[]): ResultadoA
         a.razon = { periodo: f.periodo, texto };
       }
     }
-    const conBase = [f.biDg, f.biDgng, f.biDng].map((b) => !Money.desde(b, "PEN").esCero());
+    // Todo monto se valida (un monto ilegible lanza aunque su fila sea un duplicado que no se cuenta).
+    const aporte: Aporte = {
+      acumulado: a,
+      periodo: f.periodo,
+      montos: `${f.biDg}|${f.biDgng}|${f.biDng}`,
+      conBase: [f.biDg, f.biDgng, f.biDng].map((b) => !Money.desde(b, "PEN").esCero()),
+    };
+    const comprobante = claveComprobante(clave, f);
+    if (comprobante === null) {
+      sueltos.push(aporte);
+      continue;
+    }
+    const previo = porComprobante.get(comprobante);
+    if (previo === undefined || gana(aporte, previo)) porComprobante.set(comprobante, aporte);
+  }
+  for (const { acumulado, conBase } of [...sueltos, ...porComprobante.values()]) {
     const n = conBase.filter(Boolean).length;
     if (n === 0) {
       sinBase += 1;
       continue;
     }
-    a.conteos.total += 1;
-    if (n >= 2) a.conteos.mixto += 1;
-    else a.conteos[DESTINOS[conBase.indexOf(true)] as Destino] += 1;
+    const c = acumulado.conteos;
+    c.total += 1;
+    if (n >= 2) c.mixto += 1;
+    else c[DESTINOS[conBase.indexOf(true)] as Destino] += 1;
   }
   const candidatas: CandidataDeducida[] = [];
   for (const a of porClave.values()) {

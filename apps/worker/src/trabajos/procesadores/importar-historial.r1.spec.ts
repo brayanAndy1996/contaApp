@@ -75,7 +75,8 @@ const fila = (ruc: string, numero: string): FilaPropuestaSire =>
     total: "118.00",
   }) as FilaPropuestaSire;
 
-const dos = (ruc: string): FilaPropuestaSire[] => [fila(ruc, "1"), fila(ruc, "2")];
+// T20 (H-025-2-1): cada periodo trae SUS dos comprobantes; con el mismo F001-1/F001-2 en todos, ahora contarían una vez.
+const dos = (ruc: string, periodo: string): FilaPropuestaSire[] => [fila(ruc, `${periodo}-1`), fila(ruc, `${periodo}-2`)];
 
 function puerto(responder: (periodo: string) => unknown): SireApiClient {
   return {
@@ -107,7 +108,7 @@ describe("T16 · H-025-1-6: ningún periodo leído", () => {
 
   it("control: con al menos un periodo leído se completa (los demás «sin datos») y no se falla", async () => {
     const b = bd();
-    await correr(b, puerto((p) => (p === "202610" ? { libro: "compras", periodo: p, filas: dos(BUENO) } : new ErrorDatos())));
+    await correr(b, puerto((p) => (p === "202610" ? { libro: "compras", periodo: p, filas: dos(BUENO, p) } : new ErrorDatos())));
     expect(b.fallar).toEqual([]);
     expect(b.completar).toHaveLength(1);
     expect(b.completar[0]!.resumen).toMatchObject({ periodos_leidos: 1, periodos_sin_datos: ["202609", "202608"] });
@@ -119,7 +120,7 @@ describe("T16 · H-025-1-7: registro de otro periodo que el pedido", () => {
     const b = bd();
     // 202609 contesta con un registro de 202610 (y de otro proveedor); 202610 y 202608 contestan lo suyo.
     const api = puerto((p) =>
-      p === "202609" ? { libro: "compras", periodo: "202610", filas: dos(AJENO) } : { libro: "compras", periodo: p, filas: dos(BUENO) },
+      p === "202609" ? { libro: "compras", periodo: "202610", filas: dos(AJENO, p) } : { libro: "compras", periodo: p, filas: dos(BUENO, p) },
     );
     await correr(b, api);
     expect(b.completar).toHaveLength(1);
@@ -131,7 +132,7 @@ describe("T16 · H-025-1-7: registro de otro periodo que el pedido", () => {
 
   it("control: periodos que coinciden con lo pedido se cuentan todos como leídos", async () => {
     const b = bd();
-    await correr(b, puerto((p) => ({ libro: "compras", periodo: p, filas: dos(BUENO) })));
+    await correr(b, puerto((p) => ({ libro: "compras", periodo: p, filas: dos(BUENO, p) })));
     expect(b.completar[0]!.resumen).toMatchObject({ periodos_leidos: 3, periodos_sin_datos: [] });
     expect(b.completar[0]!.candidatas[0]).toMatchObject({ doc_numero: BUENO, n_total: 6, periodos_con_proveedor: 3 });
   });

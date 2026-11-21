@@ -250,14 +250,22 @@ export class MockSireApiClient implements SireApiClient {
     return { libro: "compras", periodo, filas: filas as FilaPropuestaSire[] };
   }
 
-  /** Genérico del registro con las fechas del mes pedido (mismo día, sin pasar del fin de mes). */
+  /**
+   * Genérico del registro con las fechas del mes pedido (mismo día, sin pasar del fin de mes). La serie lleva el mes
+   * (su primer carácter + último dígito del año + mes: `F001` en 202610 → `F610`), así cada periodo trae SUS comprobantes:
+   * el aprendizaje cuenta comprobantes y el mismo comprobante repetido en varios periodos contaría una vez (H-025-2-1).
+   */
   private generico(anio: string, mes: string): FilaSire[] {
     const plantilla = this.leer("generico-registro-compras.json", TOPE_BYTES_REGISTRO);
     if (plantilla === null) throw new ErrorDatos();
     const tope = ultimoDia(Number(anio), Number(mes));
     return plantilla.map((fila) => {
       const dia = Math.min(Number(fila.fechaEmision.slice(8, 10)) || 1, tope);
-      return { ...fila, fechaEmision: `${anio}-${mes}-${String(dia).padStart(2, "0")}` };
+      return {
+        ...fila,
+        serie: `${fila.serie.slice(0, 1)}${anio.slice(3)}${mes}`,
+        fechaEmision: `${anio}-${mes}-${String(dia).padStart(2, "0")}`,
+      };
     });
   }
 

@@ -39,7 +39,11 @@ export interface CandidataFila {
   periodosLeidos: number;
   estado: EstadoCandidata;
   destinoElegido: DestinoRegla | null;
-  regla: { id: string; destino: DestinoRegla; version: number } | null;
+  /**
+   * `activa: false` solo si la regla está desactivada (D-6: se reactiva desde la página de reglas, no desde aquí); con la regla
+   * activa la clave no va, así el cuerpo de siempre no cambia.
+   */
+  regla: { id: string; destino: DestinoRegla; version: number; activa?: false } | null;
   conflicto: ConflictoCandidata;
 }
 
@@ -59,7 +63,7 @@ const SQL_LISTAR = `with ultima as (
   select k.id, k.doc_tipo, k.doc_numero, k.razon_social, k.destino_propuesto, k.n_dg, k.n_dgng, k.n_dng, k.n_mixto, k.n_total,
          k.periodos_con_proveedor, coalesce(u.periodos_leidos, 0) as periodos_leidos, k.estado, k.destino_elegido,
          coalesce(v.id, a.id) as regla_id, coalesce(v.destino, a.destino) as regla_destino,
-         coalesce(v.version, a.version) as regla_version,
+         coalesce(v.version, a.version) as regla_version, coalesce(v.activa, a.activa) as regla_activa,
          case when v.id is null then 'ninguno' when v.destino = k.destino_propuesto then 'ya_aprendida' else 'distinto' end
            as conflicto
     from ultima u
@@ -111,6 +115,7 @@ const aCandidataFila = (f: FilaAprendizaje): CandidataFila => ({
           id: f.regla_id as string,
           destino: f.regla_destino as DestinoRegla,
           version: f.regla_version as number,
+          ...(f.regla_activa === false ? { activa: false as const } : {}),
         },
   conflicto: f.conflicto as ConflictoCandidata,
 });

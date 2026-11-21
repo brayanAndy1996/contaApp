@@ -426,6 +426,9 @@ function FilaCandidata({
         )}
         {grupo === "conflicto" && c.regla !== null && <p className="m-0">{M.reglaVigente(c.regla.destino)}</p>}
         {grupo === "conflicto" && c.conflicto === "ya_aprendida" && <p className="m-0">{M.yaAprendida}</p>}
+        {grupo === "conflicto" && c.regla?.activa === false && (
+          <p className="m-0 text-tinta-media">{M.reglaInactiva}</p>
+        )}
         {grupo === "resueltas" && (
           <p className="m-0 flex flex-wrap items-center gap-2">
             {c.estado !== "pendiente" && <Badge tono="neutro">{M.estados[c.estado]}</Badge>}

@@ -76,6 +76,7 @@ export const MENSAJES_APRENDIZAJE = {
   reemplazar: (numero: string) => `Reemplazar regla de ${numero}`,
   reglaVigente: (destino: string) => `Regla vigente: ${destino}`,
   yaAprendida: "Ya aprendida: la regla vigente tiene este mismo destino.",
+  reglaInactiva: "La regla está desactivada: no se aplica a este proveedor. Se reactiva desde la página de reglas.",
   estados: { activada: "Activada", descartada: "Descartada", reemplazada: "Reemplazada" },
   cargarMas: "Cargar más",
   reglasActivadas: (n: number) => (n === 1 ? "1 regla activada." : `${n} reglas activadas.`),

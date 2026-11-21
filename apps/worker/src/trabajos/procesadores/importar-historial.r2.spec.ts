@@ -111,7 +111,7 @@ describe("T19 · H-025-2-1: el worker pasa serie y número y cuenta comprobantes
     const c = candidataDe(b, PROV);
     expect(c).toBeDefined();
     expect(c).toMatchObject({ n_total: 1, n_dg: 1, destino_propuesto: null });
-    expect(b.completar[0]?.resumen).toMatchObject({ candidatas: 1, sinCriterio: 1 });
+    expect(b.completar[0]?.resumen).toMatchObject({ candidatas: 1, sin_criterio: 1 });
   });
 
   it("la misma factura devuelta en dos periodos más otra distinta por periodo: 3 comprobantes, no 4", async () => {

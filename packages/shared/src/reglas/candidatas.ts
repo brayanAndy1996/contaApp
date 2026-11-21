@@ -38,7 +38,10 @@ export const candidataVistaSchema = z.object({
   periodosLeidos: entero,
   estado: z.enum(ESTADOS_CANDIDATA),
   destinoElegido: destinoCompraSchema.nullable(),
-  regla: z.object({ id: z.uuid(), destino: destinoCompraSchema, version: versionReglaSchema }).nullable(),
+  /** `activa: false` solo si la regla está desactivada (D-6; se reactiva desde la página de reglas); activa, la clave no va. */
+  regla: z
+    .object({ id: z.uuid(), destino: destinoCompraSchema, version: versionReglaSchema, activa: z.boolean().optional() })
+    .nullable(),
   conflicto: z.enum(CONFLICTOS_CANDIDATA),
 });
 export type CandidataVista = z.infer<typeof candidataVistaSchema>;

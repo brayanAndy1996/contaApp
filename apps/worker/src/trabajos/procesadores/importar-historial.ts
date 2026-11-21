@@ -94,6 +94,9 @@ function aFilaHistorial(f: FilaPropuestaSire, periodo: string): FilaHistorial {
       typeof f.rucContraparte === "string" ? f.rucContraparte : "",
     razonSocial: typeof razon === "string" ? razon : null,
     tipoComprobante: typeof f.tipo === "string" ? f.tipo : "",
+    // Serie y número identifican el comprobante: el dominio lo cuenta una vez aunque el registro lo repita (H-025-2-1).
+    serie: typeof f.serie === "string" ? f.serie : null,
+    numero: typeof f.numero === "string" ? f.numero : null,
     biDg: f.biDg,
     biDgng: f.biDgng,
     biDng: f.biDng,

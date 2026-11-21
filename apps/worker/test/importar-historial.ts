@@ -102,6 +102,8 @@ export interface OpcionesFilaRegistro {
   igv?: string;
   /** Nota de crédito: todos los montos con signo negativo. */
   negativa?: boolean;
+  /** Por omisión, una serie por periodo (`F` + los 3 últimos dígitos de AAAAMM): el mismo número en dos periodos es otro comprobante. */
+  serie?: string;
 }
 
 const CERO = "0.00";
@@ -158,7 +160,8 @@ export function filaRegistro(o: OpcionesFilaRegistro): FilaPropuestaSire {
     : montos;
   return {
     tipo: o.tipo ?? "01",
-    serie: "F001",
+    // T20 (H-025-2-1): se cuentan comprobantes; con la serie fija, el mismo número en dos periodos contaría una sola vez.
+    serie: o.serie ?? `F${o.periodo.slice(3)}`,
     numero: o.numero,
     rucContraparte: o.ruc,
     ...(o.tipoDoc === undefined ? {} : { tipoDocContraparte: o.tipoDoc }),

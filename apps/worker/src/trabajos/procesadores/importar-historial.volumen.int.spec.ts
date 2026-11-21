@@ -117,7 +117,12 @@ describe("CA-13: 12 periodos × 5.000 compras", () => {
     const porPeriodo = new Map<string, FilaPropuestaSire[]>(
       PERIODOS_12.map((p) => [
         p,
-        generarFilasComprasVolumen(FILAS_POR_PERIODO, p),
+        // T20 (H-025-2-1): el generador repite serie y números en cada periodo; una serie por periodo los hace comprobantes
+        // distintos, como en un registro real (si no, contarían una sola vez).
+        generarFilasComprasVolumen(FILAS_POR_PERIODO, p).map((f) => ({
+          ...f,
+          serie: `F${p.slice(3)}`,
+        })),
       ]),
     );
     // Los archivos del registro pasan de 1 MiB cada uno: el tope del mock admite 5.000 compras (T2).
