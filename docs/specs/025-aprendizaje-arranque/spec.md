@@ -1,31 +1,31 @@
 # Spec 025 · Aprendizaje de arranque
 
-Estado: borrador (2026-11-21). Rama `spec/025-aprendizaje-arranque` (desde `main` 6c25222).
-Nivel de riesgo: **A** (ESTADO decía B; se sube, ver U-7). Por 04 §2.1: (1) sí: una regla importada y activada se aplica sola en la descarga (021 D-1) y la sugerencia del perfil manda compras a DNG, que quita crédito fiscal; un destino mal deducido llega al TXT de reemplazo (012b); (2) sí: el trabajo lee con la credencial SIRE del cliente periodos enteros de compras y deja datos por proveedor por cliente; una fuga cruzaría clientes o estudios; (3) sí: entre cientos de proveedores importados, uno con el destino mal deducido no se nota en la revisión si se activa «todas»; (4) sí: filas con base en varios destinos, notas de crédito, empates, tipos de documento, reimportaciones, reglas ya existentes e importación concurrente con «Recordar». (1) y (2) con otras dos dan A.
+Estado: aprobada (2026-11-21). Rama `spec/025-aprendizaje-arranque` (desde `main` 6c25222). Plan: `plan.md` · tareas: `tasks.md`.
+Nivel de riesgo: **A** (ESTADO decía B; el usuario eligió A, U-7): TDD y hasta dos rondas adversariales. Por 04 §2.1: (1) sí: una regla importada y activada se aplica sola en la descarga (021 D-1) y la sugerencia del perfil manda compras a DNG, que quita crédito fiscal; un destino mal deducido llega al TXT de reemplazo (012b); (2) sí: el trabajo lee con la credencial SIRE del cliente periodos enteros de compras y deja datos por proveedor por cliente; una fuga cruzaría clientes o estudios; (3) sí: entre cientos de proveedores importados, uno con el destino mal deducido no se nota en la revisión si se activa «todas»; (4) sí: filas con base en varios destinos, notas de crédito, empates, tipos de documento, reimportaciones, reglas ya existentes e importación concurrente con «Recordar». (1) y (2) con otras dos dan A.
 Cubre: RF-112, RF-113 · HU-29, HU-30 · RF-036 (lo consume) · 01 §7 reglas 3 y 5 · RNF-052 (no debilitarlo) · nota [mantenimiento] del `SAVEPOINT` de 0038 en `ESTADO.md`.
 
 ## Objetivo
 Que un cliente nuevo no empiece de cero: el contador importa los periodos ya presentados y el sistema le propone una regla por proveedor con su frecuencia, que revisa y activa antes de que se apliquen (HU-29); y que un cliente de la selva con ventas exoneradas reciba desde el primer periodo la sugerencia DNG en las compras sin regla (HU-30).
 
 ## Alcance
-- **Importar historial** (RF-112, HU-29): desde la pantalla de reglas del cliente (021), el contador elige los últimos N periodos ya presentados (U-5) y se encola un trabajo `importar-historial` en el worker (008). El worker lee el registro de compras de cada periodo por el puerto SIRE (U-1), con el mock por defecto.
-- **Deducción pura** en `packages/domain/src/reglas/`: `aprenderDeHistorial(filas) → candidatas` agrupa por proveedor (tipo y número normalizados, como R-NEW y 021 D-2), cuenta comprobantes por destino y por periodo y propone el destino dominante si pasa el umbral (U-2, D-3).
+- **Importar historial** (RF-112, HU-29): desde la pantalla de reglas del cliente (021), el contador elige los últimos N periodos ya presentados (hasta 12 hacia atrás desde el mes anterior, 6 por defecto; U-5) y se encola un trabajo de importación en el worker (008). El worker lee el registro de compras presentado de cada periodo por un método nuevo del puerto `SireApiClient` (U-1), con el mock por defecto; el adaptador real llega con 032.
+- **Deducción pura** en `packages/domain/src/reglas/`: `aprenderDeHistorial(filas) → candidatas` agrupa por proveedor (tipo y número normalizados, como R-NEW y 021 D-2), cuenta comprobantes por destino y por periodo y propone el destino dominante si está en ≥ 80 % de los comprobantes contados del proveedor y en al menos 2 (U-2); los demás quedan como «sin criterio claro» (D-3, U-8).
 - **Reglas candidatas** por cliente con su frecuencia, en estado pendiente: no se aplican hasta que el contador las activa (D-4).
 - **Revisión**: lista de candidatas con proveedor, destino propuesto, frecuencia («11 de 12 comprobantes en DNG, 5 de 6 periodos») y conflicto con una regla existente; activar una, varias o todas, cambiar el destino antes de activar y descartar (D-5, D-6). Activar crea la regla de 021 con origen «Importado del historial».
-- **Modo estándar** (RF-113, HU-30): regla nueva del motor **R-STD** que, en clientes cuyo perfil fiscal (RF-036, ya guardado por 007a) cumple el criterio (U-4), sugiere DNG en las compras sin regla aprendida activa (D-8, D-9, U-3). Entra al catálogo de reglas del motor del estudio (RF-089 de 021) y se puede apagar.
+- **Modo estándar** (RF-113, HU-30): regla nueva del motor **R-STD** que, en clientes cuyo perfil fiscal (RF-036, ya guardado por 007a) es zona Amazonía, con ventas exoneradas y sin ventas mixtas (U-4), sugiere DNG por fila en las compras sin regla aprendida activa, aceptable una a una o en masa (D-8, D-9, U-3). Entra al catálogo de reglas del motor del estudio (RF-089 de 021) y se puede apagar.
 - Auditoría (017) de importar, activar, descartar y reemplazar.
 - Migraciones desde **0061** (024 llegó a 0060); la última del rango, reservada para la ronda adversarial.
 
 ## Fuera de alcance
 - Grupos de proveedor y catálogo global (RF-087): fuera de R2 y 033. Activar una candidata no registra confirmación para 033 (D-7).
 - Importar ventas: las reglas son solo de compras.
-- Ver los periodos importados como periodos de ContApp (grilla, lupa, archivo): 025 guarda solo lo agregado (D-2), salvo que U-2b = (b).
-- Aplicar reglas o R-STD a filas que ya existen (U-6): sigue 021 D-5 y la masiva de 015.
+- Ver los periodos importados como periodos de ContApp (grilla, lupa, archivo): 025 guarda solo lo agregado (D-2, U-2b).
+- Aplicar reglas o R-STD a filas que ya existen (U-6): las reglas activadas rigen desde la descarga siguiente; para el periodo ya cargado se avisa y se usa la masiva de 015 con el filtro por proveedor (021 D-5).
 - Otros criterios del modo estándar (régimen, moneda, DGNG para mixtas): solo el de U-4.
 - Formato real del registro presentado del SIRE: el adaptador real va con el de `SireApiClient` (032); 025 usa el mock y un layout provisional.
 
 ## Decisiones de diseño
-- **D-1 · Sin SAVEPOINT (nota de 0038).** Ningún trabajo de 025 inserta compras ni versiones dentro de un `SAVEPOINT`: el trigger `compra_version_worker_acotado` y `aplicar_regla_historial` reconocen la compra por `xmin = pg_current_xact_id()` y fallarían cerrados (42501). Con D-2 el trabajo no escribe compras; si U-2b pide guardarlas, cada periodo va en su propio trabajo y su propia transacción (como la descarga de 014), nunca en subtransacciones. Una prueba lo fija.
+- **D-1 · Sin SAVEPOINT (nota de 0038).** Ningún trabajo de 025 inserta compras ni versiones dentro de un `SAVEPOINT`: el trigger `compra_version_worker_acotado` y `aplicar_regla_historial` reconocen la compra por `xmin = pg_current_xact_id()` y fallarían cerrados (42501). Con D-2 y U-2b el trabajo no escribe compras ni versiones; si una spec futura las guardara, cada periodo iría en su propio trabajo y su propia transacción (como la descarga de 014), nunca en subtransacciones. Una prueba lo fija.
 - **D-2 · Solo lo agregado.** El worker lee los periodos fuera de cualquier transacción, deduce en memoria con el dominio y escribe en una sola transacción la importación y sus candidatas (proveedor, razón social del registro, destino propuesto, conteos por destino y periodos). No guarda filas, montos ni comprobantes. Un periodo sin registro (`ErrorDatos`) queda informado como «sin datos» y el resto sigue; credencial inválida o red agotada fallan el trabajo como la descarga (008, 014).
 - **D-3 · Cómo se cuenta.** Un comprobante cuenta para el destino donde tiene base gravada distinta de cero (notas de crédito por valor absoluto). Con base en dos o más destinos cuenta como «mixto» (suma al total, a ningún destino); sin base gravada no cuenta. Sin proveedor identificable no cuenta. Empate entre destinos: sin propuesta. El destino DG también se propone: marca al proveedor como conocido y lo saca de R-STD (D-8).
 - **D-4 · Candidatas aparte de las reglas.** Las candidatas viven en tablas propias (importación y candidata, RLS forzada, por cliente), no en `regla_aprendida`: no tocan su índice único, sus contadores ni R-HIS. Una nueva importación del cliente reemplaza las candidatas pendientes de la anterior; las activadas o descartadas quedan como historial de la importación. Una sola importación en curso por cliente (409 `importacion_en_curso`).
@@ -50,7 +50,7 @@ Que un cliente nuevo no empiece de cero: el contador importa los periodos ya pre
 - [ ] CA-10 (D-8, RF-089): tras clasificar a mano una fila con R-STD, no se vuelve a sugerir; aceptar R-STD ofrece «Recordar» como 021 CA-1 y no registra confirmación; apagar R-STD en el estudio hace que no aparezca en las evaluaciones siguientes, sin borrar las ya guardadas.
 - [ ] CA-11 (D-9, RNF-052): marcar el perfil después de cargar un periodo no cambia sus versiones ni hallazgos; la descarga o re-evaluación siguiente sí sugiere; la versión 1 queda idéntica a lo que trajo el SIRE.
 - [ ] CA-12 (D-11): ningún log, error ni `resultado` contiene montos, RUC ni razón social (prueba con canarios).
-- [ ] CA-13 (volumen): importar el máximo de U-5 periodos de 5.000 compras cada uno termina en < 60 s en CI con el mock, y la lista de 1.000 candidatas responde con p95 < 300 ms (RNF-034).
+- [ ] CA-13 (volumen): importar 12 periodos (máximo de U-5) de 5.000 compras cada uno termina en < 60 s en CI con el mock, y la lista de 1.000 candidatas responde con p95 < 300 ms (RNF-034).
 - [ ] CA-14: suites de `domain`, `shared`, `db`, `queue`, `worker`, `backend` y `frontend` tocadas, `test:aislamiento`, typecheck, lint, `db:migrate` ×2 y `pnpm e2e` (un caso: importar 6 periodos → revisar → activar → descarga siguiente «Según historial»; y cliente de la selva → sugerencia DNG → aceptar en masa) en verde.
 - [ ] Casos reales aplicables: ninguno de la lista. Fixture de 01 §7 regla 3 (cliente de Huánuco con ventas exoneradas).
 
@@ -63,12 +63,16 @@ Que un cliente nuevo no empiece de cero: el contador importa los periodos ya pre
 - **Activar todas sin mirar**: la frecuencia y el conflicto se muestran en la fila y «Activar todas» pide confirmación con el total; aun así un destino mal presentado en el pasado se repite (es el criterio del contador). Se revierte como cualquier «Según historial».
 - **R-STD y crédito fiscal**: una sugerencia DNG aceptada en masa en un cliente mal perfilado quita crédito; por eso es sugerencia (U-3) y lleva texto propio.
 
-## Preguntas para el usuario
-- **U-1 · De dónde salen los periodos ya presentados.** (a, recomendada) Del SIRE por el puerto (`SireApiClient`, método nuevo para el registro presentado; mock ahora, real con 032): el contador no sube nada. (b) Subiendo el TXT/ZIP de reemplazo o el Excel del registro que el contador ya tiene. (c) Solo periodos ya cargados y revisados en ContApp (no sirve el primer día).
-- **U-2 · Umbral para proponer una regla.** (a, recomendada) Destino dominante en ≥ 80 % de los comprobantes del proveedor y al menos 2 comprobantes; los que no llegan se listan aparte como «sin criterio claro», sin activar. (b) Solo unánimes (100 %) y ≥ 2. (c) Cualquier mayoría y ≥ 1; decide el contador al revisar.
-- **U-2b · Guardar las compras importadas.** (a, recomendada) No: solo lo agregado (D-2), menos datos personales y sin tocar las tablas de compras. (b) Sí, como periodos de solo lectura visibles en ContApp (más volumen; cada periodo en su propia transacción, D-1).
-- **U-3 · Cómo actúa el modo estándar.** (a, recomendada) Sugerencia por fila (R-STD), aceptable una a una o en masa; nada cambia solo, como pide HU-30 y 014 D-4. (b) Versión automática y reversible con etiqueta «Según perfil», como R-HIS (021 D-1). (c) Solo un aviso en el periodo, sin sugerencia por fila.
-- **U-4 · Qué cliente entra al modo estándar.** (a, recomendada) Zona Amazonía, ventas exoneradas y sin ventas mixtas (literal de HU-30 y 01 §7.3). (b) Ventas exoneradas sin mixtas, en cualquier zona. (c) (a) y además mixtas → DGNG (01 §7.4 advierte que puede hacer pagar de más).
-- **U-5 · Cuántos periodos se importan.** (a, recomendada) Hasta 12 hacia atrás desde el mes anterior, 6 por defecto. (b) Exactamente 6. (c) Hasta 24.
-- **U-6 · Periodo ya cargado al activar.** (a, recomendada) Las reglas activadas rigen desde la descarga siguiente; para el periodo ya cargado se avisa y se usa la masiva de 015 con el filtro por proveedor (021 D-5). (b) Un trabajo que aplica las reglas recién activadas a las filas del periodo abierto que siguen en la versión 1 (amplía la función acotada del worker a compras que no creó: más riesgo).
-- **U-7 · Nivel de riesgo.** (a, recomendada) A: TDD y rondas adversariales completas. (b) B con una ronda adversarial acotada (≤ 15 pruebas) sobre deducción, aislamiento de candidatas, activación concurrente y R-STD, como 024.
+## Decisiones del usuario (2026-11-21)
+Preguntas U-1 a U-7 respondidas el 2026-11-21, todas con la opción (a). Se conservan sus IDs porque las D y el plan las citan.
+- **U-1 = (a) · Origen de los periodos.** Del SIRE por el puerto: método nuevo de `SireApiClient` para el registro presentado; mock ahora, adaptador real con 032. El contador no sube nada.
+- **U-2 = (a) · Umbral.** Destino dominante en ≥ 80 % de los comprobantes contados del proveedor y al menos 2; los que no llegan se listan aparte como «sin criterio claro» (U-8).
+- **U-2b = (a) · Compras importadas.** No se guardan: solo lo agregado (D-2).
+- **U-3 = (a) · Modo estándar.** Sugerencia R-STD por fila, aceptable una a una o en masa; nada cambia solo (D-8).
+- **U-4 = (a) · Criterio del modo estándar.** Zona Amazonía, ventas exoneradas y sin ventas mixtas (HU-30, 01 §7.3).
+- **U-5 = (a) · Periodos.** Hasta 12 hacia atrás desde el mes anterior, 6 por defecto.
+- **U-6 = (a) · Periodo ya cargado.** Las reglas activadas rigen desde la descarga siguiente; el periodo ya cargado usa la corrección masiva de 015 con el filtro por proveedor, con aviso en la pantalla.
+- **U-7 = (a) · Nivel.** A: TDD y rondas adversariales completas (hasta dos, 04 §2.3).
+
+## Requiere usuario (aparecidas al planificar)
+- **U-8 · Candidatas «sin criterio claro».** **Propuesta (rige mientras el usuario no diga otra cosa):** se listan aparte con sus conteos y se pueden activar solo de una en una eligiendo el destino a mano; «Activar todas» nunca las incluye. Alternativa: solo informativas, sin activar (el contador usa «Recordar» en la descarga siguiente).
