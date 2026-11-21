@@ -31,7 +31,7 @@ Nivel A (U-7). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T22 | Prueba manual con el sistema levantado y adaptadores en `mock` | tester | sonnet | T20, T21 | — | — | [x] |
 | T22a | Corregir los defectos de pantalla D1–D3 de la prueba manual | frontend | sonnet | T22 | — | — | [x] |
 | T23 | Verificar CA-1 a CA-14 con evidencia, suites completas, `db:migrate` ×2 y coberturas | tester | sonnet | T22 (y T22a si existe) | — | — | [x] |
-| T24 | Revisión final contra la spec | arquitecto | opus | T23 | — | — | [ ] |
+| T24 | Revisión final contra la spec | arquitecto | opus | T23 | — | — | [x] |
 | T25 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T24 (y T24b si existe) | — | — | [ ] |
 
 Paralelismo (por oleadas; dentro de una oleada no se comparten archivos):
@@ -284,10 +284,30 @@ Defectos y observaciones (no se tocó código):
     | CA-13 | `worker/…/importar-historial.volumen.int.spec.ts` (12 × 5.000 en < 60 s, verde en `ci:db` y `cobertura:aprendizaje`), `backend/…/candidatas.rendimiento.int.spec.ts` (1.000 candidatas, p95 < 300 ms, sin barrido secuencial) | OK |
     | CA-14 | lint, typecheck, build, `ci:db`, suites de cada paquete, `db:migrate` ×2, coberturas: verdes (arriba). `pnpm e2e`: **un rojo**, `aprendizaje.e2e.ts:153` (aserción desactualizada por T22a) → corregida la aserción al texto de T22a/D1; `pnpm e2e aprendizaje`: 3 verdes (el resto de la E2E ya estaba en verde: 97) | OK |
 
-## T24 · [ ] Revisión final (arquitecto · opus)
+## T24 · [x] Revisión final (arquitecto · opus)
 - **Contexto (leer solo esto)**: `spec.md`, `plan.md`, resultados de T15, T18, T22 y T23, `git diff` de la rama desde `bbeed48` limitado a 0061–0064, `packages/domain/src/reglas/{aprender,r-std}.ts`, `packages/db/src/aprendizaje/*.ts`, `apps/backend/src/modules/aprendizaje/*.service.ts`, `apps/worker/src/trabajos/procesadores/importar-historial.ts`.
 - **Hacer**: comprobar cada CA con su evidencia, los desvíos del plan (ratificar o rechazar con motivo), U-1 a U-8 tal como quedaron y la DoD de nivel A (rondas cerradas sin fallos abiertos, cobertura ≥ 90 %). Defectos → T24a (pruebas en rojo, tester · sonnet) y T24b (corrección, backend · opus).
 - **Hecho cuando**: resultado con CA cumplidos, desvíos y defectos (o «sin defectos») y lo que hay que informar al usuario de los hallazgos. Commit `docs(025): revisión final`.
+- **Resultado (T24, arquitecto · opus, 2026-11-21, rama en 5b9c2c6): sin defectos. CA-1 a CA-14 cumplidos; desvíos ratificados; DoD de nivel A cumplida. T25 puede cerrar.**
+  - **CA**: CA-1 a CA-14 con la evidencia de la tabla de T23 (pruebas nombradas y comandos en verde); el único rojo (E2E `aprendizaje.e2e.ts:153`) era la aserción de T21 sin actualizar tras T22a/D1, corregida en 5b9c2c6 (solo cambia esa línea de la prueba). Comprobación puntual: `vitest run` de `aprender`, `r-std` y `correcciones-t19` en `domain`, 5 archivos / 128 en verde. Revisado contra el código: `aprender.ts` (umbral `5c ≥ 4t` con enteros, `≥ 2`, empate, mixtos, NC por valor absoluto, dedupe por comprobante), `r-std.ts` (U-4 exacto, sin regla activa, base DG o DGNG ≠ 0, `clasificar` sin dato ni confirmación), procesador (lectura fuera de transacción, una escritura sin SAVEPOINT, D-11), servicios (una transacción con `encolarCon`, publicación tras el commit) y 0061–0064 (dueño, `search_path`, errores fijos, `REVOKE`/`GRANT` repetidos en las tres funciones de 0064).
+  - **DoD nivel A**: dos rondas cerradas (H-025-1-1 a 1-7 en T17; H-025-2-1 en T20), sin hallazgos abiertos; `cobertura:aprendizaje` ≥ 90 % por archivo y `cobertura:reglas`/`sunat`/`dominio`/`acceso` en verde (T23); `db:migrate` ×2 sin cambios.
+  - **U-1 a U-8 tal como quedaron**: conformes. U-1 `descargarRegistroPresentado` con mock; U-2 umbral sobre comprobantes contados (tras T20, comprobantes reales y no filas); U-2b solo agregado; U-3/U-4 R-STD como sugerencia aceptable en masa con el criterio exacto; U-5 1..12 desde el mes anterior, 6 por omisión; U-6 aviso y enlace a la grilla (sin aviso con 0 activadas, T22a); U-7 nivel A; U-8 la «sin criterio» con destino va sola (0064, 22023) y «Activar todas» nunca la incluye.
+  - **Desvíos ratificados** (ninguno rechazado):
+    - Migraciones 0061–0064; 0065 no hizo falta (la corrección de la ronda 2 es del dominio). El diario llega a idx 64.
+    - D-6: regla desactivada con el mismo destino → `ya_aprendida`, no se reactiva; la candidata avisa que está inactiva (T20). Es el texto literal de D-6 («no se activa»; «nunca se sobrescribe una regla sola»).
+    - Candidatas sin totales por grupo; el diálogo de «Activar todas» no da número de conflictos (T22a/D1): no cambia el contrato HTTP y no afirma lo que no sabe sobre las omitidas. Ver O-1.
+    - «Resueltas» lista solo la última importación: es el contrato del plan (`GET …/candidatas` de la última completada); las anteriores siguen en BD (CA-5) y las reglas creadas se ven en la tabla de reglas con su origen.
+    - Importación en una transacción con `encolarCon` (H-025-1-1): mejor que las dos del plan; la pista se publica tras el commit y el reintento único repite todo. El autocierre «sin trabajo 10 min» queda como defensa.
+    - `solicitadaEn` a segundos: solo la vista; el orden de «la última» usa la columna completa e `id`.
+    - Aceptar R-STD se reevalúa contra la evaluación actual (409 `revisar_de_nuevo`, masiva 0 aplicadas; ADV-11): es D-8/D-9, una sugerencia que ya no aplica no se acepta.
+    - Ronda 1 (T17): «sin criterio» con destino sola en la petición (U-8); 55000 en `completar` → trabajo omitido sin escribir (la importación se autocierra al pedir la siguiente: el autocierre cubre trabajo completado); 0 periodos leídos → `fallida` `datos_invalidos` sin reemplazar la revisión anterior (además 22023 en la función); registro de otro periodo = «sin datos» de ese periodo.
+    - Ronda 2 (T20): se cuentan comprobantes (proveedor + tipo + serie + número; gana el periodo más reciente); sin serie o número la fila cuenta suelta. Es lo que dicen D-3 y U-2. El cambio del mock genérico (serie por mes) es de fixture y la E2E fija las mismas frecuencias.
+  - **Observaciones para el usuario (no bloquean; sin tarea en 025)**:
+    - O-1 · Baja · `candidatas-importadas.tsx:256`: con más de 100 propuestas (paginado), «Se activarán N reglas» usa `resumen.candidatas − sinCriterio`, que incluye las con conflicto y las ya resueltas: N es un máximo, no el total exacto. El resultado posterior informa lo real y nada se sobrescribe. Si se quiere exacto: totales por grupo en la respuesta (cambio de contrato) o el texto «hasta N».
+    - O-2 · Baja · `importar-historial.tsx:156`: una importación fallida muestra siempre «La importación falló. Inténtalo de nuevo.», también con `credencial_invalida` o sin ningún periodo presentado (`datos_invalidos`), donde reintentar no ayuda. Mensaje por motivo: mejora futura.
+    - O-3 · Baja: en «Con conflicto» con destino distinto y regla desactivada, «Reemplazar» la reactiva (H-025-1-3, decidido así para que «activada» signifique que se aplica), pero el aviso dice «Se reactiva desde la página de reglas». Correcto pero incompleto; ajustar el texto en una spec futura.
+    - O-4: las «sin criterio claro» no muestran una regla viva del proveedor; si se activa con destino, se omite como `conflicto`/`ya_aprendida` (T22a muestra el motivo) y nunca se sobrescribe.
+  - **Informar al usuario**: 8 hallazgos adversariales (2 rondas) corregidos, ninguno abierto; las decisiones de U-8 (sin criterio de una en una, en la BD), del conteo por comprobante y de «0 periodos = fallida» se tomaron durante la spec y quedan ratificadas; O-1 a O-3 como posibles mejoras; el formato real del registro sigue pendiente de 032 (hoy solo mock). Para T25: el encabezado del resultado de T23 aún dice «13 de 14 … T23 queda `[ ]`» aunque su tabla y su estado ya dicen CA-14 OK.
 
 ## T25 · [ ] Cierre (devops · haiku)
 - **Contexto (leer solo esto)**: `tasks.md`, `spec.md` (estado y casillas de CA), resultados de T23 y T24.
