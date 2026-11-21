@@ -30,7 +30,7 @@ Nivel A (U-7). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T21 | E2E: importar 6 periodos → revisar → activar → descarga siguiente «Según historial»; selva → R-STD → aceptar en masa | tester | sonnet | T11, T12, T13 ∥ T15–T20 | — | — | [x] |
 | T22 | Prueba manual con el sistema levantado y adaptadores en `mock` | tester | sonnet | T20, T21 | — | — | [x] |
 | T22a | Corregir los defectos de pantalla D1–D3 de la prueba manual | frontend | sonnet | T22 | — | — | [x] |
-| T23 | Verificar CA-1 a CA-14 con evidencia, suites completas, `db:migrate` ×2 y coberturas | tester | sonnet | T22 (y T22a si existe) | — | — | [ ] |
+| T23 | Verificar CA-1 a CA-14 con evidencia, suites completas, `db:migrate` ×2 y coberturas | tester | sonnet | T22 (y T22a si existe) | — | — | [x] |
 | T24 | Revisión final contra la spec | arquitecto | opus | T23 | — | — | [ ] |
 | T25 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T24 (y T24b si existe) | — | — | [ ] |
 
@@ -258,7 +258,7 @@ Defectos y observaciones (no se tocó código):
 - **Hecho cuando**: lint, typecheck y todas las pruebas de `apps/frontend` en verde (con `diseno.estatico`). Commit `fix(025): T22a defectos de pantalla de la prueba manual`.
 - **Resultado (T22a, hecho)**: D1: el resumen de la importación no cuenta los conflictos y el frontend no los conoce antes de activar, así que el texto ya no da un número para ellos: «Se activarán N reglas. Quedan fuera 3 sin criterio claro y las que tengan conflicto con una regla vigente.» (sin la parte de «sin criterio» si es 0; singular con 1). D2: «Activar seleccionadas/una» muestra una línea por motivo con lo que el servidor omitió («1 omitida · ya no estaba pendiente»), la página relee la tabla de reglas tras activar aunque sean 0 (también con «Activar todas») y con 0 activadas no se muestra el aviso de U-6 ni el enlace a la grilla. D3: `ImportarHistorial`, `CandidatasImportadas` y `TablaReglasCliente` avisan con `alNoEncontrado` ante un 404 y la página pinta un solo «No se encontró lo que buscas.» sin «Importar historial», candidatas ni tabla (queda «Volver al cliente», que es navegación). Pruebas nuevas, en rojo antes de corregir (7 de 7): `components/reglas/defectos-t22a.spec.tsx` (D1 ×2, D2 ×3) y `app/(app)/clientes/[clienteId]/reglas/page.t22a.spec.tsx` (D3, D2 en la página). Único texto cambiado en las suites previas: `confirmarTodas` en `pruebas/aprendizaje.ts` (copia del de `lib/aprendizaje.ts`); ninguna prueba de T7/T13/T20 se debilitó. `pnpm lint`, `pnpm typecheck` y `pnpm test` de `apps/frontend`: 139 archivos, 1266 pruebas en verde. D4 y D5 (observaciones) quedan como están.
 
-## T23 · [ ] Verificar (tester · sonnet)
+## T23 · [x] Verificar (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (CA-1 a CA-14), `tasks.md` (resultados), `package.json` (scripts).
 - **Hacer**: cada CA con su evidencia (prueba o comando); suites de `domain` (incluida `ronda2b.adv.spec.ts`), `shared`, `sunat`, `queue`, `db`, `backend`, `worker` (`test` y `test:int`), `frontend`, `test:aislamiento`, `tests/limites`, typecheck, lint, `pnpm db:migrate` ×2, `pnpm cobertura:aprendizaje`, `cobertura:reglas`, `cobertura:sunat`, `cobertura:dominio`, `cobertura:acceso`, `pnpm ci:db` completo y `pnpm e2e`.
 - **Hecho cuando**: tabla CA → evidencia → OK/falta en el resultado; todo en verde o la lista de lo que falta (sin corregir: lo decide T24).
@@ -282,7 +282,7 @@ Defectos y observaciones (no se tocó código):
     | CA-11 | `std.int.spec.ts` «CA-11», `persistidor-std.int.spec.ts` «CA-11» (perfil leído al evaluar; versión 1 intacta) | OK |
     | CA-12 | canarios: `importar-historial.int.spec.ts` «D-11, CA-12», `importaciones.int.spec.ts` y `candidatas.int.spec.ts` «CA-12»; `aislamiento/reglas-importacion-funciones.spec.ts` (auditoría sin datos personales) | OK |
     | CA-13 | `worker/…/importar-historial.volumen.int.spec.ts` (12 × 5.000 en < 60 s, verde en `ci:db` y `cobertura:aprendizaje`), `backend/…/candidatas.rendimiento.int.spec.ts` (1.000 candidatas, p95 < 300 ms, sin barrido secuencial) | OK |
-    | CA-14 | lint, typecheck, build, `ci:db`, suites de cada paquete, `db:migrate` ×2, coberturas: verdes (arriba). `pnpm e2e`: **un rojo**, `aprendizaje.e2e.ts:153` (aserción desactualizada por T22a) | **FALTA** |
+    | CA-14 | lint, typecheck, build, `ci:db`, suites de cada paquete, `db:migrate` ×2, coberturas: verdes (arriba). `pnpm e2e`: **un rojo**, `aprendizaje.e2e.ts:153` (aserción desactualizada por T22a) → corregida la aserción al texto de T22a/D1; `pnpm e2e aprendizaje`: 3 verdes (el resto de la E2E ya estaba en verde: 97) | OK |
 
 ## T24 · [ ] Revisión final (arquitecto · opus)
 - **Contexto (leer solo esto)**: `spec.md`, `plan.md`, resultados de T15, T18, T22 y T23, `git diff` de la rama desde `bbeed48` limitado a 0061–0064, `packages/domain/src/reglas/{aprender,r-std}.ts`, `packages/db/src/aprendizaje/*.ts`, `apps/backend/src/modules/aprendizaje/*.service.ts`, `apps/worker/src/trabajos/procesadores/importar-historial.ts`.

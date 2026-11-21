@@ -150,7 +150,7 @@ test("importar 6 periodos → revisar → activar → descarga siguiente «Segú
 
   await page.getByRole("button", { name: "Activar todas" }).click();
   const confirmar = dialogoActivarTodas(page);
-  await expect(confirmar).toContainText("Se activarán 3 reglas. Se omitirán 3 con conflicto o sin criterio claro.");
+  await expect(confirmar).toContainText("Se activarán 3 reglas. Quedan fuera 3 sin criterio claro y las que tengan conflicto con una regla vigente.");
   await confirmar.getByRole("button", { name: "Confirmar" }).click();
   await expect(confirmar).toHaveCount(0);
   await expect(estado(page, "3 reglas activadas.")).toHaveCount(1);
