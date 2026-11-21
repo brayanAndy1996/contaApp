@@ -27,7 +27,7 @@ Nivel A (U-7). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T18 | Ronda adversarial 2: deducción, R-STD y dinero, RNF-052, interruptor, entradas del registro y secretos (≤ 15 pruebas) | adversario | opus | T17 | — | ✓ | [ ] |
 | T19 | Pruebas de las correcciones de la ronda 2 (rojo) | tester | sonnet | T18 | ✓ | — | [ ] |
 | T20 | Corregir los hallazgos de la ronda 2 (migración 0065 si hace falta) | backend | opus | T19 | — | — | [ ] |
-| T21 | E2E: importar 6 periodos → revisar → activar → descarga siguiente «Según historial»; selva → R-STD → aceptar en masa | tester | sonnet | T11, T12, T13 ∥ T15–T20 | — | — | [ ] |
+| T21 | E2E: importar 6 periodos → revisar → activar → descarga siguiente «Según historial»; selva → R-STD → aceptar en masa | tester | sonnet | T11, T12, T13 ∥ T15–T20 | — | — | [x] |
 | T22 | Prueba manual con el sistema levantado y adaptadores en `mock` | tester | sonnet | T20, T21 | — | — | [ ] |
 | T23 | Verificar CA-1 a CA-14 con evidencia, suites completas, `db:migrate` ×2 y coberturas | tester | sonnet | T22 (y T22a si existe) | — | — | [ ] |
 | T24 | Revisión final contra la spec | arquitecto | opus | T23 | — | — | [ ] |
@@ -176,10 +176,11 @@ Reglas comunes:
 - **Hacer**: como T17, con la migración **0065** si hace falta.
 - **Hecho cuando**: las de T18 y T19 pasan; las suites de los paquetes tocados siguen verdes. Commit `fix(025): hallazgos de la ronda adversarial 2`.
 
-## T21 · [ ] E2E (tester · sonnet)
+## T21 · [x] E2E (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (CA-1, CA-3, CA-9, CA-14), `tests/e2e/flujos/reglas.e2e.ts` (modelo de 021, sin editarlo), `tests/e2e/soporte/{siembra,cola,api}.ts`, `tests/e2e/soporte/selectores/{reglas,compras}.ts`.
 - **Hacer**: `tests/e2e/flujos/aprendizaje.e2e.ts` y selectores nuevos en `soporte/selectores/reglas.ts`. Caso 1: cliente con credencial SIRE del mock → «Importar historial» (6) → el trabajo termina → candidatas con frecuencia → cambiar el destino de una, «Activar todas» con confirmación → reglas con origen «Importado del historial» → descarga del periodo siguiente → filas «Según historial». Caso 2: cliente de Huánuco del fixture con perfil Amazonía, ventas exoneradas y sin mixtas → descarga → sugerencia «DNG por perfil del cliente» → filtro R-STD → aceptar en masa → montos en DNG. A 390 × 844 una pasada corta por la revisión de candidatas.
 - **Hecho cuando**: `pnpm e2e -- aprendizaje` y `pnpm e2e -- reglas` pasan 3 veces seguidas, sin `retry` ni `test.only`. Commit `test(025): e2e del aprendizaje`.
+- **Resultado (T21, hecho)**: `tests/e2e/flujos/aprendizaje.e2e.ts` (3 escenarios) y selectores nuevos en `soporte/selectores/reglas.ts`: (1) importar 6 desde la UI → resumen «6 periodos leídos · 7 candidatas · 3 sin criterio claro», 4 propuestas con frecuencia, 3 «sin criterio», sin reglas tras importar → cambiar DG→DNG y activar una → «Activar todas» con confirmación (3) → 4 reglas «Importado del historial» → descarga del periodo siguiente en DNG, «Según historial», versión 2; (2) Huánuco (Amazonía, exoneradas, sin mixtas) → 4 filas con «R-STD: DNG por perfil del cliente» (la ya DNG no) → filtro → «Aceptar R-STD» 4 aplicadas → Base DG 1,005.00→0.00, DGNG 150.00→0.00, DNG 200.00→1,355.00; (3) 390 × 844: candidatas, «Activar todas» y diálogo sin desborde horizontal. Verde 3 veces seguidas con `reglas` (4/4 cada vez), sin retry ni `.only`; typecheck y lint de `tests/e2e` limpios. Sin defectos de producción. Nota: la descarga previa a activar no se hizo porque el «periodo siguiente» al último importado es el mes en curso y el que sigue es futuro (400); reimportar el mismo periodo no re-evalúa (filas iguales), por eso CA-1 «ninguna se aplica» se fija con 0 reglas tras importar.
 
 ## T22 · [ ] Prueba manual (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (CA), `docs/specs/019-docker-local/` (solo la sección de arranque), resultado de T15 de `docs/specs/024-bandeja-buzones/tasks.md` (formato del informe).
