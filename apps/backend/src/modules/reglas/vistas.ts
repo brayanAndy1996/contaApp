@@ -13,6 +13,7 @@ export function aReglaVista(f: ReglaFila, autores: Autores): ReglaVista {
     periodoAprendido: f.periodoAprendido,
     aplicada: f.aplicada,
     aceptada: f.aceptada,
+    origen: f.origen,
     creadaPor: autorDe(autores, f.creadaPor),
     creadaEn: f.creadaEn.toISOString(),
     actualizadaEn: f.actualizadaEn.toISOString(),

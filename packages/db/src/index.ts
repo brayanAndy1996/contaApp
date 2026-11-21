@@ -384,6 +384,7 @@ export {
   esUuidRegla,
   fijarAporte,
   fijarReglaMotor,
+  leerProveedoresConRegla,
   leerRegla,
   leerReglasMotor,
   listarReglas,

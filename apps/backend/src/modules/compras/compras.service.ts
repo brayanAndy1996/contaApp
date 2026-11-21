@@ -91,7 +91,7 @@ export class ComprasService {
     const periodo = periodoDe(periodoCrudo);
     const filtros = listarComprasSchema.safeParse(query);
     if (!filtros.success) throw new AccesoError("solicitud_invalida");
-    const { cursor, limite = LIMITE_POR_OMISION, vista, alertas, proveedorNuevo, segunHistorial, q } = filtros.data;
+    const { cursor, limite = LIMITE_POR_OMISION, vista, alertas, proveedorNuevo, segunHistorial, regla, q } = filtros.data;
     const posicion = cursor === undefined ? undefined : decodificarCursor(cursor);
     const pagina = await this.db.withTenant(contextoDe(sesion), async (tx) => {
       await exigirCliente(tx, clienteId, alcance, false);
@@ -102,6 +102,7 @@ export class ComprasService {
         ...(alertas === undefined ? {} : { alertas }),
         ...(proveedorNuevo === undefined ? {} : { proveedorNuevo }),
         ...(segunHistorial === undefined ? {} : { segunHistorial }),
+        ...(regla === undefined ? {} : { regla }),
         ...(q === undefined ? {} : { q }),
       });
     });

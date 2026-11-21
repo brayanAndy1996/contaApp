@@ -30,6 +30,8 @@ export interface FiltrosListado {
   proveedorNuevo?: boolean;
   /** Spec 021: solo las filas cuya versión vigente es la que dejó una regla aprendida (`true`) o las demás (`false`). */
   segunHistorial?: boolean;
+  /** Spec 025: solo las filas cuyo hallazgo vigente incluye esta regla (p. ej. `R-STD`). */
+  regla?: string;
   q?: string;
 }
 
@@ -138,7 +140,9 @@ select * from (
       and r.activa) as proveedor_nuevo, ${SERIE_ORDEN} as orden_serie, ${NUMERO_ORDEN} as orden_numero,
     c.fecha as orden_fecha, ${REGLA_HISTORIAL} as regla_historial,
     exists (select 1 from compra_hallazgo z where z.tenant_id = c.tenant_id and z.compra_id = c.id
-      and z.version_n = c.version_vigente and z.evaluacion_n = ${ULTIMA_EVALUACION}) as con_hallazgos
+      and z.version_n = c.version_vigente and z.evaluacion_n = ${ULTIMA_EVALUACION}) as con_hallazgos,
+    ($14::text is null or exists (select 1 from compra_hallazgo z where z.tenant_id = c.tenant_id and z.compra_id = c.id
+      and z.version_n = c.version_vigente and z.evaluacion_n = ${ULTIMA_EVALUACION} and z.regla::text = $14::text)) as con_regla
   from compra c cross join lateral ${VERSION_VIGENTE_LATERAL} v cross join r_new r
   where c.cliente_id = $1 and c.periodo = $2 and c.descartada_en is null
     and (case when $3::text = 'excluidas' then v.excluida else not v.excluida end)
@@ -153,6 +157,7 @@ select * from (
 where ($4::boolean is null or t.proveedor_nuevo = $4::boolean)
   and ($5::boolean is null or not $5::boolean or t.con_hallazgos)
   and ($13::boolean is null or (t.regla_historial is not null) = $13::boolean)
+  and t.con_regla
   and ($6::date is null or t.orden_fecha > $6::date
     or (t.orden_fecha = $6::date and (t.orden_serie > $7::text collate "C"
       or (t.orden_serie = $7::text collate "C" and (t.orden_numero > lpad($8::text, 20, '0') collate "C"
@@ -188,7 +193,7 @@ const SQL_HALLAZGOS = `select h.compra_id, h.regla, h.sugerencia, h.lecturas, h.
   from compra c join compra_hallazgo h on h.tenant_id = c.tenant_id and h.compra_id = c.id and h.version_n = c.version_vigente
     and h.evaluacion_n = ${ULTIMA_EVALUACION}
   where c.id = any($1::uuid[])
-  order by h.compra_id, array_position(array['R-ISC','R-MIX','R-RED','R-NEW','R-GP'], h.regla::text)`;
+  order by h.compra_id, array_position(array['R-ISC','R-MIX','R-RED','R-NEW','R-GP','R-STD'], h.regla::text)`;
 
 const aSegunHistorial = (reglaId: unknown): SegunHistorialLeido | null =>
   typeof reglaId === "string" ? { reglaId } : null;
@@ -245,6 +250,7 @@ export async function listarCompras(
     c?.id ?? null,
     filtros.limite + 1,
     filtros.segunHistorial ?? null,
+    filtros.regla ?? null,
   ]);
   const hayMas = r.rows.length > filtros.limite;
   const filas = hayMas ? r.rows.slice(0, filtros.limite) : r.rows;

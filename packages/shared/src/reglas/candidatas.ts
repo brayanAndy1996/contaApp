@@ -84,5 +84,9 @@ export type RespuestaActivar = z.infer<typeof respuestaActivarSchema>;
 export const reemplazarCandidataSchema = z.object({ destino: destinoCompraSchema.optional(), versionRegla: versionReglaSchema });
 export type ReemplazarCandidata = z.infer<typeof reemplazarCandidataSchema>;
 
+/** Respuesta de descartar: las descartadas y las omitidas (ya no pendientes), por id. */
+export const respuestaDescartarSchema = z.object({ descartadas: z.array(z.uuid()), omitidas: z.array(z.uuid()) });
+export type RespuestaDescartar = z.infer<typeof respuestaDescartarSchema>;
+
 export const descartarCandidatasSchema = z.object({ ids: z.array(z.uuid()).min(1).max(MAX_CANDIDATAS_LOTE) });
 export type DescartarCandidatas = z.infer<typeof descartarCandidatasSchema>;

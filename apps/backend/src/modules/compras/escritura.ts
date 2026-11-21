@@ -2,15 +2,24 @@
 // periodo) se hacen aquí y entran a `packages/db` como funciones inyectadas: `packages/db` no depende de `domain`.
 import {
   ComprasReglaError,
+  leerClienteDto,
   leerEstadoPeriodo,
   leerProveedoresConocidos,
+  leerProveedoresConRegla,
   leerReglasMotor,
   type Alcance,
   type EvaluarCompra,
   type ProveedorConocido,
   type Tx,
 } from "@contapp/db";
-import { crearEvaluarCompras, DineroError, puedeEscribir, type CodigoReglaMotor } from "@contapp/domain";
+import {
+  crearEvaluarCompras,
+  cumpleModoEstandar,
+  DineroError,
+  puedeEscribir,
+  type CodigoReglaMotor,
+  type PerfilCliente,
+} from "@contapp/domain";
 import { AccesoError } from "../acceso/errores.js";
 import { aEvaluable } from "./evaluable.js";
 import { ComprasError, type CodigoCompras } from "./errores.js";
@@ -53,7 +62,19 @@ export async function entornoDeReglas(tx: Tx, clienteId: string, periodo: string
   const apagadas = (await leerReglasMotor(tx)).filas.filter((f) => !f.activa).map((f) => f.codigo as CodigoReglaMotor);
   // P-4: el XML simulado solo entra en las reglas con `XML_SIMULADO_EN_REGLAS=1` (apagado por defecto).
   const xmlSimuladoEnReglas = process.env.XML_SIMULADO_EN_REGLAS === "1";
-  const evaluarDominio = crearEvaluarCompras(conocidos, { xmlSimuladoEnReglas, reglasApagadas: apagadas });
+  // 025 (D-8, D-9): el perfil fiscal se lee al evaluar. Solo si cumple U-4 (R-STD) hacen falta los proveedores con regla activa: R-STD no
+  // los sugiere. Fuera de ese perfil el entorno es el de 021 (sin reglas aprendidas, P-3), así que R-NEW no cambia para nadie más.
+  const cliente = await leerClienteDto(tx, clienteId);
+  const perfil: PerfilCliente | undefined =
+    cliente === null
+      ? undefined
+      : { zona: cliente.perfil.zona, ventasExoneradas: cliente.perfil.ventasExoneradas, ventasMixtas: cliente.perfil.ventasMixtas };
+  const proveedoresConRegla = perfil !== undefined && cumpleModoEstandar(perfil) ? await leerProveedoresConRegla(tx, clienteId) : [];
+  const evaluarDominio = crearEvaluarCompras(conocidos, {
+    xmlSimuladoEnReglas,
+    reglasApagadas: apagadas,
+    ...(perfil === undefined ? {} : { perfil, proveedoresConRegla }),
+  });
   return { conocidos, evaluar: (fila) => evaluarDominio(aEvaluable(fila)), xmlSimuladoEnReglas, reglasApagadas: apagadas };
 }
 

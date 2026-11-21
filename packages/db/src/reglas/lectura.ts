@@ -59,3 +59,17 @@ export async function leerRegla(
   const f = r.rows[0];
   return f ? aReglaFila(f) : null;
 }
+
+// Solo documentos: lo que R-STD (025, D-8) necesita para no sugerir a un proveedor con regla activa. Sin razón social ni conteos.
+const SQL_PROVEEDORES_CON_REGLA = `select doc_tipo, doc_numero from regla_aprendida
+  where cliente_id = $1 and eliminada_en is null and activa order by doc_tipo, doc_numero`;
+
+/** Proveedores del cliente con regla viva y ACTIVA (del destino que sea). Un cliente ajeno o inexistente devuelve `[]`. */
+export async function leerProveedoresConRegla(
+  tx: TxConsulta,
+  clienteId: string,
+): Promise<{ tipo: string; numero: string }[]> {
+  if (!esUuidRegla(clienteId)) return [];
+  const r = await consultar(tx, SQL_PROVEEDORES_CON_REGLA, [clienteId]);
+  return r.rows.map((f) => ({ tipo: f.doc_tipo as string, numero: f.doc_numero as string }));
+}

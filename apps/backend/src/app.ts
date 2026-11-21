@@ -69,6 +69,16 @@ export const LIMITE_JSON_MASIVAS = "512kb";
 const RUTAS_MASIVAS = ["/clientes/:clienteId/periodos/:periodo/compras/masivas"];
 
 /**
+ * Activar y descartar candidatas del historial (025, D-10): hasta 1.000 ids (~50 kB; con destino por ítem, ~75 kB). 1.001 deben
+ * llegar a zod (400 `solicitud_invalida`), no cortarse en 413. `reemplazar` lleva un cuerpo mínimo y conserva `LIMITE_JSON`.
+ */
+export const LIMITE_JSON_CANDIDATAS = "128kb";
+const RUTAS_CANDIDATAS_LOTE = [
+  "/clientes/:clienteId/reglas/candidatas/activar",
+  "/clientes/:clienteId/reglas/candidatas/descartar",
+];
+
+/**
  * Importación de clientes (007b): el cuerpo es el archivo crudo, `application/octet-stream` de hasta 2 MB. Con más, el
  * analizador responde 413 por `Content-Length` sin leer el cuerpo.
  */
@@ -145,6 +155,7 @@ export async function crearApp(o: OpcionesApp = {}): Promise<INestApplication> {
   // El analizador de lotes va primero y solo en esas dos rutas; el global omite lo ya analizado.
   app.use(RUTAS_LOTES, json({ limit: LIMITE_JSON_LOTES }));
   app.use(RUTAS_MASIVAS, json({ limit: LIMITE_JSON_MASIVAS }));
+  app.use(RUTAS_CANDIDATAS_LOTE, json({ limit: LIMITE_JSON_CANDIDATAS }));
   app.use(RUTAS_IMPORTACION, raw({ type: "application/octet-stream", limit: LIMITE_ARCHIVO_IMPORTACION }));
   app.use(RUTAS_IMPORTACION_VENTAS, raw({ type: "application/octet-stream", limit: LIMITE_ARCHIVO_VENTAS }));
   app.use(RUTAS_XML, raw({ type: (req) => req.method === "POST", limit: LIMITE_ARCHIVO_XML }));
