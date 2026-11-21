@@ -58,6 +58,10 @@ export interface ContextoInterno {
   readonly diccionario: DiccionarioGlosas;
   /** Reglas apagadas por el estudio (021, RF-089); vacío si no se recibió. */
   readonly apagadas: ReadonlySet<CodigoReglaMotor>;
+  /** Modo estándar (025): R-STD solo se evalúa con él. */
+  readonly modoEstandar: boolean;
+  /** Claves de los proveedores con regla aprendida activa (025, R-STD). */
+  readonly conRegla: ReadonlySet<string>;
 }
 
 // ---------------------------------------------------------------- gramáticas
@@ -81,9 +85,16 @@ const CLAVES_COMPROBANTE = ["tipo", "serie", "numero"];
 const CLAVES_ORIGEN = ["montos", "tipoCambio"];
 const MONTOS_XML = ["gravado", "igv", "noGravado", "isc", "icbper", "total"];
 const CLAVES_XML = ["proveedor", "comprobante", "moneda", ...MONTOS_XML, "glosas"];
-const CLAVES_CONTEXTO = ["proveedoresConocidos", "proveedoresIsc", "diccionario", "reglasApagadas"];
+const CLAVES_CONTEXTO = [
+  "proveedoresConocidos",
+  "proveedoresIsc",
+  "diccionario",
+  "reglasApagadas",
+  "modoEstandar",
+  "proveedoresConRegla",
+];
 const REQUERIDAS_CONTEXTO = ["proveedoresConocidos", "proveedoresIsc", "diccionario"];
-/** Códigos que el estudio puede apagar (021): los de 011 y R-HIS, sin normalizar caja ni espacios. */
+/** Códigos que el estudio puede apagar (021): los de `ORDEN_REGLAS` y R-HIS, sin normalizar caja ni espacios. */
 const CODIGOS_MOTOR: readonly CodigoReglaMotor[] = Object.freeze([...ORDEN_REGLAS, "R-HIS"]);
 
 function invalida(): never {
@@ -348,7 +359,17 @@ function leerApagadas(a: unknown): ReadonlySet<CodigoReglaMotor> {
   return apagadas;
 }
 
-/** Contexto validado: sin claves extra, documentos válidos, diccionario real y códigos apagados conocidos. */
+/** `modoEstandar` (025): ausente o `undefined` = false; si no, booleano estricto. */
+function leerModoEstandar(x: unknown): boolean {
+  if (x === undefined) return false;
+  if (typeof x !== "boolean") invalida();
+  return x as boolean;
+}
+
+/**
+ * Contexto validado: sin claves extra, documentos válidos, diccionario real, códigos apagados conocidos y (025) modo estándar
+ * booleano con proveedores con regla válidos (ausentes = false y ninguno).
+ */
 export function validarContexto(ctx: ContextoReglas): ContextoInterno {
   const v = leerObjeto(ctx, CLAVES_CONTEXTO, REQUERIDAS_CONTEXTO);
   const conocidos = clavesDe(v.get("proveedoresConocidos"));
@@ -356,7 +377,10 @@ export function validarContexto(ctx: ContextoReglas): ContextoInterno {
   const diccionario = v.get("diccionario");
   if (!esDiccionarioReal(diccionario)) return invalida();
   const apagadas = leerApagadas(v.get("reglasApagadas"));
-  return Object.freeze({ conocidos, isc, diccionario, apagadas });
+  const modoEstandar = leerModoEstandar(v.get("modoEstandar"));
+  const conReglaCruda = v.get("proveedoresConRegla");
+  const conRegla = conReglaCruda === undefined ? new Set<string>() : clavesDe(conReglaCruda);
+  return Object.freeze({ conocidos, isc, diccionario, apagadas, modoEstandar, conRegla });
 }
 
 // ---------------------------------------------------------------- piezas internas de las reglas

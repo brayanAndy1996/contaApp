@@ -8,6 +8,7 @@ import { Money } from "../dinero/index";
 import {
   ISC_XML_EXACTO,
   MARCA_ISC_SIN_XML,
+  MODO_ESTANDAR,
   PROVEEDOR_NUEVO,
   SUFIJO_MIX_RANGO_VACIO,
   gastoPersonal,
@@ -93,8 +94,8 @@ function esMasiva(h: HallazgoGuardado, dato: "gravado" | "destino" | null): bool
 
 /**
  * Destino, explicación, dato y marca de masiva de un hallazgo guardado. R-ISC y R-MIX toman el destino de la columna de su
- * sugerencia; R-MIX pide el gravado cuando no hay monto exacto y R-NEW pide el destino. Una regla desconocida o unas lecturas
- * ilegibles dan la explicación genérica, sin lanzar.
+ * sugerencia; R-MIX pide el gravado cuando no hay monto exacto y R-NEW pide el destino; R-STD (025) va a DNG sin dato. Una
+ * regla desconocida o unas lecturas ilegibles dan la explicación genérica, sin lanzar.
  */
 export function detallarHallazgo(h: HallazgoGuardado): DetalleHallazgo {
   const s = registro(h.sugerencia);
@@ -108,6 +109,9 @@ export function detallarHallazgo(h: HallazgoGuardado): DetalleHallazgo {
         return detalleRed(h);
       case "R-NEW":
         return { destino: null, explicacion: PROVEEDOR_NUEVO, dato: "destino", masiva: false };
+      case "R-STD":
+        // 025 (D-8): clasificar en DNG sin dato ni confirmación (el respaldo es el perfil del cliente).
+        return { destino: "DNG", explicacion: MODO_ESTANDAR, dato: null, masiva: esMasiva(h, null) };
       case "R-GP":
         return {
           destino: null,

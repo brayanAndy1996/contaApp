@@ -36,6 +36,9 @@ export const redUsd = (tc: string): string =>
 export const PROVEEDOR_NUEVO = "Proveedor nuevo: elige la clasificación";
 export const gastoPersonal = (palabra: string): string => `Posible gasto personal: la glosa dice "${palabra}"`;
 
+// ---------------------------------------------------------------- R-STD (025, D-8)
+export const MODO_ESTANDAR = "DNG por perfil del cliente";
+
 // ---------------------------------------------------------------- avisos
 export const AVISO_XML_AJENO = "El XML no corresponde a este comprobante";
 export const AVISO_XML_MONEDA = "El XML está en otra moneda que la fila";
