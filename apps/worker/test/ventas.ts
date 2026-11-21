@@ -168,6 +168,14 @@ export class SireApiControlado implements SireApiClient {
     this.esperas = [];
   }
 
+  /** Registro presentado (025): siempre al mock; las pruebas de 025 usan `SireRegistroControlado` (test/importar-historial.ts). */
+  descargarRegistroPresentado(
+    token: TokenSire,
+    solicitud: { ruc: string; periodo: string },
+  ) {
+    return this.interno.descargarRegistroPresentado(token, solicitud);
+  }
+
   async descargarPropuesta(
     token: TokenSire,
     solicitud: SolicitudPropuesta,

@@ -81,6 +81,8 @@ export function reglaDe(parcial: Partial<ReglaVista> = {}): ReglaVista {
     creadaPor: { id: uuidDe(5, 1), nombre: "Rosa Quispe", activo: true },
     creadaEn: "2026-11-13T02:30:00.000Z",
     actualizadaEn: "2026-11-13T02:30:00.000Z",
+    // Spec 025 (D-5): `origen` es obligatorio en `reglaVistaSchema`; sin él las pruebas de 021 dejarían de analizar sus reglas.
+    origen: "contador",
     ...parcial,
   });
 }
@@ -92,9 +94,11 @@ const DESCRIPCIONES: Record<string, string> = {
   "R-NEW": "Avisa de un proveedor nuevo para que elijas su destino.",
   "R-GP": "Marca posibles gastos personales según la glosa.",
   "R-HIS": "Aplica el destino que ya aprendiste para el proveedor.",
+  // Spec 025 (D-8): R-STD entra al catálogo del motor del estudio.
+  "R-STD": "Sugiere DNG en clientes de la Amazonía con ventas exoneradas y sin ventas mixtas.",
 };
 
-/** Respuesta de `GET /estudio/reglas-motor`: los seis códigos (sin prevalidación), todos encendidos por omisión. */
+/** Respuesta de `GET /estudio/reglas-motor`: los siete códigos (sin prevalidación), todos encendidos por omisión. */
 export function motorDe(
   apagadas: readonly string[] = [],
   aportarCatalogo = true,

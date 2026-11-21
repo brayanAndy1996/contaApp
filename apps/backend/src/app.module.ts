@@ -2,6 +2,7 @@ import { Module, type DynamicModule } from "@nestjs/common";
 import type { StorageProvider } from "@contapp/storage";
 import { NucleoModule, type DependenciasNucleo } from "./infra/nucleo.module.js";
 import { AccesoModule } from "./modules/acceso/acceso.module.js";
+import { AprendizajeModule } from "./modules/aprendizaje/aprendizaje.module.js";
 import { ArchivosModule } from "./modules/archivos/archivos.module.js";
 import { AuditoriaModule } from "./modules/auditoria/auditoria.module.js";
 import { AuthModule } from "./modules/auth/auth.module.js";
@@ -49,6 +50,7 @@ export class AppModule {
         VentasModule,
         ComprasModule,
         ReglasModule,
+        AprendizajeModule,
         // Spec 023: rutas bajo `/clientes/:clienteId/buzon`; no chocan con ningún `:id` anterior.
         BuzonModule,
         // Spec 017: rutas estáticas de `/notificaciones` y `/auditoria`; no chocan con ningún `:id` anterior.

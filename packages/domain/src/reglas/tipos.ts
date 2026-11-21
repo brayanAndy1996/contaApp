@@ -4,9 +4,9 @@ import type { ColumnaCompra, Destino, MontosComprobante } from "../comprobante/i
 import type { Money, Moneda, TipoCambio } from "../dinero/index";
 import type { DiccionarioGlosas } from "../texto/index";
 
-export type CodigoRegla = "R-ISC" | "R-MIX" | "R-RED" | "R-NEW" | "R-GP";
+export type CodigoRegla = "R-ISC" | "R-MIX" | "R-RED" | "R-NEW" | "R-GP" | "R-STD";
 
-/** Reglas que el estudio puede apagar (021, RF-089): las de 011 y R-HIS; la prevalidación de 012 nunca. */
+/** Reglas que el estudio puede apagar (021, RF-089): las de 011, R-STD (025) y R-HIS; la prevalidación de 012 nunca. */
 export type CodigoReglaMotor = CodigoRegla | "R-HIS";
 
 /** Regla aprendida viva y activa de un cliente (021, D-2): proveedor y destino. */
@@ -23,6 +23,7 @@ export const ORDEN_REGLAS: readonly CodigoRegla[] = Object.freeze([
   "R-RED",
   "R-NEW",
   "R-GP",
+  "R-STD",
 ] as const);
 
 /** tipo ^[0-9A-Z]$; numero ^[0-9A-Z-]{1,15}$ tras quitar espacios y pasar a mayúsculas. */
@@ -79,6 +80,10 @@ export interface ContextoReglas {
   readonly diccionario: DiccionarioGlosas;
   /** Reglas apagadas por el estudio (021, RF-089): no se evalúan. Un código fuera de CodigoReglaMotor es inválido. */
   readonly reglasApagadas?: readonly CodigoReglaMotor[];
+  /** Modo estándar (025, U-4: `cumpleModoEstandar` del perfil). Ausente = false; si no, booleano estricto. */
+  readonly modoEstandar?: boolean;
+  /** Proveedores con regla aprendida activa (025, D-8): R-STD no los sugiere. Ausente = ninguno. */
+  readonly proveedoresConRegla?: readonly DocProveedor[];
 }
 
 /**

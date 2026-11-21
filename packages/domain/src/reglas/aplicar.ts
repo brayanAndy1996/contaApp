@@ -56,6 +56,7 @@ const TIPO_DE_REGLA: ReadonlyMap<CodigoRegla, string> = new Map<CodigoRegla, str
   ["R-RED", "ajustar"],
   ["R-NEW", "clasificar"],
   ["R-GP", "excluir"],
+  ["R-STD", "clasificar"],
 ]);
 
 function invalida(): never {
@@ -283,7 +284,8 @@ function aplicarContrastado(
       nuevos = ajustar(montos, s.valores);
       break;
     case "clasificar":
-      nuevos = cambiarDestino(montos, destinoConfirmado(c)).montos;
+      // Sin dato (R-STD, 025): el destino es el del hallazgo, ya contrastado por la re-evaluación; R-NEW pide el destino.
+      nuevos = cambiarDestino(montos, leido.dato === null && leido.destino !== null ? leido.destino : destinoConfirmado(c)).montos;
       break;
     default:
       return Object.freeze({ montos, excluir: true });

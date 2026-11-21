@@ -321,6 +321,10 @@ export function AccionesFilaCompras({
             contexto={contexto}
             fila={fila}
             alAvisar={alAvisar}
+            alAceptar={(h) => {
+              // Spec 025 (CA-10): R-STD sugiere DNG por perfil; «Recordar» lo vuelve regla del proveedor.
+              if (h.regla === "R-STD") setRecordar((previo) => ({ n: (previo?.n ?? 0) + 1, destino: "DNG" }));
+            }}
             alTerminar={cerrarPanel}
             alCancelar={cerrarPanel}
           />

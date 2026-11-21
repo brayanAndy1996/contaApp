@@ -64,6 +64,18 @@ const FIRMA_BLOQUEAR_REEVALUAR = "bloquear_compras_reevaluar(uuid[])";
 // search_path = pg_catalog, pg_temp y sin EXECUTE para PUBLIC (se verifica abajo, una por una).
 const REGISTRADOR = "contapp_registrador";
 const MIGRATOR = "contapp_migrator";
+// Spec 025 (T3): firma (regprocedure) y unico rol de la app con EXECUTE de cada funcion de las migraciones 0062 y 0063.
+const FUNCIONES_025: { firma: string; ejecuta: string }[] = [
+  { firma: "reglas_importacion_iniciar(uuid,character[])", ejecuta: "contapp_backend" },
+  { firma: "reglas_importacion_trabajo(uuid,uuid)", ejecuta: "contapp_backend" },
+  { firma: "reglas_importacion_completar(uuid,jsonb,jsonb)", ejecuta: "contapp_worker" },
+  { firma: "reglas_importacion_fallar(uuid,text)", ejecuta: "contapp_worker" },
+  { firma: "reglas_candidatas_activar(uuid,jsonb,uuid)", ejecuta: "contapp_backend" },
+  { firma: "reglas_candidata_reemplazar(uuid,uuid,text,integer)", ejecuta: "contapp_backend" },
+  { firma: "reglas_candidatas_descartar(uuid,uuid[])", ejecuta: "contapp_backend" },
+  // T11a (migracion 0063): los proveedores con regla activa del cliente para R-STD, solo el worker.
+  { firma: "reglas_proveedores_con_regla(uuid)", ejecuta: "contapp_worker" },
+];
 const FUNCIONES_017: { firma: string; dueno: string }[] = [
   ...[
     "sesion", "invitacion", "membresia", "asignacion", "cliente", "credencial", "propuesta", "compra_operacion", "venta", "xml",
@@ -113,6 +125,10 @@ const FUNCIONES_017: { firma: string; dueno: string }[] = [
   // contapp_backend) y el trigger que fija histórico y deja en blanco el estado de atención al insertar (D-5, D-12).
   { firma: "buzon_atencion_aplicar(uuid,uuid[],text,text)", dueno: MIGRATOR },
   { firma: "buzon_mensaje_atencion_inicial()", dueno: MIGRATOR },
+  // Spec 025 (T3, rojo hasta la migracion 0062): las funciones acotadas de importaciones y candidatas (plan 025, Contratos: BD). Las del
+  // backend (iniciar, trabajo, activar, reemplazar, descartar) y las del worker (completar, fallar) se verifican abajo, una por una.
+  // El plan habla de «seis funciones»; el contrato de BD enumera siete y las siete entran aqui.
+  ...FUNCIONES_025.map((f) => ({ firma: f.firma, dueno: MIGRATOR })),
 ];
 const nombre017 = (f: string) => (f.includes(".") && f.indexOf(".") < f.indexOf("(") ? f : `public.${f}`).replace(/\(.*$/, "");
 
@@ -415,5 +431,33 @@ describe("ADV escalada desde DATABASE_URL", () => {
     ]);
     expect(vistas).toEqual([]);
     expect(uuid).toEqual([{ prosecdef: false, dueno: "contapp_migrator" }]);
+  });
+
+  // Spec 025 (T3, CA-7, rojo hasta 0062): cada funcion de importaciones y candidatas la ejecuta solo el rol del plan (ni PUBLIC ni otro
+  // rol de la app, el dueño aparte), es SECURITY DEFINER de contapp_migrator y fija su search_path.
+  it("las funciones de importaciones y candidatas (025): dueno contapp_migrator, search_path fijo, sin EXECUTE para PUBLIC y solo el rol del plan", async () => {
+    const r = await filasRaw(
+      pool,
+      null,
+      `select f.firma, pg_get_userbyid(p.proowner) as dueno, p.prosecdef, p.proconfig as config,
+              has_function_privilege('public', p.oid, 'EXECUTE') as publico,
+              coalesce((select array_agg(x.rolname::text order by x.rolname) from pg_roles x
+                         where x.oid <> p.proowner and x.rolname like 'contapp\\_%' and has_function_privilege(x.oid, p.oid, 'EXECUTE')), '{}'::text[]) as ejecutan
+         from unnest(array[${FUNCIONES_025.map((f) => `'${f.firma}'`).join(", ")}]::text[]) as f(firma)
+         left join pg_proc p on p.oid::regprocedure::text = f.firma
+        order by f.firma`,
+    );
+    expect(r).toEqual(
+      [...FUNCIONES_025]
+        .sort((a, b) => (a.firma < b.firma ? -1 : 1))
+        .map((f) => ({
+          firma: f.firma,
+          dueno: "contapp_migrator",
+          prosecdef: true,
+          config: ["search_path=pg_catalog, pg_temp"],
+          publico: false,
+          ejecutan: [f.ejecuta],
+        })),
+    );
   });
 });

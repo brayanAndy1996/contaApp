@@ -83,6 +83,8 @@ const api = (r: unknown): SireApiClient & { llamadas: number } => {
       a.llamadas += 1;
       return r as never;
     },
+    // 025: el procesador de la propuesta no lee el registro presentado.
+    descargarRegistroPresentado: async () => r as never,
   };
   return a;
 };

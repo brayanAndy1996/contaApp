@@ -26,6 +26,12 @@ vi.mock("@contapp/db", async (original) => ({
   reevaluarComprobante: vi.fn(),
 }));
 
+// 025: el persistidor lee además el perfil del cliente y los proveedores con regla activa (R-STD); aquí, un cliente general sin reglas.
+vi.mock("../persistidores/compras-std.js", () => ({
+  leerPerfilCliente: vi.fn(async () => ({ zona: "general", ventasExoneradas: false, ventasMixtas: false })),
+  leerProveedoresConRegla: vi.fn(async () => []),
+}));
+
 import {
   ComprasReglaError,
   fijarObtencion,

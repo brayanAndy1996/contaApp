@@ -4,9 +4,17 @@ import { CATALOGO_REGLAS_MOTOR, esRucAportable } from "./catalogo";
 import { ORDEN_REGLAS } from "./tipos";
 
 describe("CATALOGO_REGLAS_MOTOR (RF-089, P-8)", () => {
-  it("tiene seis reglas: las cinco de 011 en su orden y R-HIS", () => {
+  it("tiene siete reglas: las de ORDEN_REGLAS (las cinco de 011 y R-STD de 025) en su orden y R-HIS", () => {
     expect(CATALOGO_REGLAS_MOTOR.map((r) => r.codigo)).toEqual([...ORDEN_REGLAS, "R-HIS"]);
-    expect(CATALOGO_REGLAS_MOTOR.map((r) => r.codigo)).toEqual(["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP", "R-HIS"]);
+    expect(CATALOGO_REGLAS_MOTOR.map((r) => r.codigo)).toEqual(["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP", "R-STD", "R-HIS"]);
+  });
+
+  it("R-STD (025, RF-113): descripción simple que dice DNG, Amazonía, ventas exoneradas y sin ventas mixtas", () => {
+    const r = CATALOGO_REGLAS_MOTOR.find((x) => x.codigo === "R-STD");
+    expect(r?.descripcion).toMatch(/DNG/);
+    expect(r?.descripcion).toMatch(/Amazon/i);
+    expect(r?.descripcion).toMatch(/exonerad/i);
+    expect(r?.descripcion).toMatch(/mixta/i);
   });
 
   it("cada regla tiene una descripción simple no vacía y distinta", () => {
@@ -14,7 +22,7 @@ describe("CATALOGO_REGLAS_MOTOR (RF-089, P-8)", () => {
       expect(typeof r.descripcion).toBe("string");
       expect(r.descripcion.trim().length).toBeGreaterThan(0);
     }
-    expect(new Set(CATALOGO_REGLAS_MOTOR.map((r) => r.descripcion)).size).toBe(6);
+    expect(new Set(CATALOGO_REGLAS_MOTOR.map((r) => r.descripcion)).size).toBe(7);
   });
 
   it("la prevalidación de 012 no figura: ni como código ni en las descripciones", () => {

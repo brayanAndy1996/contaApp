@@ -40,6 +40,10 @@ import {
 import type { Procesador } from "../ejecutor.js";
 import { crearEvaluarCompras } from "../persistidores/compras-evaluar.js";
 import { codigosApagados } from "../persistidores/compras-historial.js";
+import {
+  leerPerfilCliente,
+  leerProveedoresConRegla,
+} from "../persistidores/compras-std.js";
 
 export interface DepsObtenerXml {
   db: Pick<ContappDb, "withTenant">;
@@ -247,10 +251,16 @@ export function obtenerXml(d: DepsObtenerXml): Procesador {
             // función acotada. Si la del lote ya no está viva, no se guarda nada (como antes).
             // 021 (RF-089): los interruptores del estudio, leídos en esta misma transacción, gobiernan también esta evaluación.
             const reglasApagadas = codigosApagados(await leerReglasMotor(tx));
+            // 025 (D-8, D-9): el perfil de AHORA y los proveedores con regla activa (R-STD no los sugiere; tampoco son R-NEW). Se
+            // leen antes de bloquear las compras: mismo orden que la descarga (reglas, luego compras).
+            const perfil = await leerPerfilCliente(tx, t.clienteId);
+            const proveedoresConRegla = await leerProveedoresConRegla(tx, t.clienteId);
             const evaluarDe = async (p: string) =>
               crearEvaluarCompras(await leerProveedoresConocidos(tx, t.clienteId, p), {
                 xmlSimuladoEnReglas: enReglas,
                 reglasApagadas,
+                proveedoresConRegla,
+                perfil,
               });
             const reevaluadas = await reevaluarComprobante(tx, t.clienteId, identidadDe(c), {
               evaluarDe,

@@ -11,7 +11,7 @@ export const VERSION_REGLA_MAX = 2_147_483_647;
 export const versionReglaSchema = versionBaseSchema.max(VERSION_REGLA_MAX);
 
 /** Códigos de las reglas del motor que el estudio puede apagar (RF-089). La prevalidación de 012 no figura (P-8). */
-export const CODIGOS_REGLA_MOTOR = ["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP", "R-HIS"] as const;
+export const CODIGOS_REGLA_MOTOR = ["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP", "R-HIS", "R-STD"] as const;
 export type CodigoReglaMotor = (typeof CODIGOS_REGLA_MOTOR)[number];
 export const codigoReglaMotorSchema = z.enum(CODIGOS_REGLA_MOTOR);
 

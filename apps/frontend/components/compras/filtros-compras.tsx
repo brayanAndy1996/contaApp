@@ -7,6 +7,7 @@ import {
   TOPE_SELECCION,
   type FiltrosCompras,
 } from "../../lib/compras";
+import { MENSAJES_APRENDIZAJE as A } from "../../lib/aprendizaje";
 import { MENSAJES_REGLAS as R } from "../../lib/reglas";
 import { Button, Input, Label } from "../ui";
 
@@ -105,6 +106,20 @@ export function FiltrosListado({
           }
         />
         {R.segunHistorial}
+      </Label>
+      <Label className="flex min-h-11 flex-row items-center gap-2 text-sm font-normal text-tinta lg:min-h-0">
+        <input
+          type="checkbox"
+          className="size-4 cursor-pointer accent-primario"
+          checked={filtros.regla === "R-STD"}
+          onChange={(e) => {
+            if (e.target.checked) return alCambiar({ ...filtros, regla: "R-STD" });
+            const resto = { ...filtros };
+            delete resto.regla;
+            alCambiar(resto);
+          }}
+        />
+        {A.filtroStd}
       </Label>
       <Label className="min-w-64">
         {M.buscar}

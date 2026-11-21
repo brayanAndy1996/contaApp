@@ -69,6 +69,7 @@ const TIPO_DE_REGLA: Readonly<Record<string, string>> = {
   "R-RED": "ajustar",
   "R-NEW": "clasificar",
   "R-GP": "excluir",
+  "R-STD": "clasificar",
 };
 const COLUMNAS_BI: readonly string[] = ["biDg", "biDgng", "biDng"];
 const DESTINOS: readonly string[] = ["DG", "DGNG", "DNG"];
@@ -180,7 +181,7 @@ function conReevaluacion(e: EntradaAceptar, h: HallazgoGuardado, d: DetalleHalla
   return salida(r.montos, r.excluir, h.regla === "R-NEW");
 }
 
-function respaldada(e: EntradaAceptar, h: HallazgoGuardado): ResultadoAceptar {
+function respaldada(e: EntradaAceptar, h: HallazgoGuardado, d: DetalleHallazgo): ResultadoAceptar {
   const c = e.compra;
   // Sin re-evaluación (no hay con qué), la regla apagada se contrasta aquí: el estudio ya no la quiere aplicar (H-T25-1).
   if (e.reglasApagadas?.includes(h.regla as CodigoReglaMotor) === true) return rechazo("revisar_de_nuevo");
@@ -217,7 +218,9 @@ function respaldada(e: EntradaAceptar, h: HallazgoGuardado): ResultadoAceptar {
       return salida(MontosComprobante.desde(c.moneda, nuevo), false, false);
     }
     case "clasificar": {
-      const destino = e.dato !== undefined && "destino" in e.dato ? e.dato.destino : undefined;
+      // Sin dato (R-STD, 025): el destino es el del hallazgo; si no (R-NEW), el que eligió el contador.
+      const elegido = e.dato !== undefined && "destino" in e.dato ? e.dato.destino : undefined;
+      const destino = d.dato === null && d.destino !== null ? d.destino : elegido;
       if (destino === undefined || !DESTINOS.includes(destino)) return rechazo("requiere_dato", "destino");
       return salida(cambiarDestino(montos, destino).montos, false, true);
     }
@@ -247,7 +250,7 @@ export function aceptarSugerenciaGuardada(e: EntradaAceptar): ResultadoAceptar {
   }
   if (h.sugerencia === null) return rechazo("revisar_de_nuevo");
   try {
-    return h.requiereConfirmacion ? conReevaluacion(e, h, d) : respaldada(e, h);
+    return h.requiereConfirmacion ? conReevaluacion(e, h, d) : respaldada(e, h, d);
   } catch (err) {
     if (err instanceof ConfirmacionInvalidaError) return rechazo("requiere_dato", d.dato ?? "gravado");
     if (err instanceof SugerenciaObsoletaError || err instanceof ReglasError) return rechazo("revisar_de_nuevo");

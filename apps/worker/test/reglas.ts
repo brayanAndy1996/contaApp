@@ -17,6 +17,8 @@ export const CODIGOS_MOTOR = [
   "R-NEW",
   "R-GP",
   "R-HIS",
+  // Spec 025 (D-8): modo estándar por perfil del cliente.
+  "R-STD",
 ] as const;
 export type CodigoMotor = (typeof CODIGOS_MOTOR)[number];
 

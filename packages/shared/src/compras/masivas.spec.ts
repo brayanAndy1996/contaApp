@@ -121,7 +121,7 @@ describe("masiva de clasificar: destino", () => {
 });
 
 describe("masiva de aceptar: regla, sin confirmar ni dato", () => {
-  it.each(["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP"])("acepta la regla %s", (regla) => {
+  it.each(["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP", "R-STD"])("acepta la regla %s", (regla) => {
     expect(ok(masivaAceptarSchema, { items: items(1), regla })).toBe(true);
   });
   it.each(["R-HIS", "r-red", "", null, undefined])("rechaza la regla %j", (regla) => {

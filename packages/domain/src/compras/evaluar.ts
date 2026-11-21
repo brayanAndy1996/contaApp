@@ -9,10 +9,19 @@ import { MontosComprobante } from "../comprobante/index";
 import type { ColumnaCompra } from "../comprobante/index";
 import { DICCIONARIO_GLOSAS_BASE } from "../texto/index";
 import { DineroError } from "../dinero/index";
-import { ReglasError } from "../reglas/index";
+import { ReglasError, cumpleModoEstandar } from "../reglas/index";
 // Interno del paquete (como prevalidar): fuera de la superficie pública fijada por R2b-1.
 import { crearEvaluadorReglas } from "../reglas/motor";
-import type { CodigoReglaMotor, ContextoReglas, DocProveedor, FilaEvaluable, Hallazgo, ResumenXml, Sugerencia } from "../reglas/index";
+import type {
+  CodigoReglaMotor,
+  ContextoReglas,
+  DocProveedor,
+  FilaEvaluable,
+  Hallazgo,
+  PerfilCliente,
+  ResumenXml,
+  Sugerencia,
+} from "../reglas/index";
 import { aResumenXml } from "../ubl/index";
 import type { DetalleXml } from "../ubl/index";
 
@@ -44,8 +53,10 @@ export interface OpcionesEvaluar {
   readonly xmlSimuladoEnReglas: boolean;
   /** Reglas apagadas por el estudio (021, RF-089). */
   readonly reglasApagadas?: readonly CodigoReglaMotor[];
-  /** Proveedores con regla aprendida: cuentan como conocidos, no son R-NEW (021, D-7). */
+  /** Proveedores con regla aprendida: cuentan como conocidos, no son R-NEW (021, D-7), y R-STD no los sugiere (025, D-8). */
   readonly proveedoresConRegla?: readonly { tipo: string; numero: string }[];
+  /** Perfil fiscal del cliente (025, D-8, D-9): si cumple U-4, R-STD sugiere DNG. Sin él, sin R-STD. */
+  readonly perfil?: PerfilCliente;
 }
 
 /** Lo que la evaluación necesita de una compra (estructural: `packages/db` no depende de este paquete). */
@@ -143,18 +154,24 @@ export function resumenXml(c: CompraEvaluable, opciones: Pick<OpcionesEvaluar, "
  * el primero, en el orden del dominio (DG, DGNG, DNG). Un R-NEW resuelto (la fila ya está `clasificada`) no reaparece (D-4).
  * Con XML (016): la fila lleva `xml: aResumenXml(detalle)` si el origen no es `simulado` o `xmlSimuladoEnReglas` está activa;
  * un XML ajeno o en otra moneda no respalda nada (011 lo deja como aviso). 021: `reglasApagadas` no se evalúan y
- * `proveedoresConRegla` cuentan como conocidos (sin R-NEW).
+ * `proveedoresConRegla` cuentan como conocidos (sin R-NEW). 025: con `perfil` que cumple U-4, R-STD sugiere DNG a los
+ * proveedores sin regla y se omite en filas clasificadas.
  */
 export function crearEvaluarCompras(
   proveedoresConocidos: readonly { tipo: string; numero: string }[],
   opciones: OpcionesEvaluar = { xmlSimuladoEnReglas: false },
 ): (c: CompraEvaluable) => HallazgoJson[] {
+  const conRegla = opciones.proveedoresConRegla ?? [];
   const contexto: ContextoReglas = {
     // Un proveedor con regla aprendida no es nuevo (021, D-7): se suma al historial, normalizado igual.
-    proveedoresConocidos: proveedoresValidos([...proveedoresConocidos, ...(opciones.proveedoresConRegla ?? [])]),
+    proveedoresConocidos: proveedoresValidos([...proveedoresConocidos, ...conRegla]),
     proveedoresIsc: [],
     diccionario: DICCIONARIO_GLOSAS_BASE,
     ...(opciones.reglasApagadas === undefined ? {} : { reglasApagadas: [...opciones.reglasApagadas] }),
+    // 025 (D-8): con perfil, el modo estándar y los proveedores con regla (que R-STD no sugiere); sin él, el contexto de 021.
+    ...(opciones.perfil === undefined
+      ? {}
+      : { modoEstandar: cumpleModoEstandar(opciones.perfil), proveedoresConRegla: proveedoresValidos(conRegla) }),
   };
   // El contexto se valida UNA vez, aquí (T25c): un contexto inválido (p. ej. un código apagado desconocido) es un defecto del
   // llamador y falla aquí (EntradaReglasInvalidaError) en vez de dejar cada compra sin hallazgos en silencio; cada compra solo
@@ -172,7 +189,8 @@ export function crearEvaluarCompras(
       const resultado = evaluarReglas([xml === null ? fila : { ...fila, xml }]);
       const porRegla = new Map<string, HallazgoJson>();
       for (const h of resultado.hallazgos) {
-        if (h.regla === "R-NEW" && c.clasificada) continue;
+        // R-NEW y R-STD resueltos por el contador (la fila ya está `clasificada`) no reaparecen (D-4; 025, D-8).
+        if ((h.regla === "R-NEW" || h.regla === "R-STD") && c.clasificada) continue;
         if (!porRegla.has(h.regla)) porRegla.set(h.regla, hallazgoAJson(h));
       }
       return [...porRegla.values()];

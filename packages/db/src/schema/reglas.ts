@@ -17,7 +17,7 @@ import {
 import { cliente } from "./clientes";
 import { compraVersion } from "./compras";
 import { id, tenantIdPorDefecto } from "./comun";
-import { tenant } from "./plataforma";
+import { tenant, usuario } from "./plataforma";
 
 // Spec 021 (D-2, D-3, D-8, P-9, P-10). Reglas aprendidas por cliente y proveedor, interruptores del motor del estudio y aporte al
 // catálogo. RLS ENABLE + FORCE, tenant_isolation, grants, funciones acotadas y triggers de auditoría en 0047–0049. Va aparte del
@@ -32,7 +32,9 @@ const tenantId = () =>
 /** Destinos de una regla aprendida: el par de BI e IGV en el que se consolida la compra. */
 export const DESTINOS_REGLA_BD = ["DG", "DGNG", "DNG"] as const;
 /** Reglas del motor que el estudio puede apagar (RF-089). La prevalidación de 012 no figura (P-8). */
-export const CODIGOS_REGLA_MOTOR_BD = ["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP", "R-HIS"] as const;
+export const CODIGOS_REGLA_MOTOR_BD = ["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP", "R-HIS", "R-STD"] as const;
+/** Origen de una regla aprendida (025): «Recordar» del contador o activación de una candidata importada del historial. */
+export const ORIGENES_REGLA_BD = ["contador", "importacion"] as const;
 
 const lista = (valores: readonly string[]) => sql.raw(valores.map((v) => `'${v}'`).join(", "));
 
@@ -56,6 +58,8 @@ export const reglaAprendida = pgTable(
     actualizadaEn: timestamp("actualizada_en", { withTimezone: true }).notNull().defaultNow(),
     eliminadaEn: timestamp("eliminada_en", { withTimezone: true }),
     eliminadaPor: uuid("eliminada_por"),
+    // 025 (0061): solo reglas_candidatas_activar escribe 'importacion'; el INSERT del backend es por columnas y no la nombra.
+    origen: text("origen").notNull().default("contador"),
   },
   (t) => [
     unique("regla_aprendida_tenant_id_unique").on(t.tenantId, t.id),
@@ -75,6 +79,7 @@ export const reglaAprendida = pgTable(
       sql`char_length(${t.docTipo}) BETWEEN 1 AND 2 AND char_length(${t.docNumero}) BETWEEN 1 AND 20`,
     ),
     check("regla_aprendida_baja_coherente", sql`(${t.eliminadaEn} IS NULL) = (${t.eliminadaPor} IS NULL)`),
+    check("regla_aprendida_origen_valido", sql`${t.origen} IN (${lista(ORIGENES_REGLA_BD)})`),
   ],
 );
 
@@ -191,5 +196,140 @@ export const reglaConfirmacion = pgTable(
     check("regla_confirmacion_origen_valido", sql`${t.origen} IN ('recordar', 'aceptada')`),
     check("regla_confirmacion_destino_valido", sql`${t.destino} IN (${lista(DESTINOS_REGLA_BD)})`),
     check("regla_confirmacion_ruc_20", sql`${t.rucProveedor} ~ '^20[0-9]{9}$'`),
+  ],
+);
+
+// ---- Spec 025 (D-2, D-4 a D-7, D-11; 0061) -----------------------------------------------------------------------------------
+// Aprendizaje de arranque: importaciones del registro presentado y candidatas por proveedor. Nadie de la app escribe directo: solo
+// las funciones acotadas de 0062 (RLS ENABLE + FORCE, grants y trigger de borrado en 0061). Estados y motivos como CHECK.
+
+export const ESTADOS_IMPORTACION_BD = ["en_curso", "completada", "fallida"] as const;
+export const ESTADOS_CANDIDATA_BD = ["pendiente", "activada", "descartada", "reemplazada"] as const;
+/** Los motivos de trabajo de 008 (`job_registro_motivo_valido`). */
+export const MOTIVOS_IMPORTACION_BD = [
+  "sunat_no_responde",
+  "credencial_invalida",
+  "datos_invalidos",
+  "portal_cambio",
+  "interrumpido",
+  "acceso_retirado",
+  "cancelado_usuario",
+  "error_interno",
+] as const;
+/** Controles C0 y C1 (salto de línea incluido) y marcas bidireccionales: prohibidos en la razón social (D-11). */
+const CONTROLES_O_BIDI = sql.raw(`'[\\u0001-\\u001F\\u007F-\\u009F\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]'`);
+const PERIODO = `'^[0-9]{4}(0[1-9]|1[0-2])$'`;
+
+// 0061. Una importación por pedido; una sola `en_curso` por cliente (única parcial). Periodos y cliente viven aquí, no en el payload
+// del trabajo. El resumen lo deja `reglas_importacion_completar`; el motivo, `reglas_importacion_fallar` o el autocierre de iniciar.
+export const reglaImportacion = pgTable(
+  "regla_importacion",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    clienteId: uuid("cliente_id").notNull(),
+    estado: text("estado").notNull().default("en_curso"),
+    periodos: char("periodos", { length: 6 }).array().notNull(),
+    periodoHasta: char("periodo_hasta", { length: 6 }).notNull(),
+    trabajoId: uuid("trabajo_id"),
+    solicitadaPor: uuid("solicitada_por")
+      .notNull()
+      .references(() => usuario.id),
+    solicitadaEn: timestamp("solicitada_en", { withTimezone: true }).notNull().default(sql`clock_timestamp()`),
+    terminadaEn: timestamp("terminada_en", { withTimezone: true }),
+    periodosLeidos: integer("periodos_leidos"),
+    periodosSinDatos: char("periodos_sin_datos", { length: 6 }).array(),
+    candidatas: integer("candidatas"),
+    sinCriterio: integer("sin_criterio"),
+    motivo: text("motivo"),
+  },
+  (t) => [
+    unique("regla_importacion_cliente_id_unique").on(t.tenantId, t.clienteId, t.id),
+    uniqueIndex("regla_importacion_en_curso_unique")
+      .on(t.tenantId, t.clienteId)
+      .where(sql`${t.estado} = 'en_curso'`),
+    index("regla_importacion_cliente_idx").on(t.tenantId, t.clienteId, t.solicitadaEn),
+    foreignKey({
+      name: "regla_importacion_cliente_fk",
+      columns: [t.tenantId, t.clienteId],
+      foreignColumns: [cliente.tenantId, cliente.id],
+    }),
+    check("regla_importacion_estado_valido", sql`${t.estado} IN (${lista(ESTADOS_IMPORTACION_BD)})`),
+    check("regla_importacion_periodos_cantidad", sql`cardinality(${t.periodos}) BETWEEN 1 AND 12`),
+    check("regla_importacion_periodo_hasta_formato", sql`${t.periodoHasta} ~ ${sql.raw(PERIODO)}`),
+    check(
+      "regla_importacion_motivo_valido",
+      sql`${t.motivo} IS NULL OR ${t.motivo} IN (${lista(MOTIVOS_IMPORTACION_BD)})`,
+    ),
+    check(
+      "regla_importacion_resumen_no_negativo",
+      sql`coalesce(${t.periodosLeidos}, 0) >= 0 AND coalesce(${t.candidatas}, 0) >= 0 AND coalesce(${t.sinCriterio}, 0) >= 0 AND coalesce(cardinality(${t.periodosSinDatos}), 0) <= 12`,
+    ),
+  ],
+);
+
+// 0061. Una candidata por proveedor e importación. Con destino propuesto, el umbral de U-2 (al menos 2 y 5n >= 4t, en enteros).
+// `regla_id` y `resuelta_*` solo fuera de `pendiente`; `regla_id` solo en `activada`.
+export const reglaCandidata = pgTable(
+  "regla_candidata",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    clienteId: uuid("cliente_id").notNull(),
+    importacionId: uuid("importacion_id").notNull(),
+    docTipo: text("doc_tipo").notNull(),
+    docNumero: text("doc_numero").notNull(),
+    razonSocial: text("razon_social"),
+    destinoPropuesto: text("destino_propuesto"),
+    nDg: integer("n_dg").notNull().default(0),
+    nDgng: integer("n_dgng").notNull().default(0),
+    nDng: integer("n_dng").notNull().default(0),
+    nMixto: integer("n_mixto").notNull().default(0),
+    nTotal: integer("n_total").notNull(),
+    periodosConProveedor: integer("periodos_con_proveedor").notNull(),
+    estado: text("estado").notNull().default("pendiente"),
+    destinoElegido: text("destino_elegido"),
+    reglaId: uuid("regla_id"),
+    resueltaPor: uuid("resuelta_por").references(() => usuario.id),
+    resueltaEn: timestamp("resuelta_en", { withTimezone: true }),
+  },
+  (t) => [
+    unique("regla_candidata_documento_unique").on(t.tenantId, t.importacionId, t.docTipo, t.docNumero),
+    index("regla_candidata_cliente_idx").on(t.tenantId, t.clienteId, t.estado, t.docTipo, t.docNumero),
+    foreignKey({
+      name: "regla_candidata_importacion_fk",
+      columns: [t.tenantId, t.clienteId, t.importacionId],
+      foreignColumns: [reglaImportacion.tenantId, reglaImportacion.clienteId, reglaImportacion.id],
+    }),
+    foreignKey({
+      name: "regla_candidata_regla_fk",
+      columns: [t.tenantId, t.reglaId],
+      foreignColumns: [reglaAprendida.tenantId, reglaAprendida.id],
+    }),
+    check("regla_candidata_estado_valido", sql`${t.estado} IN (${lista(ESTADOS_CANDIDATA_BD)})`),
+    check(
+      "regla_candidata_destinos_validos",
+      sql`(${t.destinoPropuesto} IS NULL OR ${t.destinoPropuesto} IN (${lista(DESTINOS_REGLA_BD)})) AND (${t.destinoElegido} IS NULL OR ${t.destinoElegido} IN (${lista(DESTINOS_REGLA_BD)}))`,
+    ),
+    check(
+      "regla_candidata_documento_largo",
+      sql`char_length(${t.docTipo}) BETWEEN 1 AND 2 AND char_length(${t.docNumero}) BETWEEN 1 AND 20`,
+    ),
+    check(
+      "regla_candidata_conteos",
+      sql`${t.nDg} >= 0 AND ${t.nDgng} >= 0 AND ${t.nDng} >= 0 AND ${t.nMixto} >= 0 AND ${t.nTotal} = ${t.nDg} + ${t.nDgng} + ${t.nDng} + ${t.nMixto} AND ${t.periodosConProveedor} >= 0`,
+    ),
+    check(
+      "regla_candidata_umbral",
+      sql`${t.destinoPropuesto} IS NULL OR (CASE ${t.destinoPropuesto} WHEN 'DG' THEN ${t.nDg} WHEN 'DGNG' THEN ${t.nDgng} ELSE ${t.nDng} END >= 2 AND 5 * CASE ${t.destinoPropuesto} WHEN 'DG' THEN ${t.nDg} WHEN 'DGNG' THEN ${t.nDgng} ELSE ${t.nDng} END >= 4 * ${t.nTotal})`,
+    ),
+    check(
+      "regla_candidata_resolucion_coherente",
+      sql`CASE WHEN ${t.estado} = 'pendiente' THEN ${t.reglaId} IS NULL AND ${t.resueltaPor} IS NULL AND ${t.resueltaEn} IS NULL ELSE ${t.resueltaEn} IS NOT NULL AND (${t.reglaId} IS NULL OR ${t.estado} = 'activada') END`,
+    ),
+    check(
+      "regla_candidata_razon_social_valida",
+      sql`${t.razonSocial} IS NULL OR (char_length(${t.razonSocial}) BETWEEN 1 AND 200 AND ${t.razonSocial} !~ ${CONTROLES_O_BIDI})`,
+    ),
   ],
 );

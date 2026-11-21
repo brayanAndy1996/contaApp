@@ -263,6 +263,25 @@ export const SOL_BUZON_ABRIR: DefinicionTrabajo<ParametrosAbrirMensaje> = {
   parametros: z.object({ mensajeId: z.uuid() }).strict(),
 };
 
+export interface ParametrosImportarHistorial {
+  importacionId: string;
+}
+
+/**
+ * Spec 025 (D-1, D-2, D-10): importación del historial presentado en el SIRE (cola y canal `sire`, credencial `sire_api`,
+ * permiso `reglas.gestionar`). Parámetros estrictos `{importacionId}`: los periodos y el cliente salen de la fila de la
+ * importación, así que un payload forjado no amplía nada.
+ */
+export const REGLAS_HISTORIAL_IMPORTAR: DefinicionTrabajo<ParametrosImportarHistorial> = {
+  tipo: "reglas.historial.importar",
+  cola: "sire",
+  canal: "sire",
+  credencial: "sire_api",
+  permiso: "reglas.gestionar",
+  idempotente: true,
+  parametros: z.object({ importacionId: z.uuid() }).strict(),
+};
+
 registrarTipo(CLIENTE_CONSULTAR_RUC);
 registrarTipo(CREDENCIAL_VERIFICAR_SOL);
 registrarTipo(CREDENCIAL_VERIFICAR_SIRE);
@@ -271,6 +290,7 @@ registrarTipo(XML_OBTENER);
 registrarTipo(ARCHIVO_GENERAR);
 registrarTipo(SOL_BUZON_REVISAR);
 registrarTipo(SOL_BUZON_ABRIR);
+registrarTipo(REGLAS_HISTORIAL_IMPORTAR);
 
 /** Tipo de pruebas: solo existe con NODE_ENV=test (el worker le programa el comportamiento). */
 export const PRUEBA_ECO: DefinicionTrabajo<{ n?: number; rango?: string }> = {

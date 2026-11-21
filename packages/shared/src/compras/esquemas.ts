@@ -55,7 +55,7 @@ export const montosColumnasSchema = z.object({
 });
 export type MontosColumnas = z.infer<typeof montosColumnasSchema>;
 
-export const CODIGOS_REGLA = ["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP"] as const;
+export const CODIGOS_REGLA = ["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP", "R-STD"] as const;
 export type CodigoReglaCompra = (typeof CODIGOS_REGLA)[number];
 export const reglaCompraSchema = z.enum(CODIGOS_REGLA);
 

@@ -1,7 +1,7 @@
 // Lecturas de reglas aprendidas (spec 021, CA-5, CA-7, P-4). Solo SQL estático y parametrizado en la `tx` de withTenant: la RLS
 // deja ver solo el estudio y cada consulta filtra además por cliente (nunca por RUC del proveedor). Sin eliminadas.
 import { consultar, type Fila, type TxConsulta } from "../compras/errores";
-import type { DestinoRegla, ReglaFila } from "./tipos";
+import type { DestinoRegla, OrigenRegla, ReglaFila } from "./tipos";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const esUuidRegla = (v: unknown): v is string => typeof v === "string" && UUID.test(v);
@@ -12,7 +12,7 @@ export const DOC_NUMERO_NORMALIZADO = (columna: string) =>
 
 // Razón social: la de la compra más reciente del proveedor en ese cliente (la más nueva con razón social).
 const SQL_VISTA = `select r.id, r.cliente_id, r.doc_tipo, r.doc_numero, r.destino, r.activa, r.version,
-    r.periodo_aprendido::text as periodo_aprendido, r.creada_por, r.creada_en, r.actualizada_en,
+    r.periodo_aprendido::text as periodo_aprendido, r.creada_por, r.creada_en, r.actualizada_en, r.origen,
     (select c.razon_social from compra c
       where c.cliente_id = r.cliente_id and btrim(c.doc_tipo) = r.doc_tipo
         and ${DOC_NUMERO_NORMALIZADO("c.doc_numero")} = r.doc_numero and c.razon_social is not null
@@ -38,6 +38,7 @@ const aReglaFila = (f: Fila): ReglaFila => ({
   razonSocial: (f.razon_social as string | null) ?? null,
   aplicada: f.aplicada as number,
   aceptada: f.aceptada as number,
+  origen: f.origen as OrigenRegla,
 });
 
 /** Reglas vivas del cliente (activas e inactivas), en orden de creación. Un cliente ajeno o inexistente devuelve `[]`. */
@@ -57,4 +58,18 @@ export async function leerRegla(
   const r = await consultar(tx, SQL_VISTA, [clienteId, reglaId]);
   const f = r.rows[0];
   return f ? aReglaFila(f) : null;
+}
+
+// Solo documentos: lo que R-STD (025, D-8) necesita para no sugerir a un proveedor con regla activa. Sin razón social ni conteos.
+const SQL_PROVEEDORES_CON_REGLA = `select doc_tipo, doc_numero from regla_aprendida
+  where cliente_id = $1 and eliminada_en is null and activa order by doc_tipo, doc_numero`;
+
+/** Proveedores del cliente con regla viva y ACTIVA (del destino que sea). Un cliente ajeno o inexistente devuelve `[]`. */
+export async function leerProveedoresConRegla(
+  tx: TxConsulta,
+  clienteId: string,
+): Promise<{ tipo: string; numero: string }[]> {
+  if (!esUuidRegla(clienteId)) return [];
+  const r = await consultar(tx, SQL_PROVEEDORES_CON_REGLA, [clienteId]);
+  return r.rows.map((f) => ({ tipo: f.doc_tipo as string, numero: f.doc_numero as string }));
 }

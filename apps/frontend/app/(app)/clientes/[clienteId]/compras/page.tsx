@@ -122,7 +122,11 @@ function Compras() {
     null,
   );
 
-  const [filtros, setFiltros] = useState<FiltrosCompras>(FILTROS_INICIALES);
+  // `?q=` (enlace de 025, U-6) llega con la búsqueda por RUC ya puesta: una línea, sin controles, con el tope del servidor.
+  const [filtros, setFiltros] = useState<FiltrosCompras>(() => ({
+    ...FILTROS_INICIALES,
+    q: (busqueda.get("q") ?? "").replace(/\p{Cc}/gu, "").trim().slice(0, 100),
+  }));
   const sResumen = useSecuencia();
   const sPropuestas = useSecuencia();
 

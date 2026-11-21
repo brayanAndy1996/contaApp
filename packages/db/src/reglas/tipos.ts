@@ -3,6 +3,9 @@
 
 export type DestinoRegla = "DG" | "DGNG" | "DNG";
 
+/** Quién creó la regla (025): «Recordar» del contador o la activación de una candidata importada del historial. */
+export type OrigenRegla = "contador" | "importacion";
+
 /** Una regla aprendida viva, con la razón social más reciente del proveedor en el cliente y los contadores de P-4. */
 export interface ReglaFila {
   id: string;
@@ -23,6 +26,8 @@ export interface ReglaFila {
   aplicada: number;
   /** Aplicaciones que seguían en el destino al revisar su periodo. */
   aceptada: number;
+  /** 025: `importacion` solo si la creó `reglas_candidatas_activar`. */
+  origen: OrigenRegla;
 }
 
 /** Códigos de rechazo del repositorio; el backend los traduce a HTTP (404, 409 y 422). */

@@ -45,6 +45,7 @@ export function AceptarSugerencias({
   alTerminar,
   alCancelar,
   alAvisar,
+  alAceptar,
 }: {
   contexto: ContextoCompras;
   fila: FilaCompraVista;
@@ -52,6 +53,8 @@ export function AceptarSugerencias({
   alTerminar: () => void;
   alCancelar: () => void;
   alAvisar?: AlAvisar;
+  /** Spec 025 (CA-10): se llama con el hallazgo aceptado, antes de `alTerminar`; la grilla ofrece «Recordar» tras R-STD. */
+  alAceptar?: (hallazgo: HallazgoVista) => void;
 }) {
   const [paso, setPaso] = useState<Paso>({ tipo: "lista" });
   const [gravado, setGravado] = useState("");
@@ -96,6 +99,7 @@ export function AceptarSugerencias({
       if (r.ok) {
         await recargarTrasExito(contexto, fila.id);
         alAvisar?.(M.sugerenciaAceptada, "ok");
+        alAceptar?.(hallazgo);
         alTerminar();
         return;
       }

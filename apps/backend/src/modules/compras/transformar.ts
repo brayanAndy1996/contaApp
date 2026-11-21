@@ -113,14 +113,16 @@ const firma = (h: { sugerencia: unknown; lecturas: unknown; requiereConfirmacion
  * H-016-10 y H-016-11: con un XML en el comprobante, lo que la lupa mostró (el hallazgo guardado) tiene que ser lo que dan HOY
  * las reglas con el XML vigente (leído tras el bloqueo) y la bandera P-4 actual. Si el XML vigente cambió o la bandera cambió
  * desde la evaluación, el resultado difiere y no se aplica. Sin XML (ni antes ni ahora: un XML guardado no se borra) el entorno
- * de 016 no cambió y basta el contraste de 014.
+ * de 016 no cambió y basta el contraste de 014. Excepción (025, D-9): R-STD se respalda en el perfil del cliente, no en el XML, y el
+ * perfil se lee al evaluar; por eso se contrasta SIEMPRE con la evaluación actual, tenga o no XML (un perfil cambiado desde que se
+ * guardó el hallazgo da `revisar_de_nuevo`).
  */
 async function sigueVigente(
   actual: CompraConXml,
   guardado: HallazgoGuardadoCompra,
   evaluar: EvaluarCompra | undefined,
 ): Promise<boolean> {
-  if (actual.xml === null) return true;
+  if (actual.xml === null && guardado.regla !== "R-STD") return true;
   if (evaluar === undefined) return false;
   const hoy = ((await evaluar(actual)) ?? []).find((h) => h.regla === guardado.regla);
   return hoy !== undefined && firma(hoy) === firma(guardado);

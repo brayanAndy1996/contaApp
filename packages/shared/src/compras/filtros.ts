@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { sinControles } from "./esquemas.js";
+import { reglaCompraSchema, sinControles } from "./esquemas.js";
 
 // Spec 014 (D-13). Query string de GET …/compras: todo llega como texto y aquí se convierte. Los booleanos
 // no usan `coerce`: "false" no puede dar true.
@@ -26,6 +26,8 @@ export const listarComprasSchema = z.object({
   proveedorNuevo: booleanoSchema.optional(),
   /** Spec 021: solo las filas cuya versión vigente viene del historial. */
   segunHistorial: booleanoSchema.optional(),
+  /** Spec 025: solo las filas con un hallazgo de esa regla (la grilla filtra por `R-STD`). */
+  regla: reglaCompraSchema.optional(),
   /** Prefijo de RUC, fragmento de razón social o serie-número. Los comodines los escapa el repositorio. */
   q: z.string().max(BUSQUEDA_MAX).refine(sinControles).optional(),
 });

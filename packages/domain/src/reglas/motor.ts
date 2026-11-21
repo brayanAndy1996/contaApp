@@ -9,6 +9,7 @@ import { evaluarGastoPersonal } from "./r-gp";
 import { evaluarMix } from "./r-mix";
 import { evaluarNuevo } from "./r-new";
 import { evaluarRed } from "./r-red";
+import { evaluarEstandar } from "./r-std";
 import { ORDEN_REGLAS } from "./tipos";
 import type { Aviso, ContextoReglas, FilaEvaluable, Hallazgo, ResultadoEvaluacion } from "./tipos";
 
@@ -67,6 +68,7 @@ export function evaluarFila(fila: FilaInterna, contexto: ContextoInterno): Halla
   if (!apagadas.has("R-RED")) hallazgos.push(...conHallazgo(evaluarRed(fila)));
   if (!apagadas.has("R-NEW")) hallazgos.push(...conHallazgo(evaluarNuevo(fila, contexto)));
   if (!apagadas.has("R-GP")) hallazgos.push(...conHallazgo(evaluarGastoPersonal(fila, contexto)));
+  if (!apagadas.has("R-STD")) hallazgos.push(...conHallazgo(evaluarEstandar(fila, contexto)));
   return apagadas.size === 0 ? hallazgos : hallazgos.filter((h) => !apagadas.has(h.regla));
 }
 

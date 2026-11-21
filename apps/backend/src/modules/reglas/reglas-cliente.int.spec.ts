@@ -94,6 +94,7 @@ const CLAVES_REGLA = [
   "creadaPor",
   "destino",
   "id",
+  "origen", // 025 (D-5): "contador" (Recordar) o "importacion" (candidata activada)
   "periodoAprendido",
   "proveedor",
   "version",
@@ -133,6 +134,7 @@ describe("GET /clientes/:clienteId/reglas (HU-31, RF-114, CA-7)", () => {
       destino: "DNG",
       activa: true,
       version: 1,
+      origen: "contador", // 025: la sembrada sin `origen` queda con el valor por defecto
       periodoAprendido: APRENDIDO,
       aplicada: 0,
       aceptada: 0,

@@ -22,6 +22,7 @@ import {
   type ContextoCompras,
   type ResultadoCompras,
 } from "../../lib/compras";
+import { MENSAJES_APRENDIZAJE as A } from "../../lib/aprendizaje";
 import { RecordarTrasClasificar } from "../reglas/recordar-tras-clasificar";
 import { Button, Input, Label, velo } from "../ui";
 import type { AlAvisar } from "./accion-compras";
@@ -89,6 +90,9 @@ export function BarraMasiva({
     .map((f) => ({ compraId: f.id, versionBase: f.version }));
   const hayRed = filas.some(
     (f) => seleccion.has(f.id) && f.hallazgos.some((h) => h.regla === "R-RED"),
+  );
+  const hayStd = filas.some(
+    (f) => seleccion.has(f.id) && f.hallazgos.some((h) => h.regla === "R-STD"),
   );
   const demasiadas = items.length > TOPE_SELECCION;
   const bloqueo = contexto.soloLectura;
@@ -178,6 +182,16 @@ export function BarraMasiva({
     );
   };
 
+  // Spec 025 (CA-9, CA-10): R-STD no pide dato ni confirmación; tras aplicarse se ofrece «Recordar» con DNG.
+  const aceptarStd = () => {
+    const cuerpo = masivaAceptarSchema.safeParse({ items, regla: "R-STD" });
+    if (!cuerpo.success) return invalida();
+    void aplicar(
+      () => masivaAceptarCompras(contexto.clienteId, contexto.periodo, cuerpo.data),
+      "DNG",
+    );
+  };
+
   function excluir(evento: FormEvent<HTMLFormElement>): void {
     evento.preventDefault();
     const limpio = motivo.trim();
@@ -235,6 +249,10 @@ export function BarraMasiva({
             {boton(M.aceptarRed, aceptarRed, {
               deshabilitado: !hayRed,
               ayuda: hayRed ? undefined : M.aceptarRedSinSugerencia,
+            })}
+            {boton(A.aceptarStd, aceptarStd, {
+              deshabilitado: !hayStd,
+              ayuda: hayStd ? undefined : A.aceptarStdSinSugerencia,
             })}
             {alLimpiarSeleccion && (
               <Button

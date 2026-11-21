@@ -6,6 +6,7 @@ import {
 } from "@contapp/shared";
 import { api, type RespuestaApi } from "./api";
 import { ETIQUETA_ROL } from "./acceso";
+import { MENSAJES_APRENDIZAJE } from "./aprendizaje";
 import { etiquetaAutor } from "./autor";
 
 // Consulta de auditoría (spec 017, P-2; CA-12, CA-14): lista paginada por fecha, sin filtros. Todo lo que llega se
@@ -93,7 +94,12 @@ const ACCIONES: Record<AccionAuditoria, string> = {
   "buzon.adjunto_descargado": "Descargó un adjunto del buzón SOL",
   "buzon.atendido": "Marcó como atendido un mensaje del buzón SOL",
   "buzon.atencion_deshecha": "Deshizo la atención de un mensaje del buzón SOL",
+  "regla.historial_importado": "Importó el historial de un cliente",
+  "regla.candidata_descartada": "Descartó una candidata del historial",
 };
+
+/** Spec 025 (D-5): una regla creada al activar una candidata del historial no se lee como «Recordó una regla». */
+const ACCION_REGLA_IMPORTADA = "Activó una regla del historial para un proveedor";
 
 /** Acción en español; una clave fuera del catálogo (no debería llegar) sale genérica, nunca el código crudo. */
 export function textoAccion(
@@ -105,6 +111,7 @@ export function textoAccion(
     if (datos?.via === "invitacion") return MENSAJES_AUDITORIA.seUnio;
     if (datos?.via === "registro") return MENSAJES_AUDITORIA.creoEstudio;
   }
+  if (accion === "regla.creada" && datos?.origen === "importacion") return ACCION_REGLA_IMPORTADA;
   return (ACCIONES as Record<string, string>)[accion] ?? "Realizó una acción";
 }
 
@@ -311,6 +318,13 @@ export function lineasDetalle(fila: FilaDetalle): string[] {
     } else if (accion.startsWith("asignacion.")) {
       parte("Tipo", traducir(TIPOS_ASIGNACION, datos.tipo, "Otro tipo"));
     }
+  }
+  // Spec 025: solo valores simples; nunca el id de la importación ni de la candidata.
+  if (accion === "regla.creada" && datos.origen === "importacion") {
+    parte("Origen", MENSAJES_APRENDIZAJE.origenImportacion);
+  }
+  if (accion === "regla.historial_importado" && typeof datos.periodos === "number") {
+    parte("Periodos", String(datos.periodos));
   }
   if (typeof datos.filas === "number") parte("Filas", String(datos.filas));
   if (typeof datos.version === "number") parte("Versión", String(datos.version));

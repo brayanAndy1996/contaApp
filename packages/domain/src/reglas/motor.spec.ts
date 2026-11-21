@@ -39,8 +39,8 @@ const filaCargada = (id = "f1"): FilaEvaluable =>
   });
 
 describe("orden y contrato de salida", () => {
-  it("ORDEN_REGLAS es R-ISC, R-MIX, R-RED, R-NEW, R-GP", () => {
-    expect(ORDEN_REGLAS).toEqual(["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP"]);
+  it("ORDEN_REGLAS es R-ISC, R-MIX, R-RED, R-NEW, R-GP y, al final, R-STD (025)", () => {
+    expect(ORDEN_REGLAS).toEqual(["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP", "R-STD"]);
   });
 
   it("sin filas: sin hallazgos ni avisos", () => {

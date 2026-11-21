@@ -19,8 +19,8 @@ const filas = (): FilaEvaluable[] => [
     xml: xml({ comprobante: COM("5"), glosas: ["ZAPATILLAS URBANAS T-42"] }),
   }),
 ];
-const CODIGOS_011: readonly CodigoRegla[] = ["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP"];
-const FILA_DE: Record<CodigoRegla, string> = { "R-ISC": "isc", "R-MIX": "mix", "R-RED": "red", "R-NEW": "new", "R-GP": "gp" };
+const CODIGOS_011 = ["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP"] as const satisfies readonly CodigoRegla[];
+const FILA_DE: Record<(typeof CODIGOS_011)[number], string> = { "R-ISC": "isc", "R-MIX": "mix", "R-RED": "red", "R-NEW": "new", "R-GP": "gp" };
 
 const reglas = (apagadas?: readonly CodigoReglaMotor[]) =>
   evaluar(filas(), apagadas === undefined ? ctx() : ctx({ reglasApagadas: apagadas })).hallazgos.map((h) => `${h.filaId}:${h.regla}`);
@@ -50,6 +50,11 @@ describe("reglasApagadas (CA-8)", () => {
 
   it("R-HIS apagado es un código válido y no afecta a las reglas de 011", () => {
     expect(reglas(["R-HIS"])).toEqual(reglas());
+  });
+
+  it("R-STD apagado (025) es un código válido y no afecta a las reglas de 011; sin modo estándar tampoco cambia nada", () => {
+    expect(reglas(["R-STD"])).toEqual(reglas());
+    expect(reglas(["R-STD", "R-HIS"])).toEqual(reglas());
   });
 
   it("un código repetido no cambia nada", () => {

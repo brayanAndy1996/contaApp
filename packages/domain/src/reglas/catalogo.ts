@@ -9,13 +9,14 @@ export interface ReglaMotorCatalogo {
 
 const regla = (codigo: CodigoReglaMotor, descripcion: string): ReglaMotorCatalogo => Object.freeze({ codigo, descripcion });
 
-/** Las cinco reglas de 011 en `ORDEN_REGLAS` y R-HIS, con una descripción simple para la pantalla del estudio. */
+/** Las reglas de `ORDEN_REGLAS` (las cinco de 011 y R-STD de 025) y R-HIS, con una descripción simple para la pantalla del estudio. */
 export const CATALOGO_REGLAS_MOTOR: readonly ReglaMotorCatalogo[] = Object.freeze([
   regla("R-ISC", "Detecta montos sin IGV que pueden ser ISC (impuesto selectivo al consumo)."),
   regla("R-MIX", "Detecta comprobantes con una parte gravada y otra no gravada."),
   regla("R-RED", "Detecta descuadres pequeños por redondeo en el total."),
   regla("R-NEW", "Avisa cuando un proveedor no tiene historial en el cliente."),
   regla("R-GP", "Detecta posibles gastos personales por la descripción de los ítems."),
+  regla("R-STD", "Sugiere DNG en clientes de la Amazonía con ventas exoneradas y sin ventas mixtas."),
   regla("R-HIS", "Clasifica las compras nuevas según lo aprendido del cliente para cada proveedor."),
 ]);
 
