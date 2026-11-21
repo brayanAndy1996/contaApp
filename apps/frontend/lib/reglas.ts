@@ -117,11 +117,17 @@ export type ResultadoReglas<T> =
   | { ok: true; status: number; datos: T }
   | { ok: false; status: number; codigo: string; mensaje: string };
 
-const fallo = (status: number, datos: unknown): ResultadoReglas<never> => ({
+type MensajeDeError = (status: number, datos: unknown) => string;
+
+const fallo = (
+  status: number,
+  datos: unknown,
+  mensaje: MensajeDeError = mensajeDeErrorReglas,
+): ResultadoReglas<never> => ({
   ok: false,
   status,
   codigo: codigoDe(datos),
-  mensaje: mensajeDeErrorReglas(status, datos),
+  mensaje: mensaje(status, datos),
 });
 
 const respuestaInvalida = (status: number): ResultadoReglas<never> => ({
@@ -131,14 +137,16 @@ const respuestaInvalida = (status: number): ResultadoReglas<never> => ({
   mensaje: MENSAJES.errorGeneral,
 });
 
-interface Esquema<T> {
+export interface Esquema<T> {
   safeParse(valor: unknown): { success: boolean; data?: T };
 }
 
-async function pedir<T>(
+/** `mensaje` permite a otras pantallas de reglas (025) traducir sus propios códigos de error. */
+export async function pedir<T>(
   ruta: string,
   esquema: Esquema<T> | null,
   opciones: { method?: string; body?: unknown } = {},
+  mensaje: MensajeDeError = mensajeDeErrorReglas,
 ): Promise<ResultadoReglas<T>> {
   let r;
   try {
@@ -146,14 +154,14 @@ async function pedir<T>(
   } catch {
     return respuestaInvalida(0);
   }
-  if (!r.ok) return fallo(r.status, r.datos);
+  if (!r.ok) return fallo(r.status, r.datos, mensaje);
   if (esquema === null) return { ok: true, status: r.status, datos: undefined as T };
   const analizado = esquema.safeParse(r.datos);
   if (!analizado.success || analizado.data === undefined) return respuestaInvalida(r.status);
   return { ok: true, status: r.status, datos: analizado.data };
 }
 
-const rutaReglas = (clienteId: string): string => `/clientes/${encodeURIComponent(clienteId)}/reglas`;
+export const rutaReglas = (clienteId: string): string => `/clientes/${encodeURIComponent(clienteId)}/reglas`;
 
 const esquemaLista: Esquema<ReglaVista[]> = {
   safeParse(valor) {

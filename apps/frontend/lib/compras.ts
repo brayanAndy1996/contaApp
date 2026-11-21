@@ -303,6 +303,7 @@ export const MENSAJES_COMPRAS = {
     "R-RED": "Redondeo",
     "R-NEW": "Proveedor nuevo",
     "R-GP": "Glosa de gasto personal",
+    "R-STD": "DNG por perfil",
   },
 
   // Masivas, informe, deshacer y rehacer (D-8, D-9, P-4).
@@ -488,6 +489,8 @@ export interface FiltrosCompras {
   proveedorNuevo: boolean;
   /** Solo las filas que aplicó R-HIS (spec 021). Opcional para no romper a quien arma los filtros a mano (ausente = false). */
   segunHistorial?: boolean;
+  /** Solo las filas con el hallazgo R-STD (spec 025, D-8). Ausente = sin filtro; lo aplica el servidor. */
+  regla?: "R-STD";
   q: string;
 }
 
@@ -641,6 +644,7 @@ export function consultaDeListado(
   if (filtros.alertas) q.set("alertas", "true");
   if (filtros.proveedorNuevo) q.set("proveedorNuevo", "true");
   if (filtros.segunHistorial) q.set("segunHistorial", "true");
+  if (filtros.regla !== undefined) q.set("regla", filtros.regla);
   const busqueda = filtros.q.trim();
   if (busqueda !== "") q.set("q", busqueda);
   if (cursor !== undefined) q.set("cursor", cursor);

@@ -18,7 +18,7 @@ Nivel A (U-7). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T10 | Migraciones 0061–0062, esquema drizzle y `packages/db/src/aprendizaje/` | backend | opus | T3, T4 ∥ T8, T9 | ✓ | — | [ ] |
 | T11 | Worker: procesador `reglas.historial.importar` y perfil en la evaluación | backend | sonnet | T5, T8, T9, T10 ∥ T12, T13 | ✓ | — | [ ] |
 | T12 | Backend: módulo `aprendizaje`, `entornoDeReglas` con perfil y `origen` en reglas | backend | sonnet | T6, T8, T9, T10 ∥ T11, T13 | ✓ | — | [ ] |
-| T13 | Frontend: importar, revisar y activar; origen; R-STD en la grilla y en el motor | frontend | sonnet | T7, T9 ∥ T10–T12 | ✓ | — | [ ] |
+| T13 | Frontend: importar, revisar y activar; origen; R-STD en la grilla y en el motor | frontend | sonnet | T7, T9 ∥ T10–T12 | ✓ | — | [x] |
 | T14 | Cobertura ≥ 90 % por archivo: `cobertura:aprendizaje` en CI; `cobertura:reglas` y `cobertura:sunat` en verde | devops | haiku | T8, T10, T11, T12 ∥ T13 | — | — | [ ] |
 | T15 | Ronda adversarial 1: aislamiento, permisos, funciones acotadas, cola y concurrencia (≤ 15 pruebas) | adversario | opus | T11, T12, T14 ∥ T13, T21 | — | ✓ | [ ] |
 | T16 | Pruebas de las correcciones de la ronda 1 (rojo) | tester | sonnet | T15 | ✓ | — | [ ] |
@@ -124,10 +124,11 @@ Reglas comunes:
 - **Hacer**: módulo `aprendizaje` (controlador, servicios, errores) con iniciar → encolar → fijar trabajo; mapeo de errores y reintento único; `perfil` y proveedores con regla en `entornoDeReglas`; `origen` en las vistas de reglas. Registrar el módulo.
 - **Hecho cuando**: las de T6 pasan (incluida la de rendimiento) y las del backend siguen verdes (HU-40 y `rutas.spec.ts` incluidas); `cobertura:reglas` del backend en verde; typecheck y lint limpios. Commit `feat(025): rutas de importación y candidatas`.
 
-## T13 · [ ] Frontend (frontend · sonnet)
+## T13 · [x] Frontend (frontend · sonnet)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: Frontend), pruebas de T7, `docs/specs/038-diseno-visual/plan.md` (solo «Tokens del estilo A» y la lista de componentes), `apps/frontend/components/ui/index.ts`, `apps/frontend/lib/{api,reglas,trabajos,auditoria}.ts`, `apps/frontend/components/reglas/*.tsx`, `apps/frontend/app/(app)/clientes/[clienteId]/reglas/page.tsx`, `apps/frontend/components/compras/{aceptar-sugerencia,filtros-compras}.tsx`.
 - **Hacer**: `components/reglas/{importar-historial,candidatas-importadas,activar-candidatas}.tsx` y su lugar en la página de reglas; origen en la tabla; R-STD en el motor, la etiqueta, el filtro y «Recordar»; textos de las acciones de auditoría. Nada de `dangerouslySetInnerHTML`; mensajes de 403/409 en español.
 - **Hecho cuando**: las de T7 pasan; las del frontend y `diseno.estatico.spec.ts` siguen verdes; typecheck y lint limpios. Commit `feat(025): importar historial, revisar candidatas y R-STD en pantalla`.
+- **Resultado T13**: verde `apps/frontend` (136 archivos, 1257 pruebas, las 59 de T7 sin tocar; `diseno.estatico` incluido), lint y typecheck limpios. Nuevos `lib/aprendizaje.ts` (textos de T7, cliente HTTP, `frecuencia`, `rutaGrilla`) y `components/reglas/{importar-historial,candidatas-importadas,activar-candidatas}.tsx` (en la página de reglas); ajustados `lib/{compras,reglas,auditoria}.ts`, `tabla-reglas-cliente`, `filtros-compras`, `barra-masiva`, `aceptar-sugerencia`, `acciones-fila-compras` y la página de compras (lee `?q=`). Para T12: `listarComprasSchema` no tiene `regla` (no se añadió); `shared` no trae el esquema de la respuesta de descartar (`{descartadas, omitidas}`, validada a mano en el cliente) ni totales por grupo en `candidatas` (el total de «Activar todas» con más de una página es una estimación desde `resumen`).
 
 ## T14 · [ ] Cobertura (devops · haiku)
 - **Contexto (leer solo esto)**: `package.json` (raíz: `cobertura:bandeja` como modelo), `.github/workflows/ci.yml` (paso de `cobertura:bandeja`), `packages/db/vitest.cobertura-bandeja.config.mts`, `apps/backend/vitest.cobertura-bandeja.config.mts`, `apps/worker/vitest.cobertura-buzon.config.mts`, `packages/domain/vitest.cobertura-reglas.config.mts`.

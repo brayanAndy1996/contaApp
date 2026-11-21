@@ -3,6 +3,7 @@
 import { DESTINOS_COMPRA, type DestinoCompra } from "@contapp/shared";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { MENSAJES, cargarYo, tiene, type Yo } from "../../lib/acceso";
+import { MENSAJES_APRENDIZAJE as A } from "../../lib/aprendizaje";
 import { fechaHoraLima } from "../../lib/fechas";
 import {
   MENSAJES_REGLAS as M,
@@ -232,6 +233,11 @@ export function TablaReglasCliente({ clienteId }: { clienteId: string }) {
                         <span className="block font-mono">{numero}</span>
                         {r.proveedor.razonSocial !== null && (
                           <span className="block text-tinta-media">{r.proveedor.razonSocial}</span>
+                        )}
+                        {r.origen === "importacion" && (
+                          <Badge tono="info" className="mt-1">
+                            {A.origenImportacion}
+                          </Badge>
                         )}
                       </div>
                     </TableCell>
