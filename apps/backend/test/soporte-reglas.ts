@@ -38,7 +38,8 @@ export type { Actor, BancoCompras, Estudio, Montos };
 
 export type Destino = "DG" | "DGNG" | "DNG";
 export const APRENDIDO = "202609";
-export const CODIGOS_MOTOR = ["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP", "R-HIS"] as const;
+// 025: R-STD entra al catálogo del motor antes de R-HIS (orden de `CATALOGO_REGLAS_MOTOR` del dominio).
+export const CODIGOS_MOTOR = ["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP", "R-STD", "R-HIS"] as const;
 
 /** Rutas de reglas del cliente. */
 export const rutaReglas = (clienteId: string): string => `/clientes/${clienteId}/reglas`;

@@ -142,7 +142,7 @@ export const base = (clienteId: string, periodo = PERIODO): string =>
 // --- Hallazgos ------------------------------------------------------------------------------------------------------
 
 export interface HallazgoSembrado {
-  regla: "R-ISC" | "R-MIX" | "R-RED" | "R-NEW" | "R-GP";
+  regla: "R-ISC" | "R-MIX" | "R-RED" | "R-NEW" | "R-GP" | "R-STD";
   sugerencia: unknown;
   lecturas: Record<string, string>;
   requiereConfirmacion: boolean;

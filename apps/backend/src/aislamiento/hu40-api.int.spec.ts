@@ -20,6 +20,12 @@
 // :mensajeId/atencion`) y amplía `GET /clientes` con el indicador `buzon` y el filtro `conMensajesNuevos`: ids de B, solos o mezclados
 // con los propios, dan 404 (400 si el parámetro o el cursor no es del contrato) y nada de B en la respuesta; `buzon_mensaje`,
 // `buzon_atencion` y la auditoría de ambos estudios quedan intactos. Rojo hasta T7 (tablas y columnas) y T8 (rutas).
+// 025 (T6) agrega las 6 rutas del aprendizaje del historial (`POST …/reglas/importaciones`, `GET …/importaciones/ultima`, `GET …/candidatas`,
+// `POST …/candidatas/activar`, `…/candidatas/:candidataId/reemplazar` y `…/candidatas/descartar`): cada estudio tiene una importación
+// completada y una candidata pendiente en su primer cliente (sembradas por SQL); sus ids, el RUC y la razón social del proveedor son marcas
+// de fuga. Un usuario de A con ids de B (cliente, importación, candidata), solos o mezclados con los propios, recibe 404 (o 403 sin
+// `reglas.gestionar`) igual que ante un id inexistente, y `regla_importacion`, `regla_candidata`, las reglas y los trabajos de ambos
+// estudios quedan intactos. Rojo hasta T10 (tablas) y T12 (rutas): sin tablas la siembra falla y solo fallan los casos nuevos.
 // 006 (T3) agrega los casos de `/registro/*`, `GET /plan/uso` y las 6 rutas `/plataforma/*` (CA-8): los usuarios de A
 // (ninguno super-admin) con IDs, tokens y correos de B. Rojo hasta T7 (uso), T8 (registro) y T9 (plataforma).
 import { createHash, randomBytes, randomUUID } from "node:crypto";
@@ -94,6 +100,11 @@ interface Recursos {
   /** Asunto y nombre del adjunto: textos únicos que tampoco deben verse desde el otro estudio. */
   asuntoBuzon: string;
   nombreAdjunto: string;
+  /** 025: importación completada y candidata pendiente del primer cliente (sembradas por SQL; ausentes si faltan las tablas). */
+  importacionId?: string;
+  candidataId?: string;
+  /** 025: RUC y razón social del proveedor de la candidata (marcas de fuga). */
+  proveedorCandidata?: { numero: string; razonSocial: string };
 }
 interface Sesion {
   cookie: string;
@@ -159,6 +170,11 @@ interface SembradoAvisos {
 }
 const sembradoAvisos = new Map<string, SembradoAvisos>();
 let falloSiembraAvisos: string | null = null;
+/** 025: si la siembra de importaciones y candidatas falló (¿tablas de T10?), el motivo; los casos nuevos lo muestran. */
+let falloSiembra025: string | null = null;
+/** 025: candidatas sembradas (se quitan antes que las reglas y los clientes). */
+const candidatasSembradas: string[] = [];
+const importacionesSembradas: string[] = [];
 
 const todos = (...n: number[]): Esperado => ({ dueno: n, asistente: n });
 const E404: Esperado = { dueno: [404], asistente: [403, 404] };
@@ -312,6 +328,33 @@ async function sembrarAvisos(r: Recursos): Promise<SembradoAvisos> {
   return sembrado;
 }
 
+/**
+ * 025: una importación completada y una candidata pendiente (DNG, sin regla viva) en el primer cliente del estudio, por SQL. El RUC del
+ * proveedor y su razón social son únicos de la prueba: marcas de fuga. Sin las tablas de T10 falla (42P01) y lo captura el arranque.
+ */
+async function sembrarAprendizaje(r: Recursos, etiqueta: "A" | "B"): Promise<void> {
+  const numero = `20${String(Math.floor(Math.random() * 1e9)).padStart(9, "0")}`;
+  const razonSocial = `HU40 ${etiqueta} proveedor importado ${sufijo}`;
+  const imp = await h.sql(
+    `insert into regla_importacion (tenant_id, cliente_id, estado, periodos, periodo_hasta, solicitada_por, solicitada_en, terminada_en,
+       periodos_leidos, periodos_sin_datos, candidatas, sin_criterio)
+     values ($1, $2, 'completada', '{202610,202609,202608}'::char(6)[], '202610', $3, now() - interval '1 day',
+       now() - interval '1 day' + interval '1 minute', 3, '{}'::char(6)[], 1, 0) returning id`,
+    [r.tenantId, r.clientes[0], r.dueno.id],
+  );
+  importacionesSembradas.push(imp[0].id);
+  const cand = await h.sql(
+    `insert into regla_candidata (tenant_id, cliente_id, importacion_id, doc_tipo, doc_numero, razon_social, destino_propuesto,
+       n_dg, n_dgng, n_dng, n_mixto, n_total, periodos_con_proveedor, estado)
+     values ($1, $2, $3, '6', $4, $5, 'DNG', 0, 0, 4, 1, 5, 3, 'pendiente') returning id`,
+    [r.tenantId, r.clientes[0], imp[0].id, numero, razonSocial],
+  );
+  candidatasSembradas.push(cand[0].id);
+  r.importacionId = imp[0].id;
+  r.candidataId = cand[0].id;
+  r.proveedorCandidata = { numero, razonSocial };
+}
+
 /** Marcadores: todo lo que existe en `de` y no en `contra` (los usuarios de ambos, como uAB, no cuentan). */
 async function calcularMarcadores(
   de: Recursos,
@@ -347,9 +390,15 @@ async function calcularMarcadores(
     de.reglaId,
     de.mensajeId,
     de.adjuntoId,
+    ...(de.importacionId ? [de.importacionId] : []),
+    ...(de.candidataId ? [de.candidataId] : []),
   ]);
   const correos = new Set<string>([de.invitacionCorreo]);
   const otros = new Set<string>([de.nombre, de.asuntoBuzon, de.nombreAdjunto]);
+  if (de.proveedorCandidata) {
+    otros.add(de.proveedorCandidata.numero);
+    otros.add(de.proveedorCandidata.razonSocial);
+  }
   for (const f of clientesDe) {
     ids.add(f.id);
     otros.add(f.razon_social);
@@ -413,6 +462,21 @@ async function instantanea(
       "select to_jsonb(g) j from buzon_estado_cliente g where tenant_id = $1 and cliente_id = any($2::uuid[]) order by cliente_id",
       [r.tenantId, r.clientes],
     ),
+    // 025: importaciones y candidatas (0061). Mientras las tablas no existan (rojo) la instantánea no las incluye y no rompe los casos de 004 a 024.
+    regla_importacion: await q(
+      "select to_jsonb(g) j from regla_importacion g where tenant_id = $1 and cliente_id = any($2::uuid[]) order by id",
+      [r.tenantId, r.clientes],
+    ).catch((e: { code?: string }) => {
+      if (e.code === "42P01") return [];
+      throw e;
+    }),
+    regla_candidata: await q(
+      "select to_jsonb(g) j from regla_candidata g where tenant_id = $1 and cliente_id = any($2::uuid[]) order by id",
+      [r.tenantId, r.clientes],
+    ).catch((e: { code?: string }) => {
+      if (e.code === "42P01") return [];
+      throw e;
+    }),
     // 024: historial de atención (0059). Mientras la tabla no exista (rojo) la instantánea no la incluye y no rompe los casos de 004 a 023.
     buzon_atencion: await q(
       "select to_jsonb(g) j from buzon_atencion g where tenant_id = $1 and cliente_id = any($2::uuid[]) order by id",
@@ -800,7 +864,7 @@ function casosNotificaciones(): Caso[] {
  * nunca un dato ni un cambio en B; la asistente (sin reglas.gestionar) recibe 403 en toda escritura, antes de mirar el recurso. */
 const NO_ENCONTRADO = { codigo: "no_encontrado" };
 const PERMISO_DENEGADO = { codigo: "permiso_denegado" };
-const CODIGOS_MOTOR = ["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP", "R-HIS"];
+const CODIGOS_MOTOR = ["R-ISC", "R-MIX", "R-RED", "R-NEW", "R-GP", "R-STD", "R-HIS"]; // 025: R-STD antes de R-HIS
 
 /** Pares (cliente, regla) con ids del otro estudio solos y mezclados con los propios; ninguno existe para quien llama. */
 const paresDeRegla = (c: Contexto): [string, string][] => [
@@ -1293,6 +1357,192 @@ function casosBuzon(): Caso[] {
         expect(cruzado.status, cruzado.text).toBe(404);
         expect(cruzado.body).toEqual(NO_ENCONTRADO);
       },
+    },
+  ];
+}
+
+/* ---------------------------- 025 · aprendizaje del historial ----------------------------
+ * `/clientes/:clienteId/reglas/importaciones*` y `/clientes/:clienteId/reglas/candidatas*`: leer exige `reglas.ver` y escribir
+ * `reglas.gestionar`. Un cliente, una importación o una candidata de B desde A: el mismo 404 `no_encontrado` que ante un id inexistente,
+ * nunca un dato ni un cambio en B ni en A (un lote que mezcla ids propios y ajenos no aplica nada: P0002 a todo); la asistente (sin
+ * `reglas.gestionar`) recibe 403 en toda escritura, antes de mirar el recurso. `activar` con `todas` y una importación ajena da 400 o 404. */
+/** Pares (cliente, candidata) con ids del otro estudio solos y mezclados con los propios; ninguno existe para quien llama. */
+const paresDeCandidata = (c: Contexto): [string, string][] => [
+  [c.ajeno.clientes[0], c.ajeno.candidataId!], // todo ajeno y real
+  [c.mio.clientes[0], c.ajeno.candidataId!], // cliente propio (visible para la asistente), candidata de B
+  [c.mio.clientes[1], c.ajeno.candidataId!], // cliente propio, candidata de B
+  [c.ajeno.clientes[1], c.ajeno.candidataId!], // otro cliente de B con la candidata de B
+  [c.ajeno.clientes[0], randomUUID()], // cliente de B, candidata inexistente
+  [c.ajeno.asignacionId, c.ajeno.candidataId!], // id de otra cosa de B como cliente
+  [c.mio.clientes[0], c.ajeno.asignacionId], // id de otra cosa de B como candidata
+];
+
+/** Las candidatas sembradas de ambos estudios siguen pendientes y sin regla ni quien las resolviera. */
+async function candidatasIntactas(c: Contexto): Promise<void> {
+  const ids = [c.mio.candidataId, c.ajeno.candidataId].filter((x): x is string => x !== undefined);
+  expect(ids, "la siembra de 025 falló (¿tablas de T10?)").toHaveLength(2);
+  const f = await h.sql("select id, estado, regla_id, destino_elegido, resuelta_por from regla_candidata where id = any($1::uuid[]) order by id", [ids]);
+  expect(f).toHaveLength(2);
+  for (const x of f) expect(x).toMatchObject({ estado: "pendiente", regla_id: null, destino_elegido: null, resuelta_por: null });
+}
+
+function casosAprendizaje(): Caso[] {
+  const exigirSiembra = (): void => expect(falloSiembra025, "la siembra de 025 falló (¿tablas de T10?)").toBeNull();
+  /** Escrituras con ids de B: la asistente (sin reglas.gestionar) recibe 403; el Dueño, el 404 de siempre y lo mismo que ante un id inexistente. */
+  const verificarEscritura = async (c: Contexto, respuestas: Resp[], referencia: Pet, exactas = respuestas.length): Promise<void> => {
+    exigirSiembra();
+    const ref = await c.pedir(referencia);
+    expect(ref.status, ref.text).toBe(c.yo.rol === "asistente" ? 403 : 404);
+    if (c.yo.rol === "asistente") {
+      for (const r of respuestas) {
+        expect(r.status, r.text).toBe(403);
+        expect(r.body).toEqual(PERMISO_DENEGADO);
+      }
+    } else {
+      respuestas.forEach((r, i) => {
+        if (i < exactas) {
+          expect(r.status, r.text).toBe(404);
+          expect(r.body).toEqual(NO_ENCONTRADO);
+          expect(r.text).toBe(ref.text);
+        } else expect([400, 404], r.text).toContain(r.status); // `todas` con la importación de B
+      });
+    }
+    await candidatasIntactas(c);
+    await reglaIntacta(c.ajeno);
+    await reglaIntacta(c.mio);
+  };
+  const lectura = async (c: Contexto, respuestas: Resp[], ruta: (cl: string) => string, propio: (r: Resp) => void): Promise<void> => {
+    exigirSiembra();
+    // Cliente de otro estudio, no visible o inexistente: el mismo 404, sin revelar cuál es.
+    const noExiste = await c.pedir({ ruta: ruta(randomUUID()) });
+    expect(noExiste.status).toBe(404);
+    expect(noExiste.body).toEqual(NO_ENCONTRADO);
+    mismoNoEncontrado(respuestas, noExiste);
+    // Propio y visible: lo suyo y nada de B.
+    const mio = await c.pedir({ ruta: ruta(c.mio.clientes[0]) });
+    expect(mio.status, mio.text).toBe(200);
+    propio(mio);
+    for (const marca of [c.ajeno.importacionId!, c.ajeno.candidataId!, c.ajeno.proveedorCandidata!.numero, c.ajeno.proveedorCandidata!.razonSocial])
+      expect(mio.text).not.toContain(marca);
+    // Propio y no visible (la asistente solo ve su cliente asignado).
+    const noVisible = await c.pedir({ ruta: ruta(c.mio.clientes[1]) });
+    if (c.yo.rol === "asistente") {
+      expect(noVisible.status, noVisible.text).toBe(404);
+      expect(noVisible.text).toBe(noExiste.text);
+    } else {
+      expect(noVisible.status, noVisible.text).toBe(200);
+    }
+  };
+
+  return [
+    {
+      ruta: "POST /clientes/:clienteId/reglas/importaciones",
+      esperado: { dueno: [404], asistente: [403] },
+      construir: (c) =>
+        idsDeCliente(c.ajeno).map((id) => ({
+          metodo: "POST" as const,
+          ruta: `/clientes/${id}/reglas/importaciones`,
+          cuerpo: { periodos: 6, tenantId: c.ajeno.tenantId },
+        })),
+      extra: async (c, respuestas) => {
+        await verificarEscritura(c, respuestas, { metodo: "POST", ruta: `/clientes/${randomUUID()}/reglas/importaciones`, cuerpo: { periodos: 6 } });
+        // Ningún trabajo de importación en ninguno de los dos estudios (la instantánea de `job_registro` lo confirma por cliente).
+        const n = await h.sql("select count(*)::int n from job_registro where tipo = 'reglas.historial.importar' and cliente_id = any($1::uuid[])", [
+          [...c.mio.clientes, ...c.ajeno.clientes],
+        ]);
+        expect(n[0].n).toBe(0);
+      },
+    },
+    {
+      ruta: "GET /clientes/:clienteId/reglas/importaciones/ultima",
+      esperado: { dueno: [404], asistente: [404] },
+      construir: (c) => idsDeCliente(c.ajeno).map((id) => ({ ruta: `/clientes/${id}/reglas/importaciones/ultima` })),
+      extra: async (c, respuestas) =>
+        lectura(
+          c,
+          respuestas,
+          (cl) => `/clientes/${cl}/reglas/importaciones/ultima`,
+          (r) => {
+            // Con cliente propio: la importación sembrada, con su id y sin la de B.
+            expect(r.body.importacion?.id).toBe(c.mio.importacionId);
+          },
+        ),
+    },
+    {
+      ruta: "GET /clientes/:clienteId/reglas/candidatas",
+      esperado: { dueno: [404], asistente: [404] },
+      construir: (c) => idsDeCliente(c.ajeno).map((id) => ({ ruta: `/clientes/${id}/reglas/candidatas?grupo=propuestas` })),
+      extra: async (c, respuestas) =>
+        lectura(
+          c,
+          respuestas,
+          (cl) => `/clientes/${cl}/reglas/candidatas?grupo=propuestas`,
+          (r) => {
+            expect((r.body.candidatas as any[]).map((x) => x.id)).toEqual([c.mio.candidataId]);
+          },
+        ),
+    },
+    {
+      ruta: "POST /clientes/:clienteId/reglas/candidatas/activar",
+      esperado: { dueno: [400, 404], asistente: [403] },
+      construir: (c) => [
+        ...idsDeCliente(c.ajeno).map((id) => ({
+          metodo: "POST" as const,
+          ruta: `/clientes/${id}/reglas/candidatas/activar`,
+          cuerpo: { items: [{ id: c.ajeno.candidataId }] },
+        })),
+        // Cliente propio: candidata ajena sola, mezclada con la propia (P0002 a todo: ni la propia se activa) e inexistente.
+        { metodo: "POST" as const, ruta: `/clientes/${c.mio.clientes[0]}/reglas/candidatas/activar`, cuerpo: { items: [{ id: c.ajeno.candidataId }] } },
+        {
+          metodo: "POST" as const,
+          ruta: `/clientes/${c.mio.clientes[0]}/reglas/candidatas/activar`,
+          cuerpo: { items: [{ id: c.mio.candidataId }, { id: c.ajeno.candidataId }] },
+        },
+        { metodo: "POST" as const, ruta: `/clientes/${c.mio.clientes[0]}/reglas/candidatas/activar`, cuerpo: { items: [{ id: randomUUID() }] } },
+        // `todas` con la importación de B: nunca activa nada (400 o 404; no revela si existe).
+        { metodo: "POST" as const, ruta: `/clientes/${c.mio.clientes[0]}/reglas/candidatas/activar`, cuerpo: { todas: true, importacionId: c.ajeno.importacionId } },
+        { metodo: "POST" as const, ruta: `/clientes/${c.ajeno.clientes[0]}/reglas/candidatas/activar`, cuerpo: { todas: true, importacionId: c.ajeno.importacionId } },
+      ],
+      extra: async (c, respuestas) => {
+        exigirSiembra();
+        // Las de `items` son 404 exactos; solo las dos últimas, de `todas`, admiten 400.
+        await verificarEscritura(
+          c,
+          respuestas,
+          { metodo: "POST", ruta: `/clientes/${randomUUID()}/reglas/candidatas/activar`, cuerpo: { items: [{ id: randomUUID() }] } },
+          respuestas.length - 2,
+        );
+        // Con el cliente de B (no existe para quien llama) la importación ajena tampoco se distingue: 404.
+        if (c.yo.rol !== "asistente") expect(respuestas[respuestas.length - 1]!.status).toBe(404);
+      },
+    },
+    {
+      ruta: "POST /clientes/:clienteId/reglas/candidatas/:candidataId/reemplazar",
+      esperado: { dueno: [404], asistente: [403] },
+      construir: (c) =>
+        paresDeCandidata(c).map(([cl, cand]) => ({
+          metodo: "POST" as const,
+          ruta: `/clientes/${cl}/reglas/candidatas/${cand}/reemplazar`,
+          cuerpo: { versionRegla: 1, destino: "DG", tenantId: c.ajeno.tenantId },
+        })),
+      extra: (c, respuestas) =>
+        verificarEscritura(c, respuestas, { metodo: "POST", ruta: `/clientes/${randomUUID()}/reglas/candidatas/${randomUUID()}/reemplazar`, cuerpo: { versionRegla: 1 } }),
+    },
+    {
+      ruta: "POST /clientes/:clienteId/reglas/candidatas/descartar",
+      esperado: { dueno: [404], asistente: [403] },
+      construir: (c) => [
+        ...idsDeCliente(c.ajeno).map((id) => ({
+          metodo: "POST" as const,
+          ruta: `/clientes/${id}/reglas/candidatas/descartar`,
+          cuerpo: { ids: [c.ajeno.candidataId], tenantId: c.ajeno.tenantId },
+        })),
+        { metodo: "POST" as const, ruta: `/clientes/${c.mio.clientes[0]}/reglas/candidatas/descartar`, cuerpo: { ids: [c.ajeno.candidataId] } },
+        { metodo: "POST" as const, ruta: `/clientes/${c.mio.clientes[0]}/reglas/candidatas/descartar`, cuerpo: { ids: [c.mio.candidataId, c.ajeno.candidataId] } },
+        { metodo: "POST" as const, ruta: `/clientes/${c.mio.clientes[0]}/reglas/candidatas/descartar`, cuerpo: { ids: [randomUUID()] } },
+      ],
+      extra: (c, respuestas) =>
+        verificarEscritura(c, respuestas, { metodo: "POST", ruta: `/clientes/${randomUUID()}/reglas/candidatas/descartar`, cuerpo: { ids: [randomUUID()] } }),
     },
   ];
 }
@@ -2320,6 +2570,9 @@ const CASOS: Caso[] = [
 
   /* ---------- 023: buzón SOL del cliente ---------- */
   ...casosBuzon(),
+
+  /* ---------- 025: aprendizaje del historial ---------- */
+  ...casosAprendizaje(),
 ];
 
 const POR_RUTA = new Map(CASOS.map((c) => [c.ruta, c]));
@@ -2333,6 +2586,13 @@ beforeAll(async () => {
   const s = seedAuth();
   A = await prepararEstudio(s.tenantA, "A");
   B = await prepararEstudio(s.tenantB, "B");
+  // 025: si las tablas de T10 aún no existen la siembra falla y solo fallan los casos nuevos (los demás no la necesitan).
+  try {
+    await sembrarAprendizaje(A, "A");
+    await sembrarAprendizaje(B, "B");
+  } catch (e) {
+    falloSiembra025 = e instanceof Error ? e.message : String(e);
+  }
   await calcularMarcadores(A, B);
   await calcularMarcadores(B, A);
   // 017: si las tablas de T7 aún no existen, la siembra falla y solo fallan los casos nuevos (los demás no la necesitan).
@@ -2352,6 +2612,9 @@ async function limpiar(): Promise<void> {
   await borrarPorId("notificacion", todos.flatMap((x) => [...x.notifDueno, ...x.notifAsistente]));
   await borrarPorId("auditoria", todos.flatMap((x) => x.auditoria));
   await borrarPorId("auditoria_descifrado", todos.flatMap((x) => x.descifrado));
+  // 025: las candidatas apuntan a importaciones y a reglas; todas van antes que las reglas y los clientes.
+  await h.sql("delete from regla_candidata where cliente_id = any($1::uuid[])", [clientesCreados]).catch(() => undefined);
+  await h.sql("delete from regla_importacion where cliente_id = any($1::uuid[])", [clientesCreados]).catch(() => undefined);
   await h.sql("delete from regla_aprendida where id = any($1::uuid[])", [reglasSembradas]).catch(() => undefined);
   // 023: el adjunto referencia al mensaje y este al cliente: van antes que los clientes.
   await h.sql("delete from buzon_adjunto where mensaje_id = any($1::uuid[])", [mensajesBuzonSembrados]).catch(() => undefined);
@@ -2549,6 +2812,35 @@ describe("HU-40 por API · 017 · las pruebas no son vacías (notificaciones y a
       const aud = await pedir(a, "/auditoria");
       expect(aud.status).toBe(403);
       expect(aud.body).toEqual({ codigo: "permiso_denegado" });
+    }
+  });
+});
+
+describe("HU-40 por API · 025 · las pruebas no son vacías (importación y candidata propias)", () => {
+  it("cada estudio ve su importación y su candidata en su primer cliente y nunca las del otro; la asistente las lee y no las escribe", async () => {
+    expect(falloSiembra025, "la siembra de 025 falló (¿tablas de T10?)").toBeNull();
+    for (const [mio, ajeno] of [
+      [A, B],
+      [B, A],
+    ] as const) {
+      const d = await abrirSesion(mio.dueno, mio.tenantId);
+      const pedir = (s: Sesion, ruta: string, o: { metodo?: Peticion["metodo"]; cuerpo?: unknown } = {}) =>
+        h.pedir({ ruta, cookie: s.cookie, csrf: s.csrf, estudio: mio.tenantId, ...o });
+      const ultima = await pedir(d, `/clientes/${mio.clientes[0]}/reglas/importaciones/ultima`);
+      expect(ultima.status, ultima.text).toBe(200);
+      expect(ultima.body.importacion).toMatchObject({ id: mio.importacionId, estado: "completada" });
+      expect(ultima.text).not.toContain(ajeno.importacionId!);
+      const cands = await pedir(d, `/clientes/${mio.clientes[0]}/reglas/candidatas?grupo=propuestas`);
+      expect(cands.status, cands.text).toBe(200);
+      expect((cands.body.candidatas as any[]).map((x) => x.id)).toEqual([mio.candidataId]);
+      expect(cands.body.candidatas[0].proveedor).toEqual({ tipo: "6", numero: mio.proveedorCandidata!.numero, razonSocial: mio.proveedorCandidata!.razonSocial });
+      expect(cands.text).not.toContain(ajeno.candidataId!);
+      expect(cands.text).not.toContain(ajeno.proveedorCandidata!.numero);
+
+      const a = await abrirSesion(mio.asistente, mio.tenantId);
+      expect((await pedir(a, `/clientes/${mio.clientes[0]}/reglas/candidatas?grupo=propuestas`)).status).toBe(200);
+      const escribe = await pedir(a, `/clientes/${mio.clientes[0]}/reglas/candidatas/activar`, { metodo: "POST", cuerpo: { items: [{ id: mio.candidataId }] } });
+      expect(escribe.status, escribe.text).toBe(403);
     }
   });
 });

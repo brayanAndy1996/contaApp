@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- cuerpos JSON y filas de BD dinámicos en pruebas */
 // Spec 021 (T5, rojo): reglas del motor por estudio por HTTP (RF-089, D-9, P-8, P-10; CA-8, CA-13).
 // Contrato (plan 021, «Contratos: HTTP»; forma de `reglasMotorSchema`, `fijarReglaMotorSchema` y `fijarAporteSchema` de `@contapp/shared`):
-//  - `GET /estudio/reglas-motor` (`reglas.ver`) -> 200 `{reglas: [{codigo, descripcion, activa}], aportarCatalogo}` con los seis códigos de
-//    `CODIGOS_REGLA_MOTOR` en orden (R-ISC, R-MIX, R-RED, R-NEW, R-GP, R-HIS); sin fila guardada = encendida; la prevalidación de 012
+//  - `GET /estudio/reglas-motor` (`reglas.ver`) -> 200 `{reglas: [{codigo, descripcion, activa}], aportarCatalogo}` con los siete códigos de
+//    `CODIGOS_REGLA_MOTOR` en orden (R-ISC, R-MIX, R-RED, R-NEW, R-GP, R-STD, R-HIS; R-STD es de 025); sin fila guardada = encendida; la prevalidación de 012
 //    no figura (P-8). Sin configuración guardada, `aportarCatalogo = true`.
 //  - `PUT /estudio/reglas-motor/:codigo {activa}` y `PUT /estudio/reglas-motor/aporte {aportar}`: `reglas.gestionar` Y rol de alcance
 //    global (dueño o administrador); sin ellos 403. Un código fuera del catálogo (la prevalidación, minúsculas…) es 404. La ruta
@@ -56,7 +56,7 @@ const guardadas = async (tenantId: string): Promise<any[]> =>
   v.b.sql("select codigo, activa from estudio_regla_motor where tenant_id = $1 order by codigo", [tenantId]);
 
 describe("GET /estudio/reglas-motor (RF-089, CA-8)", () => {
-  it("200 con los seis códigos en orden, descripción simple, todas encendidas y el aporte encendido", async () => {
+  it("200 con los siete códigos en orden (R-STD de 025 antes de R-HIS), descripción simple, todas encendidas y el aporte encendido", async () => {
     const r = await leer(admin);
     expect(r.status, r.text).toBe(200);
     expect(cumple("reglasMotorSchema", r.body), r.text).toBe(true);
@@ -75,7 +75,7 @@ describe("GET /estudio/reglas-motor (RF-089, CA-8)", () => {
     const r = await leer(admin);
     expect(r.status, r.text).toBe(200);
     expect(r.text).not.toMatch(/prevalidaci/i);
-    expect(r.body.reglas).toHaveLength(6);
+    expect(r.body.reglas).toHaveLength(7);
   });
 
   it.each([
@@ -117,7 +117,7 @@ describe("PUT /estudio/reglas-motor/:codigo (CA-8)", () => {
     expect(r.headers["cache-control"]).toMatch(/no-store/);
     const e = await estado(lectura);
     expect(e[codigo]).toBe(false);
-    expect(Object.entries(e).filter(([, activa]) => activa)).toHaveLength(5);
+    expect(Object.entries(e).filter(([, activa]) => activa)).toHaveLength(6);
     expect(await guardadas(E.tenantId)).toEqual([{ codigo, activa: false }]);
   });
 
