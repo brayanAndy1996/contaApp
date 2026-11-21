@@ -39,7 +39,7 @@ export function ActivarCandidatas({
   importacionId: string;
   /** Las propuestas pendientes sin conflicto: las que «Activar todas» crearía. */
   aActivar: number;
-  /** Las que se saltaría (con conflicto o sin criterio claro). */
+  /** Las «sin criterio claro» (el único dato de omitidas que se conoce antes de activar; los conflictos no se cuentan aquí). */
   omitidas: number;
   /** AAAAMM de la grilla de compras a la que enlaza el aviso de U-6. */
   periodoAbierto: string;
@@ -117,10 +117,14 @@ export function ActivarCandidatas({
               {M.omitidas(n, motivo)}
             </p>
           ))}
-          <p className="m-0">{M.avisoPeriodoCargado}</p>
-          <Link href={rutaGrilla(clienteId, periodoAbierto)} className={`${enlace} max-lg:py-3 self-start`}>
-            {M.irAGrilla}
-          </Link>
+          {resultado.activadas.length > 0 && (
+            <>
+              <p className="m-0">{M.avisoPeriodoCargado}</p>
+              <Link href={rutaGrilla(clienteId, periodoAbierto)} className={`${enlace} max-lg:py-3 self-start`}>
+                {M.irAGrilla}
+              </Link>
+            </>
+          )}
         </div>
       )}
     </div>

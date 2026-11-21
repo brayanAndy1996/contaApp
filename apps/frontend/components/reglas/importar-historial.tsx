@@ -36,10 +36,13 @@ const OPCIONES = Array.from({ length: PERIODOS_IMPORTACION_MAX }, (_, i) => Stri
 export function ImportarHistorial({
   clienteId,
   alCompletar,
+  alNoEncontrado,
 }: {
   clienteId: string;
   /** Se llama una vez que el trabajo de la importación terminó bien y la última importación se volvió a leer. */
   alCompletar?: () => void;
+  /** Se llama si el servidor responde 404 al leer (cliente no visible): la página decide cómo avisarlo, una sola vez. */
+  alNoEncontrado?: () => void;
 }) {
   const puedeGestionar = usePuede(PERMISO_APRENDIZAJE_GESTIONAR) === true;
   const [importacion, setImportacion] = useState<ImportacionVista | null>(null);
@@ -54,8 +57,10 @@ export function ImportarHistorial({
   const [error, setError] = useState<string | null>(null);
   const botonRef = useRef<HTMLButtonElement>(null);
   const alCompletarRef = useRef(alCompletar);
+  const alNoEncontradoRef = useRef(alNoEncontrado);
   useEffect(() => {
     alCompletarRef.current = alCompletar;
+    alNoEncontradoRef.current = alNoEncontrado;
   });
 
   const leer = useCallback(async (): Promise<ImportacionVista | null> => {
@@ -63,6 +68,7 @@ export function ImportarHistorial({
       const r = await ultimaImportacion(clienteId);
       if (!r.ok) {
         setErrorLectura(r.mensaje);
+        if (r.status === 404) alNoEncontradoRef.current?.();
         return null;
       }
       setErrorLectura(null);

@@ -29,6 +29,7 @@ Nivel A (U-7). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T20 | Corregir los hallazgos de la ronda 2 (sin migración: 0065 no hizo falta) | backend | opus | T19 | — | — | [x] |
 | T21 | E2E: importar 6 periodos → revisar → activar → descarga siguiente «Según historial»; selva → R-STD → aceptar en masa | tester | sonnet | T11, T12, T13 ∥ T15–T20 | — | — | [x] |
 | T22 | Prueba manual con el sistema levantado y adaptadores en `mock` | tester | sonnet | T20, T21 | — | — | [x] |
+| T22a | Corregir los defectos de pantalla D1–D3 de la prueba manual | frontend | sonnet | T22 | — | — | [x] |
 | T23 | Verificar CA-1 a CA-14 con evidencia, suites completas, `db:migrate` ×2 y coberturas | tester | sonnet | T22 (y T22a si existe) | — | — | [ ] |
 | T24 | Revisión final contra la spec | arquitecto | opus | T23 | — | — | [ ] |
 | T25 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T24 (y T24b si existe) | — | — | [ ] |
@@ -250,6 +251,12 @@ Defectos y observaciones (no se tocó código):
 - **D4** (observación) «Resueltas» solo lista la última importación: tras una segunda importación no se ven las activadas y descartadas de la primera (siguen en BD, CA-5 se cumple).
 - **D5** (observación) «Sin criterio claro» y «Con conflicto» no ofrecen «Descartar»; solo «Propuestas».
 - Nota de entorno (no es defecto): el límite de login por IP (`login_ip`, 20 cada 10 min) dio 429 tras ~25 inicios de sesión de la prueba; se vació `auth.limite_tasa` de `contapp_025t22`.
+
+## T22a · [x] Defectos de pantalla de la prueba manual (frontend · sonnet)
+- **Contexto (leer solo esto)**: resultado de T22 (D1–D3), `apps/frontend/components/reglas/{candidatas-importadas,activar-candidatas,importar-historial,tabla-reglas-cliente}.tsx` con sus specs, `apps/frontend/app/(app)/clientes/[clienteId]/reglas/page.tsx`.
+- **Hacer**: D1, el diálogo de «Activar todas» no afirma un número de omitidas que no conoce; D2, mostrar el motivo de lo omitido al activar y releer la tabla de reglas aunque se activen 0; D3, con el cliente no visible (404) un solo aviso y sin acciones. Sin cambiar el contrato HTTP. Pruebas en rojo primero.
+- **Hecho cuando**: lint, typecheck y todas las pruebas de `apps/frontend` en verde (con `diseno.estatico`). Commit `fix(025): T22a defectos de pantalla de la prueba manual`.
+- **Resultado (T22a, hecho)**: D1: el resumen de la importación no cuenta los conflictos y el frontend no los conoce antes de activar, así que el texto ya no da un número para ellos: «Se activarán N reglas. Quedan fuera 3 sin criterio claro y las que tengan conflicto con una regla vigente.» (sin la parte de «sin criterio» si es 0; singular con 1). D2: «Activar seleccionadas/una» muestra una línea por motivo con lo que el servidor omitió («1 omitida · ya no estaba pendiente»), la página relee la tabla de reglas tras activar aunque sean 0 (también con «Activar todas») y con 0 activadas no se muestra el aviso de U-6 ni el enlace a la grilla. D3: `ImportarHistorial`, `CandidatasImportadas` y `TablaReglasCliente` avisan con `alNoEncontrado` ante un 404 y la página pinta un solo «No se encontró lo que buscas.» sin «Importar historial», candidatas ni tabla (queda «Volver al cliente», que es navegación). Pruebas nuevas, en rojo antes de corregir (7 de 7): `components/reglas/defectos-t22a.spec.tsx` (D1 ×2, D2 ×3) y `app/(app)/clientes/[clienteId]/reglas/page.t22a.spec.tsx` (D3, D2 en la página). Único texto cambiado en las suites previas: `confirmarTodas` en `pruebas/aprendizaje.ts` (copia del de `lib/aprendizaje.ts`); ninguna prueba de T7/T13/T20 se debilitó. `pnpm lint`, `pnpm typecheck` y `pnpm test` de `apps/frontend`: 139 archivos, 1266 pruebas en verde. D4 y D5 (observaciones) quedan como están.
 
 ## T23 · [ ] Verificar (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (CA-1 a CA-14), `tasks.md` (resultados), `package.json` (scripts).

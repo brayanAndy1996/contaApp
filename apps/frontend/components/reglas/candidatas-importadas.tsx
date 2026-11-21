@@ -1,6 +1,6 @@
 "use client";
 
-import { DESTINOS_COMPRA, GRUPOS_CANDIDATAS, type DestinoCompra } from "@contapp/shared";
+import { DESTINOS_COMPRA, GRUPOS_CANDIDATAS, MOTIVOS_OMISION_CANDIDATA, type DestinoCompra } from "@contapp/shared";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MENSAJES, usePuede } from "../../lib/acceso";
@@ -43,13 +43,23 @@ const SIN_ANUNCIO: Anuncio = { texto: "", activados: null, omitidas: [] };
 /** Más de estos enlaces por proveedor se resumen en uno solo al periodo. */
 const MAX_ENLACES = 5;
 
+/** Una línea por motivo con lo que el servidor omitió al activar (en el orden de `MOTIVOS_OMISION_CANDIDATA`). */
+function lineasDeOmitidas(omitidas: RespuestaActivar["omitidas"]): string[] {
+  return MOTIVOS_OMISION_CANDIDATA.map((motivo) => [motivo, omitidas.filter((o) => o.motivo === motivo).length] as const)
+    .filter(([, n]) => n > 0)
+    .map(([motivo, n]) => M.omitidas(n, motivo));
+}
+
 export function CandidatasImportadas({
   clienteId,
   alCrearReglas,
+  alNoEncontrado,
 }: {
   clienteId: string;
-  /** Se llama tras activar o reemplazar (hay reglas nuevas o cambiadas): la página vuelve a leer la tabla de reglas. */
+  /** Se llama tras activar (aunque sean 0) o reemplazar: la página vuelve a leer la tabla de reglas. */
   alCrearReglas?: () => void;
+  /** Se llama si el servidor responde 404 al leer (cliente no visible): la página decide cómo avisarlo, una sola vez. */
+  alNoEncontrado?: () => void;
 }) {
   const puedeGestionar = usePuede(PERMISO_APRENDIZAJE_GESTIONAR) === true;
   const [importacion, setImportacion] = useState<ImportacionVista | null | undefined>(undefined);
@@ -65,6 +75,10 @@ export function CandidatasImportadas({
   const [ocupado, setOcupado] = useState(false);
   // Descarta lecturas que llegan tarde (cambio de pestaña o relectura en medio).
   const secuencia = useRef(0);
+  const alNoEncontradoRef = useRef(alNoEncontrado);
+  useEffect(() => {
+    alNoEncontradoRef.current = alNoEncontrado;
+  });
 
   const importacionId = importacion?.id ?? null;
 
@@ -77,6 +91,7 @@ export function CandidatasImportadas({
         else {
           setImportacion(null);
           setError(r.mensaje);
+          if (r.status === 404) alNoEncontradoRef.current?.();
         }
       })
       .catch(() => {
@@ -98,6 +113,7 @@ export function CandidatasImportadas({
         if (mia !== secuencia.current) return;
         if (!r.ok) {
           setError(r.mensaje);
+          if (r.status === 404) alNoEncontradoRef.current?.();
         } else {
           setError(null);
           setSiguiente(r.datos.siguiente);
@@ -168,13 +184,15 @@ export function CandidatasImportadas({
     ejecutar(async () => {
       const r = await activarCandidatas(clienteId, { items });
       if (!r.ok) return { ok: false, mensaje: r.mensaje };
-      if (r.datos.activadas.length > 0) alCrearReglas?.();
+      // Otra pestaña pudo crear la regla aunque aquí se activen 0: la tabla de reglas se relee siempre.
+      alCrearReglas?.();
       return {
         ok: true,
         exito: {
           texto: M.reglasActivadas(r.datos.activadas.length),
-          activados: proveedoresDe(r.datos.activadas),
-          omitidas: [],
+          // Sin reglas nuevas no hay aviso de U-6 (rige desde la próxima descarga).
+          activados: r.datos.activadas.length > 0 ? proveedoresDe(r.datos.activadas) : null,
+          omitidas: lineasDeOmitidas(r.datos.omitidas),
         },
       };
     });
@@ -217,8 +235,8 @@ export function CandidatasImportadas({
   };
 
   const periodoAbierto = periodoDespuesDe(importacion?.periodos ?? []);
-  const alActivarTodas = (respuesta: RespuestaActivar) => {
-    if (respuesta.activadas.length > 0) alCrearReglas?.();
+  const alActivarTodas = () => {
+    alCrearReglas?.();
     setAnuncio(SIN_ANUNCIO);
     setSeleccion(new Set());
     void recargar();

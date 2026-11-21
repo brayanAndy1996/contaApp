@@ -51,7 +51,14 @@ type Boton = "editar" | "alternar" | "eliminar" | "destino" | "guardar";
 const clave = (reglaId: string, boton: Boton) => `${reglaId}:${boton}`;
 const ENCABEZADO = "encabezado";
 
-export function TablaReglasCliente({ clienteId }: { clienteId: string }) {
+export function TablaReglasCliente({
+  clienteId,
+  alNoEncontrado,
+}: {
+  clienteId: string;
+  /** Se llama si el servidor responde 404 al leer la lista (cliente no visible): la página decide cómo avisarlo. */
+  alNoEncontrado?: () => void;
+}) {
   const [yo, setYo] = useState<Yo | null>(null);
   const [reglas, setReglas] = useState<ReglaVista[]>([]);
   const [cargado, setCargado] = useState(false);
@@ -62,6 +69,10 @@ export function TablaReglasCliente({ clienteId }: { clienteId: string }) {
   const [anuncio, setAnuncio] = useState("");
   const [foco, setFoco] = useState<string | null>(null);
   const enCurso = useRef(false);
+  const alNoEncontradoRef = useRef(alNoEncontrado);
+  useEffect(() => {
+    alNoEncontradoRef.current = alNoEncontrado;
+  });
   const elementos = useRef(new Map<string, HTMLElement>());
 
   /** Ref de callback que registra el elemento bajo su clave. */
@@ -84,7 +95,10 @@ export function TablaReglasCliente({ clienteId }: { clienteId: string }) {
   const leer = useCallback(async (): Promise<void> => {
     const r = await listarReglas(clienteId);
     if (r.ok) setReglas(r.datos);
-    else if (r.status !== 401) setError(r.mensaje);
+    else if (r.status !== 401) {
+      setError(r.mensaje);
+      if (r.status === 404) alNoEncontradoRef.current?.();
+    }
   }, [clienteId]);
 
   useEffect(() => {

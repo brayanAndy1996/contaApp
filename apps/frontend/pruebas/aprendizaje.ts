@@ -217,8 +217,10 @@ export const MENSAJES_APRENDIZAJE = {
   reglaCambiada: R_BASE.reglaCambiada,
   // Activar todas (D-6, U-6).
   activarTodas: "Activar todas",
-  confirmarTodas: (activar: number, omitir: number) =>
-    `Se activarán ${activar} reglas. Se omitirán ${omitir} con conflicto o sin criterio claro.`,
+  confirmarTodas: (activar: number, sinCriterio: number) =>
+    `${activar === 1 ? "Se activará 1 regla" : `Se activarán ${activar} reglas`}. Quedan fuera ${
+      sinCriterio > 0 ? `${sinCriterio} sin criterio claro y ` : ""
+    }las que tengan conflicto con una regla vigente.`,
   confirmar: "Confirmar",
   omitidas: (n: number, motivo: "conflicto" | "ya_aprendida" | "no_pendiente" | "sin_criterio") => {
     const etiqueta = {
