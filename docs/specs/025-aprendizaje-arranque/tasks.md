@@ -18,7 +18,7 @@ Nivel A (U-7). Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) �
 | T10 | Migraciones 0061–0062, esquema drizzle y `packages/db/src/aprendizaje/` | backend | opus | T3, T4 ∥ T8, T9 | ✓ | — | [x] |
 | T11 | Worker: procesador `reglas.historial.importar` y perfil en la evaluación | backend | sonnet | T5, T8, T9, T10 ∥ T12, T13 | ✓ | — | [x] |
 | T11a | Migración 0063: proveedores con regla activa para R-STD sin depender de R-HIS; usarla en el worker | backend | opus | T11 | — | — | [x] |
-| T12 | Backend: módulo `aprendizaje`, `entornoDeReglas` con perfil y `origen` en reglas | backend | sonnet | T6, T8, T9, T10 ∥ T11, T13 | ✓ | — | [ [x] |
+| T12 | Backend: módulo `aprendizaje`, `entornoDeReglas` con perfil y `origen` en reglas | backend | sonnet | T6, T8, T9, T10 ∥ T11, T13 | ✓ | — | [x] |
 | T13 | Frontend: importar, revisar y activar; origen; R-STD en la grilla y en el motor | frontend | sonnet | T7, T9 ∥ T10–T12 | ✓ | — | [x] |
 | T14 | Cobertura ≥ 90 % por archivo: `cobertura:aprendizaje` en CI; `cobertura:reglas` y `cobertura:sunat` en verde | devops | haiku | T8, T10, T11, T12 ∥ T13 | — | — | [x] |
 | T15 | Ronda adversarial 1: aislamiento, permisos, funciones acotadas, cola y concurrencia (≤ 15 pruebas) | adversario | opus | T11, T12, T14 ∥ T13, T21 | — | ✓ | [ ] |
