@@ -137,6 +137,7 @@ describe("0047-0049 · columnas y tipos (plan: Contratos · BD)", () => {
       "actualizada_en",
       "eliminada_en",
       "eliminada_por",
+      "origen", // Spec 025 (T3, 0061): 'contador' | 'importacion'
     ],
     estudio_regla_motor: [
       "tenant_id",
@@ -329,9 +330,13 @@ describe("0047-0049 · RLS ENABLE + FORCE y catalogo de 002 (CA-5)", () => {
 
 // =================================================================================================
 describe("0047-0049 · grants (plan: Contratos · BD)", () => {
-  it("regla_aprendida: el backend lee e inserta; UPDATE solo de destino, activa, version, periodo_aprendido, actualizada_* y eliminada_*; nunca DELETE ni TRUNCATE", async () => {
+  it("regla_aprendida: el backend lee e inserta por columnas SIN origen (025: solo la funcion de activar escribe 'importacion'); UPDATE solo de destino, activa, version, periodo_aprendido, actualizada_* y eliminada_*; nunca DELETE ni TRUNCATE", async () => {
     expect(await privilegio("contapp_backend", "regla_aprendida", "SELECT")).toBe(true);
-    expect(await privilegio("contapp_backend", "regla_aprendida", "INSERT")).toBe(true);
+    // Spec 025 (T3, 0061): el INSERT pasa de la tabla entera a las columnas que usa «Recordar»; `origen` queda fuera.
+    const insertables = await columnasConPrivilegio("contapp_backend", "regla_aprendida", "INSERT");
+    expect(insertables).not.toContain("origen");
+    for (const k of ["cliente_id", "doc_tipo", "doc_numero", "destino", "activa", "version", "periodo_aprendido", "creada_por", "actualizada_por"])
+      expect(insertables, `INSERT de ${k}`).toContain(k);
     for (const p of ["DELETE", "TRUNCATE"])
       expect(await privilegio("contapp_backend", "regla_aprendida", p), p).toBe(false);
     expect(await columnasConPrivilegio("contapp_backend", "regla_aprendida", "UPDATE")).toEqual(
@@ -446,8 +451,8 @@ describe("0047-0049 · CHECK (destino, version, codigo, origen)", () => {
     expect(codigo(await insertarRegla("DNG", 0, "202609"))).toBe("23514");
   });
 
-  it("estudio_regla_motor: acepta R-ISC, R-MIX, R-RED, R-NEW, R-GP y R-HIS; rechaza otro codigo, tambien la prevalidacion (P-8)", async () => {
-    for (const c of CODIGOS_MOTOR) {
+  it("estudio_regla_motor: acepta R-ISC, R-MIX, R-RED, R-NEW, R-GP, R-HIS y (025, 0061) R-STD; rechaza otro codigo, tambien la prevalidacion (P-8)", async () => {
+    for (const c of [...CODIGOS_MOTOR, "R-STD"]) {
       expect(
         codigo(
           await intentar(
