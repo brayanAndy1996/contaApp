@@ -22,7 +22,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → cobe
 | T13 | Frontend: pantalla de prorrata del cliente | frontend | sonnet | T7, T9 ∥ T10–T12 | ✓ | — | [x] |
 | T14 | Cobertura ≥ 90 % por archivo: `cobertura:prorrata` y paso en CI | devops | haiku | T8, T10, T11, T12 ∥ T13 | — | — | [x] |
 | T14a | Pruebas para cerrar la cobertura de la prorrata | tester | sonnet | T14 | — | — | [x] |
-| T15 | Ronda adversarial 1: aislamiento, permisos, funciones acotadas, cola y concurrencia (≤ 15 pruebas) | adversario | opus | T11, T12, T14 ∥ T13, T21 | — | ✓ | [ ] |
+| T15 | Ronda adversarial 1: aislamiento, permisos, funciones acotadas, cola y concurrencia (≤ 15 pruebas) | adversario | opus | T11, T12, T14 ∥ T13, T21 | — | ✓ | [x] |
 | T16 | Pruebas de las correcciones de la ronda 1 (rojo) | tester | sonnet | T15 | ✓ | — | [x] |
 | T17 | Corregir los hallazgos de la ronda 1 (migración 0067 si hace falta) | backend | opus | T16 | — | — | [x] |
 | T18 | Ronda adversarial 2: dinero y coeficiente, orígenes, entradas del PDT y del manual, secretos (≤ 15 pruebas) | adversario | opus | T17 | — | ✓ | [ ] |
