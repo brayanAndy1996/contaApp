@@ -560,9 +560,10 @@ describe("D15 · auth.limite_consumir('registro_confirmar_ip') y el CHECK de tip
 });
 
 // =================================================================================================
-describe("Ajustes de soporte (T13a): FUNCIONES_AUTH sigue en 28 y 0025 no agrega sobrecargas", () => {
-  it("la lista de pruebas tiene 28 funciones y la BD tiene exactamente esas, una por nombre", async () => {
-    expect(FUNCIONES_AUTH).toHaveLength(28);
+// Ajuste de 027 (T3, migracion 0070): FUNCIONES_AUTH suma las cuatro `auth.gnd_global_*` de plataforma (FUNCIONES_AUTH_GND): 28 + 4 = 32.
+describe("Ajustes de soporte (T13a): FUNCIONES_AUTH (28 de 006 + 4 de 027) y 0025 no agrega sobrecargas", () => {
+  it("la lista de pruebas tiene 32 funciones y la BD tiene exactamente esas, una por nombre", async () => {
+    expect(FUNCIONES_AUTH).toHaveLength(32);
     const r = await adm(
       `select p.proname, count(*)::int as n from pg_proc p join pg_namespace n on n.oid = p.pronamespace
         where n.nspname = 'auth' group by p.proname order by 1`,
