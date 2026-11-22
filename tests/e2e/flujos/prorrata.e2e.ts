@@ -172,19 +172,19 @@ test("obtener → mes faltante a mano → coeficiente → IGV estimado → alert
     ).toHaveCount(0);
 
     // Montos del PDT tal cual; la rectificatoria (orden 790000175) reemplaza a la original sin borrarla.
-    await expect(filaMes(page, "202511")).toContainText("100000.00");
-    await expect(filaMes(page, "202511")).toContainText("40000.00");
+    await expect(filaMes(page, "202511")).toContainText("100,000.00");
+    await expect(filaMes(page, "202511")).toContainText("40,000.00");
     await expect(filaMes(page, "202511")).toContainText(
       "N.º de orden 790000100, presentada el 12/12/2025",
     );
-    await expect(filaMes(page, "202606")).toContainText("117800.00");
+    await expect(filaMes(page, "202606")).toContainText("117,800.00");
     await expect(filaMes(page, "202606")).toContainText(
       "N.º de orden 790000175, presentada el 28/7/2026 (2 presentaciones)",
     );
     // 2026-10 viene de las ventas de 013: 1.385,00 gravadas (USD con tipo de cambio convertidas; la USD sin tipo queda fuera).
-    await expect(filaMes(page, "202610")).toContainText("1385.00");
+    await expect(filaMes(page, "202610")).toContainText("1,385.00");
     await expect(filaMes(page, "202610")).toContainText("150.00");
-    await expect(filaMes(page, "202610")).toContainText("1535.00");
+    await expect(filaMes(page, "202610")).toContainText("1,535.00");
     await expect(filaMes(page, "202610")).toContainText(
       "El SIRE no separa exportaciones",
     );
@@ -300,7 +300,7 @@ test("obtener → mes faltante a mano → coeficiente → IGV estimado → alert
     await expect(dialogo).toHaveCount(0);
 
     await expect(filaMes(page, "202510")).toContainText("Manual");
-    await expect(filaMes(page, "202510")).toContainText("125000.00");
+    await expect(filaMes(page, "202510")).toContainText("125,000.00");
     await expect(filaMes(page, "202510")).toContainText(
       "Ingresado por Dueño E2E el",
     );
