@@ -328,8 +328,13 @@ export type {
   FilaPorObtener,
   ObtencionXml,
 } from "./xml/obtencion";
-export { reevaluarCompra, reevaluarComprobante } from "./xml/reevaluar";
-export type { BloqueoReevaluar, FuncionesReevaluar, ResultadoReevaluar } from "./xml/reevaluar";
+export { reevaluarCompra, reevaluarComprobante, reevaluarLoteSiCambia } from "./xml/reevaluar";
+export type {
+  BloqueoReevaluar,
+  FuncionesReevaluar,
+  ResultadoLoteReevaluado,
+  ResultadoReevaluar,
+} from "./xml/reevaluar";
 export { leerDetalleXml } from "./xml/detalle";
 export type { DetalleXmlLeido } from "./xml/detalle";
 export { leerHistorialProveedor, TOPE_HISTORIAL } from "./xml/historial";

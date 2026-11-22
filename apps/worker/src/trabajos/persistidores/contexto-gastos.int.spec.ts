@@ -197,19 +197,20 @@ describe("D-5: el lector único arma el contexto del estudio", () => {
 
   it("historial por proveedor en los bordes de U-8: M−6/M−7, M−12/M−13, `abierto` no cuenta, excluida y restaurada, descartada", async () => {
     const m = await mundo();
-    const compra = (periodo: string, numero: string) =>
+    const compra = (periodo: string, numero: string, origen: "sire" | "agregada" = "sire") =>
       sembrarCompra(
         admin,
         m,
         filaCompra(numero, { rucContraparte: PROV.numero, fechaEmision: `${periodo.slice(0, 4)}-${periodo.slice(4)}-05` }),
-        { periodo },
+        { periodo, origen },
       );
     // Aceptadas en M−6 a M−1 con el periodo revisado: tres en 202604 y una excluida y luego restaurada en 202607.
     for (const n of ["1", "2", "3"]) await compra("202604", n);
     const restaurada = await compra("202607", "4");
     await nuevaVersion(admin, m, restaurada, { excluida: true, motivo: "x", accion: "excluir" });
     await nuevaVersion(admin, m, restaurada, { excluida: false, motivo: null, accion: "restaurar" });
-    const descartada = await compra("202604", "5");
+    // Solo se descarta una compra agregada a mano (trigger de 0042): la descartada se siembra con ese origen.
+    const descartada = await compra("202604", "5", "agregada");
     await descartarCompra(admin, descartada);
     for (const p of ["202603", "202604", "202607"]) await fijarEstadoPeriodo(admin, m, "revisado", p);
     // No cuentan como aceptadas: M−7 (revisado), periodo abierto (202605) y el propio M.

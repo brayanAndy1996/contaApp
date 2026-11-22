@@ -171,6 +171,17 @@ export async function bloquearCompras(
 ): Promise<CompraLeida[]> {
   if (ids.length === 0) return [];
   await consultar(tx, SQL_BLOQUEAR_VARIAS, [ids, clienteId, periodo]);
+  return leerCompras(tx, ids, clienteId, periodo);
+}
+
+/** Lo mismo que `bloquearCompras` pero sin bloquear: las compras vivas de `ids` del cliente y periodo, con su versión vigente. */
+export async function leerCompras(
+  tx: TxConsulta,
+  ids: string[],
+  clienteId: string,
+  periodo: string,
+): Promise<CompraLeida[]> {
+  if (ids.length === 0) return [];
   const r = await consultar(tx, SQL_LEER_VARIAS, [ids, clienteId, periodo]);
   return r.rows.map(aCompraLeida);
 }

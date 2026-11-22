@@ -252,7 +252,12 @@ export async function sembrarXmlMasivo(
     `insert into documento_xml (tenant_id, cliente_id, ruc_emisor, tipo, serie, numero, n, origen, ruta, sha256, tamano, detalle,
                                 subido_por)
      select $1::uuid, $2::uuid, '20100070970', '01', 'F900', g::text, 1, 'subido',
-            'xml/' || $1::text || '/' || $2::text || '/' || gen_random_uuid()::text || '.xml', $3::bytea, $4::int, $5::jsonb, $6::uuid
+            'xml/' || $1::text || '/' || $2::text || '/' || gen_random_uuid()::text || '.xml', $3::bytea, $4::int,
+            -- La identidad del detalle es la de cada compra sembrada (si no, las reglas lo toman por un XML ajeno y lo descartan).
+            jsonb_set(jsonb_set(jsonb_set($5::jsonb, '{identidad,emisor,ruc}', '"20100070970"'::jsonb),
+                                '{identidad,serie}', '"F900"'::jsonb),
+                      '{identidad,numero}', to_jsonb(g::text)),
+            $6::uuid
        from generate_series(1, $7::int) g`,
     [
       m.T,

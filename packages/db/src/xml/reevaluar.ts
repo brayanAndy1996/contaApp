@@ -14,13 +14,16 @@ import {
   ComprasReglaError,
   type TxConsulta,
 } from "../compras/errores";
+import { leerHallazgosVigentes } from "../compras/lectura";
 import {
+  conXml,
   esUuid,
   guardarEvaluaciones,
   leerCompra,
+  leerCompras,
   xmlDeCompras,
 } from "../compras/repositorio";
-import type { CompraLeida, Evaluar } from "../compras/tipos";
+import type { CompraLeida, Evaluar, HallazgoNuevo } from "../compras/tipos";
 import { normalizarIdentidadXml, type IdentidadXml } from "./documentos";
 
 /**
@@ -179,4 +182,103 @@ export async function reevaluarComprobante(
     .map((x) => ({ id: x.id as string, periodo: x.periodo as string }))
     .filter((x) => !fuera.has(x.id));
   return reevaluarBloqueando(tx, clienteId, previas, f);
+}
+
+const SQL_LOTE_IDS = `select id from compra where cliente_id = $1 and periodo = $2 and descartada_en is null
+  and ($3::uuid is null or id > $3::uuid) order by id limit $4`;
+
+const SQL_EVALUACIONES_PREVIAS = `select compra_id, version_n, max(n)::int as n from compra_evaluacion
+  where compra_id = any($1::uuid[]) group by compra_id, version_n`;
+
+/** JSON con las claves de cada objeto en orden: la misma forma que guarda `jsonb`, sin depender del orden de construcción. */
+function canonico(v: unknown): string {
+  return JSON.stringify(v, (_k, x: unknown) =>
+    x !== null && typeof x === "object" && !Array.isArray(x)
+      ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+      : x,
+  );
+}
+
+/** Los hallazgos en su forma guardada (regla, sugerencia, lecturas y confirmación), ordenados: el orden no cuenta. */
+const formaGuardada = (
+  hs: readonly {
+    regla: string;
+    sugerencia?: unknown;
+    lecturas?: unknown;
+    requiereConfirmacion: boolean;
+  }[],
+): string =>
+  canonico(
+    hs
+      .map((h) =>
+        canonico({
+          regla: h.regla,
+          sugerencia: h.sugerencia ?? null,
+          lecturas: h.lecturas ?? {},
+          requiereConfirmacion: h.requiereConfirmacion,
+        }),
+      )
+      .sort(),
+  );
+
+export interface ResultadoLoteReevaluado {
+  /** Compras vivas revisadas en el lote. */
+  revisadas: number;
+  /** Las que recibieron una evaluación nueva porque sus hallazgos cambiaron. */
+  cambiadas: number;
+  /** El último id del lote (para pedir el siguiente con `despuesDe`), o `null` si ya no quedan compras. */
+  ultimoId: string | null;
+}
+
+/**
+ * Re-evalúa un lote de las compras vivas de un cliente y periodo (por id ascendente a partir de `despuesDe`) y agrega la evaluación
+ * `n + 1` de la versión vigente SOLO a las que cambian respecto de lo guardado en su última evaluación (compara regla, sugerencia,
+ * lecturas y confirmación; sin evaluación previa equivale a «sin hallazgos»). No crea versiones ni mueve el puntero. Quien llama
+ * ya tomó `compra_periodo` `FOR SHARE` (orden de bloqueo: periodo, luego compras). Una transacción por lote; si `evaluar` lanza se
+ * propaga y no queda nada escrito.
+ */
+export async function reevaluarLoteSiCambia(
+  tx: TxConsulta,
+  clienteId: string,
+  periodo: string,
+  despuesDe: string | null,
+  tamano: number,
+  f: {
+    /** Las reglas del lote, armadas con sus compras (p. ej. el contexto de gastos depende de sus proveedores). */
+    evaluarDe: (compras: readonly CompraLeida[]) => Promise<Evaluar> | Evaluar;
+    bloqueo?: BloqueoReevaluar;
+  },
+): Promise<ResultadoLoteReevaluado> {
+  const lote = (await consultar(tx, SQL_LOTE_IDS, [clienteId, periodo, despuesDe, tamano])).rows.map((r) => r.id as string);
+  const ultimoId = lote[lote.length - 1] ?? null;
+  if (ultimoId === null) return { revisadas: 0, cambiadas: 0, ultimoId };
+  const bloqueadas = await bloquear(tx, lote, f.bloqueo ?? "auto");
+  // Relee la versión vigente ya bloqueada: si otra transacción creó una versión mientras esperábamos, se evalúa esa.
+  const actuales = await leerCompras(tx, [...bloqueadas].sort(), clienteId, periodo);
+  const xmls = await xmlDeCompras(tx, actuales);
+  const previos = await leerHallazgosVigentes(tx, actuales.map((c) => c.id));
+  const evaluar = await f.evaluarDe(actuales);
+  const nuevos = new Map<string, HallazgoNuevo[]>();
+  const cambian: { compra: CompraLeida; xml: NonNullable<ReturnType<typeof xmls.get>> | null }[] = [];
+  for (const c of actuales) {
+    const xml = xmls.get(c.id) ?? null;
+    const hallazgos = (await evaluar(conXml(c, xml?.xml ?? null))) ?? [];
+    nuevos.set(c.id, hallazgos);
+    if (formaGuardada(hallazgos) !== formaGuardada(previos.get(c.id) ?? [])) cambian.push({ compra: c, xml });
+  }
+  if (cambian.length > 0) {
+    const ultimas = new Map<string, number>();
+    for (const r of (await consultar(tx, SQL_EVALUACIONES_PREVIAS, [cambian.map((x) => x.compra.id)])).rows)
+      ultimas.set(`${r.compra_id as string}:${r.version_n as number}`, r.n as number);
+    await guardarEvaluaciones(
+      tx,
+      cambian.map(({ compra, xml }) => ({
+        fila: compra,
+        n: (ultimas.get(`${compra.id}:${compra.version}`) ?? 0) + 1,
+        xml,
+      })),
+      (fila) => nuevos.get(fila.id) ?? [],
+    );
+  }
+  return { revisadas: actuales.length, cambiadas: cambian.length, ultimoId };
 }
