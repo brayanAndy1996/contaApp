@@ -470,6 +470,13 @@
       "when": 1795314621499,
       "tag": "0066_prorrata_funciones",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1795322171814,
+      "tag": "0067_prorrata_ronda1",
+      "breakpoints": true
     }
   ]
 }

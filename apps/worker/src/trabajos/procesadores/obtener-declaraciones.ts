@@ -1,6 +1,7 @@
 // Procesador `sol.declaraciones.descargar` (spec 026, plan «Worker»; D-1 a D-3, D-7; CA-1, CA-7, CA-10, CA-11). Obtiene del portal
 // SOL las presentaciones del PDT 621 de los 12 periodos de la ventana (M−11..M) y las guarda con la función acotada
 // `prorrata_declaraciones_registrar` (0066); nunca toca ventas, compras ni meses manuales.
+//  (0) R-1: un periodo posterior al mes en curso en hora de Lima es `ErrorDatos` sin tocar la credencial ni SOL (H-026-1-3).
 //  (1) `withTenant` corto: ubica la credencial SOL del cliente (sin transacción abierta al salir).
 //  (2) Descifrado auditado, UNA vez por trabajo (003).
 //  (3) Una llamada al puerto por periodo, del más reciente al más antiguo, SIN transacción abierta (008 D6). `ErrorDatos` o lista
@@ -41,6 +42,15 @@ export interface ResultadoObtenerDeclaraciones {
 /** SQLSTATE de «objeto no está en el estado requerido»: el cliente se archivó entre la lectura y la escritura. */
 const CLIENTE_ARCHIVADO = "55000";
 
+/** Lima no tiene horario de verano: UTC-5 todo el año (mismo criterio que el backend y el catálogo de la cola). */
+const HUSO_LIMA_MS = 5 * 60 * 60 * 1000;
+
+/** Mes en curso en hora de Lima (AAAAMM), con el reloj de `Date` (las pruebas lo fijan con fake timers). */
+function periodoEnCursoLima(ahoraMs: number): string {
+  const lima = new Date(ahoraMs - HUSO_LIMA_MS);
+  return `${lima.getUTCFullYear()}${String(lima.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
 export function obtenerDeclaraciones(d: DepsObtenerDeclaraciones): Procesador {
   return async ({ trabajo: t }) => {
     const params = SOL_DECLARACIONES_DESCARGAR.parametros.safeParse(
@@ -48,6 +58,9 @@ export function obtenerDeclaraciones(d: DepsObtenerDeclaraciones): Procesador {
     );
     if (!params.success) throw new ErrorDatos(); // sin repetir lo recibido
     const periodoHasta = params.data.periodo;
+    // R-1 (H-026-1-3): M posterior al mes en curso en Lima no se consulta: antes de ubicar o descifrar la credencial.
+    if (periodoHasta > periodoEnCursoLima(Date.now()))
+      throw new ErrorDatos();
     const ctx = { tenantId: t.tenantId, trabajoId: t.id };
 
     // (1) Credencial del cliente; (2) descifrado una sola vez.

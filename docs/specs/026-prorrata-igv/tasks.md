@@ -24,7 +24,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → cobe
 | T14a | Pruebas para cerrar la cobertura de la prorrata | tester | sonnet | T14 | — | — | [x] |
 | T15 | Ronda adversarial 1: aislamiento, permisos, funciones acotadas, cola y concurrencia (≤ 15 pruebas) | adversario | opus | T11, T12, T14 ∥ T13, T21 | — | ✓ | [ ] |
 | T16 | Pruebas de las correcciones de la ronda 1 (rojo) | tester | sonnet | T15 | ✓ | — | [x] |
-| T17 | Corregir los hallazgos de la ronda 1 (migración 0067 si hace falta) | backend | opus | T16 | — | — | [ ] |
+| T17 | Corregir los hallazgos de la ronda 1 (migración 0067 si hace falta) | backend | opus | T16 | — | — | [x] |
 | T18 | Ronda adversarial 2: dinero y coeficiente, orígenes, entradas del PDT y del manual, secretos (≤ 15 pruebas) | adversario | opus | T17 | — | ✓ | [ ] |
 | T19 | Pruebas de las correcciones de la ronda 2 (rojo) | tester | sonnet | T18 | ✓ | — | [ ] |
 | T20 | Corregir los hallazgos de la ronda 2 (migración 0068 si hace falta) | backend | opus | T19 | — | — | [ ] |
@@ -179,10 +179,15 @@ Reglas comunes:
   - `apps/worker/src/trabajos/procesadores/obtener-declaraciones-r1.spec.ts` (8, sin BD, `Date` falso; 4 rojo): H-026-1-3 periodo futuro = `ErrorDatos` sin ubicar/descifrar la credencial, sin llamar al puerto ni escribir (incluye el borde 2026-12-01T03:00Z = 30 nov en Lima: 202612 es futuro); en curso/anterior/borde se procesan con 12 llamadas y una escritura (controles verdes). Si T17 inyecta el reloj en `DepsObtenerDeclaraciones`, basta con que por omision use `Date` (las pruebas no pasan reloj).
   - Decision a confirmar en T17: el rechazo de `app.trabajo_id` ajeno admite 22023 o 42501 (la prueba de T15 admite los mismos); el resto fija 22023.
 
-## T17 · [ ] Corregir la ronda 1 (backend · opus)
+## T17 · [x] Corregir la ronda 1 (backend · opus)
 - **Contexto (leer solo esto)**: hallazgos de T15, pruebas de T15 y T16, solo los archivos que señalan.
 - **Hacer**: corregir sin quitar aserciones. Un cambio de BD va en **0067** (repetible; si cambia una función `SECURITY DEFINER`, conserva dueño, `search_path`, errores fijos y repite `REVOKE`/`GRANT`; `escalada.adv.spec.ts` sigue verde). Un hallazgo que exija cambiar la spec: `requiere usuario`. La parte de pantalla, si la hay, la hace `frontend · sonnet` en la misma tarea.
 - **Hecho cuando**: las de T15 y T16 pasan; las suites de los paquetes tocados siguen verdes. Commit `fix(026): hallazgos de la ronda adversarial 1`.
+- **Resultado (T17, backend · opus)**: verde. BD `contapp_026t17` (migrate ×2 + seed).
+  - `packages/db/migrations/0067_prorrata_ronda1.sql` (drizzle-kit `--custom`, con diario y snapshot): reemplaza `prorrata_declaraciones_registrar` con la misma firma, dueño `contapp_migrator`, `SECURITY DEFINER`, `search_path = pg_catalog, pg_temp`, SQLSTATE y mensajes fijos y los mismos `REVOKE`/`GRANT`. H-026-1-1: exige `job_registro.estado = 'ejecutando'` (22023 «trabajo invalido»). H-026-1-2: `app.trabajo_id` fijado y distinto de `p_trabajo` = 22023 «trabajo invalido» (un solo código); la auditoría se inserta con `interno.auditoria_insertar` con actor «trabajo» = `p_trabajo` (usuario = `creado_por`, como 0041), con o sin `app.trabajo_id`. H-026-1-3: `p_periodo_hasta` > mes en curso de `clock_timestamp()` en `America/Lima` = 22023 «periodo futuro», sin escribir.
+  - `apps/worker/src/trabajos/procesadores/obtener-declaraciones.ts`: R-1 antes de ubicar/descifrar la credencial: periodo posterior al mes en curso en Lima (UTC-5, reloj `Date`) = `ErrorDatos`. Sin reloj en `DepsObtenerDeclaraciones` (la rama del reloj inyectado dejaba ramas < 90 %; las pruebas fijan `Date`). El worker ya fija `app.trabajo_id = t.id` = `p_trabajo` (`withTenant`).
+  - Catálogo de la cola sin cambio: rechazar el futuro allí rompe `catalogo-026.spec.ts` («acepta 202612» con el reloj real de noviembre de 2026).
+  - Pruebas: aislamiento completa 118 archivos / 3307 OK (incluye T15, T16, `escalada.adv`, `catalogo`); `packages/db` 86 / 1562 OK; worker `test` 52 / 532 OK y `test:int` 52 / 495 OK; backend int `src/modules/prorrata` 9 / 287 OK; `pnpm cobertura:prorrata` OK (≥ 90 % por archivo). Lint y typecheck de worker, db y aislamiento limpios. Ninguna suite existente ajustada.
 
 ## T18 · [ ] Ronda adversarial 2 (adversario · opus)
 - **Contexto (leer solo esto)**: `spec.md` (completo), `plan.md` (Contratos: domain, sunat, Worker, HTTP), 04 §2.3 (catálogo: dinero/reglas, parsers), resultado de T15–T17. Caja negra y luego caja blanca de `packages/domain/src/prorrata/*.ts`, `packages/sunat/src/mock/sol-portal.mock.ts`, `procesadores/obtener-declaraciones.ts`, `apps/backend/src/modules/prorrata/lectura.service.ts`, `0066`.
