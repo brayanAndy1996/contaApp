@@ -23,7 +23,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → cobe
 | T14 | Cobertura ≥ 90 % por archivo: `cobertura:prorrata` y paso en CI | devops | haiku | T8, T10, T11, T12 ∥ T13 | — | — | [x] |
 | T14a | Pruebas para cerrar la cobertura de la prorrata | tester | sonnet | T14 | — | — | [x] |
 | T15 | Ronda adversarial 1: aislamiento, permisos, funciones acotadas, cola y concurrencia (≤ 15 pruebas) | adversario | opus | T11, T12, T14 ∥ T13, T21 | — | ✓ | [ ] |
-| T16 | Pruebas de las correcciones de la ronda 1 (rojo) | tester | sonnet | T15 | ✓ | — | [ ] |
+| T16 | Pruebas de las correcciones de la ronda 1 (rojo) | tester | sonnet | T15 | ✓ | — | [x] |
 | T17 | Corregir los hallazgos de la ronda 1 (migración 0067 si hace falta) | backend | opus | T16 | — | — | [ ] |
 | T18 | Ronda adversarial 2: dinero y coeficiente, orígenes, entradas del PDT y del manual, secretos (≤ 15 pruebas) | adversario | opus | T17 | — | ✓ | [ ] |
 | T19 | Pruebas de las correcciones de la ronda 2 (rojo) | tester | sonnet | T18 | ✓ | — | [ ] |
@@ -170,10 +170,14 @@ Reglas comunes:
   - **H-026-1-2 · Baja** · `0066_prorrata_funciones.sql:218` (con `auditoria_registrar`) · el actor de `prorrata.declaraciones_obtenidas` sale de `app.trabajo_id` de la sesión, no de `p_trabajo`, y no se exige que coincidan: con `app.trabajo_id` de otro trabajo (de otro cliente) la auditoría del cliente A queda a nombre del trabajo de B; sin `app.trabajo_id` queda actor «sistema» (D-6 pide actor trabajo). La obtención guarda `trabajo_id = p_trabajo`, así que auditoría y fila se contradicen. Pruebas: «app.trabajo_id de OTRO trabajo…», «sin app.trabajo_id…».
   - **H-026-1-3 · Media** · `packages/queue/src/catalogo.ts:303`, `apps/worker/src/trabajos/procesadores/obtener-declaraciones.ts:46-50`, `0066_prorrata_funciones.sql:96-106` · R-1 (M ≤ mes en curso en Lima) solo se aplica en el backend: el catálogo valida `{periodo}` por forma, el procesador no mira el reloj y la función no lo compara. Un trabajo con el mes siguiente (payload forjado o desfase de reloj entre backend y worker) consulta SOL 12 veces con la clave del cliente y registra una obtención con meses que aún no existen marcados «sin declaración» (con su auditoría). Pruebas: «con un trabajo cuyo periodo es el mes siguiente…» (BD) y «un trabajo cuyo periodo es posterior al mes en curso…» (worker).
 
-## T16 · [ ] Pruebas de las correcciones de la ronda 1, rojo (tester · sonnet)
+## T16 · [x] Pruebas de las correcciones de la ronda 1, rojo (tester · sonnet)
 - **Contexto (leer solo esto)**: resultado de T15 (hallazgos), sus pruebas, `spec.md` (los CA citados).
 - **Hacer**: una prueba normal (no adversarial) por hallazgo que fije lo que pide la spec.
 - **Hecho cuando**: fallan por el defecto. Commit `test(026): correcciones de la ronda 1 en rojo`.
+- **Resultado (T16, tester · sonnet)**: 20 pruebas en 2 archivos, 13 en rojo por el defecto y 7 controles en verde. BD `contapp_026t15`.
+  - `tests/aislamiento/prorrata-correcciones-r1.spec.ts` (12; 9 rojo): H-026-1-1 trabajo `completado`, `error`, `cancelado` y `en_cola` = 22023 sin obtencion, presentaciones ni auditoria (rojo: hoy `ok`; el nombre real del estado es `ejecutando`; 22023 es el «trabajo invalido» de 0066, igual que espera la prueba de T15). H-026-1-2 `app.trabajo_id` de otro trabajo = 22023 o 42501 sin escribir (rojo); sin `app.trabajo_id` escribe con actor `trabajo` = `p_trabajo` = `trabajo_id` de la fila (rojo: hoy actor «sistema»); sesion coherente (verde). H-026-1-3 periodo +1, +2 y +24 meses sobre el mes de Lima = 22023 sin escribir (rojo); mes en curso y anterior (control verde).
+  - `apps/worker/src/trabajos/procesadores/obtener-declaraciones-r1.spec.ts` (8, sin BD, `Date` falso; 4 rojo): H-026-1-3 periodo futuro = `ErrorDatos` sin ubicar/descifrar la credencial, sin llamar al puerto ni escribir (incluye el borde 2026-12-01T03:00Z = 30 nov en Lima: 202612 es futuro); en curso/anterior/borde se procesan con 12 llamadas y una escritura (controles verdes). Si T17 inyecta el reloj en `DepsObtenerDeclaraciones`, basta con que por omision use `Date` (las pruebas no pasan reloj).
+  - Decision a confirmar en T17: el rechazo de `app.trabajo_id` ajeno admite 22023 o 42501 (la prueba de T15 admite los mismos); el resto fija 22023.
 
 ## T17 · [ ] Corregir la ronda 1 (backend · opus)
 - **Contexto (leer solo esto)**: hallazgos de T15, pruebas de T15 y T16, solo los archivos que señalan.
