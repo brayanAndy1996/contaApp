@@ -107,15 +107,17 @@ Con usuarios, el texto dice «usuarios» en lugar de «RUC». Cada aviso sale **
 
 Son los planes de partida que crea la base de datos. El super-admin puede cambiarlos; los precios son de referencia y el estudio nunca los ve.
 
-| Plan | RUC incluidos | Usuarios | Tope de RUC adicionales |
-|---|---|---|---|
-| Prueba | 5 | 1 | 0 |
-| Independiente | 30 | 2 | 6 |
-| Estudio | 100 | 5 | 20 |
-| Estudio Pro | 300 | 15 | 60 |
-| Corporativo | 600 | Ilimitado | 120 |
+| Plan | RUC incluidos | Usuarios | Tope de RUC adicionales | Revisión automática del buzón SOL |
+|---|---|---|---|---|
+| Prueba | 5 | 1 | 0 | Una vez al día (1440 min) |
+| Independiente | 30 | 2 | 6 | Una vez al día (1440 min) |
+| Estudio | 100 | 5 | 20 | Dos veces al día (720 min) |
+| Estudio Pro | 300 | 15 | 60 | Cada 4 horas (240 min) |
+| Corporativo | 600 | Ilimitado | 120 | Cada hora (60 min) |
 
 Los estudios del seed (Estudio A y Estudio B) están en **Corporativo**.
+
+La última columna es el campo «Frecuencia del buzón (min)» del plan: cada cuánto ContApp revisa solo el buzón SOL de cada cliente. La primera revisión del día es de madrugada (entre las 2:00 y las 5:00 de Lima). «Revisar buzón ahora» no depende del plan ni cuenta contra esa frecuencia ([módulo 14](14-buzones-sol.md)). El estudio no ve este dato en pantalla.
 
 ### Cómo se cuentan los cupos
 
@@ -145,7 +147,7 @@ Debajo de la línea de RUC, y de la de usuarios si el plan tiene límite, una ba
 | «Administración de plataforma» | `/admin` | Enlace «Planes» y tabla «Estudios» con «Estudio», «Plan actual» («Sin plan» si no tiene), «Estado» (`prueba`, `activa` o «—»), «Nuevo plan», «RUCs adicionales» y el botón «Asignar plan» |
 | «Planes de suscripción» | `/admin/planes` | Enlace «Estudios»; tabla «Planes» con «Código», «Nombre», «Precio mensual», «Máximo de RUCs», «Máximo de usuarios» («Ilimitado» si está vacío), «Estado» («Activo» o «Inactivo») y «Acciones» («Editar», «Desactivar» o «Activar»); formulario «Nuevo plan» |
 
-Campos del formulario de plan: «Código», «Nombre», «Precio mensual», «Precio anual», «Máximo de RUCs», «Máximo de usuarios» (vacío = ilimitado), «Precio por RUC extra», «Máximo de RUCs extra», «Frecuencia del buzón (min)» y «Características (JSON)».
+Campos del formulario de plan: «Código», «Nombre», «Precio mensual», «Precio anual», «Máximo de RUCs», «Máximo de usuarios» (vacío = ilimitado), «Precio por RUC extra», «Máximo de RUCs extra», «Frecuencia del buzón (min)» (cada cuántos minutos se revisa solo el buzón SOL de cada cliente; un cambio rige desde la siguiente ronda, sin reiniciar nada) y «Características (JSON)».
 
 ## Reglas y límites
 

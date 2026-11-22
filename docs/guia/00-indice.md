@@ -6,9 +6,9 @@ Si quieres entender **cómo está construido** por dentro (PostgreSQL, colas, ci
 
 ## Antes de empezar: lee esto
 
-> **Esta guía ya refleja el diseño nuevo.** La spec 038 (noviembre de 2026) aplicó el diseño verde petróleo a todas las pantallas: menú lateral en escritorio, barra inferior en celular y «Ventas» accesible desde la ficha del cliente. Los pasos, las capturas y la ubicación de los menús de esta guía corresponden a ese diseño. Las reglas aprendidas de la spec 021 tienen su propio módulo, el [13](13-reglas-aprendidas.md).
+> **Esta guía ya refleja el diseño nuevo.** La spec 038 (noviembre de 2026) aplicó el diseño verde petróleo a todas las pantallas: menú lateral en escritorio, barra inferior en celular y «Ventas» accesible desde la ficha del cliente. Los pasos, las capturas y la ubicación de los menús de esta guía corresponden a ese diseño. Las reglas aprendidas (specs 021 y 025) tienen su propio módulo, el [13](13-reglas-aprendidas.md), y los buzones SOL (specs 023 y 024), el [14](14-buzones-sol.md).
 
-> **ContApp todavía no se conecta con SUNAT.** La versión actual (Release 1) está completa y probada, pero las conexiones con SUNAT son **simulaciones**: la descarga de propuestas SIRE, la consulta RUC, la verificación de credenciales y los XML de los comprobantes devuelven datos de prueba. Con un RUC real no verás los comprobantes reales de tu cliente.
+> **ContApp todavía no se conecta con SUNAT.** La versión actual (Release 1) está completa y probada, pero las conexiones con SUNAT son **simulaciones**: la descarga de propuestas SIRE y de los registros ya presentados, la consulta RUC, la verificación de credenciales, el buzón SOL y los XML de los comprobantes devuelven datos de prueba. Con un RUC real no verás los comprobantes reales de tu cliente.
 
 > **No ingreses claves SOL ni credenciales SIRE reales en tu entorno de prueba.** En modo desarrollo las credenciales se cifran con una llave de pruebas cuya parte privada está guardada en el propio repositorio (`packages/crypto/fixtures/mock-kek/`). Quien tenga acceso al repositorio podría descifrarlas. Usa siempre los datos de prueba que trae el proyecto y una clave inventada, como `CLAVEPRUEBA1`. Las credenciales reales se podrán usar cuando existan la configuración de producción y la conexión real con SUNAT.
 
@@ -20,11 +20,12 @@ ContApp ayuda a un estudio contable a **revisar y corregir los registros de comp
 
 1. **Descarga la propuesta** de SUNAT (compras RCE y ventas RVIE) de cada cliente.
 2. **Detecta errores** con reglas de contador: IGV que no es 18 % ni 10 %, ISC registrado como base gravada, compras mixtas, redondeos, proveedores nuevos y posibles gastos personales.
-3. **Sugiere la corrección** y te deja aplicarla con un clic, o editar a mano en una grilla tipo Excel con el cuadre en vivo. Si se lo pides, **recuerda cómo clasificaste a cada proveedor** y clasifica solas sus compras de los meses siguientes.
+3. **Sugiere la corrección** y te deja aplicarla con un clic, o editar a mano en una grilla tipo Excel con el cuadre en vivo. Si se lo pides, **recuerda cómo clasificaste a cada proveedor** y clasifica solas sus compras de los meses siguientes. Con un cliente nuevo, **importa su historial** del SIRE y te propone una regla por proveedor; con un cliente de la selva que vende exonerado, sugiere DNG desde el primer mes.
 4. **Compara con el XML** del comprobante (la «lupa») para confirmar qué dice la factura real.
 5. **Revisa la correlatividad** de las ventas (boletas o facturas que faltan).
 6. **Genera el archivo de reemplazo** (TXT dentro de un ZIP) solo si todo está correcto, y guarda cada versión con su huella para descargarla después.
-7. Todo con **varios usuarios, roles y permisos**, un **registro de auditoría** de quién hizo qué, y **notificaciones** dentro del sistema.
+7. **Revisa los buzones SOL** de tus clientes, te avisa al momento de una coactiva, una resolución o un requerimiento, y junta todos los mensajes en una bandeja donde tu equipo marca lo ya atendido.
+8. Todo con **varios usuarios, roles y permisos**, un **registro de auditoría** de quién hizo qué, y **notificaciones** dentro del sistema.
 
 ## Mapa de módulos
 
@@ -43,19 +44,22 @@ ContApp ayuda a un estudio contable a **revisar y corregir los registros de comp
 | 10 | [Generar el archivo SIRE](10-generar-archivo.md) | Prevalidar el periodo, ver el resumen de cambios, generar el ZIP y descargar sus versiones. |
 | 11 | [Auditoría y notificaciones](11-auditoria-y-notificaciones.md) | Quién hizo qué y cuándo, y los avisos que te llegan dentro de ContApp. |
 | 12 | [Un mes de trabajo de punta a punta](12-un-mes-de-punta-a-punta.md) | El cierre de un periodo completo con todos los módulos, lo que aún no hace y cómo resolver problemas comunes. |
-| 13 | [Reglas aprendidas](13-reglas-aprendidas.md) | Recordar la clasificación de un proveedor, compras «Según historial», reglas del cliente y reglas del motor. |
+| 13 | [Reglas aprendidas](13-reglas-aprendidas.md) | Recordar la clasificación de un proveedor, compras «Según historial», importar el historial de un cliente nuevo, modo estándar (R-STD) y reglas del motor. |
+| 14 | [Buzones SOL](14-buzones-sol.md) | Revisión automática y «Revisar buzón ahora», mensajes críticos, abrir un mensaje y sus adjuntos, la bandeja «Buzones» y marcar como atendido. |
 
 ## Orden recomendado
 
 ```text
 01 → 02 → 05 → 06 → 07 → 08 → 09 → 10 → 12 → 13
               ↘ 03 → 04            ↘ 11
+                  ↘ 14
 ```
 
 - **Para probar rápido (1 hora):** 01, 02, 05, 08 y 10. Con eso levantas el sistema, creas un cliente, corriges sus compras y generas el archivo.
 - **Si vas a trabajar con un equipo:** agrega 03 (roles) y 11 (auditoría).
 - **Para ver el ciclo completo:** termina con el 12.
-- **Cuando ya clasifiques compras cada mes:** lee el 13 para que ContApp recuerde la clasificación de cada proveedor.
+- **Cuando ya clasifiques compras cada mes:** lee el 13 para que ContApp recuerde la clasificación de cada proveedor, o la aprenda del historial de un cliente nuevo.
+- **Para vigilar las notificaciones de SUNAT:** lee el 14 en cuanto guardes las claves SOL de tus clientes (módulo 06).
 
 ## Cómo está escrito cada módulo
 
@@ -84,8 +88,14 @@ ContApp ayuda a un estudio contable a **revisar y corregir los registros de comp
 | **Excluir** | Sacar una fila del archivo que se va a generar, con un motivo. No se borra: se puede restaurar. |
 | **Lupa** | Ventana con el detalle de un comprobante y su XML. |
 | **Regla aprendida** | El destino (DG, DGNG o DNG) que ContApp recuerda para un proveedor de un cliente. Las compras que llegan después se marcan «Según historial». |
+| **Candidata** | Regla que ContApp propone al importar el historial de un cliente, con su frecuencia. No se aplica hasta que la activas. |
+| **Modo estándar (R-STD)** | Sugerencia de DNG en las compras de clientes de la Amazonía con ventas exoneradas y sin ventas mixtas. |
+| **Buzón SOL** | El buzón electrónico de SUNAT de cada cliente. ContApp lo revisa sin marcar nada como leído. |
+| **Mensaje crítico** | Coactiva, resolución de determinación, resolución de multa o requerimiento de fiscalización. Sale en rojo y avisa en la campana. |
+| **Atendido** | Marca interna del estudio sobre un mensaje del buzón, con comentario. No cambia nada en SUNAT. |
+| **Histórico** | Mensaje de más de 30 días que llegó en la primera revisión del buzón de un cliente. No cuenta como nuevo. |
 | **Previo** | La revisión del periodo antes de generar: errores que bloquean, avisos y resumen de cambios. |
-| **Trabajo** | Una tarea que corre en segundo plano (descargar, verificar credenciales, consultar RUC, generar). Se sigue en «Trabajos». |
+| **Trabajo** | Una tarea que corre en segundo plano (descargar, verificar credenciales, consultar RUC, generar, revisar un buzón, importar un historial). Se sigue en «Trabajos». |
 | **Versión del archivo** | Cada archivo generado queda guardado con número, fecha, autor y huella SHA-256. |
 
 ## Ejercicios de calentamiento

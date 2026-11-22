@@ -123,8 +123,8 @@ Una vez dentro de un estudio, el menú cambia según el ancho de la pantalla:
 
 | Dónde | Qué tiene |
 |---|---|
-| Escritorio (menú lateral, a la izquierda) | Arriba, el selector «Estudio». Debajo, los enlaces que tu rol permite («Clientes», «Trabajos», «Usuarios», «Auditoría», «Reglas del motor») y la campana «Notificaciones». Al pie, «Cambiar contraseña» y «Cerrar sesión». |
-| Celular (barra inferior) | «Clientes», «Trabajos», «Notificaciones» y «Más». «Más» abre el resto: «Estudio», «Usuarios», «Auditoría», «Reglas del motor», «Cambiar contraseña» y «Cerrar sesión». Se cierra con Esc o al elegir un enlace. |
+| Escritorio (menú lateral, a la izquierda) | Arriba, el selector «Estudio». Debajo, los enlaces que tu rol permite («Clientes», «Buzones», «Trabajos», la campana «Notificaciones», «Usuarios», «Auditoría» y «Reglas del motor»). Al pie, «Cambiar contraseña» y «Cerrar sesión». |
+| Celular (barra inferior) | «Clientes», «Buzones», «Trabajos», «Notificaciones» y «Más». «Más» abre el resto: «Estudio», «Usuarios», «Auditoría», «Reglas del motor», «Cambiar contraseña» y «Cerrar sesión». Se cierra con Esc o al elegir un enlace. |
 
 El menú no tiene un enlace «Inicio»: para volver al inicio abre `http://localhost:3000/`.
 

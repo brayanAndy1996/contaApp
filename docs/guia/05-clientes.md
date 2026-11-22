@@ -80,7 +80,7 @@ Puedes hacerlo al crear el cliente o después, en su ficha.
 
 **Resultado esperado:** aparece «Datos guardados.» y, al recargar, los valores siguen ahí. Si algo no es válido, verás «Revisa los datos fiscales.».
 
-Estos datos describen al cliente y servirán para clasificar automáticamente según su régimen y zona; esa clasificación «estándar» está prevista para una versión posterior.
+Estos datos describen al cliente. Uno ya se usa: si marcas «Zona» «Amazonía» y «Ventas exoneradas», sin «Ventas mixtas», ContApp activa el **modo estándar** (R-STD) y sugiere DNG en las compras de proveedores sin regla ([módulo 13](13-reglas-aprendidas.md)). El cambio rige desde la próxima descarga o evaluación de compras: lo ya cargado no cambia.
 
 ### Buscar y filtrar clientes
 
@@ -90,6 +90,7 @@ Estos datos describen al cliente y servirán para clasificar automáticamente se
    - «Credencial»: «Todas», «No configurada», «Configurada», «Verificada» o «Inválida». Un cliente aparece si **alguna** de sus dos credenciales (SOL o SIRE) está en ese estado.
    - «Buscar»: escribe el inicio del RUC o una parte de la razón social (placeholder «RUC o razón social», hasta 100 caracteres). La lista se actualiza sola un momento después de que dejas de escribir.
    - «Mostrar archivados»: marca la casilla para ver también los clientes archivados.
+   - «Con mensajes nuevos»: marca la casilla para ver solo los clientes con mensajes pendientes en su buzón SOL. Solo aparece si tu rol tiene `buzon.ver` ([módulo 14](14-buzones-sol.md)).
 
 **Resultado esperado:** la tabla muestra solo los clientes que cumplen todos los filtros y que tú puedes ver.
 
@@ -154,14 +155,16 @@ Estos datos describen al cliente y servirán para clasificar automáticamente se
 | Razón social | Enlace a la ficha. Puede ser la provisional «RUC <número>» si la consulta RUC aún no terminó o falló. |
 | Responsable | El nombre del responsable o «Sin responsable». |
 | Credenciales | Dos etiquetas, «SOL: …» y «SIRE API: …», con el estado de cada una («No configurada», «Configurada», «Verificada», «Inválida»). Si el cliente está archivado, también la etiqueta «Archivado». |
+| Buzón | Solo con `buzon.ver`. Si hay mensajes sin atender en su buzón SOL, «N nuevos» y, en rojo, «N críticos». Es un enlace al «Buzón SOL» del cliente. Vacío si no hay nuevos. Los mensajes «Histórico» no cuentan ([módulo 14](14-buzones-sol.md)). |
 | Acciones | Solo con permiso de archivar: «Archivar» o «Reactivar», que llevan a la ficha. |
 
 ### Ficha del cliente (`/clientes/<id>`)
 
 | Parte | Qué hay |
 |---|---|
-| Encabezado | Razón social, «RUC …» y los enlaces «Compras · Ventas · Reglas aprendidas»: la grilla de compras ([08](08-compras.md)), la pantalla de ventas ([07](07-ventas.md)) y las reglas aprendidas del cliente ([13](13-reglas-aprendidas.md)). En escritorio van a la derecha del título; en celular, debajo. |
+| Encabezado | Razón social, «RUC …» y los enlaces «Compras · Ventas · Reglas aprendidas · Buzón SOL»: la grilla de compras ([08](08-compras.md)), la pantalla de ventas ([07](07-ventas.md)), las reglas aprendidas del cliente ([13](13-reglas-aprendidas.md)) y su buzón SOL ([14](14-buzones-sol.md)). «Reglas aprendidas» y «Buzón SOL» salen según tu rol. En escritorio van a la derecha del título; en celular, debajo. |
 | «Archivar» / «Reactivar» | Botón con confirmación (solo Dueño y Administrador). |
+| «Revisar buzón ahora» | Pide una revisión del buzón SOL al momento (con `buzon.ver`). Deshabilitado, con el motivo debajo, si el cliente está archivado o no tiene clave SOL válida ([14](14-buzones-sol.md)). |
 | «Datos fiscales» | Formulario editable o, si no puedes editar o el cliente está archivado, el texto de cada dato. |
 | «Credenciales» | Estado y formulario de SOL y SIRE ([06 · Credenciales y trabajos](06-credenciales-y-trabajos.md)). |
 | «Asignaciones» | Tabla «Nombre / Tipo» y formulario para asignar (solo con permiso de asignar). |

@@ -148,6 +148,9 @@ Estos son todos los tipos que existen hoy en el catálogo de trabajos:
 | «Descargando propuesta del SIRE» | Al descargar la propuesta de ventas o de compras de un periodo. Debajo muestra el cliente y «Periodo AAAAMM». | [07](07-ventas.md), [08](08-compras.md) |
 | `xml.obtener` | Al pedir el XML de un lote de compras (la lupa). En esta versión el panel lo muestra con este nombre técnico. | [09](09-lupa-y-xml.md) |
 | `archivo.generar` | Al generar el archivo SIRE de un periodo. También se muestra con su nombre técnico. | [10](10-generar-archivo.md) |
+| «Revisión de buzón SOL» | Al pulsar «Revisar buzón ahora» y en cada revisión automática del buzón SOL de un cliente, según la frecuencia del plan (prioridad baja: cede el paso a lo que pides tú). | [14](14-buzones-sol.md) |
+| «Apertura de mensaje SOL» | Al confirmar «Abrir en SUNAT» en un mensaje del buzón. | [14](14-buzones-sol.md) |
+| `reglas.historial.importar` | Al pulsar «Importar historial» en las reglas de un cliente. También se muestra con su nombre técnico. | [13](13-reglas-aprendidas.md) |
 
 Notas:
 
@@ -168,7 +171,8 @@ Notas:
 Otras reglas:
 
 - **Nunca se muestran las claves.** Ninguna pantalla, respuesta, exportación ni registro contiene la clave SOL ni el client_secret. Si la olvidaste, pídela al cliente: ContApp no puede recuperarla.
-- **«Inválida» frena todo.** Mientras una credencial SIRE esté «Inválida», las descargas de propuesta de ese cliente se cancelan con «Credencial inválida» en lugar de reintentar. Guardar o verificar de nuevo la credencial las vuelve a habilitar.
+- **«Inválida» frena todo.** Mientras una credencial SIRE esté «Inválida», las descargas de propuesta de ese cliente se cancelan con «Credencial inválida» en lugar de reintentar. Guardar o verificar de nuevo la credencial las vuelve a habilitar. Lo mismo con la clave SOL: mientras esté «Inválida», el buzón SOL del cliente no se revisa ([módulo 14](14-buzones-sol.md)).
+- **La clave SOL también sirve para el buzón.** Con la clave SOL «Configurada» o «Verificada», ContApp revisa solo el buzón SOL del cliente; si la revisión la rechaza, la clave pasa a «Inválida» y recibes el aviso.
 - **Archivar no borra las credenciales.** Quedan cifradas y siguen ahí al reactivar.
 
 ## Pruébalo con los datos de prueba
@@ -179,7 +183,7 @@ Todo lo que sigue funciona con los simuladores que trae ContApp. Son determinist
 
 | Si haces esto | El simulador responde | Verás en el panel |
 |---|---|---|
-| Guardas la clave SOL `clave-errada` (exacta, en minúsculas) y pulsas «Verificar» en SOL. | Clave rechazada. | «Verificando clave SOL» → «Con error», «Credencial inválida». La ficha: «Inválida: SUNAT rechazó las credenciales…». |
+| Guardas la clave SOL `clave-errada` (exacta, en minúsculas) y pulsas «Verificar» en SOL. | Clave rechazada. | «Verificando clave SOL» → «Con error», «Credencial inválida». La ficha: «Inválida: SUNAT rechazó las credenciales…». Con «Revisar buzón ahora» pasa lo mismo en «Revisión de buzón SOL» ([14](14-buzones-sol.md)). |
 | Guardas el client_secret `clave-errada` y pulsas «Verificar» en SIRE. | Credencial SIRE rechazada. | «Verificando credencial SIRE» → «Con error», «Credencial inválida». |
 | Creas un cliente con un RUC válido que termina en **7** (por ejemplo `20700000037`). | La consulta RUC no responde. | «Consultando datos de RUC» vuelve a «En cola» varias veces y, en medio minuto aproximado, queda «Con error», «SUNAT no responde». |
 | Creas un cliente con un RUC válido que termina en **8** (por ejemplo `20700000088`). | Datos inválidos. | «Consultando datos de RUC» → «Con error», «Datos inválidos», sin reintentos. |
@@ -210,7 +214,7 @@ Los RUC del ejemplo son válidos (pasan el dígito verificador). Cualquier otro 
 | La SIRE estaba «Verificada» y las descargas fallan con «Credencial inválida». | Cambió la clave SOL o SUNAT rechazó la SIRE. | Guarda la SOL nueva, luego guarda o verifica de nuevo la SIRE. |
 | El panel no se actualiza solo. | Se cortó la conexión en vivo. | El panel se reconecta solo y, mientras tanto, consulta la lista cada pocos segundos. Si no cambia nada, recarga. |
 | No aparece el botón «Cancelar». | El trabajo ya no está «En cola», o no lo encolaste tú y no eres Dueño ni Administrador. | Solo se cancela lo que aún espera turno. |
-| Veo `xml.obtener` o `archivo.generar` en vez de un nombre en español. | Esos tipos aún no tienen nombre legible en el panel. | Es normal en esta versión. |
+| Veo `xml.obtener`, `archivo.generar` o `reglas.historial.importar` en vez de un nombre en español. | Esos tipos aún no tienen nombre legible en el panel. | Es normal en esta versión. |
 
 ## Comprueba lo aprendido
 

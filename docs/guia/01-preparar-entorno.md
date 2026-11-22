@@ -254,7 +254,7 @@ Otras reglas que conviene saber:
 
 ## Pruébalo con los datos de prueba
 
-1. Entra con `ua@seed.contapp.test`. En una pantalla de escritorio, el menú lateral de la izquierda muestra arriba el selector «Estudio» con «Estudio A (seed)» y, debajo, «Clientes», «Trabajos», «Notificaciones», «Usuarios», «Auditoría» y «Reglas del motor»; al pie, «Cambiar contraseña» y «Cerrar sesión». En un celular, la barra inferior trae «Clientes», «Trabajos», «Notificaciones» y «Más»; el resto está dentro de «Más».
+1. Entra con `ua@seed.contapp.test`. En una pantalla de escritorio, el menú lateral de la izquierda muestra arriba el selector «Estudio» con «Estudio A (seed)» y, debajo, «Clientes», «Buzones», «Trabajos», «Notificaciones», «Usuarios», «Auditoría» y «Reglas del motor»; al pie, «Cambiar contraseña» y «Cerrar sesión». En un celular, la barra inferior trae «Clientes», «Buzones», «Trabajos», «Notificaciones» y «Más»; el resto está dentro de «Más».
 2. Haz clic en «Clientes». Debes ver los tres clientes del Estudio A y, en «Responsable», «Usuario AB» para «Cliente compartido (A)» y «Sin responsable» para los otros dos.
 3. Haz clic en «Cerrar sesión» (al pie del menú lateral) y entra con `uab@seed.contapp.test`. Debes ver «Elige tu estudio» con «Estudio A (seed)» y «Estudio B (seed)». Elige el B: en «Clientes» solo aparece «Cliente compartido (B)», porque un Contador ve solo sus clientes asignados.
 4. Cierra sesión y, en «Olvidé mi contraseña», pide el enlace para `ua@seed.contapp.test`. Busca el correo «ContApp: restablece tu contraseña» en la terminal (con `consola`) o en `http://localhost:8025` (con Mailpit). No hace falta que la cambies: basta con ver que llegó.

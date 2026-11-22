@@ -16,8 +16,8 @@ En un estudio, el cierre del mes de cada cliente se repite: bajar la propuesta d
 | **2. Traer** | Descargar la propuesta de compras y de ventas del periodo | [07](07-ventas.md), [08](08-compras.md) |
 | **3. Revisar y corregir** | Alertas, sugerencias, lupa con el XML, correlatividad, exclusiones | [08](08-compras.md), [09](09-lupa-y-xml.md), [07](07-ventas.md) |
 | **4. Cerrar** | Prevalidar, ver el resumen de cambios, generar y descargar el archivo | [10](10-generar-archivo.md) |
-| **5. Controlar** | Auditoría de quién hizo qué y notificaciones | [11](11-auditoria-y-notificaciones.md) |
-| **Mes siguiente** | Las compras de los proveedores que pediste «Recordar» llegan ya clasificadas | [13](13-reglas-aprendidas.md) |
+| **5. Controlar** | Buzón SOL del cliente, auditoría de quién hizo qué y notificaciones | [14](14-buzones-sol.md), [11](11-auditoria-y-notificaciones.md) |
+| **Mes siguiente** | Las compras de los proveedores que pediste «Recordar» (o que activaste al importar el historial) llegan ya clasificadas | [13](13-reglas-aprendidas.md) |
 
 ## Quién puede usarlo
 
@@ -45,7 +45,9 @@ El detalle está en el [módulo 03](03-equipo-roles-asignaciones.md).
 3. Guarda la SOL (`PRUEBA01` / `CLAVEPRUEBA1`) y la SIRE (client_id `11111111-2222-3333-4444-555555555555`, client_secret `SECRETOPRUEBA1`). Las dos quedan «Configurada».
 4. Pulsa «Verificar» en las dos. Verás «Verificando…» y, en unos segundos, «Verificada el <fecha>». En «Trabajos» aparecen «Verificando clave SOL», «Verificando credencial SIRE» y «Consultando datos de RUC», todos «Completado».
 
-**Resultado esperado:** el cliente listo, con las dos credenciales verificadas y la campana «Notificaciones» del menú con avisos nuevos.
+**Resultado esperado:** el cliente listo, con las dos credenciales verificadas y la campana «Notificaciones» del menú con avisos nuevos. Desde ahora ContApp también revisa solo su buzón SOL ([módulo 14](14-buzones-sol.md)).
+
+> **Cliente nuevo con historia.** Si el cliente ya presentaba sus registros antes de llegar al estudio, aquí conviene ir a «Reglas aprendidas» → «Importar historial» y activar las candidatas que te convenzan: se aplicarán desde la próxima descarga de un periodo posterior a los importados ([módulo 13](13-reglas-aprendidas.md)). Si el cliente es de la Amazonía y vende exonerado, marca esos datos en su perfil fiscal antes de descargar: ContApp sugerirá DNG en sus compras (R-STD).
 
 ### Momento 2: traer las compras
 
@@ -85,8 +87,9 @@ El detalle está en el [módulo 03](03-equipo-roles-asignaciones.md).
 
 ### Momento 5: controlar
 
-23. «Auditoría» (en el menú lateral; en celular, dentro de «Más»): verás las acciones de este recorrido, como la creación del cliente, las credenciales guardadas, las sugerencias aceptadas, la exclusión y la generación, con autor y hora.
-24. La campana «Notificaciones» del menú muestra los trabajos terminados que lanzaste (verificaciones, descargas, generación).
+23. **Buzón SOL.** En la ficha del cliente pulsa «Revisar buzón ahora» (o espera la revisión automática): «Revisión encolada.». Luego, en el menú, «Buzones» → «Críticos pendientes». Con los datos de prueba verás seis críticos, entre ellos «Crítico · Coactiva». Abre la coactiva, pulsa «Abrir en SUNAT» → «Confirmar» para leerla y, cuando la hayas gestionado, escribe un «Comentario» y pulsa «Marcar como atendido» ([módulo 14](14-buzones-sol.md)).
+24. «Auditoría» (en el menú lateral; en celular, dentro de «Más»): verás las acciones de este recorrido, como la creación del cliente, las credenciales guardadas, las sugerencias aceptadas, la exclusión y la generación, con autor y hora.
+25. La campana «Notificaciones» del menú muestra los trabajos terminados que lanzaste (verificaciones, descargas, generación) y un aviso «Mensaje crítico en el buzón SOL de PRUEBA CONTRIBUYENTE S.A.C.: …» por cada mensaje crítico nuevo.
 
 ## Qué ves en pantalla
 
@@ -96,6 +99,7 @@ El detalle está en el [módulo 03](03-equipo-roles-asignaciones.md).
 | Compras / Ventas | Estado «Abierto», descarga hecha, alertas revisadas. |
 | Generar archivo | «Errores» vacío, avisos leídos, resumen de cambios que tenga sentido. |
 | Versiones generadas | La versión con su huella; el periodo «Generado». |
+| Buzones | «Críticos pendientes» vacío: cada crítico atendido, con su comentario. |
 
 ## Reglas y límites
 
@@ -107,7 +111,9 @@ El detalle está en el [módulo 03](03-equipo-roles-asignaciones.md).
 | Formato oficial del TXT | El archivo es «Provisional: no subir a SUNAT». En producción, «Generar» queda deshabilitado (`formato_no_oficial`). | Cuando llegue el anexo oficial de SUNAT |
 | Enviar el archivo a SUNAT y seguir el ticket | Lo descargas y lo subes tú (cuando el formato sea oficial). | R2 (spec 032) |
 | Lupa de ventas | Solo las compras tienen lupa. | R2 (spec 034) |
-| Buzones SOL, prorrata, gastos no deducibles, correos de aviso, TOTP | No están. Las reglas aprendidas sí: ver el [módulo 13](13-reglas-aprendidas.md). | R2 |
+| Prorrata, gastos no deducibles, correos de aviso, TOTP | No están. Las reglas aprendidas, la importación del historial y los buzones SOL sí: ver los módulos [13](13-reglas-aprendidas.md) y [14](14-buzones-sol.md). | R2 |
+| Buzón SOL real | El buzón es una simulación: ContApp no entra al portal de SUNAT. Tampoco responde ni sube documentos a SUNAT: solo lee. | Spec futura del portal SOL real |
+| Registro presentado real del SIRE | «Importar historial» lee periodos simulados, iguales para cualquier RUC sin datos propios. | R2 (spec 032) |
 | Vencimiento de la prueba y cambio de plan por el Dueño | La prueba de 14 días no vence sola; los planes los cambia el super-admin. | R3 |
 
 ### Detalles de pantalla que vas a notar
@@ -117,13 +123,15 @@ Los encontraron la prueba en vivo o la revisión del código. No impiden usar Co
 - Al recargar compras o ventas con F5 se pierde el periodo escrito: escribirlo no cambia la dirección. Usa la dirección con `?periodo=AAAAMM`, o entra a Ventas desde el enlace del encabezado de Compras, que lleva el periodo.
 - No hay botón «Cerrar todas mis sesiones»: cambiar la contraseña cierra las demás.
 - El menú no tiene un enlace «Inicio»: abre `http://localhost:3000/`.
-- El panel «Trabajos» no muestra la posición en la cola, y dos tipos de trabajo salen con su nombre técnico (`xml.obtener`, `archivo.generar`).
+- El panel «Trabajos» no muestra la posición en la cola, y tres tipos de trabajo salen con su nombre técnico (`xml.obtener`, `archivo.generar`, `reglas.historial.importar`). La campana también nombra «Revisar buzón ahora», «Abrir en SUNAT» e «Importar historial» como «Un trabajo en segundo plano».
+- Al abrir un mensaje desde «Buzones», el detalle se abre en el «Buzón SOL» de su cliente; «Volver» regresa a esa bandeja, no a la general.
+- La bandeja de buzones no se actualiza sola: se vuelve a leer al cambiar un filtro o al volver a la pestaña.
 - La ficha del cliente no muestra el estado ni la condición del contribuyente que trae la consulta RUC.
 - Importar ventas con una columna faltante muestra un error genérico («Ocurrió un error. Inténtalo de nuevo.»).
 
 ## Pruébalo con los datos de prueba
 
-Todo este módulo es el «Pruébalo»: los pasos 1 a 24 usan el contribuyente `20700000002` y el periodo `202610`. Si quieres repetirlo desde cero, sigue «Empezar de cero» del [módulo 01](01-preparar-entorno.md).
+Todo este módulo es el «Pruébalo»: los pasos 1 a 25 usan el contribuyente `20700000002` y el periodo `202610`. Si quieres repetirlo desde cero, sigue «Empezar de cero» del [módulo 01](01-preparar-entorno.md).
 
 ## Problemas frecuentes
 

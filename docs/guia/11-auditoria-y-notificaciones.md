@@ -9,7 +9,7 @@ Al terminar este módulo vas a poder consultar quién hizo qué y cuándo en tu 
 En un estudio con varias personas, tarde o temprano alguien pregunta: «¿quién excluyó esta compra?», «¿quién reabrió octubre?», «¿quién cambió el rol de Ana?». ContApp responde con dos herramientas:
 
 - **Auditoría.** Un registro de todo lo importante que pasa en el estudio: ingresos, invitaciones, cambios de rol, clientes, credenciales, descargas, correcciones, cambios de estado y archivos generados. Es de **solo agregado**: nadie, ni el Dueño, puede editarlo ni borrarlo. Si por algún motivo una acción no se puede registrar, la acción tampoco se hace.
-- **Notificaciones.** Avisos dentro de ContApp que te llegan solo a ti, cuando algo requiere tu atención: la clave de un cliente dejó de funcionar, terminó un trabajo que lanzaste o el plan está por llenarse.
+- **Notificaciones.** Avisos dentro de ContApp que te llegan solo a ti, cuando algo requiere tu atención: la clave de un cliente dejó de funcionar, llegó un mensaje crítico a su buzón SOL, terminó un trabajo que lanzaste o el plan está por llenarse.
 
 Piensa en la auditoría como el libro de actas del estudio, y en las notificaciones como los post-it que te deja la oficina en el escritorio. La auditoría la revisa quien supervisa (de vez en cuando o cuando hay una duda); las notificaciones las miras todos los días.
 
@@ -24,6 +24,7 @@ Piensa en la auditoría como el libro de actas del estudio, y en las notificacio
 | Lectura | No | Sí | No (no puede ser responsable) | No |
 
 - La auditoría pide el permiso `auditoria.ver`, que solo tienen el Dueño y el Administrador. Para los demás, el enlace «Auditoría» no aparece en el menú, y si abren la dirección a mano ven «No tienes permiso para ver la auditoría.».
+- El aviso de **mensaje crítico en el buzón SOL** llega a las mismas personas que el de credencial inválida: al responsable del cliente o, si no tiene, a todos los Dueños y Administradores activos ([módulo 14](14-buzones-sol.md)).
 - Las notificaciones no piden permiso: cada persona ve **solo las suyas**. Además, una notificación de un cliente solo se ve mientras sigas teniendo acceso a ese cliente.
 
 ## Antes de empezar
@@ -49,7 +50,7 @@ Piensa en la auditoría como el libro de actas del estudio, y en las notificacio
 
 1. Mira la campana «Notificaciones» del menú: en escritorio está en el menú lateral, debajo de «Trabajos»; en celular, en la barra inferior. Si tienes avisos sin leer, muestra el número (con más de 99, «99+»).
 2. Haz clic en la campana. Se abre el panel «Notificaciones» con las 10 más recientes (en escritorio, al lado del menú; en celular, encima de la barra inferior). Se cierra con Esc o con un clic fuera. Las no leídas salen en negrita y con «Sin leer».
-3. Haz clic en una notificación: se marca como leída y te lleva a donde corresponde (la ficha del cliente, o «Trabajos» si es de un trabajo sin cliente).
+3. Haz clic en una notificación: se marca como leída y te lleva a donde corresponde (la ficha del cliente, el mensaje en el «Buzón SOL» del cliente si es un mensaje crítico, o «Trabajos» si es de un trabajo sin cliente).
 4. Para limpiar la campana de una vez, pulsa «Marcar todas como leídas».
 5. Para ver más de 10, pulsa «Ver todas».
 
@@ -91,7 +92,7 @@ Si la persona ya no está activa en el estudio verás «[nombre] (inactivo)». S
 
 ### Acciones que se registran
 
-Este es el catálogo completo de R1 más las reglas aprendidas de la spec 021. Lo que no está en esta lista no se audita.
+Este es el catálogo completo de R1 más las reglas aprendidas (specs 021 y 025) y los buzones SOL (specs 023 y 024). Lo que no está en esta lista no se audita.
 
 | Grupo | Acción que ves | Cuándo |
 |---|---|---|
@@ -110,6 +111,11 @@ Este es el catálogo completo de R1 más las reglas aprendidas de la spec 021. L
 | Libros | «Generó un archivo» | Cada versión generada, con su número. |
 | Reglas | «Recordó una regla para un proveedor», «Editó una regla de un proveedor», «Activó una regla de un proveedor», «Desactivó una regla de un proveedor», «Eliminó una regla de un proveedor» | Reglas aprendidas de un cliente ([módulo 13](13-reglas-aprendidas.md)). |
 | Reglas | «Aplicó el destino según el historial» | Una compra que llegó en una descarga y una regla aprendida la clasificó sola. |
+| Reglas | «Importó el historial de un cliente», «Activó una regla del historial para un proveedor», «Descartó una candidata del historial» | Importar el historial y revisar sus candidatas ([módulo 13](13-reglas-aprendidas.md)). La importación dice cuántos «Periodos»; la regla activada, «Origen: Importado del historial». «Reemplazar» una regla queda como «Editó una regla de un proveedor». |
+| Buzón SOL | «Pidió revisar el buzón SOL» | Alguien pulsó «Revisar buzón ahora». Las revisiones automáticas no dejan registro. |
+| Buzón SOL | «Pidió abrir un mensaje del buzón SOL», «Obtuvo el contenido de un mensaje del buzón SOL» | «Abrir en SUNAT»: el pedido con su autor y la obtención, que hace el trabajo. |
+| Buzón SOL | «Vio el contenido de un mensaje del buzón SOL», «Descargó un adjunto del buzón SOL» | Lectura de un mensaje ya obtenido y descarga de un adjunto. |
+| Buzón SOL | «Marcó como atendido un mensaje del buzón SOL», «Deshizo la atención de un mensaje del buzón SOL» | Un registro por mensaje, también en lote. Nunca guarda el texto del comentario ([módulo 14](14-buzones-sol.md)). |
 | Reglas | «Cambió una regla del motor del estudio», «Cambió el aporte al catálogo compartido» | Interruptores de «Reglas del motor» ([módulo 13](13-reglas-aprendidas.md)). |
 | Reservada | «Envió a SUNAT» | Reservada para R2: hoy no aparece. |
 
@@ -121,16 +127,17 @@ La auditoría **no guarda montos**: «Modificó compras» dice qué operación f
 |---|---|---|---|
 | Credencial inválida | «La clave SOL de PRUEBA CONTRIBUYENTE S.A.C. fue rechazada por SUNAT. Actualízala para seguir trabajando.» | Al **responsable** activo del cliente. Si el cliente no tiene responsable, a **todos los Dueños y Administradores** activos. | Cuando una credencial pasa a inválida. Una sola vez mientras siga inválida; si la reemplazas y vuelve a fallar, avisa de nuevo. |
 | Trabajo terminado | «La descarga de la propuesta del SIRE de PRUEBA CONTRIBUYENTE S.A.C. terminó.» o «La verificación de la clave SOL de … terminó con error: la credencial es inválida.» | Solo a **quien lanzó el trabajo** desde la pantalla. | Al terminar con éxito o con error, una vez por trabajo aunque haya reintentos. |
+| Mensaje crítico en el buzón SOL | «Mensaje crítico en el buzón SOL de PRUEBA CONTRIBUYENTE S.A.C.: Coactiva» (o «Resolución de determinación», «Resolución de multa», «Requerimiento de fiscalización») | Al **responsable** activo del cliente. Si no tiene, a **todos los Dueños y Administradores** activos. | Cuando una revisión del buzón trae un mensaje crítico nuevo. Una vez por mensaje. En la primera revisión de un cliente, solo los de los últimos 30 días. Al hacer clic, abre ese mensaje ([módulo 14](14-buzones-sol.md)). |
 | Límite del plan | «Estás por llegar al límite de tu plan: usas 9 de 10 RUC.» o «Llegaste al límite de tu plan: usas 5 de 5 usuarios.» | A los **Dueños** activos. | Al llegar al **90 %** y al **100 %** de RUC o de usuarios. Como máximo una vez por día por recurso y umbral; vuelve a avisar solo si el uso baja y cruza el umbral otra vez. |
 
 Sobre los trabajos:
 
-- Avisan los que **una persona lanzó desde la pantalla**: descargar la propuesta de compras o de ventas, verificar una credencial, generar el archivo y «Obtener XML» en la lupa (este último sale con un texto genérico, «Un trabajo en segundo plano … terminó.»).
-- **No** avisan los trabajos programados, los automáticos (por ejemplo, los XML que se piden solos después de la descarga, o las consultas RUC de una importación masiva), los internos del sistema ni los cancelados.
+- Avisan los que **una persona lanzó desde la pantalla**: descargar la propuesta de compras o de ventas, verificar una credencial, generar el archivo «Obtener XML» en la lupa, «Revisar buzón ahora», «Abrir en SUNAT» e «Importar historial». Los cuatro últimos salen con un texto genérico: «Un trabajo en segundo plano de PRUEBA CONTRIBUYENTE S.A.C. terminó.».
+- **No** avisan los trabajos programados, los automáticos (por ejemplo, los XML que se piden solos después de la descarga, las consultas RUC de una importación masiva o las revisiones automáticas del buzón SOL), los internos del sistema ni los cancelados.
 
 Sobre el plan: si el límite se cruza al aceptar una invitación, el aviso se guarda pero no salta en vivo; lo verás en la campana al recargar. Si el super-admin cambia los límites del plan, el aviso sale en el siguiente cambio de uso del estudio ([módulo 04](04-planes-y-limites.md)).
 
-En R1 **no hay correo**: todos los avisos son dentro de ContApp. Los correos y el resumen diario llegan en R2.
+**No hay correo**: todos los avisos son dentro de ContApp, también el de mensaje crítico del buzón. Los correos y el resumen diario llegarán en una versión posterior.
 
 ## Reglas y límites
 
@@ -168,6 +175,7 @@ Además:
    En la auditoría verás «Guardó una credencial» y «Marcó una credencial como inválida» (con su motivo en «Detalle»). Vuelve a guardar una clave de prueba válida (por ejemplo `CLAVEPRUEBA1`) para seguir trabajando.
 6. **Autor con nombre.** Abre el «Historial» de F001-2056: la versión de la sugerencia aceptada lleva tu nombre. En «Generar archivo», la versión 1 dice «… por [tu nombre]».
 7. **Marcar todas.** Abre la campana y pulsa «Marcar todas como leídas». El número desaparece.
+8. **Aviso de buzón.** Con la clave SOL de prueba guardada otra vez, pulsa «Revisar buzón ahora» en la ficha del cliente ([módulo 14](14-buzones-sol.md)). La campana suma un aviso por cada mensaje crítico nuevo, por ejemplo «Mensaje crítico en el buzón SOL de PRUEBA CONTRIBUYENTE S.A.C.: Coactiva», y otro «Un trabajo en segundo plano de PRUEBA CONTRIBUYENTE S.A.C. terminó.». Haz clic en el de «Coactiva»: se abre ese mensaje. En «Auditoría» verás «Pidió revisar el buzón SOL».
 
 ## Problemas frecuentes
 
@@ -177,6 +185,7 @@ Además:
 | No veo «Auditoría» en el menú. | Tu rol no es Dueño ni Administrador. | Es lo esperado. |
 | No encuentro una acción en la auditoría. | No está en el catálogo (por ejemplo, un intento de login fallido o abrir la lupa), o está más abajo. | Revisa la tabla de acciones y usa «Cargar más». |
 | Lancé un trabajo y no me llegó aviso. | Fue cancelado, era automático, o lo lanzó otra persona. | Míralo en «Trabajos» ([módulo 06](06-credenciales-y-trabajos.md)). |
+| No me llegó el aviso de una coactiva que está en el buzón. | El cliente tiene otro responsable, o el mensaje tenía más de 30 días en la primera revisión del cliente (quedó «Histórico»). | Pide a su responsable que la revise, o búscala en «Buzones» → «Atención» → «Históricos» ([módulo 14](14-buzones-sol.md)). |
 | La credencial de un cliente quedó inválida y no me avisaron. | El cliente tiene un responsable y no eres tú. | El aviso le llegó al responsable. Revisa las asignaciones ([módulo 03](03-equipo-roles-asignaciones.md)). |
 | La campana no se actualiza sola. | Se perdió la conexión en vivo. | Recarga la página: el conteo se pone al día. |
 | Veo «Usuario desconocido» como autor. | El autor no es miembro de este estudio. | Nada que corregir: ContApp no muestra datos de personas ajenas al estudio. |
@@ -188,6 +197,7 @@ Además:
 3. La clave SOL de un cliente sin responsable deja de funcionar. ¿Quién recibe el aviso?
 4. Tu estudio usa 9 de 10 RUC. ¿Quién recibe el aviso y cuántas veces si mañana archivas uno y al día siguiente creas otro?
 5. ¿Qué pasa con una notificación de hace cuatro meses? ¿Y con un registro de auditoría de la misma fecha?
+6. Un Asistente marca como atendida una coactiva con el comentario «pagado». ¿Qué queda en la auditoría? ¿Ves el comentario ahí?
 
 <details>
 <summary>Soluciones</summary>
@@ -197,11 +207,12 @@ Además:
 3. Todos los Dueños y Administradores activos del estudio.
 4. Los Dueños activos. Reciben el aviso del 90 % al llegar a 9 de 10. Al archivar uno el uso baja del umbral; al crear otro lo cruza de nuevo y se vuelve a avisar, siempre que haya pasado al menos un día desde el último aviso de ese umbral.
 5. La notificación ya no existe: se purgan a los 90 días. El registro de auditoría sigue ahí: no se purga.
+6. «Marcó como atendido un mensaje del buzón SOL», con el Asistente como actor. El comentario no: solo se ve en el bloque de atención del mensaje.
 
 </details>
 
 ## Para saber más
 
 - Curso técnico: [14 · Auditoría y notificaciones: quién hizo qué, y a quién avisar](../curso/14-auditoria-y-notificaciones.md)
-- Spec: [`docs/specs/017-auditoria-notif/spec.md`](../specs/017-auditoria-notif/spec.md) · catálogo de acciones en `packages/shared/src/auditoria/acciones.ts` y la migración `packages/db/migrations/0045_auditoria_ronda_r1.sql`
+- Specs: [`docs/specs/017-auditoria-notif/spec.md`](../specs/017-auditoria-notif/spec.md), [023](../specs/023-buzones-captura/spec.md) (aviso de buzón crítico) y [025](../specs/025-aprendizaje-arranque/spec.md) (acciones del historial) · catálogo de acciones en `packages/shared/src/auditoria/acciones.ts` y la migración `packages/db/migrations/0045_auditoria_ronda_r1.sql`
 - Requisitos: RF-026, RF-150, RF-152, RF-160 · RNF-001, RNF-004, RNF-021 · HU-10 y parte de HU-40.

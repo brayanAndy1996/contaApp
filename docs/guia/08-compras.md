@@ -56,7 +56,7 @@ Los permisos salen de `packages/shared/src/acceso/roles.ts`. Dueño y Administra
 ### Recorrer la grilla, filtrar y buscar
 
 1. Arriba de la grilla elige la vista: «Con IGV» (la de entrada), «Sin IGV» o «Excluidas». Una compra va a «Sin IGV» cuando la suma de sus tres IGV es 0.00.
-2. Marca «Con alertas» para ver solo las filas con hallazgos, «Proveedor nuevo» para las de proveedores sin historial en el cliente, o «Según historial» para las que ContApp clasificó sola con una regla aprendida ([módulo 13](13-reglas-aprendidas.md)).
+2. Marca «Con alertas» para ver solo las filas con hallazgos, «Proveedor nuevo» para las de proveedores sin historial en el cliente, «Según historial» para las que ContApp clasificó sola con una regla aprendida, o «DNG por perfil del cliente» para las que tienen la sugerencia del modo estándar R-STD ([módulo 13](13-reglas-aprendidas.md)).
 3. En «Buscar por RUC, razón social o serie-número» escribe, por ejemplo, `CALZADO`, `20700000061` o `F001-2056`. Busca solo al dejar de teclear; Enter busca de inmediato.
 4. Muévete con el teclado: flechas, Tab y Shift+Tab, Re Pág / Av Pág, Inicio y Fin (con Ctrl, a la primera o la última celda). La barra espaciadora marca o desmarca la fila.
 
@@ -90,6 +90,7 @@ Cada fila con hallazgos muestra «⚠ Con alerta: R-…» en la columna «Compro
 | R-MIX | «Compra mixta» | El IGV no es el 18 % ni el 10 % de la base: parte de la compra no está gravada. | Separar la base en gravado (con IGV) y no gravado. Sin XML te pide el monto gravado; con XML lo trae exacto. |
 | R-RED | «Redondeo» | La suma de las columnas no da el total por céntimos. | Ajustar el total a la suma (o la columna que indique el XML). |
 | R-NEW | «Proveedor nuevo» | El proveedor no aparece en otros periodos de este cliente. En el primer periodo de un cliente, todos son nuevos. | Elegir el destino (DG, DGNG o DNG). |
+| R-STD | «DNG por perfil» | El cliente es de la Amazonía, vende exonerado y no tiene ventas mixtas, y la compra tiene base en DG o DGNG de un proveedor sin regla aprendida. Solo en esos clientes ([módulo 13](13-reglas-aprendidas.md)). | Pasar la compra a DNG. No pide dato ni confirmación. |
 | R-GP | «Glosa de gasto personal» | La descripción del XML tiene una palabra típica de consumo personal (zapatilla, polo, casaca…). Es un indicio, no una prueba. | Excluir la compra del registro. |
 
 Las reglas que miran el XML (R-MIX exacta, R-ISC con el ISC del XML, R-GP) dependen de que el XML haya llegado. En tu entorno de prueba, el XML simulado entra en las reglas solo si `XML_SIMULADO_EN_REGLAS=1` (así viene en `.env.example`). Ver [09 · La lupa y el XML](09-lupa-y-xml.md).
@@ -108,7 +109,7 @@ Las reglas que miran el XML (R-MIX exacta, R-ISC con el ISC del XML, R-GP) depen
 ### Aplicar en bloque
 
 1. Marca las casillas «Seleccionar …» de varias filas, o haz clic en «Seleccionar las N del filtro» (cuando la carga terminó, hasta 5.000).
-2. Aparece la barra «Acciones sobre la selección» con «N seleccionadas» y los botones «Clasificar como DG», «Clasificar como DGNG», «Clasificar como DNG», «Excluir», «Restaurar», «Aceptar R-RED» y «Quitar selección».
+2. Aparece la barra «Acciones sobre la selección» con «N seleccionadas» y los botones «Clasificar como DG», «Clasificar como DGNG», «Clasificar como DNG», «Excluir», «Restaurar», «Aceptar R-RED», «Aceptar R-STD» y «Quitar selección».
 3. Elige la acción.
 
 **Resultado esperado:** el diálogo «Resultado de la acción masiva» con «N aplicadas» y, si hubo, «N rechazadas» y la tabla «Compras rechazadas» (comprobante y motivo, por ejemplo «Otra persona la cambió; se recargó la fila.»). Cierra con «Cerrar». En bloque **solo** se acepta R-RED, y solo la que no pide confirmación; las demás sugerencias se aceptan fila por fila. Para «aplicar a todas las del proveedor», busca su RUC y usa «Seleccionar las N del filtro». Si todas las filas que clasificaste en bloque son del mismo proveedor, aparece también el aviso «¿Recordar para este proveedor en este cliente?» ([módulo 13](13-reglas-aprendidas.md)).
