@@ -171,6 +171,9 @@ export async function abrirBanco(cupo?: object, extra: Record<string, unknown> =
         // su DELETE audita `asignacion.quitada` y dejaría una fila nueva que bloquea el borrado del estudio.
         // 026: las tablas de la prorrata son de solo inserción (trigger) y tienen FK al estudio; sin borrarlas aquí, con `replica`,
         // `delete from tenant` falla y el estudio queda sin suscripción (`planes.spec.ts`; lo deja `permisos-026.int.spec.ts`).
+        // 027: las cinco tablas del estudio de gastos no deducibles tienen FK a `tenant` (y a `cliente`, `compra` y `usuario`) y se escriben
+        // solo por funciones acotadas; sin borrarlas aquí, con `replica`, `delete from cliente`/`tenant` fallan (FK) y el estudio queda
+        // sin suscripción (`planes.spec.ts`). Mientras T10 no las cree, `intentar` las ignora (savepoint).
         for (const tabla of [
           "archivo_generado",
           "venta_exclusion",
@@ -183,6 +186,11 @@ export async function abrirBanco(cupo?: object, extra: Record<string, unknown> =
           "prorrata_mes_manual",
           "declaracion_mensual",
           "prorrata_obtencion",
+          "gnd_palabra_estudio",
+          "gnd_global_desactivada",
+          "gnd_config",
+          "gnd_cliente_categorias",
+          "gnd_ciiu",
         ])
           await intentar(`delete from ${tabla} where tenant_id = $1`, [t]);
         // 0045: el DELETE de `cliente` y de `membresia` audita y recalcula `plan_aviso` (filas con FK al estudio): también van con

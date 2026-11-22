@@ -31,6 +31,13 @@
 // un PDT (declaración), un mes manual y una prorrata ingresada en su primer cliente (sembrados por SQL); sus ids y el motivo del manual son marcas
 // de fuga. Un usuario de A con el cliente (o un id cualquiera) de B recibe 404 (o 403 sin `prorrata.gestionar`) igual que ante un id inexistente,
 // y las cuatro tablas, los trabajos y las reglas de ambos estudios quedan intactos. Rojo hasta T10 (tablas) y T12 (rutas).
+// 027 (T6) agrega las 14 rutas de gastos no deducibles (`GET|PUT …/estudio/reglas-motor/gastos/{umbral,palabras,palabras/:id,globales/:id}`, `GET|PUT
+// …/clientes/:clienteId/gastos/categorias`, `GET|POST …/clientes/:clienteId/periodos/:periodo/gastos/aprender/:compraId`, `POST …/gastos/reevaluar`
+// y las cuatro de `/plataforma/diccionario*`): cada estudio tiene una palabra propia, una global desactivada, un umbral, un ajuste de categorías y una
+// entrada de CIIU en su primer cliente (sembrados por SQL); sus ids, su palabra y el RUC de la caché son marcas de fuga. Un usuario de A con ids de B
+// recibe 404 (o 403 sin `reglas.gestionar`) igual que ante un id inexistente, el estudio sale de la sesión (un `tenantId` en el cuerpo es 400), las rutas
+// de plataforma dan 403 a quien no es super-admin, y las cinco tablas, los trabajos y la auditoría de ambos estudios quedan intactos. Rojo hasta T10
+// (tablas) y T12 (rutas).
 // 006 (T3) agrega los casos de `/registro/*`, `GET /plan/uso` y las 6 rutas `/plataforma/*` (CA-8): los usuarios de A
 // (ninguno super-admin) con IDs, tokens y correos de B. Rojo hasta T7 (uso), T8 (registro) y T9 (plataforma).
 import { createHash, randomBytes, randomUUID } from "node:crypto";
@@ -112,6 +119,8 @@ interface Recursos {
   proveedorCandidata?: { numero: string; razonSocial: string };
   /** 026: obtención, PDT, mes manual y prorrata ingresada del primer cliente (sembrados por SQL; ausentes si faltan las tablas). */
   prorrata?: { obtencionId: string; declaracionId: string; manualId: string; usadaId: string; motivo: string };
+  /** 027: palabra propia, global desactivada, umbral, ajuste de categorías del primer cliente y CIIU en la caché (ausentes si faltan las tablas). */
+  gastos?: { propiaId: string; palabra: string; categoriasClienteId: string; ruc: string };
 }
 interface Sesion {
   cookie: string;
@@ -184,6 +193,8 @@ const candidatasSembradas: string[] = [];
 const importacionesSembradas: string[] = [];
 /** 026: si la siembra de la prorrata falló (¿tablas de T10?), el motivo; los casos nuevos lo muestran. */
 let falloSiembra026: string | null = null;
+/** 027: si la siembra de gastos no deducibles falló (¿tablas de T10?), el motivo; los casos nuevos lo muestran. */
+let falloSiembra027: string | null = null;
 
 const todos = (...n: number[]): Esperado => ({ dueno: n, asistente: n });
 const E404: Esperado = { dueno: [404], asistente: [403, 404] };
@@ -395,6 +406,32 @@ async function sembrarProrrata(r: Recursos, etiqueta: "A" | "B"): Promise<void> 
   r.prorrata = { obtencionId: ob[0].id, declaracionId: de[0].id, manualId: ma[0].id, usadaId: us[0].id, motivo };
 }
 
+/**
+ * 027: una palabra propia, la global «polo» desactivada, el umbral 7, el ajuste de categorías del primer cliente y una entrada de CIIU en la caché
+ * del estudio, por SQL. La palabra y el RUC son únicos de la prueba: marcas de fuga. Sin las tablas de T10 falla (42P01) y lo captura el arranque.
+ */
+async function sembrarGastos(r: Recursos, etiqueta: "A" | "B"): Promise<void> {
+  const palabra = `hu40${etiqueta.toLowerCase()}${sufijo}`;
+  const ruc = etiqueta === "A" ? "20700027001" : "20700027002";
+  const pa = await h.sql(
+    `insert into gnd_palabra_estudio (tenant_id, palabra, categoria, excepciones, origen, activa, version, creado_por)
+     values ($1, $2, 'entretenimiento', '{}', 'manual', true, 1, $3) returning id`,
+    [r.tenantId, palabra, r.dueno.id],
+  );
+  await h.sql(
+    `insert into gnd_global_desactivada (tenant_id, palabra_global_id, usuario_id)
+     select $1, id, $2 from gnd_palabra_global where palabra = 'polo'`,
+    [r.tenantId, r.dueno.id],
+  );
+  await h.sql("insert into gnd_config (tenant_id, umbral, version) values ($1, 7, 1)", [r.tenantId]);
+  const ca = await h.sql(
+    `insert into gnd_cliente_categorias (tenant_id, cliente_id, permitidas, quitadas, version) values ($1, $2, '{juguetes}', '{}', 1) returning cliente_id`,
+    [r.tenantId, r.clientes[0]],
+  );
+  await h.sql("insert into gnd_ciiu (tenant_id, ruc, ciiu) values ($1, $2, '4752')", [r.tenantId, ruc]);
+  r.gastos = { propiaId: pa[0].id, palabra, categoriasClienteId: ca[0].cliente_id, ruc };
+}
+
 /** Marcadores: todo lo que existe en `de` y no en `contra` (los usuarios de ambos, como uAB, no cuentan). */
 async function calcularMarcadores(
   de: Recursos,
@@ -441,6 +478,11 @@ async function calcularMarcadores(
     otros.add(de.proveedorCandidata.razonSocial);
   }
   if (de.prorrata) otros.add(de.prorrata.motivo);
+  if (de.gastos) {
+    ids.add(de.gastos.propiaId);
+    otros.add(de.gastos.palabra);
+    otros.add(de.gastos.ruc);
+  }
   for (const f of clientesDe) {
     ids.add(f.id);
     otros.add(f.razon_social);
@@ -474,6 +516,21 @@ async function instantaneaProrrata(
       r.tenantId,
       r.clientes,
     ]).catch((e: { code?: string }) => {
+      if (e.code === "42P01") return [];
+      throw e;
+    });
+  }
+  return salida;
+}
+
+/** 027: las cinco tablas del estudio de gastos no deducibles de `r` (vacías, sin romper, mientras no existan: rojo hasta T10). */
+async function instantaneaGastos(
+  r: Recursos,
+  q: (texto: string, valores: unknown[]) => Promise<unknown[]>,
+): Promise<Record<string, unknown>> {
+  const salida: Record<string, unknown> = {};
+  for (const tabla of ["gnd_palabra_estudio", "gnd_global_desactivada", "gnd_config", "gnd_cliente_categorias", "gnd_ciiu"]) {
+    salida[tabla] = await q(`select to_jsonb(g) j from ${tabla} g where tenant_id = $1 order by 1`, [r.tenantId]).catch((e: { code?: string }) => {
       if (e.code === "42P01") return [];
       throw e;
     });
@@ -539,6 +596,8 @@ async function instantanea(
     }),
     // 026: obtenciones, PDT, manuales y prorratas ingresadas (0065). Mientras las tablas no existan (rojo) la instantánea no las incluye.
     ...(await instantaneaProrrata(r, q)),
+    // 027: las cinco tablas de gastos no deducibles (0069). Mientras no existan (rojo) la instantánea no las incluye.
+    ...(await instantaneaGastos(r, q)),
     // 024: historial de atención (0059). Mientras la tabla no exista (rojo) la instantánea no la incluye y no rompe los casos de 004 a 023.
     buzon_atencion: await q(
       "select to_jsonb(g) j from buzon_atencion g where tenant_id = $1 and cliente_id = any($2::uuid[]) order by id",
@@ -1751,6 +1810,271 @@ function casosProrrata(): Caso[] {
   ];
 }
 
+/* ---------------------------- 027 · gastos no deducibles ----------------------------
+ * Diccionario, umbral y globales del estudio (`/estudio/reglas-motor/gastos*`: escribir exige `reglas.gestionar` y alcance global), categorías del cliente
+ * y aprender (`/clientes/:clienteId/…/gastos/*`: `reglas.gestionar` y cliente visible), «Volver a evaluar» (`sire.clasificar`) y el diccionario de
+ * plataforma (solo super-admin: 403 para todos aquí). Un id de B (palabra, cliente, compra) desde A: el mismo 404 `no_encontrado` que ante un id
+ * inexistente; la asistente (sin `reglas.gestionar`) recibe 403 antes de mirar el recurso. Un `tenantId` o `clienteId` en el cuerpo es 400 (esquemas
+ * estrictos): el estudio sale de la sesión. Las cinco tablas, los trabajos `compras.reevaluar` y la auditoría de ambos estudios quedan como estaban. */
+const PERIODO_GASTOS = "202610";
+const RUTA_GASTOS = "/estudio/reglas-motor/gastos";
+
+/** Ni una fila nueva ni una cambiada: cada estudio conserva SU palabra, su umbral, su ajuste, su CIIU y su global desactivada, y no hay trabajos de reevaluar. */
+async function gastosIntacto(c: Contexto): Promise<void> {
+  for (const r of [c.mio, c.ajeno]) {
+    const p = await h.sql("select id, palabra, activa, version::int as version from gnd_palabra_estudio where tenant_id = $1", [r.tenantId]);
+    expect(p, `palabras de ${r.nombre}: la siembra de 027 falló o se escribió algo`).toEqual([{ id: r.gastos!.propiaId, palabra: r.gastos!.palabra, activa: true, version: 1 }]);
+    const g = await h.sql("select count(*)::int n from gnd_global_desactivada where tenant_id = $1", [r.tenantId]);
+    expect(g[0].n, `globales desactivadas de ${r.nombre}`).toBe(1);
+    const u = await h.sql("select umbral::int as umbral, version::int as version from gnd_config where tenant_id = $1", [r.tenantId]);
+    expect(u, `umbral de ${r.nombre}`).toEqual([{ umbral: 7, version: 1 }]);
+    const k = await h.sql("select permitidas, quitadas, version::int as version from gnd_cliente_categorias where tenant_id = $1", [r.tenantId]);
+    expect(k, `categorías de ${r.nombre}`).toEqual([{ permitidas: ["juguetes"], quitadas: [], version: 1 }]);
+    const j = await h.sql("select count(*)::int n from job_registro where tipo = 'compras.reevaluar' and cliente_id = any($1::uuid[])", [r.clientes]);
+    expect(j[0].n, `trabajos de reevaluar de ${r.nombre}`).toBe(0);
+    const a = await h.sql("select count(*)::int n from auditoria where tenant_id = $1 and accion like 'gnd.%'", [r.tenantId]);
+    expect(a[0].n, `auditoría de 027 de ${r.nombre}`).toBe(0);
+  }
+}
+
+function casosGastos(): Caso[] {
+  const exigirSiembra = (): void => expect(falloSiembra027, "la siembra de 027 falló (¿tablas de T10?)").toBeNull();
+  /** Ids de B (y de otras cosas de B) como ids de palabra, de global o de compra: ninguno existe para quien llama. */
+  const idsAjenos = (c: Contexto): string[] => [c.ajeno.gastos?.propiaId ?? randomUUID(), c.ajeno.asignacionId, c.ajeno.tenantId, c.ajeno.reglaId, randomUUID()];
+  /** Escrituras con ids de B: la asistente (sin reglas.gestionar) recibe 403; el Dueño, el 404 de siempre y lo mismo que ante un id inexistente. */
+  const verificarEscritura = async (c: Contexto, respuestas: Resp[], referencia: Pet): Promise<void> => {
+    exigirSiembra();
+    const ref = await c.pedir(referencia);
+    expect(ref.status, ref.text).toBe(c.yo.rol === "asistente" ? 403 : 404);
+    for (const r of respuestas) {
+      if (c.yo.rol === "asistente") {
+        expect(r.status, r.text).toBe(403);
+        expect(r.body).toEqual(PERMISO_DENEGADO);
+      } else {
+        expect(r.status, r.text).toBe(404);
+        expect(r.body).toEqual(NO_ENCONTRADO);
+        expect(r.text).toBe(ref.text);
+      }
+    }
+    await gastosIntacto(c);
+  };
+  /** Escrituras con cuerpo ajeno: `tenantId`, `clienteId` o `usuarioId` en el cuerpo (el estudio sale de la sesión): 400 para el Dueño, 403 para la asistente. */
+  const verificarCuerpoAjeno = async (c: Contexto, respuestas: Resp[]): Promise<void> => {
+    exigirSiembra();
+    for (const r of respuestas) {
+      if (c.yo.rol === "asistente") {
+        expect(r.status, r.text).toBe(403);
+        expect(r.body).toEqual(PERMISO_DENEGADO);
+      } else {
+        expect(r.status, r.text).toBe(400);
+        expect(r.body).toEqual({ codigo: "solicitud_invalida" });
+      }
+    }
+    await gastosIntacto(c);
+  };
+  const lecturaCliente = async (c: Contexto, respuestas: Resp[], ruta: (cl: string) => string, propio: (r: Resp) => void): Promise<void> => {
+    exigirSiembra();
+    const noExiste = await c.pedir({ ruta: ruta(randomUUID()) });
+    expect(noExiste.status).toBe(404);
+    expect(noExiste.body).toEqual(NO_ENCONTRADO);
+    mismoNoEncontrado(respuestas, noExiste);
+    const mio = await c.pedir({ ruta: ruta(c.mio.clientes[0]) });
+    expect(mio.status, mio.text).toBe(200);
+    propio(mio);
+    const g = c.ajeno.gastos!;
+    for (const marca of [g.propiaId, g.palabra, g.ruc]) expect(mio.text).not.toContain(marca);
+    const noVisible = await c.pedir({ ruta: ruta(c.mio.clientes[1]) });
+    if (c.yo.rol === "asistente") {
+      expect(noVisible.status, noVisible.text).toBe(404);
+      expect(noVisible.text).toBe(noExiste.text);
+    } else {
+      expect(noVisible.status, noVisible.text).toBe(200);
+    }
+    await gastosIntacto(c);
+  };
+  const PLAT_PALABRA = { categoria: "juguetes", excepciones: [], activa: true, version: 1 };
+
+  return [
+    {
+      ruta: "GET /estudio/reglas-motor/gastos",
+      esperado: todos(200),
+      construir: (c) => [{ ruta: RUTA_GASTOS }, { ruta: `${RUTA_GASTOS}?tenantId=${c.ajeno.tenantId}&estudioId=${c.ajeno.tenantId}` }],
+      extra: async (c, respuestas) => {
+        exigirSiembra();
+        for (const r of respuestas) {
+          // Solo lo propio: su palabra, su umbral y su global desactivada; nada de B (las marcas de fuga se buscan además en cada respuesta).
+          expect(r.body.umbral).toBe(7);
+          expect((r.body.propias as any[]).map((p) => p.id)).toEqual([c.mio.gastos!.propiaId]);
+          expect((r.body.globales as any[]).find((g) => g.palabra === "polo").desactivadaPorEstudio).toBe(true);
+        }
+        await gastosIntacto(c);
+      },
+    },
+    {
+      ruta: "PUT /estudio/reglas-motor/gastos/umbral",
+      esperado: { dueno: [400], asistente: [403] },
+      construir: (c) => [
+        { metodo: "PUT", ruta: `${RUTA_GASTOS}/umbral`, cuerpo: { umbral: 5, version: 1, tenantId: c.ajeno.tenantId } },
+        { metodo: "PUT", ruta: `${RUTA_GASTOS}/umbral?tenantId=${c.ajeno.tenantId}`, cuerpo: { umbral: 5, version: 1, estudioId: c.ajeno.tenantId } },
+      ],
+      extra: verificarCuerpoAjeno,
+    },
+    {
+      ruta: "POST /estudio/reglas-motor/gastos/palabras",
+      esperado: { dueno: [400], asistente: [403] },
+      construir: (c) => [
+        { metodo: "POST", ruta: `${RUTA_GASTOS}/palabras`, cuerpo: { palabra: `hu40intruso${sufijo}`, categoria: "juguetes", tenantId: c.ajeno.tenantId } },
+        { metodo: "POST", ruta: `${RUTA_GASTOS}/palabras?tenantId=${c.ajeno.tenantId}`, cuerpo: { palabra: `hu40intruso${sufijo}`, categoria: "juguetes", usuarioId: c.ajeno.dueno.id } },
+      ],
+      extra: async (c, respuestas) => {
+        await verificarCuerpoAjeno(c, respuestas);
+        const f = await h.sql("select count(*)::int n from gnd_palabra_estudio where palabra like $1", [`hu40intruso${sufijo}%`]);
+        expect(f[0].n).toBe(0);
+      },
+    },
+    {
+      ruta: "PUT /estudio/reglas-motor/gastos/palabras/:id",
+      esperado: { dueno: [404], asistente: [403] },
+      construir: (c) => idsAjenos(c).map((id) => ({ metodo: "PUT" as const, ruta: `${RUTA_GASTOS}/palabras/${id}`, cuerpo: { activa: false, version: 1 } })),
+      extra: (c, respuestas) =>
+        verificarEscritura(c, respuestas, { metodo: "PUT", ruta: `${RUTA_GASTOS}/palabras/${randomUUID()}`, cuerpo: { activa: false, version: 1 } }),
+    },
+    {
+      ruta: "PUT /estudio/reglas-motor/gastos/globales/:id",
+      esperado: { dueno: [404], asistente: [403] },
+      construir: (c) => idsAjenos(c).map((id) => ({ metodo: "PUT" as const, ruta: `${RUTA_GASTOS}/globales/${id}`, cuerpo: { activa: false } })),
+      extra: (c, respuestas) =>
+        verificarEscritura(c, respuestas, { metodo: "PUT", ruta: `${RUTA_GASTOS}/globales/${randomUUID()}`, cuerpo: { activa: false } }),
+    },
+    {
+      ruta: "GET /clientes/:clienteId/gastos/categorias",
+      esperado: { dueno: [404], asistente: [404] },
+      construir: (c) => idsDeCliente(c.ajeno).map((id) => ({ ruta: `/clientes/${id}/gastos/categorias` })),
+      extra: (c, respuestas) =>
+        lecturaCliente(c, respuestas, (cl) => `/clientes/${cl}/gastos/categorias`, (r) => expect(r.body).toMatchObject({ permitidas: ["juguetes"], quitadas: [], version: 1 })),
+    },
+    {
+      ruta: "PUT /clientes/:clienteId/gastos/categorias",
+      esperado: { dueno: [404], asistente: [403] },
+      construir: (c) =>
+        idsDeCliente(c.ajeno).map((id) => ({ metodo: "PUT" as const, ruta: `/clientes/${id}/gastos/categorias`, cuerpo: { permitidas: ["calzado-ropa"], quitadas: [], version: 1 } })),
+      extra: async (c, respuestas) => {
+        await verificarEscritura(c, respuestas, { metodo: "PUT", ruta: `/clientes/${randomUUID()}/gastos/categorias`, cuerpo: { permitidas: ["calzado-ropa"], quitadas: [], version: 1 } });
+        // Con un cliente PROPIO, un cuerpo con ids de B no se acepta: el cliente sale de la ruta, nunca del cuerpo (esquema estricto).
+        const r = await c.pedir({
+          metodo: "PUT",
+          ruta: `/clientes/${c.mio.clientes[0]}/gastos/categorias`,
+          cuerpo: { permitidas: ["calzado-ropa"], quitadas: [], version: 1, clienteId: c.ajeno.clientes[0], tenantId: c.ajeno.tenantId },
+        });
+        expect(r.status, r.text).toBe(c.yo.rol === "asistente" ? 403 : 400);
+        await gastosIntacto(c);
+      },
+    },
+    {
+      ruta: "GET /clientes/:clienteId/periodos/:periodo/gastos/aprender/:compraId",
+      esperado: { dueno: [404], asistente: [403] },
+      construir: (c) => idsDeCliente(c.ajeno).map((id) => ({ ruta: `/clientes/${id}/periodos/${PERIODO_GASTOS}/gastos/aprender/${randomUUID()}` })),
+      extra: async (c, respuestas) => {
+        exigirSiembra();
+        const base = `periodos/${PERIODO_GASTOS}/gastos/aprender`;
+        const noExiste = await c.pedir({ ruta: `/clientes/${randomUUID()}/${base}/${randomUUID()}` });
+        if (c.yo.rol === "asistente") {
+          // Sin `reglas.gestionar`: 403 antes de mirar el cliente o la compra.
+          expect(noExiste.status, noExiste.text).toBe(403);
+          for (const r of respuestas) expect(r.body).toEqual(PERMISO_DENEGADO);
+        } else {
+          expect(noExiste.status, noExiste.text).toBe(404);
+          expect(noExiste.body).toEqual(NO_ENCONTRADO);
+          mismoNoEncontrado(respuestas, noExiste);
+          // Un cliente propio con una compra inexistente o de B: el mismo 404.
+          for (const compraId of [randomUUID(), c.ajeno.asignacionId, c.ajeno.tenantId]) {
+            const r = await c.pedir({ ruta: `/clientes/${c.mio.clientes[0]}/${base}/${compraId}` });
+            expect(r.status, r.text).toBe(404);
+            expect(r.text).toBe(noExiste.text);
+          }
+        }
+        await gastosIntacto(c);
+      },
+    },
+    {
+      ruta: "POST /clientes/:clienteId/periodos/:periodo/gastos/aprender/:compraId",
+      esperado: { dueno: [404], asistente: [403] },
+      construir: (c) =>
+        idsDeCliente(c.ajeno).map((id) => ({
+          metodo: "POST" as const,
+          ruta: `/clientes/${id}/periodos/${PERIODO_GASTOS}/gastos/aprender/${randomUUID()}`,
+          cuerpo: { terminos: [{ termino: "intruso", categoria: "juguetes" }] },
+        })),
+      extra: async (c, respuestas) => {
+        await verificarEscritura(c, respuestas, {
+          metodo: "POST",
+          ruta: `/clientes/${randomUUID()}/periodos/${PERIODO_GASTOS}/gastos/aprender/${randomUUID()}`,
+          cuerpo: { terminos: [{ termino: "intruso", categoria: "juguetes" }] },
+        });
+        // Un cliente propio con una compra de B y `tenantId` en el cuerpo (esquema estricto): 400 para el Dueño, 403 para la asistente.
+        const r = await c.pedir({
+          metodo: "POST",
+          ruta: `/clientes/${c.mio.clientes[0]}/periodos/${PERIODO_GASTOS}/gastos/aprender/${c.ajeno.asignacionId}`,
+          cuerpo: { terminos: [{ termino: "intruso", categoria: "juguetes" }], tenantId: c.ajeno.tenantId },
+        });
+        expect(r.status, r.text).toBe(c.yo.rol === "asistente" ? 403 : 400);
+        await gastosIntacto(c);
+      },
+    },
+    {
+      ruta: "POST /clientes/:clienteId/periodos/:periodo/gastos/reevaluar",
+      esperado: { dueno: [404], asistente: [404] },
+      construir: (c) => idsDeCliente(c.ajeno).map((id) => ({ metodo: "POST" as const, ruta: `/clientes/${id}/periodos/${PERIODO_GASTOS}/gastos/reevaluar`, cuerpo: {} })),
+      extra: async (c, respuestas) => {
+        exigirSiembra();
+        const noExiste = await c.pedir({ metodo: "POST", ruta: `/clientes/${randomUUID()}/periodos/${PERIODO_GASTOS}/gastos/reevaluar`, cuerpo: {} });
+        expect(noExiste.status, noExiste.text).toBe(404);
+        expect(noExiste.body).toEqual(NO_ENCONTRADO);
+        mismoNoEncontrado(respuestas, noExiste);
+        // El cliente no visible de la asistente (el segundo) también es el mismo 404; el propio sí se encola (y se quita para no dejar trabajos).
+        if (c.yo.rol === "asistente") {
+          const noVisible = await c.pedir({ metodo: "POST", ruta: `/clientes/${c.mio.clientes[1]}/periodos/${PERIODO_GASTOS}/gastos/reevaluar`, cuerpo: {} });
+          expect(noVisible.status, noVisible.text).toBe(404);
+          expect(noVisible.text).toBe(noExiste.text);
+        }
+        // Un cuerpo con ids de B no se acepta ni encola nada.
+        const conCuerpo = await c.pedir({
+          metodo: "POST",
+          ruta: `/clientes/${c.mio.clientes[0]}/periodos/${PERIODO_GASTOS}/gastos/reevaluar`,
+          cuerpo: { clienteId: c.ajeno.clientes[0], tenantId: c.ajeno.tenantId },
+        });
+        expect(conCuerpo.status, conCuerpo.text).toBe(400);
+        await gastosIntacto(c);
+      },
+    },
+    // Diccionario de plataforma: solo el super-admin; ningún usuario de estudio (ni con ids de B) llega a las funciones.
+    { ruta: "GET /plataforma/diccionario", esperado: todos(403), construir: () => [{ ruta: "/plataforma/diccionario" }] },
+    {
+      ruta: "POST /plataforma/diccionario",
+      esperado: todos(403),
+      construir: (c) => [{ metodo: "POST", ruta: "/plataforma/diccionario", cuerpo: { palabra: `hu40plat${sufijo}`, categoria: "juguetes", tenantId: c.ajeno.tenantId } }],
+      extra: async () => {
+        expect(await h.sql("select 1 from gnd_palabra_global where palabra like $1", [`hu40plat${sufijo}%`])).toHaveLength(0);
+      },
+    },
+    {
+      ruta: "PUT /plataforma/diccionario/:id",
+      esperado: todos(403),
+      construir: (c) =>
+        [c.ajeno.gastos?.propiaId ?? randomUUID(), c.ajeno.tenantId, ...c.ajeno.clientes].map((id) => ({
+          metodo: "PUT" as const,
+          ruta: `/plataforma/diccionario/${id}`,
+          cuerpo: PLAT_PALABRA,
+        })),
+      extra: async () => {
+        const f = await h.sql("select categoria, activa, version::int as version from gnd_palabra_global where palabra = 'zapatilla'");
+        expect(f).toEqual([{ categoria: "calzado-ropa", activa: true, version: 1 }]); // la semilla sin tocar
+      },
+    },
+    { ruta: "GET /plataforma/diccionario/historial", esperado: todos(403), construir: () => [{ ruta: "/plataforma/diccionario/historial?limite=10" }] },
+  ];
+}
+
 const CASOS: Caso[] = [
   /* ---------- 004 ---------- */
   {
@@ -2780,6 +3104,9 @@ const CASOS: Caso[] = [
 
   /* ---------- 026: prorrata e IGV estimado ---------- */
   ...casosProrrata(),
+
+  /* ---------- 027: gastos no deducibles ---------- */
+  ...casosGastos(),
 ];
 
 const POR_RUTA = new Map(CASOS.map((c) => [c.ruta, c]));
@@ -2807,6 +3134,13 @@ beforeAll(async () => {
   } catch (e) {
     falloSiembra026 = e instanceof Error ? e.message : String(e);
   }
+  // 027: igual, con las cinco tablas de gastos no deducibles (T10); antes de los marcadores: sus ids, la palabra y el RUC son marcas de fuga.
+  try {
+    await sembrarGastos(A, "A");
+    await sembrarGastos(B, "B");
+  } catch (e) {
+    falloSiembra027 = e instanceof Error ? e.message : String(e);
+  }
   await calcularMarcadores(A, B);
   await calcularMarcadores(B, A);
   // 017: si las tablas de T7 aún no existen, la siembra falla y solo fallan los casos nuevos (los demás no la necesitan).
@@ -2826,6 +3160,10 @@ async function limpiar(): Promise<void> {
   await borrarPorId("notificacion", todos.flatMap((x) => [...x.notifDueno, ...x.notifAsistente]));
   await borrarPorId("auditoria", todos.flatMap((x) => x.auditoria));
   await borrarPorId("auditoria_descifrado", todos.flatMap((x) => x.descifrado));
+  // 027: las cinco tablas del estudio (escritas solo por funciones; el superusuario de la conexión de migraciones puede borrar), antes que los clientes.
+  for (const t of ["gnd_palabra_estudio", "gnd_global_desactivada", "gnd_config", "gnd_cliente_categorias", "gnd_ciiu"])
+    await h.sql(`delete from ${t} where tenant_id = any($1::uuid[])`, [[A.tenantId, B.tenantId]]).catch(() => undefined);
+  await h.sql("delete from job_registro where tipo = 'compras.reevaluar' and cliente_id = any($1::uuid[])", [clientesCreados]).catch(() => undefined);
   // 026: tablas de solo inserción (el superusuario de la conexión de migraciones puede borrar); de la hija a la madre, antes que los clientes.
   for (const t of ["declaracion_mensual", "prorrata_mes_manual", "prorrata_usada_manual", "prorrata_obtencion"])
     await h.sql(`delete from ${t} where cliente_id = any($1::uuid[])`, [clientesCreados]).catch(() => undefined);
@@ -3085,6 +3423,34 @@ describe("HU-40 por API · 026 · las pruebas no son vacías (prorrata propia)",
       const a = await abrirSesion(mio.asistente, mio.tenantId);
       expect((await pedir(a, `/clientes/${mio.clientes[0]}/prorrata?periodo=${PERIODO_PRORRATA}`)).status).toBe(200);
       const escribe = await pedir(a, `/clientes/${mio.clientes[0]}/prorrata/meses/202602`, { metodo: "PUT", cuerpo: cuerpoManualPropio });
+      expect(escribe.status, escribe.text).toBe(403);
+    }
+  });
+});
+
+describe("HU-40 por API · 027 · las pruebas no son vacías (gastos no deducibles propios)", () => {
+  it("cada estudio ve su palabra, su umbral, su ajuste de categorías y su global desactivada y nunca los del otro; la asistente los lee y no escribe", async () => {
+    expect(falloSiembra027, "la siembra de 027 falló (¿tablas de T10?)").toBeNull();
+    for (const [mio, ajeno] of [
+      [A, B],
+      [B, A],
+    ] as const) {
+      const d = await abrirSesion(mio.dueno, mio.tenantId);
+      const pedir = (s: Sesion, ruta: string, o: { metodo?: Peticion["metodo"]; cuerpo?: unknown } = {}) =>
+        h.pedir({ ruta, cookie: s.cookie, csrf: s.csrf, estudio: mio.tenantId, ...o });
+      const vista = await pedir(d, RUTA_GASTOS);
+      expect(vista.status, vista.text).toBe(200);
+      expect(vista.body.umbral).toBe(7);
+      expect((vista.body.propias as any[]).map((p) => [p.id, p.palabra])).toEqual([[mio.gastos!.propiaId, mio.gastos!.palabra]]);
+      expect((vista.body.globales as any[]).find((g) => g.palabra === "polo").desactivadaPorEstudio).toBe(true);
+      for (const marca of [ajeno.gastos!.propiaId, ajeno.gastos!.palabra]) expect(vista.text).not.toContain(marca);
+      const cat = await pedir(d, `/clientes/${mio.clientes[0]}/gastos/categorias`);
+      expect(cat.status, cat.text).toBe(200);
+      expect(cat.body).toMatchObject({ permitidas: ["juguetes"], quitadas: [], version: 1 });
+
+      const a = await abrirSesion(mio.asistente, mio.tenantId);
+      expect((await pedir(a, RUTA_GASTOS)).status).toBe(200);
+      const escribe = await pedir(a, `${RUTA_GASTOS}/umbral`, { metodo: "PUT", cuerpo: { umbral: 5, version: 1 } });
       expect(escribe.status, escribe.text).toBe(403);
     }
   });
