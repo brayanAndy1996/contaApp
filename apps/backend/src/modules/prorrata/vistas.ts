@@ -166,9 +166,9 @@ function aCoeficienteVista(r: ResultadoProrrata): CoeficienteVista {
 /**
  * IGV de ventas de M con las mismas filas y la misma conversión que el resumen de 013: las sumas PEN (hechas en SQL) entran como una
  * fila PEN y cada USD con su tipo de cambio como una fila USD; `resumirVentas` convierte columna por columna y las USD sin tipo de
- * cambio no suman.
+ * cambio no suman, y lo avisa (H-026-2-6: el aviso pasa al IGV estimado como `ventas_usd_sin_tipo_cambio`).
  */
-function igvDeVentas(t: TotalesVentasPeriodo): Money {
+function igvDeVentas(t: TotalesVentasPeriodo): { igv: Money; sinTipoCambio: boolean } {
   const cero = "0.00";
   const base = { tipo: "00", isc: cero, icbper: cero, otros: cero, total: cero };
   const filas: FilaResumenVenta[] = [
@@ -194,7 +194,8 @@ function igvDeVentas(t: TotalesVentasPeriodo): Money {
       }),
     ),
   ];
-  return Money.desde(resumirVentas(filas).total.igv, "PEN");
+  const r = resumirVentas(filas);
+  return { igv: Money.desde(r.total.igv, "PEN"), sinTipoCambio: r.avisos.includes("usd_sin_tipo_cambio") };
 }
 
 /** IGV estimado de M (R-7). Con el coeficiente tiene precedencia; luego faltan las ventas, luego las compras de M. */
@@ -207,8 +208,9 @@ function aIgvVista(
   if (coeficiente.estado !== "calculado") return { estado: "no_estimable", motivo: "coeficiente" };
   if (ventasM === undefined || !ventasM.cargado) return { estado: "no_estimable", motivo: "sin_ventas" };
   if (!comprasCargadas || comprasM === null) return { estado: "no_estimable", motivo: "sin_compras" };
+  const ventas = igvDeVentas(ventasM);
   const igv = estimarIgv({
-    igvVentas: igvDeVentas(ventasM),
+    igvVentas: ventas.igv,
     igvDg: Money.desde(comprasM.igvDg, "PEN"),
     igvDgng: Money.desde(comprasM.igvDgng, "PEN"),
     igvDng: Money.desde(comprasM.igvDng, "PEN"),
@@ -224,6 +226,8 @@ function aIgvVista(
     resultado: igv.resultado.toString(),
     situacion: igv.situacion,
     estadoPeriodoCompras: comprasM.estado,
+    // Sin aviso la clave se omite (el contrato la lee como lista vacía).
+    ...(ventas.sinTipoCambio ? { avisos: ["ventas_usd_sin_tipo_cambio" as const] } : {}),
   };
 }
 

@@ -1,5 +1,6 @@
-// Spec 026 (T14a): una suma de la ventana que excede NUMERIC(14,2) es un 422 controlado `resumen_fuera_de_rango` (como el resumen de
-// 014), nunca un 500, y la lectura no deja nada escrito. Contra la BD real por HTTP.
+// Spec 026 (T14a): una suma de la ventana que excede NUMERIC(14,2) nunca es un 500 y la lectura no deja nada escrito. Contra la BD
+// real por HTTP. T20: la decisión del usuario del 2026-11-22 (H-026-2-4) cambia el 422 `resumen_fuera_de_rango` por un 200 con la
+// tabla y el coeficiente `no_determinable: montos_fuera_de_rango` (como `r2.int.spec.ts`).
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   abrirBancoProrrata,
@@ -29,16 +30,16 @@ afterAll(async () => {
 const MAXIMO = "999999999999.99"; // el mayor NUMERIC(14,2)
 
 describe("suma de la ventana fuera de NUMERIC(14,2)", () => {
-  it("12 meses manuales en el máximo: 422 resumen_fuera_de_rango, sin 500 ni escritura", async () => {
+  it("12 meses manuales en el máximo: 200 con «montos_fuera_de_rango» (no 422 resumen_fuera_de_rango), sin 500 ni escritura", async () => {
     const c = await v.cliente(E, { responsable: contador.id });
     for (const periodo of VENTANA_M) {
       await v.sembrarManual(E.tenantId, c.id, { periodo, gravadas: MAXIMO, exportaciones: "0.00", noGravadas: "0.00", autor: E.titular.id });
     }
     const antes = await v.fotoProrrata(E.tenantId, c.id);
     const r = await v.http(contador, "GET", rutaVista(c.id, M));
-    expect(r.status, r.text).toBe(422);
-    expect(r.body).toEqual({ codigo: "resumen_fuera_de_rango" });
-    expect(r.text).not.toContain(MAXIMO);
+    expect(r.status, r.text).toBe(200);
+    expect(r.body.coeficiente).toEqual({ estado: "no_determinable", motivo: "montos_fuera_de_rango" });
+    expect(r.text).not.toContain("resumen_fuera_de_rango");
     expect(await v.fotoProrrata(E.tenantId, c.id)).toEqual(antes);
   });
 

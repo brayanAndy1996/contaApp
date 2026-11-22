@@ -19,10 +19,11 @@ export const PORCENTAJE_VISTA_RE = /^(100\.00|[0-9]{1,2}\.[0-9]{2})$/;
 
 export const LARGO_MAX_MOTIVO_PRORRATA = 500;
 
-const CONTROLES = /\p{Cc}/u;
+// Controles (Cc) y separadores de línea y párrafo Unicode (Zl = U+2028, Zp = U+2029; H-026-2-5): un salto de línea en cualquier forma.
+const CONTROLES = /[\p{Cc}\p{Zl}\p{Zp}]/u;
 const BIDI = /[‪-‮⁦-⁩‎‏؜]/;
 
-/** Texto plano de 1..500 sin controles ni bidi. Se escapa al pintar, no aquí. */
+/** Texto plano de 1..500 sin controles, separadores de línea ni bidi. Se escapa al pintar, no aquí. */
 export const motivoProrrataSchema = z
   .string()
   .trim()

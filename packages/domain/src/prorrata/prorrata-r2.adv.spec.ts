@@ -36,10 +36,10 @@ function manuales(f: (i: number) => [string, string, string]): MesProrrata[] {
 const sol = (s: string) => Money.desde(s, "PEN");
 
 describe("R-3 / CA-2 · montos de 12 dígitos en los 12 meses (la suma sale de NUMERIC(14,2))", () => {
-  it("11 meses gravados y 1 no gravado, todos en 999.999.999.999,99: el coeficiente es 11/12 = 91,67 % (no un error)", () => {
+  it("11 meses gravados y 1 no gravado, todos en 999.999.999.999,99: no es un error sino «no determinable: montos_fuera_de_rango»", () => {
     // Cada mes es un NUMERIC(14,2) válido (lo admiten la BD, el PDT y el manual) y su total cabe; solo el acumulado de la ventana
-    // (11.999.999.999.999,88) no cabe en NUMERIC(14,2). R-3 define el porcentaje sobre ese acumulado y CA-2 pide «montos de 12 dígitos»
-    // en la tabla de casos: el cociente se puede calcular con el decimal exacto de dinero/ sin pasar por Money.
+    // (11.999.999.999.999,88) no cabe en NUMERIC(14,2). T20: la decisión del usuario del 2026-11-22 (H-026-2-4) sustituye la
+    // expectativa original de T18 (91,67 %): sin excepción, coeficiente `{estado: "no_determinable", motivo: "montos_fuera_de_rango"}`.
     const meses = manuales((i) => (i === 0 ? [Z, Z, MAXIMO] : [MAXIMO, Z, Z]));
     let r: ReturnType<typeof calcularProrrata> | undefined;
     let error: unknown;
@@ -49,8 +49,8 @@ describe("R-3 / CA-2 · montos de 12 dígitos en los 12 meses (la suma sale de N
       error = e;
     }
     expect(error, `lanzó ${(error as Error | undefined)?.name}: la ventana no se puede calcular`).toBeUndefined();
-    expect(r?.estado).toBe("calculado");
-    expect(r?.estado === "calculado" ? String(r.porcentaje) : null).toBe("91.67");
+    expect(r?.estado).toBe("no_determinable");
+    expect(r?.estado === "no_determinable" ? r.motivo : null).toBe("montos_fuera_de_rango");
   });
 });
 

@@ -58,7 +58,8 @@ export class LecturaProrrataService {
       try {
         return await armarVista(datos, () => this.compras.igvVigente(tx, clienteId, periodo));
       } catch (e) {
-        // Una suma fuera de NUMERIC(14,2) es un 422 controlado, no un 500 (como el resumen de 014).
+        // Meses y ventana fuera de NUMERIC(14,2) ya no llegan aquí: son el coeficiente `montos_fuera_de_rango` con la tabla (H-026-2-3,
+        // H-026-2-4). Solo queda el IGV de las ventas o compras de M con un coeficiente calculado: 422 controlado, no 500 (como 014).
         if (e instanceof MontoFueraDeRangoError) throw new ComprasError("resumen_fuera_de_rango");
         throw e;
       }

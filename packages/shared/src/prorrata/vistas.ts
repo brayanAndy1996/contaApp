@@ -23,9 +23,13 @@ export type AvisoCoeficiente = (typeof AVISOS_COEFICIENTE)[number];
 export const TIPOS_DECLARACION = ["original", "rectificatoria"] as const;
 export type TipoDeclaracion = (typeof TIPOS_DECLARACION)[number];
 
-export const MOTIVOS_NO_DETERMINABLE = ["total_cero", "acumulado_invalido"] as const;
+// `montos_fuera_de_rango` (H-026-2-4): algún mes o el acumulado de la ventana no cabe en NUMERIC(14,2); la tabla se muestra igual.
+export const MOTIVOS_NO_DETERMINABLE = ["total_cero", "acumulado_invalido", "montos_fuera_de_rango"] as const;
 export const MOTIVOS_NO_ESTIMABLE = ["coeficiente", "sin_ventas", "sin_compras"] as const;
 export const SITUACIONES_IGV = ["a_pagar", "saldo_a_favor", "cero"] as const;
+/** Avisos del IGV estimado (H-026-2-6): hay ventas USD de M sin tipo de cambio que no se incluyeron. */
+export const AVISOS_IGV_ESTIMADO = ["ventas_usd_sin_tipo_cambio"] as const;
+export type AvisoIgvEstimado = (typeof AVISOS_IGV_ESTIMADO)[number];
 
 const numeroOrden = z.string().regex(/^[0-9]{1,15}$/);
 const autor = z.object({ id: z.uuid(), nombre: z.string().min(1) });
@@ -77,6 +81,8 @@ export const igvEstimadoVistaSchema = z.discriminatedUnion("estado", [
     resultado: monto,
     situacion: z.enum(SITUACIONES_IGV),
     estadoPeriodoCompras: estadoPeriodoSchema,
+    /** Ausente o vacía = sin aviso (la lectura la omite cuando está vacía). */
+    avisos: z.array(z.enum(AVISOS_IGV_ESTIMADO)).optional(),
   }),
   z.object({ estado: z.literal("no_estimable"), motivo: z.enum(MOTIVOS_NO_ESTIMABLE) }),
 ]);

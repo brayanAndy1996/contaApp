@@ -7,9 +7,13 @@
 //  (3) Una llamada al puerto por periodo, del más reciente al más antiguo, SIN transacción abierta (008 D6). `ErrorDatos` o lista
 //      vacía = periodo «sin declaración» y sigue. Cualquier otro error del puerto sale tal cual y sin escribir: el ejecutor
 //      (008) lo clasifica como en 023 (credencial -> `credencial_invalida` sin reintento; transitorio reintenta; portal cambió).
-//      Una presentación de otro periodo que el pedido es un portal que cambió de contrato: `ErrorPortal`, sin escribir.
+//      Una presentación de otro periodo que el pedido es un portal que cambió de contrato: `ErrorPortal`, sin escribir. Lo que
+//      entrega el puerto se valida con las reglas de la función acotada (`validarDeclaraciones621`, H-026-2-1): una presentación
+//      que la función rechazaría (número de orden 0, «01» y «1», año < 1900, monto fuera de gramática) deja ese periodo «sin
+//      declaración» y el resto se registra, sin reintentos (antes era un 22023 de toda la obtención, reintentado como transitorio).
 //  (4) UNA transacción con una sola llamada a `registrarDeclaraciones`, sin SAVEPOINT. `55000` (cliente archivado entre medio):
-//      el trabajo termina `completado` sin escribir; el resto de los SQLSTATE sale para que 008 lo clasifique.
+//      el trabajo termina `completado` sin escribir. `22023` (entradas rechazadas por la función, determinista) es `ErrorDatos`:
+//      sin reintentos ni el motivo `sunat_no_responde`. El resto de los SQLSTATE sale para que 008 lo clasifique.
 // `resultado` = {periodosLeidos, sinDeclaracion, nuevas}: solo conteos enteros (D-7).
 import {
   ProrrataRepoError,
@@ -19,7 +23,12 @@ import {
 } from "@contapp/db";
 import { ventanaProrrata } from "@contapp/domain";
 import { SOL_DECLARACIONES_DESCARGAR } from "@contapp/queue";
-import { ErrorDatos, ErrorPortal, type SolPortal } from "@contapp/sunat";
+import {
+  ErrorDatos,
+  ErrorPortal,
+  validarDeclaraciones621,
+  type SolPortal,
+} from "@contapp/sunat";
 import type { ServicioCredenciales } from "../../credenciales/descifrar-credencial.js";
 import type { Procesador } from "../ejecutor.js";
 import {
@@ -41,6 +50,8 @@ export interface ResultadoObtenerDeclaraciones {
 
 /** SQLSTATE de «objeto no está en el estado requerido»: el cliente se archivó entre la lectura y la escritura. */
 const CLIENTE_ARCHIVADO = "55000";
+/** SQLSTATE de «valor de parámetro inválido»: la función acotada rechazó las entradas (determinista, no se reintenta). */
+const ENTRADAS_INVALIDAS = "22023";
 
 /** Lima no tiene horario de verano: UTC-5 todo el año (mismo criterio que el backend y el catálogo de la cola). */
 const HUSO_LIMA_MS = 5 * 60 * 60 * 1000;
@@ -92,7 +103,12 @@ export function obtenerDeclaraciones(d: DepsObtenerDeclaraciones): Procesador {
       }
       if (presentaciones.some((p) => p.periodo !== periodo))
         throw new ErrorPortal();
-      declaraciones.push(...presentaciones);
+      try {
+        declaraciones.push(...validarDeclaraciones621(presentaciones, periodo));
+      } catch {
+        // validarDeclaraciones621 solo lanza ErrorDatos: el periodo queda «sin declaración».
+        sinDeclaracion.push(periodo);
+      }
     }
 
     // (4) Una transacción, una escritura.
@@ -109,6 +125,8 @@ export function obtenerDeclaraciones(d: DepsObtenerDeclaraciones): Procesador {
         }),
       );
     } catch (e) {
+      if (e instanceof ProrrataRepoError && e.codigo === ENTRADAS_INVALIDAS)
+        throw new ErrorDatos();
       if (!(e instanceof ProrrataRepoError && e.codigo === CLIENTE_ARCHIVADO))
         throw e;
     }

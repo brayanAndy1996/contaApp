@@ -35,8 +35,13 @@ export const ACCIONES_MES_MANUAL_BD = ["guardado", "eliminado"] as const;
 
 const lista = (valores: readonly string[]) => sql.raw(valores.map((v) => `'${v}'`).join(", "));
 const PERIODO = sql.raw(`'^[0-9]{4}(0[1-9]|1[0-2])$'`);
-/** Controles C0 y C1 (salto de línea incluido) y marcas bidireccionales: prohibidos en el motivo (como 025, D-11). */
-const CONTROLES_O_BIDI = sql.raw(`'[\\u0001-\\u001F\\u007F-\\u009F\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]'`);
+/**
+ * Controles C0 y C1 (salto de línea incluido), separadores de línea y párrafo Unicode (U+2028, U+2029; 0068, H-026-2-5) y marcas
+ * bidireccionales: prohibidos en el motivo (como 025, D-11).
+ */
+const CONTROLES_O_BIDI = sql.raw(
+  `'[\\u0001-\\u001F\\u007F-\\u009F\\u061C\\u200E\\u200F\\u2028\\u2029\\u202A-\\u202E\\u2066-\\u2069]'`,
+);
 const monto = (nombre: string) => numeric(nombre, { precision: 14, scale: 2 });
 const porcentaje = (nombre: string) => numeric(nombre, { precision: 5, scale: 2 });
 

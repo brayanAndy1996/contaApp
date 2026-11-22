@@ -16,6 +16,7 @@
 import { realpath, open } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 import { ErrorCredencial, ErrorDatos, ErrorTransitorio } from "../errores.js";
+import { validarDeclaraciones621 } from "../pdt621.js";
 import type {
   AdjuntoSol,
   CredencialSol,
@@ -315,19 +316,6 @@ function generarBuzon(ruc: string, cantidad: number): MensajeFixtureSol[] {
 // ---- PDT 621 (spec 026) -----------------------------------------------------------------------------------------------
 
 const RE_PERIODO = /^[0-9]{4}(0[1-9]|1[0-2])$/;
-const RE_NUMERO_ORDEN = /^[0-9]{1,15}$/;
-const RE_FECHA = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
-const RE_MONTO = /^-?[0-9]{1,12}(\.[0-9]{1,2})?$/;
-const RE_PRORRATA = /^(100(\.0{1,2})?|[0-9]{1,2}(\.[0-9]{1,2})?)$/;
-const MAX_PRESENTACIONES = 100;
-const CAMPOS_MONTO_621 = [
-  "ventasGravadasBase",
-  "ventasGravadasIgv",
-  "exportaciones",
-  "noGravadas",
-  "igvAdquisicionesDg",
-  "igvAdquisicionesDgng",
-] as const;
 /** Ventana del PDT generado: 12 periodos que terminan en 2026-10, del más antiguo al más reciente. */
 const VENTANA_GENERADA = [
   "202511",
@@ -346,48 +334,6 @@ const VENTANA_GENERADA = [
 
 type PeriodosPdt621 = Map<string, Declaracion621[] | "error_datos">;
 
-function fechaValida(f: string): boolean {
-  if (!RE_FECHA.test(f)) return false;
-  const [a, m, d] = f.split("-").map(Number) as [number, number, number];
-  const t = new Date(Date.UTC(a, m - 1, d));
-  return t.getUTCFullYear() === a && t.getUTCMonth() === m - 1 && t.getUTCDate() === d;
-}
-
-/** Valida una presentación del periodo `periodo` (fixture o `inyectar`). Todo defecto es `ErrorDatos`. */
-function validarDeclaracion(x: unknown, periodo: string): Declaracion621 {
-  if (!esObjeto(x)) throw new ErrorDatos();
-  if (
-    x.periodo !== periodo ||
-    typeof x.numeroOrden !== "string" ||
-    !RE_NUMERO_ORDEN.test(x.numeroOrden) ||
-    typeof x.fechaPresentacion !== "string" ||
-    !fechaValida(x.fechaPresentacion) ||
-    (x.tipo !== "original" && x.tipo !== "rectificatoria") ||
-    !(
-      x.prorrataUsada === null ||
-      (typeof x.prorrataUsada === "string" && RE_PRORRATA.test(x.prorrataUsada))
-    )
-  )
-    throw new ErrorDatos();
-  for (const campo of CAMPOS_MONTO_621) {
-    const v = x[campo];
-    if (typeof v !== "string" || !RE_MONTO.test(v)) throw new ErrorDatos();
-  }
-  return {
-    periodo,
-    numeroOrden: x.numeroOrden,
-    fechaPresentacion: x.fechaPresentacion,
-    tipo: x.tipo,
-    ventasGravadasBase: x.ventasGravadasBase as string,
-    ventasGravadasIgv: x.ventasGravadasIgv as string,
-    exportaciones: x.exportaciones as string,
-    noGravadas: x.noGravadas as string,
-    igvAdquisicionesDg: x.igvAdquisicionesDg as string,
-    igvAdquisicionesDgng: x.igvAdquisicionesDgng as string,
-    prorrataUsada: x.prorrataUsada,
-  };
-}
-
 /** Valida la forma del PDT 621 de un RUC y devuelve una copia ya validada (los datos del llamador no se comparten). */
 function validarPdt621(x: unknown): PeriodosPdt621 {
   if (!esObjeto(x) || !esObjeto(x.periodos)) throw new ErrorDatos();
@@ -398,10 +344,8 @@ function validarPdt621(x: unknown): PeriodosPdt621 {
       salida.set(periodo, "error_datos");
       continue;
     }
-    if (!Array.isArray(valor) || valor.length > MAX_PRESENTACIONES) throw new ErrorDatos();
-    const lista = (valor as unknown[]).map((d) => validarDeclaracion(d, periodo));
-    if (new Set(lista.map((d) => d.numeroOrden)).size !== lista.length) throw new ErrorDatos();
-    salida.set(periodo, lista);
+    // Las mismas reglas que la función acotada (H-026-2-2): número de orden 0, «01» y «1» o año < 1900 son `ErrorDatos`.
+    salida.set(periodo, validarDeclaraciones621(valor, periodo));
   }
   return salida;
 }

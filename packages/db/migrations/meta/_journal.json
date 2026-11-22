@@ -477,6 +477,13 @@
       "when": 1795322171814,
       "tag": "0067_prorrata_ronda1",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1795329142084,
+      "tag": "0068_prorrata_ronda2",
+      "breakpoints": true
     }
   ]
 }

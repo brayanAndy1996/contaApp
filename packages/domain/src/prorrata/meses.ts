@@ -1,8 +1,9 @@
 // Un mes de la ventana de prorrata (spec 026, R-2, R-2b, R-5; CA-3): precedencia declarado (PDT 621
 // vigente) > manual > SIRE (ventas de 013) > falta. Montos de entrada como cadenas decimales
 // canónicas (nunca `number`); salida en Money (soles). Pura y sin mutar la entrada.
+import { Acumulado } from "../dinero/acumulado";
 import { Money } from "../dinero/index";
-import { columnaUsdEnSoles, tipoCambioUtil } from "../ventas/conversion";
+import { tipoCambioUtil } from "../ventas/conversion";
 import { ProrrataError } from "./errores";
 import { asegurarPeriodo } from "./ventana";
 
@@ -64,6 +65,11 @@ export interface MesProrrata {
   /** gravadas + exportaciones + noGravadas (puede ser negativo por notas de crédito). */
   readonly total: Money;
   readonly avisos: readonly AvisoMes[];
+  /**
+   * Alguna columna o el total del mes no cabe en NUMERIC(14,2) (H-026-2-3: las sumas del SIRE no tienen tope; el total de tres
+   * columnas de 12 dígitos tampoco). Esos montos salen en el tope (±999999999999.99) y el coeficiente es `montos_fuera_de_rango`.
+   */
+  readonly fueraDeRango: boolean;
 }
 
 const NUMERO_ORDEN = /^[0-9]{1,15}$/;
@@ -88,6 +94,11 @@ function objeto(o: unknown): Record<string, unknown> {
 /** Cadena canónica de Money en soles (lanza MontoInvalidoError o MontoFueraDeRangoError). */
 function soles(valor: unknown): Money {
   return Money.desde(valor as string, "PEN");
+}
+
+/** Cadena canónica de Money en dólares (columna de una fila USD del SIRE). */
+function dolares(valor: unknown): Money {
+  return Money.desde(valor as string, "USD");
 }
 
 /** Número de orden sin ceros a la izquierda, para compararlo como número (10 > 9). */
@@ -121,22 +132,29 @@ function vigente(declaraciones: readonly unknown[]): Record<string, unknown> {
   return mejor as Record<string, unknown>;
 }
 
+/** Suma exacta de las partes de una columna (sin tope: el mes decide si cabe). */
+function sumar(partes: readonly Acumulado[]): Acumulado {
+  return partes.reduce((a, b) => a.mas(b), Acumulado.cero());
+}
+
 function mes(
   periodo: string,
   origen: OrigenMes,
-  gravadas: Money,
-  exportaciones: Money,
-  noGravadas: Money,
+  gravadas: Acumulado,
+  exportaciones: Acumulado,
+  noGravadas: Acumulado,
   avisos: AvisoMes[],
 ): MesProrrata {
+  const total = sumar([gravadas, exportaciones, noGravadas]);
   const m: MesProrrata = Object.freeze({
     periodo,
     origen,
-    gravadas,
-    exportaciones,
-    noGravadas,
-    total: Money.suma([gravadas, exportaciones, noGravadas], "PEN"),
+    gravadas: gravadas.acotado("PEN"),
+    exportaciones: exportaciones.acotado("PEN"),
+    noGravadas: noGravadas.acotado("PEN"),
+    total: total.acotado("PEN"),
     avisos: Object.freeze([...avisos].sort()),
+    fueraDeRango: ![gravadas, exportaciones, noGravadas, total].every((a) => a.cabe()),
   });
   MESES_RESUELTOS.add(m);
   return m;
@@ -145,25 +163,28 @@ function mes(
 function desdeSire(periodo: string, sire: Record<string, unknown>): MesProrrata {
   const pen = objeto(sire.pen);
   if (!Array.isArray(sire.usd)) throw new ProrrataError("ENTRADA_INVALIDA");
-  const gravadas: Money[] = [soles(pen.baseGravada)];
-  const noGravadas: Money[] = [soles(pen.exonerada), soles(pen.inafecta)];
+  // Las PEN son sumas hechas en SQL (NUMERIC sin tope): pueden pasar de 12 enteros aunque cada venta quepa.
+  const gravadas: Acumulado[] = [Acumulado.desdeSuma(pen.baseGravada)];
+  const noGravadas: Acumulado[] = [Acumulado.desdeSuma(pen.exonerada), Acumulado.desdeSuma(pen.inafecta)];
   const avisos: AvisoMes[] = ["sire_sin_exportaciones"];
   let sinTipoCambio = false;
   for (const f of sire.usd as readonly unknown[]) {
     const fila = objeto(f);
     // Montos validados aunque la fila no se convierta (ninguno entra como `number`).
-    for (const c of [fila.baseGravada, fila.exonerada, fila.inafecta]) Money.desde(c as string, "USD");
+    const base = dolares(fila.baseGravada);
+    const exonerada = dolares(fila.exonerada);
+    const inafecta = dolares(fila.inafecta);
     const tc = tipoCambioUtil(fila.tipoCambio);
     if (tc === null) {
       sinTipoCambio = true;
       continue;
     }
-    gravadas.push(columnaUsdEnSoles(fila.baseGravada as string, tc));
-    noGravadas.push(columnaUsdEnSoles(fila.exonerada as string, tc));
-    noGravadas.push(columnaUsdEnSoles(fila.inafecta as string, tc));
+    // Columna por columna con el redondeo SUNAT, como `columnaUsdEnSoles` de 013, pero sin tope (la columna × tc puede no caber).
+    gravadas.push(Acumulado.convertido(base, tc));
+    noGravadas.push(Acumulado.convertido(exonerada, tc), Acumulado.convertido(inafecta, tc));
   }
   if (sinTipoCambio) avisos.push("usd_sin_tipo_cambio");
-  return mes(periodo, "sire", Money.suma(gravadas, "PEN"), Money.cero("PEN"), Money.suma(noGravadas, "PEN"), avisos);
+  return mes(periodo, "sire", sumar(gravadas), Acumulado.cero(), sumar(noGravadas), avisos);
 }
 
 /** Resuelve el origen y los montos de un mes de la ventana (R-5). */
@@ -174,21 +195,27 @@ export function resolverMes(fuente: MesFuente): MesProrrata {
   const manual = f.manual === null ? null : objeto(f.manual);
   const sire = f.sire === null ? null : objeto(f.sire);
   const montosManual =
-    manual === null ? null : ([soles(manual.gravadas), soles(manual.exportaciones), soles(manual.noGravadas)] as const);
+    manual === null
+      ? null
+      : ([soles(manual.gravadas), soles(manual.exportaciones), soles(manual.noGravadas)].map((m) => Acumulado.de(m)) as [
+          Acumulado,
+          Acumulado,
+          Acumulado,
+        ]);
 
   if (f.declaraciones.length > 0) {
     const p = vigente(f.declaraciones as readonly unknown[]);
     return mes(
       periodo,
       "declarado",
-      soles(p.ventasGravadasBase),
-      soles(p.exportaciones),
-      soles(p.noGravadas),
+      Acumulado.de(soles(p.ventasGravadasBase)),
+      Acumulado.de(soles(p.exportaciones)),
+      Acumulado.de(soles(p.noGravadas)),
       montosManual === null ? [] : ["manual_reemplazado"],
     );
   }
   if (montosManual !== null) return mes(periodo, "manual", ...montosManual, []);
   if (sire !== null) return desdeSire(periodo, sire);
-  const cero = Money.cero("PEN");
+  const cero = Acumulado.cero();
   return mes(periodo, "falta", cero, cero, cero, []);
 }

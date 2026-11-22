@@ -1,7 +1,8 @@
 // Coeficiente de prorrata de la ventana (spec 026, R-3, R-4, R-6, R-2b; U-5, U-6, U-7; CA-2).
 // numerador = Σ(gravadas + exportaciones); total = numerador + Σ noGravadas; porcentaje con
 // porcentajeProrrata. Se calcula al leer: no hay estado que invalidar (plan, Decisiones técnicas).
-import { Money } from "../dinero/index";
+import { Acumulado } from "../dinero/acumulado";
+import type { Money } from "../dinero/index";
 import { ProrrataError } from "./errores";
 import { type MesProrrata, esMesResuelto } from "./meses";
 import { type Porcentaje, porcentajeProrrata } from "./porcentaje";
@@ -27,7 +28,8 @@ export interface ProrrataFaltanMeses {
 
 export interface ProrrataNoDeterminable {
   readonly estado: "no_determinable";
-  readonly motivo: "total_cero" | "acumulado_invalido";
+  /** `montos_fuera_de_rango` (H-026-2-4): un mes o el acumulado de la ventana no cabe en NUMERIC(14,2). */
+  readonly motivo: "total_cero" | "acumulado_invalido" | "montos_fuera_de_rango";
 }
 
 export type ResultadoProrrata = ProrrataCalculada | ProrrataFaltanMeses | ProrrataNoDeterminable;
@@ -48,16 +50,17 @@ export function calcularProrrata(meses: readonly MesProrrata[]): ResultadoProrra
   const faltantes = meses.filter((m) => m.origen === "falta").map((m) => m.periodo);
   if (faltantes.length > 0) return Object.freeze({ estado: "faltan_meses", faltantes: Object.freeze(faltantes) });
 
-  const numerador = Money.suma(
-    meses.flatMap((m) => [m.gravadas, m.exportaciones]),
-    "PEN",
-  );
-  const total = numerador.sumar(
-    Money.suma(
-      meses.map((m) => m.noGravadas),
-      "PEN",
-    ),
-  );
+  // H-026-2-4: un mes fuera de rango (sus montos están en el tope) o un acumulado que no cabe en NUMERIC(14,2) no se calcula,
+  // pero tampoco es un error: la tabla se muestra igual. Las sumas son exactas; el rango se mira solo en el resultado.
+  const sumaExacta = (montos: readonly Money[]): Acumulado =>
+    montos.reduce((a, m) => a.mas(Acumulado.de(m)), Acumulado.cero());
+  const numeradorExacto = sumaExacta(meses.flatMap((m) => [m.gravadas, m.exportaciones]));
+  const totalExacto = numeradorExacto.mas(sumaExacta(meses.map((m) => m.noGravadas)));
+  if (meses.some((m) => m.fueraDeRango) || !numeradorExacto.cabe() || !totalExacto.cabe()) {
+    return Object.freeze({ estado: "no_determinable", motivo: "montos_fuera_de_rango" });
+  }
+  const numerador = numeradorExacto.acotado("PEN");
+  const total = totalExacto.acotado("PEN");
   // R-4: total 0 → no determinable; numerador < 0, total < 0 o numerador > total → acumulado inválido.
   if (total.esCero()) return Object.freeze({ estado: "no_determinable", motivo: "total_cero" });
   if (numerador.esNegativo() || total.esNegativo() || numerador.comparar(total) > 0) {
