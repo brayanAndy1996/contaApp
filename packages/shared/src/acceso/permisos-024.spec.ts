@@ -9,10 +9,10 @@ const ATENDER = "buzon.atender";
 const tiene = (rol: Rol, p: string) => tienePermiso(rol, p as never);
 
 describe("permiso buzon.atender", () => {
-  it("está en el catálogo, sin repetir, y el catálogo pasa a 23", () => {
+  it("está en el catálogo, sin repetir, y el catálogo pasa a 24 (026 suma prorrata.gestionar)", () => {
     expect(PERMISOS as readonly string[]).toContain(ATENDER);
     expect(new Set(PERMISOS).size).toBe(PERMISOS.length);
-    expect(PERMISOS).toHaveLength(23);
+    expect(PERMISOS).toHaveLength(24);
   });
   it("tiene la forma entidad.accion del resto del catálogo", () => {
     expect(ATENDER).toMatch(/^[a-z]+\.[a-z_]+$/);
@@ -53,7 +53,8 @@ describe("buzon.marcar_leido no cambia", () => {
 });
 
 describe("el resto de la matriz de roles sigue igual", () => {
-  const SIN_ATENDER = (rol: Rol) => [...PERMISOS_POR_ROL[rol]].filter((p) => (p as string) !== ATENDER).sort();
+  // 026 suma `prorrata.gestionar` a contador, admin y dueno: se excluye junto con `buzon.atender` para comparar lo de 024.
+  const SIN_ATENDER = (rol: Rol) => [...PERMISOS_POR_ROL[rol]].filter((p) => (p as string) !== ATENDER && (p as string) !== "prorrata.gestionar").sort();
   it("lectura conserva exactamente sus 4 permisos", () => {
     expect(SIN_ATENDER("lectura")).toEqual(["buzon.ver", "clientes.ver", "prorrata.ver", "reglas.ver"]);
     expect(PERMISOS_POR_ROL.lectura.size).toBe(4);
@@ -65,12 +66,12 @@ describe("el resto de la matriz de roles sigue igual", () => {
     expect(PERMISOS_POR_ROL.asistente.size).toBe(8);
   });
   it("contador suma solo buzon.atender a sus 12 permisos de antes", () => {
-    expect(PERMISOS_POR_ROL.contador.size).toBe(13);
+    expect(PERMISOS_POR_ROL.contador.size).toBe(14); // 12 + buzon.atender + prorrata.gestionar (026)
     expect(SIN_ATENDER("contador")).toHaveLength(12);
   });
   it("admin tiene todo menos plan.gestionar; dueno tiene todo", () => {
-    expect(PERMISOS_POR_ROL.dueno.size).toBe(23);
-    expect(PERMISOS_POR_ROL.admin.size).toBe(22);
+    expect(PERMISOS_POR_ROL.dueno.size).toBe(24);
+    expect(PERMISOS_POR_ROL.admin.size).toBe(23);
     expect(tiene("admin", "plan.gestionar")).toBe(false);
     expect(tiene("dueno", "plan.gestionar")).toBe(true);
   });

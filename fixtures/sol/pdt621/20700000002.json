@@ -1,0 +1,182 @@
+{
+  "periodos": {
+    "202511": [
+      {
+        "periodo": "202511",
+        "numeroOrden": "790000100",
+        "fechaPresentacion": "2025-12-12",
+        "tipo": "original",
+        "ventasGravadasBase": "100000.00",
+        "ventasGravadasIgv": "18000.00",
+        "exportaciones": "0.00",
+        "noGravadas": "40000.00",
+        "igvAdquisicionesDg": "6000.00",
+        "igvAdquisicionesDgng": "2000.00",
+        "prorrataUsada": null
+      }
+    ],
+    "202512": [
+      {
+        "periodo": "202512",
+        "numeroOrden": "790000110",
+        "fechaPresentacion": "2026-01-12",
+        "tipo": "original",
+        "ventasGravadasBase": "102500.00",
+        "ventasGravadasIgv": "18450.00",
+        "exportaciones": "0.00",
+        "noGravadas": "41500.00",
+        "igvAdquisicionesDg": "6150.00",
+        "igvAdquisicionesDgng": "2050.00",
+        "prorrataUsada": null
+      }
+    ],
+    "202601": [
+      {
+        "periodo": "202601",
+        "numeroOrden": "790000120",
+        "fechaPresentacion": "2026-02-12",
+        "tipo": "original",
+        "ventasGravadasBase": "105000.00",
+        "ventasGravadasIgv": "18900.00",
+        "exportaciones": "0.00",
+        "noGravadas": "43000.00",
+        "igvAdquisicionesDg": "6300.00",
+        "igvAdquisicionesDgng": "2100.00",
+        "prorrataUsada": null
+      }
+    ],
+    "202602": [
+      {
+        "periodo": "202602",
+        "numeroOrden": "790000130",
+        "fechaPresentacion": "2026-03-12",
+        "tipo": "original",
+        "ventasGravadasBase": "107500.00",
+        "ventasGravadasIgv": "19350.00",
+        "exportaciones": "0.00",
+        "noGravadas": "40000.00",
+        "igvAdquisicionesDg": "6450.00",
+        "igvAdquisicionesDgng": "2150.00",
+        "prorrataUsada": null
+      }
+    ],
+    "202603": [
+      {
+        "periodo": "202603",
+        "numeroOrden": "790000140",
+        "fechaPresentacion": "2026-04-12",
+        "tipo": "original",
+        "ventasGravadasBase": "110000.00",
+        "ventasGravadasIgv": "19800.00",
+        "exportaciones": "0.00",
+        "noGravadas": "41500.00",
+        "igvAdquisicionesDg": "6600.00",
+        "igvAdquisicionesDgng": "2200.00",
+        "prorrataUsada": null
+      }
+    ],
+    "202604": [
+      {
+        "periodo": "202604",
+        "numeroOrden": "790000150",
+        "fechaPresentacion": "2026-05-12",
+        "tipo": "original",
+        "ventasGravadasBase": "112500.00",
+        "ventasGravadasIgv": "20250.00",
+        "exportaciones": "0.00",
+        "noGravadas": "43000.00",
+        "igvAdquisicionesDg": "6750.00",
+        "igvAdquisicionesDgng": "2250.00",
+        "prorrataUsada": null
+      }
+    ],
+    "202605": [
+      {
+        "periodo": "202605",
+        "numeroOrden": "790000160",
+        "fechaPresentacion": "2026-06-12",
+        "tipo": "original",
+        "ventasGravadasBase": "115000.00",
+        "ventasGravadasIgv": "20700.00",
+        "exportaciones": "0.00",
+        "noGravadas": "40000.00",
+        "igvAdquisicionesDg": "6900.00",
+        "igvAdquisicionesDgng": "2300.00",
+        "prorrataUsada": null
+      }
+    ],
+    "202606": [
+      {
+        "periodo": "202606",
+        "numeroOrden": "790000170",
+        "fechaPresentacion": "2026-07-12",
+        "tipo": "original",
+        "ventasGravadasBase": "117500.00",
+        "ventasGravadasIgv": "21150.00",
+        "exportaciones": "0.00",
+        "noGravadas": "41500.00",
+        "igvAdquisicionesDg": "7050.00",
+        "igvAdquisicionesDgng": "2350.00",
+        "prorrataUsada": null
+      },
+      {
+        "periodo": "202606",
+        "numeroOrden": "790000175",
+        "fechaPresentacion": "2026-07-28",
+        "tipo": "rectificatoria",
+        "ventasGravadasBase": "117800.00",
+        "ventasGravadasIgv": "21204.00",
+        "exportaciones": "0.00",
+        "noGravadas": "41500.00",
+        "igvAdquisicionesDg": "7050.00",
+        "igvAdquisicionesDgng": "2350.00",
+        "prorrataUsada": null
+      }
+    ],
+    "202607": [
+      {
+        "periodo": "202607",
+        "numeroOrden": "790000180",
+        "fechaPresentacion": "2026-08-12",
+        "tipo": "original",
+        "ventasGravadasBase": "120000.00",
+        "ventasGravadasIgv": "21600.00",
+        "exportaciones": "0.00",
+        "noGravadas": "43000.00",
+        "igvAdquisicionesDg": "7200.00",
+        "igvAdquisicionesDgng": "2400.00",
+        "prorrataUsada": null
+      }
+    ],
+    "202608": [
+      {
+        "periodo": "202608",
+        "numeroOrden": "790000190",
+        "fechaPresentacion": "2026-09-12",
+        "tipo": "original",
+        "ventasGravadasBase": "122500.00",
+        "ventasGravadasIgv": "22050.00",
+        "exportaciones": "0.00",
+        "noGravadas": "40000.00",
+        "igvAdquisicionesDg": "7350.00",
+        "igvAdquisicionesDgng": "2450.00",
+        "prorrataUsada": null
+      }
+    ],
+    "202609": [
+      {
+        "periodo": "202609",
+        "numeroOrden": "790000200",
+        "fechaPresentacion": "2026-10-12",
+        "tipo": "original",
+        "ventasGravadasBase": "125000.00",
+        "ventasGravadasIgv": "22500.00",
+        "exportaciones": "0.00",
+        "noGravadas": "41500.00",
+        "igvAdquisicionesDg": "7500.00",
+        "igvAdquisicionesDgng": "2500.00",
+        "prorrataUsada": "72.00"
+      }
+    ]
+  }
+}

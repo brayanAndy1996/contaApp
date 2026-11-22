@@ -5,7 +5,7 @@ import { tenant } from "./plataforma";
 
 /**
  * Catálogo cerrado de acciones (D-3), las 4 de la ronda adversarial R1 (0045: H-017-1 y H-017-2), `credencial.descifrada` (solo la
- * vista, D-6), `sunat.envio` (reservada, R2) las 8 de la spec 021 (0049) las 5 del buzón de la spec 023 (0054) y las 2 de la atención de la spec 024 (0059).
+ * vista, D-6), `sunat.envio` (reservada, R2) las 8 de la spec 021 (0049) las 5 del buzón de la spec 023 (0054) y las 2 de la atención de la spec 024 (0059), las 2 de la 025 (0061) y las 4 de la prorrata de la 026 (0065).
  */
 export const ACCIONES_AUDITORIA_BD = [
   "sesion.ingreso",
@@ -60,6 +60,11 @@ export const ACCIONES_AUDITORIA_BD = [
   // Spec 025 (0061): importación del historial y candidata descartada, por las funciones acotadas de 0062 (actor usuario).
   "regla.historial_importado",
   "regla.candidata_descartada",
+  // Spec 026 (0065): prorrata, por las funciones acotadas de 0066 (`declaraciones_obtenidas` con actor trabajo; las otras tres, usuario).
+  "prorrata.declaraciones_obtenidas",
+  "prorrata.mes_manual_guardado",
+  "prorrata.mes_manual_eliminado",
+  "prorrata.usada_guardada",
 ] as const;
 
 const lista = (valores: readonly string[]) => sql.raw(valores.map((v) => `'${v}'`).join(", "));

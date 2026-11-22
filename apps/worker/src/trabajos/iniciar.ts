@@ -51,6 +51,7 @@ import { descargarPropuesta } from "./procesadores/descargar-propuesta.js";
 import { generarArchivo } from "./procesadores/generar-archivo.js";
 import { importarHistorial } from "./procesadores/importar-historial.js";
 import { kekRotar } from "./procesadores/kek-rotar.js";
+import { obtenerDeclaraciones } from "./procesadores/obtener-declaraciones.js";
 import { obtenerXml } from "./procesadores/obtener-xml.js";
 import { programarBuzon } from "./procesadores/programar-buzon.js";
 import { revisarBuzon } from "./procesadores/revisar-buzon.js";
@@ -99,7 +100,7 @@ export interface DepsTrabajos {
   consultaRuc?: ConsultaRuc;
   /** Puerto de `credencial.verificar_sol`; por defecto el mock. */
   solAuth?: SolAuth;
-  /** Puerto de `sol.buzon.revisar` y `sol.buzon.abrir` (023); por defecto el mock. */
+  /** Puerto de `sol.buzon.revisar`, `sol.buzon.abrir` (023) y `sol.declaraciones.descargar` (026); por defecto el mock. */
   solPortal?: SolPortal;
   credencialesSire?: CredencialesSire;
   /** Puerto de `xml.obtener` (016); por defecto el mock. */
@@ -317,6 +318,12 @@ export async function iniciarTrabajos(
               servicio,
               solPortal,
               storage,
+            }),
+            // 026: PDT 621 de los 12 periodos (cola `sol`, credencial SOL): lee fuera de transacción y escribe una vez.
+            "sol.declaraciones.descargar": obtenerDeclaraciones({
+              db,
+              servicio,
+              solPortal,
             }),
           }
         : {}),

@@ -5,6 +5,7 @@ import {
   type Alcance,
   type CompraParaResumen,
   type ContappDb,
+  type Tx,
 } from "@contapp/db";
 import {
   COLUMNAS_COMPRA,
@@ -16,7 +17,7 @@ import {
   type ColumnaCompra,
   type CompraResumen,
 } from "@contapp/domain";
-import type { ResumenComprasVista } from "@contapp/shared";
+import type { EstadoPeriodoCompras, ResumenComprasVista } from "@contapp/shared";
 import type { SesionResuelta } from "../auth/auth.service.js";
 import { DB } from "../auth/inyeccion.js";
 import { contextoDe } from "../clientes/contexto.js";
@@ -46,6 +47,21 @@ function aCompraResumen(c: CompraParaResumen): CompraResumen {
     original: MontosComprobante.desde(c.moneda, c.original),
     vigente: MontosComprobante.desde(c.moneda, c.vigente),
   };
+}
+
+/** Céntimos de un monto de NUMERIC(14,2) en texto («-1.50» → -150n): las sumas PEN de `igvVigente` se hacen exactas, sin `number`. */
+const centimos = (monto: string): bigint => BigInt(monto.replace(".", ""));
+const desdeCentimos = (c: bigint): string => {
+  const abs = c < 0n ? -c : c;
+  return `${c < 0n ? "-" : ""}${abs / 100n}.${String(abs % 100n).padStart(2, "0")}`;
+};
+
+/** IGV vigente de un periodo por destino y su estado, para el IGV estimado de la prorrata (spec 026, R-7). */
+export interface IgvVigenteCompras {
+  igvDg: string;
+  igvDgng: string;
+  igvDng: string;
+  estado: EstadoPeriodoCompras;
 }
 
 /**
@@ -106,5 +122,52 @@ export class ResumenComprasService {
         throw e;
       }
     });
+  }
+
+  /**
+   * Solo los tres IGV vigentes (DG, DGNG, DNG) y el estado del periodo, dentro de la transacción de quien llama (spec 026, R-7, CA-11).
+   * Son las MISMAS filas y la misma conversión que `resumen`: las vivas del periodo, sin las excluidas; las PEN suman tal cual (aquí en
+   * céntimos exactos) y las USD pasan por `resumirCompras` fila a fila, con su tipo de cambio y su regla de «sin convertir». Para eso
+   * no hace falta lo demás del resumen (originales, diferencias, con/sin IGV): con 5.000 compras evita ~4/5 del trabajo de `resumen`.
+   */
+  async igvVigente(tx: Tx, clienteId: string, periodo: string): Promise<IgvVigenteCompras> {
+    const estado = (await leerEstadoPeriodo(tx, clienteId, periodo)).estado;
+    let dg = 0n;
+    let dgng = 0n;
+    let dng = 0n;
+    let usd = { igvDg: Money.cero("PEN"), igvDgng: Money.cero("PEN"), igvDng: Money.cero("PEN") };
+    try {
+      let despuesDe: string | null = null;
+      for (;;) {
+        const lote = await leerLoteParaResumen(tx, clienteId, periodo, despuesDe, TAMANO_LOTE);
+        if (lote.length === 0) break;
+        const filasUsd: CompraParaResumen[] = [];
+        for (const c of lote) {
+          if (c.moneda === "USD") filasUsd.push(c);
+          else if (!c.excluida) {
+            dg += centimos(c.vigente.igvDg);
+            dgng += centimos(c.vigente.igvDgng);
+            dng += centimos(c.vigente.igvDng);
+          }
+        }
+        if (filasUsd.length > 0) {
+          const tiposCambio = new Map<string, string>();
+          for (const c of filasUsd) if (c.tipoCambio !== null) tiposCambio.set(c.id, c.tipoCambio);
+          const v = resumirCompras(filasUsd.map(aCompraResumen), tiposCambio).casilleros.vigente;
+          usd = { igvDg: usd.igvDg.sumar(v.igvDg), igvDgng: usd.igvDgng.sumar(v.igvDgng), igvDng: usd.igvDng.sumar(v.igvDng) };
+        }
+        despuesDe = lote[lote.length - 1]!.id;
+        if (lote.length < TAMANO_LOTE) break;
+      }
+      return {
+        igvDg: Money.desde(desdeCentimos(dg), "PEN").sumar(usd.igvDg).toString(),
+        igvDgng: Money.desde(desdeCentimos(dgng), "PEN").sumar(usd.igvDgng).toString(),
+        igvDng: Money.desde(desdeCentimos(dng), "PEN").sumar(usd.igvDng).toString(),
+        estado,
+      };
+    } catch (e) {
+      if (e instanceof MontoFueraDeRangoError) throw new ComprasError("resumen_fuera_de_rango");
+      throw e;
+    }
   }
 }

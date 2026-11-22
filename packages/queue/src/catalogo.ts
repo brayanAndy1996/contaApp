@@ -1,6 +1,7 @@
 // Catálogo de tipos de trabajo (plan 008, D7). Cada tipo declara cola, canal, credencial, permiso,
 // si es idempotente y el esquema zod de sus parámetros. Falla cerrado: lo no registrado no existe.
 import {
+  periodoProrrataSchema,
   PERMISOS,
   ROLES,
   PERMISOS_POR_ROL,
@@ -282,6 +283,26 @@ export const REGLAS_HISTORIAL_IMPORTAR: DefinicionTrabajo<ParametrosImportarHist
   parametros: z.object({ importacionId: z.uuid() }).strict(),
 };
 
+export interface ParametrosDescargarDeclaraciones {
+  periodo: string;
+}
+
+/**
+ * Spec 026 (D-3, D-5): obtención de las declaraciones del PDT 621 de la ventana de 12 meses que termina en `periodo`
+ * (cola y canal `sol`, credencial `sol`: comparte el bloqueo por RUC de 008 con `sol.buzon.*`). Parámetros estrictos
+ * `{periodo}`: el cliente sale del trabajo y la ventana, del periodo; no hay dónde llevar una clave ni otro cliente.
+ * Dedupe por (tipo, cliente, periodo). Permiso `prorrata.gestionar`: Dueño, Administrador y Contador.
+ */
+export const SOL_DECLARACIONES_DESCARGAR: DefinicionTrabajo<ParametrosDescargarDeclaraciones> = {
+  tipo: "sol.declaraciones.descargar",
+  cola: "sol",
+  canal: "sol",
+  credencial: "sol",
+  permiso: "prorrata.gestionar",
+  idempotente: true,
+  parametros: z.object({ periodo: periodoProrrataSchema }).strict(),
+};
+
 registrarTipo(CLIENTE_CONSULTAR_RUC);
 registrarTipo(CREDENCIAL_VERIFICAR_SOL);
 registrarTipo(CREDENCIAL_VERIFICAR_SIRE);
@@ -291,6 +312,7 @@ registrarTipo(ARCHIVO_GENERAR);
 registrarTipo(SOL_BUZON_REVISAR);
 registrarTipo(SOL_BUZON_ABRIR);
 registrarTipo(REGLAS_HISTORIAL_IMPORTAR);
+registrarTipo(SOL_DECLARACIONES_DESCARGAR);
 
 /** Tipo de pruebas: solo existe con NODE_ENV=test (el worker le programa el comportamiento). */
 export const PRUEBA_ECO: DefinicionTrabajo<{ n?: number; rango?: string }> = {

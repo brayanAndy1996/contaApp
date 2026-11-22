@@ -15,6 +15,7 @@ import { ImportacionModule } from "./modules/importacion/importacion.module.js";
 import { NotificacionesModule } from "./modules/notificaciones/notificaciones.module.js";
 import { PlanesModule } from "./modules/planes/planes.module.js";
 import { PlataformaModule } from "./modules/plataforma/plataforma.module.js";
+import { ProrrataModule } from "./modules/prorrata/prorrata.module.js";
 import { RegistroModule } from "./modules/registro/registro.module.js";
 import { ReglasModule } from "./modules/reglas/reglas.module.js";
 import { StorageModule } from "./modules/storage/storage.module.js";
@@ -53,6 +54,8 @@ export class AppModule {
         AprendizajeModule,
         // Spec 023: rutas bajo `/clientes/:clienteId/buzon`; no chocan con ningún `:id` anterior.
         BuzonModule,
+        // Spec 026: rutas bajo `/clientes/:clienteId/prorrata`; no chocan con ningún `:id` anterior.
+        ProrrataModule,
         // Spec 017: rutas estáticas de `/notificaciones` y `/auditoria`; no chocan con ningún `:id` anterior.
         NotificacionesModule,
         AuditoriaModule,

@@ -77,8 +77,33 @@ export interface MensajeSol {
 }
 
 /**
- * Puerto del buzón SOL. Solo el worker lo usa. `listarMensajes` nunca marca como leído; `obtenerMensaje` sí
- * puede hacerlo y lo declara en `marcaLeido`. Lanza `ErrorCredencial`, `ErrorTransitorio`, `ErrorDatos` o `ErrorPortal`.
+ * Una presentación del PDT 621 de un periodo (spec 026, D-1). Layout PROVISIONAL: el mapeo a las casillas reales lo fija
+ * el adaptador real. Montos como cadenas decimales (nunca `number`): hasta 12 enteros y 2 decimales, con signo.
+ */
+export interface Declaracion621 {
+  /** AAAAMM del periodo tributario declarado. */
+  periodo: string;
+  /** Número de orden de la presentación: 1 a 15 dígitos. La vigente es la de mayor número (R-5). */
+  numeroOrden: string;
+  /** AAAA-MM-DD */
+  fechaPresentacion: string;
+  tipo: "original" | "rectificatoria";
+  ventasGravadasBase: string;
+  ventasGravadasIgv: string;
+  exportaciones: string;
+  /** Exoneradas + inafectas. */
+  noGravadas: string;
+  igvAdquisicionesDg: string;
+  igvAdquisicionesDgng: string;
+  /** Porcentaje de prorrata que el contribuyente usó, «NN.NN» (hasta 2 decimales), o `null` si el PDT no lo trae. */
+  prorrataUsada: string | null;
+}
+
+/**
+ * Puerto del buzón SOL y de las declaraciones. Solo el worker lo usa. `listarMensajes` nunca marca como leído;
+ * `obtenerMensaje` sí puede hacerlo y lo declara en `marcaLeido`. `obtenerDeclaraciones621` devuelve TODAS las
+ * presentaciones del periodo pedido (lista vacía = sin declaración). Lanza `ErrorCredencial`, `ErrorTransitorio`,
+ * `ErrorDatos` o `ErrorPortal`.
  */
 export interface SolPortal {
   listarMensajes(
@@ -90,6 +115,10 @@ export interface SolPortal {
     idSunat: string,
     opciones: { maxBytesAdjunto: number; maxBytesMensaje: number },
   ): Promise<MensajeSol>;
+  obtenerDeclaraciones621(
+    credencial: CredencialSol,
+    opciones: { periodo: string },
+  ): Promise<Declaracion621[]>;
 }
 
 export type LibroSire = "compras" | "ventas";

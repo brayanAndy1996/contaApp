@@ -53,6 +53,7 @@ import {
   type ClienteDto,
 } from "../../../../lib/clientes";
 import { MENSAJES_BUZON } from "../../../../lib/buzon";
+import { MENSAJES_PRORRATA, PERMISO_PRORRATA_VER } from "../../../../lib/prorrata";
 import { MENSAJES_COMPRAS } from "../../../../lib/compras";
 import { MENSAJES_PLAN } from "../../../../lib/planes";
 import { MENSAJES_REGLAS } from "../../../../lib/reglas";
@@ -200,6 +201,7 @@ function DetalleCliente() {
   const puedeCredenciales = usePuede("credenciales.editar");
   const puedeVerReglas = usePuede("reglas.ver");
   const puedeVerBuzon = usePuede("buzon.ver");
+  const puedeVerProrrata = usePuede(PERMISO_PRORRATA_VER);
   const [cliente, setCliente] = useState<ClienteDto | null>(null);
   const [cargado, setCargado] = useState(false);
   const [asigna, setAsigna] = useState(false);
@@ -369,7 +371,7 @@ function DetalleCliente() {
             </>
           }
           acciones={
-            // Registros del cliente: Compras (spec 015, D-1), Ventas (spec 038, P-4), Reglas aprendidas y Buzón SOL (023).
+            // Registros del cliente: Compras (spec 015, D-1), Ventas (spec 038, P-4), Reglas aprendidas, Buzón SOL (023) y Prorrata (026).
             <nav
               aria-label="Registros del cliente"
               className="flex flex-wrap items-center gap-x-2 text-sm"
@@ -394,6 +396,14 @@ function DetalleCliente() {
                   {" · "}
                   <Link href={`/clientes/${hrefCliente}/buzon`} className={enlaceNav}>
                     {MENSAJES_BUZON.enlaceBuzon}
+                  </Link>
+                </>
+              )}
+              {puedeVerProrrata === true && (
+                <>
+                  {" · "}
+                  <Link href={`/clientes/${hrefCliente}/prorrata`} className={enlaceNav}>
+                    {MENSAJES_PRORRATA.enlaceProrrata}
                   </Link>
                 </>
               )}
