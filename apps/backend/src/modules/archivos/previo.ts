@@ -176,12 +176,7 @@ async function leerResumenesXml(tx: Tx, compras: readonly ComprobanteCompra[]): 
     for (const f of r.rows) {
       if (f.origen === "simulado" && !simuladoEnReglas) continue;
       try {
-        // `fechaEmision` queda fuera: la lectura de `prevalidar` (`prevalidacion/entrada.ts`, 012) aún no la admite entre las claves del
-        // XML y rechazaría la fila entera. Sin ella S4 (día no laborable) no suma en el previo; el resto del puntaje es el de la grilla.
-        // Pendiente del dominio (T8): aceptar `fechaEmision` opcional en `leerXml` y quitar esto.
-        const resumen: { -readonly [K in keyof ResumenXml]: ResumenXml[K] } = { ...aResumenXml(f.detalle as DetalleXml) };
-        delete resumen.fechaEmision;
-        salida.set(f.compra_id, resumen);
+        salida.set(f.compra_id, aResumenXml(f.detalle as DetalleXml));
       } catch (err) {
         if (!(err instanceof DineroError)) throw err;
       }

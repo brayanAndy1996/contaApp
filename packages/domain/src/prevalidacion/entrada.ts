@@ -5,6 +5,7 @@
 import type { MontosComprobante } from "../comprobante/index";
 import type { Money, Moneda } from "../dinero/index";
 import type { CabeceraTxt, Libro } from "../formatos/tipos";
+import { esFechaIso } from "../gastos/feriados";
 import { esMoneyReal, esMontosReal } from "../reglas/entrada";
 import type { ResumenXml } from "../reglas/index";
 import { COLUMNAS_VENTA } from "../ventas/columnas";
@@ -84,7 +85,9 @@ const REQUERIDAS_PROVEEDOR = ["tipo", "numero"];
 const CLAVES_DOC = ["tipo", "numero"];
 const CLAVES_ORIGEN = ["montos", "tipoCambio"];
 const MONTOS_XML = ["gravado", "igv", "noGravado", "isc", "icbper", "total"];
-const CLAVES_XML = ["proveedor", "comprobante", "moneda", ...MONTOS_XML, "glosas"];
+const REQUERIDAS_XML = ["proveedor", "comprobante", "moneda", ...MONTOS_XML, "glosas"];
+/** 027 (S4): `fechaEmision` es opcional (`ResumenXml.fechaEmision?`). */
+const CLAVES_XML = [...REQUERIDAS_XML, "fechaEmision"];
 const CLAVES_CABECERA = ["rucDeclarante", "periodo", "libro"];
 const CLAVES_FILA_VENTA = ["id", "estado", "comprobante", "contraparte", "fechaEmision", "montos", "tipoCambio"];
 const REQUERIDAS_CONTRAPARTE = ["numero"];
@@ -184,7 +187,7 @@ function leerTipoCambio(x: unknown): string | null {
  * aquí nunca hace lanzar a las reglas por su XML, y la forma no depende de si se pasan `reglas`.
  */
 function leerXml(o: unknown): ResumenXml {
-  const v = leerObjeto(o, CLAVES_XML);
+  const v = leerObjeto(o, CLAVES_XML, REQUERIDAS_XML);
   const pv = leerObjeto(v.get("proveedor"), CLAVES_DOC);
   const [ptipo, pnumero] = textos(pv, CLAVES_DOC) as [string, string];
   const [tipo, serie, numero] = textos(leerObjeto(v.get("comprobante"), CLAVES_COMPROBANTE), CLAVES_COMPROBANTE) as [
@@ -202,6 +205,11 @@ function leerXml(o: unknown): ResumenXml {
   }
   const glosas = Object.freeze(leerArreglo(v.get("glosas")).map(texto));
   const m = (k: string): Money => montos.get(k) as Money;
+  // 027 (S4), como `reglas/entrada.ts`: si viene (no `undefined`) y no es texto la forma es inválida; un texto que no es una
+  // fecha AAAA-MM-DD válida se omite (el XML no es confiable y S4 no suma sin fecha).
+  const fecha = v.get("fechaEmision");
+  if (fecha !== undefined && typeof fecha !== "string") invalida();
+  const conFecha = typeof fecha === "string" && esFechaIso(fecha) ? { fechaEmision: fecha } : {};
   return Object.freeze({
     proveedor: Object.freeze({ tipo: ptipo, numero: pnumero }),
     comprobante: Object.freeze({ tipo, serie, numero }),
@@ -213,6 +221,7 @@ function leerXml(o: unknown): ResumenXml {
     icbper: m("icbper"),
     total: m("total"),
     glosas,
+    ...conFecha,
   });
 }
 

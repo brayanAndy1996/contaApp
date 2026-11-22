@@ -43,6 +43,12 @@ describe("CA-1 · caso real zapatilla (ferretería 4752 compra a tienda de ropa 
     expect(r.categoria).toBe("calzado-ropa");
   });
 
+  it("T12b: la señal S1 lleva la categoría de su palabra (contrato `senalGastoSchema`)", () => {
+    expect(senal(puntuar(), "S1")).toEqual({ codigo: "S1", puntos: 3, palabra: "zapatilla", categoria: "calzado-ropa", items: { coinciden: 1, total: 1 } });
+    // «muneca» (juguetes) < «zapatilla» (calzado-ropa): la categoría es la de la palabra elegida, no la de otro ítem.
+    expect(senal(neutro({ glosas: ["ZAPATILLA", "MUNECA BARBIE"] }), "S1")).toMatchObject({ palabra: "muneca", categoria: "juguetes" });
+  });
+
   it("puntaje 9 si el proveedor es nuevo (S5)", () => {
     const r = puntuar({ esNuevo: true });
     expect(r.puntaje).toBe(9);

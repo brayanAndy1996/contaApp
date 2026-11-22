@@ -17,7 +17,7 @@ export interface Senal {
   readonly puntos: number;
   /** S1: la palabra elegida. */
   readonly palabra?: string;
-  /** S3: la categoría no permitida elegida. */
+  /** S1: la categoría de su palabra; S3: la categoría no permitida elegida. */
   readonly categoria?: string;
   /** S1: ítems con palabra («n de m»). */
   readonly items?: { readonly coinciden: number; readonly total: number };
@@ -95,6 +95,7 @@ export function puntuarValidado(
       codigo: "S1",
       puntos: Math.min(items * PESOS.S1_ITEM, PESOS.S1_TOPE),
       palabra,
+      ...(categoria === null ? {} : { categoria }),
       items: { coinciden: items, total: glosas.length },
     });
   }
