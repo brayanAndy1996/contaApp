@@ -22,12 +22,15 @@ describe("R-GP", () => {
     );
     expect(h.filaId).toBe("f1");
     expect(h.destino).toBeNull();
+    // 027: la sugerencia suma `puntaje` y `senales` (proveedor conocido, sin CIIU: solo S1 = 3) y la explicación es fija (D-1).
     expect(h.sugerencia).toEqual({
       tipo: "excluir",
       palabra: "zapatilla",
       categoria: "calzado-ropa",
+      puntaje: 3,
+      senales: [expect.objectContaining({ codigo: "S1", puntos: 3, palabra: "zapatilla" })],
     });
-    expect(h.explicacion).toContain("zapatilla");
+    expect(h.explicacion).toBe("Posible gasto no deducible");
     expect(h.dato).toBeNull();
     expect(h.lecturas).toEqual({});
   });
@@ -79,6 +82,8 @@ describe("R-GP", () => {
       tipo: "excluir",
       palabra: "tornillo",
       categoria: "ferreteria",
+      puntaje: 3,
+      senales: [expect.objectContaining({ codigo: "S1", puntos: 3, palabra: "tornillo" })],
     });
   });
 

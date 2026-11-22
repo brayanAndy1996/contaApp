@@ -562,9 +562,10 @@ describe("ronda 1a · glosas Unicode, plurales y enormes en R-GP (CA-12, D-5)", 
       expect(h).toEqual([]);
       return;
     }
-    expect(h.map((x) => x.sugerencia)).toEqual([
+    // 027: la sugerencia suma `puntaje` y `senales`; la explicación es fija y la palabra va en la sugerencia.
+    expect(h.map((x) => x.sugerencia)).toMatchObject([
       { tipo: "excluir", palabra, categoria },
     ]);
-    expect(h[0]!.explicacion).toContain(palabra);
+    expect(h[0]!.explicacion).toBe("Posible gasto no deducible");
   });
 });
