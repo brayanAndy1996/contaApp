@@ -33,6 +33,7 @@ const CONTADOR: readonly Permiso[] = [
   "ajustes.crear",
   "ajustes.generar",
   "reglas.gestionar",
+  "prorrata.gestionar",
 ];
 
 const ADMIN: readonly Permiso[] = PERMISOS.filter(
