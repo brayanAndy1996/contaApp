@@ -2,7 +2,7 @@
 // el dato que pide aplicarlo. La tabla `compra_hallazgo` guarda solo la regla, la sugerencia, las lecturas y si pide
 // confirmación (cadenas); el resto se reconstruye aquí con el catálogo fijo de 011, sin releer el periodo ni evaluar de nuevo.
 // Puro, sin IO. Sin XML en la fila (016 lo traerá) la explicación es la de la regla sin respaldo; nunca lleva texto externo
-// salvo la palabra del diccionario de R-GP.
+// (027: la de R-GP es fija).
 import type { ColumnaCompra, Destino } from "../comprobante/index";
 import { Money } from "../dinero/index";
 import {
@@ -10,8 +10,8 @@ import {
   MARCA_ISC_SIN_XML,
   MODO_ESTANDAR,
   PROVEEDOR_NUEVO,
+  GASTO_NO_DEDUCIBLE,
   SUFIJO_MIX_RANGO_VACIO,
-  gastoPersonal,
   iscSinXml,
   mix,
   red,
@@ -115,7 +115,8 @@ export function detallarHallazgo(h: HallazgoGuardado): DetalleHallazgo {
       case "R-GP":
         return {
           destino: null,
-          explicacion: s !== null && typeof s.palabra === "string" ? gastoPersonal(s.palabra) : EXPLICACION_GENERICA,
+          // 027 (D-1): explicación fija, con o sin palabra (null); la forma de 011 (sin puntaje) se sigue leyendo.
+          explicacion: s !== null && (typeof s.palabra === "string" || s.palabra === null) ? GASTO_NO_DEDUCIBLE : EXPLICACION_GENERICA,
           dato: null,
           masiva: false,
         };

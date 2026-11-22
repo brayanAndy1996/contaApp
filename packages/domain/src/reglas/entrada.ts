@@ -6,7 +6,10 @@ import type { ColumnaCompra, Destino } from "../comprobante/index";
 import { Money, TipoCambio } from "../dinero/index";
 import type { Moneda } from "../dinero/index";
 import { DiccionarioGlosas } from "../texto/index";
-import { EntradaReglasInvalidaError } from "./errores";
+import { contextoGastosInterno, contextoGastosMinimo } from "../gastos/contexto";
+import type { ContextoGastosInterno } from "../gastos/contexto";
+import { esFechaIso } from "../gastos/feriados";
+import { invalida, leerArreglo, leerObjeto } from "./estricto";
 import { AVISO_XML_AJENO, AVISO_XML_MONEDA } from "./explicaciones";
 import { ORDEN_REGLAS } from "./tipos";
 import type {
@@ -40,6 +43,8 @@ export interface XmlInterno {
   readonly icbper: Money;
   readonly total: Money;
   readonly glosas: readonly string[];
+  /** 027 (S4): fecha de emisión AAAA-MM-DD válida; null si falta o no es una fecha (el XML no es confiable). */
+  readonly fechaEmision: string | null;
 }
 
 export interface FilaInterna {
@@ -62,6 +67,8 @@ export interface ContextoInterno {
   readonly modoEstandar: boolean;
   /** Claves de los proveedores con regla aprendida activa (025, R-STD). */
   readonly conRegla: ReadonlySet<string>;
+  /** 027 (R-GP): el contexto de gastos validado; sin `ctx.gastos`, el de 011 (diccionario del contexto, umbral 3, sin señales). */
+  readonly gastos: ContextoGastosInterno;
 }
 
 // ---------------------------------------------------------------- gramáticas
@@ -84,7 +91,8 @@ const CLAVES_DOC = ["tipo", "numero"];
 const CLAVES_COMPROBANTE = ["tipo", "serie", "numero"];
 const CLAVES_ORIGEN = ["montos", "tipoCambio"];
 const MONTOS_XML = ["gravado", "igv", "noGravado", "isc", "icbper", "total"];
-const CLAVES_XML = ["proveedor", "comprobante", "moneda", ...MONTOS_XML, "glosas"];
+const REQUERIDAS_XML = ["proveedor", "comprobante", "moneda", ...MONTOS_XML, "glosas"];
+const CLAVES_XML = [...REQUERIDAS_XML, "fechaEmision"];
 const CLAVES_CONTEXTO = [
   "proveedoresConocidos",
   "proveedoresIsc",
@@ -92,46 +100,13 @@ const CLAVES_CONTEXTO = [
   "reglasApagadas",
   "modoEstandar",
   "proveedoresConRegla",
+  "gastos",
 ];
 const REQUERIDAS_CONTEXTO = ["proveedoresConocidos", "proveedoresIsc", "diccionario"];
 /** Códigos que el estudio puede apagar (021): los de `ORDEN_REGLAS` y R-HIS, sin normalizar caja ni espacios. */
 const CODIGOS_MOTOR: readonly CodigoReglaMotor[] = Object.freeze([...ORDEN_REGLAS, "R-HIS"]);
 
-function invalida(): never {
-  throw new EntradaReglasInvalidaError();
-}
-
-// ---------------------------------------------------------------- objetos estrictos
-/**
- * Objeto con claves propias ⊆ `permitidas` (sin símbolos ni `__proto__` propio) y con todas las
- * `requeridas`. Devuelve un Map con cada valor leído una sola vez.
- */
-export function leerObjeto(
-  o: unknown,
-  permitidas: readonly string[],
-  requeridas: readonly string[] = permitidas,
-): Map<string, unknown> {
-  if (typeof o !== "object" || o === null || Array.isArray(o)) invalida();
-  const obj = o as Record<string, unknown>;
-  if (Object.getOwnPropertySymbols(obj).length > 0) invalida();
-  const valores = new Map<string, unknown>();
-  for (const k of Object.getOwnPropertyNames(obj)) {
-    if (!permitidas.includes(k)) invalida();
-    valores.set(k, obj[k]);
-  }
-  for (const k of requeridas) if (!valores.has(k)) invalida();
-  return valores;
-}
-
-/** Copia de un arreglo real, por índice (sin el iterador del llamador); `undefined` en huecos. */
-export function leerArreglo(a: unknown): unknown[] {
-  if (!Array.isArray(a)) invalida();
-  const arr = a as unknown[];
-  const largo = arr.length;
-  const copia: unknown[] = [];
-  for (let i = 0; i < largo; i++) copia.push(arr[i]);
-  return copia;
-}
+export { leerArreglo, leerObjeto } from "./estricto";
 
 // ---------------------------------------------------------------- marcas de 010 y 011
 export function esMoneda(m: unknown): m is Moneda {
@@ -261,7 +236,7 @@ interface XmlLeido {
 }
 
 function leerXml(o: unknown): XmlLeido {
-  const v = leerObjeto(o, CLAVES_XML);
+  const v = leerObjeto(o, CLAVES_XML, REQUERIDAS_XML);
   const proveedor = docProveedor(v.get("proveedor"), "nula")?.clave ?? null;
   const comprobante = claveComprobante(v.get("comprobante"), "nula");
   const moneda = v.get("moneda");
@@ -282,6 +257,10 @@ function leerXml(o: unknown): XmlLeido {
     glosas.push(g as string);
   }
   const m = (k: string): Money => montos.get(k) as Money;
+  // 027: opcional; si no es texto la forma es inválida; si es texto pero no una fecha, no hay fecha (S4 no suma).
+  const fecha = v.get("fechaEmision");
+  if (fecha !== undefined && typeof fecha !== "string") invalida();
+  const fechaEmision = typeof fecha === "string" && esFechaIso(fecha) ? fecha : null;
   return {
     proveedor,
     comprobante,
@@ -295,6 +274,7 @@ function leerXml(o: unknown): XmlLeido {
       icbper: m("icbper"),
       total: m("total"),
       glosas: Object.freeze(glosas),
+      fechaEmision,
     }),
   };
 }
@@ -367,8 +347,8 @@ function leerModoEstandar(x: unknown): boolean {
 }
 
 /**
- * Contexto validado: sin claves extra, documentos válidos, diccionario real, códigos apagados conocidos y (025) modo estándar
- * booleano con proveedores con regla válidos (ausentes = false y ninguno).
+ * Contexto validado: sin claves extra, documentos válidos, diccionario real, códigos apagados conocidos, (025) modo estándar
+ * booleano con proveedores con regla válidos (ausentes = false y ninguno) y (027) contexto de gastos estricto.
  */
 export function validarContexto(ctx: ContextoReglas): ContextoInterno {
   const v = leerObjeto(ctx, CLAVES_CONTEXTO, REQUERIDAS_CONTEXTO);
@@ -380,7 +360,10 @@ export function validarContexto(ctx: ContextoReglas): ContextoInterno {
   const modoEstandar = leerModoEstandar(v.get("modoEstandar"));
   const conReglaCruda = v.get("proveedoresConRegla");
   const conRegla = conReglaCruda === undefined ? new Set<string>() : clavesDe(conReglaCruda);
-  return Object.freeze({ conocidos, isc, diccionario, apagadas, modoEstandar, conRegla });
+  // 027: `gastos` ausente o `undefined` = la R-GP de 011; si no, el contexto estricto de `validarContextoGastos`.
+  const gastosCrudo = v.get("gastos");
+  const gastos = gastosCrudo === undefined ? contextoGastosMinimo(diccionario) : contextoGastosInterno(gastosCrudo);
+  return Object.freeze({ conocidos, isc, diccionario, apagadas, modoEstandar, conRegla, gastos });
 }
 
 // ---------------------------------------------------------------- piezas internas de las reglas

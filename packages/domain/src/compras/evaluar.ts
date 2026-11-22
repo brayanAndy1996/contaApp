@@ -22,6 +22,8 @@ import type {
   ResumenXml,
   Sugerencia,
 } from "../reglas/index";
+import type { ContextoGastos } from "../gastos/contexto";
+import type { Senal } from "../gastos/puntaje";
 import { aResumenXml } from "../ubl/index";
 import type { DetalleXml } from "../ubl/index";
 
@@ -57,6 +59,8 @@ export interface OpcionesEvaluar {
   readonly proveedoresConRegla?: readonly { tipo: string; numero: string }[];
   /** Perfil fiscal del cliente (025, D-8, D-9): si cumple U-4, R-STD sugiere DNG. Sin él, sin R-STD. */
   readonly perfil?: PerfilCliente;
+  /** Contexto de la R-GP completa (027, D-5); sin él, la R-GP de 011 (diccionario base, umbral 3). */
+  readonly gastos?: ContextoGastos;
 }
 
 /** Lo que la evaluación necesita de una compra (estructural: `packages/db` no depende de este paquete). */
@@ -117,8 +121,21 @@ function sugerenciaJson(s: Sugerencia | null): unknown {
     case "clasificar":
       return { tipo: "clasificar" };
     case "excluir":
-      return { tipo: "excluir", palabra: s.palabra, categoria: s.categoria };
+      // 027: con puntaje y señales (copias planas); la forma de 011 (sin ellos) se guarda igual que antes.
+      return s.puntaje === undefined || s.senales === undefined
+        ? { tipo: "excluir", palabra: s.palabra, categoria: s.categoria }
+        : { tipo: "excluir", palabra: s.palabra, categoria: s.categoria, puntaje: s.puntaje, senales: s.senales.map(senalJson) };
   }
+}
+
+function senalJson(s: Senal): Senal {
+  return {
+    codigo: s.codigo,
+    puntos: s.puntos,
+    ...(s.palabra === undefined ? {} : { palabra: s.palabra }),
+    ...(s.categoria === undefined ? {} : { categoria: s.categoria }),
+    ...(s.items === undefined ? {} : { items: { coinciden: s.items.coinciden, total: s.items.total } }),
+  };
 }
 
 /** `Hallazgo` de 011 → la forma que guarda `compra_hallazgo`. */
@@ -172,6 +189,7 @@ export function crearEvaluarCompras(
     ...(opciones.perfil === undefined
       ? {}
       : { modoEstandar: cumpleModoEstandar(opciones.perfil), proveedoresConRegla: proveedoresValidos(conRegla) }),
+    ...(opciones.gastos === undefined ? {} : { gastos: opciones.gastos }),
   };
   // El contexto se valida UNA vez, aquí (T25c): un contexto inválido (p. ej. un código apagado desconocido) es un defecto del
   // llamador y falla aquí (EntradaReglasInvalidaError) en vez de dejar cada compra sin hallazgos en silencio; cada compra solo

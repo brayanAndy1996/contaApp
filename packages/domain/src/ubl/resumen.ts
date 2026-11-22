@@ -24,5 +24,7 @@ export function aResumenXml(detalle: DetalleXml): ResumenXml {
     icbper: m(totales.icbper),
     total: Money.desde(totales.total, detalle.monedaUnica ? moneda : otra(moneda)),
     glosas: detalle.items.map((i) => i.descripcion),
+    // 027 (S4): la fecha de emisión del XML.
+    fechaEmision: detalle.fecha,
   };
 }

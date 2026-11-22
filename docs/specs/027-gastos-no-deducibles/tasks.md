@@ -13,7 +13,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → cobe
 | T5  | Pruebas del worker: CIIU al llegar el XML, contexto en descarga, XML y 012b, `compras.reevaluar` (rojo) | tester | sonnet | T2 ∥ T6, T7 | ✓ | — | [x] |
 | T6  | Pruebas HTTP: diccionario, umbral, categorías, aprender, reevaluar, plataforma, aceptar R-GP, 012, permisos, HU-40 y limpieza del soporte (rojo) | tester | sonnet | T2 ∥ T5, T7 | ✓ | — | [ ] |
 | T7  | Pruebas de componentes: reglas del motor, categorías del cliente, chip y lupa, aprender, volver a evaluar, super-admin (rojo) | tester | sonnet | T2 ∥ T5, T6 | ✓ | — | [x] |
-| T8  | Dominio: `gastos/`, diccionario ampliado y R-GP | backend | opus | T1 ∥ T9, T10 | ✓ | — | [ ] |
+| T8  | Dominio: `gastos/`, diccionario ampliado y R-GP | backend | opus | T1 ∥ T9, T10 | ✓ | — | [[x] |
 | T9  | `shared`, acciones, cola y CIIU del mock con su fixture | backend | sonnet | T2 ∥ T8, T10 | ✓ | — | [x] |
 | T10 | Migraciones 0069–0070, esquema drizzle, `packages/db/src/gastos/` y plataforma en `auth/repositorio.ts` | backend | opus | T3, T4 ∥ T8, T9 | ✓ | — | [ ] |
 | T11 | Worker: contexto, CIIU y `compras.reevaluar` | backend | sonnet | T5, T8, T9, T10 ∥ T12, T13 | ✓ | — | [ ] |
@@ -94,7 +94,7 @@ Reglas comunes:
 - **Hacer**: `apps/frontend/components/gastos/*.spec.tsx` y `apps/frontend/pruebas/gastos.ts` (textos y datos: el contrato para T13). Casos: umbral con 0/21 rechazados en el formulario y 409 en español; globales con desactivar/reactivar; propias con origen, autor y «n de 2.000»; agregar con excepciones; solo lectura sin `reglas.gestionar` global; categorías del cliente (base, permitir, quitar, efectivas); chip con puntaje y lupa con cada señal y «n de m ítems»; tras excluir, `Dialog` «Aprender estas palabras» solo con `reglas.gestionar` (términos editables, categoría obligatoria, omitidas); «Volver a evaluar» solo en periodo abierto con seguimiento; super-admin con historial. Glosa con `<img onerror>` como texto. A 390 px sin desborde.
 - **Hecho cuando**: fallan por componente ausente; las del frontend siguen verdes. Commit `test(027): pantallas de gastos no deducibles en rojo`.
 
-## T8 · [ ] Dominio (backend · opus)
+## T8 · [x] Dominio (backend · opus)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: domain; Semilla; Decisiones técnicas), pruebas de T1, `packages/domain/src/texto/{diccionario,normalizar,index}.ts`, `packages/domain/src/reglas/{r-gp,tipos,entrada,explicaciones,motor}.ts`, `packages/domain/src/ubl/resumen.ts`, `packages/domain/src/compras/{evaluar,hallazgo-vista}.ts`, `packages/domain/src/index.ts`.
 - **Hacer**: `packages/domain/src/gastos/*.ts`, diccionario con excepciones e índice, R-GP con puntaje, `fechaEmision` y exports. `buscar` y el comportamiento de 011 sin `ctx.gastos` se conservan.
 - **Hecho cuando**: las de T1 y todas las de `domain` pasan (incluida `ronda2b.adv.spec.ts`); `cobertura:dominio` en verde; typecheck y lint limpios. Commit `feat(027): puntaje de gastos no deducibles`.

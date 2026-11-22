@@ -14,7 +14,10 @@ import { DineroError, Money } from "../dinero/index";
 import type { Moneda } from "../dinero/index";
 import { ConfirmacionInvalidaError, ReglasError, SugerenciaObsoletaError, aplicarSugerencia } from "../reglas/index";
 import type { CodigoRegla, CodigoReglaMotor, Confirmacion, Hallazgo, MontosParciales, Sugerencia } from "../reglas/index";
+import type { ContextoGastos } from "../gastos/contexto";
+import type { Senal } from "../gastos/puntaje";
 import { DICCIONARIO_GLOSAS_BASE } from "../texto/index";
+import { esEntero } from "../texto/entero";
 import { proveedoresValidos, resumenXml } from "./evaluar";
 import type { CompraEvaluable } from "./evaluar";
 import { detallarHallazgo } from "./hallazgo-vista";
@@ -42,6 +45,8 @@ export interface EntradaAceptar {
    * sin confirmación (`revisar_de_nuevo`). Deben ser las mismas con que se evalúa (`EntornoReglas`). Por defecto, ninguna.
    */
   readonly reglasApagadas?: readonly CodigoReglaMotor[];
+  /** Contexto de la R-GP completa (027, D-5): el mismo con que se evaluó; sin él, la R-GP de 011. */
+  readonly gastos?: ContextoGastos;
 }
 
 export type RechazoAceptar =
@@ -127,9 +132,22 @@ function aSugerencia(j: unknown, moneda: Moneda, regla: string): Sugerencia {
     case "clasificar":
       return { tipo: "clasificar" };
     default:
-      if (typeof o.palabra !== "string" || typeof o.categoria !== "string") return ilegible();
-      return { tipo: "excluir", palabra: o.palabra, categoria: o.categoria };
+      return sugerenciaExcluir(o);
   }
+}
+
+const textoONulo = (v: unknown): v is string | null => v === null || typeof v === "string";
+
+/**
+ * R-GP guardada: la de 027 (palabra y categoría o null, puntaje y señales, que la re-evaluación compara) o la de 011 (sin
+ * puntaje ni señales, que se sigue leyendo).
+ */
+function sugerenciaExcluir(o: Readonly<Record<string, unknown>>): Sugerencia {
+  if (!textoONulo(o.palabra) || !textoONulo(o.categoria)) return ilegible();
+  if (o.puntaje === undefined && o.senales === undefined) return { tipo: "excluir", palabra: o.palabra, categoria: o.categoria };
+  if (!esEntero(o.puntaje) || !Array.isArray(o.senales)) return ilegible();
+  // Las señales las valida y normaliza `aplicarSugerencia` al compararlas con la re-evaluación.
+  return { tipo: "excluir", palabra: o.palabra, categoria: o.categoria, puntaje: o.puntaje, senales: o.senales as Senal[] };
 }
 
 const salida = (m: MontosComprobante, excluir: boolean, clasifica: boolean): ResultadoAceptar => {
@@ -176,6 +194,7 @@ function conReevaluacion(e: EntradaAceptar, h: HallazgoGuardado, d: DetalleHalla
       diccionario: DICCIONARIO_GLOSAS_BASE,
       // La regla apagada no se evalúa: la re-evaluación no la reproduce y la sugerencia queda obsoleta (011, motor).
       ...(e.reglasApagadas === undefined ? {} : { reglasApagadas: [...e.reglasApagadas] }),
+      ...(e.gastos === undefined ? {} : { gastos: e.gastos }),
     },
   });
   return salida(r.montos, r.excluir, h.regla === "R-NEW");

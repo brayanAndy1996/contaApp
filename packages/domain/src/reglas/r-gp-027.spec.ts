@@ -186,7 +186,9 @@ describe("R-GP completa · `ctx.gastos` ausente marca como 011", () => {
     const soloTornillo = DiccionarioGlosas.desde([{ categoria: "ferreteria", palabras: ["tornillo"] }]);
     const c = conGastos(gastosCa1({ diccionario: diccionarioSemilla() }), { diccionario: soloTornillo });
     expect(sug(gp(filaCon(["zapatillas urbanas"], FECHA_HABIL), c)).palabra).toBe("zapatilla");
-    expect(gp(filaCon(["tornillos de 2 pulgadas"], FECHA_HABIL), c)).toBeUndefined();
+    // Sin CIIU del proveedor (sin S2): S2 sola (+3) ya alcanza el umbral 3 y marcaría la compra sin palabra.
+    const sinS2 = conGastos(gastosCa1({ diccionario: diccionarioSemilla(), ciiuProveedores: [] }), { diccionario: soloTornillo });
+    expect(gp(filaCon(["tornillos de 2 pulgadas"], FECHA_HABIL), sinS2)).toBeUndefined();
   });
 });
 

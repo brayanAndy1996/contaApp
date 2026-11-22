@@ -61,13 +61,14 @@ describe("R-GP", () => {
     ).toEqual([]);
   });
 
-  it("varias glosas: gana la primera coincidencia en orden de glosas (determinista)", () => {
+  // 027 (R-2, R-3 S1; plan Decisiones «Orden canónico»): gana la palabra menor en orden de código, no la de la primera glosa.
+  it("varias glosas: gana la palabra menor en orden de código entre las coincidentes (determinista)", () => {
     const h = unico(
       evaluar([conGlosas("cemento", "ZAPATO negro", "POLO azul")]).hallazgos,
       "R-GP",
     );
     expect(h.sugerencia).toMatchObject({
-      palabra: "zapato",
+      palabra: "polo",
       categoria: "calzado-ropa",
     });
   });
