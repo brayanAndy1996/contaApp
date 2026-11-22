@@ -173,6 +173,73 @@ Para usar Mailpit:
 
 **Resultado esperado:** los contenedores se detienen. **Los datos se conservan**: la próxima vez basta con `pnpm servicios:up` y arrancar las dos terminales como en «Arrancar ContApp».
 
+### Actualizar ContApp a la última versión
+
+El equipo sigue agregando funciones a ContApp (por ejemplo buzones SOL, reglas aprendidas o el diseño nuevo). Cada vez que se fusiona una spec en `main`, tu copia local queda atrás. Sigue estos pasos para ponerla al día **sin perder tus datos de prueba**: clientes, correcciones y versiones generadas se conservan.
+
+1. **Detén ContApp.** En las dos terminales (backend y worker, y frontend), presiona Ctrl+C. Deja los servicios de Docker como estén.
+2. **Revisa si cambiaste archivos del proyecto.** En la carpeta del proyecto:
+   ```bash
+   git status
+   ```
+   - Si dice `nothing to commit, working tree clean`, sigue al paso 3. Tu `.env` no aparece porque git lo ignora: no se toca al actualizar.
+   - Si lista archivos modificados que quieres conservar, guárdalos aparte con `git stash`. Al terminar los recuperas con `git stash pop`. Si no los necesitas, descártalos con `git restore .`.
+3. **Baja la última versión.**
+   ```bash
+   git checkout main
+   ```
+   ```bash
+   git pull origin main
+   ```
+4. **Compara tu `.env` con el de ejemplo.** Si una versión nueva agrega variables, `.env.example` las trae y tu `.env` no. Lista las que te faltan:
+   - En PowerShell:
+     ```powershell
+     Compare-Object (Get-Content .env.example | Select-String '^[A-Z_]+=' | ForEach-Object { ($_ -split '=')[0] }) (Get-Content .env | Select-String '^[A-Z_]+=' | ForEach-Object { ($_ -split '=')[0] }) | Where-Object SideIndicator -eq '<='
+     ```
+   - En Git Bash, Linux o macOS:
+     ```bash
+     comm -23 <(grep -oE '^[A-Z_]+' .env.example | sort -u) <(grep -oE '^[A-Z_]+' .env | sort -u)
+     ```
+   Si sale alguna, copia esa línea de `.env.example` a tu `.env`. **No reemplaces tu `.env` entero**: perderías tus ajustes, como `STORAGE=local`, `STORAGE_DIR` o un puerto distinto de PostgreSQL.
+5. **Instala las dependencias nuevas.**
+   ```bash
+   pnpm install
+   ```
+6. **Levanta los servicios** (si ya están arriba, no pasa nada).
+   ```bash
+   pnpm servicios:up
+   ```
+7. **Compila los paquetes.** Los comandos de base de datos usan el código compilado, así que este paso va antes de migrar.
+   ```bash
+   pnpm build
+   ```
+8. **Aplica las migraciones nuevas.** Solo agrega lo que falta (tablas y columnas de las specs nuevas); tus datos se quedan.
+   ```bash
+   pnpm db:migrate
+   ```
+   No hace falta volver a ejecutar `pnpm db:seed`.
+9. **Arranca ContApp** como en «Arrancar ContApp»: terminal 1 con el `.env` cargado para el backend y el worker, terminal 2 sin `.env` para el frontend.
+10. **Recarga el navegador sin caché** con Ctrl+Shift+R (en macOS, Cmd+Shift+R), para no ver pantallas de la versión anterior.
+
+**Resultado esperado:** `pnpm db:migrate` termina con `migrar: OK`, el backend muestra `Nest application successfully started`, el worker `Worker iniciado`, y al entrar ves las funciones nuevas con tus datos de antes.
+
+**Para saber qué trajo la actualización:**
+- El tablero `docs/specs/ESTADO.md` lista cada spec con su estado («hecha», «pendiente») y un resumen de lo que entregó.
+- `git log --oneline -20` muestra los últimos cambios; los que dicen `Merge spec/…` son specs completas.
+- El índice de esta guía ([00](00-indice.md)) indica qué módulos cubren cada función.
+
+**Si algo falla al actualizar:**
+
+| Síntoma | Causa | Solución |
+|---|---|---|
+| `git pull` dice `Your local changes … would be overwritten by merge` | Modificaste archivos del proyecto. | Paso 2: `git stash`, vuelve a hacer `git pull` y luego `git stash pop`. |
+| `pnpm db:migrate` falla con `connect ECONNREFUSED` | PostgreSQL no está arriba o tu `.env` apunta a otro puerto. | `pnpm servicios:up` y revisa que el puerto de `MIGRATIONS_DATABASE_URL` sea el de `POSTGRES_PORT`. |
+| `pnpm db:migrate` falla con `Cannot find module …/dist/cli/migrar.js` | Saltaste el paso 7. | `pnpm build` y vuelve a migrar. |
+| El backend se cae con un error de una columna o tabla que no existe | No aplicaste las migraciones nuevas. | Detén la terminal 1, `pnpm db:migrate` y arráncala de nuevo. |
+| El backend o el worker se caen con `Entorno inválido: …` | La versión nueva pide una variable que tu `.env` no tiene. | Paso 4: copia esa variable de `.env.example`. |
+| El navegador muestra el diseño anterior o errores sueltos | Caché del navegador o de Next.js. | Ctrl+Shift+R. Si sigue, detén la terminal 2, borra la carpeta `apps/frontend/.next` y arráncala de nuevo. |
+| Quieres probar todo desde cero con la versión nueva | Tus datos viejos ya no te sirven. | Sigue «Empezar de cero» (abajo), después de actualizar. |
+
 ### Empezar de cero
 
 Si quieres borrar todo lo que hiciste (clientes, correcciones, estudios registrados, correos de Mailpit) y volver al seed:
@@ -295,15 +362,17 @@ Otras reglas que conviene saber:
 3. Quieres ver el correo de invitación en una bandeja de entrada, no en la terminal. ¿Qué cambias?
 4. Hiciste muchas pruebas y quieres volver a los datos iniciales. ¿Qué comandos usas y qué se pierde?
 5. ¿Con qué usuario del seed compruebas que un Contador solo ve sus clientes asignados, y cuántos clientes debe ver en el Estudio A?
+6. Se fusionó una spec nueva en `main` y quieres probarla sin perder tus clientes de prueba. ¿Qué comandos ejecutas y en qué orden?
 
 <details>
 <summary>Soluciones</summary>
 
 1. `pnpm servicios:up`; luego, en la terminal 1, cargar el `.env` y `pnpm dev --env-mode=loose --filter=@contapp/backend --filter=@contapp/worker`, y en la terminal 2 (sin `.env`) `pnpm --filter @contapp/frontend dev`. No hace falta migrar ni sembrar de nuevo: los datos se conservaron.
-2. El backend no recibió las variables del `.env`: no las cargaste en la terminal, o Turbo las filtró. Carga el `.env` (bash: `set -a; . ./.env; set +a`; PowerShell: la línea del paso a paso) y arranca con `pnpm dev --env-mode=loose`.
-3. En el `.env`: `CORREO_PROVIDER=smtp`, un `CORREO_REMITENTE` cualquiera y `SMTP_URL=smtp://localhost:1025`. Reinicias `pnpm dev` con el `.env` recargado y abres `http://localhost:8025`.
+2. El backend no recibió las variables del `.env`: no las cargaste en la terminal, o Turbo las filtró. Carga el `.env` (bash: `set -a; . ./.env; set +a`; PowerShell: la línea del paso a paso) y arranca con `pnpm dev --env-mode=loose --filter=@contapp/backend --filter=@contapp/worker`.
+3. En el `.env`: `CORREO_PROVIDER=smtp`, un `CORREO_REMITENTE` cualquiera y `SMTP_URL=smtp://localhost:1025`. Reinicias la terminal 1 con el `.env` recargado y abres `http://localhost:8025`.
 4. `docker compose down -v`, `pnpm servicios:up`, `pnpm db:migrate` y `pnpm db:seed`. Se pierde todo lo que hiciste: clientes, correcciones, estudios registrados, trabajos y correos de Mailpit.
 5. Con `uab@seed.contapp.test` (Contador). En el Estudio A ve un solo cliente: «Cliente compartido (A)», del que es responsable.
+6. Detener las dos terminales; `git status` (y `git stash` si cambiaste algo); `git checkout main` y `git pull origin main`; comparar el `.env` con `.env.example`; `pnpm install`, `pnpm servicios:up`, `pnpm build` y `pnpm db:migrate`; arrancar las dos terminales y recargar con Ctrl+Shift+R. No se ejecuta `pnpm db:seed` ni `docker compose down -v`, que borraría los datos.
 
 </details>
 
