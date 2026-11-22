@@ -297,6 +297,9 @@ export const MENSAJES_PRORRATA = {
     total_cero: "No determinable: las ventas de la ventana suman cero.",
     acumulado_invalido:
       "No determinable: los montos acumulados de la ventana son inconsistentes. Revisa los meses con notas de crédito o ingresados a mano.",
+    // T19 (H-026-2-4): los 12 meses suman más de lo que se puede calcular (NUMERIC(14,2)); la tabla se muestra igual.
+    montos_fuera_de_rango:
+      "No determinable: los montos de la ventana superan el máximo que se puede calcular. Revisa los meses con montos muy grandes.",
   },
 
   // IGV estimado (R-7, U-8)
@@ -315,6 +318,8 @@ export const MENSAJES_PRORRATA = {
     generado: "Periodo de compras generado",
   },
   notaEstimado: "Estimado: no incluye saldo a favor anterior, percepciones ni retenciones",
+  // T19 (H-026-2-6): `igvEstimado.avisos`; el texto lo fijó el usuario el 2026-11-22.
+  avisosIgv: { ventas_usd_sin_tipo_cambio: "Hay ventas en USD sin tipo de cambio; no se incluyeron" },
   noEstimable: {
     coeficiente: "No se puede estimar el IGV: primero hay que determinar el coeficiente de prorrata.",
     sin_ventas: "No se puede estimar el IGV: falta cargar las ventas del periodo.",
