@@ -14,7 +14,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → cobe
 | T6  | Pruebas HTTP: diccionario, umbral, categorías, aprender, reevaluar, plataforma, aceptar R-GP, 012, permisos, HU-40 y limpieza del soporte (rojo) | tester | sonnet | T2 ∥ T5, T7 | ✓ | — | [ ] |
 | T7  | Pruebas de componentes: reglas del motor, categorías del cliente, chip y lupa, aprender, volver a evaluar, super-admin (rojo) | tester | sonnet | T2 ∥ T5, T6 | ✓ | — | [ ] |
 | T8  | Dominio: `gastos/`, diccionario ampliado y R-GP | backend | opus | T1 ∥ T9, T10 | ✓ | — | [ ] |
-| T9  | `shared`, acciones, cola y CIIU del mock con su fixture | backend | sonnet | T2 ∥ T8, T10 | ✓ | — | [ ] |
+| T9  | `shared`, acciones, cola y CIIU del mock con su fixture | backend | sonnet | T2 ∥ T8, T10 | ✓ | — | [x] |
 | T10 | Migraciones 0069–0070, esquema drizzle, `packages/db/src/gastos/` y plataforma en `auth/repositorio.ts` | backend | opus | T3, T4 ∥ T8, T9 | ✓ | — | [ ] |
 | T11 | Worker: contexto, CIIU y `compras.reevaluar` | backend | sonnet | T5, T8, T9, T10 ∥ T12, T13 | ✓ | — | [ ] |
 | T12 | Backend: módulo `gastos` y contexto en compras, aceptar y 012 | backend | sonnet | T6, T8, T9, T10 ∥ T11, T13 | ✓ | — | [ ] |
@@ -99,7 +99,7 @@ Reglas comunes:
 - **Hacer**: `packages/domain/src/gastos/*.ts`, diccionario con excepciones e índice, R-GP con puntaje, `fechaEmision` y exports. `buscar` y el comportamiento de 011 sin `ctx.gastos` se conservan.
 - **Hecho cuando**: las de T1 y todas las de `domain` pasan (incluida `ronda2b.adv.spec.ts`); `cobertura:dominio` en verde; typecheck y lint limpios. Commit `feat(027): puntaje de gastos no deducibles`.
 
-## T9 · [ ] `shared`, cola y CIIU del mock (backend · sonnet)
+## T9 · [x] `shared`, cola y CIIU del mock (backend · sonnet)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: sunat, shared, Cola), pruebas de T2, `packages/shared/src/{index.ts,auditoria/acciones.ts,compras/respuestas.ts}`, `packages/shared/src/prorrata/esquemas.ts` (modelo), `packages/queue/src/{catalogo,index}.ts`, `packages/sunat/src/{puertos,index}.ts`, `packages/sunat/src/mock/{consulta-ruc.mock,ruta-fixture}.ts`, `fixtures/LEEME.md`.
 - **Hacer**: `packages/shared/src/gastos/*.ts`, sugerencia ampliada, acciones; `COMPRAS_REEVALUAR`; `DatosRuc.ciiu` y mock con `fixtures/ruc/ciiu.json`.
 - **Hecho cuando**: las de T2 y todas las de `shared`, `queue` y `sunat` pasan; `cobertura:sunat` en verde; `build` y typecheck de los consumidores limpios (fallos por exhaustividad anotados para T11–T13). Commit `feat(027): contratos, trabajo de reevaluación y CIIU del mock`.

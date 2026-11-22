@@ -303,6 +303,26 @@ export const SOL_DECLARACIONES_DESCARGAR: DefinicionTrabajo<ParametrosDescargarD
   parametros: z.object({ periodo: periodoProrrataSchema }).strict(),
 };
 
+export interface ParametrosReevaluarCompras {
+  periodo: string;
+}
+
+/**
+ * Spec 027 (R-12, CA-12): «Volver a evaluar» las compras vivas de un periodo abierto con el diccionario, el umbral y las
+ * categorías vigentes (cola `xml` como `xml.obtener`; sin canal ni credencial: no habla con SUNAT, así que no usa el bloqueo
+ * por RUC). Parámetros estrictos `{periodo}`: el cliente sale del trabajo y las compras, del periodo en el worker; no hay
+ * dónde llevar un cliente, un secreto ni una lista de compras. Dedupe de 008 por (tipo, cliente, periodo).
+ */
+export const COMPRAS_REEVALUAR: DefinicionTrabajo<ParametrosReevaluarCompras> = {
+  tipo: "compras.reevaluar",
+  cola: "xml",
+  canal: "ninguno",
+  credencial: null,
+  permiso: "sire.clasificar",
+  idempotente: true,
+  parametros: z.object({ periodo: z.string().regex(PERIODO_AAAAMM) }).strict(),
+};
+
 registrarTipo(CLIENTE_CONSULTAR_RUC);
 registrarTipo(CREDENCIAL_VERIFICAR_SOL);
 registrarTipo(CREDENCIAL_VERIFICAR_SIRE);
@@ -313,6 +333,7 @@ registrarTipo(SOL_BUZON_REVISAR);
 registrarTipo(SOL_BUZON_ABRIR);
 registrarTipo(REGLAS_HISTORIAL_IMPORTAR);
 registrarTipo(SOL_DECLARACIONES_DESCARGAR);
+registrarTipo(COMPRAS_REEVALUAR);
 
 /** Tipo de pruebas: solo existe con NODE_ENV=test (el worker le programa el comportamiento). */
 export const PRUEBA_ECO: DefinicionTrabajo<{ n?: number; rango?: string }> = {

@@ -75,6 +75,26 @@ export async function leerFixtureXml(
   clave: string,
 ): Promise<string | null> {
   partesDeClave(clave); // gramática antes de armar la ruta
+  return leerArchivoAcotado(dir, `${clave}.xml`);
+}
+
+/** Carpeta del fixture de CIIU por defecto (`fixtures/ruc`), resuelta desde este archivo, no desde el `cwd`. */
+export function dirFixturesRucPorDefecto(): string {
+  return resolve(__dirname, "../../../../fixtures/ruc");
+}
+
+/**
+ * Lee `{dir}/ciiu.json` con las mismas defensas que `leerFixtureXml` (dentro de `dir`, archivo regular, tope de
+ * `TOPE_BYTES_FIXTURE`). Devuelve `null` si la carpeta o el archivo no existen; todo otro defecto es `ErrorDatos`.
+ */
+export function leerFixtureCiiu(dir: string): Promise<string | null> {
+  return leerArchivoAcotado(dir, "ciiu.json");
+}
+
+async function leerArchivoAcotado(
+  dir: string,
+  nombre: string,
+): Promise<string | null> {
   let base: string;
   try {
     base = await realpath(dir);
@@ -85,7 +105,7 @@ export async function leerFixtureXml(
 
   let real: string;
   try {
-    real = await realpath(join(base, `${clave}.xml`));
+    real = await realpath(join(base, nombre));
   } catch (e) {
     if (codigoFs(e) === "ENOENT") return null;
     throw new ErrorDatos();

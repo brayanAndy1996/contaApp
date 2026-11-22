@@ -108,7 +108,8 @@ describe("MockConsultaRuc: ciiu determinista fuera del fixture", () => {
     const mock = crear({ dirFixtures: dirOk });
     const clases = new Set<string | null>();
     for (let i = 0; i < 40; i++) {
-      const ruc = `201000000${String(i * 10 + 1).padStart(2, "0")}`.slice(0, 11);
+      // Terminan en 0: los RUC que acaban en 7 u 8 son los centinelas de 007b y fallarían.
+      const ruc = `20100000${String(i * 10).padStart(3, "0")}`;
       const { ciiu } = await mock.consultar(ruc);
       expect(ciiu).toMatch(/^[0-9]{4}$/);
       clases.add(ciiu);
