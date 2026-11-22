@@ -4,7 +4,7 @@ import { defineConfig } from "vitest/config";
 
 // Cobertura de 026 (prorrata e IGV estimado, T14): mide packages/db/src/prorrata/ (declaraciones, manual,
 // usada, ventas y errores) con sus pruebas unitarias y con las suites de BD de tests/aislamiento
-// (prorrata-*.spec.ts). Umbral de 90 % por archivo.
+// (prorrata-*.spec.ts), más guardas.spec.ts (T14a). Umbral de 90 % por archivo.
 const raiz = fileURLToPath(new URL("../..", import.meta.url));
 const ruta = (relativa: string) =>
   fileURLToPath(new URL(relativa, import.meta.url));
@@ -61,6 +61,8 @@ export default defineConfig({
         "**/*.adv.spec.ts",
         "**/*.int.spec.ts",
         "**/*.adv.int.spec.ts",
+        // Soporte de pruebas (arnés de BD), no producción: como en la cobertura de aprendizaje.
+        "packages/db/src/prorrata/soporte-prueba.ts",
       ],
       reporter: ["text", "json-summary"],
       thresholds: {
