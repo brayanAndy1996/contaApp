@@ -12,6 +12,7 @@ import {
   RUTA_ULTIMA,
   importacionDe,
 } from "../../../../../pruebas/aprendizaje";
+import { RUTA_CATEGORIAS, categoriasDe } from "../../../../../pruebas/gastos";
 import { RUTA_LISTA_REGLAS } from "../../../../../pruebas/reglas";
 import { instalarFetchFalso } from "../../../../../pruebas/soporte";
 
@@ -45,6 +46,7 @@ describe("página de reglas · cliente no visible (T22a · D3)", () => {
       [RUTA_ULTIMA]: NO_ENCONTRADO,
       [RUTA_CANDIDATAS]: NO_ENCONTRADO,
       [RUTA_LISTA_REGLAS]: NO_ENCONTRADO,
+      [RUTA_CATEGORIAS]: NO_ENCONTRADO,
     });
     render(<Pagina />);
 
@@ -68,6 +70,7 @@ describe("página de reglas · refresco tras activar (T22a · D2)", () => {
       [RUTA_ULTIMA]: { status: 200, cuerpo: { importacion: importacionDe() } },
       [RUTA_CANDIDATAS]: { status: 200, cuerpo: { candidatas: [CAND_A], siguiente: null } },
       [RUTA_LISTA_REGLAS]: { status: 200, cuerpo: [] },
+      [RUTA_CATEGORIAS]: { status: 200, cuerpo: categoriasDe() },
       [RUTA_ACTIVAR]: {
         status: 200,
         cuerpo: { activadas: [], omitidas: [{ id: CAND_A.id, motivo: "no_pendiente" }] },

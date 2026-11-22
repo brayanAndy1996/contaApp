@@ -17,10 +17,13 @@ import {
   type AlAvisar,
 } from "./accion-compras";
 import { useErrorAnunciado } from "./aviso-unico";
+import { AprenderPalabras } from "../gastos/aprender-palabras";
 
 // Excluir una compra (spec 015, D-10, HU-17): motivo opcional de hasta 200 caracteres en una línea. Excluir una
 // agregada a mano equivale a descartarla (014 DU-16): se avisa antes de enviar. Espera la respuesta del servidor
 // (no hay actualización optimista) y recarga la fila y el resumen. El motivo es texto del usuario: nunca HTML.
+// Spec 027 (R-7): con `reglas.gestionar`, tras excluir bien se ofrece «Aprender estas palabras» (la propuesta sale del XML de la
+// compra); `alTerminar` se llama al cerrar ese diálogo, o de inmediato si no hay nada que ofrecer o no hay permiso.
 
 export function ExcluirCompra({
   contexto,
@@ -40,6 +43,7 @@ export function ExcluirCompra({
   const [error, setError] = useState<string | null>(null);
   const { avisarError, rolDe } = useErrorAnunciado(alAvisar);
   const [ocupado, setOcupado] = useState(false);
+  const [aprender, setAprender] = useState(false);
   const campo = useRef<HTMLInputElement>(null);
   const comprobante = comprobanteDe(fila);
 
@@ -71,7 +75,8 @@ export function ExcluirCompra({
       if (r.ok) {
         await recargarTrasExito(contexto, fila.id);
         alAvisar?.(M.compraExcluida, "ok");
-        alTerminar();
+        if (contexto.permisos.gestionarReglas === true) setAprender(true);
+        else alTerminar();
         return;
       }
       await recargarTrasError(contexto, fila.id, r);
@@ -83,6 +88,8 @@ export function ExcluirCompra({
     }
     setOcupado(false);
   }
+
+  if (aprender) return <AprenderPalabras contexto={contexto} fila={fila} alCerrar={alTerminar} />;
 
   return (
     <form

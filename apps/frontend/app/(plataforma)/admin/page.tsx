@@ -22,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "../../../components/ui";
+import { MENSAJES_GASTOS } from "../../../lib/gastos";
 import {
   MENSAJES_PLATAFORMA,
   mensajeDeAsignacion,
@@ -112,9 +113,12 @@ export default function AdminPlataforma() {
       <EncabezadoPagina
         titulo="Administración de plataforma"
         acciones={
-          <nav>
+          <nav className="flex flex-wrap gap-2">
             <Button asChild variant="secundario" className="max-lg:h-11">
               <Link href="/admin/planes">Planes</Link>
+            </Button>
+            <Button asChild variant="secundario" className="max-lg:h-11">
+              <Link href="/admin/diccionario">{MENSAJES_GASTOS.enlaceDiccionario}</Link>
             </Button>
           </nav>
         }

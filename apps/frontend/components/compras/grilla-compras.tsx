@@ -49,6 +49,7 @@ import {
 import { Search } from "lucide-react";
 import { Badge, Button, Input, cifra } from "../ui";
 import { debeEnfocar, type MarcaFoco } from "./foco-grilla";
+import { ChipGasto } from "../gastos/chip-gasto";
 
 // Grilla de compras del periodo (spec 015, T4 y T6; D-5, D-6, D-16; P-3, P-5, P-8, P-9; RF-061, RF-064).
 // TanStack Table 9 da el modelo de columnas y filas (con las columnas fijas y los anchos) y TanStack Virtual
@@ -834,6 +835,7 @@ export function GrillaCompras({
                 <span className="truncate">{T.alertaDe(reglas)}</span>
               </Badge>
             )}
+            <ChipGasto hallazgos={f.hallazgos} />
             {f.origen === "agregada" && <Badge className="h-5 px-2">{M.agregada}</Badge>}
             {f.excluida && <Badge className="h-5 px-2">{M.excluida}</Badge>}
             {resaltada && <Badge tono="info" className="h-5 px-2">{T.actualizada}</Badge>}

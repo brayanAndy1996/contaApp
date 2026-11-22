@@ -18,7 +18,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → cobe
 | T10 | Migraciones 0069–0070, esquema drizzle, `packages/db/src/gastos/` y plataforma en `auth/repositorio.ts` | backend | opus | T3, T4 ∥ T8, T9 | ✓ | — | [ ] |
 | T11 | Worker: contexto, CIIU y `compras.reevaluar` | backend | sonnet | T5, T8, T9, T10 ∥ T12, T13 | ✓ | — | [ ] |
 | T12 | Backend: módulo `gastos` y contexto en compras, aceptar y 012 | backend | sonnet | T6, T8, T9, T10 ∥ T11, T13 | ✓ | — | [ ] |
-| T13 | Frontend: pantallas de 027 | frontend | sonnet | T7, T9 ∥ T10–T12 | ✓ | — | [ ] |
+| T13 | Frontend: pantallas de 027 | frontend | sonnet | T7, T9 ∥ T10–T12 | ✓ | — | [x] |
 | T14 | Cobertura ≥ 90 % por archivo: `cobertura:gastos` y paso en CI | devops | haiku | T8, T10, T11, T12 ∥ T13 | — | — | [ ] |
 | T15 | Ronda adversarial 1: aislamiento, permisos, plataforma, funciones acotadas, límite y concurrencia, cola (≤ 15 pruebas) | adversario | opus | T11, T12, T14 ∥ T13, T21 | — | ✓ | [ ] |
 | T16 | Pruebas de las correcciones de la ronda 1 (rojo) | tester | sonnet | T15 | ✓ | — | [ ] |
@@ -119,7 +119,7 @@ Reglas comunes:
 - **Hacer**: módulo `gastos` (controladores del estudio, del cliente y de plataforma; servicios; vistas; errores; `contexto.ts`); contexto en compras, aceptar y 012; registrar el módulo.
 - **Hecho cuando**: las de T6 pasan y las del backend siguen verdes (HU-40, `rutas.spec.ts` y las de 012, 014, 016 y 021 incluidas); `cobertura:acceso` en verde; typecheck y lint limpios. Commit `feat(027): rutas de gastos no deducibles`.
 
-## T13 · [ ] Frontend (frontend · sonnet)
+## T13 · [x] Frontend (frontend · sonnet)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: Frontend), pruebas de T7, `docs/specs/038-diseno-visual/plan.md` (solo «Tokens del estilo A» y la lista de componentes), `apps/frontend/components/ui/index.ts`, `apps/frontend/lib/{api,trabajos,auditoria}.ts`, `apps/frontend/components/reglas/{reglas-motor,tabla-reglas-cliente}.tsx`, `apps/frontend/components/compras/{lupa-compra,excluir-compra,grilla-compras,estado-periodo}.tsx`, `apps/frontend/app/(plataforma)/admin/planes/page.tsx`.
 - **Hacer**: `components/gastos/*.tsx`, `lib/gastos.ts`, integración en las páginas de reglas, compras y plataforma, textos de las acciones de auditoría. Nada de `dangerouslySetInnerHTML`; mensajes de 403/409 en español.
 - **Hecho cuando**: las de T7 pasan; las del frontend y `diseno.estatico.spec.ts` siguen verdes; typecheck y lint limpios. Commit `feat(027): pantallas de gastos no deducibles`.

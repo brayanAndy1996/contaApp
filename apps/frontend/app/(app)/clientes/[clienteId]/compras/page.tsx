@@ -46,6 +46,7 @@ import {
   type ResultadoGuardado,
 } from "../../../../../components/compras/grilla-compras";
 import { ResumenCompras } from "../../../../../components/compras/resumen-compras";
+import { VolverAEvaluar } from "../../../../../components/gastos/volver-a-evaluar";
 import { Alert, Button, EncabezadoPagina, Input, Label, enlace, velo } from "../../../../../components/ui";
 import { MENSAJES, cargarYo, mensajeDeError, tiene } from "../../../../../lib/acceso";
 import { obtenerCliente, type ClienteDto } from "../../../../../lib/clientes";
@@ -554,6 +555,14 @@ function Compras() {
                 setErrorGeneral(MENSAJES.errorGeneral),
               )
             }
+          />
+        )}
+
+        {periodoValido && !archivado && (
+          <VolverAEvaluar
+            key={`reevaluar|${clienteId}|${periodo}`}
+            contexto={contexto}
+            alTerminar={reintentar}
           />
         )}
 

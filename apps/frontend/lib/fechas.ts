@@ -9,10 +9,13 @@ const FORMATO_FECHA_HORA = new Intl.DateTimeFormat("es-PE", {
   timeZone: ZONA_LIMA,
 });
 
-/** «2026-11-11T17:28:00.000Z» → «11/11/26, 12:28 p. m.» (hora de Lima). */
+/**
+ * «2026-11-11T17:28:00.000Z» → «11/11/26, 12:28 p. m.» (hora de Lima). Los espacios que `Intl` pone antes de «a. m.» (no
+ * separables, U+00A0 y U+202F) salen como espacio común: el texto se parte bien en pantallas angostas y se busca como se lee.
+ */
 export function fechaHoraLima(iso: string): string {
   const fecha = new Date(iso);
-  return Number.isNaN(fecha.getTime()) ? "—" : FORMATO_FECHA_HORA.format(fecha);
+  return Number.isNaN(fecha.getTime()) ? "—" : FORMATO_FECHA_HORA.format(fecha).replace(/[\u00a0\u202f]/g, " ");
 }
 
 const FORMATO_FECHA = new Intl.DateTimeFormat("es-PE", { timeZone: ZONA_LIMA });
