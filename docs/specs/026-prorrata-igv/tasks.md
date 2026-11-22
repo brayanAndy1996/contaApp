@@ -33,8 +33,9 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → cobe
 | T22 | Prueba manual con el sistema levantado y adaptadores en `mock` | tester | sonnet | T20, T21 | — | — | [x] |
 | T22a | Defectos de pantalla de la prueba manual | frontend | sonnet | T22 | ✓ | — | [x] |
 | T23 | Verificar CA-1 a CA-12 con evidencia, suites completas, `db:migrate` ×2 y coberturas | tester | sonnet | T22 (y T22a si existe) | — | — | [x] |
+| T23a | Pruebas de `igvVigente` para CA-12 (rama `catch`, `cobertura:auth`) | tester | sonnet | T23 | — | — | [x] |
 | T24 | Revisión final contra la spec | arquitecto | opus | T23 | — | — | [x] |
-| T25 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T24 (y T24b si existe) | — | — | [ ] |
+| T25 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T24 (y T24b si existe) | — | — | [x] |
 
 Paralelismo (por oleadas; dentro de una oleada no se comparten archivos):
 - **Oleada 1**: T1 (`packages/domain/src/prorrata/*.spec.ts`, `ronda2b.adv.spec.ts`) ∥ T2 (pruebas de `packages/shared`, `packages/queue`, `packages/sunat`) ∥ T3 (`tests/aislamiento/`) ∥ T4 (`packages/db/src/prorrata/*.spec.ts`).
@@ -315,7 +316,7 @@ Reglas comunes:
   - **Documentos**: corregidos HU-35 (ejemplo de ventana: noviembre 2025 a octubre 2026, con exportaciones) y RF-131 (12 meses que terminan en M, incluido; numerador con exportaciones) en `docs/02-requerimientos.md`, solo texto según U-1 y U-2.
   - **Informar al usuario**: (a) un contador del equipo debe revisar la tabla de casos de CA-2 (riesgo normativo de la spec; sigue pendiente); (b) los hallazgos de las dos rondas y las 2 decisiones suyas (H-026-2-4 y H-026-2-6); (c) layout del PDT 621 provisional hasta el adaptador SOL real; (d) desvíos (1)–(5) y observaciones de T22; (e) entorno local con Node 22 (el repo pide 24).
 
-## T25 · [ ] Cierre (devops · haiku)
+## T25 · [x] Cierre (devops · haiku)
 - **Contexto (leer solo esto)**: `tasks.md`, `spec.md` (estado y casillas de CA), resultados de T23 y T24.
 - **Hacer**: marcar tareas y CA, estado de la spec «hecha (fecha)», notas para otras specs (adaptador SOL real: mapeo del PDT 621 a `Declaracion621`; 037: borrado de `declaracion_mensual`, `prorrata_obtencion`, `prorrata_mes_manual` y `prorrata_usada_manual` por su camino acotado; 013: separar exportaciones en el layout de ventas para retirar R-2b).
 - **Hecho cuando**: commit `docs(026): cierre`; el orquestador actualiza `ESTADO.md`.
