@@ -82,14 +82,17 @@ describe("POST …/gastos/reevaluar · encola sin evaluar (U-12, R-12, CA-12)", 
   it("CA-3 · solo encola: no crea versiones, evaluaciones, operaciones ni cambios de periodo, no toca el diccionario y no audita al pedir", async () => {
     const c = await nuevoCliente();
     const ids = await v.sembrarFixture(E.tenantId, c.id, { usuarioId: E.titular.id });
+    // `foto().trabajos` cuenta solo `sire.propuesta.descargar`: aquí se cuentan también los `compras.reevaluar`.
+    const trabajosDe = async () => (await v.foto(c.id)).trabajos + (await v.trabajosReevaluar(E.tenantId, c.id)).length;
     const antes = await v.foto(c.id);
+    const trabajosAntes = await trabajosDe();
     const antesGastos = await v.fotoGastos(E.tenantId);
     const evaluacionesAntes = await Promise.all(Object.values(ids).map((id) => v.evaluaciones(id)));
     const r = await reevaluar(contador, c);
     expect(r.status, r.text).toBe(202);
     const despues = await v.foto(c.id);
     expect({ ...despues, trabajos: 0 }).toEqual({ ...antes, trabajos: 0 });
-    expect(despues.trabajos).toBe(antes.trabajos + 1);
+    expect(await trabajosDe()).toBe(trabajosAntes + 1);
     expect(await v.fotoGastos(E.tenantId)).toEqual(antesGastos);
     expect(await Promise.all(Object.values(ids).map((id) => v.evaluaciones(id)))).toEqual(evaluacionesAntes);
     for (const id of Object.values(ids)) expect((await v.versiones(id)).filter((x) => x.excluida)).toEqual([]);

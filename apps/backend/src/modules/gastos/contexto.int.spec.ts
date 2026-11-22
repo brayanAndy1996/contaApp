@@ -352,7 +352,8 @@ describe("CA-13 · la prevalidación de 012 usa el diccionario y el contexto del
 
   it("el aviso sigue el diccionario del estudio: con «zapatilla» desactivada para el estudio el previo no trae R-GP y el resto no cambia", async () => {
     const A = await abrir();
-    const x = await compra(A, { ciiuCliente: FERRETERIA, ciiuProveedor: TIENDA_ROPA, corregido: true });
+    // Sin CIIU del proveedor: sin S1 la única señal restante sería S2 (+3), que por sí sola alcanza el umbral 3; así el aviso depende solo de la palabra.
+    const x = await compra(A, { ciiuCliente: FERRETERIA, corregido: true });
     const rutaPrevio = `/clientes/${x.c.id}/periodos/202610/compras/archivos/previo`;
     const con = await v.llamar(A.contador, "GET", rutaPrevio);
     expect(avisosGp(con)).toHaveLength(1);

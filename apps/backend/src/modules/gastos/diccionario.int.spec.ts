@@ -358,9 +358,9 @@ describe("PUT …/palabras/:id (R-8, CA-7)", () => {
   it("CA-7 · una palabra de otro estudio o inexistente: el mismo 404 no_encontrado, y la ajena no cambia", async () => {
     const ajena = await v.sembrarPropia(F.tenantId, { palabra: nueva("aje"), creadoPor: F.titular.id });
     const antesF = await v.fotoGastos(F.tenantId);
-    const antesE = await v.fotoGastos(E.tenantId);
     const propiaE = await v.sembrarPropia(E.tenantId, { palabra: nueva("ctl"), creadoPor: admin.id });
     expect((await estadoPalabra(admin, propiaE, { activa: false, version: 1 })).status, "control: la palabra propia sí se cambia").toBe(200);
+    const antesE = await v.fotoGastos(E.tenantId); // después de la escritura de control: lo que no debe cambiar es lo que sigue
     const referencia = await estadoPalabra(admin, inexistente(), { activa: false, version: 1 });
     expect(referencia.status, referencia.text).toBe(404);
     expect(referencia.body).toEqual(NO_ENCONTRADO);

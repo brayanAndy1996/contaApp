@@ -458,7 +458,7 @@ export interface OpcionesCompraXml {
   /** Clase CIIU del cliente y del proveedor que el worker dejó en la caché del estudio. */
   ciiuCliente?: string | null;
   ciiuProveedor?: string | null;
-  /** Los proveedores del fixture ya tienen historial (sin S5, como `sembrarFixture`). Por omisión sí. */
+  /** El proveedor del XML ya tiene historial (una compra de 202609 sembrada; sin R-NEW ni S5). Por omisión sí. */
   conocidos?: boolean;
   /** Ajuste de categorías del cliente guardado ANTES de subir el XML (versión 1). */
   categoriasCliente?: { permitidas: readonly string[]; quitadas: readonly string[] };
@@ -518,6 +518,11 @@ export async function compraConXml(
     ...(o.corregido ? { versiones: CORRECCIONES } : {}),
   });
   const id = ids[NUMERO_XML[nombre]]!;
+  // `conocidos`: el proveedor del XML tiene además una compra en otro periodo (historial real). `sembrarFixture` solo omite R-NEW en los
+  // hallazgos iniciales; el contexto de R-GP (S5) se arma con las compras guardadas, así que sin esta fila el proveedor sería nuevo.
+  if (o.conocidos ?? true) {
+    await v.sembrarCompra(E.tenantId, c.id, { periodo: "202609", serie: "F009", numero: "1", doc: RUC_PROVEEDOR_XML[nombre], usuarioId: E.titular.id });
+  }
   if (!o.sinXml) {
     let xml = xmlDe(nombre, c.ruc);
     for (const [de, a] of o.cambios ?? []) xml = cambiar(xml, de, a);

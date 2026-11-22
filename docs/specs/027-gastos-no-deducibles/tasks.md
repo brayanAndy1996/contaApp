@@ -18,6 +18,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → cobe
 | T10 | Migraciones 0069–0070, esquema drizzle, `packages/db/src/gastos/` y plataforma en `auth/repositorio.ts` | backend | opus | T3, T4 ∥ T8, T9 | ✓ | — | [x] |
 | T11 | Worker: contexto, CIIU y `compras.reevaluar` | backend | sonnet | T5, T8, T9, T10 ∥ T12, T13 | ✓ | — | [x] |
 | T12 | Backend: módulo `gastos` y contexto en compras, aceptar y 012 | backend | sonnet | T6, T8, T9, T10 ∥ T11, T13 | ✓ | — | [ ] |
+| T12a | Corregir el soporte de las pruebas HTTP de T6 que T12 encontró: historial real del proveedor (`conocidos`), conteo de `compras.reevaluar` en CA-3, `antesE` tras la escritura de control y escenario sin CIIU del proveedor al desactivar «zapatilla» (solo pruebas) | tester | sonnet | T12 ∥ T12b | ✓ | — | [x] |
 | T13 | Frontend: pantallas de 027 | frontend | sonnet | T7, T9 ∥ T10–T12 | ✓ | — | [x] |
 | T14 | Cobertura ≥ 90 % por archivo: `cobertura:gastos` y paso en CI | devops | haiku | T8, T10, T11, T12 ∥ T13 | — | — | [ ] |
 | T15 | Ronda adversarial 1: aislamiento, permisos, plataforma, funciones acotadas, límite y concurrencia, cola (≤ 15 pruebas) | adversario | opus | T11, T12, T14 ∥ T13, T21 | — | ✓ | [ ] |
