@@ -456,6 +456,20 @@
       "when": 1795244205713,
       "tag": "0064_reglas_importacion_ronda1",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1795314614375,
+      "tag": "0065_prorrata_tablas",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1795314621499,
+      "tag": "0066_prorrata_funciones",
+      "breakpoints": true
     }
   ]
 }

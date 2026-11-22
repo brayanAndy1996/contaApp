@@ -453,6 +453,39 @@ export type {
   ProveedorConRegla,
   ResumenImportacion,
 } from "./aprendizaje";
+// Spec 026: prorrata (tablas solo de inserción de 0065, funciones acotadas de 0066). Registrar la obtención con la `tx` del worker;
+// guardar y eliminar el mes manual, guardar la prorrata usada y todas las lecturas (también los totales de ventas) con la del backend.
+export {
+  ACCIONES_MES_MANUAL_BD,
+  TIPOS_DECLARACION_BD,
+  declaracionMensual,
+  prorrataMesManual,
+  prorrataObtencion,
+  prorrataUsadaManual,
+} from "./schema/prorrata";
+export {
+  eliminarMesManual,
+  esUuidProrrata,
+  guardarMesManual,
+  guardarUsada,
+  leerDeclaraciones,
+  leerHistorialMes,
+  leerManuales,
+  leerTotalesVentasProrrata,
+  leerUltimaObtencion,
+  leerUsada,
+  ProrrataRepoError,
+  registrarDeclaraciones,
+} from "./prorrata";
+export type {
+  DeclaracionFila,
+  DeclaracionNueva,
+  FilaUsdProrrata,
+  ManualFila,
+  ObtencionFila,
+  TotalesVentasPeriodo,
+  UsadaFila,
+} from "./prorrata";
 // Spec 023: buzón SOL (tablas y funciones acotadas en 0054–0056). Lectura y auditoría con la `tx` del backend; escritura, candidatos
 // y encolado programado con la del worker; el candado del ciclo y los estudios vigentes (arriba) con la de withSistema.
 export { buzonAdjunto, buzonAtencion, buzonEstadoCliente, buzonMensaje, buzonProgramacion } from "./schema/buzon";
