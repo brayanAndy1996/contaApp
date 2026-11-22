@@ -50,16 +50,18 @@ const REGLAS_025 = ["regla.historial_importado", "regla.candidata_descartada"];
 const BUZON_024 = ["buzon.atendido", "buzon.atencion_deshecha"];
 // Spec 026 (T2): 4 acciones de la prorrata (48 + 4 = 52).
 const PRORRATA_026 = ["prorrata.declaraciones_obtenidas", "prorrata.mes_manual_guardado", "prorrata.mes_manual_eliminado", "prorrata.usada_guardada"];
+// Spec 027 (T2): 8 acciones del diccionario de gastos no deducibles (52 + 8 = 60).
+const GND_027 = ["gnd.palabra_agregada", "gnd.palabra_desactivada", "gnd.palabra_reactivada", "gnd.palabra_aprendida", "gnd.global_desactivada", "gnd.global_reactivada", "gnd.umbral_cambiado", "gnd.categorias_cliente"];
 const BUZON_023 = ["buzon.contenido_obtenido", "buzon.captura_solicitada", "buzon.apertura_solicitada", "buzon.contenido_visto", "buzon.adjunto_descargado"];
 
 describe("ACCIONES_AUDITORIA", () => {
-  it("es exactamente el catálogo de D-3, las 4 de la ronda R1, credencial.descifrada, sunat.envio y las 8 de 021, las 5 de 023, las 2 de 024, las 2 de 025 y las 4 de 026", () => {
-    expect([...ACCIONES_AUDITORIA].sort()).toEqual([...CATALOGO_D3, ...RONDA_R1, ...EXTRAS, ...REGLAS_021, ...BUZON_023, ...BUZON_024, ...REGLAS_025, ...PRORRATA_026].sort());
+  it("es exactamente el catálogo de D-3, las 4 de la ronda R1, credencial.descifrada, sunat.envio y las 8 de 021, las 5 de 023, las 2 de 024, las 2 de 025, las 4 de 026 y las 8 de 027", () => {
+    expect([...ACCIONES_AUDITORIA].sort()).toEqual([...CATALOGO_D3, ...RONDA_R1, ...EXTRAS, ...REGLAS_021, ...BUZON_023, ...BUZON_024, ...REGLAS_025, ...PRORRATA_026, ...GND_027].sort());
   });
 
   it("no repite acciones", () => {
     expect(new Set(ACCIONES_AUDITORIA).size).toBe(ACCIONES_AUDITORIA.length);
-    expect(ACCIONES_AUDITORIA).toHaveLength(52);
+    expect(ACCIONES_AUDITORIA).toHaveLength(60);
   });
 
   it("todas son minúsculas con forma entidad.hecho", () => {
