@@ -242,6 +242,8 @@ export const MENSAJES_PRORRATA = {
   noEncontrado: MENSAJES_ACCESO_LIB.noEncontrado,
   sinPermiso: MENSAJES_ACCESO_LIB.sinPermiso,
   errorCarga: "No se pudo cargar la prorrata. Inténtalo de nuevo.",
+  /** D-2: aviso propio de la tarjeta de prorrata usada cuando otra persona cambió el valor mientras se editaba. */
+  usadaCambiada: "La prorrata usada cambió mientras la editabas. Se muestra el valor vigente: revísalo e inténtalo de nuevo.",
   errores: {
     cliente_archivado: "El cliente está archivado: la prorrata es de solo lectura.",
     credencial_no_configurada: "Primero guarda la clave SOL del cliente.",

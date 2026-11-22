@@ -142,7 +142,7 @@ describe("<ProrrataCliente /> · lo que se ve (CA-1, CA-3, CA-5, D-8)", () => {
     expect(await screen.findByRole("table", { name: M.tablaMeses })).toBeTruthy();
     expect(screen.getByRole("img", { name: M.tituloGrafico })).toBeTruthy();
     expect(screen.getByText("83,33 %")).toBeTruthy();
-    expect(valorDe(M.situacion.a_pagar)).toBe("6000.00");
+    expect(valorDe(M.situacion.a_pagar)).toBe("6,000.00");
     expect(screen.getByText(M.notaEstimado)).toBeTruthy();
   });
 
@@ -426,11 +426,11 @@ describe("<ProrrataCliente /> · errores de lectura", () => {
     render(<ProrrataCliente clienteId={CLIENTE_PRORRATA} archivado={false} />);
     const usuario = userEvent.setup();
     await screen.findByText(M.componentes.igvVentas);
-    expect(valorDe(M.situacion.a_pagar)).toBe("6000.00");
+    expect(valorDe(M.situacion.a_pagar)).toBe("6,000.00");
     await usuario.click(await botonObtener());
     await vi.waitFor(() => expect(seguimiento.opciones).not.toBeNull());
     emitir("completado");
-    await vi.waitFor(() => expect(valorDe(M.situacion.a_pagar)).toBe("9000.00"));
+    await vi.waitFor(() => expect(valorDe(M.situacion.a_pagar)).toBe("9,000.00"));
     expect(f.de(RUTA_VISTA).length).toBeGreaterThanOrEqual(2);
   });
 });

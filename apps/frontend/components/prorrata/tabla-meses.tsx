@@ -3,11 +3,12 @@
 import type { MesVista } from "@contapp/shared";
 import { Badge, Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui";
 import { fechaCorta, fechaHoraLima } from "../../lib/fechas";
+import { conMiles } from "../../lib/montos-compras";
 import { MENSAJES_PRORRATA as M, etiquetaPeriodo } from "../../lib/prorrata";
 import { cn } from "../../lib/utils";
 
 // Tabla mes a mes de la ventana de prorrata (spec 026, T13; CA-3, CA-4, CA-9, R-2b, R-5, D-8). Presentacional: los 12 meses y
-// su origen los arma el servidor. Los montos salen tal como llegan (cadenas con signo) y todo texto del contador (motivo,
+// su origen los arma el servidor. Los montos son cadenas con signo que solo se formatean con `conMiles`, como en compras y todo texto del contador (motivo,
 // nombre) se pinta como texto de React. Bajo 768 px la tabla se apila por fila (tarjetas), sin desplazamiento horizontal:
 // cada celda lleva la etiqueta de su columna en `data-etiqueta`.
 
@@ -68,10 +69,10 @@ export function TablaMeses({
                 <TableCell data-etiqueta={M.columnas.mes} className={cn(CELDA, "font-semibold md:whitespace-nowrap")}>
                   {etiqueta}
                 </TableCell>
-                <TableCell data-etiqueta={M.columnas.gravadas} className={cn(CELDA, "cifras", NUMERO)}>{m.gravadas}</TableCell>
-                <TableCell data-etiqueta={M.columnas.exportaciones} className={cn(CELDA, "cifras", NUMERO)}>{m.exportaciones}</TableCell>
-                <TableCell data-etiqueta={M.columnas.noGravadas} className={cn(CELDA, "cifras", NUMERO)}>{m.noGravadas}</TableCell>
-                <TableCell data-etiqueta={M.columnas.total} className={cn(CELDA, "cifras", NUMERO)}>{m.total}</TableCell>
+                <TableCell data-etiqueta={M.columnas.gravadas} className={cn(CELDA, "cifras", NUMERO)}>{conMiles(m.gravadas)}</TableCell>
+                <TableCell data-etiqueta={M.columnas.exportaciones} className={cn(CELDA, "cifras", NUMERO)}>{conMiles(m.exportaciones)}</TableCell>
+                <TableCell data-etiqueta={M.columnas.noGravadas} className={cn(CELDA, "cifras", NUMERO)}>{conMiles(m.noGravadas)}</TableCell>
+                <TableCell data-etiqueta={M.columnas.total} className={cn(CELDA, "cifras", NUMERO)}>{conMiles(m.total)}</TableCell>
                 <TableCell data-etiqueta={M.columnas.origen} className={cn(CELDA, "min-w-0 break-words")}>
                   <div className="flex min-w-0 flex-col items-start gap-1">
                     <Badge tono={origen.tono}>{origen.texto}</Badge>

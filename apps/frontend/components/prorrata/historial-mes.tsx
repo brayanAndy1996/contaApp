@@ -18,6 +18,8 @@ import {
   TableRow,
 } from "../ui";
 import { fechaCorta, fechaHoraLima } from "../../lib/fechas";
+import { conMiles } from "../../lib/montos-compras";
+import { useRestaurarFoco } from "../../lib/restaurar-foco";
 import { MENSAJES_PRORRATA as M, leerHistorialMes, type HistorialMesVista } from "../../lib/prorrata";
 import { cn } from "../../lib/utils";
 
@@ -34,6 +36,7 @@ const FILA =
 const SIN_MONTO = "—";
 
 export function HistorialMes({ clienteId, periodo, alCerrar }: { clienteId: string; periodo: string; alCerrar: () => void }) {
+  useRestaurarFoco();
   const [historial, setHistorial] = useState<HistorialMesVista | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -87,9 +90,9 @@ export function HistorialMes({ clienteId, periodo, alCerrar }: { clienteId: stri
                   <TableCell data-etiqueta={H.numeroOrden} className={CELDA}>{d.numeroOrden}</TableCell>
                   <TableCell data-etiqueta={H.tipo} className={CELDA}>{M.tipoDeclaracion[d.tipo]}</TableCell>
                   <TableCell data-etiqueta={H.fecha} className={CELDA}>{fechaCorta(d.fechaPresentacion)}</TableCell>
-                  <TableCell data-etiqueta={M.columnas.gravadas} className={cn(CELDA, "cifras", NUMERO)}>{d.gravadas}</TableCell>
-                  <TableCell data-etiqueta={M.columnas.exportaciones} className={cn(CELDA, "cifras", NUMERO)}>{d.exportaciones}</TableCell>
-                  <TableCell data-etiqueta={M.columnas.noGravadas} className={cn(CELDA, "cifras", NUMERO)}>{d.noGravadas}</TableCell>
+                  <TableCell data-etiqueta={M.columnas.gravadas} className={cn(CELDA, "cifras", NUMERO)}>{conMiles(d.gravadas)}</TableCell>
+                  <TableCell data-etiqueta={M.columnas.exportaciones} className={cn(CELDA, "cifras", NUMERO)}>{conMiles(d.exportaciones)}</TableCell>
+                  <TableCell data-etiqueta={M.columnas.noGravadas} className={cn(CELDA, "cifras", NUMERO)}>{conMiles(d.noGravadas)}</TableCell>
                   <TableCell data-etiqueta={H.prorrataUsada} className={cn(CELDA, "cifras", NUMERO)}>
                     {d.prorrataUsada === null ? SIN_MONTO : M.porcentaje(d.prorrataUsada)}
                   </TableCell>
@@ -117,9 +120,9 @@ export function HistorialMes({ clienteId, periodo, alCerrar }: { clienteId: stri
                 <TableRow key={v.version} className={FILA}>
                   <TableCell data-etiqueta={H.version} className={CELDA}>{v.version}</TableCell>
                   <TableCell data-etiqueta={H.accion} className={CELDA}>{M.accionManual[v.accion]}</TableCell>
-                  <TableCell data-etiqueta={M.columnas.gravadas} className={cn(CELDA, "cifras", NUMERO)}>{v.montos?.gravadas ?? SIN_MONTO}</TableCell>
-                  <TableCell data-etiqueta={M.columnas.exportaciones} className={cn(CELDA, "cifras", NUMERO)}>{v.montos?.exportaciones ?? SIN_MONTO}</TableCell>
-                  <TableCell data-etiqueta={M.columnas.noGravadas} className={cn(CELDA, "cifras", NUMERO)}>{v.montos?.noGravadas ?? SIN_MONTO}</TableCell>
+                  <TableCell data-etiqueta={M.columnas.gravadas} className={cn(CELDA, "cifras", NUMERO)}>{v.montos ? conMiles(v.montos.gravadas) : SIN_MONTO}</TableCell>
+                  <TableCell data-etiqueta={M.columnas.exportaciones} className={cn(CELDA, "cifras", NUMERO)}>{v.montos ? conMiles(v.montos.exportaciones) : SIN_MONTO}</TableCell>
+                  <TableCell data-etiqueta={M.columnas.noGravadas} className={cn(CELDA, "cifras", NUMERO)}>{v.montos ? conMiles(v.montos.noGravadas) : SIN_MONTO}</TableCell>
                   <TableCell data-etiqueta={H.motivo} className={cn(CELDA, "min-w-0 break-words")}>{v.motivo}</TableCell>
                   <TableCell data-etiqueta={H.autor} className={cn(CELDA, "min-w-0 break-words")}>{v.autor.nombre}</TableCell>
                   <TableCell data-etiqueta={H.en} className={cn(CELDA, "md:whitespace-nowrap")}>{fechaHoraLima(v.en)}</TableCell>

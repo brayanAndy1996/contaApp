@@ -1,7 +1,7 @@
 "use client";
 
 import type { MesVista } from "@contapp/shared";
-import { sumar } from "../../lib/montos-compras";
+import { conMiles, sumar } from "../../lib/montos-compras";
 import { MENSAJES_PRORRATA as M, centimos, etiquetaPeriodo } from "../../lib/prorrata";
 
 // Gráfico de la ventana de prorrata (spec 026, T13; D-8, RNF-070). SVG propio (sin dependencias nuevas) con dos barras por mes:
@@ -117,8 +117,8 @@ export function GraficoProrrata({ meses }: { meses: readonly MesVista[] }) {
             {meses.map((m) => (
               <tr key={m.periodo} className="border-b border-neutro-fondo">
                 <td className="px-2 py-2">{etiquetaPeriodo(m.periodo)}</td>
-                <td className="cifras px-2 py-2 text-right">{sumar([m.gravadas, m.exportaciones])}</td>
-                <td className="cifras px-2 py-2 text-right">{m.noGravadas}</td>
+                <td className="cifras px-2 py-2 text-right">{conMiles(sumar([m.gravadas, m.exportaciones]))}</td>
+                <td className="cifras px-2 py-2 text-right">{conMiles(m.noGravadas)}</td>
               </tr>
             ))}
           </tbody>

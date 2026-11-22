@@ -42,11 +42,11 @@ describe("<GraficoProrrata /> · SVG accesible (D-8)", () => {
     const filas = within(tabla).getAllByRole("row").filter((f) => f.querySelector("td, [role=cell]"));
     expect(filas).toHaveLength(12);
     const marzo = filas.find((f) => f.textContent?.includes("2026-03"))!;
-    expect(marzo.textContent).toContain("100000.50");
-    expect(marzo.textContent).toContain("1234.00");
+    expect(marzo.textContent).toContain("100,000.50");
+    expect(marzo.textContent).toContain("1,234.00");
     const noviembre = filas.find((f) => f.textContent?.includes("2025-11"))!;
-    expect(noviembre.textContent).toContain("100000.00");
-    expect(noviembre.textContent).toContain("20000.00");
+    expect(noviembre.textContent).toContain("100,000.00");
+    expect(noviembre.textContent).toContain("20,000.00");
   });
 });
 

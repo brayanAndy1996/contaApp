@@ -57,7 +57,7 @@ describe("<ProrrataCliente /> · montos fuera de rango (H-026-2-4)", () => {
   it("muestra la tabla de 12 meses con los montos de 12 dígitos, el gráfico y el aviso del coeficiente", async () => {
     montar(vistaFuera());
     const tabla = await screen.findByRole("table", { name: M.tablaMeses });
-    expect(within(tabla).getAllByText(MAXIMO).length).toBeGreaterThanOrEqual(12);
+    expect(within(tabla).getAllByText("999,999,999,999.99").length).toBeGreaterThanOrEqual(12);
     expect(screen.getByRole("img", { name: M.tituloGrafico })).toBeTruthy();
     expect(screen.getByText(M.noDeterminable.montos_fuera_de_rango)).toBeTruthy();
     expect(screen.getByText(M.noEstimable.coeficiente)).toBeTruthy();
@@ -79,7 +79,7 @@ describe("<ProrrataCliente /> · ventas USD sin tipo de cambio (H-026-2-6)", () 
   it("con el aviso en el IGV estimado: se muestra el texto junto al resultado", async () => {
     montar(vistaDe({ coeficiente: coeficienteDe(), igvEstimado: igvDe({ avisos: ["ventas_usd_sin_tipo_cambio"] }) }));
     expect(await screen.findByText(AVISO)).toBeTruthy();
-    expect(valorDe(M.situacion.a_pagar)).toBe("6000.00");
+    expect(valorDe(M.situacion.a_pagar)).toBe("6,000.00");
     expect(document.body.textContent).not.toContain("ventas_usd_sin_tipo_cambio");
   });
 

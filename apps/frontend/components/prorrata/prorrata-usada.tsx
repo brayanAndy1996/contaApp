@@ -23,6 +23,7 @@ export function ProrrataUsada({
   puedeGestionar,
   archivado = false,
   alGuardar,
+  alConflicto,
 }: {
   clienteId: string;
   periodo: string;
@@ -33,6 +34,8 @@ export function ProrrataUsada({
   puedeGestionar: boolean;
   archivado?: boolean | undefined;
   alGuardar: () => void;
+  /** Otra persona cambió el valor mientras se editaba (409 de versión): la pantalla relee lo vigente. */
+  alConflicto?: (() => void) | undefined;
 }) {
   const id = useId();
   const [valor, setValor] = useState(usada?.origen === "ingresada" ? usada.valor : "");
@@ -63,7 +66,10 @@ export function ProrrataUsada({
     try {
       const r = await guardarProrrataUsada(clienteId, periodo, { porcentaje, version: versionUsada });
       if (r.ok) alGuardar();
-      else if (r.status !== 401) setError(r.mensaje);
+      else if (r.status !== 401) {
+        setError(r.mensaje);
+        if (r.status === 409 && r.codigo === "mes_cambiado") alConflicto?.();
+      }
     } catch {
       setError(MENSAJES.errorGeneral);
     } finally {
@@ -97,6 +103,7 @@ export function ProrrataUsada({
       {hayAlerta && diferencia && usada && calculado !== null && (
         <Alert tono="aviso">{M.alertaDiferencia(calculado, usada.valor, usada.origen, diferencia.diferencia)}</Alert>
       )}
+      {error && <Alert tono="error">{error}</Alert>}
       {puedeIngresar && (
         <form onSubmit={guardar} noValidate className="flex min-w-0 flex-col gap-3">
           <div className="flex min-w-0 flex-col gap-1.5">
@@ -118,7 +125,6 @@ export function ProrrataUsada({
               </p>
             )}
           </div>
-          {error && <Alert tono="error">{error}</Alert>}
           <div className="flex flex-wrap gap-2">
             <Button type="submit" disabled={ocupado} className="max-lg:h-11">
               {M.guardarUsada}

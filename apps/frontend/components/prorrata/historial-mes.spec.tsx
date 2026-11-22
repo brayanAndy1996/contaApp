@@ -80,11 +80,11 @@ describe("<HistorialMes /> · presentaciones del PDT 621 (CA-3)", () => {
     expect(filas).toHaveLength(2);
     expect(filas[0]!.textContent).toContain("7654399");
     expect(filas[0]!.textContent).toContain(M.tipoDeclaracion.rectificatoria);
-    expect(filas[0]!.textContent).toContain("105000.00");
+    expect(filas[0]!.textContent).toContain("105,000.00");
     expect(filas[0]!.textContent).toContain("83,34 %");
     expect(filas[1]!.textContent).toContain("7654321");
     expect(filas[1]!.textContent).toContain(M.tipoDeclaracion.original);
-    expect(filas[1]!.textContent).toContain("20000.00");
+    expect(filas[1]!.textContent).toContain("20,000.00");
   });
 });
 
@@ -110,9 +110,9 @@ describe("<HistorialMes /> · versiones del manual (CA-4)", () => {
     expect(filas[0]!.textContent).toContain(fechaHoraLima("2026-11-22T02:30:00.000Z"));
     expect(filas[0]!.textContent).toContain(AUTOR_MANUAL.nombre);
     expect(filas[1]!.textContent).toContain(M.accionManual.guardado);
-    expect(filas[1]!.textContent).toContain("95000.00");
+    expect(filas[1]!.textContent).toContain("95,000.00");
     expect(filas[1]!.textContent).toContain("Corrección de la factura");
-    expect(filas[2]!.textContent).toContain("90000.00");
+    expect(filas[2]!.textContent).toContain("90,000.00");
   });
 
   it("un motivo hostil se ve como texto: no se crea ningún elemento", async () => {

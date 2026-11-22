@@ -51,6 +51,8 @@ export function ProrrataCliente({ clienteId, archivado = false }: { clienteId: s
   const [errorObtener, setErrorObtener] = useState<string | null>(null);
   const [mesAbierto, setMesAbierto] = useState<MesVista | null>(null);
   const [historialAbierto, setHistorialAbierto] = useState<string | null>(null);
+  // Un 409 en el diálogo de mes manual deja vieja la tabla: al cerrarlo se vuelve a leer (D-1).
+  const mesChocado = useRef(false);
   const solicitud = useRef(0);
   const peticionEnCurso = useRef(false);
 
@@ -123,8 +125,16 @@ export function ProrrataCliente({ clienteId, archivado = false }: { clienteId: s
   const sinAcceso = estado.tipo === "error" && (estado.status === 404 || estado.status === 403);
 
   function cerrarYReleer(): void {
+    mesChocado.current = false;
     setMesAbierto(null);
     relee();
+  }
+
+  function cerrarMes(): void {
+    const choco = mesChocado.current;
+    mesChocado.current = false;
+    setMesAbierto(null);
+    if (choco) relee();
   }
 
   return (
@@ -203,6 +213,7 @@ export function ProrrataCliente({ clienteId, archivado = false }: { clienteId: s
             puedeGestionar={puedeGestionar}
             archivado={archivado}
             alGuardar={relee}
+            alConflicto={relee}
           />
           <TablaMeses
             meses={vista.ventana}
@@ -213,7 +224,7 @@ export function ProrrataCliente({ clienteId, archivado = false }: { clienteId: s
           <GraficoProrrata meses={vista.ventana} />
         </>
       )}
-      {mesAbierto && <MesManual key={mesAbierto.periodo} clienteId={clienteId} mes={mesAbierto} alGuardar={cerrarYReleer} alCerrar={() => setMesAbierto(null)} />}
+      {mesAbierto && <MesManual key={mesAbierto.periodo} clienteId={clienteId} mes={mesAbierto} alGuardar={cerrarYReleer} alCerrar={cerrarMes} alConflicto={() => { mesChocado.current = true; }} />}
       {historialAbierto && <HistorialMes key={historialAbierto} clienteId={clienteId} periodo={historialAbierto} alCerrar={() => setHistorialAbierto(null)} />}
     </div>
   );

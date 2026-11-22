@@ -20,8 +20,8 @@ describe("<IgvEstimado /> · aviso de ventas USD sin tipo de cambio (H-026-2-6)"
   it("con el aviso: lo muestra como texto y mantiene los componentes y el resultado", () => {
     render(<IgvEstimado igv={igvDe({ avisos: ["ventas_usd_sin_tipo_cambio"] })} />);
     expect(screen.getByText(AVISO)).toBeTruthy();
-    expect(valorDe(M.situacion.a_pagar)).toBe("6000.00");
-    expect(valorDe(M.componentes.igvVentas)).toBe("18000.00");
+    expect(valorDe(M.situacion.a_pagar)).toBe("6,000.00");
+    expect(valorDe(M.componentes.igvVentas)).toBe("18,000.00");
     expect(document.body.textContent).not.toContain("ventas_usd_sin_tipo_cambio");
   });
 
@@ -35,7 +35,7 @@ describe("<IgvEstimado /> · aviso de ventas USD sin tipo de cambio (H-026-2-6)"
   it.each([["clave ausente", igvDe()], ["lista vacía", igvDe({ avisos: [] })]])("sin aviso (%s): no muestra el texto", (_n, igv) => {
     render(<IgvEstimado igv={igv} />);
     expect(screen.queryByText(AVISO)).toBeNull();
-    expect(valorDe(M.situacion.a_pagar)).toBe("6000.00");
+    expect(valorDe(M.situacion.a_pagar)).toBe("6,000.00");
   });
 
   it("no estimable: no hay montos ni aviso", () => {

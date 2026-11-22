@@ -2,6 +2,7 @@
 
 import { igvEstimadoVistaSchema } from "@contapp/shared";
 import { Badge, Card, CardTitle } from "../ui";
+import { conMiles } from "../../lib/montos-compras";
 import { MENSAJES_PRORRATA as M } from "../../lib/prorrata";
 
 // IGV estimado del mes (spec 026, T13; CA-5, R-7, U-8, D-8). Los componentes y el resultado vienen calculados del servidor:
@@ -13,7 +14,7 @@ function Linea({ etiqueta, valor, destacado = false }: { etiqueta: string; valor
   return (
     <div className={destacado ? "flex flex-wrap items-baseline justify-between gap-x-4 border-t border-linea pt-3" : "flex flex-wrap items-baseline justify-between gap-x-4"}>
       <dt className={destacado ? "font-bold text-tinta" : "text-tinta-media"}>{etiqueta}</dt>
-      <dd className={destacado ? "cifras m-0 text-lg font-extrabold text-tinta" : "cifras m-0 text-tinta"}>{valor}</dd>
+      <dd className={destacado ? "cifras m-0 text-lg font-extrabold text-tinta" : "cifras m-0 text-tinta"}>{conMiles(valor)}</dd>
     </div>
   );
 }

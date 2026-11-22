@@ -50,6 +50,8 @@ export const MENSAJES_PRORRATA = {
   sinPermiso: MENSAJES.sinPermiso,
   errorCarga: "No se pudo cargar la prorrata. Inténtalo de nuevo.",
   solicitudInvalida: "Revisa los datos ingresados e inténtalo de nuevo.",
+  /** D-2: aviso propio de la tarjeta de prorrata usada cuando otra persona cambió el valor mientras se editaba. */
+  usadaCambiada: "La prorrata usada cambió mientras la editabas. Se muestra el valor vigente: revísalo e inténtalo de nuevo.",
   errores: {
     cliente_archivado: "El cliente está archivado: la prorrata es de solo lectura.",
     credencial_no_configurada: "Primero guarda la clave SOL del cliente.",
@@ -285,6 +287,12 @@ export function mensajeDeErrorProrrata(status: number, datos: unknown): string {
   return MENSAJES.errorGeneral;
 }
 
+/** Como `mensajeDeErrorProrrata`, pero el choque de versión de la prorrata usada tiene su propio aviso (no habla de diálogos ni de meses). */
+export function mensajeDeErrorUsada(status: number, datos: unknown): string {
+  if (status === 409 && codigoDe(datos) === "mes_cambiado") return M.usadaCambiada;
+  return mensajeDeErrorProrrata(status, datos);
+}
+
 /** Texto de un error de lectura (la vista o el historial). */
 export function mensajeDeErrorLectura(status: number): string {
   if (status === 403) return M.sinPermiso;
@@ -350,4 +358,4 @@ export const eliminarMesManual = (clienteId: string, periodo: string, cuerpo: { 
 
 /** `PUT …/prorrata/usada/:periodo`. */
 export const guardarProrrataUsada = (clienteId: string, periodo: string, cuerpo: GuardarProrrataUsada) =>
-  pedir(`${base(clienteId)}/usada/${encodeURIComponent(periodo)}`, esquemaVersion, { method: "PUT", body: cuerpo }, mensajeDeErrorProrrata);
+  pedir(`${base(clienteId)}/usada/${encodeURIComponent(periodo)}`, esquemaVersion, { method: "PUT", body: cuerpo }, mensajeDeErrorUsada);

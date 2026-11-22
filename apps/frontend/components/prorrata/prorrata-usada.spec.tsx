@@ -190,7 +190,7 @@ describe("<ProrrataUsada /> · permisos y cliente archivado (CA-9)", () => {
 describe("<ProrrataUsada /> · errores del servidor (CA-6, CA-9)", () => {
   it.each([
     ["prorrata_declarada", M.errores.prorrata_declarada],
-    ["mes_cambiado", M.errores.mes_cambiado],
+    ["mes_cambiado", M.usadaCambiada],
     ["cliente_archivado", M.errores.cliente_archivado],
   ])("409 %s: alerta en español, sin el código", async (codigo, texto) => {
     const { alGuardar, usuario } = montar({}, { extra: { [rutaUsada(PERIODO)]: { status: 409, cuerpo: { codigo } } } });

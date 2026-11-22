@@ -18,17 +18,17 @@ describe("<IgvEstimado /> · calculado (CA-5)", () => {
   it("muestra cada componente con su monto y el resultado «A pagar»", () => {
     render(<IgvEstimado igv={igvDe()} />);
     expect(screen.getByRole("heading", { name: M.tituloIgv })).toBeTruthy();
-    expect(valorDe(M.componentes.igvVentas)).toBe("18000.00");
-    expect(valorDe(M.componentes.creditoDg)).toBe("9000.00");
-    expect(valorDe(M.componentes.igvDgng)).toBe("3600.00");
-    expect(valorDe(M.componentes.creditoDgng)).toBe("3000.00");
+    expect(valorDe(M.componentes.igvVentas)).toBe("18,000.00");
+    expect(valorDe(M.componentes.creditoDg)).toBe("9,000.00");
+    expect(valorDe(M.componentes.igvDgng)).toBe("3,600.00");
+    expect(valorDe(M.componentes.creditoDgng)).toBe("3,000.00");
     expect(valorDe(M.componentes.igvDng)).toBe("180.00");
-    expect(valorDe(M.situacion.a_pagar)).toBe("6000.00");
+    expect(valorDe(M.situacion.a_pagar)).toBe("6,000.00");
   });
 
   it("saldo a favor: la etiqueta lo dice y el monto va sin signo", () => {
     render(<IgvEstimado igv={igvDe({ igvVentas: "1000.00", creditoDg: "2500.00", creditoDgng: "0.00", resultado: "-1500.00", situacion: "saldo_a_favor" })} />);
-    expect(valorDe(M.situacion.saldo_a_favor)).toBe("1500.00");
+    expect(valorDe(M.situacion.saldo_a_favor)).toBe("1,500.00");
     expect(screen.queryByText(M.situacion.a_pagar)).toBeNull();
     expect(document.body.textContent).not.toContain("-1500.00");
   });

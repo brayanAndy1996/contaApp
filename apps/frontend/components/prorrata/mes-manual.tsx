@@ -24,6 +24,7 @@ import {
   type ErrorMotivo,
 } from "../../lib/prorrata";
 import { MENSAJES } from "../../lib/acceso";
+import { useRestaurarFoco } from "../../lib/restaurar-foco";
 
 // Diálogo para ingresar o corregir un mes a mano (spec 026, T13; CA-4, CA-9, R-5, R-6, U-4, U-5, D-5, D-8). Un mes que ya es
 // manual llega con sus tres montos y el motivo vacío (cada versión lleva el suyo); uno SIRE o en falta, con los campos vacíos
@@ -40,12 +41,16 @@ export function MesManual({
   mes,
   alGuardar,
   alCerrar,
+  alConflicto,
 }: {
   clienteId: string;
   mes: MesVista;
   alGuardar: () => void;
   alCerrar: () => void;
+  /** El servidor rechazó con 409 (el mes cambió, ya se declaró o el cliente se archivó): lo que muestra la pantalla quedó viejo. */
+  alConflicto?: (() => void) | undefined;
 }) {
+  useRestaurarFoco();
   const id = useId();
   const [montos, setMontos] = useState<Record<Campo, string>>({
     gravadas: montoInicial(mes, "gravadas"),
@@ -96,7 +101,10 @@ export function MesManual({
         ? await eliminarMesManual(clienteId, mes.periodo, { motivo: texto, version: mes.versionManual })
         : await guardarMesManual(clienteId, mes.periodo, { ...recortados, motivo: texto, version: mes.versionManual });
       if (r.ok) alGuardar();
-      else if (r.status !== 401) setError(r.mensaje);
+      else if (r.status !== 401) {
+        setError(r.mensaje);
+        if (r.status === 409) alConflicto?.();
+      }
     } catch {
       setError(MENSAJES.errorGeneral);
     } finally {

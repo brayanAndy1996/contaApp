@@ -65,8 +65,8 @@ describe("<TablaMeses /> · estructura (R-1, R-2)", () => {
     });
     montar(meses);
     const texto = celdas(fila("2026-02")).join("|");
-    for (const monto of ["-5000.00", "250.50", "1000.00", "-3749.50"]) expect(texto).toContain(monto);
-    expect(celdas(fila("2025-11")).join("|")).toContain("100000.00");
+    for (const monto of ["-5,000.00", "250.50", "1,000.00", "-3,749.50"]) expect(texto).toContain(monto);
+    expect(celdas(fila("2025-11")).join("|")).toContain("100,000.00");
   });
 
   it("cada fila lleva id mes-AAAAMM (ancla de los meses que faltan)", () => {
