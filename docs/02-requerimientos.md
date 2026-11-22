@@ -200,7 +200,7 @@ Cada compra recibe un **puntaje de sospecha** sumando señales. Si supera un umb
 | ID | Requerimiento | Prio | Rel |
 |---|---|---|---|
 | RF-130 | Obtener de SOL los montos declarados (PDT 621) de los últimos 12 meses del cliente. | S | R2 |
-| RF-131 | Calcular el coeficiente de prorrata: ventas gravadas / ventas totales (gravadas + no gravadas) de los 12 meses anteriores, según la norma vigente. | S | R2 |
+| RF-131 | Calcular el coeficiente de prorrata: (ventas gravadas + exportaciones) / ventas totales (gravadas + exportaciones + no gravadas) de los 12 meses que terminan en el mes calculado, incluido (spec 026, U-1 y U-2), según la norma vigente. | S | R2 |
 | RF-132 | Mostrar el detalle mes a mes, el gráfico y el origen de cada monto (declarado / SIRE / manual). | S | R2 |
 | RF-133 | Permitir ingresar o corregir manualmente un mes faltante. | S | R2 |
 | RF-134 | Calcular el IGV estimado del mes: IGV ventas − crédito DG − (crédito DGNG × prorrata) y mostrar si hay saldo a favor o a pagar. | S | R2 |
@@ -517,7 +517,7 @@ Como **asistente**, quiero marcar un mensaje como atendido con un comentario, pa
 
 **HU-35 · Calcular la prorrata automáticamente** — S · R2 · 8 pts · RF-130 a RF-133
 Como **contador**, quiero que el sistema calcule la prorrata con lo declarado en los últimos 12 meses, para no armarla en Excel.
-- Al abrir la prorrata de octubre 2026, entonces veo los meses de octubre 2025 a septiembre 2026 con ventas gravadas y no gravadas, el origen de cada monto y el coeficiente resultante.
+- Al abrir la prorrata de octubre 2026, entonces veo los meses de noviembre 2025 a octubre 2026 (los 12 que terminan en el mes calculado, incluido; spec 026, U-1) con ventas gravadas, exportaciones y no gravadas, el origen de cada monto y el coeficiente resultante.
 - Si falta un mes, entonces puedo ingresarlo a mano y queda marcado como "manual".
 
 **HU-36 · Ver el IGV estimado del mes** — S · R2 · 3 pts · RF-134
