@@ -13,6 +13,9 @@ vi.mock("@contapp/db", async (original) => ({
   leerFilasReemplazo: vi.fn(),
   leerFilasReemplazoVentas: vi.fn(),
   leerProveedoresConocidos: vi.fn(),
+  // 027: el previo de compras lee las reglas apagadas (R-GP) y el contexto de gastos del estudio.
+  leerReglasMotor: vi.fn(),
+  leerContextoGastos: vi.fn(),
   listarJustificados: vi.fn(),
   ultimaVersion: vi.fn(),
 }));
@@ -31,7 +34,9 @@ import {
   leerEstadoPeriodoVentas,
   leerFilasReemplazo,
   leerFilasReemplazoVentas,
+  leerContextoGastos,
   leerProveedoresConocidos,
+  leerReglasMotor,
   listarJustificados,
   ultimaVersion,
   type Alcance,
@@ -60,6 +65,17 @@ beforeEach(() => {
   vi.mocked(leerFilasReemplazo).mockResolvedValue({ original: [], vigente: [] } as never);
   vi.mocked(leerFilasReemplazoVentas).mockResolvedValue({ original: [], vigente: [] } as never);
   vi.mocked(leerProveedoresConocidos).mockResolvedValue([] as never);
+  vi.mocked(leerReglasMotor).mockResolvedValue({ filas: [], aportarCatalogo: true } as never);
+  vi.mocked(leerContextoGastos).mockResolvedValue({
+    umbral: 3,
+    globales: [],
+    desactivadas: [],
+    propias: [],
+    ciiuCliente: null,
+    ciiuProveedores: [],
+    categoriasCliente: { permitidas: [], quitadas: [] },
+    historial: [],
+  } as never);
   vi.mocked(listarJustificados).mockResolvedValue([] as never);
   vi.mocked(ultimaVersion).mockResolvedValue(null as never);
   vi.mocked(prepararArchivo).mockReset();

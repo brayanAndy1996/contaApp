@@ -112,6 +112,7 @@ export class MasivasComprasService {
           evaluar: entorno.evaluar,
           xmlSimuladoEnReglas: entorno.xmlSimuladoEnReglas,
           reglasApagadas: entorno.reglasApagadas,
+          ...(entorno.gastos === undefined ? {} : { gastos: entorno.gastos }),
           enMasa: true,
           regla,
           confirmar: false,

@@ -10,6 +10,7 @@ import {
   type Alcance,
   type EvaluarCompra,
   type ProveedorConocido,
+  type ProveedorDoc,
   type Tx,
 } from "@contapp/db";
 import {
@@ -18,9 +19,11 @@ import {
   DineroError,
   puedeEscribir,
   type CodigoReglaMotor,
+  type ContextoGastos,
   type PerfilCliente,
 } from "@contapp/domain";
 import { AccesoError } from "../acceso/errores.js";
+import { contextoGastos } from "../gastos/contexto.js";
 import { aEvaluable } from "./evaluable.js";
 import { ComprasError, type CodigoCompras } from "./errores.js";
 import { exigirCliente } from "./apoyo.js";
@@ -53,9 +56,23 @@ export interface EntornoReglas {
   readonly xmlSimuladoEnReglas: boolean;
   /** Las reglas que el estudio apagó, las mismas con que evalúa `evaluar`: aceptar no aplica lo guardado de una apagada (021, H-T25-1). */
   readonly reglasApagadas: readonly CodigoReglaMotor[];
+  /**
+   * 027 (D-5): el contexto de la R-GP completa (diccionario del estudio, umbral, categorías del cliente, CIIU de la caché e historial),
+   * el mismo con que evalúa `evaluar` y con que aceptar re-evalúa. `undefined` si el estudio apagó R-GP (no se evalúa ni se lee nada).
+   */
+  readonly gastos: ContextoGastos | undefined;
 }
 
-export async function entornoDeReglas(tx: Tx, clienteId: string, periodo: string): Promise<EntornoReglas> {
+/**
+ * `proveedores`: los de las compras que esta petición va a evaluar (el CIIU y el historial se leen solo de ellos); sin ellos, los de todo
+ * el periodo. Una acción sobre una fila pasa el suyo y se ahorra leer el de miles.
+ */
+export async function entornoDeReglas(
+  tx: Tx,
+  clienteId: string,
+  periodo: string,
+  proveedores?: readonly ProveedorDoc[],
+): Promise<EntornoReglas> {
   const conocidos = await leerProveedoresConocidos(tx, clienteId, periodo);
   // 021, RF-089: las reglas que el estudio apagó (sin fila = encendida) no se evalúan. R-HIS no es hallazgo ni se evalúa aquí
   // (solo el worker la aplica en la descarga) y por eso no se pasan reglas aprendidas (P-3): corregir no devuelve la fila a la regla.
@@ -70,12 +87,21 @@ export async function entornoDeReglas(tx: Tx, clienteId: string, periodo: string
       ? undefined
       : { zona: cliente.perfil.zona, ventasExoneradas: cliente.perfil.ventasExoneradas, ventasMixtas: cliente.perfil.ventasMixtas };
   const proveedoresConRegla = perfil !== undefined && cumpleModoEstandar(perfil) ? await leerProveedoresConRegla(tx, clienteId) : [];
+  // 027, R-8: con R-GP apagada no se evalúa ni se puntúa, así que tampoco se lee su contexto.
+  const gastos = apagadas.includes("R-GP") ? undefined : await contextoGastos(tx, clienteId, periodo, proveedores);
   const evaluarDominio = crearEvaluarCompras(conocidos, {
     xmlSimuladoEnReglas,
     reglasApagadas: apagadas,
     ...(perfil === undefined ? {} : { perfil, proveedoresConRegla }),
+    ...(gastos === undefined ? {} : { gastos }),
   });
-  return { conocidos, evaluar: (fila) => evaluarDominio(aEvaluable(fila)), xmlSimuladoEnReglas, reglasApagadas: apagadas };
+  return {
+    conocidos,
+    evaluar: (fila) => evaluarDominio(aEvaluable(fila)),
+    xmlSimuladoEnReglas,
+    reglasApagadas: apagadas,
+    gastos,
+  };
 }
 
 /** El entorno de reglas de cada periodo (su historial de proveedores), leído una vez por periodo en la transacción. */

@@ -20,6 +20,7 @@ import {
   MontosComprobante,
   type CambiosMontos,
   type CodigoReglaMotor,
+  type ContextoGastos,
 } from "@contapp/domain";
 import type { DatoSugerencia, DestinoCompra } from "@contapp/shared";
 import { aEvaluable } from "./evaluable.js";
@@ -84,6 +85,11 @@ export interface ContextoSugerencia {
    * (`revisar_de_nuevo`); sin XML `sigueVigente` no contrasta, así que la re-evaluación de aceptar tiene que saberlo. Por defecto, ninguna.
    */
   reglasApagadas?: readonly CodigoReglaMotor[];
+  /**
+   * El contexto de la R-GP completa (027, D-5) del mismo entorno: aceptar R-GP re-evalúa con él (con otro diccionario, umbral, categorías,
+   * CIIU o historial el resultado difiere y la sugerencia es obsoleta: `revisar_de_nuevo`). Sin él, la R-GP de 011.
+   */
+  gastos?: ContextoGastos;
   enMasa: boolean;
   regla: string;
   confirmar: boolean;
@@ -147,6 +153,7 @@ export function transformarSugerencia(ctx: ContextoSugerencia): TransformarCompr
       enMasa: ctx.enMasa,
       xmlSimuladoEnReglas: ctx.xmlSimuladoEnReglas === true,
       ...(ctx.reglasApagadas === undefined ? {} : { reglasApagadas: ctx.reglasApagadas }),
+      ...(ctx.gastos === undefined ? {} : { gastos: ctx.gastos }),
     });
     if (!r.ok) {
       if (r.rechazo === "requiere_dato" && r.dato !== undefined) ctx.alPedirDato?.(r.dato);

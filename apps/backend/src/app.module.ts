@@ -11,6 +11,7 @@ import { ClientesModule } from "./modules/clientes/clientes.module.js";
 import { ComprasModule } from "./modules/compras/compras.module.js";
 import { CredencialesModule } from "./modules/credenciales/credenciales.module.js";
 import { EstudioModule } from "./modules/estudio/estudio.module.js";
+import { GastosModule } from "./modules/gastos/gastos.module.js";
 import { ImportacionModule } from "./modules/importacion/importacion.module.js";
 import { NotificacionesModule } from "./modules/notificaciones/notificaciones.module.js";
 import { PlanesModule } from "./modules/planes/planes.module.js";
@@ -51,6 +52,9 @@ export class AppModule {
         VentasModule,
         ComprasModule,
         ReglasModule,
+        // Spec 027: rutas bajo `/estudio/reglas-motor/gastos`, `/clientes/:clienteId/…/gastos` y `/plataforma/diccionario`. Van tras
+        // `ReglasModule` (sus `PUT :codigo` son de un solo segmento) y tras `PlataformaModule`; ninguna choca con un `:id` anterior.
+        GastosModule,
         AprendizajeModule,
         // Spec 023: rutas bajo `/clientes/:clienteId/buzon`; no chocan con ningún `:id` anterior.
         BuzonModule,

@@ -166,6 +166,7 @@ export class AccionesComprasService {
           evaluar: entorno.evaluar,
           xmlSimuladoEnReglas: entorno.xmlSimuladoEnReglas,
           reglasApagadas: entorno.reglasApagadas,
+          ...(entorno.gastos === undefined ? {} : { gastos: entorno.gastos }),
           enMasa: false,
           regla,
           confirmar: confirmar === true,
@@ -221,7 +222,8 @@ export class AccionesComprasService {
     const ctx = contextoDe(sesion);
     return this.db.withTenant(ctx, async (tx) => {
       await exigirEscritura(tx, alcance, permisos, clienteId, periodo, { crear: true, archivado: true });
-      const entorno = await entornoDeReglas(tx, clienteId, periodo);
+      // 027: el contexto de gastos se lee solo para el proveedor de la compra nueva.
+      const entorno = await entornoDeReglas(tx, clienteId, periodo, [{ tipo: c.proveedor.tipo, numero: c.proveedor.numero.toUpperCase() }]);
       const id = await altaCompra(tx, ctx.userId, clienteId, periodo, c, montos, entorno);
       return respuestaDe(tx, clienteId, periodo, id);
     });
@@ -290,7 +292,10 @@ export class AccionesComprasService {
         const fila = aFilaVista(previo.compra, previo.proveedorNuevo, previo.hallazgos, previo.segunHistorial);
         return { fila: { ...fila, excluida: true, motivo: o.comoDescarte }, cuadre: cuadreDe(previo.compra) };
       }
-      const entorno = await entornoDeReglas(tx, clienteId, periodo);
+      // 027: el contexto de gastos se lee solo para el proveedor de la fila (el CIIU y el historial no dependen de las demás).
+      const entorno = await entornoDeReglas(tx, clienteId, periodo, [
+        { tipo: previo.compra.docTipo, numero: previo.compra.docNumero },
+      ]);
       let datoPedido: "gravado" | "destino" | undefined;
       try {
         await aplicarAccion(

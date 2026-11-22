@@ -65,6 +65,15 @@ export function crearEntorno(): Entorno {
     suscripcionAsignar: vi.fn(async () => {
       throw new Error("no usado en 004");
     }),
+    // 027: diccionario global de gastos no deducibles (sin uso en las unitarias de 004; solo para cumplir `AuthRepo`).
+    gndGlobalListar: vi.fn(async () => []),
+    gndGlobalAgregar: vi.fn(async () => {
+      throw new Error("no usado en 004");
+    }),
+    gndGlobalEditar: vi.fn(async () => {
+      throw new Error("no usado en 004");
+    }),
+    gndGlobalHistorial: vi.fn(async () => []),
   };
   const datos: Entorno["datos"] = {
     tenants: [{ id: T_A, nombre: "Estudio A" }],
