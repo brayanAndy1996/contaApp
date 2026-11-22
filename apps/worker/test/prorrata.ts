@@ -23,7 +23,6 @@
 //
 // El portal de estas pruebas es un doble en memoria (`PortalPdt`), no `MockSolPortal`: así el rojo es del worker y no del mock (salvo la
 // prueba de volumen de 12 periodos, que usa el mock a propósito).
-/* eslint-disable @typescript-eslint/no-explicit-any -- filas de BD dinámicas en pruebas */
 import type { ContappDb } from "@contapp/db";
 import * as cola from "@contapp/queue";
 import {
@@ -299,10 +298,7 @@ export class PortalPdt implements SolPortal {
     return structuredClone(r);
   }
 
-  async listarMensajes(
-    c: CredencialSol,
-    _o: { cursor: string | null; limite: number },
-  ): Promise<PaginaMensajesSol> {
+  async listarMensajes(c: CredencialSol): Promise<PaginaMensajesSol> {
     this.llamadasBuzon += 1;
     this.credenciales.push({ ...c });
     await this.pasar();

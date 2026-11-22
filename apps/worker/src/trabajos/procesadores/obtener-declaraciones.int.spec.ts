@@ -206,6 +206,7 @@ describe("CA-1: obtener los 12 periodos de la ventana", () => {
     const filas = await declaracionesDe(admin, m.c.id);
     const obtenciones = await obtencionesDe(admin, m.c.id);
     expect(obtenciones).toHaveLength(1);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- se descarta el id de la obtención a propósito
     expect(filas.map(({ obtencion_id, ...resto }) => resto)).toEqual(
       presentaciones(pdt).map(comoFila),
     );
@@ -268,8 +269,10 @@ describe("CA-1: obtener los 12 periodos de la ventana", () => {
       });
       expect(
         (await declaracionesDe(admin, m.c.id)).map(
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars -- se descarta el id de la obtención a propósito
           ({ obtencion_id, ...resto }) => resto,
         ),
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars -- se descarta el id de la obtención a propósito
       ).toEqual(antes.map(({ obtencion_id, ...resto }) => resto));
       const dos = await obtencionesDe(admin, m.c.id);
       expect(dos.map((o) => o.nuevas)).toEqual([11, 0]);

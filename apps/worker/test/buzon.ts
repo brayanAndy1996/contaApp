@@ -295,6 +295,11 @@ export class PortalControlado implements SolPortal {
     };
   }
 
+  /** El buzón no consulta el PDT 621 (spec 026); el doble existe para cumplir el puerto. */
+  async obtenerDeclaraciones621(): Promise<never> {
+    throw new Error("el buzón no consulta declaraciones (prueba)");
+  }
+
   async obtenerMensaje(
     c: CredencialSol,
     idSunat: string,
