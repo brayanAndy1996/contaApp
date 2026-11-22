@@ -172,6 +172,12 @@ jobs:
           CORREO_PROVIDER: consola
           APP_ORIGIN: http://localhost:3000
 
+      - name: Cobertura de 027 gastos no deducibles en domain, sunat, db, backend y worker (umbral 90 % por archivo)
+        run: pnpm cobertura:gastos
+        env:
+          CORREO_PROVIDER: consola
+          APP_ORIGIN: http://localhost:3000
+
       - name: Cobertura de packages/db (umbral 90 %)
         run: pnpm cobertura:db
 
