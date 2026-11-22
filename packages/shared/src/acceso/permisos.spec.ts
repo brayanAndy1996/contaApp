@@ -8,8 +8,8 @@ import {
   type Rol,
 } from "./index.js";
 
-// Contrato (plan 005, packages/shared/src/acceso): catalogo de 23 permisos (01 §4), 5 roles de
-// sistema y la matriz de D2/D17. Se prueba por TABLA 5 roles x 23 permisos (CA-1). La lista
+// Contrato (plan 005, packages/shared/src/acceso): catalogo de 24 permisos (01 §4; 026 suma prorrata.gestionar), 5 roles de
+// sistema y la matriz de D2/D17. Se prueba por TABLA 5 roles x 24 permisos (CA-1). La lista
 // esperada se escribe aqui a mano, no se deriva de la implementacion.
 const TODOS = [
   "estudio.configurar",
@@ -34,6 +34,7 @@ const TODOS = [
   "reglas.ver",
   "reglas.gestionar",
   "prorrata.ver",
+  "prorrata.gestionar",
   "auditoria.ver",
 ] as const satisfies readonly Permiso[];
 
@@ -54,6 +55,7 @@ const ESPERADOS: Record<Rol, readonly Permiso[]> = {
     "reglas.ver",
     "reglas.gestionar",
     "prorrata.ver",
+    "prorrata.gestionar",
   ],
   asistente: [
     "clientes.ver",
@@ -69,9 +71,9 @@ const ESPERADOS: Record<Rol, readonly Permiso[]> = {
 };
 
 describe("catalogo de permisos (01 §4)", () => {
-  it("son exactamente los 23 permisos atomicos, sin repetidos", () => {
-    expect(PERMISOS).toHaveLength(23);
-    expect(new Set(PERMISOS).size).toBe(23);
+  it("son exactamente los 24 permisos atomicos, sin repetidos", () => {
+    expect(PERMISOS).toHaveLength(24);
+    expect(new Set(PERMISOS).size).toBe(24);
     expect([...PERMISOS].sort()).toEqual([...TODOS].sort());
   });
 
@@ -93,14 +95,14 @@ describe("catalogo de permisos (01 §4)", () => {
   });
 });
 
-describe("matriz rol x permiso (D2, D17, CA-1): tabla 5 x 23", () => {
+describe("matriz rol x permiso (D2, D17, CA-1): tabla 5 x 24", () => {
   const casos = ROLES.flatMap((rol) =>
     TODOS.map(
       (permiso) => [rol, permiso, ESPERADOS[rol].includes(permiso)] as const,
     ),
   );
-  it("la tabla cubre 5 x 23 = 115 casos", () => {
-    expect(casos).toHaveLength(115);
+  it("la tabla cubre 5 x 24 = 120 casos", () => {
+    expect(casos).toHaveLength(120);
   });
 
   it.each(casos)("%s / %s -> %s", (rol, permiso, esperado) => {
@@ -109,9 +111,9 @@ describe("matriz rol x permiso (D2, D17, CA-1): tabla 5 x 23", () => {
   });
 
   it.each([
-    ["dueno", 23],
-    ["admin", 22],
-    ["contador", 13],
+    ["dueno", 24],
+    ["admin", 23],
+    ["contador", 14],
     ["asistente", 8],
     ["lectura", 4],
   ] as const)("%s tiene %i permisos", (rol, n) => {
