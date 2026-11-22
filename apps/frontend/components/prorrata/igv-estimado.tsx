@@ -37,6 +37,13 @@ export function IgvEstimado({ igv }: { igv: unknown }) {
           <div className="flex flex-wrap items-center gap-2">
             <Badge tono="neutro">{M.estadoCompras[i.estadoPeriodoCompras]}</Badge>
           </div>
+          {(i.avisos ?? []).length > 0 && (
+            <ul className="m-0 flex list-none flex-col gap-1.5 p-0 text-sm text-aviso">
+              {(i.avisos ?? []).map((a) => (
+                <li key={a}>{M.avisosIgv[a]}</li>
+              ))}
+            </ul>
+          )}
           <p className="m-0 text-[13px] text-tinta-suave">{M.notaEstimado}</p>
         </>
       )}
