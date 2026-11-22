@@ -96,6 +96,10 @@ const ACCIONES: Record<AccionAuditoria, string> = {
   "buzon.atencion_deshecha": "Deshizo la atención de un mensaje del buzón SOL",
   "regla.historial_importado": "Importó el historial de un cliente",
   "regla.candidata_descartada": "Descartó una candidata del historial",
+  "prorrata.declaraciones_obtenidas": "Obtuvo las declaraciones del PDT 621 para la prorrata",
+  "prorrata.mes_manual_guardado": "Ingresó a mano un mes de la prorrata",
+  "prorrata.mes_manual_eliminado": "Eliminó un mes de la prorrata ingresado a mano",
+  "prorrata.usada_guardada": "Guardó la prorrata usada en la declaración",
 };
 
 /** Spec 025 (D-5): una regla creada al activar una candidata del historial no se lee como «Recordó una regla». */
