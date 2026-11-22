@@ -21,7 +21,8 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → cobe
 | T12a | Corregir el soporte de las pruebas HTTP de T6 que T12 encontró: historial real del proveedor (`conocidos`), conteo de `compras.reevaluar` en CA-3, `antesE` tras la escritura de control y escenario sin CIIU del proveedor al desactivar «zapatilla» (solo pruebas) | tester | sonnet | T12 ∥ T12b | ✓ | — | [x] |
 | T12b | Corregir el dominio de T8 que T12 encontró: `categoria` en la señal S1 y `fechaEmision` opcional en `prevalidacion/entrada.ts` (`leerXml`); quitar el parche de `archivos/previo.ts` | backend | sonnet | T12 ∥ T12a | ✓ | — | [x] |
 | T13 | Frontend: pantallas de 027 | frontend | sonnet | T7, T9 ∥ T10–T12 | ✓ | — | [x] |
-| T14 | Cobertura ≥ 90 % por archivo: `cobertura:gastos` y paso en CI | devops | haiku | T8, T10, T11, T12 ∥ T13 | — | — | [ ] |
+| T14 | Cobertura ≥ 90 % por archivo: `cobertura:gastos` y paso en CI | devops | haiku | T8, T10, T11, T12 ∥ T13 | — | — | [x] |
+| T14a | Pruebas que llevan `cobertura:gastos` al 90 % por archivo (db, backend y worker; solo pruebas y la config de db) | tester | sonnet | T14 ∥ T13 | — | — | [x] |
 | T15 | Ronda adversarial 1: aislamiento, permisos, plataforma, funciones acotadas, límite y concurrencia, cola (≤ 15 pruebas) | adversario | opus | T11, T12, T14 ∥ T13, T21 | — | ✓ | [ ] |
 | T16 | Pruebas de las correcciones de la ronda 1 (rojo) | tester | sonnet | T15 | ✓ | — | [ ] |
 | T17 | Corregir los hallazgos de la ronda 1 (migración 0071 si hace falta) | backend | opus | T16 | — | — | [ ] |
@@ -132,10 +133,15 @@ Reglas comunes:
 - **Hacer**: `components/gastos/*.tsx`, `lib/gastos.ts`, integración en las páginas de reglas, compras y plataforma, textos de las acciones de auditoría. Nada de `dangerouslySetInnerHTML`; mensajes de 403/409 en español.
 - **Hecho cuando**: las de T7 pasan; las del frontend y `diseno.estatico.spec.ts` siguen verdes; typecheck y lint limpios. Commit `feat(027): pantallas de gastos no deducibles`.
 
-## T14 · [ ] Cobertura (devops · haiku)
+## T14 · [x] Cobertura (devops · haiku)
 - **Contexto (leer solo esto)**: `package.json` (raíz: `cobertura:prorrata` como modelo), `.github/workflows/ci.yml` (paso de `cobertura:prorrata`, línea ~170), los cinco `vitest.cobertura-prorrata.config.mts` (`packages/{domain,sunat,db}`, `apps/{backend,worker}`).
 - **Hacer**: `cobertura:gastos` sobre `packages/domain/src/gastos/*.ts`, `texto/diccionario.ts`, `reglas/r-gp.ts`, `packages/sunat/src/mock/consulta-ruc.mock.ts`, `packages/db/src/gastos/*.ts`, `apps/backend/src/modules/gastos/*.ts` y `apps/worker/src/trabajos/{procesadores/reevaluar-periodo,procesadores/ciiu,persistidores/contexto-gastos}.ts`; `vitest.cobertura-gastos.config.mts` en cada paquete con las pruebas que los cubren en su `include`; `perFile: true`, 90 % en líneas, sentencias, funciones y ramas; paso en CI junto al de `cobertura:prorrata`. Correr también `cobertura:dominio` y `cobertura:sunat`.
 - **Hecho cuando**: `pnpm cobertura:gastos` ≥ 90 % por archivo (o lista de lo que falta, sin bajar el umbral ni excluir código de producción; si falta, el orquestador añade T14a, tester · sonnet) y las otras dos en verde; el paso aparece en `ci.yml`. Commit `chore(027): cobertura de gastos no deducibles`.
+
+## T14a · [x] Pruebas de cobertura de gastos (tester · sonnet)
+- **Contexto (leer solo esto)**: salida de `pnpm cobertura:gastos` (huecos por archivo), `packages/db/vitest.cobertura-gastos.config.mts`, `packages/db/src/{gastos,xml/reevaluar}.ts`, `apps/backend/src/modules/gastos/{cliente.service,contexto,errores,normalizar}.ts`.
+- **Hacer**: pruebas para los huecos de `packages/db` (`gastos/{aprender,ciiu,contexto,diccionario,errores}.ts` y `xml/reevaluar.ts`) y los del backend; sin bajar umbrales ni excluir archivos de 027; sin tocar código de producción. Decisión del usuario: añadir a la config de db la suite `tests/aislamiento/compras-xml-comprobante.spec.ts` (la que ejerce `reevaluarComprobante` y la función de bloqueo del worker) y probar `reevaluarLoteSiCambia` (nuevo de 027).
+- **Resultado**: `packages/db/src/gastos/ramas.spec.ts` (validadores de forma y respuestas incompletas de la BD con `tx` falsa), `packages/db/src/gastos/reevaluar-lote.spec.ts` (`reevaluarLoteSiCambia` contra BD real: paginación, solo escribe lo que cambia, orden de hallazgos y de claves, sin versiones nuevas ni puntero movido, XML vigente, atomicidad, bloqueo `auto`/`fila`/`funcion` por rol, RLS), `apps/backend/src/modules/gastos/ramas.spec.ts` (SQLSTATE a HTTP, normalización, proveedores, categorías si el cliente desaparece) y un caso «sin cambios» en `categorias.int.spec.ts`; config de db con `compras-xml-comprobante.spec.ts`. El worker ya cumplía. `pnpm cobertura:gastos` verde con ≥ 90 % por archivo en domain, sunat, db, backend y worker.
 
 ## T15 · [ ] Ronda adversarial 1 (adversario · opus)
 - **Contexto (leer solo esto)**: `spec.md` (completo), `plan.md` (Contratos), 04 §2.3 (catálogo: aislamiento, permisos y alcance, cola). Caja negra primero (rutas y funciones públicas); luego caja blanca (0069–0070, `packages/db/src/gastos/`, `apps/backend/src/modules/gastos/`, `procesadores/{reevaluar-periodo,ciiu}.ts`).

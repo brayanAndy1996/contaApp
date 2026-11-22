@@ -5,7 +5,7 @@ import { defineConfig } from "vitest/config";
 // Cobertura de 027 (gastos no deducibles, T14): mide packages/db/src/gastos/*.ts y
 // packages/db/src/xml/reevaluar.ts (reevaluarCompra) con sus pruebas unitarias de BD
 // (packages/db/src/gastos/*.spec.ts), las suites de aislamiento de 027 (tests/aislamiento/gnd-*.spec.ts)
-// y las suites de compras-xml que llaman a reevaluarCompra (concurrencia, evaluación, ronda 2 y R2).
+// y las suites de compras-xml que ejercen reevaluarCompra y reevaluarComprobante (comprobante, concurrencia, evaluación, ronda 2 y R2).
 // Umbral de 90 % por archivo.
 const raiz = fileURLToPath(new URL("../..", import.meta.url));
 const ruta = (relativa: string) =>
@@ -53,6 +53,7 @@ export default defineConfig({
       proyecto("db-gastos-unitarias", ["packages/db/src/gastos/*.spec.ts"]),
       proyecto("aislamiento-gastos", [
         "tests/aislamiento/gnd-*.spec.ts",
+        "tests/aislamiento/compras-xml-comprobante.spec.ts",
         "tests/aislamiento/compras-xml-concurrencia.spec.ts",
         "tests/aislamiento/compras-xml-evaluacion.spec.ts",
         "tests/aislamiento/compras-xml-ronda2.spec.ts",

@@ -224,6 +224,29 @@ describe("PUT …/gastos/categorias (R-13, CA-14)", () => {
     });
   });
 
+  it("T14a · guardar las listas que ya son las vigentes (con su versión) responde 200 con esa versión y no escribe ni audita", async () => {
+    const c = await nuevoCliente();
+    // Sin fila equivale a listas vacías en la versión 0: guardar listas vacías con versión 0 no cambia nada.
+    const antesVacio = await v.fotoGastos(E.tenantId);
+    const vacio = await fijar(admin, c, { permitidas: [], quitadas: [], version: 0 });
+    expect(vacio.status, vacio.text).toBe(200);
+    expect(vacio.body).toEqual({ version: 0 });
+    expect(await v.fotoGastos(E.tenantId)).toEqual(antesVacio);
+    expect(await v.categoriasBd(E.tenantId, c.id)).toEqual([]);
+
+    expect((await fijar(admin, c, { permitidas: ["juguetes"], quitadas: ["calzado-ropa"], version: 0 })).body).toEqual({ version: 1 });
+    const auditorias = async () =>
+      (await v.auditoria027(E.tenantId)).filter((a) => a.accion === "gnd.categorias_cliente" && a.cliente_id === c.id).length;
+    const antes = { auditorias: await auditorias(), foto: await v.fotoGastos(E.tenantId) };
+    // Las mismas listas y la versión vigente: «sin cambios», no una versión nueva.
+    const igual = await fijar(admin, c, { permitidas: ["juguetes"], quitadas: ["calzado-ropa"], version: 1 });
+    expect(igual.status, igual.text).toBe(200);
+    expect(igual.body).toEqual({ version: 1 });
+    expect(await auditorias()).toBe(antes.auditorias);
+    expect(await v.fotoGastos(E.tenantId)).toEqual(antes.foto);
+    expect(await v.categoriasBd(E.tenantId, c.id)).toMatchObject([{ permitidas: ["juguetes"], quitadas: ["calzado-ropa"], version: 1 }]);
+  });
+
   it("una versión que no es la vigente (vieja, futura o ≥ 1 sin fila): 409 version_cambiada y no cambia nada", async () => {
     const c = await nuevoCliente();
     const sinFila = await fijar(admin, c, { permitidas: [], quitadas: ["juguetes"], version: 1 });
