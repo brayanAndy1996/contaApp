@@ -112,6 +112,8 @@ describe("T13b · ronda adversarial 2b", () => {
       "CURSOR_RELLENO", "fechaMensaje",
       // 023 (T25b, R-1): tope de páginas leídas en una captura.
       "MAX_PAGINAS_LECTURA",
+      // 026 (T1, plan Contratos: domain): prorrata/ (ventana, porcentaje, meses, coeficiente, IGV estimado, diferencia).
+      "calcularProrrata", "compararProrrata", "estimarIgv", "porcentajeProrrata", "resolverMes", "ventanaProrrata",
     ].sort();
     expect(Object.keys(Publico).sort()).toEqual(esperados);
 
