@@ -20,7 +20,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → cobe
 | T12 | Backend: módulo `prorrata` (lectura, obtener, manual, prorrata usada) | backend | sonnet | T6, T8, T9, T10 ∥ T11, T13 | ✓ | — | [x] |
 | T12a | Corregir las 2 pruebas de T6 con defecto | tester | sonnet | T12 | — | — | [x] |
 | T13 | Frontend: pantalla de prorrata del cliente | frontend | sonnet | T7, T9 ∥ T10–T12 | ✓ | — | [x] |
-| T14 | Cobertura ≥ 90 % por archivo: `cobertura:prorrata` y paso en CI | devops | haiku | T8, T10, T11, T12 ∥ T13 | — | — | [ ] |
+| T14 | Cobertura ≥ 90 % por archivo: `cobertura:prorrata` y paso en CI | devops | haiku | T8, T10, T11, T12 ∥ T13 | — | — | [x] |
 | T15 | Ronda adversarial 1: aislamiento, permisos, funciones acotadas, cola y concurrencia (≤ 15 pruebas) | adversario | opus | T11, T12, T14 ∥ T13, T21 | — | ✓ | [ ] |
 | T16 | Pruebas de las correcciones de la ronda 1 (rojo) | tester | sonnet | T15 | ✓ | — | [ ] |
 | T17 | Corregir los hallazgos de la ronda 1 (migración 0067 si hace falta) | backend | opus | T16 | — | — | [ ] |
@@ -136,10 +136,23 @@ Reglas comunes:
 - **Hecho cuando**: las de T7 pasan; las del frontend y `diseno.estatico.spec.ts` siguen verdes; typecheck y lint limpios. Commit `feat(026): pantalla de prorrata e IGV estimado`.
 - **Resultado (T13, frontend · sonnet)**: las 144 de T7 pasan sin editarlas. Nuevos: `app/(app)/clientes/[clienteId]/prorrata/page.tsx`, `components/prorrata/{prorrata-cliente,tabla-meses,grafico-prorrata,coeficiente,igv-estimado,prorrata-usada,mes-manual,historial-mes}.tsx`, `lib/prorrata.ts` (textos de T7 + extras, cliente HTTP con los esquemas de `shared` y errores en español). Enlace «Prorrata» en la ficha del cliente (con `prorrata.ver`) y 4 rótulos de auditoría en `lib/auditoria.ts` (arregla el `tsc`). Decisiones: `Coeficiente`, `IgvEstimado` y `ProrrataUsada` reciben `unknown` y validan con `shared` (las pruebas pasan objetos planos); el gráfico mide en céntimos `BigInt` por lectura del texto y suma la tabla con `sumar` de `montos-compras` (`decimal.js` solo vive ahí por `compras.estatico.spec.ts`); la tabla de datos del gráfico va en `<details>`; con cliente archivado no se ofrece «Ingresar a mano» ni los enlaces de faltantes. Typecheck y lint limpios.
 
-## T14 · [ ] Cobertura (devops · haiku)
+## T14 · [x] Cobertura (devops · haiku)
 - **Contexto (leer solo esto)**: `package.json` (raíz: `cobertura:aprendizaje` como modelo), `.github/workflows/ci.yml` (paso de `cobertura:aprendizaje`, línea ~164), `packages/domain/vitest.cobertura-aprendizaje.config.mts`, `packages/sunat/vitest.cobertura-aprendizaje.config.mts`, `packages/db/vitest.cobertura-aprendizaje.config.mts`, `apps/backend/vitest.cobertura-aprendizaje.config.mts`, `apps/worker/vitest.cobertura-aprendizaje.config.mts`.
 - **Hacer**: `cobertura:prorrata` sobre `packages/domain/src/prorrata/*.ts`, `packages/sunat/src/mock/sol-portal.mock.ts`, `packages/db/src/prorrata/*.ts`, `apps/backend/src/modules/prorrata/*.ts` y `apps/worker/src/trabajos/procesadores/obtener-declaraciones.ts`; `vitest.cobertura-prorrata.config.mts` en cada paquete con las pruebas que los cubren en su `include`; `perFile: true`, 90 % en líneas, sentencias, funciones y ramas; paso en CI junto al de `cobertura:aprendizaje`. Correr también `cobertura:dominio`, `cobertura:sunat` y `cobertura:buzon`.
 - **Hecho cuando**: `pnpm cobertura:prorrata` ≥ 90 % por archivo (o lista de lo que falta, sin bajar el umbral ni excluir código de producción) y las otras tres en verde; el paso aparece en `ci.yml`. Commit `chore(026): cobertura de la prorrata`.
+- **Resultado (devops · haiku)**: cobertura **incompleta**; lo que falta pasa a T14a (tester · sonnet). Hecho: `vitest.cobertura-prorrata.config.mts` en domain, sunat, db, backend y worker (perFile 90 % en líneas, sentencias, funciones y ramas; ningún umbral bajado ni código excluido); script raíz `cobertura:prorrata` con la cadena de build de `cobertura:aprendizaje`; paso «Cobertura de 026 prorrata» en `ci.yml` tras el de aprendizaje; `src/prorrata/**` añadido a la regla de dinero de `eslint.config.mjs` y a `packages/domain/vitest.cobertura.config.mts` (nota de T8). Lint de domain: sin problemas. Base `contapp_026t14`: migrate y seed OK. Pruebas en verde: domain 199, sunat 167, db 354, backend 843, worker 45. `cobertura:dominio`, `cobertura:sunat` y `cobertura:buzon`: exit 0.
+- **Por debajo de 90 % (T14a)**, sentencias / ramas / funciones / líneas · líneas sin cubrir:
+  - `packages/db/src/prorrata/declaraciones.ts`: 91.3 / 83.33 / 100 / 100 · 95, 124
+  - `packages/db/src/prorrata/manual.ts`: 95.23 / 87.5 / 100 / 94.73 · 83
+  - `packages/db/src/prorrata/soporte-prueba.ts`: 86.98 / 84.61 / 83.33 / 91.55 · 27, 112, 115, 143-144, 515-519, 534, 551, 578
+  - `packages/db/src/prorrata/usada.ts`: 90 / 83.33 / 100 / 100 · 35
+  - `packages/db/src/prorrata/ventas.ts`: 100 / 57.14 / 100 / 100 · 61-76
+  - `apps/backend/src/modules/prorrata/apoyo.ts`: 84.61 / 76.47 / 100 / 80.95 · 53-55, 63-65
+  - `apps/backend/src/modules/prorrata/escritura.service.ts`: 100 / 75 / 100 / 100 · 31, 56, 73
+  - `apps/backend/src/modules/prorrata/lectura.service.ts`: 89.65 / 50 / 100 / 92 · 62-63
+  - `apps/backend/src/modules/prorrata/obtencion.service.ts`: 100 / 75 / 100 / 100 · 32
+- **Por encima de 90 %**: domain `src/prorrata` (All files 98.83 / 98.26 / 100 / 100; `igv-estimado.ts` 92.3 / 90 / 100 / 100; `meses.ts` 98.52 / 97.82 / 100 / 100; el resto 100 %); sunat `sol-portal.mock.ts` 98.75 / 96.4 / 100 / 98.55; db `errores.ts` 93.54 / 92.3 / 100 / 93.1; backend `vistas.ts` 98.5 / 98.43 / 94.44 / 98.21; worker `obtener-declaraciones.ts` 97.14 / 91.66 / 100 / 96.96.
+- **Notas**: (1) `soporte-prueba.ts` es soporte de pruebas dentro de `src/`; el precedente de aprendizaje lo excluye, pero no lo he excluido: decisión del orquestador. (2) Bajo cobertura se usa `CONTAPP_COBERTURA=1` (convención de aprendizaje): el p95 de `prorrata.rendimiento.int.spec.ts` no se compara en esta corrida. (3) El paso «Cobertura de 026 prorrata» de `ci.yml` fallará hasta que T14a cierre estos archivos.
 
 ## T15 · [ ] Ronda adversarial 1 (adversario · opus)
 - **Contexto (leer solo esto)**: `spec.md` (completo), `plan.md` (Contratos), 04 §2.3 (catálogo: aislamiento, permisos y alcance, cola). Caja negra primero (rutas y funciones públicas); luego caja blanca (0065–0066, `packages/db/src/prorrata/`, `apps/backend/src/modules/prorrata/`, `procesadores/obtener-declaraciones.ts`).
