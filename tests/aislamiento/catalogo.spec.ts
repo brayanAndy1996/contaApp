@@ -226,6 +226,26 @@ describe("CA-3 catalogo de RLS", () => {
     });
   }
 
+  // Spec 026 (T3, D-4, CA-8, rojo hasta la migracion 0065): las cuatro tablas de la prorrata (obtenciones, declaraciones mensuales,
+  // meses manuales y prorrata usada ingresada) entran al catalogo con tenant_id uuid NOT NULL, RLS ENABLE + FORCE y tenant_isolation
+  // FOR ALL (las pruebas anteriores las recorren solas).
+  for (const tabla of ["prorrata_obtencion", "declaracion_mensual", "prorrata_mes_manual", "prorrata_usada_manual"]) {
+    it(`${tabla} (026) esta en el catalogo de tablas con tenant_id, con RLS ENABLE y FORCE y tenant_isolation FOR ALL`, async () => {
+      const fila = (await tablasConTenantId()).find((x) => x.tabla === tabla);
+      expect(fila, `${tabla} en el catalogo`).toBeDefined();
+      expect({ rls: fila!.rls, forzada: fila!.forzada, no_nula: fila!.no_nula, tipo: fila!.tipo }, tabla).toEqual({
+        rls: true,
+        forzada: true,
+        no_nula: true,
+        tipo: "uuid",
+      });
+      const p = (await politicas()).find((x) => x.tablename === tabla && x.policyname === "tenant_isolation");
+      expect(p?.cmd).toBe("ALL");
+      expect(p?.qual).toContain("app.tenant_id");
+      expect(p?.with_check).toContain("app.tenant_id");
+    });
+  }
+
   it("tenant_id es uuid NOT NULL en toda tabla de negocio", async () => {
     const tablas = await tablasConTenantId();
     expect(tablas.length).toBeGreaterThan(0);
