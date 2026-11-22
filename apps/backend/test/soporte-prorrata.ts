@@ -19,6 +19,7 @@ import { randomUUID } from "node:crypto";
 import type { INestApplication, Type } from "@nestjs/common";
 import { DiscoveryService, ModulesContainer, Reflector } from "@nestjs/core";
 import { createDb } from "@contapp/db";
+import { claveDedupe } from "@contapp/queue";
 import { vi } from "vitest";
 import { META_PERMISO } from "../src/modules/acceso/guards/decoradores.js";
 import { rutasDe } from "./auditoria-rutas.js";
@@ -456,9 +457,10 @@ export async function abrirBancoProrrata(): Promise<BancoProrrata> {
       const r = await sql(
         `insert into job_registro (tenant_id, cliente_id, ruc, tipo, cola, canal, prioridad, estado, parametros, clave_dedupe, creado_por, max_intentos)
          select $1, c.id, c.ruc, 'sol.declaraciones.descargar', 'sol', 'sol', 'interactivo', $3, jsonb_build_object('periodo', $5::text),
-                sha256(convert_to('sembrado-' || gen_random_uuid()::text, 'UTF8')), $4, 3
+                $6, $4, 3
            from cliente c where c.id = $2 returning id`,
-        [tenantId, clienteId, estado, usuarioId, periodo],
+        // La clave real del dedupe de 008 (la misma función que usa producción), no una aleatoria.
+        [tenantId, clienteId, estado, usuarioId, periodo, claveDedupe(TIPO_TRABAJO, clienteId, { periodo })],
       );
       return r[0].id as string;
     },

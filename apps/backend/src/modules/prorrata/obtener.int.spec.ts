@@ -57,7 +57,9 @@ type Cliente = { id: string; ruc: string };
 const nuevoCliente = (o: Parameters<typeof v.cliente>[1] = {}): Promise<Cliente> =>
   v.cliente(E, { responsable: contador.id, colaboradores: [asistente.id, lectura.id], ...o });
 const u = (): string => E.titular.id;
-const obtener = (a: Actor, c: { id: string }, cuerpo: unknown = { periodo: M }) => v.http(a, "POST", rutaObtener(c.id), cuerpo);
+// Sin tercer argumento pide M; con `undefined` explícito NO envía cuerpo (un valor por omisión de parámetro lo taparía).
+const obtener = (a: Actor, c: { id: string }, ...cuerpo: [unknown?]) =>
+  v.http(a, "POST", rutaObtener(c.id), cuerpo.length === 0 ? { periodo: M } : cuerpo[0]);
 
 /** Una respuesta de error no lleva datos del cliente ni de la prorrata (D-7). */
 function sinDatos(r: { text: string }, c: Cliente): void {
