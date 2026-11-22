@@ -1,5 +1,5 @@
 // Repositorio de gastos no deducibles (spec 027). Escribe solo por las funciones acotadas de 0070; lee con la RLS del estudio.
-export { GastosRepoError } from "./errores";
+export { esUuidGastos, GastosRepoError } from "./errores";
 export { leerContextoGastos, leerGlosasCompra } from "./contexto";
 export type {
   ContextoGastosLeido,
