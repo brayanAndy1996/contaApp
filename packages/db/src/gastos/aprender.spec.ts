@@ -523,9 +523,9 @@ describe("aprender: plural en ambos sentidos (T16, H-027-1-1)", () => {
     });
     const f = await h.nuevoEstudio();
     const otra = await compraExcluidaConXml(f);
-    expect(await guardar(otra.cliente.id, otra.compra.id, [termino("pantalon"), termino("pantalones")], f)).toEqual({
-      guardadas: ["pantalon"],
-      omitidas: ["pantalones"],
+    expect(await guardar(otra.cliente.id, otra.compra.id, [termino("parlante"), termino("parlantes")], f)).toEqual({
+      guardadas: ["parlante"],
+      omitidas: ["parlantes"],
     });
   });
 
