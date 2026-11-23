@@ -30,6 +30,7 @@ import {
   separador,
   totalDelResumen,
 } from "../soporte/selectores/compras.js";
+import { dialogoAprender } from "../soporte/selectores/gastos.js";
 import type { Siembra } from "../soporte/siembra.js";
 
 interface Entorno {
@@ -286,6 +287,11 @@ test("excluir y restaurar la zapatilla F001-5070 con su motivo", async ({
   // Sale de la lista principal y del total del periodo; aparece en «Excluidas» con su motivo.
   await expect(estado(page, "Compra excluida.")).toHaveCount(1);
   await expect(dialogo).toHaveCount(0);
+  // Spec 027 (T13a): el Dueño puede gestionar reglas, así que se ofrece «Aprender estas palabras»; se cierra con «Ahora no».
+  const aprender = dialogoAprender(page);
+  await expect(aprender).toBeVisible();
+  await aprender.getByRole("button", { name: "Ahora no" }).click();
+  await expect(aprender).toHaveCount(0);
   await expect(fila(page, "F001-5070")).toHaveCount(0);
   await expect(filasDeCompras(page)).toHaveCount(3);
   await expect(totalDelResumen(page)).toHaveText([
