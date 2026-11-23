@@ -1,8 +1,8 @@
 // Spec 027 (R-7, CA-9; plan, Contratos: domain `terminos.ts`): términos para «Aprender» de una compra excluida. Tokens
 // normalizados de las glosas sin punto final, de 3 a 40 caracteres [a-z0-9], sin números, unidades, palabras vacías ni términos
-// que el diccionario efectivo ya coincide, en orden de primera aparición y sin repetir (tampoco en su otra forma, +s / +es: gana la
+// que el diccionario efectivo ya coincide (unidades y vacías también en su otra forma), en orden de primera aparición y sin repetir (tampoco en su otra forma, +s / +es: gana la
 // primera, H-027-1-1); a lo sumo 10. Puro: sin IO.
-import { mismaPalabra } from "../texto/diccionario";
+import { formasDePalabra, mismaPalabra } from "../texto/diccionario";
 import type { DiccionarioGlosas } from "../texto/diccionario";
 import { tokensDeGlosa } from "../texto/normalizar";
 
@@ -28,6 +28,10 @@ export const UNIDADES: ReadonlySet<string> = new Set([
 
 const sinPuntoFinal = (t: string): string => (t.endsWith(".") ? t.slice(0, -1) : t);
 
+/** Una palabra vacía o una unidad, también en su otra forma (D-8, H-027-2-5: «cientos», «millares», «modelos»). */
+const esVaciaOUnidad = (termino: string): boolean =>
+  formasDePalabra(termino).some((f) => PALABRAS_VACIAS.has(f) || UNIDADES.has(f));
+
 /** Un token que el diccionario coincide (palabra, plural o abreviatura con punto) ya está activo: no se propone. */
 const yaActivo = (token: string, diccionario: DiccionarioGlosas): boolean =>
   diccionario.coincidenciasPorItem([token]).length > 0;
@@ -41,7 +45,7 @@ export function proponerTerminos(glosas: readonly string[], diccionario: Diccion
       if (vistos.has(termino)) continue;
       vistos.add(termino);
       if (!TERMINO.test(termino) || CON_DIGITO.test(termino)) continue;
-      if (PALABRAS_VACIAS.has(termino) || UNIDADES.has(termino) || yaActivo(token, diccionario)) continue;
+      if (esVaciaOUnidad(termino) || yaActivo(token, diccionario)) continue;
       if (salida.some((t) => mismaPalabra(t, termino))) continue;
       salida.push(termino);
       if (salida.length === MAX_TERMINOS) return salida;

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { aprender, leerDetalleCompra, leerGlosasCompra, type Alcance, type ContappDb, type Tx } from "@contapp/db";
+import { aprender, excepcionesSugeridas, leerDetalleCompra, leerGlosasCompra, type Alcance, type ContappDb, type Tx } from "@contapp/db";
 import { proponerTerminos } from "@contapp/domain";
 import {
   aprenderRespuestaSchema,
@@ -17,7 +17,7 @@ import { exigirCliente, idDe, periodoDe } from "../compras/apoyo.js";
 import { contextoDe } from "../clientes/contexto.js";
 import { contextoGastos } from "./contexto.js";
 import { aErrorHttp, GastosError } from "./errores.js";
-import { normalizarPalabraGnd } from "./normalizar.js";
+import { normalizarExcepciones, normalizarPalabraGnd } from "./normalizar.js";
 
 /**
  * «Aprender estas palabras» al excluir una compra con XML (spec 027, RF-118, HU-42; R-5, R-7, U-11; CA-9, CA-14). Pedir la propuesta y
@@ -30,7 +30,10 @@ import { normalizarPalabraGnd } from "./normalizar.js";
 export class AprenderService {
   constructor(@Inject(DB) private readonly db: Pick<ContappDb, "withTenant">) {}
 
-  /** Hasta 10 términos de las glosas del XML vigente que el diccionario efectivo del estudio aún no coincide. */
+  /**
+   * Hasta 10 términos de las glosas del XML vigente que el diccionario efectivo del estudio aún no coincide y, solo para los que la
+   * tienen (su otra forma es otra palabra: «medias» / «media pulgada»), sus frases de excepción sugeridas (0072, H-027-2-3).
+   */
   async proponer(
     sesion: SesionResuelta,
     alcance: Alcance,
@@ -48,7 +51,11 @@ export class AprenderService {
       if (glosas === null) throw new GastosError("compra_sin_xml");
       // Sin proveedores: solo hace falta el diccionario efectivo (el CIIU y el historial no intervienen en la propuesta).
       const { diccionario } = await contextoGastos(tx, clienteId, periodo, []);
-      return propuestaAprenderVistaSchema.parse({ terminos: proponerTerminos(glosas, diccionario) });
+      const terminos = proponerTerminos(glosas, diccionario);
+      const excepciones = await excepcionesSugeridas(tx, terminos);
+      return propuestaAprenderVistaSchema.parse(
+        Object.keys(excepciones).length === 0 ? { terminos } : { terminos, excepciones },
+      );
     });
   }
 
@@ -67,7 +74,12 @@ export class AprenderService {
     const compraId = idDe(compraCruda).toLowerCase();
     const clienteId = clienteCrudo.toLowerCase();
     // Se normaliza ANTES de abrir la transacción: un término que no queda en una palabra válida es 400 y no guarda ninguno (todo o nada).
-    const terminos = v.data.terminos.map((t) => ({ termino: normalizarPalabraGnd(t.termino), categoria: t.categoria }));
+    // Las frases de excepción (si vienen) con la misma normalización que las de POST /palabras (H-027-2-3).
+    const terminos = v.data.terminos.map((t) => ({
+      termino: normalizarPalabraGnd(t.termino),
+      categoria: t.categoria,
+      ...(t.excepciones === undefined ? {} : { excepciones: normalizarExcepciones(t.excepciones) }),
+    }));
     const ctx = contextoDe(sesion);
     try {
       const r = await conReintentoUnico(() =>

@@ -484,6 +484,7 @@ export {
   cambiarEstadoPalabra,
   ciiuPendientes,
   esUuidGastos,
+  excepcionesSugeridas,
   fijarCategoriasCliente,
   fijarUmbral,
   GastosRepoError,

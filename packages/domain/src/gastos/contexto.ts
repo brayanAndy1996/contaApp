@@ -3,7 +3,7 @@
 // tipos equivocados ni conteos no enteros: EntradaReglasInvalidaError). Puro: sin IO.
 import { invalida, leerArreglo, leerObjeto } from "../reglas/estricto";
 import type { DocProveedor } from "../reglas/tipos";
-import { DiccionarioGlosas, normalizarPalabra } from "../texto/diccionario";
+import { DiccionarioGlosas, formasDePalabra, normalizarPalabra } from "../texto/diccionario";
 import type { EntradaDiccionario } from "../texto/diccionario";
 import { esCategoriaGnd } from "./categorias";
 import { esClaseCiiu } from "./ciiu";
@@ -102,18 +102,19 @@ const entradaDe = (p: PalabraDiccionario): EntradaDiccionario => ({
 });
 
 /**
- * Global activa − desactivadas por el estudio + propias activas; una propia activa con la misma palabra que una global la
- * reemplaza (categoría y excepciones). Una palabra o excepción inválida lanza RangeError. El orden recibido no cambia el
- * diccionario (R-2) y lo recibido no se muta.
+ * Global activa − desactivadas por el estudio + propias activas; una propia activa con la misma palabra que una global, o con su
+ * otra forma (D-8, aclaración del usuario 2026-11-23 «ambas reemplazan», H-027-2-1), la reemplaza en ambas formas (manda su
+ * categoría y sus excepciones). Una palabra o excepción inválida lanza RangeError. El orden recibido no cambia el diccionario
+ * (R-2) y lo recibido no se muta.
  */
 export function crearDiccionarioEfectivo(e: EntradaDiccionarioEfectivo): DiccionarioGlosas {
   const propias = e.propias.filter(activa);
-  const reemplazadas = new Set(propias.map((p) => normalizarPalabra(p.palabra)));
+  const reemplazan = new Set(propias.map((p) => normalizarPalabra(p.palabra)));
   const desactivadas = new Set(e.desactivadas.map(claveDe));
   const globales = e.globales.filter((g) => {
     if (!activa(g)) return false;
     const clave = normalizarPalabra(g.palabra);
-    return !desactivadas.has(clave) && !reemplazadas.has(clave);
+    return !desactivadas.has(clave) && !formasDePalabra(clave).some((f) => reemplazan.has(f));
   });
   return DiccionarioGlosas.desde([...globales, ...propias].map(entradaDe));
 }

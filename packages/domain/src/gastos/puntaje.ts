@@ -73,23 +73,37 @@ export function puntuarValidado(
   ctx: ContextoGastosInterno,
 ): ResultadoGasto {
   const senales: Senal[] = [];
-  const coincidencias = ctx.diccionario.coincidenciasPorItem(glosas);
 
-  // S1: +3 por ítem coincidente, tope +6; la palabra menor en orden de código (R-2).
-  let palabra: string | null = null;
-  let categoria: string | null = null;
-  let items = 0;
-  let ultimoItem = -1;
-  for (const c of coincidencias) {
-    if (c.item !== ultimoItem) {
-      items++;
-      ultimoItem = c.item;
+  // Un solo recorrido de las coincidencias (sin materializarlas, H-027-2-7). S1: +3 por ítem coincidente, tope +6; la palabra menor en
+  // orden de código (R-2). S3: +2 una vez si alguna categoría coincidente no está permitida; la menor de ellas. Sin CIIU del cliente solo
+  // cuentan las quitadas por el ajuste (R-13), así que una categoría de fuera de las 6 (diccionario de 011) no suma.
+  const acc: {
+    palabra: string | null;
+    categoria: string | null;
+    prohibida: string | null;
+    items: number;
+    ultimo: number;
+    vista: string | null;
+  } = { palabra: null, categoria: null, prohibida: null, items: 0, ultimo: -1, vista: null };
+  // Las permitidas del CIIU se calculan con la primera coincidencia.
+  let permitidas: ReadonlySet<string> | null | undefined;
+  ctx.diccionario.recorrerCoincidencias(glosas, (item, p, c) => {
+    if (item !== acc.ultimo) {
+      // Dentro de un ítem llegan en orden de código: solo la primera puede ser la menor.
+      acc.items++;
+      acc.ultimo = item;
+      if (acc.palabra === null || p < acc.palabra) {
+        acc.palabra = p;
+        acc.categoria = c;
+      }
     }
-    if (palabra === null || c.palabra < palabra) {
-      palabra = c.palabra;
-      categoria = c.categoria;
-    }
-  }
+    // Una categoría ya mirada no cambia S3 (con miles de coincidencias de la misma categoría, una comparación por cada una).
+    if (c === acc.vista) return;
+    acc.vista = c;
+    if (permitidas === undefined) permitidas = ctx.ciiuCliente === null ? null : categoriasPermitidas(ctx.ciiuCliente, ctx);
+    if (permitidas === null ? ctx.quitadas.includes(c) : !permitidas.has(c)) acc.prohibida = menor(acc.prohibida, c);
+  });
+  const { palabra, categoria, prohibida, items } = acc;
   if (palabra !== null) {
     senales.push({
       codigo: "S1",
@@ -111,17 +125,7 @@ export function puntuarValidado(
     senales.push({ codigo: "S2", puntos: PESOS.S2 });
   }
 
-  // S3: +2 una vez si alguna categoría coincidente no está permitida; la menor de ellas. Sin CIIU del cliente solo cuentan las
-  // quitadas por el ajuste (R-13), así que una categoría de fuera de las 6 (diccionario de 011) no suma.
-  if (coincidencias.length > 0) {
-    const permitidas = ctx.ciiuCliente === null ? null : categoriasPermitidas(ctx.ciiuCliente, ctx);
-    let prohibida: string | null = null;
-    for (const c of coincidencias) {
-      const noPermitida = permitidas === null ? ctx.quitadas.includes(c.categoria) : !permitidas.has(c.categoria);
-      if (noPermitida) prohibida = menor(prohibida, c.categoria);
-    }
-    if (prohibida !== null) senales.push({ codigo: "S3", puntos: PESOS.S3, categoria: prohibida });
-  }
+  if (prohibida !== null) senales.push({ codigo: "S3", puntos: PESOS.S3, categoria: prohibida });
 
   // S4: emitida en día no laborable por un minorista o restaurante.
   if (fechaEmision !== null && ciiuProveedor !== null && esMinoristaORestaurante(ciiuProveedor) && esDiaNoLaborable(fechaEmision)) {

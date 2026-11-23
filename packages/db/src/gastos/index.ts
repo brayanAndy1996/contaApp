@@ -16,5 +16,5 @@ export {
 export type { GastosEstudioLeido } from "./diccionario";
 export { fijarCategoriasCliente, leerCategoriasCliente } from "./categorias";
 export type { CategoriasClienteLeidas } from "./categorias";
-export { aprender } from "./aprender";
+export { aprender, excepcionesSugeridas } from "./aprender";
 export { ciiuPendientes, guardarCiiu } from "./ciiu";

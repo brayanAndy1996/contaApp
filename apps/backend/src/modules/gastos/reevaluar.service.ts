@@ -20,13 +20,14 @@ const esCuerpoVacio = (cuerpo: unknown): boolean =>
  * hace el worker por lotes, con el contexto del momento y solo agregando evaluación a las compras cuyos hallazgos cambian. Orden: cuerpo (400
  * `solicitud_invalida`) → periodo (400) → cliente del alcance (404; archivado 409) → periodo `abierto` (409 `periodo_no_abierto`; sin fila
  * es abierto), todo en UNA transacción con el encolado, así que nada queda a medias. El dedupe de 008 por cliente y periodo hace que pedidos
- * repetidos compartan el trabajo vivo. No audita al pedir ni toca compras.
+ * repetidos compartan el trabajo en cola; con uno ejecutándose se encola otro (0072, H-027-2-8: el que corre ya leyó el diccionario
+ * viejo en sus primeros lotes). No audita al pedir ni toca compras.
  */
 @Injectable()
 export class ReevaluarGastosService {
   constructor(@Inject(Encolador) private readonly encolador: Encolador) {}
 
-  /** `trabajoId` del trabajo: el nuevo o el vivo del mismo cliente y periodo (dedupe de 008). */
+  /** `trabajoId` del trabajo: el nuevo o el que sigue en cola del mismo cliente y periodo (dedupe de 008 con 0072). */
   async reevaluar(
     sesion: SesionResuelta,
     alcance: Alcance,

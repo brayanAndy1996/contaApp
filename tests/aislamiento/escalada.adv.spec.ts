@@ -83,7 +83,7 @@ const FUNCIONES_026: { firma: string; ejecuta: string }[] = [
   { firma: "prorrata_mes_manual_eliminar(uuid,character,text,integer)", ejecuta: "contapp_backend" },
   { firma: "prorrata_usada_guardar(uuid,character,numeric,integer)", ejecuta: "contapp_backend" },
 ];
-// Spec 027 (T3): firma (regprocedure) y unico rol de la app con EXECUTE de cada funcion de `public` de la migracion 0070 (plan 027,
+// Spec 027 (T3): firma (regprocedure) y unico rol de la app con EXECUTE de cada funcion de `public` de las migraciones 0070 y 0072 (plan 027,
 // Contratos: BD). Las cuatro de plataforma (esquema `auth`, dueño contapp_auth, EXECUTE solo contapp_backend) entran por FUNCIONES_AUTH.
 const FUNCIONES_027: { firma: string; ejecuta: string }[] = [
   { firma: "gnd_palabra_agregar(text,text,text[])", ejecuta: "contapp_backend" },
@@ -93,6 +93,8 @@ const FUNCIONES_027: { firma: string; ejecuta: string }[] = [
   { firma: "gnd_cliente_categorias_fijar(uuid,text[],text[],integer)", ejecuta: "contapp_backend" },
   { firma: "gnd_aprender(uuid,uuid,jsonb)", ejecuta: "contapp_backend" },
   { firma: "gnd_ciiu_guardar(jsonb)", ejecuta: "contapp_worker" },
+  // 0072 (T20, H-027-2-3): frases de excepción sugeridas al aprender (sin tablas; definer para llamar a `gnd_formas`).
+  { firma: "gnd_excepciones_sugeridas(text[])", ejecuta: "contapp_backend" },
 ];
 const FUNCIONES_017: { firma: string; dueno: string }[] = [
   ...[
@@ -150,7 +152,7 @@ const FUNCIONES_017: { firma: string; dueno: string }[] = [
   // Spec 026 (T3, rojo hasta la migracion 0066): las cuatro funciones acotadas de la prorrata (registrar la obtencion del worker; guardar y
   // eliminar el mes manual y guardar la prorrata usada del backend). Se verifican abajo, una por una.
   ...FUNCIONES_026.map((f) => ({ firma: f.firma, dueno: MIGRATOR })),
-  // Spec 027 (T3, rojo hasta la migracion 0070): las siete funciones acotadas de gastos no deducibles de `public` (seis del backend y la
+  // Spec 027 (T3, rojo hasta la migracion 0070; T20 suma la de 0072): las funciones acotadas de gastos no deducibles de `public` (del backend y la
   // del CIIU del worker). Se verifican abajo, una por una. Las cuatro `auth.gnd_global_*` de plataforma suman a FUNCIONES_AUTH.
   ...FUNCIONES_027.map((f) => ({ firma: f.firma, dueno: MIGRATOR })),
 ];

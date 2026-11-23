@@ -505,6 +505,13 @@
       "when": 1795393770328,
       "tag": "0071_gnd_plural",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1795400110838,
+      "tag": "0072_gnd_ronda2",
+      "breakpoints": true
     }
   ]
 }

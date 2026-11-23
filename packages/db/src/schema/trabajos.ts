@@ -71,10 +71,14 @@ export const jobRegistro = pgTable(
       columns: [t.tenantId, t.creadoPor],
       foreignColumns: [membresia.tenantId, membresia.usuarioId],
     }),
-    // D8: un solo trabajo vivo por clave en el estudio; al terminar, la clave se libera.
+    // D8: un solo trabajo vivo por clave en el estudio; al terminar, la clave se libera. 027 (H-027-2-8, CA-12, 0072): un
+    // `compras.reevaluar` solo se comparte mientras está en cola sin haberse ejecutado (intentos = 0); con uno ejecutándose (o
+    // devuelto a la cola por un reintento) se encola otro, que relee el diccionario.
     uniqueIndex("job_registro_dedupe_vivo")
       .on(t.tenantId, t.claveDedupe)
-      .where(sql`${t.estado} IN ('en_cola', 'ejecutando')`),
+      .where(
+        sql`${t.estado} IN ('en_cola', 'ejecutando') AND (${t.tipo} <> 'compras.reevaluar' OR (${t.estado} = 'en_cola' AND ${t.intentos} = 0))`,
+      ),
     index("job_registro_despacho_idx").on(
       t.tenantId,
       t.cola,

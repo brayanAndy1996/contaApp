@@ -97,6 +97,17 @@ Mapeo: `P0002` → 404, `55000` → 409 `cliente_archivado`, `CA409` → `versio
 | cuidado-personal | perfume, colonia, maquillaje, labial, shampoo, champu, acondicionador, desodorante, rimel, afeitadora, depiladora, cosmetico |
 | utiles-escolares | lonchera, mochila (fumigadora), plastilina, crayola, crayon, tempera, acuarela, escolar, cartuchera, papelote |
 
+**0072 (T20, ronda adversarial 2)**: índice `job_registro_dedupe_vivo` con `compras.reevaluar` compartido solo en cola sin ejecutar (`intentos = 0`; H-027-2-8) y el mismo predicado en los ON CONFLICT de `encolar_xml_obtener` y `encolar_buzon_programados` y en `packages/db/src/trabajos/registro.ts`; `public.gnd_excepciones_sugeridas(terminos text[]) → jsonb {termino: frases[]}` (SECURITY DEFINER de contapp_migrator, sin tablas, EXECUTE solo contapp_backend; busca cada término en cualquiera de sus formas con `gnd_formas`); `gnd_aprender` acepta `excepciones` (0 a 5 frases de 1 a 3 palabras normalizadas) por término y las guarda. HTTP: `GET …/aprender/:compraId` → `{terminos, excepciones?: {[termino]: string[]}}` (la clave solo si algún término tiene); `POST` acepta `terminos[].excepciones?` (normalizadas como en `POST /palabras`).
+
+**Excepciones sugeridas al aprender** (0072, H-027-2-3; **pendiente de revisión por un contador del equipo**): palabras cuyo singular o plural simple (D-8) es otra palabra frecuente en compras de empresa. Se proponen al aprender el término en cualquiera de sus formas; el usuario puede quitarlas o corregirlas. Lista corta y conservadora (solo frases que no describen consumo personal):
+| Palabra | Otra forma que confunde | Frases de excepción |
+|---|---|---|
+| medias (calcetines) | media (mitad: ferretería, gasfitería, electricidad) | media pulgada; media presion; media cana; media tension |
+| lentes (anteojos) | lente (óptica de cámara o proyector) | camara; fotografica; fotografico; proyector |
+| tirantes (prenda) | tirante (viga o tensor de construcción) | madera; acero; metalico |
+
+Fuera de la lista (para que el contador decida): «esposas» / «esposa» (T18: «PASAJE ESPOSA GERENTE»; la palabra «esposas» casi nunca se aprende como gasto personal).
+
 ## Decisiones técnicas
 - **Se amplía `ConsultaRuc` en vez de un puerto nuevo** (U-7): ya existe desde 007b con mock y centinelas; basta sumar `ciiu` a `DatosRuc`. `cliente.consultar_ruc` ignora el campo nuevo.
 - **CIIU al llegar el XML**: R-GP solo se evalúa con XML (U-9), así que el trabajo del XML es el primer momento en que hace falta; consulta como mucho 2 RUC fuera de transacción y nunca falla por ello. La descarga, las acciones, 012, 012b y «Volver a evaluar» solo leen la caché.

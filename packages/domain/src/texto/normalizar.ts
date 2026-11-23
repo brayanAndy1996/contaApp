@@ -1,6 +1,8 @@
 // Spec 011, D-5: normalización simple de glosas. Lógica pura, lineal, sin regex con retroceso.
 
-const MARCAS = /\p{M}+/gu;
+// Marcas (\p{M}, tildes tras NFKD) y caracteres de formato invisibles (\p{Cf}: guion suave, ancho cero, marcas e
+// aislamientos bidi, juntador de palabras, BOM…): no separan ni forman parte de una palabra (027, H-027-2-6).
+const MARCAS = /[\p{M}\p{Cf}]+/gu;
 
 const PUNTO = 46;
 
@@ -15,7 +17,7 @@ function esDigito(c: number): boolean {
 }
 
 /**
- * NFKD → quita marcas (\p{M}) → minúsculas → todo lo que no sea [a-z0-9.] separa.
+ * NFKD → quita marcas (\p{M}) y formato invisible (\p{Cf}) → minúsculas → todo lo que no sea [a-z0-9.] separa.
  * Un punto después de una letra cierra el token y se conserva en él: marca una abreviatura
  * ("zapat.") o cierra una palabra completa ("zapatillas.", también ante dígitos: "zapatillas.38")
  * (T13 y T15, decisión del usuario sobre R1b-7). El punto entre dos dígitos se conserva ("1.50").
