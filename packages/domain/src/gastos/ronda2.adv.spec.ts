@@ -23,24 +23,21 @@ const porItem = (d: DiccionarioGlosas, glosas: string[]) =>
   d.coincidenciasPorItem(glosas).map((c) => `${c.item}:${c.categoria}`);
 
 describe("T18 · D-8: la otra forma es la MISMA palabra también en el diccionario efectivo", () => {
-  it("H-027-2-1 · (T19: decisión 2026-11-23 = rechazar al agregar, no reemplazar) una BD que ya tiene las dos formas, la propia en la otra forma de una global, no deja que la propia anule la global: gana la menor (D-8)", () => {
-    // T18 esperaba que `crearDiccionarioEfectivo` reemplazara la global con su otra forma. El usuario decidió RECHAZAR esa propia al agregarla
-    // (409 `palabra_existente`; pruebas en `ronda2.correcciones.int.spec.ts` y `packages/db/src/gastos/ronda2-correcciones.spec.ts`), así que el
-    // diccionario efectivo solo la ve en datos anteriores a 0072: ahí rige D-8 («si ya tiene las dos formas, el ítem cuenta una vez y gana la
-    // menor en orden de código»): la global «zapatilla» decide y las excepciones de la propia «zapatillas» no rigen. Pasa hoy: queda como regresión.
-    const diccionario = efectivo(propia("zapatillas", "entretenimiento", "dielectrica"));
-    const r = puntuarGastoPersonal(
-      { glosas: ["ZAPATILLA DIELECTRICA"], fechaEmision: "2026-03-11", proveedor: { ...PROV }, esNuevo: false },
-      contextoNeutro({ diccionario }),
-    );
-    expect(r).toMatchObject({ palabra: "zapatilla", categoria: "calzado-ropa" });
-    expect(r.senales.map((s) => s.codigo)).toEqual(["S1"]);
+  it("H-027-2-1 · una propia en la otra forma de una global la reemplaza igual que una propia con su misma forma (plan: «una propia con la misma palabra que una global la reemplaza»)", () => {
+    // El estudio quiere «zapatilla» como entretenimiento y sin marcar las dieléctricas. Agregar la propia «zapatilla» o «zapatillas»
+    // (0071 acepta las dos: solo compara con las propias) debería dar el mismo diccionario efectivo, porque por D-8 son la misma palabra.
+    const glosas = ["ZAPATILLA DIELECTRICA", "ZAPATILLAS URBANAS", "ZAPATILLA DE SEGURIDAD"];
+    const mismaForma = porItem(efectivo(propia("zapatilla", "entretenimiento", "dielectrica")), glosas);
+    const otraForma = porItem(efectivo(propia("zapatillas", "entretenimiento", "dielectrica")), glosas);
+    expect(mismaForma).toEqual(["1:entretenimiento", "2:entretenimiento"]);
+    expect(otraForma).toEqual(mismaForma);
   });
 
   it("H-027-2-2 · con las dos formas guardadas «gana la menor» (D-8): la categoría de la forma perdedora no suma S3", () => {
-    // Tienda de ropa (4771) con calzado-ropa permitida en su ajuste. La global «zapatilla» (calzado-ropa) gana por orden de código; la
-    // propia «zapatillas» (juguetes, guardada antes de 0071 o antes de que la global existiera) no debería decidir S3.
-    const diccionario = efectivo(propia("zapatillas", "juguetes"));
+    // Tienda de ropa (4771) con calzado-ropa permitida en su ajuste. T19 (aclaración 2026-11-23, «ambas reemplazan»): una propia ya reemplaza a la
+    // global en cualquiera de sus formas, así que las dos formas solo coexisten como dos PROPIAS (guardadas antes de 0071). «zapatilla»
+    // (calzado-ropa) gana por orden de código; «zapatillas» (juguetes) no debería decidir S3.
+    const diccionario = efectivo(propia("zapatilla", "calzado-ropa"), propia("zapatillas", "juguetes"));
     const r = puntuarGastoPersonal(
       { glosas: ["ZAPATILLAS URBANAS T42"], fechaEmision: "2026-03-11", proveedor: { ...PROV }, esNuevo: false },
       contextoNeutro({ diccionario, ciiuCliente: "4771", categoriasCliente: { permitidas: ["calzado-ropa"], quitadas: [] } }),

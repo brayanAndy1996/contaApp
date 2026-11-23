@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- filas de BD y cuerpos JSON dinámicos en pruebas */
 // Spec 027 · T19 (rojo; correcciones de la ronda adversarial 2, HTTP y BD). Decisiones del usuario 2026-11-23, una prueba por cada una:
-//  H-027-2-1  la propia en la OTRA forma de una global activa se rechaza (409 `palabra_existente`, CA420 en SQL), también al aprender
-//             (`omitidas`); una global desactivada por el estudio no bloquea. La MISMA forma de una global sigue reemplazándola (201).
+//  H-027-2-1  (aclaración 2026-11-23, «ambas reemplazan») agregar como propia la misma forma O la otra forma de una global activa se acepta (201)
+//             y la propia reemplaza a la global en el estudio (manda su categoría y sus excepciones; la global no puntúa). Aprender con la otra
+//             forma de una global sigue yendo a `omitidas` (la global ya marca). Una global desactivada por el estudio: sin cambios.
 //  H-027-2-3  se mantiene el plural en ambos sentidos y se agregan FRASES DE EXCEPCIÓN a las palabras cuyo singular/plural es otra palabra
 //             («medias» → «MEDIA PULGADA», «lentes» → «LENTE DE CAMARA»): la propuesta de «Aprender» las trae (cuando aplican) y el guardado
 //             las recibe. La lista concreta la propone T20 y la revisa un contador del equipo; aquí solo los dos casos conocidos.
@@ -73,38 +74,52 @@ const aprender = (a: Actor, x: Compra, terminos: { termino: string; categoria?: 
   });
 const propiaDe = async (b: Banco, palabra: string) => (await v.propiasBd(b.est.tenantId)).find((p: any) => p.palabra === palabra);
 
-describe("T19 · H-027-2-1 (decisión 2026-11-23): la otra forma de una global activa se rechaza al agregar y se omite al aprender", () => {
-  it("POST /palabras con la otra forma de una global (con otra grafía también): 409 palabra_existente y no se guarda ni se audita nada", async () => {
+describe("T19 · H-027-2-1 (aclaración 2026-11-23): la propia en cualquier forma reemplaza a la global; aprender omite la otra forma", () => {
+  it("POST /palabras con la misma forma o la otra forma de una global (con otra grafía también): 201 y queda como propia", async () => {
     const b = await abrir();
-    const antes = await v.fotoGastos(b.est.tenantId);
-    for (const palabra of ["zapatillas", "Zapatillas", "ZAPATOS", "pantalones", "Perfumes"]) {
+    for (const palabra of ["zapatillas", "ZAPATOS", "Pantalones", "perfume"]) {
       const r = await v.http(b.admin, "POST", rutaPalabras(), { palabra, categoria: "entretenimiento", excepciones: [] });
-      expect(r.status, `${palabra}: ${r.text}`).toBe(409);
-      expect(r.body).toEqual({ codigo: "palabra_existente" });
+      expect(r.status, `${palabra}: ${r.text}`).toBe(201);
     }
-    expect(await v.fotoGastos(b.est.tenantId)).toEqual(antes);
+    expect((await v.propiasBd(b.est.tenantId)).map((p: any) => p.palabra).sort()).toEqual(["pantalones", "perfume", "zapatillas", "zapatos"]);
   });
 
-  it("si el estudio desactiva la global, su otra forma se agrega (201); otro estudio, con la global activa, sigue recibiendo 409", async () => {
+  it("de punta a punta: la propia «zapatillas» (entretenimiento, salvo «dielectrica») reemplaza a la global «zapatilla»: manda su categoría y su excepción en ambas formas", async () => {
     const b = await abrir();
-    const otro = await abrir();
+    const alta = await v.http(b.admin, "POST", rutaPalabras(), { palabra: "zapatillas", categoria: "entretenimiento", excepciones: ["dielectrica"] });
+    expect(alta.status, alta.text).toBe(201);
+    const caso = async (glosa: string) => v.hallazgosGp((await compra(b, glosa, { xml: "3064", excluir: false })).id);
+
+    const dielectrica = await caso("ZAPATILLA DIELECTRICA");
+    expect(dielectrica, "la excepción de la propia anula en singular; la global ya no puntúa").toEqual([]);
+    for (const glosa of ["ZAPATILLAS URBANAS", "ZAPATILLA URBANA", "ZAPATILLA DE SEGURIDAD"]) {
+      const gp = await caso(glosa);
+      expect(gp, glosa).toHaveLength(1);
+      expect(gp[0].sugerencia, glosa).toMatchObject({ tipo: "excluir", palabra: "zapatillas", categoria: "entretenimiento" });
+    }
+  });
+
+  it("el estudio que desactiva la global y agrega la otra forma: sin cambios (201, manda la propia)", async () => {
+    const b = await abrir();
     await v.desactivarGlobalBd(b.est.tenantId, "zapatilla", b.admin.id);
     const r = await v.http(b.admin, "POST", rutaPalabras(), { palabra: "zapatillas", categoria: "entretenimiento" });
     expect(r.status, r.text).toBe(201);
-    const ajeno = await v.http(otro.admin, "POST", rutaPalabras(), { palabra: "zapatillas", categoria: "entretenimiento" });
-    expect(ajeno.status, ajeno.text).toBe(409);
-    expect(ajeno.body).toEqual({ codigo: "palabra_existente" });
   });
 
-  it("regresión: la MISMA forma de una global se agrega y la reemplaza (201) y sin raíces ni prefijos («perfum», «polonia») se agrega", async () => {
+  it("regresión: la otra forma de otra PROPIA sigue siendo 409 palabra_existente y sin raíces («perfum», «polonia») se agrega", async () => {
     const b = await abrir();
-    for (const palabra of ["zapatilla", "perfum", "polonia"]) {
-      const r = await v.http(b.admin, "POST", rutaPalabras(), { palabra, categoria: "entretenimiento" });
-      expect(r.status, `${palabra}: ${r.text}`).toBe(201);
+    await v.sembrarPropia(b.est.tenantId, { palabra: "audifonos", categoria: "entretenimiento", creadoPor: b.admin.id });
+    const antes = await v.fotoGastos(b.est.tenantId);
+    const r = await v.http(b.admin, "POST", rutaPalabras(), { palabra: "audifono", categoria: "entretenimiento" });
+    expect(r.status, r.text).toBe(409);
+    expect(r.body).toEqual({ codigo: "palabra_existente" });
+    expect(await v.fotoGastos(b.est.tenantId)).toEqual(antes);
+    for (const palabra of ["perfum", "polonia"]) {
+      expect((await v.http(b.admin, "POST", rutaPalabras(), { palabra, categoria: "entretenimiento" })).status).toBe(201);
     }
   });
 
-  it("aprender: la otra forma de una global (en los dos sentidos) va a omitidas; si el estudio la desactiva, se guarda", async () => {
+  it("aprender: la otra forma de una global (en los dos sentidos) va a omitidas (la global ya marca); si el estudio la desactiva, se guarda", async () => {
     const b = await abrir();
     const x = await compra(b, "PANTALONES ZAPATO ALFOMBRA");
     const r = await aprender(b.contador, x, [{ termino: "pantalones", categoria: "calzado-ropa" }, { termino: "zapatos", categoria: "calzado-ropa" }, { termino: "alfombra" }]);

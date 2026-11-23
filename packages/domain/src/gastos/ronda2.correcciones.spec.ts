@@ -41,8 +41,9 @@ const puntuar = (diccionario: DiccionarioGlosas, glosas: string[], extra: Parame
 
 describe("T19 · H-027-2-2: con las dos formas guardadas gana la menor, y solo ella decide S1 y S3 (D-8)", () => {
   it("categoría quitada por el ajuste del cliente (sin CIIU): la de la forma perdedora no suma S3", () => {
-    // Global «zapatilla» (calzado-ropa) + propia «zapatillas» (juguetes, quitada para el cliente). Gana «zapatilla»: no hay S3.
-    const r = puntuar(efectivo(propia("zapatillas", "juguetes")), ["ZAPATILLAS URBANAS T42"], {
+    // Dos propias (la otra forma de una global ya la reemplaza, aclaración 2026-11-23): «zapatilla» (calzado-ropa) y «zapatillas» (juguetes,
+    // quitada para el cliente). Gana «zapatilla»: no hay S3.
+    const r = puntuar(efectivo(propia("zapatilla", "calzado-ropa"), propia("zapatillas", "juguetes")), ["ZAPATILLAS URBANAS T42"], {
       categoriasCliente: { permitidas: [], quitadas: ["juguetes"] },
     });
     expect(r).toMatchObject({ palabra: "zapatilla", categoria: "calzado-ropa" });
@@ -52,7 +53,7 @@ describe("T19 · H-027-2-2: con las dos formas guardadas gana la menor, y solo e
 
   it("sin glosa de la otra forma, nada cambia: «ZAPATILLA URBANA» con las dos formas da S1 de la menor y el mismo puntaje que con una sola", () => {
     const sola = puntuar(efectivo(), ["ZAPATILLA URBANA T42"], { ciiuCliente: "4771", categoriasCliente: { permitidas: ["calzado-ropa"], quitadas: [] } });
-    const dos = puntuar(efectivo(propia("zapatillas", "juguetes")), ["ZAPATILLA URBANA T42"], {
+    const dos = puntuar(efectivo(propia("zapatilla", "calzado-ropa"), propia("zapatillas", "juguetes")), ["ZAPATILLA URBANA T42"], {
       ciiuCliente: "4771",
       categoriasCliente: { permitidas: ["calzado-ropa"], quitadas: [] },
     });
@@ -61,11 +62,11 @@ describe("T19 · H-027-2-2: con las dos formas guardadas gana la menor, y solo e
   });
 
   it("regresión: cuando la menor es la no permitida, S3 sí cuenta con SU categoría (no se pierde por la categoría permitida de la perdedora)", () => {
-    // Global «lentes» (calzado-ropa, permitida) + propia «lente» (juguetes, no permitida para 4771): «lente» < «lentes», decide juguetes.
+    // Dos propias: «lentes» (calzado-ropa, permitida) y «lente» (juguetes, no permitida para 4771): «lente» < «lentes», decide juguetes.
     const diccionario = crearDiccionarioEfectivo({
-      globales: [globalPlana("lentes", "calzado-ropa")],
+      globales: [],
       desactivadas: [],
-      propias: [propia("lente", "juguetes")],
+      propias: [propia("lentes", "calzado-ropa"), propia("lente", "juguetes")],
     });
     const r = puntuar(diccionario, ["LENTE GRAN ANGULAR"], { ciiuCliente: "4771", categoriasCliente: { permitidas: ["calzado-ropa"], quitadas: [] } });
     expect(r).toMatchObject({ palabra: "lente", categoria: "juguetes" });
@@ -77,6 +78,35 @@ describe("T19 · H-027-2-2: con las dos formas guardadas gana la menor, y solo e
     // «zapatilla» (calzado-ropa, permitida) y «perfume» (cuidado-personal, quitada): palabras distintas, S3 por «perfume».
     const r = puntuar(efectivo(), ["ZAPATILLA CON PERFUME"], { categoriasCliente: { permitidas: [], quitadas: ["cuidado-personal"] } });
     expect(r.senales.map((s) => s.codigo)).toEqual(["S1", "S3"]);
+  });
+});
+
+describe("T19 · H-027-2-1 (aclaración 2026-11-23, «ambas reemplazan»): la propia en cualquier forma reemplaza a la global", () => {
+  it("la otra forma (singular → plural y plural → singular) reemplaza a la global: manda la categoría y las excepciones de la propia y la global no puntúa", () => {
+    // «ron» global (alimentos-personales) con «rones» propia (entretenimiento); «lentes» global (cuidado-personal) con «lente» propia (juguetes).
+    const d = crearDiccionarioEfectivo({
+      globales: [...SEMILLA_GLOBAL, globalPlana("lentes", "cuidado-personal", "camara")],
+      desactivadas: [],
+      propias: [propia("rones", "entretenimiento", "cana"), propia("lente", "juguetes")],
+    });
+    expect(porItem(d, ["RON ANEJO", "RONES ANEJOS", "RON CANA", "LENTES DE SOL", "LENTE DE CAMARA"])).toEqual([
+      "0:entretenimiento",
+      "1:entretenimiento",
+      "3:juguetes",
+      "4:juguetes",
+    ]);
+    const r = puntuar(d, ["RON ANEJO"]);
+    expect(r).toMatchObject({ palabra: "rones", categoria: "entretenimiento" });
+  });
+
+  it("las excepciones de la global no rigen para la propia que la reemplaza («zapatillas» propia sin «seguridad»), y las de la propia sí", () => {
+    const d = efectivo(propia("zapatillas", "entretenimiento", "dielectrica"));
+    expect(porItem(d, ["ZAPATILLA DE SEGURIDAD", "ZAPATILLA DIELECTRICA", "ZAPATILLAS URBANAS"])).toEqual(["0:entretenimiento", "2:entretenimiento"]);
+  });
+
+  it("con la global desactivada por el estudio la propia en la otra forma tampoco choca (sin cambios)", () => {
+    const d = crearDiccionarioEfectivo({ globales: SEMILLA_GLOBAL, desactivadas: ["zapatilla"], propias: [propia("zapatillas", "entretenimiento")] });
+    expect(porItem(d, ["ZAPATILLA URBANA", "ZAPATILLAS URBANAS"])).toEqual(["0:entretenimiento", "1:entretenimiento"]);
   });
 });
 
