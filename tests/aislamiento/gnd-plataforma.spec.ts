@@ -527,3 +527,81 @@ describe("auth.gnd_global_historial (D-2, CA-14)", () => {
     expect(Object.keys(r[0])).not.toContain("tenant_id");
   });
 });
+
+// =================================================================================================
+// Spec 027 · T17 (H-027-1-1, decisión del usuario 2026-11-23; migración 0071): el plural simple cuenta en ambos sentidos como la misma
+// palabra también en el diccionario global. `auth.gnd_global_agregar` da CA420 si ya hay una global (activa o no) con la otra forma.
+describe("0071 · auth.gnd_global_agregar: la otra forma (+s / +es) es la misma palabra (H-027-1-1)", () => {
+  it("con la global en singular, su plural (+s y +es) da CA420; con la global en plural, el singular también; nada se escribe", async () => {
+    const base = `${eg.palabraNueva()}o`; // termina en vocal: admite +s y +es
+    expect(cod(await agregar(base))).toBe("ok");
+    const plural = `${eg.palabraNueva()}ones`; // «...ones» → singular «...on»
+    expect(cod(await agregar(plural))).toBe("ok");
+    for (const otra of [`${base}s`, `${base}es`, plural.slice(0, -2)])
+      expect(cod(await agregar(otra, "entretenimiento")), otra).toBe("CA420");
+    for (const otra of [`${base}s`, `${base}es`, plural.slice(0, -2)])
+      expect(await eg.globalPorPalabra(otra), otra).toBeUndefined();
+  });
+
+  it("una global inactiva en la otra forma también cuenta (como la palabra exacta inactiva)", async () => {
+    const g = await nuevaGlobal();
+    expect(cod(await editar(g.id, "juguetes", [], false, 1))).toBe("ok");
+    expect(cod(await agregar(`${g.palabra}s`))).toBe("CA420");
+  });
+
+  it("la semilla también: «zapatillas» (global «zapatilla») y «polos» (global «polo») dan CA420", async () => {
+    expect(cod(await agregar("zapatillas", "calzado-ropa"))).toBe("CA420");
+    expect(cod(await agregar("polos", "calzado-ropa"))).toBe("CA420");
+  });
+
+  it("sin raíces ni prefijos: con la global «...guantes», «...guant» y «...guantera» sí se agregan", async () => {
+    const p = eg.palabraNueva();
+    expect(cod(await agregar(`${p}guantes`))).toBe("ok");
+    expect(cod(await agregar(`${p}guant`))).toBe("ok");
+    expect(cod(await agregar(`${p}guantera`))).toBe("ok");
+  });
+
+  it("dos altas concurrentes de las dos formas: queda una sola, la otra es CA420 (sin 23505 ni 5xx)", async () => {
+    const base = `${eg.palabraNueva()}a`;
+    const r = await Promise.all([agregar(base), agregar(`${base}s`)]);
+    expect(r.map(cod).sort()).toEqual(["CA420", "ok"]);
+    const quedan = await admin.query(
+      "select palabra from gnd_palabra_global where palabra = any($1::text[])",
+      [[base, `${base}s`]],
+    );
+    expect(quedan.rows).toHaveLength(1);
+  });
+
+  it("public.gnd_formas(text) (0071): pura, de invocador, de contapp_migrator, search_path fijo, sin PUBLIC; solo contapp_auth la ejecuta", async () => {
+    expect(await infoFuncion(admin, "public.gnd_formas(text)")).toEqual({
+      secdef: false,
+      config: ["search_path=pg_catalog, pg_temp"],
+      dueno: "contapp_migrator",
+      duenoSuper: false,
+      duenoBypass: false,
+    });
+    const vol = await admin.query(
+      "select provolatile from pg_proc where oid = 'public.gnd_formas(text)'::regprocedure",
+    );
+    expect(vol.rows[0].provolatile).toBe("i");
+    expect(
+      await conExecute(
+        admin,
+        "public.gnd_formas(text)",
+        ROLES_FUNCION.filter((r) => r !== "contapp_migrator"),
+      ),
+    ).toEqual(["contapp_auth"]);
+    const f = await admin.query(
+      "select w, public.gnd_formas(w) as f from unnest($1::text[]) w order by w",
+      [["audifono", "audifonos", "gases", "guantes", "lapiz", "seguridad"]],
+    );
+    expect(Object.fromEntries(f.rows.map((x) => [x.w, x.f]))).toEqual({
+      audifono: ["audifono", "audifonos", "audifonoes"],
+      audifonos: ["audifonos", "audifonoss", "audifonoses", "audifono"],
+      gases: ["gases", "gasess", "gaseses", "gase", "gas"],
+      guantes: ["guantes", "guantess", "guanteses", "guante"],
+      lapiz: ["lapiz", "lapizs"],
+      seguridad: ["seguridad", "seguridads", "seguridades"],
+    });
+  });
+});

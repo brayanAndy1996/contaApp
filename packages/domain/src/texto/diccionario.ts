@@ -42,6 +42,9 @@ const ESPACIO = /\s/u;
 const PUNTO = 46;
 const S = 115;
 const E = 101;
+const C = 99;
+const H = 104;
+const ADMITE_ES: ReadonlySet<number> = new Set([..."aeioulrndjsxy"].map((l) => l.charCodeAt(0)));
 
 /** Normaliza una palabra del diccionario (una sola palabra [a-z0-9] de 3 o más letras); si no, RangeError. */
 export function normalizarPalabra(palabra: string): string {
@@ -79,34 +82,50 @@ function normalizarExcepciones(excepciones: readonly string[] | undefined): read
   return excepciones.map(normalizarFrase);
 }
 
-/** token = palabra, palabra + "s" o palabra + "es". */
-function esPalabra(token: string, palabra: string): boolean {
-  if (!token.startsWith(palabra)) return false;
-  const resto = token.length - palabra.length;
-  return resto === 0 || (resto === 1 && token.endsWith("s")) || (resto === 2 && token.endsWith("es"));
+/** ¿La forma corta admite el plural en «-es»? Tras vocal (011: «audifonoes») o tras l, r, n, d, j, s, x, y o «ch» (ortografía del
+ * español). Tras otra consonante no: «guantes» es «guante» + s, no «guant» + es; «lapices» no es «lapic» + es (sin raíces, H-027-1-1). */
+const admitePluralEs = (corta: string): boolean => {
+  const n = corta.length;
+  const c = corta.charCodeAt(n - 1);
+  return ADMITE_ES.has(c) || (c === H && corta.charCodeAt(n - 2) === C);
+};
+
+/**
+ * 027 (H-027-1-1, decisión del usuario 2026-11-23): plural simple EN AMBOS SENTIDOS. `a` y `b` son la misma palabra si son iguales o si la
+ * larga es la corta + «s» o + «es» (este último solo si la corta lo admite), con la corta de 3 letras como mínimo (el mínimo de una palabra
+ * de diccionario). Sin raíces ni prefijos. La misma regla está en SQL (`gnd_misma_palabra`, 0071) para los duplicados.
+ */
+export function mismaPalabra(a: string, b: string): boolean {
+  if (a === b) return true;
+  const corta = a.length < b.length ? a : b;
+  const larga = corta === a ? b : a;
+  if (corta.length < MIN_LETRAS_PALABRA || !larga.startsWith(corta)) return false;
+  const resto = larga.length - corta.length;
+  if (resto === 1) return larga.charCodeAt(larga.length - 1) === S;
+  return resto === 2 && larga.endsWith("es") && admitePluralEs(corta);
 }
 
 /**
- * Palabra completa (o su plural), con o sin punto final (T13, R1b-7: "zapatillas." al final de
+ * Palabra completa (o su otra forma: plural o singular simple), con o sin punto final (T13, R1b-7: "zapatillas." al final de
  * una oración), o abreviatura con punto (>= 4 letras, prefijo de la palabra).
  */
 function coincide(token: string, palabra: string): boolean {
-  if (!token.endsWith(".")) return esPalabra(token, palabra);
+  if (!token.endsWith(".")) return mismaPalabra(token, palabra);
   const sinPunto = token.slice(0, -1);
   return (
-    esPalabra(sinPunto, palabra) ||
+    mismaPalabra(sinPunto, palabra) ||
     (sinPunto.length >= MIN_LETRAS_ABREVIATURA && palabra.startsWith(sinPunto))
   );
 }
 
 const compararTexto = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
-/** ¿La frase aparece seguida en los tokens (sin punto final) del ítem? */
+/** ¿La frase aparece seguida en los tokens (sin punto final) del ítem? Cada token, en cualquiera de sus formas (H-027-1-1). */
 function contieneFrase(tokens: readonly string[], frase: readonly string[]): boolean {
   const ultimo = tokens.length - frase.length;
   for (let i = 0; i <= ultimo; i++) {
     let j = 0;
-    while (j < frase.length && tokens[i + j] === frase[j]) j++;
+    while (j < frase.length && mismaPalabra(tokens[i + j] as string, frase[j] as string)) j++;
     if (j === frase.length) return true;
   }
   return false;
@@ -132,16 +151,42 @@ function indexar(planas: readonly EntradaIndice[]): Map<string, EntradaIndice> {
   return indice;
 }
 
+/** Las formas de una palabra con las que coincide un token sin punto: ella misma, su plural y su singular simples (`mismaPalabra`). */
+function formas(palabra: string): string[] {
+  const salida = [palabra, `${palabra}s`];
+  if (admitePluralEs(palabra)) salida.push(`${palabra}es`);
+  const n = palabra.length;
+  if (n > MIN_LETRAS_PALABRA && palabra.charCodeAt(n - 1) === S) {
+    salida.push(palabra.slice(0, -1));
+    const corta = palabra.slice(0, -2);
+    if (palabra.charCodeAt(n - 2) === E && corta.length >= MIN_LETRAS_PALABRA && admitePluralEs(corta)) salida.push(corta);
+  }
+  return salida;
+}
+
+/** forma → entradas cuya palabra tiene esa forma (una sola consulta por token, R-10). */
+function indexarFormas(indice: Map<string, EntradaIndice>): Map<string, readonly EntradaIndice[]> {
+  const porForma = new Map<string, EntradaIndice[]>();
+  for (const e of indice.values()) {
+    for (const f of formas(e.palabra)) {
+      const lista = porForma.get(f);
+      if (lista === undefined) porForma.set(f, [e]);
+      else if (!lista.includes(e)) lista.push(e);
+    }
+  }
+  return porForma;
+}
+
 export class DiccionarioGlosas {
   readonly #entradas: readonly Coincidencia[];
-  /** 027: palabra → entrada (exacta y plural). */
-  readonly #exactas: ReadonlyMap<string, EntradaIndice>;
+  /** 027: forma (la palabra, su plural o su singular simples; H-027-1-1) → entradas. */
+  readonly #exactas: ReadonlyMap<string, readonly EntradaIndice[]>;
   /** 027: entradas por palabra en orden de código (prefijos de las abreviaturas con punto). */
   readonly #ordenadas: readonly EntradaIndice[];
 
   private constructor(entradas: readonly Coincidencia[], indice: Map<string, EntradaIndice>) {
     this.#entradas = entradas;
-    this.#exactas = indice;
+    this.#exactas = indexarFormas(indice);
     this.#ordenadas = Object.freeze([...indice.values()].sort((a, b) => compararTexto(a.palabra, b.palabra)));
     Object.freeze(this);
   }
@@ -215,12 +260,10 @@ export class DiccionarioGlosas {
   #agregarDeToken(token: string, halladas: EntradaIndice[] | null): EntradaIndice[] | null {
     const conPunto = token.charCodeAt(token.length - 1) === PUNTO;
     const base = conPunto ? token.slice(0, -1) : token;
-    let r = this.#agregar(this.#exactas.get(base), halladas);
+    let r = halladas;
+    const conForma = this.#exactas.get(base);
+    if (conForma !== undefined) for (const e of conForma) r = this.#agregar(e, r);
     const n = base.length;
-    if (n > 1 && base.charCodeAt(n - 1) === S) {
-      r = this.#agregar(this.#exactas.get(base.slice(0, -1)), r);
-      if (n > 2 && base.charCodeAt(n - 2) === E) r = this.#agregar(this.#exactas.get(base.slice(0, -2)), r);
-    }
     if (conPunto && n >= MIN_LETRAS_ABREVIATURA) {
       const lista = this.#ordenadas;
       let bajo = 0;

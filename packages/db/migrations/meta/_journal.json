@@ -498,6 +498,13 @@
       "when": 1795375405016,
       "tag": "0070_gnd_funciones",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1795393770328,
+      "tag": "0071_gnd_plural",
+      "breakpoints": true
     }
   ]
 }
