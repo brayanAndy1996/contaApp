@@ -332,16 +332,14 @@ describe("R-8 · CA-10 · CA-13: el diccionario, el umbral y los interruptores d
     expect(rgp!.sugerencia.senales[2]).toMatchObject({ codigo: "S3", categoria: "entretenimiento" });
   });
 
-  it("con la global desactivada y sin palabras propias la glosa no coincide: sin S1 ni S3 queda solo S2, con palabra y categoría nulas", async () => {
+  it("con la global desactivada y sin palabras propias la glosa no coincide: sin S1 no hay hallazgo aunque S2 (+3) llegue al umbral (T21a)", async () => {
     const m = await mundo();
     await proveedorConocido(m);
     await desactivarGlobal(admin, m, "zapatilla");
     const p = puertosXml();
     await correr(m, p, consultaFerreteria(RUC_FIXTURE));
 
-    const rgp = await rgpDe(admin, (await porNumero(m)).get("5070")!.id, 2);
-    expect(rgp!.sugerencia).toMatchObject({ palabra: null, categoria: null, puntaje: 3 });
-    expect(codigos(rgp!.sugerencia)).toEqual(["S2"]);
+    expect(await rgpDe(admin, (await porNumero(m)).get("5070")!.id, 2)).toBeNull();
   });
 
   it("con R-GP apagada en «Reglas del motor» no hay hallazgo ni puntaje, pero el CIIU y el XML siguen su curso", async () => {

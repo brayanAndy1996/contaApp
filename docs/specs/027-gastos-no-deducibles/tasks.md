@@ -31,6 +31,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → cobe
 | T19 | Pruebas de las correcciones de la ronda 2 (rojo) | tester | sonnet | T18 | ✓ | — | [ ] |
 | T20 | Corregir los hallazgos de la ronda 2 (migración 0072 si hace falta) | backend | opus | T19 | — | — | [ ] |
 | T21 | E2E: zapatillas → chip y lupa → excluir → aprender → volver a evaluar | tester | sonnet | T11, T12, T13 ∥ T15–T20 | — | — | [ ] |
+| T21a | Dominio: sin palabra clave (S1) no hay hallazgo R-GP (decisión del usuario tras la E2E, spec D-7); ajustar spec, plan y pruebas | backend | sonnet | T21 ∥ T13a | ✓ | — | [x] |
 | T22 | Prueba manual con el sistema levantado y adaptadores en `mock` | tester | sonnet | T20, T21 | — | — | [ ] |
 | T23 | Verificar CA-1 a CA-17 con evidencia, suites completas, `db:migrate` ×2 y coberturas | tester | sonnet | T22 (y T22a si existe) | — | — | [ ] |
 | T24 | Revisión final contra la spec | arquitecto | opus | T23 | — | — | [ ] |
@@ -183,6 +184,11 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `spec.md` (CA-1, CA-9, CA-12, CA-17, casos reales), `tests/e2e/flujos/prorrata.e2e.ts` (modelo, sin editarlo), `tests/e2e/soporte/{siembra,cola,api}.ts`, `tests/e2e/soporte/selectores/compras.ts`, `fixtures/xml/20700000070-01-F001-5070.xml`, `fixtures/ruc/ciiu.json`.
 - **Hacer**: `tests/e2e/flujos/gastos.e2e.ts` y `soporte/selectores/gastos.ts`. Un caso con el cliente `20700000002` (ferretería en el fixture de CIIU): descarga de compras → XML de F001-5070 → chip «Posible gasto no deducible» y lupa con «palabra clave: zapatilla», «rubro del proveedor no relacionado» y «categoría no permitida para el giro» → excluir con motivo → «Aprender estas palabras» elige «deportivas», lo corrige a «deportiva» → calzado-ropa → «Volver a evaluar» marca otra compra del periodo con esa palabra (si el XML del mock no la trae, se siembra subiendo un XML, 016). Lectura ve el chip sin botones de escritura. Correr desacoplado (reglas comunes).
 - **Hecho cuando**: `pnpm e2e -- gastos` y `pnpm e2e -- compras` pasan 3 veces seguidas, sin `retry` ni `test.only`. Commit `test(027): e2e de gastos no deducibles`.
+
+## T21a · [x] Sin palabra clave no hay hallazgo R-GP (backend · sonnet)
+- **Contexto (leer solo esto)**: decisión del usuario 2026-11-22 (spec D-7, CA-18), `packages/domain/src/reglas/r-gp.ts`, `gastos/puntaje.ts`, `reglas/r-gp-027.spec.ts`, pruebas 027 de backend, worker y E2E de la grilla.
+- **Hacer**: R-GP exige S1 además de `puntaje ≥ umbral`; S2…S7 solo ajustan el puntaje (`puntuarGastoPersonal` no cambia). `palabra: null` queda en el contrato solo para leer hallazgos guardados. Ajustar las pruebas que fijaban el comportamiento viejo sin quitar casos.
+- **Resultado**: `r-gp.ts` corta sin palabra; `r-gp-027.spec.ts` (5 casos cambiados al nuevo comportamiento y 1 nuevo: S2 + S5 + S6 sin palabra no marca), `obtener-xml-027.int.spec.ts` (solo S2 → sin hallazgo) y un comentario de `contexto.int.spec.ts`. domain 3.572, shared 3.855, backend 1.365 y worker 554 unitarias; `test:int` backend gastos+archivos 494 y worker 027 51; `cobertura:gastos` de domain ≥ 90 %; E2E `gastos` 2/2 y `grilla-compras` 13/14: `:69` y `:235` vuelven a pasar sin cambios; falla `:268` («excluir y restaurar la zapatilla») porque desde f9883e8 (T13a) el diálogo modal «Aprender estas palabras» queda abierto tras excluir desde la fila y oculta el resumen; no es de R-GP, queda para el orquestador. Commit `fix(027): T21a sin palabra clave no hay hallazgo R-GP`.
 
 ## T22 · [ ] Prueba manual (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (CA), `docs/specs/019-docker-local/` (solo la sección de arranque), resultado de T22 de `docs/specs/026-prorrata-igv/tasks.md` (formato del informe).

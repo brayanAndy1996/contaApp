@@ -1,7 +1,9 @@
 // Spec 027 · T1 (rojo). R-GP completa en `evaluarReglas` (R-1, R-2, R-5, R-8, R-9, R-11; CA-1, CA-2, CA-10, CA-11; plan, Contratos: domain
 // `reglas/r-gp.ts`): con `ctx.gastos` puntúa y crea el hallazgo si `puntaje ≥ umbral`; sin `ctx.gastos` marca como 011 (diccionario del
-// contexto, umbral 3, sin CIIU, historial ni ajuste). Sugerencia `{tipo, palabra | null, categoria | null, puntaje, senales}`; explicación
+// contexto, umbral 3, sin CIIU, historial ni ajuste). Sugerencia `{tipo, palabra, categoria, puntaje, senales}`; explicación
 // fija «Posible gasto no deducible»; sin XML no se evalúa; la entrada no se muta. Cambia por contrato la forma que fijaba 011.
+// T21a (decisión del usuario 2026-11-22): sin palabra clave (S1) no hay hallazgo aunque S2…S7 alcancen el umbral; la forma con
+// `palabra: null` solo se lee de hallazgos guardados antes.
 import { beforeEach, describe, expect, it } from "vitest";
 import { detalleMixta } from "../../tests/ayudas/ubl";
 import { ctx, de, evaluar, fila, montos, unico, xml } from "../../tests/ayudas/filas-motor";
@@ -98,20 +100,31 @@ describe("R-GP completa · umbral (R-11, CA-10)", () => {
     expect(gp(f, conGastos(gastosCa1({ umbral }))) !== undefined).toBe(marca);
   });
 
-  it("umbral 1: basta el proveedor nuevo (S5): hallazgo sin palabra ni categoría", () => {
-    const h = gp(filaCon(["servicio de cemento"]), conGastos(contextoNeutro({ umbral: 1 }), { proveedoresConocidos: [] }));
-    expect(sug(h)).toMatchObject({ tipo: "excluir", palabra: null, categoria: null, puntaje: 1 });
-    expect(senales(h)).toEqual(["S5"]);
+  it("umbral 1 con solo el proveedor nuevo (S5, puntaje 1): sin palabra no hay hallazgo (T21a)", () => {
+    const g = contextoNeutro({ umbral: 1 });
+    expect(gp(filaCon(["servicio de cemento"]), conGastos(g, { proveedoresConocidos: [] }))).toBeUndefined();
+    const r = puntuarGastoPersonal(entrada({ glosas: ["servicio de cemento"], fechaEmision: null, proveedor: { ...PROV_MOTOR }, esNuevo: true }), g);
+    expect(r).toMatchObject({ puntaje: 1, palabra: null, categoria: null });
+    // Con palabra, el mismo umbral 1 sí marca.
+    expect(senales(gp(filaCon(["zapatillas"]), conGastos(g, { proveedoresConocidos: [] })))).toEqual(["S1", "S5"]);
   });
 
   it("umbral 3 con un puntaje de 1 (sin palabra): no hay hallazgo", () => {
     expect(gp(filaCon(["servicio de cemento"]), conGastos(contextoNeutro({ umbral: 3 }), { proveedoresConocidos: [] }))).toBeUndefined();
   });
 
-  it("sin palabra pero con S2 (+3) y umbral 3: hallazgo con palabra y categoría nulas", () => {
-    const h = gp(filaCon(["servicio de cemento"], FECHA_HABIL), conGastos(gastosCa1()));
-    expect(sug(h)).toMatchObject({ palabra: null, categoria: null, puntaje: 3 });
-    expect(senales(h)).toEqual(["S2"]);
+  it("sin palabra pero con S2 (+3) y umbral 3: NO hay hallazgo (T21a: el rubro solo no marca)", () => {
+    const g = gastosCa1();
+    expect(gp(filaCon(["servicio de cemento"], FECHA_HABIL), conGastos(g))).toBeUndefined();
+    const r = puntuarGastoPersonal(entrada({ glosas: ["servicio de cemento"], proveedor: { ...PROV_MOTOR } }), g);
+    expect(r).toMatchObject({ puntaje: 3, palabra: null, categoria: null });
+    expect(r.senales.map((s) => s.codigo)).toEqual(["S2"]);
+  });
+
+  it("sin palabra, S2 + S5 + S6 (puntaje 8) con umbral 3: NO hay hallazgo (T21a)", () => {
+    const historial = [{ proveedor: { ...PROV_MOTOR }, aceptadas6: 0, excluidas6: 2, excluidas12: 2 }];
+    const c = conGastos(gastosCa1({ historial }), { proveedoresConocidos: [] });
+    expect(gp(filaCon(["servicio de cemento"], FECHA_HABIL), c)).toBeUndefined();
   });
 });
 
@@ -130,16 +143,18 @@ describe("R-GP completa · historial y fecha en el hallazgo (CA-2, S4)", () => {
     expect(gp(f, conGastos(g))).toBeUndefined();
   });
 
-  it("la fecha de emisión del XML alimenta S4: un restaurante en sábado o feriado suma +1", () => {
+  it("la fecha de emisión del XML alimenta S4: un restaurante en sábado o feriado suma +1 a una compra con palabra", () => {
     const g = (umbral: number) =>
       contextoGastos({ umbral, ciiuCliente: null, ciiuProveedores: [{ proveedor: { ...PROV_MOTOR }, ciiu: "5610" }] });
     for (const fecha of [FECHA_SABADO, FECHA_FERIADO]) {
-      const h = gp(filaCon(["servicio de cemento"], fecha), conGastos(g(1)));
-      expect(sug(h)).toMatchObject({ puntaje: 1 });
-      expect(senales(h)).toEqual(["S4"]);
+      const h = gp(filaCon(["zapatillas"], fecha), conGastos(g(4)));
+      expect(sug(h)).toMatchObject({ puntaje: 4 });
+      expect(senales(h)).toEqual(["S1", "S4"]);
+      // S4 sola (sin palabra) no marca, ni con umbral 1 (T21a).
+      expect(gp(filaCon(["servicio de cemento"], fecha), conGastos(g(1)))).toBeUndefined();
     }
-    expect(gp(filaCon(["servicio de cemento"], FECHA_HABIL), conGastos(g(1)))).toBeUndefined();
-    expect(gp(filaCon(["servicio de cemento"]), conGastos(g(1)))).toBeUndefined(); // sin fecha en el XML: sin S4
+    expect(gp(filaCon(["zapatillas"], FECHA_HABIL), conGastos(g(4)))).toBeUndefined();
+    expect(gp(filaCon(["zapatillas"]), conGastos(g(4)))).toBeUndefined(); // sin fecha en el XML: sin S4
   });
 });
 
@@ -186,7 +201,7 @@ describe("R-GP completa · `ctx.gastos` ausente marca como 011", () => {
     const soloTornillo = DiccionarioGlosas.desde([{ categoria: "ferreteria", palabras: ["tornillo"] }]);
     const c = conGastos(gastosCa1({ diccionario: diccionarioSemilla() }), { diccionario: soloTornillo });
     expect(sug(gp(filaCon(["zapatillas urbanas"], FECHA_HABIL), c)).palabra).toBe("zapatilla");
-    // Sin CIIU del proveedor (sin S2): S2 sola (+3) ya alcanza el umbral 3 y marcaría la compra sin palabra.
+    // Sin palabra no hay hallazgo (T21a); además, sin CIIU del proveedor no hay S2.
     const sinS2 = conGastos(gastosCa1({ diccionario: diccionarioSemilla(), ciiuProveedores: [] }), { diccionario: soloTornillo });
     expect(gp(filaCon(["tornillos de 2 pulgadas"], FECHA_HABIL), sinS2)).toBeUndefined();
   });
@@ -250,11 +265,13 @@ describe("R-GP completa · contexto estricto (CA-6)", () => {
 describe("R-GP completa · aplicar y obsolescencia (D-5, R-1)", () => {
   const m = montos("PEN", { biDg: "100.00", igvDg: "18.00", total: "118.00" });
 
-  it("aplicar excluye y deja los montos intactos, también cuando no hay palabra (solo S2)", () => {
-    const f = fila({ montos: m, xml: xml({ glosas: ["servicio de cemento"], fechaEmision: FECHA_HABIL } as never) });
+  it("aplicar excluye y deja los montos intactos; sin palabra (solo S2) no hay hallazgo que aplicar (T21a)", () => {
     const contexto = conGastos(gastosCa1());
+    const sinPalabra = fila({ montos: m, xml: xml({ glosas: ["servicio de cemento"], fechaEmision: FECHA_HABIL } as never) });
+    expect(de(evaluar([sinPalabra], contexto).hallazgos, "R-GP")).toEqual([]);
+    const f = fila({ montos: m, xml: xml({ glosas: ["ZAPATILLA URBANA T42"], fechaEmision: FECHA_HABIL } as never) });
     const h = unico(evaluar([f], contexto).hallazgos, "R-GP");
-    expect(sug(h).palabra).toBeNull();
+    expect(sug(h).palabra).toBe("zapatilla");
     const r = aplicarSugerencia(m, h, undefined, { filas: [f], contexto });
     expect(r.excluir).toBe(true);
     expect(JSON.stringify(r.montos)).toBe(JSON.stringify(m));
@@ -292,13 +309,14 @@ describe("lectores de 014/016 con la forma nueva (y la vieja sigue legible)", ()
     enMasa: false,
   });
 
-  it("`hallazgoAJson` conserva puntaje y señales (y la palabra nula) al guardar", () => {
-    const h = unico(evaluar([filaCon(["servicio de cemento"], FECHA_HABIL)], conGastos(gastosCa1())).hallazgos, "R-GP");
+  it("`hallazgoAJson` conserva puntaje, señales y palabra al guardar (sin palabra ya no hay hallazgo, T21a)", () => {
+    expect(de(evaluar([filaCon(["servicio de cemento"], FECHA_HABIL)], conGastos(gastosCa1())).hallazgos, "R-GP")).toEqual([]);
+    const h = unico(evaluar([filaCon(["ZAPATILLA URBANA T42"], FECHA_HABIL)], conGastos(gastosCa1())).hallazgos, "R-GP");
     const j = hallazgoAJson(h);
     expect(j.regla).toBe("R-GP");
     expect(j.requiereConfirmacion).toBe(true);
     expect(j.sugerencia).toEqual(h.sugerencia);
-    expect(j.sugerencia).toMatchObject({ tipo: "excluir", palabra: null, categoria: null, puntaje: 3 });
+    expect(j.sugerencia).toMatchObject({ tipo: "excluir", palabra: "zapatilla", categoria: "calzado-ropa", puntaje: 8 });
   });
 
   it("`detallarHallazgo` da la explicación fija con la forma nueva, con y sin palabra", () => {

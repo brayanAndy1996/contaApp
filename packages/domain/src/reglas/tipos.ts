@@ -130,8 +130,9 @@ export interface SugerenciaClasificar {
   tipo: "clasificar";
 }
 /**
- * R-GP (027, D-1): `palabra` y `categoria` son las de S1 (null sin palabra clave), `puntaje` la suma de `senales`. Un hallazgo
- * guardado antes de 027 no trae `puntaje` ni `senales` (se sigue leyendo).
+ * R-GP (027, D-1): `palabra` y `categoria` son las de S1, `puntaje` la suma de `senales`. Desde T21a (decisión del usuario
+ * 2026-11-22) no hay hallazgo sin S1, así que la evaluación ya no produce `palabra` null; el tipo lo admite para leer hallazgos
+ * guardados antes. Un hallazgo guardado antes de 027 no trae `puntaje` ni `senales` (se sigue leyendo).
  */
 export interface SugerenciaExcluir {
   tipo: "excluir";
