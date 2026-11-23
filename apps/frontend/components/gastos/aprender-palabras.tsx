@@ -26,6 +26,9 @@ interface Fila {
   incluir: boolean;
   termino: string;
   categoria: string;
+  /** Término propuesto y sus frases de excepción sugeridas (H-027-2-3): solo valen si el término no se corrigió. */
+  original: string;
+  excepciones: string[];
 }
 
 export function AprenderPalabras({
@@ -60,7 +63,15 @@ export function AprenderPalabras({
       .then((r) => {
         if (!vigente) return;
         if (r.ok && r.datos.terminos.length > 0) {
-          setFilas(r.datos.terminos.map((termino) => ({ incluir: false, termino, categoria: "" })));
+          setFilas(
+            r.datos.terminos.map((termino) => ({
+              incluir: false,
+              termino,
+              categoria: "",
+              original: termino,
+              excepciones: Object.hasOwn(r.datos.excepciones ?? {}, termino) ? r.datos.excepciones![termino]! : [],
+            })),
+          );
         } else {
           terminar();
         }
@@ -89,7 +100,11 @@ export function AprenderPalabras({
     setOcupado(true);
     try {
       const r = await aprenderPalabras(clienteId, periodo, fila.id, {
-        terminos: marcadas.map((f) => ({ termino: f.termino.trim(), categoria: f.categoria as CategoriaGnd })),
+        terminos: marcadas.map((f) => ({
+          termino: f.termino.trim(),
+          categoria: f.categoria as CategoriaGnd,
+          ...(f.excepciones.length > 0 && f.termino === f.original ? { excepciones: f.excepciones } : {}),
+        })),
       });
       if (r.ok) setResultado(r.datos);
       else if (r.status !== 401) setError(r.mensaje);
@@ -110,8 +125,9 @@ export function AprenderPalabras({
           {filas.map((f, i) => (
             <li
               key={i}
-              className="flex min-w-0 flex-col gap-2 rounded-control border border-linea p-3 sm:flex-row sm:items-center"
+              className="flex min-w-0 flex-col gap-2 rounded-control border border-linea p-3"
             >
+              <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
               <input
                 type="checkbox"
                 aria-label={M.incluirTermino(i + 1)}
@@ -143,6 +159,10 @@ export function AprenderPalabras({
                   </option>
                 ))}
               </Select>
+              </div>
+              {f.excepciones.length > 0 && f.termino === f.original && (
+                <p className="m-0 text-xs text-tinta-media">{M.excepcionesSugeridas(f.excepciones)}</p>
+              )}
             </li>
           ))}
         </ul>

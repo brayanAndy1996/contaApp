@@ -30,6 +30,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → cobe
 | T18 | Ronda adversarial 2: normalización y excepciones, puntaje y determinismo, entradas, texto no confiable, rendimiento (≤ 15 pruebas) | adversario | opus | T17 | — | ✓ | [x] |
 | T19 | Pruebas de las correcciones de la ronda 2 (rojo) | tester | sonnet | T18 | ✓ | — | [x] |
 | T20 | Corregir los hallazgos de la ronda 2 (migración 0072 si hace falta) | backend | opus | T19 | — | — | [ ] |
+| T20b | Frontend: «Aprender estas palabras» con frases de excepción (H-027-2-3) y ofertas seguidas (H-027-2-9) | frontend | sonnet | T19 ∥ T20 | ✓ | — | [x] |
 | T21 | E2E: zapatillas → chip y lupa → excluir → aprender → volver a evaluar | tester | sonnet | T11, T12, T13 ∥ T15–T20 | — | — | [ ] |
 | T21a | Dominio: sin palabra clave (S1) no hay hallazgo R-GP (decisión del usuario tras la E2E, spec D-7); ajustar spec, plan y pruebas | backend | sonnet | T21 ∥ T13a | ✓ | — | [x] |
 | T22 | Prueba manual con el sistema levantado y adaptadores en `mock` | tester | sonnet | T20, T21 | — | — | [ ] |
@@ -194,6 +195,10 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: hallazgos de T18, pruebas de T18 y T19, solo los archivos que señalan.
 - **Hacer**: como T17, con la migración **0072** si hace falta (y T20b, frontend · sonnet, si hay pantalla).
 - **Hecho cuando**: las de T18 y T19 pasan; las suites de los paquetes tocados siguen verdes. Commit `fix(027): hallazgos de la ronda adversarial 2`.
+
+## T20b · [x] Pantalla de aprender: excepciones y ofertas seguidas (frontend · sonnet)
+- **Contexto (leer solo esto)**: resultado de T18/T19 (H-027-2-9 y la parte de pantalla de H-027-2-3), `anfitrion-aprender.tsx`, `aprender-palabras.tsx`, `packages/shared/src/gastos/{esquemas,vistas}.ts`.
+- **Resultado**: `AnfitrionAprender` guarda la oferta vigente en un ref: al llegar otra, la reemplazada llama su `alCerrar` una vez y su respuesta tardía no abre diálogo (el `key` la desmonta; un `alCerrar` de oferta no vigente se ignora). `AprenderPalabras` muestra bajo cada término sus frases de excepción sugeridas y las manda como `terminos[].excepciones` solo si el término está marcado y no se corrigió. Shared: `propuestaAprenderVistaSchema` suma `excepciones?: {[termino]: string[]}` y `aprenderSchema` suma `terminos[].excepciones?` (mismas reglas que `POST /palabras`); no se tocó backend, domain ni db. Shared 3.855/3.855, frontend 1.575/1.575, typecheck y lint limpios en ambos. Commit `fix(027): T20b pantalla de aprender con excepciones y ofertas seguidas`.
 
 ## T21 · [ ] E2E (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (CA-1, CA-9, CA-12, CA-17, casos reales), `tests/e2e/flujos/prorrata.e2e.ts` (modelo, sin editarlo), `tests/e2e/soporte/{siembra,cola,api}.ts`, `tests/e2e/soporte/selectores/compras.ts`, `fixtures/xml/20700000070-01-F001-5070.xml`, `fixtures/ruc/ciiu.json`.

@@ -85,13 +85,17 @@ export const categoriasClienteSchema = z
   });
 export type CategoriasCliente = z.infer<typeof categoriasClienteSchema>;
 
-/** POST …/gastos/aprender/:compraId: de 1 a 10 términos con su categoría (obligatoria). */
+/** POST …/gastos/aprender/:compraId: de 1 a 10 términos con su categoría (obligatoria) y, si aplica, sus frases de excepción. */
 export const aprenderSchema = z
   .object({
     terminos: z
       .array(
         z
-          .object({ termino: palabraSchema, categoria: categoriaGndSchema })
+          .object({
+            termino: palabraSchema,
+            categoria: categoriaGndSchema,
+            excepciones: excepcionesSchema.optional(),
+          })
           .strict(),
       )
       .min(1)

@@ -179,6 +179,7 @@ export const MENSAJES_GASTOS = {
   aprender: "Aprender palabras",
   ahoraNo: "Ahora no",
   cerrar: "Cerrar",
+  excepcionesSugeridas: (frases: readonly string[]) => `No aplica si el ítem dice: ${frases.join(", ")}.`,
   ningunaMarcada: "Marca al menos una palabra.",
   categoriaObligatoria: "Elige una categoría para cada palabra marcada.",
   terminoInvalido: "Cada término debe ser una sola palabra de 3 a 40 letras o números.",

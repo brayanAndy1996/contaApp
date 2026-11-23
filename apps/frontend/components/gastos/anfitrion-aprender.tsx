@@ -1,7 +1,7 @@
 "use client";
 
 import type { FilaCompraVista } from "@contapp/shared";
-import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
 import type { ContextoCompras } from "../../lib/compras";
 import { AprenderPalabras } from "./aprender-palabras";
 
@@ -29,7 +29,18 @@ export function useOfrecerAprender(): Ofrecer | null {
 
 export function AnfitrionAprender({ children }: { children: ReactNode }) {
   const [oferta, setOferta] = useState<(OfertaAprender & { n: number }) | null>(null);
-  const ofrecer = useCallback<Ofrecer>((nueva) => setOferta((previa) => ({ ...nueva, n: (previa?.n ?? 0) + 1 })), []);
+  // La oferta vigente vive también en un ref: al llegar otra mientras la primera aún carga, la reemplazada avisa UNA vez
+  // (H-027-2-9; nadie queda esperando su `alCerrar`) y su respuesta tardía no abre diálogo (el `key` desmonta su `AprenderPalabras`).
+  const vigente = useRef<{ n: number; alCerrar: () => void } | null>(null);
+  const contador = useRef(0);
+  const ofrecer = useCallback<Ofrecer>((nueva) => {
+    const reemplazada = vigente.current;
+    contador.current += 1;
+    const n = contador.current;
+    vigente.current = { n, alCerrar: nueva.alCerrar };
+    setOferta({ ...nueva, n });
+    reemplazada?.alCerrar();
+  }, []);
 
   return (
     <Anfitrion.Provider value={ofrecer}>
@@ -40,6 +51,8 @@ export function AnfitrionAprender({ children }: { children: ReactNode }) {
           contexto={oferta.contexto}
           fila={oferta.fila}
           alCerrar={() => {
+            if (vigente.current?.n !== oferta.n) return;
+            vigente.current = null;
             setOferta(null);
             oferta.alCerrar();
           }}

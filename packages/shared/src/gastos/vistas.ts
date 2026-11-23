@@ -69,9 +69,15 @@ export type CategoriasClienteVista = z.infer<
   typeof categoriasClienteVistaSchema
 >;
 
-/** GET …/gastos/aprender/:compraId: términos propuestos (0 a 10). */
+/**
+ * GET …/gastos/aprender/:compraId: términos propuestos (0 a 10) y, solo para los que tienen, sus frases de excepción
+ * sugeridas (H-027-2-3: «medias» → «media pulgada»). La clave `excepciones` falta si ningún término las tiene.
+ */
 export const propuestaAprenderVistaSchema = z.object({
   terminos: palabrasCortas,
+  excepciones: z
+    .record(z.string(), z.array(z.string()).min(1).max(MAX_EXCEPCIONES))
+    .optional(),
 });
 export type PropuestaAprenderVista = z.infer<
   typeof propuestaAprenderVistaSchema
