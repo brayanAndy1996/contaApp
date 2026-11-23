@@ -21,6 +21,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → cobe
 | T12a | Corregir el soporte de las pruebas HTTP de T6 que T12 encontró: historial real del proveedor (`conocidos`), conteo de `compras.reevaluar` en CA-3, `antesE` tras la escritura de control y escenario sin CIIU del proveedor al desactivar «zapatilla» (solo pruebas) | tester | sonnet | T12 ∥ T12b | ✓ | — | [x] |
 | T12b | Corregir el dominio de T8 que T12 encontró: `categoria` en la señal S1 y `fechaEmision` opcional en `prevalidacion/entrada.ts` (`leerXml`); quitar el parche de `archivos/previo.ts` | backend | sonnet | T12 ∥ T12a | ✓ | — | [x] |
 | T13 | Frontend: pantallas de 027 | frontend | sonnet | T7, T9 ∥ T10–T12 | ✓ | — | [x] |
+| T13a | Frontend: «Aprender estas palabras» al excluir desde el menú de la fila (defecto de T21) | frontend | sonnet | T13, T21 | ✓ | — | [x] |
 | T14 | Cobertura ≥ 90 % por archivo: `cobertura:gastos` y paso en CI | devops | haiku | T8, T10, T11, T12 ∥ T13 | — | — | [x] |
 | T14a | Pruebas que llevan `cobertura:gastos` al 90 % por archivo (db, backend y worker; solo pruebas y la config de db) | tester | sonnet | T14 ∥ T13 | — | — | [x] |
 | T15 | Ronda adversarial 1: aislamiento, permisos, plataforma, funciones acotadas, límite y concurrencia, cola (≤ 15 pruebas) | adversario | opus | T11, T12, T14 ∥ T13, T21 | — | ✓ | [ ] |
@@ -132,6 +133,11 @@ Reglas comunes:
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: Frontend), pruebas de T7, `docs/specs/038-diseno-visual/plan.md` (solo «Tokens del estilo A» y la lista de componentes), `apps/frontend/components/ui/index.ts`, `apps/frontend/lib/{api,trabajos,auditoria}.ts`, `apps/frontend/components/reglas/{reglas-motor,tabla-reglas-cliente}.tsx`, `apps/frontend/components/compras/{lupa-compra,excluir-compra,grilla-compras,estado-periodo}.tsx`, `apps/frontend/app/(plataforma)/admin/planes/page.tsx`.
 - **Hacer**: `components/gastos/*.tsx`, `lib/gastos.ts`, integración en las páginas de reglas, compras y plataforma, textos de las acciones de auditoría. Nada de `dangerouslySetInnerHTML`; mensajes de 403/409 en español.
 - **Hecho cuando**: las de T7 pasan; las del frontend y `diseno.estatico.spec.ts` siguen verdes; typecheck y lint limpios. Commit `feat(027): pantallas de gastos no deducibles`.
+
+## T13a · [x] Aprender palabras al excluir desde la grilla (frontend · sonnet)
+- **Contexto (leer solo esto)**: `apps/frontend/components/compras/{acciones-fila-compras,excluir-compra}.tsx`, `components/gastos/aprender-palabras.tsx`, `app/(app)/clientes/[clienteId]/compras/page.tsx`, `tests/e2e/flujos/gastos.e2e.ts`.
+- **Hacer**: al excluir desde el menú «Acciones» de una fila, la compra sale de «Con IGV» y se desmonta la fila con su `ExcluirCompra` y el diálogo de aprender. `components/gastos/anfitrion-aprender.tsx` (nuevo) monta el diálogo por encima de la grilla y la lupa; `ExcluirCompra` se lo delega con `useOfrecerAprender()` (sin anfitrión sigue mostrándolo él, y su contrato no cambia: `alTerminar` solo al cerrar el diálogo, o de inmediato sin permiso o sin propuesta). La página de compras monta el anfitrión. La E2E de gastos excluye desde la lupa (y restaura) y desde el menú de la fila.
+- **Resultado**: prueba nueva `acciones-fila-compras.aprender.spec.tsx` (2 casos; el feliz en rojo antes del arreglo); frontend 1.566/1.566, typecheck y lint limpios, E2E `gastos` 2/2. Commit `fix(027): T13a aprender palabras al excluir desde la grilla`.
 
 ## T14 · [x] Cobertura (devops · haiku)
 - **Contexto (leer solo esto)**: `package.json` (raíz: `cobertura:prorrata` como modelo), `.github/workflows/ci.yml` (paso de `cobertura:prorrata`, línea ~170), los cinco `vitest.cobertura-prorrata.config.mts` (`packages/{domain,sunat,db}`, `apps/{backend,worker}`).

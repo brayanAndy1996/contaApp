@@ -3,7 +3,7 @@
 // XML simulados y el worker real. La compra F001-5070 es de «PRUEBA PROVEEDOR CALZADO» (CIIU 4771) con la glosa «Par de
 // zapatillas deportivas de prueba».
 //  1. Descarga de compras → XML de F001-5070 → chip «Posible gasto no deducible» → lupa con las señales «palabra clave:
-//     zapatilla», «rubro del proveedor no relacionado» y «categoría no permitida para el giro» → excluir con motivo →
+//     zapatilla», «rubro del proveedor no relacionado» y «categoría no permitida para el giro» → excluir (desde la lupa y desde el menú de la fila) →
 //     «Aprender estas palabras» propone «deportivas», se corrige a «deportiva» en calzado-ropa → «Volver a evaluar» marca
 //     otra compra del periodo (F001-5071, agregada desde un XML con «deportiva») sin crear versiones.
 //  2. Lectura ve el chip y la lupa con las señales, sin «Volver a evaluar» ni acciones de escritura.
@@ -137,11 +137,31 @@ test("zapatillas → chip y lupa → excluir → aprender → volver a evaluar m
     await expect(lupa).toBeHidden();
   });
 
-  await test.step("excluir con motivo y «Aprender estas palabras»: «deportivas» se corrige a «deportiva» en calzado-ropa (CA-9)", async () => {
-    // Se excluye desde la lupa: desde el menú de la fila la compra sale de la lista y el diálogo de aprender se desmonta
-    // antes de verse (defecto de pantalla informado en T21, no se corrige aquí).
+  await test.step("excluir desde la lupa también ofrece «Aprender estas palabras»; «Ahora no» deja la compra excluida y se restaura (CA-9)", async () => {
     const lupa = await abrirLupaConEnter(page, "F001-5070");
     await abrirMenuAccionesLupa(lupa, "F001-5070");
+    await page.getByRole("menuitem", { name: "Excluir", exact: true }).click();
+    const excluirLupa = page.getByRole("dialog", { name: "Excluir F001-5070" });
+    await excluirLupa.getByRole("button", { name: "Excluir", exact: true }).click();
+    const ofrecido = dialogoAprender(page);
+    await expect(ofrecido).toBeVisible();
+    await ofrecido.getByRole("button", { name: "Ahora no" }).click();
+    await expect(ofrecido).toHaveCount(0);
+    await lupa.getByRole("button", { name: "Cerrar comprobante" }).click();
+    await expect(lupa).toBeHidden();
+
+    await page.getByRole("radio", { name: "Excluidas" }).check();
+    await expect(fila(page, "F001-5070")).toContainText("Excluida");
+    await page.getByRole("button", { name: "Acciones F001-5070" }).click();
+    await page.getByRole("menuitem", { name: "Restaurar", exact: true }).click();
+    await expect(fila(page, "F001-5070")).toHaveCount(0);
+    await page.getByRole("radio", { name: "Con IGV" }).check();
+    await expect(chipGasto(page, "F001-5070")).toBeVisible();
+  });
+
+  await test.step("excluir con motivo desde el menú «Acciones» de la fila y «Aprender estas palabras»: «deportivas» se corrige a «deportiva» en calzado-ropa (CA-9, T13a)", async () => {
+    // La compra sale de «Con IGV» al excluirla y su fila se desmonta: el diálogo lo ofrece la pantalla, no la fila.
+    await page.getByRole("button", { name: "Acciones F001-5070" }).click();
     await page.getByRole("menuitem", { name: "Excluir", exact: true }).click();
     const excluir = page.getByRole("dialog", { name: "Excluir F001-5070" });
     await excluir.getByLabel("Motivo (opcional)").fill(MOTIVO);
@@ -178,8 +198,6 @@ test("zapatillas → chip y lupa → excluir → aprender → volver a evaluar m
     ).toBeVisible();
     await aprender.getByRole("button", { name: "Cerrar", exact: true }).click();
     await expect(aprender).toHaveCount(0);
-    await lupa.getByRole("button", { name: "Cerrar comprobante" }).click();
-    await expect(lupa).toBeHidden();
 
     // La zapatilla excluida quedó en «Excluidas» con su motivo; la API da la versión excluida (nunca por el sistema solo).
     await page.getByRole("radio", { name: "Excluidas" }).check();

@@ -17,6 +17,7 @@ import {
   type AlAvisar,
 } from "./accion-compras";
 import { useErrorAnunciado } from "./aviso-unico";
+import { useOfrecerAprender } from "../gastos/anfitrion-aprender";
 import { AprenderPalabras } from "../gastos/aprender-palabras";
 
 // Excluir una compra (spec 015, D-10, HU-17): motivo opcional de hasta 200 caracteres en una línea. Excluir una
@@ -44,6 +45,8 @@ export function ExcluirCompra({
   const { avisarError, rolDe } = useErrorAnunciado(alAvisar);
   const [ocupado, setOcupado] = useState(false);
   const [aprender, setAprender] = useState(false);
+  // T13a: con anfitrión (la pantalla de compras) el diálogo no vive aquí, porque esta fila se desmonta al excluir.
+  const ofrecer = useOfrecerAprender();
   const campo = useRef<HTMLInputElement>(null);
   const comprobante = comprobanteDe(fila);
 
@@ -75,8 +78,11 @@ export function ExcluirCompra({
       if (r.ok) {
         await recargarTrasExito(contexto, fila.id);
         alAvisar?.(M.compraExcluida, "ok");
-        if (contexto.permisos.gestionarReglas === true) setAprender(true);
-        else alTerminar();
+        if (contexto.permisos.gestionarReglas !== true) alTerminar();
+        else if (ofrecer) {
+          ofrecer({ contexto, fila, alCerrar: alTerminar });
+          setAprender(true);
+        } else setAprender(true);
         return;
       }
       await recargarTrasError(contexto, fila.id, r);
@@ -89,7 +95,9 @@ export function ExcluirCompra({
     setOcupado(false);
   }
 
-  if (aprender) return <AprenderPalabras contexto={contexto} fila={fila} alCerrar={alTerminar} />;
+  if (aprender) {
+    return ofrecer ? null : <AprenderPalabras contexto={contexto} fila={fila} alCerrar={alTerminar} />;
+  }
 
   return (
     <form
