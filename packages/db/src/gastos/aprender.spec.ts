@@ -11,13 +11,17 @@
 //       55000 cliente archivado, CA422 la versión vigente de la compra no está excluida, CA423 la compra no tiene XML vigente,
 //       CA421 si las nuevas pasan de 2.000 activas, 22023 (ningún término o más de 10, término fuera de ^[a-z0-9]{3,40}$, categoría fuera
 //       de las 6), 42501 sin usuario.
+//   T16 (H-027-1-1, decisión 2026-11-23): el plural simple (+s / +es) cuenta como la MISMA palabra en ambos sentidos: un término cuya otra
+//       forma ya existe (propia activa o no, global activa no desactivada por el estudio, o antes en la misma lista) se omite y se informa.
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { aprender, leerGastosEstudio } from "./index";
 import {
   PROVEEDOR,
   abrirArnes,
+  desactivarGlobalDelEstudio,
   falla,
+  idGlobal,
   pruebasTraduccion,
   sembrarCompra,
   sembrarPropia,
@@ -467,3 +471,100 @@ pruebasTraduccion([
       }),
   ],
 ]);
+
+// Spec 027 · T16 (rojo; H-027-1-1, decisión del usuario 2026-11-23): `gnd_aprender` trata la otra forma (singular o plural simple, +s / +es)
+// de una palabra existente como duplicada. Hoy solo compara igualdad exacta: guarda «audifono» aunque ya exista «audifonos».
+describe("aprender: plural en ambos sentidos (T16, H-027-1-1)", () => {
+  it.each([
+    ["audifonos", "audifono"],
+    ["audifono", "audifonos"],
+    ["pantalones", "pantalon"],
+    ["pantalon", "pantalones"],
+  ])("propia «%s» activa: el término «%s» se omite (otra forma) y el resto se guarda", async (existente, nuevo) => {
+    const e = await h.nuevoEstudio();
+    const { cliente, compra } = await compraExcluidaConXml(e);
+    await sembrarPropia(h.admin, e, { palabra: existente, categoria: "juguetes" });
+    const r = await guardar(cliente.id, compra.id, [termino(nuevo), termino("bluetooth")], e);
+    expect(r).toEqual({ guardadas: ["bluetooth"], omitidas: [nuevo] });
+    expect((await propias(e)).map((p) => p.palabra)).toEqual([existente, "bluetooth"].sort()); // `propias` viene por palabra
+  });
+
+  it("propia desactivada en la otra forma: también se omite (como la misma palabra exacta desactivada)", async () => {
+    const e = await h.nuevoEstudio();
+    const { cliente, compra } = await compraExcluidaConXml(e);
+    await sembrarPropia(h.admin, e, { palabra: "audifono", activa: false });
+    const r = await guardar(cliente.id, compra.id, [termino("audifonos")], e);
+    expect(r).toEqual({ guardadas: [], omitidas: ["audifonos"] });
+    expect(await propias(e)).toHaveLength(1);
+  });
+
+  it("global activa en la otra forma («zapatillas» y «polos» con las globales «zapatilla» y «polo»): se omiten; la categoría pedida no cambia nada", async () => {
+    const e = await h.nuevoEstudio();
+    const { cliente, compra } = await compraExcluidaConXml(e);
+    const r = await guardar(cliente.id, compra.id, [termino("zapatillas"), termino("polos", "juguetes"), termino("bluetooth")], e);
+    expect(r).toEqual({ guardadas: ["bluetooth"], omitidas: ["zapatillas", "polos"] });
+    expect((await propias(e)).map((p) => p.palabra)).toEqual(["bluetooth"]);
+  });
+
+  it("global desactivada por el estudio: la otra forma sí se guarda (la global ya no cuenta)", async () => {
+    const e = await h.nuevoEstudio();
+    const { cliente, compra } = await compraExcluidaConXml(e);
+    await desactivarGlobalDelEstudio(h.admin, e, await idGlobal(h.admin, "zapatilla"));
+    const r = await guardar(cliente.id, compra.id, [termino("zapatillas")], e);
+    expect(r).toEqual({ guardadas: ["zapatillas"], omitidas: [] });
+  });
+
+  it("dos formas en la misma lista: se guarda la primera y la otra se omite, en cualquier orden", async () => {
+    const e = await h.nuevoEstudio();
+    const { cliente, compra } = await compraExcluidaConXml(e);
+    expect(await guardar(cliente.id, compra.id, [termino("audifonos"), termino("audifono")], e)).toEqual({
+      guardadas: ["audifonos"],
+      omitidas: ["audifono"],
+    });
+    const f = await h.nuevoEstudio();
+    const otra = await compraExcluidaConXml(f);
+    expect(await guardar(otra.cliente.id, otra.compra.id, [termino("pantalon"), termino("pantalones")], f)).toEqual({
+      guardadas: ["pantalon"],
+      omitidas: ["pantalones"],
+    });
+  });
+
+  it("aprender «audifonos» y luego «audifono» (otra llamada): la segunda omite todo y no queda la palabra en dos formas", async () => {
+    const e = await h.nuevoEstudio();
+    const { cliente, compra } = await compraExcluidaConXml(e);
+    await guardar(cliente.id, compra.id, [termino("audifonos")], e);
+    expect(await guardar(cliente.id, compra.id, [termino("audifono")], e)).toEqual({ guardadas: [], omitidas: ["audifono"] });
+    expect((await propias(e)).map((p) => p.palabra)).toEqual(["audifonos"]);
+  });
+
+  it("las omitidas por otra forma no cuentan para el límite de 2.000 ni se auditan", async () => {
+    const e = await h.nuevoEstudio();
+    const { cliente, compra } = await compraExcluidaConXml(e);
+    await sembrarPropiasEnBloque(h.admin, e, 1999);
+    await sembrarPropia(h.admin, e, { palabra: "audifonos" });
+    // 2.000 activas: lo único nuevo posible sería la 2.001; la otra forma es omitida, no CA421.
+    expect(await guardar(cliente.id, compra.id, [termino("audifono")], e)).toEqual({ guardadas: [], omitidas: ["audifono"] });
+    const n = await h.admin.query(
+      "select count(*)::int as n from auditoria where tenant_id = $1 and accion = 'gnd.palabra_aprendida'",
+      [e.tenantId],
+    );
+    expect(n.rows[0].n).toBe(0);
+  });
+
+  it("no se amplía a raíces ni prefijos: «lapices» con «lapiz», «audifonera» con «audifonos» y «polonia» con la global «polo» son palabras distintas", async () => {
+    const e = await h.nuevoEstudio();
+    const { cliente, compra } = await compraExcluidaConXml(e);
+    await sembrarPropia(h.admin, e, { palabra: "lapiz" });
+    await sembrarPropia(h.admin, e, { palabra: "audifonos" });
+    const r = await guardar(cliente.id, compra.id, [termino("lapices"), termino("audifonera"), termino("polonia")], e);
+    expect(r).toEqual({ guardadas: ["lapices", "audifonera", "polonia"], omitidas: [] });
+  });
+
+  it("la otra forma en otro estudio no omite: es otro diccionario", async () => {
+    const e1 = await h.nuevoEstudio();
+    const e2 = await h.nuevoEstudio();
+    await sembrarPropia(h.admin, e1, { palabra: "audifonos" });
+    const b = await compraExcluidaConXml(e2);
+    expect((await guardar(b.cliente.id, b.compra.id, [termino("audifono")], e2)).guardadas).toEqual(["audifono"]);
+  });
+});

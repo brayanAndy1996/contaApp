@@ -1,6 +1,7 @@
 // Spec 027 (T4, rojo): repositorio del diccionario del estudio, el umbral y las globales desactivadas (R-6, R-11, R-12, R-13; CA-7, CA-10,
 // CA-16). Contra la BD real con el backend (con y sin usuario), más una `tx` falsa para la traducción de errores. Necesita DATABASE_URL y
 // MIGRATIONS_DATABASE_URL: si faltan, FALLA (no se salta).
+// T16 (H-027-1-1, decisión 2026-11-23): agregar una palabra cuya otra forma (+s / +es) ya existe en el estudio es CA420, como la exacta.
 //
 // CONTRATO que fijan estas pruebas (lo implementa T10 en `packages/db/src/gastos/diccionario.ts`; llama a las funciones de 0070):
 //   leerGastosEstudio(tx) -> {umbral (3 sin fila), versionUmbral (0 sin fila), activasPropias, globales, propias}
@@ -498,3 +499,42 @@ pruebasTraduccion([
   ],
   ["fijarUmbral", (tx) => fijarUmbral(tx, { umbral: 5, version: 0 })],
 ]);
+
+// Spec 027 · T16 (rojo; H-027-1-1): `gnd_palabra_agregar` trata la otra forma de una palabra propia (activa o desactivada) como existente.
+describe("agregarPalabra: plural en ambos sentidos (T16, H-027-1-1)", () => {
+  it.each([
+    ["audifonos", "audifono"],
+    ["audifono", "audifonos"],
+    ["pantalones", "pantalon"],
+    ["pantalon", "pantalones"],
+  ])("propia «%s» activa: agregar «%s» -> CA420 y no guarda nada", async (existente, otra) => {
+    const e = await h.nuevoEstudio();
+    await sembrarPropia(h.admin, e, { palabra: existente });
+    expect((await falla(agregar(otra, "entretenimiento", undefined, e))).codigo).toBe("CA420");
+    expect((await vista(e)).propias.map((p) => p.palabra)).toEqual([existente]);
+  });
+
+  it("propia desactivada en la otra forma: también CA420 (desactivada cuenta como existente)", async () => {
+    const e = await h.nuevoEstudio();
+    await sembrarPropia(h.admin, e, { palabra: "parlantes", activa: false });
+    expect((await falla(agregar("parlante", "juguetes", undefined, e))).codigo).toBe("CA420");
+    expect((await vista(e)).propias).toHaveLength(1);
+  });
+
+  it("no se amplía a raíces ni prefijos: «lapiz» con «lapices», «audifonera» con «audifonos» y «polonia» con «polos» no chocan", async () => {
+    const e = await h.nuevoEstudio();
+    await sembrarPropia(h.admin, e, { palabra: "lapiz" });
+    await sembrarPropia(h.admin, e, { palabra: "audifonos" });
+    await sembrarPropia(h.admin, e, { palabra: "polos" });
+    for (const palabra of ["lapices", "audifonera", "polonia"]) {
+      await expect(agregar(palabra, "juguetes", undefined, e)).resolves.toMatch(UUID);
+    }
+  });
+
+  it("la otra forma en otro estudio no choca", async () => {
+    const e1 = await h.nuevoEstudio();
+    const e2 = await h.nuevoEstudio();
+    await sembrarPropia(h.admin, e1, { palabra: "audifonos" });
+    await expect(agregar("audifono", "juguetes", undefined, e2)).resolves.toMatch(UUID);
+  });
+});
