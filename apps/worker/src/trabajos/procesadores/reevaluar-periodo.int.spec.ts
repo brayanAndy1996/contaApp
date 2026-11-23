@@ -356,6 +356,71 @@ describe("R-12: solo en un periodo abierto", () => {
   });
 });
 
+describe("R-12 · H-027-2-8: dos «Volver a evaluar» a la vez sobre el mismo periodo", () => {
+  it("el primero se detiene a mitad, el segundo corre completo y el primero termina: ambos completos, sin 23505 ni 40P01 y todo con el diccionario nuevo", async () => {
+    const m = await mundoVentas(e, backend, { ruc: RUC_FIXTURE });
+    await sembrarCompras(admin, m, 450); // tres lotes de 200 (200 + 200 + 50)
+    await sembrarXmlMasivo(admin, m, 450);
+    await fijarEstadoPeriodo(admin, m, "abierto");
+    await sembrarCiiu(admin, m.T, RUC_FIXTURE, "4752");
+    const versiones = await contarVersiones(admin, m.c.id, PERIODO);
+
+    // Tras confirmar el primer lote del primer trabajo (evaluado con «zapatilla»), se agrega una palabra que marca las compras de
+    // todos los lotes y corre COMPLETO el segundo trabajo; después el primero retoma por el segundo lote.
+    let segundo: Intento | undefined;
+    const gancho = alConfirmarTrasSentencia(
+      (dbWorker as unknown as { pool: unknown }).pool,
+      /insert\s+into\s+compra_evaluacion/i,
+      async () => {
+        await sembrarPalabra(admin, m, "deportivas", { categoria: "entretenimiento" });
+        segundo = await correr(m);
+      },
+    );
+    let primero: Intento;
+    try {
+      primero = await correr(m);
+    } finally {
+      gancho.restaurar();
+    }
+
+    expect(gancho.disparos()).toBe(1);
+    expect(segundo, "el segundo trabajo corrió").toBeDefined();
+    for (const [nombre, x] of [["primero", primero], ["segundo", segundo!]] as const) {
+      const msg = x.error === undefined ? "" : `${nombre}: ${(x.error as { code?: string }).code ?? ""} ${x.error.name}`;
+      expect(x.error, msg).toBeUndefined();
+      expect(x.resultado!.detenido, `${nombre} no se detuvo`).toBe(false);
+      expect(x.resultado!.revisadas, `${nombre} revisó todas`).toBe(450);
+    }
+    // El primero solo re-evaluó el lote que ya tenía hecho; el resto lo encontró al día con el contexto del último pedido.
+    expect(primero.resultado!.cambiadas).toBe(200);
+    expect(segundo!.resultado!.cambiadas).toBe(450);
+    expect(await contarVersiones(admin, m.c.id, PERIODO), "ninguna versión nueva").toBe(versiones);
+
+    const repetidas = await admin.pool.query(
+      `select count(*)::int as n from (
+         select e.compra_id, e.version_n, e.n from compra_evaluacion e join compra c on c.id = e.compra_id
+          where c.cliente_id = $1 and c.periodo = $2 group by 1, 2, 3 having count(*) > 1) x`,
+      [m.c.id, PERIODO],
+    );
+    expect(repetidas.rows[0].n, "ninguna (compra, version_n, n) repetida").toBe(0);
+
+    // El hallazgo de la última evaluación de CADA compra es el del diccionario nuevo (y de cada compra hay una sola «última»).
+    const finales = await admin.pool.query(
+      `select c.id, ult.n, h.sugerencia->>'palabra' as palabra
+         from compra c
+         cross join lateral (select max(e.n) as n from compra_evaluacion e where e.compra_id = c.id and e.version_n = 1) ult
+         left join compra_hallazgo h on h.compra_id = c.id and h.regla = 'R-GP' and h.version_n = 1 and h.evaluacion_n = ult.n
+        where c.cliente_id = $1 and c.periodo = $2`,
+      [m.c.id, PERIODO],
+    );
+    expect(finales.rows).toHaveLength(450);
+    expect(finales.rows.filter((f: { palabra: string | null }) => f.palabra !== "deportivas")).toEqual([]);
+    expect(await contarEvaluacionesN(admin, m.c.id, PERIODO, 1)).toBe(450);
+    expect(await contarEvaluacionesN(admin, m.c.id, PERIODO, 2)).toBe(200);
+    expect(await contarEvaluacionesN(admin, m.c.id, PERIODO, 3), "ninguna evaluación de más").toBe(0);
+  });
+});
+
 describe("CA-15: volumen", () => {
   it("5.000 compras con XML se re-evalúan en menos de 20 s, todas con evaluación nueva y sin versiones nuevas", async () => {
     const m = await mundoVentas(e, backend, { ruc: RUC_FIXTURE });

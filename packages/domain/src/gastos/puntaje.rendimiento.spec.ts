@@ -1,5 +1,5 @@
 // Spec 027 · T1 (rojo). Rendimiento (CA-15, R-10): 5.000 compras × 20 ítems con 2.000 palabras propias no tardan más del doble que la
-// misma evaluación con la R-GP de 011 (mediana de 3). Fuera de cobertura (T14). Sin datos aleatorios: generador determinista.
+// misma evaluación con la R-GP de 011 (mínimo de 7 rondas intercaladas). Fuera de cobertura (T14). Sin datos aleatorios: generador determinista.
 import { describe, expect, it } from "vitest";
 import { MontosComprobante } from "../comprobante/index";
 import { Money } from "../dinero/index";
@@ -54,14 +54,34 @@ function glosasDeCompra(i: number, rnd: () => number): string[] {
 const rnd = generador(20261122);
 const COMPRAS_GLOSAS: string[][] = Array.from({ length: COMPRAS }, (_, i) => glosasDeCompra(i, rnd));
 
-function mediana(f: () => unknown): number {
-  f(); // calentamiento: el JIT no entra en la medición
-  const t = [0, 0, 0].map(() => {
-    const a = Date.now();
+const RONDAS = 7;
+const reloj = (globalThis as unknown as { performance: { now(): number } }).performance;
+
+/**
+ * Mide dos funciones de forma intercalada: calentamiento de ambas y luego RONDAS rondas en las que se alternan
+ * (y se invierte el orden en las rondas impares). Devuelve el mínimo de cada lado: el mínimo descarta los picos
+ * de la máquina cargada y, al intercalar, ambos lados ven la misma carga.
+ */
+function minimosIntercalados(a: () => unknown, b: () => unknown): { a: number; b: number } {
+  a();
+  b();
+  let minA = Infinity;
+  let minB = Infinity;
+  const cronometrar = (f: () => unknown): number => {
+    const t0 = reloj.now();
     f();
-    return Date.now() - a;
-  });
-  return t.sort((x, y) => x - y)[1]!;
+    return reloj.now() - t0;
+  };
+  for (let r = 0; r < RONDAS; r++) {
+    if (r % 2 === 0) {
+      minA = Math.min(minA, cronometrar(a));
+      minB = Math.min(minB, cronometrar(b));
+    } else {
+      minB = Math.min(minB, cronometrar(b));
+      minA = Math.min(minA, cronometrar(a));
+    }
+  }
+  return { a: minA, b: minB };
 }
 
 /** Referencia: el algoritmo de la R-GP de 011 (palabra × token, sin índice) con su diccionario base. */
@@ -84,16 +104,18 @@ describe("CA-15 · puntuar 5.000 compras × 20 ítems con 2.000 palabras propias
     const diccionario = crearDiccionarioEfectivo({ globales: SEMILLA_GLOBAL, desactivadas: [], propias });
     const ctx = contextoNeutro({ diccionario, ciiuCliente: "4752", ciiuProveedores: [{ proveedor: { ...PROV }, ciiu: "4771" }] });
     let marcadas = 0;
-    const nueva = mediana(() => {
-      marcadas = 0;
-      for (const glosas of COMPRAS_GLOSAS) {
-        const r = puntuarGastoPersonal({ glosas, fechaEmision: "2026-03-14", proveedor: PROV, esNuevo: false }, ctx);
-        if (r.palabra !== null) marcadas++;
-      }
-    });
-    const referencia = mediana(() => {
-      for (const glosas of COMPRAS_GLOSAS) buscar011(glosas);
-    });
+    const { a: nueva, b: referencia } = minimosIntercalados(
+      () => {
+        marcadas = 0;
+        for (const glosas of COMPRAS_GLOSAS) {
+          const r = puntuarGastoPersonal({ glosas, fechaEmision: "2026-03-14", proveedor: PROV, esNuevo: false }, ctx);
+          if (r.palabra !== null) marcadas++;
+        }
+      },
+      () => {
+        for (const glosas of COMPRAS_GLOSAS) buscar011(glosas);
+      },
+    );
     expect(marcadas, "la prueba debe encontrar coincidencias reales").toBeGreaterThan(0);
     expect(nueva).toBeLessThanOrEqual(TOPE * referencia);
   });
@@ -130,10 +152,12 @@ describe("CA-15 · evaluarReglas con la R-GP completa frente a la de 011", () =>
     const diccionario = crearDiccionarioEfectivo({ globales: SEMILLA_GLOBAL, desactivadas: [], propias });
     const gastos = contextoGastos({ diccionario, ciiuCliente: null, ciiuProveedores: [] });
     let hallazgos = 0;
-    const completa = mediana(() => {
-      hallazgos = evaluarReglas(filas, { ...base, gastos } as ContextoReglas).hallazgos.filter((h) => h.regla === "R-GP").length;
-    });
-    const minima = mediana(() => evaluarReglas(filas, base));
+    const { a: completa, b: minima } = minimosIntercalados(
+      () => {
+        hallazgos = evaluarReglas(filas, { ...base, gastos } as ContextoReglas).hallazgos.filter((h) => h.regla === "R-GP").length;
+      },
+      () => evaluarReglas(filas, base),
+    );
     expect(hallazgos, "la prueba debe marcar compras de verdad").toBeGreaterThan(0);
     expect(completa).toBeLessThanOrEqual(TOPE * minima);
   });
