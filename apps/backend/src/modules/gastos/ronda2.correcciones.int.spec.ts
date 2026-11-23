@@ -282,7 +282,7 @@ describe("T19 · H-027-2-8 (decisión 2026-11-23): «Volver a evaluar» comparte
     expect(respuestas.map((r) => r.status)).toEqual(Array(10).fill(202));
     expect(new Set(respuestas.map((r) => r.body.trabajoId)).size, "un solo trabajo nuevo compartido").toBe(1);
     expect(respuestas[0]!.body.trabajoId).not.toBe(a.body.trabajoId);
-    expect((await estados(b, c)).sort()).toEqual(["en_cola", "ejecutando"]);
+    expect((await estados(b, c)).sort()).toEqual(["ejecutando", "en_cola"]);
   });
 
   it("cuando el que se ejecutaba termina, un pedido nuevo comparte el que sigue en cola; y si ya no queda ninguno vivo, encola otro", async () => {

@@ -121,7 +121,7 @@ describe("T19 · H-027-2-4: la frase de excepción abreviada anula con la misma 
   it("la excepción de una propia con varias palabras también anula abreviada, y en plural o singular (D-8)", () => {
     const d = efectivo(propia("mochila", "utiles-escolares", "fumigadora", "tela impermeable"));
     expect(porItem(d, ["MOCHILA FUMIGAD. 20L", "MOCHILA TELA IMPERM.", "MOCHILAS TELAS IMPERMEABLES"])).toEqual([]);
-    expect(porItem(d, ["MOCHILA ESCOLAR"])).toEqual(["0:utiles-escolares"]);
+    expect(porItem(d, ["MOCHILA AZUL"])).toEqual(["0:utiles-escolares"]);
   });
 
   it("regresión: sin pasarse. Menos de 4 letras, sin punto o que no es prefijo de la excepción NO anulan", () => {
@@ -179,8 +179,8 @@ describe("T19 · H-027-2-6: caracteres de formato invisibles no parten una palab
     expect(porItem(efectivo(), [`ZAPA${c}TILLA URBANA`, `ZA${c}PA${c}TI${c}LLAS`])).toEqual(["0:calzado-ropa", "1:calzado-ropa"]);
   });
 
-  it("también parten la abreviatura con punto y la frase de excepción: «ZAPAT­.» marca y «SEGU​RIDAD» anula", () => {
-    expect(porItem(efectivo(), ["ZAPAT­. DEPORTIVA", "ZAPA⁠T. DEP."])).toEqual(["0:calzado-ropa", "1:calzado-ropa"]);
+  it("también parten la abreviatura con punto y la frase de excepción: «ZAPATI­.» (abrevia solo «zapatilla») marca y «SEGU​RIDAD» anula", () => {
+    expect(porItem(efectivo(), ["ZAPATI­. DEPORTIVA", "ZAPA⁠TI. DEP."])).toEqual(["0:calzado-ropa", "1:calzado-ropa"]);
     expect(porItem(efectivo(), ["ZAPATILLA DE SEGU​RIDAD", "BOTA PUNTA DE AC­ERO"])).toEqual([]);
   });
 
