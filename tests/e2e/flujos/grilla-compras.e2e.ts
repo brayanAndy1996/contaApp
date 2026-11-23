@@ -285,13 +285,15 @@ test("excluir y restaurar la zapatilla F001-5070 con su motivo", async ({
   await dialogo.getByRole("button", { name: "Excluir", exact: true }).click();
 
   // Sale de la lista principal y del total del periodo; aparece en «Excluidas» con su motivo.
-  await expect(estado(page, "Compra excluida.")).toHaveCount(1);
   await expect(dialogo).toHaveCount(0);
   // Spec 027 (T13a): el Dueño puede gestionar reglas, así que se ofrece «Aprender estas palabras»; se cierra con «Ahora no».
+  // Con el diálogo modal abierto el resto de la página queda aria-hidden (el aviso «Compra excluida.» no se ve como `status`):
+  // el aviso se comprueba al cerrarlo.
   const aprender = dialogoAprender(page);
   await expect(aprender).toBeVisible();
   await aprender.getByRole("button", { name: "Ahora no" }).click();
   await expect(aprender).toHaveCount(0);
+  await expect(estado(page, "Compra excluida.")).toHaveCount(1);
   await expect(fila(page, "F001-5070")).toHaveCount(0);
   await expect(filasDeCompras(page)).toHaveCount(3);
   await expect(totalDelResumen(page)).toHaveText([
