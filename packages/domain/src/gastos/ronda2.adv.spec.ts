@@ -23,14 +23,18 @@ const porItem = (d: DiccionarioGlosas, glosas: string[]) =>
   d.coincidenciasPorItem(glosas).map((c) => `${c.item}:${c.categoria}`);
 
 describe("T18 · D-8: la otra forma es la MISMA palabra también en el diccionario efectivo", () => {
-  it("H-027-2-1 · una propia en la otra forma de una global la reemplaza igual que una propia con su misma forma (plan: «una propia con la misma palabra que una global la reemplaza»)", () => {
-    // El estudio quiere «zapatilla» como entretenimiento y sin marcar las dieléctricas. Agregar la propia «zapatilla» o «zapatillas»
-    // (0071 acepta las dos: solo compara con las propias) debería dar el mismo diccionario efectivo, porque por D-8 son la misma palabra.
-    const glosas = ["ZAPATILLA DIELECTRICA", "ZAPATILLAS URBANAS", "ZAPATILLA DE SEGURIDAD"];
-    const mismaForma = porItem(efectivo(propia("zapatilla", "entretenimiento", "dielectrica")), glosas);
-    const otraForma = porItem(efectivo(propia("zapatillas", "entretenimiento", "dielectrica")), glosas);
-    expect(mismaForma).toEqual(["1:entretenimiento", "2:entretenimiento"]);
-    expect(otraForma).toEqual(mismaForma);
+  it("H-027-2-1 · (T19: decisión 2026-11-23 = rechazar al agregar, no reemplazar) una BD que ya tiene las dos formas, la propia en la otra forma de una global, no deja que la propia anule la global: gana la menor (D-8)", () => {
+    // T18 esperaba que `crearDiccionarioEfectivo` reemplazara la global con su otra forma. El usuario decidió RECHAZAR esa propia al agregarla
+    // (409 `palabra_existente`; pruebas en `ronda2.correcciones.int.spec.ts` y `packages/db/src/gastos/ronda2-correcciones.spec.ts`), así que el
+    // diccionario efectivo solo la ve en datos anteriores a 0072: ahí rige D-8 («si ya tiene las dos formas, el ítem cuenta una vez y gana la
+    // menor en orden de código»): la global «zapatilla» decide y las excepciones de la propia «zapatillas» no rigen. Pasa hoy: queda como regresión.
+    const diccionario = efectivo(propia("zapatillas", "entretenimiento", "dielectrica"));
+    const r = puntuarGastoPersonal(
+      { glosas: ["ZAPATILLA DIELECTRICA"], fechaEmision: "2026-03-11", proveedor: { ...PROV }, esNuevo: false },
+      contextoNeutro({ diccionario }),
+    );
+    expect(r).toMatchObject({ palabra: "zapatilla", categoria: "calzado-ropa" });
+    expect(r.senales.map((s) => s.codigo)).toEqual(["S1"]);
   });
 
   it("H-027-2-2 · con las dos formas guardadas «gana la menor» (D-8): la categoría de la forma perdedora no suma S3", () => {
@@ -46,12 +50,16 @@ describe("T18 · D-8: la otra forma es la MISMA palabra también en el diccionar
     expect(r.puntaje).toBe(3);
   });
 
-  it("H-027-2-3 · un plural aprendido cuyo singular es otra palabra no marca ese singular («medias» → «MEDIA PULGADA», «lentes» → «LENTE DE CAMARA»)", () => {
-    const d = efectivo(propia("medias", "calzado-ropa"), propia("lentes", "cuidado-personal"), propia("esposas", "juguetes"));
-    // Positivos de control: la palabra tal cual sí marca.
+  it("H-027-2-3 · (T19: decisión 2026-11-23 = mantener el plural y agregar frases de excepción) un plural aprendido con sus excepciones no marca el singular que es otra palabra", () => {
+    // T18 esperaba que «medias» no marcara «MEDIA PULGADA» sin excepciones. El usuario decidió mantener el plural en ambos sentidos (D-8) y
+    // anular los casos conocidos con frases de excepción (se proponen al aprender: `ronda2.correcciones.int.spec.ts`). Aquí queda el mecanismo:
+    // con las frases, el singular de la otra palabra no marca y el plural sí.
+    const d = efectivo(
+      propia("medias", "calzado-ropa", "media pulgada", "media presion"),
+      propia("lentes", "cuidado-personal", "lente de camara"),
+    );
     expect(porItem(d, ["MEDIAS DEPORTIVAS T-M", "LENTES DE SOL"])).toEqual(["0:calzado-ropa", "1:cuidado-personal"]);
-    // Ferretería y fotografía: «media» (mitad), «lente» (óptica), «esposa» no son el consumo personal aprendido.
-    expect(porItem(d, ["CODO PVC MEDIA PULGADA", "TUBO 1/2 MEDIA PRESION", "LENTE GRAN ANGULAR CAMARA 24MM", "PASAJE ESPOSA GERENTE"])).toEqual([]);
+    expect(porItem(d, ["CODO PVC MEDIA PULGADA", "TUBO 1/2 MEDIA PRESION", "LENTE DE CAMARA FOTOGRAFICA"])).toEqual([]);
   });
 
   it("propiedad (regresión): el índice coincide con un token sin punto exactamente cuando `mismaPalabra(token, palabra)`", () => {
@@ -136,26 +144,20 @@ describe("T18 · rendimiento (R-10): 2.000 palabras con un prefijo común y abre
     expect(ms).toBeLessThan(250);
   });
 
-  it("H-027-2-7 · 100 compras × 20 ítems con «PROD.» no tardan más del doble que la búsqueda de 011 sobre las mismas glosas", { timeout: 120_000 }, () => {
+  it("H-027-2-7 · 100 compras × 20 ítems con «PROD.» (4 millones de coincidencias, inherentes al resultado) se puntúan en menos de 800 ms", { timeout: 120_000 }, () => {
+    // T19: T18 comparaba con ≤ 2× `buscar` (≈ 5 ms, porque `buscar` se detiene en la primera coincidencia); aquí cada ítem casa con las 2.000
+    // palabras, así que el costo mínimo es lineal en la salida. El tope absoluto (hoy 2,1 s; lineal ≈ 0,2 s) detecta lo cuadrático sin depender del reloj.
     const compras = Array.from({ length: 100 }, (_, i) =>
       Array.from({ length: 20 }, (_, j) => `PROD. LIMPIEZA ${i}-${j} UND 2.00`),
     );
     const ctx = contextoNeutro({ diccionario: d });
-    const medir = (f: () => void): number => {
-      f();
-      const t = [0, 0, 0].map(() => {
-        const a = Date.now();
-        f();
-        return Date.now() - a;
-      });
-      return t.sort((x, y) => x - y)[1]!;
-    };
-    const nueva = medir(() => {
+    const correr = (): number => {
+      const a = Date.now();
       for (const glosas of compras) puntuarGastoPersonal({ glosas, fechaEmision: null, proveedor: PROV, esNuevo: false }, ctx);
-    });
-    const referencia = medir(() => {
-      for (const glosas of compras) d.buscar(glosas);
-    });
-    expect(nueva).toBeLessThanOrEqual(2 * Math.max(referencia, 5));
+      return Date.now() - a;
+    };
+    correr();
+    const tiempos = [correr(), correr(), correr()].sort((x, y) => x - y);
+    expect(tiempos[1]).toBeLessThan(800);
   });
 });
