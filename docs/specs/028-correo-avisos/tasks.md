@@ -17,7 +17,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → cobe
 | T9  | `packages/correo` (mover el puerto y ampliarlo), `shared` y cola | backend | sonnet | T2 ∥ T8, T10 | ✓ | — | [x] |
 | T10 | Migraciones 0073–0074, esquema drizzle y `packages/db/src/correo/` | backend | opus | T3, T4 ∥ T8, T9 | ✓ | — | [x] |
 | T11 | Worker: ciclo, envío, purga y adaptador | backend | sonnet | T5, T8, T9, T10 ∥ T12, T13 | ✓ | — | [ ] |
-| T12 | Backend: módulo `correo` | backend | sonnet | T6, T9, T10 ∥ T11, T13 | ✓ | — | [ ] |
+| T12 | Backend: módulo `correo` | backend | sonnet | T6, T9, T10 ∥ T11, T13 | ✓ | — | [x] |
 | T13 | Frontend: pantallas de 028 | frontend | sonnet | T7, T9 ∥ T10–T12 | ✓ | — | [x] |
 | T14 | Cobertura ≥ 90 % por archivo: `cobertura:correo` y paso en CI | devops | haiku | T8, T9, T10, T11, T12 ∥ T13 | — | — | [ ] |
 | T15 | Ronda adversarial 1: aislamiento, permisos, baja y `/ir`, revalidación y carreras, ciclo y candado (≤ 15 pruebas) | adversario | opus | T11, T12, T14 ∥ T13, T21 | — | ✓ | [ ] |
@@ -117,10 +117,12 @@ Reglas comunes:
 - **Hacer**: `procesadores/{programar-correo,enviar-correo}.ts`, purga, `Correo` y `APP_ORIGIN` en el módulo de adaptadores, procesador y tick en `iniciar.ts` (`CORREO_PROGRAMADOR=off` lo apaga).
 - **Hecho cuando**: las de T5 y todas las del worker (`test` y `test:int`) pasan; los `*.rendimiento.spec.ts` pasan 5 veces seguidas; typecheck y lint limpios. Commit `feat(028): ciclo y envío de correos en el worker`.
 
-## T12 · [ ] Backend (backend · sonnet)
+## T12 · [x] Backend (backend · sonnet)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: HTTP, shared), pruebas de T6, `apps/backend/src/modules/notificaciones/{notificaciones.module,notificaciones.controller,notificaciones.service}.ts` (modelo de sesión y estudio), `apps/backend/src/modules/auth/recuperacion.service.ts` (límite por IP y respuesta igual), `apps/backend/src/app.module.ts`.
 - **Hacer**: `apps/backend/src/modules/correo/*.ts` y registro en `app.module.ts`; la ruta de baja sin registrar consulta ni cuerpo.
 - **Hecho cuando**: las de T6 y todas las del backend (`test` y `test:int`) pasan; typecheck y lint limpios. Commit `feat(028): preferencias de correo y baja con confirmación`.
+
+- **Resultado (T12)**: módulo `apps/backend/src/modules/correo/` (preferencias y baja), `@SinOrigen()` + `OrigenGuard(appOrigin, reflector?)` (solo `POST /correo/baja`), analizador `raw` de 1 kB para el cuerpo `application/x-www-form-urlencoded` de RFC 8058 en `app.ts`, `aplicarBaja` en `test/fakes-auth.ts`; unitarias de los servicios y del guard. Backend: `test` 1368/1368 (+18 nuevas), `test:int` 4309/4312, typecheck y lint limpios. Para `stream-r1b.adv.int.spec.ts` hubo que reconstruir `dist` (`nest build`). Quedan 2 en rojo por defectos de las pruebas de T6 (no se editaron aserciones): (1) `preferencias.int.spec.ts:224` («el estudio y el usuario salen de la sesión») espera `auditoria(y) == []` tras `guardar(y, {buzonCritico: false})`, que es un cambio real y se audita (R-10); (2) `preferencias.int.spec.ts:459` («SQL directo como backend») pide `provocarFallido` de `credencial_invalida` para `y` después de apagarle `credencialInvalida`: con el tipo apagado `interno.notificar` no crea envío (R-7), así que el soporte lanza «el aviso real no dejó un envío pendiente». Además se corrigió en `test/soporte-correo.ts` (`sembrarEnvio`) el tipo del parámetro `$2` (`$2::uuid::text`), que hacía fallar con «inconsistent types deduced for parameter $2» todas las pruebas de baja. Pendiente para el tester (T16/T24a o ajuste de T6).
 
 ## T13 · [x] Frontend (frontend · sonnet)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: Frontend, shared), pruebas de T7, `apps/frontend/app/(app)/cuenta/contrasena/page.tsx` (modelo), `apps/frontend/app/(app)/notificaciones/page.tsx`, `apps/frontend/components/marco/menu-principal.tsx` (líneas 210–240), `apps/frontend/app/estudios/page.tsx` (cambio de estudio), `apps/frontend/next.config.ts`, `apps/frontend/lib/{api,notificaciones}.ts`, `apps/frontend/components/ui/` (solo los que use).

@@ -9,6 +9,7 @@ import { AuthModule } from "./modules/auth/auth.module.js";
 import { BuzonModule } from "./modules/buzon/buzon.module.js";
 import { ClientesModule } from "./modules/clientes/clientes.module.js";
 import { ComprasModule } from "./modules/compras/compras.module.js";
+import { CorreoModule } from "./modules/correo/correo.module.js";
 import { CredencialesModule } from "./modules/credenciales/credenciales.module.js";
 import { EstudioModule } from "./modules/estudio/estudio.module.js";
 import { GastosModule } from "./modules/gastos/gastos.module.js";
@@ -63,6 +64,8 @@ export class AppModule {
         // Spec 017: rutas estáticas de `/notificaciones` y `/auditoria`; no chocan con ningún `:id` anterior.
         NotificacionesModule,
         AuditoriaModule,
+        // Spec 028: `/cuenta/correo` y `/correo/baja`; rutas de dos segmentos que no chocan con ningún `:id` anterior.
+        CorreoModule,
         TrabajosModule.registrar(redis),
         StorageModule.registrar(storage),
       ],

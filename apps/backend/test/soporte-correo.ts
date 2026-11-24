@@ -119,7 +119,7 @@ export async function sembrarEnvio(
   const f = await sql<{ id: string }>(
     `insert into correo_envio (tenant_id, usuario_id, origen, tipo, estado, motivo, clave, programado_para, intentos, total_avisos, dia_lima,
                                creado_en, enviado_en)
-     values ($1, $2, $3, $4, $5, $6, $3 || ':' || $2::text || ':' || $4 || ':' || gen_random_uuid()::text,
+     values ($1, $2, $3, $4, $5, $6, $3 || ':' || $2::uuid::text || ':' || $4 || ':' || gen_random_uuid()::text,
              clock_timestamp() - $7::interval, 1, 1,
              case when $3 = 'resumen' then (clock_timestamp() at time zone 'America/Lima')::date end,
              clock_timestamp() - $7::interval,
