@@ -1,6 +1,6 @@
 # Spec 042 · Acelerar el desarrollo: CI más rápido y método más liviano en tokens
 
-Estado: borrador (pedida por el usuario 2026-11-24; preguntas P-1 a P-6 abiertas).
+Estado: aprobada (usuario 2026-11-24: todas las recomendaciones de P-1 a P-6). Fase 1 (método, B2–B4) en curso; fase 2 (A1–A6, B1, B5, B6) tras fusionar 028.
 Nivel de riesgo: D — no toca código de producción ni datos. Riesgo indirecto: que una prueba deje de correr sin que nadie lo note. Se cubre con CA-2 (mismas pruebas y mismos umbrales) y CA-3.
 Cubre: `docs/04-metodologia.md` §2.3 y §7, `.github/workflows/ci.yml`, configuraciones de cobertura de `apps/backend` y `apps/worker`, `docs/specs/ESTADO.md` y `docs/specs/_plantilla/`.
 
@@ -51,10 +51,5 @@ El desarrollo se volvió lento y caro. El CI tarda unas 2 horas por corrida, tam
 ## Dependencias
 - Coordinación con la conversación que desarrolla las specs: la Parte A modifica `ci.yml` y las configuraciones de cobertura, que cada spec en curso también modifica. Se aplica **justo después de fusionar la spec en curso (028)**, y las siguientes adoptan A6.
 
-## Preguntas abiertas (para el usuario)
-- P-1 ¿Se aprueba la Parte A completa? *Recomendado: sí.*
-- P-2 ¿CI de dos niveles (rápido en `spec/*`, completo en PR y `main`)? *Recomendado: sí.* Riesgo: una rama puede llegar al merge con una prueba de integración rota, aunque el CI completo la detecta antes de fusionar si se trabaja con PR.
-- P-3 ¿Adversarial de 1 ronda por defecto y Opus solo en las áreas críticas? *Recomendado: sí.*
-- P-4 ¿Basta 1 corrida en verde para cerrar una spec? *Recomendado: sí.*
-- P-5 ¿Se migra ahora el `ESTADO.md` actual (B6), o solo se aplica el formato nuevo de aquí en adelante? *Recomendado: migrar ahora.*
-- P-6 ¿Se pasa a trabajar con pull requests (`spec/*` → `main`) para que el CI completo corra antes de fusionar? *Recomendado: sí, si se aprueba P-2.*
+## Decisiones del usuario (2026-11-24)
+Todas las recomendaciones: P-1 parte A completa · P-2 CI de dos niveles · P-3 adversarial de 1 ronda por defecto y Opus solo en áreas críticas · P-4 una corrida en verde · P-5 migrar `ESTADO.md` ahora (en la fase 2, entre specs) · P-6 trabajar con pull requests `spec/*` → `main`.
