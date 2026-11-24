@@ -56,7 +56,8 @@ describe("preferenciasCorreoSchema", () => {
     expect(ok(S, { buzonCritico: true, credencialInvalida: true, planLimite: true, resumen: true, todosClientes: true })).toBe(true);
   });
   it.each(CLAVES)("exige %s", (clave) => {
-    const { [clave]: _quitada, ...resto } = PREFS as Record<string, boolean>;
+    const resto: Record<string, boolean> = { ...PREFS };
+    delete resto[clave];
     expect(ok(S, resto)).toBe(false);
   });
   it.each(CLAVES)("rechaza %s que no sea booleano", (clave) => {
@@ -86,7 +87,7 @@ describe("bajaSchema", () => {
     expect(r.data).toEqual({ token: TOKEN });
   });
   it("acepta guion y guion bajo (alfabeto base64url)", () => {
-    expect(ok(S, { token: `${"a-_".repeat(14)}ab` })).toBe(true);
+    expect(ok(S, { token: `${"a-_".repeat(14)}a` })).toBe(true);
   });
   it.each([
     ["42 caracteres", TOKEN.slice(0, 42)],

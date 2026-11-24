@@ -21,7 +21,7 @@ const ID = "0192f0a0-7b1c-7a3e-8c11-2f9d5b6a7c10";
 const URL_BAJA = "https://app.contapp.pe/baja?t=CANARIO-TOKEN-BAJA-0123456789abcdefghijklmnopq";
 
 const crear = () => {
-  const sendMail = vi.fn(async (_m: Record<string, unknown>) => ({ messageId: "m1" }));
+  const sendMail = vi.fn<(m: Record<string, unknown>) => Promise<unknown>>(async () => ({ messageId: "m1" }));
   const correo = new CorreoSmtp({ remitente: REMITENTE, transporte: { sendMail } });
   return { correo, sendMail };
 };

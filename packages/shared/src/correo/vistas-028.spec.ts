@@ -60,11 +60,13 @@ describe("preferenciasCorreoVistaSchema", () => {
     expect(ok(S, vista({ ultimoEnvioFallido: v }))).toBe(false);
   });
   it("exige ultimoEnvioFallido (null explícito)", () => {
-    const { ultimoEnvioFallido: _q, ...resto } = vista();
+    const resto = vista();
+    delete resto.ultimoEnvioFallido;
     expect(ok(S, resto)).toBe(false);
   });
   it.each(BOOLEANAS)("exige %s booleano", (clave) => {
-    const { [clave]: _q, ...resto } = vista();
+    const resto = vista();
+    delete resto[clave];
     expect(ok(S, resto)).toBe(false);
     for (const malo of ["true", 1, null, undefined, {}]) expect(ok(S, vista({ [clave]: malo }))).toBe(false);
   });

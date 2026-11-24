@@ -38,7 +38,7 @@ describe("crearCorreo 028: errores de configuración", () => {
   });
 
   it("la fábrica entrega un correo que respeta html y baja del contrato ampliado", async () => {
-    const sendMail = vi.fn(async (_m: Record<string, unknown>) => ({}));
+    const sendMail = vi.fn<(m: Record<string, unknown>) => Promise<unknown>>(async () => ({}));
     const correo = crearCorreo({ provider: "smtp", remitente: "no-responder@estudio.pe", smtpUrl: "smtp://h:587" }, { sendMail });
     await correo.enviar({ para: "a@x.pe", asunto: "s", texto: "t", html: "<p>x</p>", baja: { url: "https://app.contapp.pe/baja?t=abc" } });
     expect(sendMail.mock.calls[0]![0]).toMatchObject({ html: "<p>x</p>", headers: { "List-Unsubscribe": "<https://app.contapp.pe/baja?t=abc>" } });
