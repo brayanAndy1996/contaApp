@@ -46,8 +46,44 @@ export type CuadreCompra = z.infer<typeof cuadreCompraSchema>;
 
 const montosParcialesSchema = z.partialRecord(z.enum([...COLUMNAS_MONTO_COMPRA, "total"]), montoDecimalSchema);
 
+/**
+ * Señal del puntaje de R-GP (spec 027, R-3, R-5): `S1` a `S7`, con sus puntos (S7 es negativa). Nunca lleva texto del XML:
+ * solo la palabra del diccionario, su categoría y cuántos ítems coinciden.
+ */
+export const senalGastoSchema = z
+  .object({
+    codigo: z.enum(["S1", "S2", "S3", "S4", "S5", "S6", "S7"]),
+    puntos: z.number().int(),
+    palabra: z.string().optional(),
+    categoria: z.string().optional(),
+    items: z
+      .object({ coinciden: z.number().int().min(1), total: z.number().int().min(1) })
+      .strict()
+      .refine((i) => i.coinciden <= i.total)
+      .optional(),
+  })
+  .strict();
+export type SenalGasto = z.infer<typeof senalGastoSchema>;
+
+/**
+ * `excluir`: forma de 027 (con puntaje y señales; `palabra` y `categoria` son null sin S1) y forma de 011 (guardada sin puntaje,
+ * se sigue leyendo). No se mezclan: la vieja es estricta y no admite null.
+ */
+const sugerenciaExcluirSchema = z.union([
+  z.object({
+    tipo: z.literal("excluir"),
+    palabra: z.string().nullable(),
+    categoria: z.string().nullable(),
+    puntaje: z.number().int(),
+    senales: z.array(senalGastoSchema),
+  }),
+  z.object({ tipo: z.literal("excluir"), palabra: z.string(), categoria: z.string() }).strict(),
+]);
+
 /** La sugerencia de 011 con sus montos como cadenas. */
-export const sugerenciaVistaSchema = z.discriminatedUnion("tipo", [
+export const sugerenciaVistaSchema = z.union([
+  sugerenciaExcluirSchema,
+  z.discriminatedUnion("tipo", [
   z.object({ tipo: z.literal("mover"), origen: columnaMontoCompraSchema, destino: columnaMontoCompraSchema, monto: montoDecimalSchema }),
   z.object({
     tipo: z.literal("separar"),
@@ -59,7 +95,7 @@ export const sugerenciaVistaSchema = z.discriminatedUnion("tipo", [
   }),
   z.object({ tipo: z.literal("ajustar"), valores: montosParcialesSchema }),
   z.object({ tipo: z.literal("clasificar") }),
-  z.object({ tipo: z.literal("excluir"), palabra: z.string(), categoria: z.string() }),
+  ]),
 ]);
 export type SugerenciaVista = z.infer<typeof sugerenciaVistaSchema>;
 

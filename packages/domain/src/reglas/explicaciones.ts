@@ -1,6 +1,5 @@
 // Catálogo fijo de explicaciones (plan 011, Decisiones: "Ratificación de contratos").
-// Las cifras son el toString() canónico de Money, con signo. Nunca texto del XML salvo la
-// palabra del diccionario (R-GP).
+// Las cifras son el toString() canónico de Money, con signo. Nunca texto del XML (027: la de R-GP es fija).
 import type { Money } from "../dinero/index";
 
 const t = (m: Money): string => m.toString();
@@ -34,7 +33,8 @@ export const SUFIJO_RED_XML = "; el XML indica el monto correcto";
 export const redUsd = (tc: string): string =>
   `Los montos en PEN no coinciden con la conversión por componente con TC ${tc}`;
 export const PROVEEDOR_NUEVO = "Proveedor nuevo: elige la clasificación";
-export const gastoPersonal = (palabra: string): string => `Posible gasto personal: la glosa dice "${palabra}"`;
+/** 027 (D-1): fija; la palabra, la categoría, el puntaje y las señales van en la sugerencia. */
+export const GASTO_NO_DEDUCIBLE = "Posible gasto no deducible";
 
 // ---------------------------------------------------------------- R-STD (025, D-8)
 export const MODO_ESTANDAR = "DNG por perfil del cliente";

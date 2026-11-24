@@ -246,6 +246,50 @@ describe("CA-3 catalogo de RLS", () => {
     });
   }
 
+  // Spec 027 (T3, D-2, R-6, CA-7, rojo hasta la migracion 0069): las cinco tablas del estudio de gastos no deducibles (palabras propias,
+  // globales desactivadas, umbral, categorias por cliente y cache de CIIU) entran al catalogo con tenant_id uuid NOT NULL, RLS ENABLE +
+  // FORCE y tenant_isolation FOR ALL (las pruebas anteriores las recorren solas).
+  for (const tabla of [
+    "gnd_palabra_estudio",
+    "gnd_global_desactivada",
+    "gnd_config",
+    "gnd_cliente_categorias",
+    "gnd_ciiu",
+  ]) {
+    it(`${tabla} (027) esta en el catalogo de tablas con tenant_id, con RLS ENABLE y FORCE y tenant_isolation FOR ALL`, async () => {
+      const fila = (await tablasConTenantId()).find((x) => x.tabla === tabla);
+      expect(fila, `${tabla} en el catalogo`).toBeDefined();
+      expect({ rls: fila!.rls, forzada: fila!.forzada, no_nula: fila!.no_nula, tipo: fila!.tipo }, tabla).toEqual({
+        rls: true,
+        forzada: true,
+        no_nula: true,
+        tipo: "uuid",
+      });
+      const p = (await politicas()).find((x) => x.tablename === tabla && x.policyname === "tenant_isolation");
+      expect(p?.cmd).toBe("ALL");
+      expect(p?.qual).toContain("app.tenant_id");
+      expect(p?.with_check).toContain("app.tenant_id");
+    });
+  }
+
+  // Spec 027 (T3, D-2): el diccionario global y su historial son de plataforma (como `plan`): NO tienen tenant_id ni politica de estudio;
+  // los lee el backend y el worker y solo contapp_auth (funciones `auth.gnd_global_*`) los escribe (grants: gnd-tablas.spec.ts).
+  it("gnd_palabra_global y gnd_global_historial (027) existen, son de plataforma y no tienen tenant_id (la prueba no es vacua)", async () => {
+    const r = await pool.query(
+      `select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
+        where c.relkind in ('r','p') and c.relname in ('gnd_palabra_global', 'gnd_global_historial')`,
+    );
+    expect(r.rows.map((x) => x.relname).sort(), "faltan tablas (migracion 0069)").toEqual([
+      "gnd_global_historial",
+      "gnd_palabra_global",
+    ]);
+    const con = (await tablasConTenantId()).map((t) => t.tabla);
+    expect(con).not.toContain("gnd_palabra_global");
+    expect(con).not.toContain("gnd_global_historial");
+    const pols = (await politicas()).filter((p) => p.tablename === "gnd_palabra_global" || p.tablename === "gnd_global_historial");
+    expect(pols.map((p) => `${p.tablename}.${p.policyname}`)).toEqual([]);
+  });
+
   it("tenant_id es uuid NOT NULL en toda tabla de negocio", async () => {
     const tablas = await tablasConTenantId();
     expect(tablas.length).toBeGreaterThan(0);

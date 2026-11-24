@@ -54,6 +54,7 @@ import { kekRotar } from "./procesadores/kek-rotar.js";
 import { obtenerDeclaraciones } from "./procesadores/obtener-declaraciones.js";
 import { obtenerXml } from "./procesadores/obtener-xml.js";
 import { programarBuzon } from "./procesadores/programar-buzon.js";
+import { reevaluarPeriodo } from "./procesadores/reevaluar-periodo.js";
 import { revisarBuzon } from "./procesadores/revisar-buzon.js";
 import {
   verificarSire,
@@ -289,7 +290,11 @@ export async function iniciarTrabajos(
         xmlProvider: deps.xmlProvider ?? new MockXmlProvider(),
         storage,
         xmlSimuladoEnReglas: deps.xmlSimuladoEnReglas ?? false,
+        // 027 (R-14): el CIIU del proveedor y del cliente se consulta al llegar cada XML.
+        consultaRuc: deps.consultaRuc ?? new MockConsultaRuc(),
       }),
+      // 027 (R-12): «Volver a evaluar» el periodo abierto con el diccionario y el contexto de AHORA (cola `xml`, sin credenciales).
+      "compras.reevaluar": reevaluarPeriodo({ db, logger }),
       // 012b: cola `archivos`; sin credenciales. `permiteProvisional` usa el NODE_ENV del proceso (D2).
       "archivo.generar": generarArchivo({ db, storage, logger }),
       ...(servicio

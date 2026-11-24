@@ -83,6 +83,19 @@ const FUNCIONES_026: { firma: string; ejecuta: string }[] = [
   { firma: "prorrata_mes_manual_eliminar(uuid,character,text,integer)", ejecuta: "contapp_backend" },
   { firma: "prorrata_usada_guardar(uuid,character,numeric,integer)", ejecuta: "contapp_backend" },
 ];
+// Spec 027 (T3): firma (regprocedure) y unico rol de la app con EXECUTE de cada funcion de `public` de las migraciones 0070 y 0072 (plan 027,
+// Contratos: BD). Las cuatro de plataforma (esquema `auth`, dueño contapp_auth, EXECUTE solo contapp_backend) entran por FUNCIONES_AUTH.
+const FUNCIONES_027: { firma: string; ejecuta: string }[] = [
+  { firma: "gnd_palabra_agregar(text,text,text[])", ejecuta: "contapp_backend" },
+  { firma: "gnd_palabra_estado(uuid,boolean,integer)", ejecuta: "contapp_backend" },
+  { firma: "gnd_global_estado(uuid,boolean)", ejecuta: "contapp_backend" },
+  { firma: "gnd_umbral_fijar(integer,integer)", ejecuta: "contapp_backend" },
+  { firma: "gnd_cliente_categorias_fijar(uuid,text[],text[],integer)", ejecuta: "contapp_backend" },
+  { firma: "gnd_aprender(uuid,uuid,jsonb)", ejecuta: "contapp_backend" },
+  { firma: "gnd_ciiu_guardar(jsonb)", ejecuta: "contapp_worker" },
+  // 0072 (T20, H-027-2-3): frases de excepción sugeridas al aprender (sin tablas; definer para llamar a `gnd_formas`).
+  { firma: "gnd_excepciones_sugeridas(text[])", ejecuta: "contapp_backend" },
+];
 const FUNCIONES_017: { firma: string; dueno: string }[] = [
   ...[
     "sesion", "invitacion", "membresia", "asignacion", "cliente", "credencial", "propuesta", "compra_operacion", "venta", "xml",
@@ -139,6 +152,9 @@ const FUNCIONES_017: { firma: string; dueno: string }[] = [
   // Spec 026 (T3, rojo hasta la migracion 0066): las cuatro funciones acotadas de la prorrata (registrar la obtencion del worker; guardar y
   // eliminar el mes manual y guardar la prorrata usada del backend). Se verifican abajo, una por una.
   ...FUNCIONES_026.map((f) => ({ firma: f.firma, dueno: MIGRATOR })),
+  // Spec 027 (T3, rojo hasta la migracion 0070; T20 suma la de 0072): las funciones acotadas de gastos no deducibles de `public` (del backend y la
+  // del CIIU del worker). Se verifican abajo, una por una. Las cuatro `auth.gnd_global_*` de plataforma suman a FUNCIONES_AUTH.
+  ...FUNCIONES_027.map((f) => ({ firma: f.firma, dueno: MIGRATOR })),
 ];
 const nombre017 = (f: string) => (f.includes(".") && f.indexOf(".") < f.indexOf("(") ? f : `public.${f}`).replace(/\(.*$/, "");
 
@@ -495,6 +511,53 @@ describe("ADV escalada desde DATABASE_URL", () => {
           publico: false,
           ejecutan: [f.ejecuta],
         })),
+    );
+  });
+  // Spec 027 (T3, R-6, CA-7, rojo hasta 0070): las siete de `public` las ejecuta solo el rol del plan (ni PUBLIC ni otro rol de la app,
+  // el dueño aparte), son SECURITY DEFINER de contapp_migrator y fijan su search_path; las cuatro `auth.gnd_global_*` son de contapp_auth
+  // (como `auth.plan_crear`), con search_path fijo y EXECUTE solo para contapp_backend.
+  it("las funciones de gastos no deducibles (027): dueno, search_path fijo, sin EXECUTE para PUBLIC y solo el rol del plan; las de plataforma, de contapp_auth y solo backend", async () => {
+    const r = await filasRaw(
+      pool,
+      null,
+      `select f.firma, pg_get_userbyid(p.proowner) as dueno, p.prosecdef, p.proconfig as config,
+              has_function_privilege('public', p.oid, 'EXECUTE') as publico,
+              coalesce((select array_agg(x.rolname::text order by x.rolname) from pg_roles x
+                         where x.oid <> p.proowner and x.rolname like 'contapp\\_%' and has_function_privilege(x.oid, p.oid, 'EXECUTE')), '{}'::text[]) as ejecutan
+         from unnest(array[${FUNCIONES_027.map((f) => `'${f.firma}'`).join(", ")}]::text[]) as f(firma)
+         left join pg_proc p on p.oid::regprocedure::text = f.firma
+        order by f.firma`,
+    );
+    expect(r).toEqual(
+      [...FUNCIONES_027]
+        .sort((a, b) => (a.firma < b.firma ? -1 : 1))
+        .map((f) => ({
+          firma: f.firma,
+          dueno: "contapp_migrator",
+          prosecdef: true,
+          config: ["search_path=pg_catalog, pg_temp"],
+          publico: false,
+          ejecutan: [f.ejecuta],
+        })),
+    );
+    const plataforma = await filasRaw(
+      pool,
+      null,
+      `select p.proname, pg_get_userbyid(p.proowner) as dueno, p.prosecdef, p.proconfig as config,
+              has_function_privilege('public', p.oid, 'EXECUTE') as publico,
+              coalesce((select array_agg(x.rolname::text order by x.rolname) from pg_roles x
+                         where x.oid <> p.proowner and x.rolname like 'contapp\\_%' and has_function_privilege(x.oid, p.oid, 'EXECUTE')), '{}'::text[]) as ejecutan
+         from pg_proc p where p.pronamespace = 'auth'::regnamespace and p.proname like 'gnd\\_global\\_%' order by p.proname`,
+    );
+    expect(plataforma).toEqual(
+      ["gnd_global_agregar", "gnd_global_editar", "gnd_global_historial", "gnd_global_listar"].map((proname) => ({
+        proname,
+        dueno: "contapp_auth",
+        prosecdef: true,
+        config: ["search_path=pg_catalog, pg_temp"],
+        publico: false,
+        ejecutan: ["contapp_backend"],
+      })),
     );
   });
 });

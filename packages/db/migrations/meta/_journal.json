@@ -484,6 +484,34 @@
       "when": 1795329142084,
       "tag": "0068_prorrata_ronda2",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1795375356914,
+      "tag": "0069_gnd_tablas",
+      "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1795375405016,
+      "tag": "0070_gnd_funciones",
+      "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1795393770328,
+      "tag": "0071_gnd_plural",
+      "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1795400110838,
+      "tag": "0072_gnd_ronda2",
+      "breakpoints": true
     }
   ]
 }

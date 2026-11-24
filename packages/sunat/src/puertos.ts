@@ -22,6 +22,8 @@ export interface DatosRuc {
   razonSocial: string;
   estado: string;
   condicion: string;
+  /** Clase CIIU (4 dígitos) de la actividad principal; `null` si el padrón no la informa (spec 027, R-14). */
+  ciiu: string | null;
 }
 
 /**

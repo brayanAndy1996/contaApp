@@ -161,7 +161,7 @@ describe("caso real: gasto personal, glosa 'zapatilla' · R-GP solo avisa", () =
     expect(r.errores).toEqual([]);
     expect(r.avisos).toHaveLength(1);
     expect(r.avisos[0]).toMatchObject({ filaId: "f1", codigo: "R-GP" });
-    expect(r.avisos[0]?.explicacion.toLowerCase()).toContain("zapatilla");
+    expect(r.avisos[0]?.explicacion).toBe("Posible gasto no deducible"); // 027 (D-1): explicación fija
   });
 
   it("nunca bloquea: generarTxt la serializa igual", () => {

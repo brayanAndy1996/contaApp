@@ -30,6 +30,7 @@ import { CabeceraLupaCompra } from "./cabecera-lupa";
 import { ComparacionXml } from "./comparacion-xml";
 import { EstadoXmlLupa, bloqueoDeXml } from "./estado-xml";
 import { SubirXml } from "./subir-xml";
+import { Senales } from "../gastos/senales";
 import { HistorialCompra } from "./historial-compra";
 import { ItemsXml } from "./items-xml";
 import {
@@ -376,6 +377,11 @@ export function LupaCompra({
                         {`${h.regla} · ${M.hallazgos[h.regla]}`}
                       </Badge>
                       {h.explicacion}
+                      {h.regla === "R-GP" &&
+                        h.sugerencia?.tipo === "excluir" &&
+                        "puntaje" in h.sugerencia && (
+                          <Senales puntaje={h.sugerencia.puntaje} senales={h.sugerencia.senales} />
+                        )}
                     </li>
                   ))}
                 </ul>

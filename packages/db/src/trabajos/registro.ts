@@ -183,12 +183,17 @@ const SQL_INSERTAR = `insert into job_registro
   values ($1, $2, $3, $4, $5, $6, 'en_cola', $7::jsonb, $8, $9, $10)
   returning ${COLUMNAS_VISTA}`;
 
+// D8: «vivo» para el dedupe = el predicado del índice único parcial job_registro_dedupe_vivo (0072): en cola o ejecutándose, salvo
+// `compras.reevaluar`, que solo se comparte en cola sin haberse ejecutado (027, H-027-2-8). La inferencia del índice en ON CONFLICT
+// exige este mismo predicado.
+const VIVO = `estado in ('en_cola', 'ejecutando') and (tipo <> 'compras.reevaluar' or (estado = 'en_cola' and intentos = 0))`;
+
 // H-008-1a-2: con otro trabajo vivo de la misma clave (índice único parcial job_registro_dedupe_vivo), no inserta ni
 // lanza 23505: espera a que la otra transacción termine y no devuelve fila. Sin savepoint: la transacción sigue sana.
 const SQL_INSERTAR_SIN_DUPLICAR = `insert into job_registro
   (cliente_id, ruc, tipo, cola, canal, prioridad, estado, parametros, clave_dedupe, creado_por, max_intentos)
   values ($1, $2, $3, $4, $5, $6, 'en_cola', $7::jsonb, $8, $9, $10)
-  on conflict (tenant_id, clave_dedupe) where estado in ('en_cola', 'ejecutando') do nothing
+  on conflict (tenant_id, clave_dedupe) where ${VIVO} do nothing
   returning ${COLUMNAS_VISTA}`;
 
 export interface OpcionesInsertar {
@@ -289,9 +294,9 @@ async function insertarConTope(
 }
 
 const SQL_VIVO_POR_CLAVE = `select ${COLUMNAS_VISTA} from job_registro
-  where clave_dedupe = $1 and estado in ('en_cola', 'ejecutando') limit 1`;
+  where clave_dedupe = $1 and ${VIVO} limit 1`;
 
-/** Trabajo vivo (en_cola o ejecutando) con esa clave de dedupe en el estudio, o null (D8). */
+/** Trabajo vivo (en_cola o ejecutando; un `compras.reevaluar`, solo en cola sin ejecutar) con esa clave de dedupe, o null (D8). */
 export async function trabajoVivoPorClave(
   tx: TxConsulta,
   claveDedupe: Buffer,

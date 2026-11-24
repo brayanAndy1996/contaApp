@@ -1,6 +1,7 @@
 // AuthRepo: una función TS por función SQL `auth.*` (SECURITY DEFINER, migraciones 0007_auth a 0010_auth_final,
 // 0013_acceso_auth, que agrega las tres de invitación, y 0024_planes_auth, que agrega las 11 de registro, cupo de
-// aceptación y plataforma; 0025_planes_ronda1 cambia la salida de registro_confirmar_existente, D14).
+// aceptación y plataforma; 0025_planes_ronda1 cambia la salida de registro_confirmar_existente, D14; 0070_gnd_funciones agrega las
+// cuatro del diccionario global de gastos no deducibles, spec 027).
 // SQL estático `select * from auth.<función>($1, ...)` con parámetros posicionales (nunca se interpola un
 // valor); columnas de salida = nombres OUT del plan (las escalares: columna con el nombre de la función);
 // camelCase en TS; cero filas -> null; cualquier error de `pg` -> AuthRepoError (solo SQLSTATE). Las de plataforma
@@ -120,6 +121,41 @@ export interface SuscripcionAsignada {
   rucsExtraContratados: number;
 }
 
+/** 027 (D-2): palabra del diccionario global de gastos no deducibles, vista por la plataforma. */
+export interface PalabraGlobalFila {
+  id: string;
+  palabra: string;
+  categoria: string;
+  excepciones: string[];
+  activa: boolean;
+  version: number;
+  actualizadaEn: Date;
+}
+/** 027: alta de una palabra global (normalizada por el llamador). */
+export interface DatosPalabraGlobal {
+  palabra: string;
+  categoria: string;
+  excepciones: string[];
+}
+/** 027: edición de una palabra global con compare-and-set por `version` (la vigente). */
+export interface EdicionPalabraGlobal {
+  categoria: string;
+  excepciones: string[];
+  activa: boolean;
+  version: number;
+}
+/** 027: una fila del historial del diccionario global, con la palabra y su autor. */
+export interface CambioGlobalFila {
+  id: string;
+  palabraGlobalId: string;
+  palabra: string;
+  accion: "agregada" | "editada";
+  antes: Record<string, unknown> | null;
+  despues: Record<string, unknown>;
+  autor: { id: string; nombre: string };
+  ocurridaEn: Date;
+}
+
 export interface AuthRepo {
   limiteConsumir(tipo: TipoLimite, sujeto: string): Promise<boolean>;
   loginPreparar(correo: string, clave: Buffer): Promise<LoginPreparado>;
@@ -169,6 +205,14 @@ export interface AuthRepo {
     planId: string,
     rucsExtra: number,
   ): Promise<SuscripcionAsignada>;
+  /** 027 (D-2): todas las palabras globales (también las inactivas), por categoría y palabra. */
+  gndGlobalListar(tokenHashSesion: Buffer): Promise<PalabraGlobalFila[]>;
+  /** 027: AuthRepoError CA420 (palabra existente) o 22023 (entradas inválidas); deja su fila `agregada` en el historial. */
+  gndGlobalAgregar(tokenHashSesion: Buffer, datos: DatosPalabraGlobal): Promise<PalabraGlobalFila>;
+  /** 027: AuthRepoError CA409 (versión distinta), P0002 (inexistente) o 22023; deja su fila `editada` en el historial. */
+  gndGlobalEditar(tokenHashSesion: Buffer, id: string, datos: EdicionPalabraGlobal): Promise<PalabraGlobalFila>;
+  /** 027: los cambios más recientes primero; `antes` (exclusivo) pagina por fecha; `limite` 1..200 (si no, 22023). */
+  gndGlobalHistorial(tokenHashSesion: Buffer, limite: number, antes: Date | null): Promise<CambioGlobalFila[]>;
 }
 
 const SQL = {
@@ -202,6 +246,11 @@ const SQL = {
     "select * from auth.plan_editar($1::bytea, $2::uuid, $3::text, $4::text, $5::numeric, $6::numeric, $7::int, $8::int, $9::numeric, $10::int, $11::int, $12::jsonb, $13::boolean)",
   estudiosListar: "select * from auth.estudios_listar($1::bytea)",
   suscripcionAsignar: "select * from auth.suscripcion_asignar($1::bytea, $2::uuid, $3::uuid, $4::int)",
+  gndGlobalListar: "select * from auth.gnd_global_listar($1::bytea)",
+  gndGlobalAgregar: "select * from auth.gnd_global_agregar($1::bytea, $2::text, $3::text, $4::text[])",
+  gndGlobalEditar:
+    "select * from auth.gnd_global_editar($1::bytea, $2::uuid, $3::text, $4::text[], $5::boolean, $6::int)",
+  gndGlobalHistorial: "select * from auth.gnd_global_historial($1::bytea, $2::int, $3::timestamptz)",
 } as const;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -252,6 +301,27 @@ const camposPlan = (d: DatosPlan): unknown[] => [
   JSON.stringify(d.features),
   d.activo,
 ];
+
+const palabraGlobal = (f: Fila): PalabraGlobalFila => ({
+  id: f.id as string,
+  palabra: f.palabra as string,
+  categoria: f.categoria as string,
+  excepciones: (f.excepciones as string[] | null) ?? [],
+  activa: f.activa === true,
+  version: Number(f.version),
+  actualizadaEn: f.actualizada_en as Date,
+});
+
+const cambioGlobal = (f: Fila): CambioGlobalFila => ({
+  id: f.id as string,
+  palabraGlobalId: f.palabra_global_id as string,
+  palabra: f.palabra as string,
+  accion: f.accion as CambioGlobalFila["accion"],
+  antes: (f.antes as Record<string, unknown> | null) ?? null,
+  despues: f.despues as Record<string, unknown>,
+  autor: { id: f.usuario_id as string, nombre: f.usuario_nombre as string },
+  ocurridaEn: f.ocurrida_en as Date,
+});
 
 /** Fachada sobre la transacción abierta por `withAuth`. */
 export function crearAuthRepo(tx: TxConsulta): AuthRepo {
@@ -393,5 +463,17 @@ export function crearAuthRepo(tx: TxConsulta): AuthRepo {
         estado: f[0]!.estado as SuscripcionAsignada["estado"],
         rucsExtraContratados: Number(f[0]!.rucs_extra_contratados),
       })),
+    gndGlobalListar: (tokenHashSesion) =>
+      ejecutar(SQL.gndGlobalListar, [tokenHashSesion], (f) => f.map(palabraGlobal)),
+    gndGlobalAgregar: (tokenHashSesion, d) =>
+      ejecutar(SQL.gndGlobalAgregar, [tokenHashSesion, d.palabra, d.categoria, d.excepciones], (f) => palabraGlobal(f[0]!)),
+    gndGlobalEditar: (tokenHashSesion, id, d) =>
+      ejecutar(
+        SQL.gndGlobalEditar,
+        [tokenHashSesion, id, d.categoria, d.excepciones, d.activa, d.version],
+        (f) => palabraGlobal(f[0]!),
+      ),
+    gndGlobalHistorial: (tokenHashSesion, limite, antes) =>
+      ejecutar(SQL.gndGlobalHistorial, [tokenHashSesion, limite, antes], (f) => f.map(cambioGlobal)),
   };
 }

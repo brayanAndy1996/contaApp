@@ -17,8 +17,8 @@ describe("acciones de auditoría de 026", () => {
   it("suma exactamente cuatro acciones con prefijo prorrata.", () => {
     expect(ACCIONES_AUDITORIA.filter((a) => a.startsWith("prorrata.")).sort()).toEqual([...NUEVAS].sort());
   });
-  it("el catálogo queda en 52 sin repetidos y todas con forma entidad.hecho", () => {
-    expect(ACCIONES_AUDITORIA).toHaveLength(52);
+  it("el catálogo queda en 60 (52 hasta 026 y 8 de 027) sin repetidos y todas con forma entidad.hecho", () => {
+    expect(ACCIONES_AUDITORIA).toHaveLength(60);
     expect(new Set(ACCIONES_AUDITORIA).size).toBe(ACCIONES_AUDITORIA.length);
     for (const a of ACCIONES_AUDITORIA) expect(a).toMatch(/^[a-z]+\.[a-z_]+$/);
   });

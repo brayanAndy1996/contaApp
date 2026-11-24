@@ -174,6 +174,14 @@ export class EscenarioAcceso {
         ["delete from notificacion where tenant_id = any($1::uuid[]) or usuario_id = any($2::uuid[])", [t, usuarios]],
         ["delete from plan_aviso where tenant_id = any($1::uuid[])", [t]],
         ["delete from auditoria where tenant_id = any($1::uuid[])", [t]],
+        // Spec 027 (T3): las cinco tablas gnd_ del estudio (FK a cliente, compra, usuario y gnd_palabra_global; con `replica` las FK no
+        // corren, asi que quedarian huerfanas). Las dos de plataforma (gnd_palabra_global, gnd_global_historial) no tienen estudio: las
+        // limpia quien las siembra (`EscenarioGnd.limpiar`). Si aun no existen las tablas, el catch lo ignora.
+        ["delete from gnd_palabra_estudio where tenant_id = any($1::uuid[])", [t]],
+        ["delete from gnd_global_desactivada where tenant_id = any($1::uuid[])", [t]],
+        ["delete from gnd_config where tenant_id = any($1::uuid[])", [t]],
+        ["delete from gnd_cliente_categorias where tenant_id = any($1::uuid[])", [t]],
+        ["delete from gnd_ciiu where tenant_id = any($1::uuid[])", [t]],
         ["delete from asignacion where tenant_id = any($1::uuid[])", [t]],
         ["delete from invitacion where tenant_id = any($1::uuid[])", [t]],
         ["delete from auth.sesion where usuario_id = any($1::uuid[])", [usuarios]],

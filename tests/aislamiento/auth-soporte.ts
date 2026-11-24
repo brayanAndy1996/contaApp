@@ -64,7 +64,19 @@ export const FUNCIONES_AUTH_PLANES = [
   "suscripcion_asignar",
 ] as const;
 
-export const FUNCIONES_AUTH = [...FUNCIONES_AUTH_VIGENTES, ...FUNCIONES_AUTH_PLANES] as const;
+/**
+ * Spec 027 (T3, plan Contratos: BD; migracion 0070): las cuatro funciones de plataforma del diccionario global de gastos no deducibles
+ * (esquema `auth`, dueño contapp_auth, EXECUTE solo contapp_backend, como las de plataforma de 006). Se suman a FUNCIONES_AUTH: hasta
+ * 0070 `auth.spec.ts` y `auth-r2a.adv.spec.ts` fallan por ellas.
+ */
+export const FUNCIONES_AUTH_GND = [
+  "gnd_global_agregar",
+  "gnd_global_editar",
+  "gnd_global_historial",
+  "gnd_global_listar",
+] as const;
+
+export const FUNCIONES_AUTH = [...FUNCIONES_AUTH_VIGENTES, ...FUNCIONES_AUTH_PLANES, ...FUNCIONES_AUTH_GND] as const;
 
 /** Spec 008: funciones de `auth` que ejecuta contapp_worker (y no contapp_backend). */
 export const FUNCIONES_AUTH_SOLO_WORKER = ["purgar"] as const;

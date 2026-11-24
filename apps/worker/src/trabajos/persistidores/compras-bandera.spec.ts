@@ -28,6 +28,22 @@ vi.mock("./compras-std.js", () => ({
   leerProveedoresConRegla: vi.fn(async () => []),
 }));
 
+// 027 (D-5): el contexto de R-GP del estudio se lee de la BD (cubierto en contexto-gastos.int.spec.ts); aquí, el de un estudio sin
+// ajustes (diccionario base, umbral 3, sin CIIU, historial ni categorías), equivalente a la R-GP de 011.
+vi.mock("./contexto-gastos.js", async () => {
+  const { DICCIONARIO_GLOSAS_BASE } = await import("@contapp/domain");
+  return {
+    contextoGastos: vi.fn(async () => ({
+      diccionario: DICCIONARIO_GLOSAS_BASE,
+      umbral: 3,
+      ciiuCliente: null,
+      ciiuProveedores: [],
+      categoriasCliente: { permitidas: [], quitadas: [] },
+      historial: [],
+    })),
+  };
+});
+
 const { persistidorCompras } = await import("./compras.js");
 
 const CONOCIDOS = [{ tipo: "6", numero: "20700000045" }];
