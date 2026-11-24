@@ -72,15 +72,15 @@ Archivos compartidos: el `index.ts` de cada paquete lo toca solo la tarea de ese
 |---|---|---|
 | `GET /cuenta/correo` | sesión y estudio activo (cualquier rol) | 200 `PreferenciasCorreoVista` |
 | `PUT /cuenta/correo` | ídem | 200 `PreferenciasCorreoVista` · 400 `solicitud_invalida` · 403 `permiso_denegado` · 409 `todos_clientes_no_disponible` |
-| `POST /correo/baja` | `@Publico`, `@SinEstudio`; límite por IP (`auth.limite_consumir`, 004) | 200 `{}` siempre (token válido o no) · 429 |
-| `POST /correo/baja?t=…` con cuerpo `List-Unsubscribe=One-Click` (RFC 8058) | ídem | 200 `{}` |
+| `POST /correo/baja` con cuerpo JSON `bajaSchema` (botón «Darme de baja» de `/baja`) | `@Publico`, `@SinEstudio`; límite por IP (`auth.limite_consumir`, 004) | 200 `{}` siempre (token válido o no) · 429 |
+| `POST /correo/baja?t=…` con cuerpo `application/x-www-form-urlencoded` exacto `List-Unsubscribe=One-Click` (RFC 8058, URL de `List-Unsubscribe`) | ídem | 200 `{}`; sin ese cuerpo exacto, 200 `{}` sin efectos |
 | `GET /correo/baja` | ídem | 405, sin efectos |
-Mapeo: `42501` → 403, `CA430` → 409, `22023` → 400; reintento único ante `40P01`/`40001` y luego 503. El backend no registra la URL ni el cuerpo de `/correo/baja`. Ambas rutas en `hu40-api.int.spec.ts`.
+Ningún `GET` cambia estado (D-4, U-18). Mapeo: `42501` → 403, `CA430` → 409, `22023` → 400; reintento único ante `40P01`/`40001` y luego 503. El backend no registra la URL ni el cuerpo de `/correo/baja`. Ambas rutas en `hu40-api.int.spec.ts`.
 
 **Frontend** (estilo A de 038: solo `components/ui` y tokens; 390 px sin desborde; 44 px):
 - «Mi cuenta → Correo» (`/cuenta/correo`, enlace en el menú junto a «Contraseña»): cuatro `Switch` con su texto («Coactivas y avisos críticos del buzón», «Clave SOL inválida», «Límite del plan», «Resumen diario a las 7:00, de lunes a viernes»), «Incluir todos los clientes del estudio» solo si `todosDisponible`, aviso si `todosIgnorado`, alerta «No pudimos enviarte el último correo (fecha)» si `ultimoEnvioFallido`, botón «Guardar» y confirmación.
 - Invitación (`invitacion-resumen.tsx`) en `/notificaciones` y en `/cuenta/correo` mientras `invitacionResumen`: «Activar resumen» y «Ahora no» (ambos hacen `PUT` con el resumen en `true` o `false`).
-- `/baja` (pública, `Referrer-Policy: no-referrer` y `noindex` en `next.config.ts`): lee `t`, hace el `POST` una vez al cargar, borra `t` de la barra (`history.replaceState`) y muestra siempre el mismo texto (D-4).
+- `/baja` (pública, `Referrer-Policy: no-referrer` y `noindex` en `next.config.ts`): al cargar lee `t`, lo guarda en memoria y lo borra de la barra (`history.replaceState`) **sin hacer ninguna petición**; muestra «¿Quieres dejar de recibir este tipo de correo?» y el botón «Darme de baja» (44 px). Al pulsarlo: un único `POST /correo/baja` con `{token}` (botón deshabilitado mientras; doble clic → un `POST`); con `t` ausente o mal formado no hace `POST`. Tras pulsar muestra siempre «Listo. Si el enlace era válido, ya no recibirás este tipo de correo» y el acceso a «Mi cuenta → Correo», con 200, 400, 429 o error de red (D-4, U-18).
 - `/ir`: valida `estudio` (uuid), `pantalla` (lista cerrada de D-3) y `cliente` (uuid); si el estudio activo es otro, `POST /auth/estudio`; si falla, `/estudios`; nunca redirige fuera del sitio.
 
 ## Decisiones técnicas
