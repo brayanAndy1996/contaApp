@@ -22,7 +22,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → cobe
 | T14 | Cobertura ≥ 90 % por archivo: `cobertura:correo` y paso en CI | devops | sonnet | T8, T9, T10, T11, T12 ∥ T13 | — | — | [x] |
 | T14a | Pruebas que faltaban para el 90 % por archivo (`tomarEnvioParaEnviar`, `correo_destinatario`, `enviar-correo` con el repositorio real de nombres, fábrica del backend, `crearWorkerSistema`) | tester | sonnet | T14 | — | — | [x] |
 | T15 | Ronda adversarial 1: aislamiento, permisos, baja y `/ir`, revalidación y carreras, ciclo y candado (≤ 15 pruebas) | adversario | opus | T11, T12, T14 ∥ T13, T21 | — | ✓ | [x] |
-| T16 | Pruebas de las correcciones de la ronda 1 (rojo) | tester | sonnet | T15 | ✓ | — | [ ] |
+| T16 | Pruebas de las correcciones de la ronda 1 (rojo) | tester | sonnet | T15 | ✓ | — | [x] |
 | T17 | Corregir los hallazgos de la ronda 1 (migración 0075 si hace falta) | backend | opus | T16 | — | — | [ ] |
 | T18 | Ronda adversarial 2: contenido y cabeceras, canarios, inundación, ventana y tope, bordes de hora de Lima, U-16, rendimiento (≤ 15 pruebas) | adversario | opus | T17 | — | ✓ | [ ] |
 | T19 | Pruebas de las correcciones de la ronda 2 (rojo) | tester | sonnet | T18 | ✓ | — | [ ] |
@@ -157,10 +157,22 @@ Reglas comunes:
   - **H-028-1-7 · baja** · `@SinOrigen` cubre toda la ruta `POST /correo/baja`, también la variante JSON del botón de `/baja`, que sí manda `Origin`: un `POST` JSON desde `https://atacante.example` con `Sec-Fetch-Site: cross-site` responde 200 y aplica la baja. Necesita el token (solo apaga), pero la exención solo hace falta para la variante de RFC 8058.
   - **H-028-1-8 · baja · decisión de producto** · El tope de 30 «correos inmediatos» cuenta envíos `aviso` del día en cualquier estado: 30 envíos `omitido` (preferencia apagada y encendida, sin contenido, membresía) agotan el tope y el aviso siguiente queda diferido aunque hoy no salió ningún correo.
 
-## T16 · [ ] Pruebas de las correcciones de la ronda 1, rojo (tester · sonnet)
+## T16 · [x] Pruebas de las correcciones de la ronda 1, rojo (tester · sonnet)
 - **Contexto (leer solo esto)**: resultado de T15 (hallazgos), sus pruebas, `spec.md` (los CA citados).
 - **Hacer**: una prueba normal (no adversarial) por hallazgo que fije lo que pide la spec, con soportes de hechos reales y limpieza en `replica` (reglas comunes).
 - **Hecho cuando**: fallan por el defecto. Commit `test(028): correcciones de la ronda 1 en rojo`.
+- **Resultado (T16)**: decisiones del 2026-11-24 sobre los hallazgos de T15 (commit `test(028): pruebas de las correcciones de la ronda 1`):
+  - **H-028-1-1** (media): `detener` espera al tick, o el tick puede soltar su candado aunque `detener` haya vencido; el siguiente worker toma el ciclo enseguida. Lo fija la prueba de T15 (sin cambios).
+  - **H-028-1-2** (técnica): candado de **90 s** renovado tras cada estudio (≤ 1 min en condiciones normales y ≤ 2 min tras `kill -9`, R-14). El valor está en `CANDADO_S = 90` de `correo-r1.int.spec.ts` (worker): tomar y renovar dejan 85–90 s; renovar no alarga; vivo que renueva conserva más de 90 s; sin renovar 100 s, otro lo toma.
+  - **H-028-1-3**: el backend no inserta `notificacion.enviar` en `job_registro` (con o sin cliente real); solo la BD y el worker por sus funciones acotadas.
+  - **H-028-1-4**: si el usuario apaga el resumen que ya juntó diferidos, esos avisos salen en «Avisos pendientes» (uno solo, con los dos); si lo reactiva, van al siguiente resumen.
+  - **H-028-1-5** (usuario): token de **un solo uso**; deja de valer al usarse o si el usuario cambia **esa** preferencia en la app después de recibir el correo. No lo invalidan un cambio de otro tipo ni un guardado sin cambios; un token emitido después del cambio vale.
+  - **H-028-1-6** (usuario): límite **por token** (valor fijado por T16: los 3 primeros intentos responden como siempre y antes del 30.º llega el 429, desde cualquier IP) y uno alto por IP solo contra abuso masivo: 500 cada 10 min (499 intentos con tokens distintos pasan; el 500.º o el 501.º recibe 429); 25 bajas de usuarios distintos desde la misma IP se aplican todas.
+  - **H-028-1-7**: la exención de `OrigenGuard` es solo para la variante de un clic (urlencoded `List-Unsubscribe=One-Click`, sin `Origin`); el JSON del botón exige el origen propio (sin `Origin`, con `Origin` ajeno, `Sec-Fetch-Site` distinto de `same-origin`: 403). Los cuerpos que no son JSON ni el exacto de RFC 8058 siguen en 200 `{}` sin efectos (T6), así que basta con que el guard pida origen cuando el `Content-Type` es JSON.
+  - **H-028-1-8** (usuario): el tope de 30 cuenta solo los envíos `aviso` del día **enviados o en curso** (`pendiente`), no los `omitido` ni los `fallido`.
+  - Pruebas nuevas (17: 13 en rojo y 4 controles verdes): `apps/worker/src/trabajos/procesadores/correo-r1.int.spec.ts` (8: H-2 ×3, H-3 ×2 (una es control del camino legítimo), H-4 ×2, H-8 ×1), `apps/backend/src/modules/correo/correo-r1.int.spec.ts` (5: H-5 ×2, H-6 ×1, H-7 ×2 (una es control de RFC 8058)), `apps/backend/src/modules/auth/guards/origen.guard.sin-origen-r1.spec.ts` (4: 2 fallan, 2 controles).
+  - Pruebas de T6 y T15 ajustadas porque contradecían una decisión (sin quitar aserciones útiles): `baja.int.spec.ts` «sin ese cuerpo exacto…» (el caso JSON sin `Origin` esperaba 200 o 400: ahora 403, y con el origen propio y otro cuerpo, 400) y «límite por IP: 429» (reescrito como límite por token con IP siempre distintas; el tope por IP de 500 va en `correo-r1.int.spec.ts`); `correo-r1.adv.int.spec.ts` (worker) H-028-1-2 (simulaba `ciclo_hasta` a +3 min, estado imposible con el candado de 90 s: ahora toma el ciclo con la función real y envejece 2 min).
+  - Estado: las 8 de T15 + las nuevas fallan por falta de implementación (candado de 300 s, backend inserta el trabajo, diferidos unidos a un resumen omitido, token reutilizable, límite de 20 por IP, `OrigenGuard` exime todo el `POST`, el tope cuenta cualquier estado). Pasan como control: camino legítimo de `encolar_correo_avisos`, variante de RFC 8058 sin `Origin`, guardado sin cambios, guard con origen propio.
 
 ## T17 · [ ] Corregir la ronda 1 (backend · opus)
 - **Contexto (leer solo esto)**: hallazgos de T15, pruebas de T15 y T16, solo los archivos que señalan.

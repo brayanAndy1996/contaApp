@@ -3,7 +3,7 @@
 // T15). Los estudios de volumen se siembran por SQL como superusuario (solo filas de soporte: estudio, plan vigente, Dueño con el
 // resumen activo); los avisos nacen por su camino real (crítico insertado como el worker → triggers de 0056 → `interno.notificar`).
 import { randomUUID } from "node:crypto";
-import type { ContappDb } from "@contapp/db";
+import { tomarCicloCorreo, type ContappDb } from "@contapp/db";
 import { crearColaSistema } from "@contapp/queue/worker";
 import type { Redis } from "ioredis";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -225,10 +225,13 @@ describe("T15 · ciclo correo.programar: volumen, candado y cierre del worker", 
 
   it("H-028-1-2: si el dueño del candado murió hace 2 min sin renovarlo, otro worker toma el ciclo (R-14: aviso en ≤ 1 min)", async () => {
     const { T } = await avisoPendiente();
-    // Candado tomado hace 2 min por un proceso que murió (kill -9) sin renovar: vence a los 5 min de tomado.
+    await prog.listoParaTomar();
+    // T16 (2026-11-24): el estado ya no se simula con `ciclo_hasta` a +3 min (con el candado de 90 s renovado de la decisión H-028-1-2
+    // ese estado no puede darse). Un proceso toma el ciclo por la función real y muere (kill -9) sin renovar: pasan 2 min.
+    expect(await worker.withSistema((tx) => tomarCicloCorreo(tx, "muerto"))).not.toBeNull();
     await admin.pool.query(
-      `update correo_programacion set ciclo_dueno = 'muerto', ultimo_ciclo_inicio = clock_timestamp() - interval '2 minutes',
-              ciclo_hasta = clock_timestamp() + interval '3 minutes'`,
+      `update correo_programacion set ciclo_hasta = ciclo_hasta - interval '2 minutes',
+              ultimo_ciclo_inicio = ultimo_ciclo_inicio - interval '2 minutes'`,
     );
     const r = await programarCorreo({ db: worker, logger: silencio, dueno: `vivo-${randomUUID()}` })();
     expect(r.tomado, "un candado sin renovar por 2 min sigue vigente 3 min más: avisos detenidos hasta 5 min").toBe(true);

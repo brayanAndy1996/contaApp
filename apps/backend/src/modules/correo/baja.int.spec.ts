@@ -40,6 +40,11 @@ beforeAll(async () => {
   F = await b.estudio();
 });
 const ipsUsadas: string[] = [];
+const ipDe = (): string => {
+  const x = ipUnica();
+  ipsUsadas.push(x);
+  return x;
+};
 afterAll(async () => {
   if (b && ipsUsadas.length > 0) await b.sql("delete from auth.limite_tasa where sujeto = any($1::text[])", [ipsUsadas]).catch(() => undefined);
   await b?.cerrar();
@@ -316,9 +321,13 @@ describe("CA-8 · POST /correo/baja?t= con el cuerpo de RFC 8058 (un clic del cl
       expect(r.status, `${nombre}: ${r.text}`).toBe(200);
       expect(r.text, nombre).toBe("{}");
     }
-    // Un cuerpo JSON es la variante de la página (`bajaSchema`): con otra cosa que `{token}` es 400 y tampoco cambia nada.
+    // Un cuerpo JSON es la variante de la página (`bajaSchema`) y exige el origen propio. T16 (H-028-1-7, 2026-11-24): este caso mandaba el
+    // JSON sin `Origin` y esperaba 200 o 400; ahora la exención de `OrigenGuard` es solo de la variante de RFC 8058, así que sin `Origin`
+    // es 403 (`origen_invalido`) y tampoco cambia nada. Con el origen propio y otra cosa que `{token}`, sigue siendo 400 (`bajaSchema`).
     const json = await unClic(q, JSON.stringify({ "List-Unsubscribe": "One-Click" }), "application/json");
-    expect([200, 400], json.text).toContain(json.status);
+    expect(json.status, json.text).toBe(403);
+    const jsonPropio = await baja(undefined, { cuerpo: { "List-Unsubscribe": "One-Click" } });
+    expect(jsonPropio.status, jsonPropio.text).toBe(400);
     await intacto(u);
     // Control: la misma petición con el cuerpo exacto sí aplica y responde lo mismo que los demás.
     const ok = await unClic(q);
@@ -371,34 +380,38 @@ describe("CA-8 · ningún GET cambia estado (la carga de /baja y los antivirus q
   });
 });
 
-describe("CA-8 · límite por IP: 429 sin tocar nada", () => {
-  it("pasado el límite la IP recibe 429 demasiados_intentos aun con un token bueno (también por RFC 8058) y no cambia nada; otra IP sí puede", async () => {
+describe("CA-8 · límite por token: 429 sin tocar nada", () => {
+  // T16 (H-028-1-6, 2026-11-24): antes el límite era por IP (20 cada 10 min) y esta prueba lo agotaba con tokens inventados desde una sola
+  // IP. Un proveedor de correo hace el POST de RFC 8058 de todos sus usuarios desde pocas IP, así que ahora el límite es por TOKEN; el tope
+  // por IP (500 cada 10 min, solo contra abuso masivo) se prueba en `correo-r1.int.spec.ts`. El valor por token lo fija T16: los 3 primeros
+  // intentos de un mismo token responden como siempre y antes del 30.º llega el 429.
+  it("el mismo token, desde cualquier IP, recibe 429 demasiados_intentos pasado su límite (también por RFC 8058) y no cambia nada; otro token sí puede", async () => {
     await sonda();
-    const ip = ipUnica();
-    ipsUsadas.push(ip);
     const u = await usuario();
     const tBueno = await token(u);
     const w = await usuario();
     const tW = await token(w);
+    const insistido = tokenNuevo(); // un token desconocido insistido desde IP siempre distintas: el límite no es el de la IP
     const estados: number[] = [];
-    for (let i = 0; i < 80 && estados.at(-1) !== 429; i++) estados.push((await baja(tokenNuevo(), { ip })).status);
-    expect(estados.at(-1), `el límite por IP no llegó en ${estados.length} intentos`).toBe(429);
-    expect(estados.length, "el límite no puede cortar el primer intento").toBeGreaterThan(1);
+    for (let i = 0; i < 30 && estados.at(-1) !== 429; i++) estados.push((await baja(insistido, { ip: ipDe() })).status);
+    expect(estados.at(-1), `el límite por token no llegó en ${estados.length} intentos`).toBe(429);
+    expect(estados.length, "el límite no puede cortar los primeros intentos (el cliente de correo reintenta)").toBeGreaterThan(3);
     expect(estados.slice(0, -1).every((s) => s === 200)).toBe(true);
-    const bloqueada = await baja(tBueno.token, { ip });
+    const bloqueada = await baja(insistido, { ip: ipDe() });
     expect(bloqueada.status).toBe(429);
     expect(bloqueada.body).toEqual({ codigo: "demasiados_intentos" });
     expect(esNoStore(bloqueada.headers["cache-control"])).toBe(true);
-    const bloqueadaUnClic = await unClic(`?t=${tBueno.token}`, "List-Unsubscribe=One-Click", "application/x-www-form-urlencoded", { ip });
-    expect(bloqueadaUnClic.status).toBe(429); // el contador de la IP es el mismo para la página y para el cliente de correo
+    const bloqueadaUnClic = await unClic(`?t=${insistido}`, "List-Unsubscribe=One-Click", "application/x-www-form-urlencoded", { ip: ipDe() });
+    expect(bloqueadaUnClic.status).toBe(429); // el contador del token es el mismo para la página y para el cliente de correo
     expect(bloqueadaUnClic.body).toEqual({ codigo: "demasiados_intentos" });
+    // Otro token no está limitado, ni desde la IP que más insistió: apaga lo suyo y nada más.
+    const ipInsistente = ipDe();
+    expect((await baja(insistido, { ip: ipInsistente })).status).toBe(429);
     await intacto(u);
-    // Otra IP no está limitada: el mismo token apaga.
-    expect((await baja(tBueno.token)).status).toBe(200);
+    expect((await baja(tBueno.token, { ip: ipInsistente })).status).toBe(200);
     expect(await efectiva(E.tenantId, u.id, "buzon_critico")).toBe(false);
-    // Y la IP bloqueada tampoco aplicó la de otro usuario.
     expect(await efectiva(E.tenantId, w.id, "buzon_critico")).toBe(true);
-    expect((await baja(tW.token)).status).toBe(200);
+    expect((await baja(tW.token, { ip: ipInsistente })).status).toBe(200);
   }, 60_000);
 });
 
