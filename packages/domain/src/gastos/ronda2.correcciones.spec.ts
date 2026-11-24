@@ -12,6 +12,7 @@
 import { describe, expect, it } from "vitest";
 import { PROV, SEMILLA_GLOBAL, contextoNeutro } from "../../tests/ayudas/gastos";
 import type { PalabraPlana } from "../../tests/ayudas/gastos";
+import { medirEscala, topeRazon } from "../../tests/ayudas/rendimiento";
 import { DiccionarioGlosas } from "../texto/diccionario";
 import { tokensDeGlosa } from "../texto/normalizar";
 import { crearDiccionarioEfectivo } from "./contexto";
@@ -191,10 +192,15 @@ describe("T19 · H-027-2-6: caracteres de formato invisibles no parten una palab
     expect(porItem(efectivo(), ["ZAPA TILLAS URBANAS"])).toEqual([]);
   });
 
-  it("regresión: 200.000 invisibles seguidos se tokenizan en tiempo lineal (menos de 500 ms)", () => {
-    const a = Date.now();
-    expect(tokensDeGlosa(`ZAPA${"​".repeat(200_000)}TILLAS`).length).toBeLessThanOrEqual(2);
-    expect(Date.now() - a).toBeLessThan(500);
+  it("regresión: 200.000 invisibles seguidos se tokenizan en tiempo lineal", () => {
+    // T25a: antes «< 500 ms» absoluto (frágil bajo cobertura y carga). Ahora, razón entre 200.000 y 50.000 invisibles (mínimo de 7 rondas
+    // intercaladas, tests/ayudas/rendimiento.ts): lineal ≈ 4, cuadrático ≈ 16; se exige ≤ 8. La máquina y la instrumentación escalan ambos lados.
+    const glosa = (n: number) => `ZAPA${"​".repeat(n)}TILLAS`;
+    const chica = glosa(50_000);
+    const grande = glosa(200_000);
+    expect(tokensDeGlosa(grande).length).toBeLessThanOrEqual(2);
+    const e = medirEscala(() => tokensDeGlosa(chica), () => tokensDeGlosa(grande));
+    expect(e.razon, `50.000: ${e.chicoMs.toFixed(1)} ms, 200.000: ${e.grandeMs.toFixed(1)} ms`).toBeLessThanOrEqual(topeRazon(4));
   });
 });
 
@@ -210,12 +216,16 @@ describe("T19 · H-027-2-7: con una compra hostil el tiempo no se dispara (R-10)
   };
   const d = efectivo(...Array.from({ length: 2_000 }, (_, i) => propia(`prod${letras(i).padStart(4, "a")}`, "entretenimiento")));
 
-  it("una compra de 1.000 ítems «PROD.» con 2.000 palabras (2 millones de coincidencias) se puntúa en menos de 600 ms y da S1 con el tope", { timeout: 60_000 }, () => {
-    const glosas = Array.from({ length: 1_000 }, (_, i) => `PROD. LIMPIEZA ${i}`);
-    const a = Date.now();
-    const r = puntuar(d, glosas);
-    expect(Date.now() - a).toBeLessThan(600);
+  it("una compra de 1.000 ítems «PROD.» con 2.000 palabras (2 millones de coincidencias) se puntúa en tiempo lineal en los ítems y da S1 con el tope", { timeout: 120_000 }, () => {
+    // T25a: antes «< 600 ms» absoluto: 609-722 ms bajo cobertura con la máquina cargada, sin regresión alguna. Ahora, razón entre 1.000 y 250
+    // ítems de la misma compra (mínimo de 7 rondas intercaladas, tests/ayudas/rendimiento.ts): lineal ≈ 4, cuadrático ≈ 16; se exige ≤ 8.
+    const glosas = (n: number) => Array.from({ length: n }, (_, i) => `PROD. LIMPIEZA ${i}`);
+    const chica = glosas(250);
+    const grande = glosas(1_000);
+    const r = puntuar(d, grande);
     expect(r.senales[0]).toMatchObject({ codigo: "S1", puntos: 6 });
     expect(r.palabra).toBe("prodaaaa");
+    const e = medirEscala(() => puntuar(d, chica), () => puntuar(d, grande));
+    expect(e.razon, `250 ítems: ${e.chicoMs.toFixed(1)} ms, 1.000: ${e.grandeMs.toFixed(1)} ms`).toBeLessThanOrEqual(topeRazon(4));
   });
 });

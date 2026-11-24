@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import * as dominio from "../index";
+import { medirEscala, topeRazon } from "../../tests/ayudas/rendimiento";
 
 // Spec 011, CA-12 y D-5 (R-GP mínima): coincidencia de palabras clave con plural s/es,
 // abreviatura con punto (prefijo, >= 4 letras) y diccionario base. Contrato: plan 011, "texto/".
@@ -288,36 +289,52 @@ describe("orden determinista de buscar", () => {
   });
 });
 
-describe("rendimiento: glosa de 1 MB en menos de 1 s", () => {
-  it("1 MB de palabras sin coincidencia (diccionario base)", () => {
-    const glosa = "producto ".repeat(125_000);
-    const t0 = Date.now();
-    expect(base().buscar([glosa])).toBeNull();
-    expect(Date.now() - t0).toBeLessThan(1000);
+// Rendimiento (R-GP de 011 y R-10 de 027): ni la glosa de 1 MB ni las 100 000 glosas pequeñas deben explotar.
+// T25a: antes cada caso era «< 1 s» absoluto, que bajo cobertura v8 en CI cargado tardó 1,1-1,2 s sin regresión alguna (run 45306073754).
+// Criterio: complejidad, no milisegundos. Se mide la MISMA entrada a tamaño completo y a 1/4 (mínimo de 7 rondas intercaladas,
+// tests/ayudas/rendimiento.ts); lineal → razón ≈ 4, cuadrático → ≈ 16; la prueba exige razón ≤ 8 (factor^1,5). La instrumentación y la
+// carga multiplican ambos lados por igual, así que la razón no depende de la máquina. Si una entrada tarda más de la cuenta por una
+// regresión de complejidad, la razón se dispara; si solo la máquina va lenta, no.
+describe("rendimiento: glosa de 1 MB y 100 000 glosas escalan linealmente (sin explosión)", () => {
+  const FACTOR = 4;
+  const TIMEOUT = 120_000;
+  const verificar = (cuarto: () => unknown, completo: () => unknown): void => {
+    const e = medirEscala(cuarto, completo);
+    expect(e.razon, `1/4: ${e.chicoMs.toFixed(1)} ms, completo: ${e.grandeMs.toFixed(1)} ms`).toBeLessThanOrEqual(topeRazon(FACTOR));
+  };
+
+  it("1 MB de palabras sin coincidencia (diccionario base)", { timeout: TIMEOUT }, () => {
+    const glosa = (n: number) => "producto ".repeat(n);
+    const chica = glosa(31_250);
+    const grande = glosa(125_000);
+    expect(base().buscar([grande])).toBeNull();
+    verificar(() => base().buscar([chica]), () => base().buscar([grande]));
   });
 
-  it("1 MB con la palabra clave al final", () => {
-    const glosa = `${"producto ".repeat(125_000)}zapatillas`;
-    const t0 = Date.now();
-    expect(base().buscar([glosa])?.palabra).toBe("zapatilla");
-    expect(Date.now() - t0).toBeLessThan(1000);
+  it("1 MB con la palabra clave al final", { timeout: TIMEOUT }, () => {
+    const glosa = (n: number) => `${"producto ".repeat(n)}zapatillas`;
+    const chica = glosa(31_250);
+    const grande = glosa(125_000);
+    expect(base().buscar([grande])?.palabra).toBe("zapatilla");
+    verificar(() => base().buscar([chica]), () => base().buscar([grande]));
   });
 
   it.each([
-    ["una sola palabra", "x".repeat(1_000_000)],
-    ["puntos", ".".repeat(1_000_000)],
-    ["abreviaturas cortas repetidas", "zap. ".repeat(200_000)],
-    ["prefijo repetido sin punto", "zapatill ".repeat(111_000)],
-  ])("1 MB patológico (%s)", (_n, glosa) => {
-    const t0 = Date.now();
-    base().buscar([glosa]);
-    expect(Date.now() - t0).toBeLessThan(1000);
+    ["una sola palabra", (n: number) => "x".repeat(n), 1_000_000],
+    ["puntos", (n: number) => ".".repeat(n), 1_000_000],
+    ["abreviaturas cortas repetidas", (n: number) => "zap. ".repeat(n), 200_000],
+    ["prefijo repetido sin punto", (n: number) => "zapatill ".repeat(n), 111_000],
+  ])("1 MB patológico (%s)", { timeout: TIMEOUT }, (_n, glosa, repeticiones) => {
+    const chica = glosa(repeticiones / FACTOR);
+    const grande = glosa(repeticiones);
+    verificar(() => base().buscar([chica]), () => base().buscar([grande]));
   });
 
-  it("muchas glosas pequeñas (100 000) en menos de 1 s", () => {
-    const glosas = Array.from({ length: 100_000 }, (_, i) => `articulo ${i}`);
-    const t0 = Date.now();
-    expect(base().buscar(glosas)).toBeNull();
-    expect(Date.now() - t0).toBeLessThan(1000);
+  it("muchas glosas pequeñas (100 000) escalan linealmente", { timeout: TIMEOUT }, () => {
+    const glosas = (n: number) => Array.from({ length: n }, (_, i) => `articulo ${i}`);
+    const chicas = glosas(25_000);
+    const grandes = glosas(100_000);
+    expect(base().buscar(grandes)).toBeNull();
+    verificar(() => base().buscar(chicas), () => base().buscar(grandes));
   });
 });

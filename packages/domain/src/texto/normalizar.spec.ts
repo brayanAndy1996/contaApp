@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import * as dominio from "../index";
+import { medirEscala, topeRazon } from "../../tests/ayudas/rendimiento";
 
 // Spec 011, D-5 y CA-12: normalización simple de glosas (minúsculas, sin tildes,
 // separadores, abreviaturas con punto). Contrato: plan 011, "texto/".
@@ -90,22 +91,27 @@ describe("tokensDeGlosa: casos vacíos y límites", () => {
     expect(tokens(g)).toEqual(tokens(g));
   });
 
-  it("glosa de 1 MB (palabras) en menos de 1 s", () => {
-    const glosa = "producto ".repeat(125_000); // ~1 MB
-    const t0 = Date.now();
-    const r = tokens(glosa);
-    expect(Date.now() - t0).toBeLessThan(1000);
-    expect(r.length).toBe(125_000);
+  // T25a: antes cada caso era «< 1 s» absoluto (frágil bajo cobertura v8 y máquina cargada; cf. run 45306073754 de CI). Ahora se mide la
+  // complejidad: la misma entrada a 1/4 y a tamaño completo (mínimo de 7 rondas intercaladas, tests/ayudas/rendimiento.ts); lineal →
+  // razón ≈ 4, retroceso/cuadrático → ≈ 16; se exige ≤ 8. La instrumentación y la carga escalan ambos lados por igual.
+  const verificarLineal = (chica: string, grande: string): void => {
+    const e = medirEscala(() => tokens(chica), () => tokens(grande));
+    expect(e.razon, `1/4: ${e.chicoMs.toFixed(1)} ms, completo: ${e.grandeMs.toFixed(1)} ms`).toBeLessThanOrEqual(topeRazon(4));
+  };
+
+  it("glosa de 1 MB (palabras) se tokeniza en tiempo lineal", { timeout: 120_000 }, () => {
+    const glosa = (n: number) => "producto ".repeat(n);
+    const grande = glosa(125_000); // ~1 MB
+    expect(tokens(grande).length).toBe(125_000);
+    verificarLineal(glosa(31_250), grande);
   });
 
   it.each([
-    ["una sola palabra de 1 MB", "x".repeat(1_000_000)],
-    ["1 MB de puntos", ".".repeat(1_000_000)],
-    ["1 MB de separadores", "|".repeat(1_000_000)],
-    ["1 MB de letras con tilde", "í".repeat(500_000)],
-  ])("sin retroceso patológico: %s en menos de 1 s", (_n, glosa) => {
-    const t0 = Date.now();
-    tokens(glosa);
-    expect(Date.now() - t0).toBeLessThan(1000);
+    ["una sola palabra de 1 MB", (n: number) => "x".repeat(n), 1_000_000],
+    ["1 MB de puntos", (n: number) => ".".repeat(n), 1_000_000],
+    ["1 MB de separadores", (n: number) => "|".repeat(n), 1_000_000],
+    ["1 MB de letras con tilde", (n: number) => "í".repeat(n), 500_000],
+  ])("sin retroceso patológico: %s en tiempo lineal", { timeout: 120_000 }, (_n, glosa, n) => {
+    verificarLineal(glosa(n / 4), glosa(n));
   });
 });
