@@ -1,0 +1,146 @@
+{
+  "info": {
+    "name": "ContApp · Validez de comprobantes (CPE)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Consulta Integrada de Comprobante de Pago (manual SUNAT v2.0). Solo lectura. Credenciales DISTINTAS a las de SIRE: se generan en SOL › Empresas › Comprobantes de pago › Consulta de Validez de Comprobantes de Pago › Credenciales de API SUNAT."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{cpe_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "0. Obtener token (CPE)",
+      "auth": {
+        "type": "noauth"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "const r = pm.response.json();",
+              "if (r.access_token) { pm.environment.set('cpe_token', r.access_token); console.log('Token CPE OK. expira en (s):', r.expires_in, '| campos:', Object.keys(r).join(', ')); }",
+              "else { console.log('Sin access_token. Campos:', Object.keys(r).join(', ')); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "key": "scope",
+              "value": "https://api.sunat.gob.pe/v1/contribuyente/contribuyentes"
+            },
+            {
+              "key": "client_id",
+              "value": "{{cpe_client_id}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{cpe_client_secret}}"
+            }
+          ]
+        },
+        "url": {
+          "raw": "https://api-seguridad.sunat.gob.pe/v1/clientesextranet/{{cpe_client_id}}/oauth2/token/",
+          "protocol": "https",
+          "host": [
+            "api-seguridad",
+            "sunat",
+            "gob",
+            "pe"
+          ],
+          "path": [
+            "v1",
+            "clientesextranet",
+            "{{cpe_client_id}}",
+            "oauth2",
+            "token",
+            ""
+          ]
+        },
+        "description": "OJO: 'clientesextranet' y grant_type 'client_credentials' (no 'clientessol'/'password' como SIRE). No usa clave SOL."
+      }
+    },
+    {
+      "name": "1. Validar comprobante",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const r = pm.response.json();",
+              "const CP = {'0':'NO EXISTE','1':'ACEPTADO','2':'ANULADO','3':'AUTORIZADO','4':'NO AUTORIZADO'};",
+              "const RUC = {'00':'ACTIVO','01':'BAJA PROVISIONAL','02':'BAJA PROV. POR OFICIO','03':'SUSPENSION TEMPORAL','10':'BAJA DEFINITIVA','11':'BAJA DE OFICIO','22':'INHABILITADO-VENT.UNICA'};",
+              "const DOM = {'00':'HABIDO','09':'PENDIENTE','11':'POR VERIFICAR','12':'NO HABIDO','20':'NO HALLADO'};",
+              "if (!r.success) { console.log('Fallo:', r.errorCode, r.message); return; }",
+              "const d = r.data || {};",
+              "console.log('Comprobante:', d.estadoCp, CP[String(d.estadoCp)], '| RUC emisor:', d.estadoRuc, RUC[d.estadoRuc], '| Domicilio:', d.condDomiRuc, DOM[d.condDomiRuc]);",
+              "console.log('Observaciones:', JSON.stringify(d.observaciones || d.Observaciones || []));",
+              "console.log('Tipos recibidos -> estadoCp:', typeof d.estadoCp, '| campos data:', Object.keys(d).join(', '));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"numRuc\": \"{{cp_ruc_emisor}}\",\n  \"codComp\": \"01\",\n  \"numeroSerie\": \"F001\",\n  \"numero\": \"123\",\n  \"fechaEmision\": \"dd/mm/aaaa\",\n  \"monto\": \"100.00\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://api.sunat.gob.pe/v1/contribuyente/contribuyentes/{{ruc}}/validarcomprobante",
+          "protocol": "https",
+          "host": [
+            "api",
+            "sunat",
+            "gob",
+            "pe"
+          ],
+          "path": [
+            "v1",
+            "contribuyente",
+            "contribuyentes",
+            "{{ruc}}",
+            "validarcomprobante"
+          ]
+        },
+        "description": "{{ruc}} = RUC de quien consulta. En el cuerpo: datos del comprobante (emisor, tipo 01/03/04/07/08/R1/R7, serie, número, fecha dd/mm/aaaa, monto solo para electrónicos). El ejemplo del manual envía número y monto como texto."
+      }
+    }
+  ]
+}

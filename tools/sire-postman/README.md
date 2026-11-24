@@ -38,3 +38,10 @@ Sin datos reales (RUC, montos o nombres), anota:
 - El nombre del archivo y la estructura del ZIP (cuántos archivos, nombre, separador, cuántas columnas tiene el TXT y su encabezado).
 - Los errores reales (código HTTP y `cod`/`msg`).
 - Dudas del manual a confirmar: si la consulta de tickets exige `codLibro`/`codOrigenEnvio` (van desactivados), si la propuesta de compras exige `numSerieCDP`/`numCDP` (van desactivados) y el valor de `codTipoArchivoReporte` cuando es `null`.
+
+## Validez de comprobantes (CPE) — `cpe-validez.postman_collection.json`
+Manual SUNAT «Consulta Integrada de Comprobante de Pago por Servicio Web v2.0». Usa el mismo entorno, con variables propias:
+- **Credenciales distintas a SIRE**: SOL → *Empresas → Comprobantes de pago → Consulta de Validez de Comprobantes de Pago → Credenciales de API SUNAT*. Llena `cpe_client_id` y `cpe_client_secret`.
+- Token con `clientesextranet` y `grant_type=client_credentials` (sin clave SOL).
+- `ruc` = quien consulta; en el cuerpo, el comprobante a validar (`cp_ruc_emisor` = RUC del emisor).
+- La consola traduce `estadoCp`, `estadoRuc` y `condDomiRuc` e imprime los tipos reales de los campos (el manual dice `Integer` pero su ejemplo devuelve texto).
