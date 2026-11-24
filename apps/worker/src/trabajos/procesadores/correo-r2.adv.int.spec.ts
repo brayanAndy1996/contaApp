@@ -301,7 +301,9 @@ describe("T18 · ventana, tope y diferidos", () => {
     }).toEqual({ inmediatos: 30, avisos: 2, diferidos: 1 });
   });
 
-  it("U-16 + H-028-1-4: resumen entregado al SMTP, worker muerto antes de marcar y el usuario lo apaga: el reintento lo deja omitido y sus diferidos vuelven a salir en «Avisos pendientes»", async () => {
+  // T19 (2026-11-24) ajustó esta prueba: T18 exigía «ningún envío nuevo» (H-028-2-4), pero el usuario decidió ACEPTAR el duplicado
+  // (U-16 «al menos una vez»). Ahora fija lo único que se exige: el contenido no se pierde (los dos avisos salen en «Avisos pendientes»).
+  it("U-16 + H-028-1-4 (H-028-2-4, duplicado aceptado): resumen entregado al SMTP, worker muerto antes de marcar y el usuario lo apaga: el reintento lo deja omitido y los dos avisos no se pierden", async () => {
     const T = await e.estudioPlan();
     const d = await e.usuario(T, "dueno");
     const c = await e.clienteCon(T, "Cliente U-16");
@@ -324,15 +326,15 @@ describe("T18 · ventana, tope y diferidos", () => {
     const reintento = new CorreoMemoria();
     expect(await procesador(reintento)(ctxEnvio(T, r.id, 2))).toMatchObject({ estado: "omitido" });
     expect(reintento.enviados).toHaveLength(0);
-    // Siguiente día de resumen.
+    // Siguiente día de resumen: los diferidos del resumen omitido salen en «Avisos pendientes» (puede repetirse lo ya entregado).
     await e.crearResumenes(T, await e.diaLima(-1));
     const pendientes = await e.envios(T, { usuarioId: d, origen: "pendientes" });
+    expect(pendientes, "el contenido no se pierde: un correo «Avisos pendientes» con los dos avisos").toHaveLength(1);
+    expect(pendientes[0]!.total_avisos).toBe(2);
     const otra = new CorreoMemoria();
     for (const p of pendientes) await procesador(otra)(ctxEnvio(T, p.id));
-    expect(
-      { envíosPendientes: pendientes.length, correosConLosMismosAvisos: otra.enviados.length },
-      "los dos avisos ya llegaron en el resumen entregado; el registro lo da por omitido y H-028-1-4 los vuelve a mandar",
-    ).toEqual({ envíosPendientes: 0, correosConLosMismosAvisos: 0 });
+    expect(otra.enviados).toHaveLength(1);
+    expect(otra.enviados[0]!.texto).toContain("Coactivas y avisos críticos del buzón: 2");
   });
 });
 
