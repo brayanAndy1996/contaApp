@@ -169,7 +169,21 @@ export async function abrirBanco(cupo?: object, extra: Record<string, unknown> =
         await intentar("set local session_replication_role = replica");
         // 017: notificacion, plan_aviso y auditoria (FK a tenant; auditoria es inmutable) se borran aquí, con `replica`. `asignacion` también:
         // su DELETE audita `asignacion.quitada` y dejaría una fila nueva que bloquea el borrado del estudio.
-        for (const tabla of ["archivo_generado", "venta_exclusion", "venta_periodo", "asignacion", "notificacion", "plan_aviso", "auditoria"])
+        // 026: las tablas de la prorrata son de solo inserción (trigger) y tienen FK al estudio; sin borrarlas aquí, con `replica`,
+        // `delete from tenant` falla y el estudio queda sin suscripción (`planes.spec.ts`; lo deja `permisos-026.int.spec.ts`).
+        for (const tabla of [
+          "archivo_generado",
+          "venta_exclusion",
+          "venta_periodo",
+          "asignacion",
+          "notificacion",
+          "plan_aviso",
+          "auditoria",
+          "prorrata_usada_manual",
+          "prorrata_mes_manual",
+          "declaracion_mensual",
+          "prorrata_obtencion",
+        ])
           await intentar(`delete from ${tabla} where tenant_id = $1`, [t]);
         // 0045: el DELETE de `cliente` y de `membresia` audita y recalcula `plan_aviso` (filas con FK al estudio): también van con
         // `replica`, que salta esos triggers; fuera de ese modo el estudio ya no se podría borrar.

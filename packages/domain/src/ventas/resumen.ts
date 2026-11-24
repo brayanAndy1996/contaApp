@@ -2,11 +2,12 @@
 // Una fila USD se convierte columna por columna con el método de 010 D7 (`redondearSunat(columna × tc)`)
 // y su total es la suma de las siete columnas convertidas; una USD sin tipo de cambio no se suma: sale en
 // `sinConvertir`. Las notas de crédito traen montos negativos y restan. Pura y sin mutar la entrada.
-import { Money, TipoCambio, redondearSunat } from "../dinero/index";
-import type { Moneda } from "../dinero/index";
+import { Money } from "../dinero/index";
+import type { Moneda, TipoCambio } from "../dinero/index";
 import type { Entero } from "../texto/entero";
 import { COLUMNAS_VENTA, COMPONENTES_VENTA } from "./columnas";
 import type { ColumnaVenta, MontosVenta } from "./columnas";
+import { columnaUsdEnSoles, tipoCambioUtil } from "./conversion";
 
 export interface FilaResumenVenta extends MontosVenta {
   readonly clave: string;
@@ -43,18 +44,6 @@ interface Acumulado {
   readonly filas: Soles[];
 }
 
-/** Tipo de cambio utilizable de una fila USD, o `null` si falta o no es válido. */
-function tipoCambioDe(f: FilaResumenVenta): TipoCambio | null {
-  const tc = f.tipoCambio;
-  if (typeof tc !== "string" || tc === "") return null;
-  try {
-    return TipoCambio.desde(tc);
-  } catch {
-    // TipoCambio.desde solo lanza FactorInvalidoError: un tipo de cambio ilegible equivale a no tenerlo.
-    return null;
-  }
-}
-
 /** Una fila PEN suma tal como llegó (la descuadrada no se corrige). */
 function enSolesPen(f: FilaResumenVenta): Soles {
   const m = {} as Record<ColumnaVenta, Money>;
@@ -65,10 +54,7 @@ function enSolesPen(f: FilaResumenVenta): Soles {
 /** Cada componente × tc con redondearSunat; el total es la suma de los componentes convertidos. */
 function enSolesUsd(f: FilaResumenVenta, tc: TipoCambio): Soles {
   const m = {} as Record<ColumnaVenta, Money>;
-  for (const c of COMPONENTES_VENTA) {
-    // redondearSunat conserva la moneda (USD): se reexpresa en PEN por su cadena canónica.
-    m[c] = Money.desde(redondearSunat(Money.desde(f[c], "USD").por(tc)).toString(), "PEN");
-  }
+  for (const c of COMPONENTES_VENTA) m[c] = columnaUsdEnSoles(f[c], tc);
   m.total = Money.suma(
     COMPONENTES_VENTA.map((c) => m[c]),
     "PEN",
@@ -99,7 +85,7 @@ export function resumirVentas(filas: readonly FilaResumenVenta[]): ResumenVentas
   for (const f of filas) {
     let soles: Soles;
     if (f.moneda === "USD") {
-      const tc = tipoCambioDe(f);
+      const tc = tipoCambioUtil(f.tipoCambio);
       if (tc === null) {
         sinConvertir.push({ clave: f.clave, moneda: f.moneda });
         continue;

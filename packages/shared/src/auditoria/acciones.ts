@@ -57,6 +57,11 @@ export const ACCIONES_AUDITORIA = [
   // Spec 025: aprendizaje de arranque (las registran las funciones acotadas de 0062 en la misma transacción).
   "regla.historial_importado",
   "regla.candidata_descartada",
+  // Spec 026: prorrata. `declaraciones_obtenidas` (actor trabajo) la registra la función del worker; las otras tres, las del backend.
+  "prorrata.declaraciones_obtenidas",
+  "prorrata.mes_manual_guardado",
+  "prorrata.mes_manual_eliminado",
+  "prorrata.usada_guardada",
 ] as const;
 
 export type AccionAuditoria = (typeof ACCIONES_AUDITORIA)[number];

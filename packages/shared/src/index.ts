@@ -20,3 +20,4 @@ export * from "./auditoria/index.js";
 export * from "./notificaciones/index.js";
 export * from "./reglas/index.js";
 export * from "./buzon/index.js";
+export * from "./prorrata/index.js";

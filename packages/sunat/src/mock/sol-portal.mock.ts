@@ -7,12 +7,20 @@
 // Orden de cada llamada: latencia -> cuenta -> `fallar` -> gramática del RUC -> centinela `clave-errada` -> caso inyectado
 // con error -> datos. Todo rechazo propio es un error de `errores.ts` con mensaje fijo: nunca lleva usuario, clave, RUC
 // ni ruta. El mock no conserva la credencial (solo el RUC en `leidosMarcados()`, para las pruebas).
+//
+// PDT 621 (spec 026, D-1, D-2): `obtenerDeclaraciones621` sigue el mismo orden de origen: `inyectar({periodos})` ->
+// `{dirFixturesPdt621}/{ruc}.json` -> generado determinista por RUC. Los centinelas son los del buzón: la clave
+// `clave-errada` da `ErrorCredencial`, `fallar(...)` y `inyectar(ruc, {error})` valen para ambas operaciones; no hay
+// centinelas por último dígito del RUC. Cualquier defecto del fixture, de lo inyectado o del periodo pedido es
+// `ErrorDatos` de mensaje fijo.
 import { realpath, open } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 import { ErrorCredencial, ErrorDatos, ErrorTransitorio } from "../errores.js";
+import { validarDeclaraciones621 } from "../pdt621.js";
 import type {
   AdjuntoSol,
   CredencialSol,
+  Declaracion621,
   MensajeSol,
   MetadatosMensajeSol,
   PaginaMensajesSol,
@@ -37,12 +45,22 @@ export interface FixtureBuzonSol {
   mensajes: MensajeFixtureSol[];
 }
 
-export type CasoSolInyectado = FixtureBuzonSol | { error: Error };
+/** PDT 621 de un RUC: `{periodos: {AAAAMM: presentaciones | "error_datos"}}`. Un periodo ausente es «sin declaración». */
+export interface FixturePdt621Sol {
+  periodos: Record<string, Declaracion621[] | "error_datos">;
+}
+
+export type CasoSolInyectado = FixtureBuzonSol | FixturePdt621Sol | { error: Error };
 export type ModoFallaSolPortal = "credencial" | "transitorio" | null;
 
 export interface OpcionesMockSolPortal {
-  /** Carpeta de `{ruc}.json`. Por defecto `fixtures/sol/buzon` del repo, resuelta desde este archivo. */
+  /** Carpeta de `{ruc}.json` del buzón. Por defecto `fixtures/sol/buzon` del repo, resuelta desde este archivo. */
   dirFixtures?: string;
+  /**
+   * Carpeta de `{ruc}.json` del PDT 621. Por defecto `{dirFixtures}/pdt621` si se pasó `dirFixtures`; si no,
+   * `fixtures/sol/pdt621` del repo.
+   */
+  dirFixturesPdt621?: string;
   /** Latencia simulada por llamada, en ms (`SOL_MOCK_LATENCIA_MS`; 0 por defecto). */
   latenciaMs?: number;
   /** Tamaño del buzón generado (mínimo 8, por defecto 12). */
@@ -58,6 +76,11 @@ const RE_RUC = /^[0-9]{11}$/;
 const RE_CURSOR = /^s1_([0-9a-z]{1,8})$/;
 const RE_BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 const CLAVE_ERRADA = "clave-errada";
+
+/** Carpeta de fixtures del PDT 621 por defecto, resuelta desde este archivo (igual en `src` y `dist`), no desde el `cwd`. */
+function dirFixturesPdt621PorDefecto(): string {
+  return resolve(__dirname, "../../../../fixtures/sol/pdt621");
+}
 
 /** Carpeta de fixtures del buzón por defecto, resuelta desde este archivo (igual en `src` y `dist`), no desde el `cwd`. */
 function dirFixturesBuzonPorDefecto(): string {
@@ -141,7 +164,7 @@ function validarBuzon(x: unknown): MensajeFixtureSol[] {
  * Lee `{dir}/{ruc}.json` (el RUC ya cumple la gramática). `null` si no existe. La ruta real debe quedar dentro de `dir`
  * y el archivo ser regular y de hasta 1 MiB; cualquier otro problema es `ErrorDatos` sin ruta ni RUC.
  */
-async function leerFixtureBuzon(dir: string, ruc: string): Promise<unknown | null> {
+async function leerFixtureRuc(dir: string, ruc: string): Promise<unknown | null> {
   let base: string;
   try {
     base = await realpath(dir);
@@ -290,6 +313,112 @@ function generarBuzon(ruc: string, cantidad: number): MensajeFixtureSol[] {
   return salida.sort(comparar);
 }
 
+// ---- PDT 621 (spec 026) -----------------------------------------------------------------------------------------------
+
+const RE_PERIODO = /^[0-9]{4}(0[1-9]|1[0-2])$/;
+/** Ventana del PDT generado: 12 periodos que terminan en 2026-10, del más antiguo al más reciente. */
+const VENTANA_GENERADA = [
+  "202511",
+  "202512",
+  "202601",
+  "202602",
+  "202603",
+  "202604",
+  "202605",
+  "202606",
+  "202607",
+  "202608",
+  "202609",
+  "202610",
+] as const;
+
+type PeriodosPdt621 = Map<string, Declaracion621[] | "error_datos">;
+
+/** Valida la forma del PDT 621 de un RUC y devuelve una copia ya validada (los datos del llamador no se comparten). */
+function validarPdt621(x: unknown): PeriodosPdt621 {
+  if (!esObjeto(x) || !esObjeto(x.periodos)) throw new ErrorDatos();
+  const salida: PeriodosPdt621 = new Map();
+  for (const [periodo, valor] of Object.entries(x.periodos)) {
+    if (!RE_PERIODO.test(periodo)) throw new ErrorDatos();
+    if (valor === "error_datos") {
+      salida.set(periodo, "error_datos");
+      continue;
+    }
+    // Las mismas reglas que la función acotada (H-026-2-2): número de orden 0, «01» y «1» o año < 1900 son `ErrorDatos`.
+    salida.set(periodo, validarDeclaraciones621(valor, periodo));
+  }
+  return salida;
+}
+
+/** Centavos enteros como cadena «E.CC» (sin punto flotante para dinero). Solo recibe valores no negativos. */
+function centavos(c: bigint): string {
+  return `${c / 100n}.${String(c % 100n).padStart(2, "0")}`;
+}
+
+/**
+ * PDT 621 generado, determinista por RUC (FNV-1a; sin reloj ni azar) en la ventana 202511..202610: un mes sin declaración,
+ * un mes con `error_datos`, una rectificatoria (original + rectificatoria de mayor orden), exportaciones en un mes y
+ * prorrata usada en el último.
+ */
+function generarPdt621(ruc: string): PeriodosPdt621 {
+  const h = fnv1a(ruc);
+  // Permutación determinista de los 11 primeros meses: los cuatro primeros son vacío, error, rectificatoria y exportaciones.
+  const indices = Array.from({ length: VENTANA_GENERADA.length - 1 }, (_, i) => i);
+  let estado = h;
+  for (let i = indices.length - 1; i > 0; i--) {
+    estado = (Math.imul(estado, 1664525) + 1013904223) >>> 0;
+    const j = estado % (i + 1);
+    [indices[i], indices[j]] = [indices[j]!, indices[i]!];
+  }
+  const [vacio, conError, conRectificatoria, conExportaciones] = indices as [number, number, number, number];
+  const prefijo = String((h % 9_000_000) + 1_000_000);
+  const salida: PeriodosPdt621 = new Map();
+  VENTANA_GENERADA.forEach((periodo, i) => {
+    if (i === vacio) {
+      salida.set(periodo, []);
+      return;
+    }
+    if (i === conError) {
+      salida.set(periodo, "error_datos");
+      return;
+    }
+    const base = BigInt(8_000_000 + ((h >>> 5) % 4_000_000) + i * 150_000); // en centavos
+    const exportaciones = i === conExportaciones ? base / 10n : 0n;
+    const noGravadas = BigInt(2_500_000 + ((h >>> 9) % 1_500_000) + (i % 3) * 120_000);
+    const anio = Number(periodo.slice(0, 4));
+    const mes = Number(periodo.slice(4));
+    const siguiente = mes === 12 ? `${anio + 1}-01` : `${anio}-${String(mes + 1).padStart(2, "0")}`;
+    const orden = `${prefijo}${String(i).padStart(2, "0")}`;
+    const original: Declaracion621 = {
+      periodo,
+      numeroOrden: `${orden}0`,
+      fechaPresentacion: `${siguiente}-${String(10 + ((h >>> 3) % 10)).padStart(2, "0")}`,
+      tipo: "original",
+      ventasGravadasBase: centavos(base),
+      ventasGravadasIgv: centavos((base * 18n + 50n) / 100n),
+      exportaciones: centavos(exportaciones),
+      noGravadas: centavos(noGravadas),
+      igvAdquisicionesDg: centavos((base * 6n + 50n) / 100n),
+      igvAdquisicionesDgng: centavos((base * 2n + 50n) / 100n),
+      prorrataUsada: i === VENTANA_GENERADA.length - 1 ? centavos(5000n + BigInt(h % 4000)) : null,
+    };
+    const lista = [original];
+    if (i === conRectificatoria) {
+      const mas = base + base / 20n;
+      lista.push({
+        ...original,
+        numeroOrden: `${orden}5`,
+        fechaPresentacion: `${siguiente}-28`,
+        tipo: "rectificatoria",
+        ventasGravadasBase: centavos(mas),
+        ventasGravadasIgv: centavos((mas * 18n + 50n) / 100n),
+      });
+    }
+    salida.set(periodo, lista);
+  });
+  return salida;
+}
+
 // ---- Mock -----------------------------------------------------------------------------------------------------------
 
 function pausa(ms: number): Promise<void> {
@@ -305,9 +434,11 @@ function bytesSinteticos(n: number): Uint8Array {
 
 export class MockSolPortal implements SolPortal {
   private readonly dirFixtures: string;
+  private readonly dirPdt621: string;
   private readonly latenciaMs: number;
   private readonly generados: number;
-  private readonly inyectados = new Map<string, CasoSolInyectado>();
+  private readonly inyectados = new Map<string, FixtureBuzonSol | { error: Error }>();
+  private readonly inyectados621 = new Map<string, PeriodosPdt621>();
   private readonly leidos = new Map<string, Set<string>>();
   private readonly marcados: { ruc: string; idSunat: string }[] = [];
   private modo: ModoFallaSolPortal = null;
@@ -320,6 +451,9 @@ export class MockSolPortal implements SolPortal {
 
   constructor(opciones: OpcionesMockSolPortal = {}) {
     this.dirFixtures = opciones.dirFixtures ?? dirFixturesBuzonPorDefecto();
+    this.dirPdt621 =
+      opciones.dirFixturesPdt621 ??
+      (opciones.dirFixtures === undefined ? dirFixturesPdt621PorDefecto() : join(opciones.dirFixtures, "pdt621"));
     const latencia = opciones.latenciaMs ?? 0;
     this.latenciaMs = Number.isFinite(latencia) && latencia > 0 ? Math.floor(latencia) : 0;
     const n = opciones.mensajesGenerados;
@@ -329,9 +463,16 @@ export class MockSolPortal implements SolPortal {
         : Math.min(MAX_MENSAJES, Math.max(MIN_GENERADOS, Math.floor(n)));
   }
 
-  /** Sustituye el buzón de un RUC, o hace fallar con ese error toda llamada de ese RUC. */
+  /**
+   * Sustituye el buzón de un RUC (`{mensajes}`), sus declaraciones del PDT 621 (`{periodos}`), o hace fallar con ese error
+   * toda llamada de ese RUC (buzón y PDT 621).
+   */
   inyectar(ruc: string, caso: CasoSolInyectado): void {
     if (typeof ruc !== "string" || !RE_RUC.test(ruc)) throw new ErrorDatos();
+    if ("periodos" in caso) {
+      this.inyectados621.set(ruc, validarPdt621(caso));
+      return;
+    }
     if (!("error" in caso)) validarBuzon(caso);
     this.inyectados.set(ruc, caso);
     this.leidos.delete(ruc);
@@ -461,6 +602,21 @@ export class MockSolPortal implements SolPortal {
     };
   }
 
+  async obtenerDeclaraciones621(
+    credencial: CredencialSol,
+    opciones: { periodo: string },
+  ): Promise<Declaracion621[]> {
+    const ruc = credencial.ruc;
+    const periodo = opciones.periodo;
+    await this.entrar(ruc, credencial.claveSol);
+
+    if (typeof periodo !== "string" || !RE_PERIODO.test(periodo)) throw new ErrorDatos();
+    const delPeriodo = (await this.periodos621(ruc)).get(periodo);
+    if (delPeriodo === "error_datos") throw new ErrorDatos();
+    // Copias: mutar el resultado no cambia la siguiente llamada.
+    return (delPeriodo ?? []).map((d) => ({ ...d }));
+  }
+
   /** Latencia, `fallar`, gramática del RUC, centinela y caso inyectado con error. */
   private async entrar(ruc: string, claveSol: string): Promise<void> {
     if (this.latenciaMs > 0) await pausa(this.latenciaMs);
@@ -477,11 +633,20 @@ export class MockSolPortal implements SolPortal {
     if (caso !== undefined && "error" in caso) throw caso.error;
   }
 
+  /** PDT 621 del RUC por periodo: `inyectar` -> `{dirPdt621}/{ruc}.json` -> generado. */
+  private async periodos621(ruc: string): Promise<PeriodosPdt621> {
+    const inyectado = this.inyectados621.get(ruc);
+    if (inyectado !== undefined) return inyectado;
+    const delDisco = await leerFixtureRuc(this.dirPdt621, ruc);
+    if (delDisco !== null) return validarPdt621(delDisco);
+    return generarPdt621(ruc);
+  }
+
   /** Buzón del RUC ordenado de lo reciente a lo antiguo. */
   private async buzon(ruc: string): Promise<readonly MensajeFixtureSol[]> {
     const caso = this.inyectados.get(ruc);
     if (caso !== undefined && !("error" in caso)) return validarBuzon(caso);
-    const delDisco = await leerFixtureBuzon(this.dirFixtures, ruc);
+    const delDisco = await leerFixtureRuc(this.dirFixtures, ruc);
     if (delDisco !== null) return validarBuzon(delDisco);
     return generarBuzon(ruc, this.generados);
   }

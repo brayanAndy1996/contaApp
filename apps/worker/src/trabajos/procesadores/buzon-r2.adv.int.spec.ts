@@ -265,6 +265,9 @@ function portalFijo(mensajes: MsgPrueba[]): SolPortal {
     async obtenerMensaje(): Promise<never> {
       throw new Error("la captura nunca abre (prueba)");
     },
+    async obtenerDeclaraciones621(): Promise<never> {
+      throw new Error("el buzón no consulta declaraciones (prueba)");
+    },
   };
 }
 

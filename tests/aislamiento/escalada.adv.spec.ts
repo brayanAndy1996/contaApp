@@ -76,6 +76,13 @@ const FUNCIONES_025: { firma: string; ejecuta: string }[] = [
   // T11a (migracion 0063): los proveedores con regla activa del cliente para R-STD, solo el worker.
   { firma: "reglas_proveedores_con_regla(uuid)", ejecuta: "contapp_worker" },
 ];
+// Spec 026 (T3): firma (regprocedure) y unico rol de la app con EXECUTE de cada funcion de la migracion 0066 (plan 026, Contratos: BD).
+const FUNCIONES_026: { firma: string; ejecuta: string }[] = [
+  { firma: "prorrata_declaraciones_registrar(uuid,uuid,character,character[],character[],jsonb)", ejecuta: "contapp_worker" },
+  { firma: "prorrata_mes_manual_guardar(uuid,character,numeric,numeric,numeric,text,integer)", ejecuta: "contapp_backend" },
+  { firma: "prorrata_mes_manual_eliminar(uuid,character,text,integer)", ejecuta: "contapp_backend" },
+  { firma: "prorrata_usada_guardar(uuid,character,numeric,integer)", ejecuta: "contapp_backend" },
+];
 const FUNCIONES_017: { firma: string; dueno: string }[] = [
   ...[
     "sesion", "invitacion", "membresia", "asignacion", "cliente", "credencial", "propuesta", "compra_operacion", "venta", "xml",
@@ -129,6 +136,9 @@ const FUNCIONES_017: { firma: string; dueno: string }[] = [
   // backend (iniciar, trabajo, activar, reemplazar, descartar) y las del worker (completar, fallar) se verifican abajo, una por una.
   // El plan habla de «seis funciones»; el contrato de BD enumera siete y las siete entran aqui.
   ...FUNCIONES_025.map((f) => ({ firma: f.firma, dueno: MIGRATOR })),
+  // Spec 026 (T3, rojo hasta la migracion 0066): las cuatro funciones acotadas de la prorrata (registrar la obtencion del worker; guardar y
+  // eliminar el mes manual y guardar la prorrata usada del backend). Se verifican abajo, una por una.
+  ...FUNCIONES_026.map((f) => ({ firma: f.firma, dueno: MIGRATOR })),
 ];
 const nombre017 = (f: string) => (f.includes(".") && f.indexOf(".") < f.indexOf("(") ? f : `public.${f}`).replace(/\(.*$/, "");
 
@@ -449,6 +459,33 @@ describe("ADV escalada desde DATABASE_URL", () => {
     );
     expect(r).toEqual(
       [...FUNCIONES_025]
+        .sort((a, b) => (a.firma < b.firma ? -1 : 1))
+        .map((f) => ({
+          firma: f.firma,
+          dueno: "contapp_migrator",
+          prosecdef: true,
+          config: ["search_path=pg_catalog, pg_temp"],
+          publico: false,
+          ejecutan: [f.ejecuta],
+        })),
+    );
+  });
+  // Spec 026 (T3, CA-8, rojo hasta 0066): cada funcion de la prorrata la ejecuta solo el rol del plan (ni PUBLIC ni otro rol de la app, el
+  // dueño aparte), es SECURITY DEFINER de contapp_migrator y fija su search_path.
+  it("las funciones de la prorrata (026): dueno contapp_migrator, search_path fijo, sin EXECUTE para PUBLIC y solo el rol del plan", async () => {
+    const r = await filasRaw(
+      pool,
+      null,
+      `select f.firma, pg_get_userbyid(p.proowner) as dueno, p.prosecdef, p.proconfig as config,
+              has_function_privilege('public', p.oid, 'EXECUTE') as publico,
+              coalesce((select array_agg(x.rolname::text order by x.rolname) from pg_roles x
+                         where x.oid <> p.proowner and x.rolname like 'contapp\\_%' and has_function_privilege(x.oid, p.oid, 'EXECUTE')), '{}'::text[]) as ejecutan
+         from unnest(array[${FUNCIONES_026.map((f) => `'${f.firma}'`).join(", ")}]::text[]) as f(firma)
+         left join pg_proc p on p.oid::regprocedure::text = f.firma
+        order by f.firma`,
+    );
+    expect(r).toEqual(
+      [...FUNCIONES_026]
         .sort((a, b) => (a.firma < b.firma ? -1 : 1))
         .map((f) => ({
           firma: f.firma,

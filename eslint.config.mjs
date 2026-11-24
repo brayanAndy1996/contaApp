@@ -826,9 +826,9 @@ export default tseslint.config(
       ],
     },
   },
-  // Dinero (spec 010/011/012/013/014/016, CA-1): sin `number` ni Math.* en dinero/, comprobante/, reglas/,
+  // Dinero (spec 010/011/012/013/014/016/026, CA-1): sin `number` ni Math.* en dinero/, comprobante/, reglas/,
   // prevalidacion/, formatos/, compras/ (014), desde 013 correlatividad/, ventas/, complemento/ y
-  // clave-comprobante/, y desde 016 ubl/ (salvo pruebas). Los conteos y números de comprobante usan `Entero` de texto/.
+  // clave-comprobante/, desde 016 ubl/ (salvo pruebas) y desde 026 prorrata/. Los conteos y números de comprobante usan `Entero` de texto/.
   {
     files: [
       "packages/domain/src/dinero/**",
@@ -844,6 +844,8 @@ export default tseslint.config(
       // 016: el parser UBL (montos con Money; conteos y bytes con `Entero` de texto/).
       "packages/domain/src/ubl/**",
       "packages/domain/src/archivos/**",
+      // 026: prorrata/ (montos, porcentajes y coeficientes sin `number`).
+      "packages/domain/src/prorrata/**",
     ],
     ignores: ["**/*.spec.ts"],
     rules: {

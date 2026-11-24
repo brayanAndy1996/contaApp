@@ -26,6 +26,11 @@
 // de fuga. Un usuario de A con ids de B (cliente, importación, candidata), solos o mezclados con los propios, recibe 404 (o 403 sin
 // `reglas.gestionar`) igual que ante un id inexistente, y `regla_importacion`, `regla_candidata`, las reglas y los trabajos de ambos
 // estudios quedan intactos. Rojo hasta T10 (tablas) y T12 (rutas): sin tablas la siembra falla y solo fallan los casos nuevos.
+// 026 (T6) agrega las 6 rutas de la prorrata (`GET …/prorrata`, `GET …/prorrata/meses/:periodo/historial`, `POST …/prorrata/declaraciones`,
+// `PUT …/prorrata/meses/:periodo`, `POST …/prorrata/meses/:periodo/eliminar` y `PUT …/prorrata/usada/:periodo`): cada estudio tiene una obtención,
+// un PDT (declaración), un mes manual y una prorrata ingresada en su primer cliente (sembrados por SQL); sus ids y el motivo del manual son marcas
+// de fuga. Un usuario de A con el cliente (o un id cualquiera) de B recibe 404 (o 403 sin `prorrata.gestionar`) igual que ante un id inexistente,
+// y las cuatro tablas, los trabajos y las reglas de ambos estudios quedan intactos. Rojo hasta T10 (tablas) y T12 (rutas).
 // 006 (T3) agrega los casos de `/registro/*`, `GET /plan/uso` y las 6 rutas `/plataforma/*` (CA-8): los usuarios de A
 // (ninguno super-admin) con IDs, tokens y correos de B. Rojo hasta T7 (uso), T8 (registro) y T9 (plataforma).
 import { createHash, randomBytes, randomUUID } from "node:crypto";
@@ -105,6 +110,8 @@ interface Recursos {
   candidataId?: string;
   /** 025: RUC y razón social del proveedor de la candidata (marcas de fuga). */
   proveedorCandidata?: { numero: string; razonSocial: string };
+  /** 026: obtención, PDT, mes manual y prorrata ingresada del primer cliente (sembrados por SQL; ausentes si faltan las tablas). */
+  prorrata?: { obtencionId: string; declaracionId: string; manualId: string; usadaId: string; motivo: string };
 }
 interface Sesion {
   cookie: string;
@@ -175,6 +182,8 @@ let falloSiembra025: string | null = null;
 /** 025: candidatas sembradas (se quitan antes que las reglas y los clientes). */
 const candidatasSembradas: string[] = [];
 const importacionesSembradas: string[] = [];
+/** 026: si la siembra de la prorrata falló (¿tablas de T10?), el motivo; los casos nuevos lo muestran. */
+let falloSiembra026: string | null = null;
 
 const todos = (...n: number[]): Esperado => ({ dueno: n, asistente: n });
 const E404: Esperado = { dueno: [404], asistente: [403, 404] };
@@ -355,6 +364,37 @@ async function sembrarAprendizaje(r: Recursos, etiqueta: "A" | "B"): Promise<voi
   r.proveedorCandidata = { numero, razonSocial };
 }
 
+/**
+ * 026: una obtención, un PDT (periodo 202610, sin prorrata usada), un mes manual (202601) y una prorrata ingresada (202610) en el primer cliente
+ * del estudio, por SQL. El motivo del manual es único de la prueba: marca de fuga. Sin las tablas de T10 falla (42P01) y lo captura el arranque.
+ */
+async function sembrarProrrata(r: Recursos, etiqueta: "A" | "B"): Promise<void> {
+  const motivo = `HU40 ${etiqueta} motivo prorrata ${sufijo}`;
+  const ob = await h.sql(
+    `insert into prorrata_obtencion (tenant_id, cliente_id, periodo_hasta, trabajo_id, periodos_leidos, periodos_sin_declaracion, nuevas)
+     values ($1, $2, '202610', null, '{202511,202512,202601,202602,202603,202604,202605,202606,202607,202608,202609,202610}'::char(6)[],
+       '{202511}'::char(6)[], 1) returning id`,
+    [r.tenantId, r.clientes[0]],
+  );
+  const de = await h.sql(
+    `insert into declaracion_mensual (tenant_id, cliente_id, periodo, numero_orden, fecha_presentacion, tipo, ventas_gravadas_base,
+       ventas_gravadas_igv, exportaciones, no_gravadas, igv_adq_dg, igv_adq_dgng, prorrata_usada, obtencion_id)
+     values ($1, $2, '202610', 9001, '2026-11-10', 'original', 100000.00, 18000.00, 0.00, 20000.00, 9000.00, 1800.00, null, $3) returning id`,
+    [r.tenantId, r.clientes[0], ob[0].id],
+  );
+  const ma = await h.sql(
+    `insert into prorrata_mes_manual (tenant_id, cliente_id, periodo, version, accion, gravadas, exportaciones, no_gravadas, motivo, autor)
+     values ($1, $2, '202601', 1, 'guardado', 100000.00, 0.00, 20000.00, $3, $4) returning id`,
+    [r.tenantId, r.clientes[0], motivo, r.dueno.id],
+  );
+  const us = await h.sql(
+    `insert into prorrata_usada_manual (tenant_id, cliente_id, periodo, version, porcentaje, autor)
+     values ($1, $2, '202610', 1, 50.00, $3) returning id`,
+    [r.tenantId, r.clientes[0], r.dueno.id],
+  );
+  r.prorrata = { obtencionId: ob[0].id, declaracionId: de[0].id, manualId: ma[0].id, usadaId: us[0].id, motivo };
+}
+
 /** Marcadores: todo lo que existe en `de` y no en `contra` (los usuarios de ambos, como uAB, no cuentan). */
 async function calcularMarcadores(
   de: Recursos,
@@ -392,6 +432,7 @@ async function calcularMarcadores(
     de.adjuntoId,
     ...(de.importacionId ? [de.importacionId] : []),
     ...(de.candidataId ? [de.candidataId] : []),
+    ...(de.prorrata ? [de.prorrata.obtencionId, de.prorrata.declaracionId, de.prorrata.manualId, de.prorrata.usadaId] : []),
   ]);
   const correos = new Set<string>([de.invitacionCorreo]);
   const otros = new Set<string>([de.nombre, de.asuntoBuzon, de.nombreAdjunto]);
@@ -399,6 +440,7 @@ async function calcularMarcadores(
     otros.add(de.proveedorCandidata.numero);
     otros.add(de.proveedorCandidata.razonSocial);
   }
+  if (de.prorrata) otros.add(de.prorrata.motivo);
   for (const f of clientesDe) {
     ids.add(f.id);
     otros.add(f.razon_social);
@@ -421,6 +463,24 @@ async function calcularMarcadores(
 
 /* -------------------------------- Instantáneas ------------------------------ */
 /** Estado de la BD de un estudio, limitado a lo que creó esta prueba (robusto ante otras suites). */
+/** 026: las cuatro tablas de la prorrata de los clientes de `r` (vacías, sin romper, mientras no existan: rojo hasta T10). */
+async function instantaneaProrrata(
+  r: Recursos,
+  q: (texto: string, valores: unknown[]) => Promise<unknown[]>,
+): Promise<Record<string, unknown>> {
+  const salida: Record<string, unknown> = {};
+  for (const tabla of ["prorrata_obtencion", "declaracion_mensual", "prorrata_mes_manual", "prorrata_usada_manual"]) {
+    salida[tabla] = await q(`select to_jsonb(g) j from ${tabla} g where tenant_id = $1 and cliente_id = any($2::uuid[]) order by id`, [
+      r.tenantId,
+      r.clientes,
+    ]).catch((e: { code?: string }) => {
+      if (e.code === "42P01") return [];
+      throw e;
+    });
+  }
+  return salida;
+}
+
 async function instantanea(
   r: Recursos,
   completo: boolean,
@@ -477,6 +537,8 @@ async function instantanea(
       if (e.code === "42P01") return [];
       throw e;
     }),
+    // 026: obtenciones, PDT, manuales y prorratas ingresadas (0065). Mientras las tablas no existan (rojo) la instantánea no las incluye.
+    ...(await instantaneaProrrata(r, q)),
     // 024: historial de atención (0059). Mientras la tabla no exista (rojo) la instantánea no la incluye y no rompe los casos de 004 a 023.
     buzon_atencion: await q(
       "select to_jsonb(g) j from buzon_atencion g where tenant_id = $1 and cliente_id = any($2::uuid[]) order by id",
@@ -1547,6 +1609,148 @@ function casosAprendizaje(): Caso[] {
   ];
 }
 
+/* ---------------------------- 026 · prorrata e IGV estimado ----------------------------
+ * `/clientes/:clienteId/prorrata*`: leer exige `prorrata.ver` y escribir `prorrata.gestionar` (la asistente solo tiene la primera). Un cliente de B
+ * (o cualquier id que no sea un cliente propio visible) desde A: el mismo 404 `no_encontrado` que ante un id inexistente, nunca un dato ni un
+ * cambio en B ni en A; la asistente (sin `prorrata.gestionar`) recibe 403 en toda escritura, antes de mirar el cliente. Las cuatro tablas, los
+ * trabajos `sol.declaraciones.descargar` y la auditoría de ambos estudios quedan como estaban. */
+const TABLAS_PRORRATA = ["prorrata_obtencion", "declaracion_mensual", "prorrata_mes_manual", "prorrata_usada_manual"] as const;
+const MES_PRORRATA = "202601";
+const cuerpoManualPropio = { gravadas: "10.00", exportaciones: "0.00", noGravadas: "5.00", motivo: "Libro físico", version: 0 };
+const PERIODO_PRORRATA = "202610";
+
+/** Cada estudio conserva SU fila sembrada en cada tabla (y ninguna otra) y ninguno tiene trabajos de descarga de declaraciones. */
+async function prorrataIntacta(c: Contexto): Promise<void> {
+  for (const r of [c.mio, c.ajeno]) {
+    for (const t of TABLAS_PRORRATA) {
+      const f = await h.sql(`select count(*)::int n from ${t} where cliente_id = any($1::uuid[])`, [r.clientes]);
+      expect(f[0].n, `${t} de ${r.nombre}: la siembra de 026 falló o se escribió algo`).toBe(1);
+    }
+    const j = await h.sql("select count(*)::int n from job_registro where tipo = 'sol.declaraciones.descargar' and cliente_id = any($1::uuid[])", [r.clientes]);
+    expect(j[0].n, `trabajos de descarga de ${r.nombre}`).toBe(0);
+  }
+}
+
+function casosProrrata(): Caso[] {
+  const exigirSiembra = (): void => expect(falloSiembra026, "la siembra de 026 falló (¿tablas de T10?)").toBeNull();
+  /** Escrituras con el cliente de B: la asistente (sin prorrata.gestionar) recibe 403; el Dueño, el 404 de siempre y lo mismo que ante un id inexistente. */
+  const verificarEscritura = async (c: Contexto, respuestas: Resp[], referencia: Pet): Promise<void> => {
+    exigirSiembra();
+    const ref = await c.pedir(referencia);
+    expect(ref.status, ref.text).toBe(c.yo.rol === "asistente" ? 403 : 404);
+    for (const r of respuestas) {
+      if (c.yo.rol === "asistente") {
+        expect(r.status, r.text).toBe(403);
+        expect(r.body).toEqual(PERMISO_DENEGADO);
+      } else {
+        expect(r.status, r.text).toBe(404);
+        expect(r.body).toEqual(NO_ENCONTRADO);
+        expect(r.text).toBe(ref.text);
+      }
+    }
+    await prorrataIntacta(c);
+    await reglaIntacta(c.ajeno);
+    await reglaIntacta(c.mio);
+  };
+  const lecturaProrrata = async (c: Contexto, respuestas: Resp[], ruta: (cl: string) => string, propio: (r: Resp) => void): Promise<void> => {
+    exigirSiembra();
+    const noExiste = await c.pedir({ ruta: ruta(randomUUID()) });
+    expect(noExiste.status).toBe(404);
+    expect(noExiste.body).toEqual(NO_ENCONTRADO);
+    mismoNoEncontrado(respuestas, noExiste);
+    const mio = await c.pedir({ ruta: ruta(c.mio.clientes[0]) });
+    expect(mio.status, mio.text).toBe(200);
+    propio(mio);
+    const p = c.ajeno.prorrata!;
+    for (const marca of [p.obtencionId, p.declaracionId, p.manualId, p.usadaId, p.motivo]) expect(mio.text).not.toContain(marca);
+    const noVisible = await c.pedir({ ruta: ruta(c.mio.clientes[1]) });
+    if (c.yo.rol === "asistente") {
+      expect(noVisible.status, noVisible.text).toBe(404);
+      expect(noVisible.text).toBe(noExiste.text);
+    } else {
+      expect(noVisible.status, noVisible.text).toBe(200);
+    }
+    await prorrataIntacta(c);
+  };
+  const cuerpoManual = { gravadas: "10.00", exportaciones: "0.00", noGravadas: "5.00", motivo: "Libro físico", version: 0 };
+
+  return [
+    {
+      ruta: "GET /clientes/:clienteId/prorrata",
+      esperado: { dueno: [404], asistente: [404] },
+      construir: (c) => idsDeCliente(c.ajeno).map((id) => ({ ruta: `/clientes/${id}/prorrata?periodo=${PERIODO_PRORRATA}` })),
+      extra: (c, respuestas) =>
+        lecturaProrrata(
+          c,
+          respuestas,
+          (cl) => `/clientes/${cl}/prorrata?periodo=${PERIODO_PRORRATA}`,
+          (r) => {
+            // Con cliente propio: su PDT de 202610, su manual de 202601 y su prorrata ingresada; nada de B.
+            const mes = (p: string) => (r.body.ventana as any[]).find((m) => m.periodo === p);
+            expect(mes(PERIODO_PRORRATA)).toMatchObject({ origen: "declarado", gravadas: "100000.00" });
+            expect(mes(MES_PRORRATA)).toMatchObject({ origen: "manual", manual: { motivo: c.mio.prorrata!.motivo } });
+            expect(r.body.prorrataUsada).toEqual({ valor: "50.00", origen: "ingresada" });
+            expect(r.body.ultimaObtencion?.periodosSinDeclaracion).toEqual(["202511"]);
+          },
+        ),
+    },
+    {
+      ruta: "GET /clientes/:clienteId/prorrata/meses/:periodo/historial",
+      esperado: { dueno: [404], asistente: [404] },
+      construir: (c) => idsDeCliente(c.ajeno).map((id) => ({ ruta: `/clientes/${id}/prorrata/meses/${MES_PRORRATA}/historial` })),
+      extra: (c, respuestas) =>
+        lecturaProrrata(
+          c,
+          respuestas,
+          (cl) => `/clientes/${cl}/prorrata/meses/${MES_PRORRATA}/historial`,
+          (r) => {
+            expect(r.body.declaraciones).toEqual([]);
+            expect((r.body.manual as any[]).map((x) => [x.version, x.motivo])).toEqual([[1, c.mio.prorrata!.motivo]]);
+          },
+        ),
+    },
+    {
+      ruta: "POST /clientes/:clienteId/prorrata/declaraciones",
+      esperado: { dueno: [404], asistente: [403] },
+      construir: (c) => idsDeCliente(c.ajeno).map((id) => ({ metodo: "POST" as const, ruta: `/clientes/${id}/prorrata/declaraciones`, cuerpo: { periodo: PERIODO_PRORRATA } })),
+      extra: (c, respuestas) =>
+        verificarEscritura(c, respuestas, { metodo: "POST", ruta: `/clientes/${randomUUID()}/prorrata/declaraciones`, cuerpo: { periodo: PERIODO_PRORRATA } }),
+    },
+    {
+      ruta: "PUT /clientes/:clienteId/prorrata/meses/:periodo",
+      esperado: { dueno: [404], asistente: [403] },
+      construir: (c) => idsDeCliente(c.ajeno).map((id) => ({ metodo: "PUT" as const, ruta: `/clientes/${id}/prorrata/meses/202602`, cuerpo: cuerpoManual })),
+      extra: async (c, respuestas) => {
+        await verificarEscritura(c, respuestas, { metodo: "PUT", ruta: `/clientes/${randomUUID()}/prorrata/meses/202602`, cuerpo: cuerpoManual });
+        // Con un cliente PROPIO, un cuerpo con ids de B no se acepta: el cliente sale de la ruta, nunca del cuerpo (esquema estricto).
+        const r = await c.pedir({
+          metodo: "PUT",
+          ruta: `/clientes/${c.mio.clientes[0]}/prorrata/meses/202602`,
+          cuerpo: { ...cuerpoManual, clienteId: c.ajeno.clientes[0], tenantId: c.ajeno.tenantId },
+        });
+        expect(r.status, r.text).toBe(c.yo.rol === "asistente" ? 403 : 400);
+        await prorrataIntacta(c);
+      },
+    },
+    {
+      ruta: "POST /clientes/:clienteId/prorrata/meses/:periodo/eliminar",
+      esperado: { dueno: [404], asistente: [403] },
+      construir: (c) =>
+        idsDeCliente(c.ajeno).map((id) => ({ metodo: "POST" as const, ruta: `/clientes/${id}/prorrata/meses/${MES_PRORRATA}/eliminar`, cuerpo: { motivo: "Quitar", version: 1 } })),
+      extra: (c, respuestas) =>
+        verificarEscritura(c, respuestas, { metodo: "POST", ruta: `/clientes/${randomUUID()}/prorrata/meses/${MES_PRORRATA}/eliminar`, cuerpo: { motivo: "Quitar", version: 1 } }),
+    },
+    {
+      ruta: "PUT /clientes/:clienteId/prorrata/usada/:periodo",
+      esperado: { dueno: [404], asistente: [403] },
+      construir: (c) =>
+        idsDeCliente(c.ajeno).map((id) => ({ metodo: "PUT" as const, ruta: `/clientes/${id}/prorrata/usada/${PERIODO_PRORRATA}`, cuerpo: { porcentaje: "50.00", version: 1 } })),
+      extra: (c, respuestas) =>
+        verificarEscritura(c, respuestas, { metodo: "PUT", ruta: `/clientes/${randomUUID()}/prorrata/usada/${PERIODO_PRORRATA}`, cuerpo: { porcentaje: "50.00", version: 1 } }),
+    },
+  ];
+}
+
 const CASOS: Caso[] = [
   /* ---------- 004 ---------- */
   {
@@ -2573,6 +2777,9 @@ const CASOS: Caso[] = [
 
   /* ---------- 025: aprendizaje del historial ---------- */
   ...casosAprendizaje(),
+
+  /* ---------- 026: prorrata e IGV estimado ---------- */
+  ...casosProrrata(),
 ];
 
 const POR_RUTA = new Map(CASOS.map((c) => [c.ruta, c]));
@@ -2593,6 +2800,13 @@ beforeAll(async () => {
   } catch (e) {
     falloSiembra025 = e instanceof Error ? e.message : String(e);
   }
+  // 026: igual, con las tablas de la prorrata (T10); antes de los marcadores: sus ids y el motivo del manual son marcas de fuga.
+  try {
+    await sembrarProrrata(A, "A");
+    await sembrarProrrata(B, "B");
+  } catch (e) {
+    falloSiembra026 = e instanceof Error ? e.message : String(e);
+  }
   await calcularMarcadores(A, B);
   await calcularMarcadores(B, A);
   // 017: si las tablas de T7 aún no existen, la siembra falla y solo fallan los casos nuevos (los demás no la necesitan).
@@ -2612,6 +2826,9 @@ async function limpiar(): Promise<void> {
   await borrarPorId("notificacion", todos.flatMap((x) => [...x.notifDueno, ...x.notifAsistente]));
   await borrarPorId("auditoria", todos.flatMap((x) => x.auditoria));
   await borrarPorId("auditoria_descifrado", todos.flatMap((x) => x.descifrado));
+  // 026: tablas de solo inserción (el superusuario de la conexión de migraciones puede borrar); de la hija a la madre, antes que los clientes.
+  for (const t of ["declaracion_mensual", "prorrata_mes_manual", "prorrata_usada_manual", "prorrata_obtencion"])
+    await h.sql(`delete from ${t} where cliente_id = any($1::uuid[])`, [clientesCreados]).catch(() => undefined);
   // 025: las candidatas apuntan a importaciones y a reglas; todas van antes que las reglas y los clientes.
   await h.sql("delete from regla_candidata where cliente_id = any($1::uuid[])", [clientesCreados]).catch(() => undefined);
   await h.sql("delete from regla_importacion where cliente_id = any($1::uuid[])", [clientesCreados]).catch(() => undefined);
@@ -2840,6 +3057,34 @@ describe("HU-40 por API · 025 · las pruebas no son vacías (importación y can
       const a = await abrirSesion(mio.asistente, mio.tenantId);
       expect((await pedir(a, `/clientes/${mio.clientes[0]}/reglas/candidatas?grupo=propuestas`)).status).toBe(200);
       const escribe = await pedir(a, `/clientes/${mio.clientes[0]}/reglas/candidatas/activar`, { metodo: "POST", cuerpo: { items: [{ id: mio.candidataId }] } });
+      expect(escribe.status, escribe.text).toBe(403);
+    }
+  });
+});
+
+describe("HU-40 por API · 026 · las pruebas no son vacías (prorrata propia)", () => {
+  it("cada estudio ve el PDT, el manual y la prorrata de su primer cliente y nunca los del otro; la asistente los lee y no escribe", async () => {
+    expect(falloSiembra026, "la siembra de 026 falló (¿tablas de T10?)").toBeNull();
+    for (const [mio, ajeno] of [
+      [A, B],
+      [B, A],
+    ] as const) {
+      const d = await abrirSesion(mio.dueno, mio.tenantId);
+      const pedir = (s: Sesion, ruta: string, o: { metodo?: Peticion["metodo"]; cuerpo?: unknown } = {}) =>
+        h.pedir({ ruta, cookie: s.cookie, csrf: s.csrf, estudio: mio.tenantId, ...o });
+      const vista = await pedir(d, `/clientes/${mio.clientes[0]}/prorrata?periodo=${PERIODO_PRORRATA}`);
+      expect(vista.status, vista.text).toBe(200);
+      expect((vista.body.ventana as any[]).find((m) => m.periodo === MES_PRORRATA)).toMatchObject({ origen: "manual", manual: { motivo: mio.prorrata!.motivo } });
+      expect(vista.body.prorrataUsada).toEqual({ valor: "50.00", origen: "ingresada" });
+      expect(vista.text).not.toContain(ajeno.prorrata!.motivo);
+      expect(vista.text).not.toContain(ajeno.prorrata!.manualId);
+      const historial = await pedir(d, `/clientes/${mio.clientes[0]}/prorrata/meses/${MES_PRORRATA}/historial`);
+      expect(historial.status, historial.text).toBe(200);
+      expect(historial.text).not.toContain(ajeno.prorrata!.motivo);
+
+      const a = await abrirSesion(mio.asistente, mio.tenantId);
+      expect((await pedir(a, `/clientes/${mio.clientes[0]}/prorrata?periodo=${PERIODO_PRORRATA}`)).status).toBe(200);
+      const escribe = await pedir(a, `/clientes/${mio.clientes[0]}/prorrata/meses/202602`, { metodo: "PUT", cuerpo: cuerpoManualPropio });
       expect(escribe.status, escribe.text).toBe(403);
     }
   });

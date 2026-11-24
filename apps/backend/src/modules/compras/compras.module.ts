@@ -43,5 +43,7 @@ import { XmlComprasService } from "./xml.service.js";
     XmlComprasService,
     DesdeXmlComprasService,
   ],
+  // Spec 026: la prorrata estima el IGV de M con las mismas filas del resumen de 014.
+  exports: [ResumenComprasService],
 })
 export class ComprasModule {}

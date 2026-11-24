@@ -117,6 +117,9 @@ function portal(
     async obtenerMensaje(): Promise<never> {
       throw new Error("la captura no abre mensajes");
     },
+    async obtenerDeclaraciones621(): Promise<never> {
+      throw new Error("el buzón no consulta declaraciones (prueba)");
+    },
   };
   return p as SolPortal & { llamadas: number };
 }

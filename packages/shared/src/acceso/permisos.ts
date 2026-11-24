@@ -22,6 +22,7 @@ export const PERMISOS = [
   "reglas.ver",
   "reglas.gestionar",
   "prorrata.ver",
+  "prorrata.gestionar",
   "auditoria.ver",
 ] as const;
 
