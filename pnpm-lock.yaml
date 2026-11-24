@@ -210,6 +210,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@contapp/correo':
+        specifier: workspace:*
+        version: link:../../packages/correo
       '@contapp/crypto':
         specifier: workspace:*
         version: link:../../packages/crypto
