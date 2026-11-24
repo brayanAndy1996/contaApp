@@ -18,7 +18,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → cobe
 | T10 | Migraciones 0073–0074, esquema drizzle y `packages/db/src/correo/` | backend | opus | T3, T4 ∥ T8, T9 | ✓ | — | [ ] |
 | T11 | Worker: ciclo, envío, purga y adaptador | backend | sonnet | T5, T8, T9, T10 ∥ T12, T13 | ✓ | — | [ ] |
 | T12 | Backend: módulo `correo` | backend | sonnet | T6, T9, T10 ∥ T11, T13 | ✓ | — | [ ] |
-| T13 | Frontend: pantallas de 028 | frontend | sonnet | T7, T9 ∥ T10–T12 | ✓ | — | [ ] |
+| T13 | Frontend: pantallas de 028 | frontend | sonnet | T7, T9 ∥ T10–T12 | ✓ | — | [x] |
 | T14 | Cobertura ≥ 90 % por archivo: `cobertura:correo` y paso en CI | devops | haiku | T8, T9, T10, T11, T12 ∥ T13 | — | — | [ ] |
 | T15 | Ronda adversarial 1: aislamiento, permisos, baja y `/ir`, revalidación y carreras, ciclo y candado (≤ 15 pruebas) | adversario | opus | T11, T12, T14 ∥ T13, T21 | — | ✓ | [ ] |
 | T16 | Pruebas de las correcciones de la ronda 1 (rojo) | tester | sonnet | T15 | ✓ | — | [ ] |
@@ -120,7 +120,7 @@ Reglas comunes:
 - **Hacer**: `apps/backend/src/modules/correo/*.ts` y registro en `app.module.ts`; la ruta de baja sin registrar consulta ni cuerpo.
 - **Hecho cuando**: las de T6 y todas las del backend (`test` y `test:int`) pasan; typecheck y lint limpios. Commit `feat(028): preferencias de correo y baja con confirmación`.
 
-## T13 · [ ] Frontend (frontend · sonnet)
+## T13 · [x] Frontend (frontend · sonnet)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: Frontend, shared), pruebas de T7, `apps/frontend/app/(app)/cuenta/contrasena/page.tsx` (modelo), `apps/frontend/app/(app)/notificaciones/page.tsx`, `apps/frontend/components/marco/menu-principal.tsx` (líneas 210–240), `apps/frontend/app/estudios/page.tsx` (cambio de estudio), `apps/frontend/next.config.ts`, `apps/frontend/lib/{api,notificaciones}.ts`, `apps/frontend/components/ui/` (solo los que use).
 - **Hacer**: las pantallas del plan con estilo A de 038. `/baja` no hace ninguna petición al cargar: solo el botón «Darme de baja» llama a la API (D-4, U-18).
 - **Hecho cuando**: las de T7 y todas las del frontend pasan (incluidas `diseno.estatico.spec.ts` y las de `next.config`); typecheck, lint y `build` limpios. Commit `feat(028): pantallas de correo`.

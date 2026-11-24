@@ -6,6 +6,7 @@ import {
   KeyRound,
   ListChecks,
   LogOut,
+  Mail,
   ScrollText,
   SlidersHorizontal,
   UserCog,
@@ -221,12 +222,20 @@ export function MenuPrincipal({
           </Link>
         )}
         <Link
-          href="/cuenta/contrasena"
-          aria-current={actual("/cuenta/contrasena")}
+          href="/cuenta/correo"
+          aria-current={actual("/cuenta/correo")}
           className={clase(
-            "/cuenta/contrasena",
+            "/cuenta/correo",
             cn(entradaGrupo, "lg:order-8 lg:mt-auto"),
           )}
+        >
+          <Mail aria-hidden="true" className="size-5 shrink-0" />
+          Correo
+        </Link>
+        <Link
+          href="/cuenta/contrasena"
+          aria-current={actual("/cuenta/contrasena")}
+          className={clase("/cuenta/contrasena", cn(entradaGrupo, "lg:order-9"))}
         >
           <KeyRound aria-hidden="true" className="size-5 shrink-0" />
           Cambiar contraseña
@@ -234,7 +243,7 @@ export function MenuPrincipal({
         <button
           type="button"
           onClick={alCerrarSesion}
-          className={cn(entradaGrupo, "text-left lg:order-9")}
+          className={cn(entradaGrupo, "text-left lg:order-10")}
         >
           <LogOut aria-hidden="true" className="size-5 shrink-0" />
           Cerrar sesión
