@@ -185,6 +185,8 @@ export const correoBajaToken = pgTable(
     envioId: uuid("envio_id").notNull(),
     creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().default(sql`clock_timestamp()`),
     venceEn: timestamp("vence_en", { withTimezone: true }).notNull(),
+    // 0075 (H-028-1-5): un solo uso; también lo anula cambiar ese tipo en la app después de emitido.
+    anuladoEn: timestamp("anulado_en", { withTimezone: true }),
   },
   (t) => [
     foreignKey({

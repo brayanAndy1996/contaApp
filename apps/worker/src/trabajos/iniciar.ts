@@ -214,9 +214,12 @@ async function conTope(p: Promise<unknown>, ms: number): Promise<boolean> {
 export async function iniciarTrabajos(
   deps: DepsTrabajos,
 ): Promise<TrabajosEnMarcha> {
-  const estado = { muerto: false, cerrando: false };
+  const estado = { muerto: false, cerrando: false, abortado: false };
   const muerto = () => estado.muerto;
   const db = dbGuardada(deps.db, muerto);
+  // H-028-1-1: los ciclos programados sueltan su candado aun tras un `detener` vencido (solo su propio candado, por dueño); solo `abortar`
+  // (kill -9) lo impide. Si no, el candado quedaba tomado hasta vencer y el siguiente worker no tomaba el ciclo.
+  const dbCandado = dbGuardada(deps.db, () => estado.abortado);
   const redis = redisGuardado(deps.redis, muerto);
   const reloj: Reloj = deps.reloj ?? { ahora: () => new Date() };
   const prefijo = deps.prefijo ?? PREFIJO_POR_DEFECTO;
@@ -387,9 +390,9 @@ export async function iniciarTrabajos(
 
   const sistema = crearColaSistema({ conexion, prefijo });
   // 023 (D-5): un tick del programador del buzón; el dueño del candado es aleatorio por proceso.
-  const tickBuzon = programarBuzon({ db, redis, prefijo, logger });
+  const tickBuzon = programarBuzon({ db, dbCandado, redis, prefijo, logger });
   // 028 (R-5): un tick del ciclo de correo (avisos vencidos y resumen del día); mismo patrón y candado propio en la BD.
-  const tickCorreo = programarCorreo({ db, redis, prefijo, logger });
+  const tickCorreo = programarCorreo({ db, dbCandado, redis, prefijo, logger });
   const procesarSistema = async (data: PayloadSistema): Promise<void> => {
     try {
       if (data.tipo === "auth.purgar") {
@@ -481,6 +484,7 @@ export async function iniciarTrabajos(
       registrar(logger, "info", { evento: "trabajos_detenidos" });
     },
     abortar: async () => {
+      estado.abortado = true;
       estado.muerto = true;
       estado.cerrando = true;
       bucleDespacho.abortar();

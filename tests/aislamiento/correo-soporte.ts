@@ -45,7 +45,7 @@
 //    auth.correo_baja_aplicar(p_hash bytea) RETURNS void  dueno contapp_auth, EXECUTE solo contapp_backend; token vigente (vence_en > ahora):
 //      apaga SOLO el tipo de su (estudio, usuario) y audita {tipo, de, a: false, origen: "enlace"} si cambio; idempotente; token
 //      inexistente, vencido, alterado, NULL o de otra longitud: sin efecto, sin error y misma respuesta (void).
-//    sistema.correo_ciclo_tomar(p_dueno text) RETURNS jsonb  [T3] NULL si otro dueno tiene el candado vigente (5 min, reloj de la BD); si
+//    sistema.correo_ciclo_tomar(p_dueno text) RETURNS jsonb  [T3] NULL si otro dueno tiene el candado vigente (90 s desde 0075, reloj de la BD); si
 //      lo toma: {"resumenDia": "AAAA-MM-DD" | null}; resumenDia = dia de Lima si ya paso hora_resumen, el dia ISO esta en dias_resumen y
 //      el ciclo de ese dia no se cerro. p_dueno NULL o vacio: 22023. EXECUTE solo contapp_worker (sin esquema `public`).
 //    sistema.correo_ciclo_renovar(text) RETURNS boolean · sistema.correo_ciclo_soltar(text) RETURNS void · sistema.correo_resumen_cerrar(

@@ -20,7 +20,8 @@ export type TipoLimite =
   /** 006 (D15): intentos de `/registro/confirmar` por IP (10 por hora, 0025). */
   | "registro_confirmar_ip"
   /** 028 (CA-8): bajas de correo sin sesión por IP (20 cada 10 minutos, 0074); la página y el clic de RFC 8058 comparten el contador. */
-  | "correo_baja_ip";
+  | "correo_baja_ip"
+  | "correo_baja_token";
 
 export interface LoginPreparado {
   permitido: boolean;

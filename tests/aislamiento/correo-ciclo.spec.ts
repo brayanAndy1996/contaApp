@@ -83,15 +83,16 @@ describe("candado del ciclo: un solo ciclo vivo, con vencimiento y reloj de BD (
     }
   });
 
-  it("el primer ciclo lo toma el primero: devuelve un objeto con resumenDia y fija un candado de 5 min con el reloj de la BD", async () => {
+  // Ajuste de T17 (0075, decisión H-028-1-2 del 2026-11-24): el candado pasa de 5 min a 90 s (mismas tolerancias de ±2 s).
+  it("el primer ciclo lo toma el primero: devuelve un objeto con resumenDia y fija un candado de 90 s con el reloj de la BD", async () => {
     const antes = await ahoraBd();
     const r = await tomarCiclo(w1, "dueno-A");
     expect(r).not.toBeNull();
     expect(Object.keys(r!).sort()).toEqual(["resumenDia"]);
     const e = await estadoCiclo();
     expect(e.ciclo_dueno).toBe("dueno-A");
-    expect(ms(e.ciclo_hasta) - antes).toBeGreaterThan(298_000);
-    expect(ms(e.ciclo_hasta) - antes).toBeLessThan(302_000);
+    expect(ms(e.ciclo_hasta) - antes).toBeGreaterThan(88_000);
+    expect(ms(e.ciclo_hasta) - antes).toBeLessThan(92_000);
     expect(Math.abs(ms(e.ultimo_ciclo_inicio) - antes)).toBeLessThan(5000);
   });
 
@@ -102,22 +103,22 @@ describe("candado del ciclo: un solo ciclo vivo, con vencimiento y reloj de BD (
     expect(await estadoCiclo()).toEqual(antes);
   });
 
-  it("candado vencido: otro dueño lo toma y el candado vuelve a 5 min", async () => {
+  it("candado vencido: otro dueño lo toma y el candado vuelve a 90 s", async () => {
     await fijarCandado("dueno-A", "-1 minute");
     const antes = await ahoraBd();
     expect(await tomarCiclo(w2, "dueno-B")).not.toBeNull();
     const e = await estadoCiclo();
     expect(e.ciclo_dueno).toBe("dueno-B");
-    expect(ms(e.ciclo_hasta) - antes).toBeGreaterThan(298_000);
+    expect(ms(e.ciclo_hasta) - antes).toBeGreaterThan(88_000);
   });
 
-  it("renovar: solo el dueño con el candado vigente (true, +5 min); otro dueño o candado vencido: false y sin cambios", async () => {
+  it("renovar: solo el dueño con el candado vigente (true, +90 s); otro dueño o candado vencido: false y sin cambios", async () => {
     await fijarCandado("dueno-A", "1 minute");
     expect(await renovar("dueno-B")).toBe(false);
     expect((await estadoCiclo()).ciclo_dueno).toBe("dueno-A");
     const antes = await ahoraBd();
     expect(await renovar("dueno-A")).toBe(true);
-    expect(ms((await estadoCiclo()).ciclo_hasta) - antes).toBeGreaterThan(298_000);
+    expect(ms((await estadoCiclo()).ciclo_hasta) - antes).toBeGreaterThan(88_000);
     await fijarCandado("dueno-A", "-1 minute");
     const e0 = await estadoCiclo();
     expect(await renovar("dueno-A")).toBe(false);

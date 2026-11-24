@@ -105,6 +105,8 @@ describe("CA-3 catalogo de RLS", () => {
       (p) =>
         !POLITICAS_PERMITIDAS.includes(p.policyname) &&
         !(p.tablename === "job_registro" && p.cmd === "DELETE") &&
+        // Ajuste de 028 (T17, 0075, H-028-1-3): RESTRICTIVE de INSERT para contapp_backend sin `notificacion.enviar` (detalle en trabajos.spec.ts).
+        !(p.tablename === "job_registro" && p.cmd === "INSERT" && p.policyname === "job_registro_sin_correo_backend") &&
         !TABLAS_017.includes(p.tablename) &&
         !TABLAS_028.includes(p.tablename),
     );

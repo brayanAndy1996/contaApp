@@ -9,7 +9,8 @@
 //      (si se pierde, el reconciliador repone).
 //  (4) Tras cada estudio, `correo_ciclo_renovar`; `false` = perdió el candado: se detiene sin encolar más ni cerrar el día.
 //  (5) El día (`correo_resumen_cerrar`) se cierra solo si había `resumenDia` y TODOS los estudios se atendieron sin fallo. Al final, en
-//      `finally`, `correo_ciclo_soltar` (no toca un candado ajeno).
+//      `finally`, `correo_ciclo_soltar` (no toca un candado ajeno), aun si `detener` venció mientras tanto (`dbCandado`, H-028-1-1).
+//      El candado dura 90 s y se renueva tras cada estudio (0075, H-028-1-2): un worker muerto lo bloquea a lo sumo 90 s.
 // El fallo de un estudio no tumba el ciclo. Los logs llevan solo el estudio, conteos y códigos (nunca correos, clientes ni nombres).
 import { randomUUID } from "node:crypto";
 import {
@@ -38,6 +39,11 @@ export interface DepsProgramarCorreo {
   dueno?: string;
   /** Tope de envíos que `encolarAvisosCorreo` pasa a la cola por estudio y ciclo (1000). */
   lote?: number;
+  /**
+   * BD con la que el `finally` suelta el candado (H-028-1-1). `iniciarTrabajos` pasa una que solo se corta con `abortar` (kill -9): tras un
+   * `detener` vencido el tick en curso aún suelta su propio candado y el siguiente worker toma el ciclo enseguida. Por omisión, `db`.
+   */
+  dbCandado?: Pick<ContappDb, "withSistema">;
 }
 
 export interface ResultadoCicloCorreo {
@@ -173,7 +179,7 @@ export function programarCorreo(
         codigo: codigoDe(e),
       });
     } finally {
-      await d.db
+      await (d.dbCandado ?? d.db)
         .withSistema((tx) => soltarCicloCorreo(tx, dueno))
         .catch(() => undefined);
     }

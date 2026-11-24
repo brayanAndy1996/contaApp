@@ -136,9 +136,15 @@ describe("job_registro: tabla, dueño, RLS y politicas (CA-15)", () => {
 
   it("solo tiene tenant_isolation y UNA politica FOR DELETE, y esta es solo para contapp_worker", async () => {
     const r = await consulta(
-      `select policyname, cmd, roles::text[] as roles, qual from pg_policies where schemaname = 'public' and tablename = 'job_registro' order by policyname`,
+      `select policyname, cmd, permissive, roles::text[] as roles, qual, with_check from pg_policies where schemaname = 'public' and tablename = 'job_registro' order by policyname`,
     );
-    const otras = r.filter((p) => p.policyname !== "tenant_isolation");
+    // Ajuste de 028 (T17, 0075, H-028-1-3): ademas, UNA RESTRICTIVE de INSERT solo para contapp_backend que excluye `notificacion.enviar`
+    // (solo lo encolan las funciones acotadas de la BD).
+    const sinCorreo = r.filter((p) => p.policyname === "job_registro_sin_correo_backend");
+    expect(sinCorreo).toHaveLength(1);
+    expect(sinCorreo[0]).toMatchObject({ cmd: "INSERT", permissive: "RESTRICTIVE", roles: ["contapp_backend"] });
+    expect(String(sinCorreo[0].with_check)).toContain("notificacion.enviar");
+    const otras = r.filter((p) => p.policyname !== "tenant_isolation" && p.policyname !== "job_registro_sin_correo_backend");
     expect(otras).toHaveLength(1);
     expect(otras[0].cmd).toBe("DELETE");
     expect(otras[0].roles).toEqual(["contapp_worker"]);

@@ -6,7 +6,7 @@ import { CorreoError } from "./errores.js";
 
 /**
  * Baja pública (spec 028, CA-8). `@Publico` + `@SinEstudio` + `@SinOrigen`: sin sesión, sin CSRF y sin `Origin` (el servidor del correo no lo
- * manda). Un cuerpo `application/json` es la variante de la página (`{token}`); cualquier otro es la de RFC 8058 (token en la consulta y
+ * manda) solo para la variante de RFC 8058; la variante JSON exige el origen propio (`OrigenGuard`, H-028-1-7). Un cuerpo `application/json` es la variante de la página (`{token}`); cualquier otro es la de RFC 8058 (token en la consulta y
  * cuerpo crudo `List-Unsubscribe=One-Click`, leído como bytes por `app.ts`). Ningún `GET` cambia estado: 405. Nada de esto se registra.
  */
 @Controller("correo/baja")
