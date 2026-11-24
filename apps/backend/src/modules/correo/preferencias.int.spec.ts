@@ -221,7 +221,13 @@ describe("CA-1 · PUT /cuenta/correo: guarda, devuelve la vista y crea las cuatr
       expect([200, 400], r.text).toContain(r.status);
     }
     expect(await filas(y)).toEqual(antes); // la otra no se tocó
-    expect(await auditoria(y)).toEqual([]);
+    // Solo queda la auditoría del propio cambio de y (R-10), a su nombre y en su estudio; ninguna de las peticiones de x movió nada.
+    expect((await auditoria(y)).map(datos)).toEqual([{ tipo: "buzon_critico", de: true, a: false, origen: "app" }]);
+    expect((await auditoria(y)).every((f) => f.usuario_id === y.id && f.tenant_id === E.tenantId)).toBe(true);
+    const deX = await auditoria(x);
+    expect(deX.every((f) => f.usuario_id === x.id && f.tenant_id === E.tenantId)).toBe(true); // nunca a nombre de y ni del estudio del cuerpo
+    expect(await auditoriaPreferencia(sql, F.tenantId, x.id)).toEqual([]);
+    expect(await auditoriaPreferencia(sql, F.tenantId, y.id)).toEqual([]);
     expect((await put(x, prefs("contador", { resumen: true }))).status).toBe(200); // control
     expect((await vista(x)).resumen).toBe(true);
     expect((await vista(y)).resumen).toBe(false);
@@ -453,10 +459,11 @@ describe("R-11 · el backend lee solo lo propio y nunca escribe directo ni inser
     const y = await nuevo("contador", [c0]);
     const xEnF = await tambienEn(b, x, F.tenantId, "dueno");
     await guardar(x, prefs("contador", { resumen: true }));
-    await guardar(y, prefs("contador", { credencialInvalida: false }));
     await guardar(xEnF, prefs("dueno", { buzonCritico: false }));
+    // El fallo de y se provoca con el tipo aún activo (apagado, no se crea envío: R-2) y luego se apaga.
     await provocarFallido(sql, worker, { tenantId: E.tenantId, usuarioId: x.id, clienteId: c0 });
     await provocarFallido(sql, worker, { tenantId: E.tenantId, usuarioId: y.id, clienteId: c0 });
+    await guardar(y, prefs("contador", { credencialInvalida: false }));
 
     const propias = await como(E.tenantId, x.id, (q) => q("select tenant_id, usuario_id, tipo from correo_preferencia"));
     expect(propias).toHaveLength(4);
