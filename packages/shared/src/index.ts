@@ -22,3 +22,4 @@ export * from "./reglas/index.js";
 export * from "./buzon/index.js";
 export * from "./prorrata/index.js";
 export * from "./gastos/index.js";
+export * from "./correo/index.js";

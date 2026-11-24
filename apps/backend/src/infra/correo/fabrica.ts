@@ -1,22 +1,24 @@
-import { createTransport } from "nodemailer";
+import {
+  CorreoConfigInvalidaError,
+  crearCorreo as crearCorreoBase,
+  type Correo,
+  type TransporteCorreo,
+} from "@contapp/correo";
 import { EntornoInvalidoError, type Entorno } from "../../config/entorno.js";
-import { CorreoConsola } from "./consola.js";
-import type { Correo } from "./correo.js";
-import { CorreoSmtp, type TransporteCorreo } from "./smtp.js";
 
-/** `consola` en desarrollo; `smtp` con nodemailer (sin conectar al construirse) o un transporte inyectado. */
+/**
+ * `consola` en desarrollo; `smtp` con nodemailer (sin conectar al construirse) o un transporte inyectado.
+ * Spec 028 (D-1): la fábrica vive en `@contapp/correo`; aquí solo se traduce su error de configuración al del entorno.
+ */
 export function crearCorreo(
   config: Entorno["correo"],
   transporte?: TransporteCorreo,
 ): Correo {
-  if (config.provider === "consola") return new CorreoConsola();
-  if (config.remitente === undefined)
-    throw new EntornoInvalidoError("CORREO_REMITENTE");
-  if (transporte !== undefined)
-    return new CorreoSmtp({ remitente: config.remitente, transporte });
-  if (config.smtpUrl === undefined) throw new EntornoInvalidoError("SMTP_URL");
-  return new CorreoSmtp({
-    remitente: config.remitente,
-    transporte: createTransport(config.smtpUrl),
-  });
+  try {
+    return crearCorreoBase(config, transporte);
+  } catch (e) {
+    if (e instanceof CorreoConfigInvalidaError)
+      throw new EntornoInvalidoError(e.variable);
+    throw e;
+  }
 }

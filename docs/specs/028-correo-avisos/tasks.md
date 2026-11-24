@@ -14,7 +14,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → cobe
 | T6  | Pruebas HTTP: preferencias, baja pública, auditoría, HU-40 y limpieza del soporte (rojo) | tester | sonnet | T2 ∥ T5, T7 | ✓ | — | [ ] |
 | T7  | Pruebas de componentes: «Mi cuenta → Correo», invitación, `/baja` e `/ir` (rojo) | tester | sonnet | T2 ∥ T5, T6 | ✓ | — | [ ] |
 | T8  | Dominio: `packages/domain/src/correo/` | backend | sonnet | T1 ∥ T9, T10 | ✓ | — | [ ] |
-| T9  | `packages/correo` (mover el puerto y ampliarlo), `shared` y cola | backend | sonnet | T2 ∥ T8, T10 | ✓ | — | [ ] |
+| T9  | `packages/correo` (mover el puerto y ampliarlo), `shared` y cola | backend | sonnet | T2 ∥ T8, T10 | ✓ | — | [x] |
 | T10 | Migraciones 0073–0074, esquema drizzle y `packages/db/src/correo/` | backend | opus | T3, T4 ∥ T8, T9 | ✓ | — | [ ] |
 | T11 | Worker: ciclo, envío, purga y adaptador | backend | sonnet | T5, T8, T9, T10 ∥ T12, T13 | ✓ | — | [ ] |
 | T12 | Backend: módulo `correo` | backend | sonnet | T6, T9, T10 ∥ T11, T13 | ✓ | — | [ ] |
@@ -100,7 +100,7 @@ Reglas comunes:
 - **Hacer**: `packages/domain/src/correo/*.ts` y exports.
 - **Hecho cuando**: las de T1 y todas las de `domain` pasan (incluida `ronda2b.adv.spec.ts`); `cobertura:dominio` en verde; typecheck y lint limpios. Commit `feat(028): plantillas de correo`.
 
-## T9 · [ ] `packages/correo`, `shared` y cola (backend · sonnet)
+## T9 · [x] `packages/correo`, `shared` y cola (backend · sonnet)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: correo, shared, Cola; D-1), pruebas de T2, `apps/backend/src/infra/correo/*.ts` (sin las pruebas), `apps/backend/package.json`, `packages/shared/src/{index.ts,auditoria/acciones.ts}`, `packages/shared/src/gastos/esquemas.ts` (modelo), `packages/queue/src/{catalogo,index}.ts`, `packages/queue/src/worker/index.ts`.
 - **Hacer**: mover el código del puerto con `git mv` a `packages/correo/src/` y ampliarlo; dejar `apps/backend/src/infra/correo/{correo,consola,memoria,smtp,fabrica}.ts` como reexportaciones (`cola.ts` sin cambios de conducta); `nodemailer` y `@types/nodemailer` al paquete con la misma versión; `packages/shared/src/correo/*.ts` y la acción; `NOTIFICACION_ENVIAR`, `correo.programar` y `programarCorreo()`.
 - **Hecho cuando**: las de T2 y todas las de `correo`, `shared` y `queue` pasan; las de `apps/backend/src/infra/correo/` y `modules/auth` siguen verdes; `build` y typecheck de los consumidores limpios (fallos por exhaustividad anotados para T11–T13). Commit `feat(028): puerto de correo compartido, contratos y trabajo de envío`.

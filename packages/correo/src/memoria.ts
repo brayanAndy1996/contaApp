@@ -1,10 +1,10 @@
-// STUB (spec 028 T2, rojo).
 import type { Correo, MensajeCorreo } from "./puerto.js";
 
+/** Doble de pruebas: guarda el mensaje completo (con `html`, `baja` e `idMensaje`). Solo se inyecta, nunca por entorno. */
 export class CorreoMemoria implements Correo {
   readonly enviados: MensajeCorreo[] = [];
 
-  enviar(_m: MensajeCorreo): Promise<void> {
-    throw new Error("no implementado: CorreoMemoria.enviar");
+  async enviar(m: MensajeCorreo): Promise<void> {
+    this.enviados.push(m);
   }
 }

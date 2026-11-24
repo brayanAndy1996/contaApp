@@ -72,6 +72,8 @@ export const ACCIONES_AUDITORIA = [
   "gnd.global_reactivada",
   "gnd.umbral_cambiado",
   "gnd.categorias_cliente",
+  // Spec 028: preferencias de correo (la registran `correo_preferencias_fijar` y `auth.correo_baja_aplicar`; los envíos no se auditan uno por uno).
+  "correo.preferencia_cambiada",
 ] as const;
 
 export type AccionAuditoria = (typeof ACCIONES_AUDITORIA)[number];

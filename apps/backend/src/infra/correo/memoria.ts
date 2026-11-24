@@ -1,10 +1,2 @@
-import type { Correo, MensajeCorreo } from "./correo.js";
-
-/** Doble de pruebas: solo se inyecta por `crearApp({ correo })`, nunca por entorno. */
-export class CorreoMemoria implements Correo {
-  readonly enviados: MensajeCorreo[] = [];
-
-  async enviar(m: MensajeCorreo): Promise<void> {
-    this.enviados.push(m);
-  }
-}
+// Spec 028 (D-1): implementación en `@contapp/correo`.
+export { CorreoMemoria } from "@contapp/correo";

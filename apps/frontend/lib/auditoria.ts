@@ -108,6 +108,7 @@ const ACCIONES: Record<AccionAuditoria, string> = {
   "gnd.global_reactivada": "Reactivó una palabra global del diccionario para el estudio",
   "gnd.umbral_cambiado": "Cambió el umbral de gastos no deducibles",
   "gnd.categorias_cliente": "Cambió las categorías permitidas de un cliente en gastos no deducibles",
+  "correo.preferencia_cambiada": "Cambió una preferencia de correo",
 };
 
 /** Spec 025 (D-5): una regla creada al activar una candidata del historial no se lee como «Recordó una regla». */
