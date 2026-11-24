@@ -39,7 +39,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → cobe
 | T24 | Revisión final contra la spec | arquitecto | opus | T23 | — | — | [x] |
 | T24a | Pruebas: estabilizar `puntaje.rendimiento.spec.ts` (CA-15) y dos «Volver a evaluar» a la vez sobre el mismo periodo (H-027-2-8) | tester | sonnet | T24 | ✓ | — | [x] |
 | T24b | Corrección, solo si la prueba de concurrencia de T24a falla | backend | opus | T24a | — | — | [x] |
-| T25 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T24, T24a (y T24b si hace falta) | — | — | [ ] |
+| T25 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T24, T24a (y T24b si hace falta) | — | — | [x] |
 
 Paralelismo (por oleadas; dentro de una oleada no se comparten archivos):
 - **Oleada 1**: T1 (pruebas de `packages/domain`, `ronda2b.adv.spec.ts` y las pruebas de 011/014/016 que fijan la forma del hallazgo R-GP en `domain`) ∥ T2 (pruebas de `packages/shared`, `packages/queue`, `packages/sunat`) ∥ T3 (`tests/aislamiento/`) ∥ T4 (`packages/db/src/gastos/*.spec.ts` y su soporte).
@@ -301,7 +301,8 @@ Reglas comunes:
 - **Hacer**: corregir sin quitar aserciones (p. ej. un candado por cliente y periodo para `compras.reevaluar`); si exige cambiar el dedupe de 0072, migración nueva y `escalada.adv.spec.ts`. Si T24a (2) pasa, marcar `[x]` «sin cambios».
 - **Hecho cuando**: T24a en verde y worker `test:int` de 027 y `tests/aislamiento/gnd-*.spec.ts` en verde. Commit `fix(027): T24b reevaluar concurrente`.
 
-## T25 · [ ] Cierre (devops · haiku)
+## T25 · [x] Cierre (devops · haiku)
 - **Contexto (leer solo esto)**: `tasks.md`, `spec.md` (estado y casillas de CA), resultados de T23 y T24.
 - **Hacer**: marcar tareas y CA, estado de la spec «hecha (fecha)», notas para otras specs (037: borrado de las tablas `gnd_*` por su camino acotado; adaptador real de la consulta RUC: CIIU de la actividad principal; S5 completa).
 - **Hecho cuando**: commit `docs(027): cierre`; el orquestador actualiza `ESTADO.md`.
+- **Resultado (T25, devops · haiku, 2026-11-24)**: tabla contra tarjetas: solo faltaba T25. Sin tarjeta: T12a (su fila ya estaba `[x]`, no se tocó); T23a se documenta en la de T23. Sin línea de resultado, pero `[x]` en tabla y tarjeta: T1–T3, T5–T9, T13 y T14. `spec.md`: estado «hecha (2026-11-24)», CA-1 a CA-18 y casos reales `[x]` según T23, T23a y T24a, CA-12 redactado y decisión H-027-2-8 del 2026-11-24, notas para otras specs. Sin cambios de código ni de `ESTADO.md`.
