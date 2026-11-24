@@ -10,6 +10,14 @@ export interface MensajeLeido {
   readonly para: string;
   readonly asunto: string;
   readonly texto: string;
+  /** HTML del cuerpo (solo con Mailpit; `consola` no lo imprime, solo su marca en `conHtml`). */
+  readonly html?: string;
+  /** Cabeceras de la API de Mailpit, con el nombre en minúsculas (solo con Mailpit). */
+  readonly cabeceras?: Readonly<Record<string, readonly string[]>>;
+  /** El correo trae HTML (Mailpit: el cuerpo no está vacío; consola: la marca `[html]`). */
+  readonly conHtml: boolean;
+  /** El correo trae la baja de un clic (Mailpit: `List-Unsubscribe`; consola: la marca `[baja]`). */
+  readonly conBaja: boolean;
 }
 
 const TOPE_MS = 30_000;
@@ -27,16 +35,28 @@ export function primerEnlace(texto: string): string | null {
   return m === null ? null : m[0].replace(/[).,;]+$/, "");
 }
 
-/** Mensajes de `backend.log`, en el orden en que se escribieron. */
+/**
+ * Mensajes de un log (`backend.log` o `worker.log`), en el orden en que se escribieron. Desde 028 `CorreoConsola` añade
+ * antes de la línea en blanco las marcas `[html]` y `[baja]` (no imprime el HTML ni la URL de baja).
+ */
 export function mensajesDeConsola(log: string): MensajeLeido[] {
   const salida: MensajeLeido[] = [];
   const partes = log.split("[correo:consola]\n");
   for (const parte of partes.slice(1)) {
-    const m = /^para: (.*)\nasunto: (.*)\n\n([\s\S]*)$/.exec(parte);
+    const m =
+      /^para: (.*)\nasunto: (.*)\n((?:\[html\]\n)?(?:\[baja\]\n)?)\n([\s\S]*)$/.exec(
+        parte,
+      );
     if (m === null) continue;
     // El texto termina donde empieza la siguiente línea de log de Nest (o el fin del bloque).
-    const texto = (m[3] ?? "").split(/\n\n(?=\[|\u001b)/)[0] ?? "";
-    salida.push({ para: m[1] ?? "", asunto: m[2] ?? "", texto });
+    const texto = (m[4] ?? "").split(/\n\n(?=\[|\u001b)/)[0] ?? "";
+    salida.push({
+      para: m[1] ?? "",
+      asunto: m[2] ?? "",
+      texto,
+      conHtml: (m[3] ?? "").includes("[html]"),
+      conBaja: (m[3] ?? "").includes("[baja]"),
+    });
   }
   return salida;
 }
@@ -45,14 +65,36 @@ async function desdeConsola(destinatario: string): Promise<MensajeLeido[]> {
   const dir = process.env.E2E_PILA_DIR;
   if (dir === undefined)
     throw new Error("No hay pila E2E en marcha (falta E2E_PILA_DIR).");
-  let log = "";
-  try {
-    log = await readFile(join(dir, "backend.log"), "utf8");
-  } catch {
-    return [];
-  }
   const buscado = destinatario.toLowerCase();
-  return mensajesDeConsola(log).filter((m) => m.para.toLowerCase() === buscado);
+  const salida: MensajeLeido[] = [];
+  // Invitación y recuperación las envía el backend; los avisos y el resumen de 028, el worker.
+  for (const archivo of ["backend.log", "worker.log"]) {
+    let log = "";
+    try {
+      log = await readFile(join(dir, archivo), "utf8");
+    } catch {
+      continue;
+    }
+    salida.push(
+      ...mensajesDeConsola(log).filter((m) => m.para.toLowerCase() === buscado),
+    );
+  }
+  return salida;
+}
+
+/** Cabeceras de un mensaje de Mailpit (`/message/{id}/headers`), con el nombre en minúsculas. */
+async function cabecerasDe(
+  base: string,
+  id: string,
+): Promise<Record<string, string[]>> {
+  const r = await fetch(`${base}/message/${id}/headers`);
+  if (!r.ok) return {};
+  const crudas = (await r.json()) as Record<string, string[]>;
+  const salida: Record<string, string[]> = {};
+  for (const [nombre, valores] of Object.entries(crudas)) {
+    salida[nombre.toLowerCase()] = valores;
+  }
+  return salida;
 }
 
 async function desdeMailpit(
@@ -71,8 +113,20 @@ async function desdeMailpit(
   for (const resumen of [...messages].reverse()) {
     const detalle = await fetch(`${base}/message/${resumen.ID}`);
     if (!detalle.ok) continue;
-    const { Text = "" } = (await detalle.json()) as { Text?: string };
-    salida.push({ para: destinatario, asunto: resumen.Subject, texto: Text });
+    const { Text = "", HTML = "" } = (await detalle.json()) as {
+      Text?: string;
+      HTML?: string;
+    };
+    const cabeceras = await cabecerasDe(base, resumen.ID);
+    salida.push({
+      para: destinatario,
+      asunto: resumen.Subject,
+      texto: Text,
+      html: HTML,
+      cabeceras,
+      conHtml: HTML !== "",
+      conBaja: (cabeceras["list-unsubscribe"] ?? []).length > 0,
+    });
   }
   return salida;
 }
@@ -89,10 +143,11 @@ export class Correo {
       : desdeMailpit(destinatario, this.puertoMailpit);
   }
 
-  /** El último mensaje para `destinatario` cuyo asunto coincide; espera hasta 30 s. */
+  /** El último mensaje para `destinatario` cuyo asunto coincide; espera hasta `tope` ms (30 s por omisión). */
   async ultimo(
     destinatario: string,
     asunto: string | RegExp,
+    tope: number = TOPE_MS,
   ): Promise<MensajeLeido> {
     let hallado: MensajeLeido | undefined;
     await expect
@@ -106,7 +161,7 @@ export class Correo {
         },
         {
           message: `No llegó un correo para el destinatario con el asunto esperado`,
-          timeout: TOPE_MS,
+          timeout: tope,
           intervals: SONDEO_MS,
         },
       )
@@ -134,4 +189,21 @@ export class Correo {
     const todos = await this.leer(destinatario);
     return todos.filter((m) => coincideAsunto(m.asunto, asunto)).length;
   }
+}
+
+/**
+ * Los dos enlaces del pie de un correo de 028 (texto plano): «Abrir en ContApp» (`/ir?…`) y «Dejar de recibir…» (`/baja?t=…`).
+ * `null` si el texto no trae uno de ellos. Nunca se imprimen: el segundo lleva el token de baja.
+ */
+export function enlacesDeAviso(texto: string): {
+  ir: string | null;
+  baja: string | null;
+} {
+  const todos = texto.match(/https?:\/\/[^\s<>"']+/g) ?? [];
+  const limpio = (e: string | undefined): string | null =>
+    e === undefined ? null : e.replace(/[).,;]+$/, "");
+  return {
+    ir: limpio(todos.find((e) => /\/ir\?/.test(e))),
+    baja: limpio(todos.find((e) => /\/baja\?t=/.test(e))),
+  };
 }
