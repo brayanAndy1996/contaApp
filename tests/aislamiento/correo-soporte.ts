@@ -145,6 +145,8 @@ export const FUNCIONES_CORREO: { firma: string; ejecuta: string[]; llamada: stri
     llamada: "select correo_baja_token_crear(gen_random_uuid(), decode(repeat('00', 32), 'hex'))",
   },
   { firma: "correo_purgar(integer)", ejecuta: ["contapp_worker"], llamada: "select correo_purgar(90)" },
+  // Anadida por T10 (0074): el worker no tiene SELECT sobre `usuario`; lee el correo vigente de un miembro activo solo por aqui (R-3).
+  { firma: "correo_destinatario(uuid)", ejecuta: ["contapp_worker"], llamada: "select correo_destinatario(gen_random_uuid())" },
 ];
 
 export const sha256 = (b: Buffer): Buffer => createHash("sha256").update(b).digest();
