@@ -62,7 +62,9 @@ describe("job_registro", () => {
 
   it("los CHECK acotan cola, canal, prioridad, estado, motivo, RUC, tamaños e intentos", () => {
     const k = Object.fromEntries(c.checks.map((x) => [x.name, sqlDe(x.value)]));
-    expect(Object.keys(k)).toHaveLength(12);
+    // Spec 028 (0073): + job_registro_cliente_requerido (`notificacion.enviar` es el único tipo sin cliente ni RUC).
+    expect(Object.keys(k)).toHaveLength(13);
+    expect(k.job_registro_cliente_requerido).toContain("'notificacion.enviar'");
     expect(k.job_registro_cola_valida).toContain("'notificaciones'");
     expect(k.job_registro_estado_valido).toContain("'cancelado'");
     expect(k.job_registro_motivo_valido).toContain("'credencial_invalida'");

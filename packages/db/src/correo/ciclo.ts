@@ -1,9 +1,14 @@
-/* eslint-disable @typescript-eslint/no-unused-vars -- stub en rojo de T4 (spec 028): T10 lo reemplaza */
-// STUB (spec 028, T4 rojo): lo reemplaza T10. Ciclo programado de correo (R-5, R-14): funciones de 0074 con la `tx` del worker.
-// `estudiosCorreo`, `tomarCicloCorreo`, `renovarCicloCorreo`, `soltarCicloCorreo` y `cerrarResumenCorreo` van con `withSistema`
-// (sin estudio); `encolarAvisosCorreo`, `crearResumenesCorreo` y `purgarCorreo`, con `withTenant` del estudio (las dos primeras) o
-// `withSistema` (la purga).
-import type { TxConsulta } from "./errores";
+// Ciclo programado de correo (spec 028; R-5, R-12, R-14): funciones de 0074 con la `tx` del worker. `estudiosCorreo`,
+// `tomarCicloCorreo`, `renovarCicloCorreo`, `soltarCicloCorreo` y `cerrarResumenCorreo` van con `withSistema` (sin estudio);
+// `encolarAvisosCorreo`, `crearResumenesCorreo` y `purgarCorreo`, con `withTenant` del estudio.
+import {
+  ARGUMENTO_INVALIDO,
+  consultarCorreo,
+  CorreoRepoError,
+  exigirDia,
+  exigirEntero,
+  type TxConsulta,
+} from "./errores";
 
 export interface EstudioCorreo {
   tenantId: string;
@@ -16,57 +21,104 @@ export interface CicloCorreo {
   resumenDia: string | null;
 }
 
-export async function estudiosCorreo(
-  _tx: TxConsulta,
-): Promise<EstudioCorreo[]> {
-  throw new Error("no implementado: estudiosCorreo");
+const SQL = {
+  estudios: "select tenant_id, avisos, resumen from sistema.estudios_correo()",
+  tomar: "select sistema.correo_ciclo_tomar($1::text) as correo_ciclo_tomar",
+  renovar: "select sistema.correo_ciclo_renovar($1::text) as correo_ciclo_renovar",
+  soltar: "select sistema.correo_ciclo_soltar($1::text)",
+  cerrar: "select sistema.correo_resumen_cerrar($1::text, $2::date)",
+  encolar: "select encolar_correo_avisos($1::int) as n",
+  crear: "select crear_correo_resumenes($1::date) as n",
+  purgar: "select correo_purgar($1::int) as n",
+};
+
+/** Dueño del candado: texto de 1 a 200 caracteres; si no, 22023 sin ir a la BD. */
+function exigirDueno(v: unknown): string {
+  if (typeof v !== "string" || v.length < 1 || v.length > 200)
+    throw new CorreoRepoError(ARGUMENTO_INVALIDO);
+  return v;
 }
+
+/** El único valor de la primera fila, sea cual sea el nombre de su columna. */
+const valor = (filas: Record<string, unknown>[]): unknown => {
+  const f = filas[0];
+  return f === undefined ? undefined : Object.values(f)[0];
+};
+
+export async function estudiosCorreo(
+  tx: TxConsulta,
+): Promise<EstudioCorreo[]> {
+  const filas = await consultarCorreo(tx, SQL.estudios, []);
+  return filas.map((f) => ({
+    tenantId: String(f.tenant_id),
+    avisos: f.avisos === true,
+    resumen: f.resumen === true,
+  }));
+}
+
 /** null si otro dueño tiene el candado. */
 export async function tomarCicloCorreo(
-  _tx: TxConsulta,
-  _dueno: string,
+  tx: TxConsulta,
+  dueno: string,
 ): Promise<CicloCorreo | null> {
-  throw new Error("no implementado: tomarCicloCorreo");
+  const d = exigirDueno(dueno);
+  const r = valor(await consultarCorreo(tx, SQL.tomar, [d]));
+  if (r === null || r === undefined || typeof r !== "object") return null;
+  const dia = (r as Record<string, unknown>).resumenDia;
+  return { resumenDia: typeof dia === "string" ? dia : null };
 }
+
 /** false si perdió el candado. */
 export async function renovarCicloCorreo(
-  _tx: TxConsulta,
-  _dueno: string,
+  tx: TxConsulta,
+  dueno: string,
 ): Promise<boolean> {
-  throw new Error("no implementado: renovarCicloCorreo");
+  const d = exigirDueno(dueno);
+  return valor(await consultarCorreo(tx, SQL.renovar, [d])) === true;
 }
+
 export async function soltarCicloCorreo(
-  _tx: TxConsulta,
-  _dueno: string,
+  tx: TxConsulta,
+  dueno: string,
 ): Promise<void> {
-  throw new Error("no implementado: soltarCicloCorreo");
+  const d = exigirDueno(dueno);
+  await consultarCorreo(tx, SQL.soltar, [d]);
 }
+
 /** Cierra el día del resumen (`dia` AAAA-MM-DD) solo si `dueno` sigue teniendo el candado. */
 export async function cerrarResumenCorreo(
-  _tx: TxConsulta,
-  _dueno: string,
-  _dia: string,
+  tx: TxConsulta,
+  dueno: string,
+  dia: string,
 ): Promise<void> {
-  throw new Error("no implementado: cerrarResumenCorreo");
+  const d = exigirDueno(dueno);
+  const fecha = exigirDia(dia);
+  await consultarCorreo(tx, SQL.cerrar, [d, fecha]);
 }
-/** Cantidad de envíos `aviso` vencidos que pasaron a la cola (a lo sumo `limite`). */
+
+/** Cantidad de envíos `aviso` vencidos que pasaron a la cola (a lo sumo `limite`, entero de 1 a 100000). */
 export async function encolarAvisosCorreo(
-  _tx: TxConsulta,
-  _limite: number,
+  tx: TxConsulta,
+  limite: number,
 ): Promise<number> {
-  throw new Error("no implementado: encolarAvisosCorreo");
+  const l = exigirEntero(limite, 1, 100_000);
+  return Number(valor(await consultarCorreo(tx, SQL.encolar, [l])) ?? 0);
 }
+
 /** Cantidad de envíos de resumen o pendientes creados para el día (`dia` AAAA-MM-DD de Lima). */
 export async function crearResumenesCorreo(
-  _tx: TxConsulta,
-  _dia: string,
+  tx: TxConsulta,
+  dia: string,
 ): Promise<number> {
-  throw new Error("no implementado: crearResumenesCorreo");
+  const fecha = exigirDia(dia);
+  return Number(valor(await consultarCorreo(tx, SQL.crear, [fecha])) ?? 0);
 }
-/** Filas borradas de envíos, avisos y tokens con más de `dias` días. */
+
+/** Envíos borrados (con sus avisos y tokens) con más de `dias` días; también los avisos diferidos y tokens sueltos. */
 export async function purgarCorreo(
-  _tx: TxConsulta,
-  _dias: number,
+  tx: TxConsulta,
+  dias: number,
 ): Promise<number> {
-  throw new Error("no implementado: purgarCorreo");
+  const d = exigirEntero(dias, 1, 36_500);
+  return Number(valor(await consultarCorreo(tx, SQL.purgar, [d])) ?? 0);
 }

@@ -1,4 +1,5 @@
-// STUB (spec 028, T4 rojo): lo reemplaza T10. Repositorio de correo (avisos y resumen diario).
+// Repositorio de correo de la spec 028 (avisos y resumen diario): preferencias (backend), envíos, avisos, resumen, ciclo y token de baja
+// (worker). La baja sin sesión está en `AuthRepo.aplicarBaja`.
 export { CorreoRepoError } from "./errores";
 export type { TxConsulta } from "./errores";
 export { fijarPreferencias, leerPreferencias } from "./preferencias";
@@ -8,15 +9,18 @@ export {
   leerAvisosEnvio,
   leerDestinatario,
   tomarEnvio,
+  tomarEnvioParaEnviar,
 } from "./envios";
 export type {
   AvisoEnvio,
   CierreEnvio,
   Destinatario,
   EnvioTomado,
+  EnvioTomadoParaEnviar,
   EstadoCierre,
   MotivoEnvio,
   OrigenEnvio,
+  PlanCorreo,
   TipoCorreo,
 } from "./envios";
 export { leerResumen } from "./resumen";

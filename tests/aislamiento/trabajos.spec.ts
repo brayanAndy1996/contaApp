@@ -157,8 +157,9 @@ describe("job_registro: tabla, dueño, RLS y politicas (CA-15)", () => {
     const por = Object.fromEntries(r.map((x) => [x.column_name, x]));
     const esperado: Record<string, [string, string]> = {
       id: ["uuid", "NO"],
-      cliente_id: ["uuid", "NO"],
-      ruc: ["bpchar", "NO"],
+      // Ajuste de 028 (T10, migración 0073): admiten NULL solo en `notificacion.enviar` (CHECK job_registro_cliente_requerido, abajo).
+      cliente_id: ["uuid", "YES"],
+      ruc: ["bpchar", "YES"],
       tipo: ["text", "NO"],
       cola: ["text", "NO"],
       canal: ["text", "NO"],
@@ -180,6 +181,10 @@ describe("job_registro: tabla, dueño, RLS y politicas (CA-15)", () => {
     for (const [c, [tipo, nulo]] of Object.entries(esperado)) {
       expect([por[c]?.udt_name, por[c]?.is_nullable], c).toEqual([tipo, nulo]);
     }
+    const cliente = await consulta(
+      "select pg_get_constraintdef(oid) as def from pg_constraint where conname = 'job_registro_cliente_requerido'",
+    );
+    expect(String(cliente[0]?.def)).toContain("'notificacion.enviar'");
     expect(String(por.id?.column_default)).toContain("uuid_v7()");
     expect(String(por.intentos?.column_default)).toBe("0");
     // El INSERT del repositorio no manda estos: deben tener valor por defecto (tenant_id lo pone el contexto).
@@ -662,11 +667,17 @@ describe("esquema sistema y sus funciones (D18, CA-12)", () => {
       { proname: "buzon_ciclo_renovar", args: "p_dueno text" },
       { proname: "buzon_ciclo_soltar", args: "p_dueno text" },
       { proname: "buzon_ciclo_tomar", args: "p_dueno text" },
+      // Ajuste de 028 (T10, migración 0074): las cinco del ciclo de correo (candado, cierre del día y estudios vigentes).
+      { proname: "correo_ciclo_renovar", args: "p_dueno text" },
+      { proname: "correo_ciclo_soltar", args: "p_dueno text" },
+      { proname: "correo_ciclo_tomar", args: "p_dueno text" },
+      { proname: "correo_resumen_cerrar", args: "p_dueno text, p_dia date" },
       { proname: "estudios_buzon", args: "" },
       {
         proname: "estudios_con_trabajos",
         args: "estados text[], antiguedad_seg integer",
       },
+      { proname: "estudios_correo", args: "" },
       { proname: "estudios_ids", args: "" },
     ]);
   });
@@ -705,6 +716,12 @@ describe("esquema sistema y sus funciones (D18, CA-12)", () => {
         set: true,
         retorna: "record",
       },
+      // Ajuste de 028 (T10, migración 0074; patrón de 0055).
+      correo_ciclo_renovar: { dueno: "contapp_migrator", vol: "v", set: false, retorna: "boolean" },
+      correo_ciclo_soltar: { dueno: "contapp_migrator", vol: "v", set: false, retorna: "void" },
+      correo_ciclo_tomar: { dueno: "contapp_migrator", vol: "v", set: false, retorna: "jsonb" },
+      correo_resumen_cerrar: { dueno: "contapp_migrator", vol: "v", set: false, retorna: "void" },
+      estudios_correo: { dueno: "contapp_migrator", vol: "v", set: true, retorna: "record" },
       estudios_con_trabajos: {
         dueno: "contapp_enumerador",
         vol: "s",
@@ -745,7 +762,7 @@ describe("esquema sistema y sus funciones (D18, CA-12)", () => {
               exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a where a.grantee = 0) as publico
          from pg_proc p where p.pronamespace = to_regnamespace('sistema') order by 1`,
     );
-    expect(r).toHaveLength(6);
+    expect(r).toHaveLength(11); // 6 de 008 y 023 + 5 del ciclo de correo de 028 (0074)
     for (const f of r) {
       expect(
         [f.worker, f.backend, f.platform, f.app, f.publico],

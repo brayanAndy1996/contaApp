@@ -18,7 +18,9 @@ export type TipoLimite =
   | "registro_ip"
   | "registro_correo"
   /** 006 (D15): intentos de `/registro/confirmar` por IP (10 por hora, 0025). */
-  | "registro_confirmar_ip";
+  | "registro_confirmar_ip"
+  /** 028 (CA-8): bajas de correo sin sesión por IP (20 cada 10 minutos, 0074); la página y el clic de RFC 8058 comparten el contador. */
+  | "correo_baja_ip";
 
 export interface LoginPreparado {
   permitido: boolean;
@@ -172,6 +174,12 @@ export interface AuthRepo {
   /** Sin efectos: el token existe, no se usó, no se invalidó y no venció (0008, antes de Argon2). */
   recuperacionVigente(tokenHash: Buffer): Promise<boolean>;
   recuperacionConsumir(tokenHash: Buffer, hashNuevo: string): Promise<RecuperacionConsumida | null>;
+  /**
+   * 028 (R-7, CA-8): baja sin sesión con el SHA-256 (64 caracteres hexadecimales) del token del correo. Con el token vigente apaga solo
+   * el tipo de su (estudio, usuario) y lo audita (origen `enlace`); siempre devuelve `undefined` (no distingue un token válido de uno
+   * inexistente, vencido o ya usado). Otro valor no va a la BD.
+   */
+  aplicarBaja(hashHex: string): Promise<void>;
   contrasenaCambiar(tokenHash: Buffer, hashNuevo: string, tokenHashNuevo: Buffer): Promise<string | null>;
   /** 005: sin efectos; null si la invitación no está viva (aceptada, revocada, vencida o desconocida). */
   invitacionVigente(tokenHash: Buffer): Promise<InvitacionVigente | null>;
@@ -229,6 +237,7 @@ const SQL = {
   recuperacionCrear: "select * from auth.recuperacion_crear($1::text, $2::bytea)",
   recuperacionVigente: "select * from auth.recuperacion_vigente($1::bytea)",
   recuperacionConsumir: "select * from auth.recuperacion_consumir($1::bytea, $2::text)",
+  aplicarBaja: "select auth.correo_baja_aplicar($1::bytea)",
   contrasenaCambiar: "select * from auth.contrasena_cambiar($1::bytea, $2::text, $3::bytea)",
   invitacionVigente: "select * from auth.invitacion_vigente($1::bytea)",
   invitacionAceptarNueva: "select * from auth.invitacion_aceptar_nueva($1::bytea, $2::text, $3::text)",
@@ -378,6 +387,10 @@ export function crearAuthRepo(tx: TxConsulta): AuthRepo {
       ejecutar(SQL.recuperacionConsumir, [tokenHash, hashNuevo], (f) =>
         f.length === 0 ? null : { usuarioId: f[0]!.usuario_id as string, correo: f[0]!.correo as string },
       ),
+    aplicarBaja: async (hashHex) => {
+      if (typeof hashHex !== "string" || !/^[0-9a-fA-F]{64}$/.test(hashHex)) return;
+      await ejecutar(SQL.aplicarBaja, [Buffer.from(hashHex, "hex")], () => undefined);
+    },
     contrasenaCambiar: (tokenHash, hashNuevo, tokenHashNuevo) =>
       ejecutar(
         SQL.contrasenaCambiar,
