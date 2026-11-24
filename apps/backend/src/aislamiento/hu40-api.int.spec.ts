@@ -38,6 +38,13 @@
 // recibe 404 (o 403 sin `reglas.gestionar`) igual que ante un id inexistente, el estudio sale de la sesión (un `tenantId` en el cuerpo es 400), las rutas
 // de plataforma dan 403 a quien no es super-admin, y las cinco tablas, los trabajos y la auditoría de ambos estudios quedan intactos. Rojo hasta T10
 // (tablas) y T12 (rutas).
+// 028 (T6) agrega las 4 rutas de correo (`GET|PUT /cuenta/correo`, `POST|GET /correo/baja`): cada estudio tiene, sembradas por SQL, las cuatro
+// preferencias del Dueño y de la asistente (con valores distintos entre A y B), un envío `fallido` del Dueño y su token de baja de resumen; el id
+// del envío y el token (en claro, en base64url y en hex del hash) son marcas de fuga. Un usuario de A con el `usuarioId` o `tenantId` de B en el
+// cuerpo o la consulta recibe 400 o su propia vista, el hash almacenado de B usado como token y los cuerpos mal formados no aplican nada (200 `{}`
+// o 400), y `GET /correo/baja?t=<token real de B>` es 405 sin efectos; las cuatro tablas de correo y la auditoría `correo.preferencia_cambiada`
+// de ambos estudios quedan intactas. Los `PUT` válidos y la baja con el token propio se prueban en «las pruebas no son vacías» (restauran lo que
+// cambian). Rojo hasta T10 (tablas) y T12 (rutas): hasta entonces solo fallan los casos nuevos.
 // 006 (T3) agrega los casos de `/registro/*`, `GET /plan/uso` y las 6 rutas `/plataforma/*` (CA-8): los usuarios de A
 // (ninguno super-admin) con IDs, tokens y correos de B. Rojo hasta T7 (uso), T8 (registro) y T9 (plataforma).
 import { createHash, randomBytes, randomUUID } from "node:crypto";
@@ -65,6 +72,7 @@ import {
   sembrarDescifrado,
   sembrarNotificacion,
 } from "../../test/soporte-notificaciones.js";
+import { borrarCorreoDeEstudios, sembrarEnvio, sembrarToken } from "../../test/soporte-correo.js";
 import { csvVentas, fila as filaVenta } from "../../test/soporte-ventas.js";
 import {
   abrirHarness,
@@ -121,6 +129,8 @@ interface Recursos {
   prorrata?: { obtencionId: string; declaracionId: string; manualId: string; usadaId: string; motivo: string };
   /** 027: palabra propia, global desactivada, umbral, ajuste de categorías del primer cliente y CIIU en la caché (ausentes si faltan las tablas). */
   gastos?: { propiaId: string; palabra: string; categoriasClienteId: string; ruc: string };
+  /** 028: envío `fallido` del Dueño y su token de baja de resumen (token en claro; hash en base64url y en hex). Ausente si faltan las tablas. */
+  correo?: { envioId: string; token: string; hashB64: string; hashHex: string };
 }
 interface Sesion {
   cookie: string;
@@ -195,6 +205,8 @@ const importacionesSembradas: string[] = [];
 let falloSiembra026: string | null = null;
 /** 027: si la siembra de gastos no deducibles falló (¿tablas de T10?), el motivo; los casos nuevos lo muestran. */
 let falloSiembra027: string | null = null;
+/** 028: si la siembra de correo (preferencias, envío fallido y token de baja) falló (¿tablas de T10?), el motivo; los casos nuevos lo muestran. */
+let falloSiembra028: string | null = null;
 
 const todos = (...n: number[]): Esperado => ({ dueno: n, asistente: n });
 const E404: Esperado = { dueno: [404], asistente: [403, 404] };
@@ -432,6 +444,37 @@ async function sembrarGastos(r: Recursos, etiqueta: "A" | "B"): Promise<void> {
   r.gastos = { propiaId: pa[0].id, palabra, categoriasClienteId: ca[0].cliente_id, ruc };
 }
 
+/**
+ * 028: las cuatro preferencias del Dueño y de la asistente (valores distintos entre A y B para que una vista cruzada se note), un envío `fallido`
+ * del Dueño y su token de baja de resumen, por SQL. El id del envío y el token son marcas de fuga. Sin las tablas de T10 falla (42P01) y lo
+ * captura el arranque.
+ */
+type PrefsSembradas = { buzon: boolean; cred: boolean; plan: boolean; resumen: boolean };
+const PREFS_028: Record<"A" | "B", Record<"dueno" | "asistente", PrefsSembradas>> = {
+  A: { dueno: { buzon: false, cred: true, plan: true, resumen: true }, asistente: { buzon: true, cred: true, plan: true, resumen: true } },
+  B: { dueno: { buzon: true, cred: false, plan: true, resumen: true }, asistente: { buzon: true, cred: true, plan: false, resumen: true } },
+};
+async function sembrarCorreo(r: Recursos, etiqueta: "A" | "B"): Promise<void> {
+  for (const rol of ["dueno", "asistente"] as const) {
+    const v = PREFS_028[etiqueta][rol];
+    for (const [tipo, activo] of [
+      ["buzon_critico", v.buzon],
+      ["credencial_invalida", v.cred],
+      ["plan_limite", v.plan],
+      ["resumen", v.resumen],
+    ] as const)
+      await h.sql("insert into correo_preferencia (tenant_id, usuario_id, tipo, activo, todos_clientes) values ($1, $2, $3, $4, false)", [
+        r.tenantId,
+        r[rol].id,
+        tipo,
+        activo,
+      ]);
+  }
+  const envioId = await sembrarEnvio(h.sql, { tenantId: r.tenantId, usuarioId: r.dueno.id, tipo: "resumen", estado: "fallido", hace: "5 minutes" });
+  const t = await sembrarToken(h.sql, { tenantId: r.tenantId, usuarioId: r.dueno.id, tipo: "resumen", envioId });
+  r.correo = { envioId, token: t.token, hashB64: t.hash.toString("base64url"), hashHex: t.hash.toString("hex") };
+}
+
 /** Marcadores: todo lo que existe en `de` y no en `contra` (los usuarios de ambos, como uAB, no cuentan). */
 async function calcularMarcadores(
   de: Recursos,
@@ -482,6 +525,10 @@ async function calcularMarcadores(
     ids.add(de.gastos.propiaId);
     otros.add(de.gastos.palabra);
     otros.add(de.gastos.ruc);
+  }
+  if (de.correo) {
+    ids.add(de.correo.envioId);
+    for (const m of [de.correo.token, de.correo.hashB64, de.correo.hashHex]) otros.add(m);
   }
   for (const f of clientesDe) {
     ids.add(f.id);
@@ -535,6 +582,22 @@ async function instantaneaGastos(
       throw e;
     });
   }
+  return salida;
+}
+
+/** 028: las cuatro tablas de correo del estudio y las filas de auditoría `correo.preferencia_cambiada` (vacías, sin romper, mientras no existan: rojo hasta T10). */
+async function instantaneaCorreo(
+  r: Recursos,
+  q: (texto: string, valores: unknown[]) => Promise<unknown[]>,
+): Promise<Record<string, unknown>> {
+  const salida: Record<string, unknown> = {};
+  for (const tabla of ["correo_preferencia", "correo_envio", "correo_envio_aviso", "correo_baja_token"]) {
+    salida[tabla] = await q(`select to_jsonb(g) j from ${tabla} g where tenant_id = $1 order by 1`, [r.tenantId]).catch((e: { code?: string }) => {
+      if (e.code === "42P01") return [];
+      throw e;
+    });
+  }
+  salida.auditoria_correo = await q("select to_jsonb(g) j from auditoria g where tenant_id = $1 and accion = 'correo.preferencia_cambiada' order by 1", [r.tenantId]);
   return salida;
 }
 
@@ -598,6 +661,8 @@ async function instantanea(
     ...(await instantaneaProrrata(r, q)),
     // 027: las cinco tablas de gastos no deducibles (0069). Mientras no existan (rojo) la instantánea no las incluye.
     ...(await instantaneaGastos(r, q)),
+    // 028: las cuatro tablas de correo y su auditoría (0073). Mientras no existan (rojo) la instantánea no las incluye.
+    ...(await instantaneaCorreo(r, q)),
     // 024: historial de atención (0059). Mientras la tabla no exista (rojo) la instantánea no la incluye y no rompe los casos de 004 a 023.
     buzon_atencion: await q(
       "select to_jsonb(g) j from buzon_atencion g where tenant_id = $1 and cliente_id = any($2::uuid[]) order by id",
@@ -2075,6 +2140,102 @@ function casosGastos(): Caso[] {
   ];
 }
 
+/* ---------------------------- 028 · correo: preferencias y baja ----------------------------
+ * `GET|PUT /cuenta/correo` (solo estudio: el usuario y el estudio salen de la sesión; un `usuarioId`/`tenantId` en el cuerpo es 400, en la consulta se
+ * ignora) y `POST|GET /correo/baja` (públicas: el token es la credencial; el hash almacenado de B no sirve de token, un cuerpo mal formado es 400 y un
+ * GET es 405 aun con un token real). Las cuatro tablas de correo y la auditoría de ambos estudios quedan como estaban. */
+const BODY_028 = { buzonCritico: false, credencialInvalida: true, planLimite: true, resumen: true, todosClientes: false };
+/** Lo que ve cada usuario sembrado en `etiqueta` (la asistente es responsable de un cliente: sin «todos»; solo el Dueño tiene un envío fallido). */
+const vistaSembrada = (etiqueta: "A" | "B", rol: "dueno" | "asistente") => {
+  const v = PREFS_028[etiqueta][rol];
+  return {
+    buzonCritico: v.buzon,
+    credencialInvalida: v.cred,
+    planLimite: v.plan,
+    resumen: v.resumen,
+    todosClientes: false,
+    todosDisponible: rol === "dueno",
+    todosIgnorado: false,
+    invitacionResumen: false,
+    ultimoEnvioFallido: rol === "dueno" ? expect.any(String) : null,
+  };
+};
+const etiquetaDe = (r: Recursos): "A" | "B" => (r.tenantId === A.tenantId ? "A" : "B");
+
+function casosCorreo(): Caso[] {
+  const exigirSiembra = (): void => expect(falloSiembra028, "la siembra de 028 falló (¿tablas de T10?)").toBeNull();
+  const tokenInventado = (): string => randomBytes(32).toString("base64url");
+  return [
+    {
+      ruta: "GET /cuenta/correo",
+      esperado: { dueno: [200, 400], asistente: [200, 400] },
+      construir: (c) => {
+        exigirSiembra();
+        return [{ ruta: "/cuenta/correo" }, { ruta: `/cuenta/correo?usuarioId=${c.ajeno.dueno.id}&tenantId=${c.ajeno.tenantId}` }];
+      },
+      extra: async (c, respuestas) => {
+        // La vista es la del usuario de la sesión en su estudio (su valor sembrado, distinto del de B), con o sin ids ajenos en la consulta.
+        const esperada = vistaSembrada(etiquetaDe(c.mio), c.yo.rol);
+        expect(respuestas[0]!.status, respuestas[0]!.text).toBe(200);
+        expect(respuestas[0]!.body).toEqual(esperada);
+        if (respuestas[1]!.status === 200) expect(respuestas[1]!.body).toEqual(esperada);
+        expect(esperada).not.toEqual(vistaSembrada(etiquetaDe(c.ajeno), c.yo.rol)); // la prueba no es vacía: lo de B se distingue
+      },
+    },
+    {
+      ruta: "PUT /cuenta/correo",
+      esperado: todos(400),
+      construir: (c) => {
+        exigirSiembra();
+        return [
+          { metodo: "PUT", ruta: "/cuenta/correo", cuerpo: { ...BODY_028, tenantId: c.ajeno.tenantId } },
+          { metodo: "PUT", ruta: "/cuenta/correo", cuerpo: { ...BODY_028, usuarioId: c.ajeno.dueno.id } },
+          { metodo: "PUT", ruta: "/cuenta/correo", cuerpo: { ...BODY_028, usuarioId: c.ajeno.asistente.id, tenantId: c.ajeno.tenantId } },
+        ];
+      },
+      extra: async (c, respuestas) => {
+        for (const r of respuestas) expect(r.body).toEqual({ codigo: "solicitud_invalida" });
+        // Lo propio tampoco cambió (la instantánea del final lo exige también): sigue lo sembrado.
+        const v = await c.pedir({ ruta: "/cuenta/correo" });
+        expect(v.body).toEqual(vistaSembrada(etiquetaDe(c.mio), c.yo.rol));
+      },
+    },
+    {
+      ruta: "POST /correo/baja",
+      publica: true,
+      esperado: todos(200, 400),
+      construir: (c) => {
+        exigirSiembra();
+        const k = c.ajeno.correo!;
+        return [
+          { metodo: "POST", ruta: "/correo/baja", cuerpo: { token: k.hashB64 } }, // el hash almacenado no es el token
+          { metodo: "POST", ruta: "/correo/baja", cuerpo: { token: tokenInventado() } },
+          { metodo: "POST", ruta: "/correo/baja", cuerpo: { token: k.hashHex } }, // 64 caracteres: no cumple el esquema
+          { metodo: "POST", ruta: "/correo/baja", cuerpo: { token: k.token, usuarioId: c.mio.dueno.id, tenantId: c.mio.tenantId } }, // clave extra: 400
+        ];
+      },
+      extra: async (c, respuestas) => {
+        expect(respuestas.map((r) => r.status)).toEqual([200, 200, 400, 400]);
+        expect(respuestas[0]!.text).toBe("{}");
+        expect(respuestas[0]!.text).toBe(respuestas[1]!.text);
+        // Control: B conserva su token y su preferencia de resumen activa (la instantánea del final lo exige además).
+        const filas = await h.sql("select count(*)::int n from correo_baja_token where tenant_id = $1", [c.ajeno.tenantId]);
+        expect(filas[0].n).toBe(1);
+      },
+    },
+    {
+      ruta: "GET /correo/baja",
+      publica: true,
+      esperado: todos(405),
+      construir: (c) => {
+        exigirSiembra();
+        const t = c.ajeno.correo!.token;
+        return [{ ruta: "/correo/baja" }, { ruta: `/correo/baja?t=${t}` }, { ruta: `/correo/baja?t=${t}&List-Unsubscribe=One-Click` }];
+      },
+    },
+  ];
+}
+
 const CASOS: Caso[] = [
   /* ---------- 004 ---------- */
   {
@@ -3107,6 +3268,9 @@ const CASOS: Caso[] = [
 
   /* ---------- 027: gastos no deducibles ---------- */
   ...casosGastos(),
+
+  /* ---------- 028: correo (preferencias y baja) ---------- */
+  ...casosCorreo(),
 ];
 
 const POR_RUTA = new Map(CASOS.map((c) => [c.ruta, c]));
@@ -3141,6 +3305,13 @@ beforeAll(async () => {
   } catch (e) {
     falloSiembra027 = e instanceof Error ? e.message : String(e);
   }
+  // 028: igual, con las preferencias, el envío fallido y el token de baja (T10); antes de los marcadores: el id del envío y el token son marcas de fuga.
+  try {
+    await sembrarCorreo(A, "A");
+    await sembrarCorreo(B, "B");
+  } catch (e) {
+    falloSiembra028 = e instanceof Error ? e.message : String(e);
+  }
   await calcularMarcadores(A, B);
   await calcularMarcadores(B, A);
   // 017: si las tablas de T7 aún no existen, la siembra falla y solo fallan los casos nuevos (los demás no la necesitan).
@@ -3160,6 +3331,12 @@ async function limpiar(): Promise<void> {
   await borrarPorId("notificacion", todos.flatMap((x) => [...x.notifDueno, ...x.notifAsistente]));
   await borrarPorId("auditoria", todos.flatMap((x) => x.auditoria));
   await borrarPorId("auditoria_descifrado", todos.flatMap((x) => x.descifrado));
+  // 028: las cuatro tablas de correo de los dos estudios del seed y su auditoría (solo cede en modo `replica`), antes que las membresías y los clientes.
+  await borrarCorreoDeEstudios(h.sql, [A.tenantId, B.tenantId]);
+  const auditoriaCorreo = await h
+    .sql("select id from auditoria where tenant_id = any($1::uuid[]) and accion = 'correo.preferencia_cambiada'", [[A.tenantId, B.tenantId]])
+    .catch(() => [] as { id: string }[]);
+  await borrarPorId("auditoria", auditoriaCorreo.map((f) => f.id));
   // 027: las cinco tablas del estudio (escritas solo por funciones; el superusuario de la conexión de migraciones puede borrar), antes que los clientes.
   for (const t of ["gnd_palabra_estudio", "gnd_global_desactivada", "gnd_config", "gnd_cliente_categorias", "gnd_ciiu"])
     await h.sql(`delete from ${t} where tenant_id = any($1::uuid[])`, [[A.tenantId, B.tenantId]]).catch(() => undefined);
@@ -3452,6 +3629,56 @@ describe("HU-40 por API · 027 · las pruebas no son vacías (gastos no deducibl
       expect((await pedir(a, RUTA_GASTOS)).status).toBe(200);
       const escribe = await pedir(a, `${RUTA_GASTOS}/umbral`, { metodo: "PUT", cuerpo: { umbral: 5, version: 1 } });
       expect(escribe.status, escribe.text).toBe(403);
+    }
+  });
+});
+
+describe("HU-40 por API · 028 · las pruebas no son vacías (preferencias y baja propias)", () => {
+  it("cada estudio ve SUS preferencias y su fallo y nunca las del otro; el PUT propio responde 200; GET /correo/baja no apaga y el POST con el token propio sí", async () => {
+    expect(falloSiembra028, "la siembra de 028 falló (¿tablas de T10?)").toBeNull();
+    for (const [mio, ajeno] of [
+      [A, B],
+      [B, A],
+    ] as const) {
+      const e = etiquetaDe(mio);
+      const pedir = (s: Sesion, ruta: string, o: { metodo?: Peticion["metodo"]; cuerpo?: unknown } = {}) =>
+        h.pedir({ ruta, cookie: s.cookie, csrf: s.csrf, estudio: mio.tenantId, ...o });
+      const d = await abrirSesion(mio.dueno, mio.tenantId);
+      const a = await abrirSesion(mio.asistente, mio.tenantId);
+      for (const [rol, s] of [
+        ["dueno", d],
+        ["asistente", a],
+      ] as const) {
+        const v = await pedir(s, "/cuenta/correo");
+        expect(v.status, v.text).toBe(200);
+        expect(v.body, `${mio.nombre} ${rol}`).toEqual(vistaSembrada(e, rol));
+        expect(v.body).not.toEqual(vistaSembrada(etiquetaDe(ajeno), rol));
+        expect(v.text).not.toContain(ajeno.correo!.envioId);
+      }
+      // PUT propio con los mismos valores: 200 y la misma vista (nada cambia, nada se audita).
+      const mismos = { buzonCritico: PREFS_028[e].dueno.buzon, credencialInvalida: PREFS_028[e].dueno.cred, planLimite: PREFS_028[e].dueno.plan, resumen: true, todosClientes: false };
+      const put = await pedir(d, "/cuenta/correo", { metodo: "PUT", cuerpo: mismos });
+      expect(put.status, put.text).toBe(200);
+      expect(put.body).toEqual(vistaSembrada(e, "dueno"));
+      // GET con el token propio: 405 y el resumen sigue activo; el POST con ese token lo apaga SOLO al Dueño de este estudio.
+      const get = await h.pedir({ ruta: `/correo/baja?t=${mio.correo!.token}` });
+      expect(get.status, get.text).toBe(405);
+      expect((await pedir(d, "/cuenta/correo")).body.resumen).toBe(true);
+      try {
+        const baja = await h.pedir({ metodo: "POST", ruta: "/correo/baja", cuerpo: { token: mio.correo!.token } });
+        expect(baja.status, baja.text).toBe(200);
+        expect((await pedir(d, "/cuenta/correo")).body).toEqual({ ...vistaSembrada(e, "dueno"), resumen: false });
+        expect((await pedir(a, "/cuenta/correo")).body).toEqual(vistaSembrada(e, "asistente")); // la asistente no
+        const ajenoDueno = await abrirSesion(ajeno.dueno, ajeno.tenantId);
+        expect((await h.pedir({ ruta: "/cuenta/correo", cookie: ajenoDueno.cookie, csrf: ajenoDueno.csrf, estudio: ajeno.tenantId })).body.resumen).toBe(true);
+        const auditoria = await h.sql("select datos from auditoria where tenant_id = $1 and accion = 'correo.preferencia_cambiada'", [mio.tenantId]);
+        expect(auditoria.map((f) => f.datos)).toEqual([{ tipo: "resumen", de: true, a: false, origen: "enlace" }]);
+      } finally {
+        // Restaura lo sembrado para los casos que siguen (la auditoría solo cede en modo `replica`).
+        await h.sql("update correo_preferencia set activo = true where tenant_id = $1 and usuario_id = $2 and tipo = 'resumen'", [mio.tenantId, mio.dueno.id]);
+        const filas = await h.sql("select id from auditoria where tenant_id = $1 and accion = 'correo.preferencia_cambiada'", [mio.tenantId]);
+        await borrarPorId("auditoria", filas.map((f) => f.id));
+      }
     }
   });
 });
