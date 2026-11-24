@@ -13,7 +13,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → cobe
 | T5  | Pruebas del worker: ciclo `correo.programar`, `notificacion.enviar` (revalidación, reintentos, U-16), purga y adaptador (rojo) | tester | sonnet | T2 ∥ T6, T7 | ✓ | — | [ ] |
 | T6  | Pruebas HTTP: preferencias, baja pública, auditoría, HU-40 y limpieza del soporte (rojo) | tester | sonnet | T2 ∥ T5, T7 | ✓ | — | [ ] |
 | T7  | Pruebas de componentes: «Mi cuenta → Correo», invitación, `/baja` e `/ir` (rojo) | tester | sonnet | T2 ∥ T5, T6 | ✓ | — | [ ] |
-| T8  | Dominio: `packages/domain/src/correo/` | backend | sonnet | T1 ∥ T9, T10 | ✓ | — | [ ] |
+| T8  | Dominio: `packages/domain/src/correo/` | backend | sonnet | T1 ∥ T9, T10 | ✓ | — | [x] |
 | T9  | `packages/correo` (mover el puerto y ampliarlo), `shared` y cola | backend | sonnet | T2 ∥ T8, T10 | ✓ | — | [x] |
 | T10 | Migraciones 0073–0074, esquema drizzle y `packages/db/src/correo/` | backend | opus | T3, T4 ∥ T8, T9 | ✓ | — | [ ] |
 | T11 | Worker: ciclo, envío, purga y adaptador | backend | sonnet | T5, T8, T9, T10 ∥ T12, T13 | ✓ | — | [ ] |
@@ -95,7 +95,7 @@ Reglas comunes:
 - **Hacer**: `apps/frontend/components/correo/*.spec.tsx`, `app/(publico)/baja/page.spec.tsx`, `app/ir/page.spec.tsx`, `next.config.correo.spec.ts` y `apps/frontend/pruebas/correo.ts` (textos y datos: el contrato para T13). Casos: cuatro interruptores con su texto, «todos» solo con `todosDisponible`, aviso con `todosIgnorado`, alerta de fallo con fecha, 403/409 en español; invitación visible hasta activar o «Ahora no»; `/baja` al cargar no hace ninguna petición (espía de `fetch` en cero), borra el token de la barra y muestra el botón «Darme de baja»; al pulsarlo hace un solo `POST` con `{token}` (doble clic → uno), sin token no hace `POST`, y muestra el mismo texto con 200, 400, 429 o error de red (D-4, U-18); `/ir` con pantalla fuera de la lista, `//evil.com`, `javascript:` o estudio ajeno → elección de estudio y nunca fuera del sitio; `Referrer-Policy: no-referrer` en `/baja`. A 390 px sin desborde.
 - **Hecho cuando**: fallan por componente ausente; las del frontend siguen verdes. Commit `test(028): pantallas de correo en rojo`.
 
-## T8 · [ ] Dominio (backend · sonnet)
+## T8 · [x] Dominio (backend · sonnet)
 - **Contexto (leer solo esto)**: `plan.md` (Contratos: domain), pruebas de T1, `packages/domain/src/texto/normalizar.ts`, `packages/domain/src/index.ts`.
 - **Hacer**: `packages/domain/src/correo/*.ts` y exports.
 - **Hecho cuando**: las de T1 y todas las de `domain` pasan (incluida `ronda2b.adv.spec.ts`); `cobertura:dominio` en verde; typecheck y lint limpios. Commit `feat(028): plantillas de correo`.
