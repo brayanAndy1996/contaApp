@@ -5,6 +5,7 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { PROV, SEMILLA_GLOBAL, contextoNeutro } from "../../tests/ayudas/gastos";
+import { medirEscala, topeRazon } from "../../tests/ayudas/rendimiento";
 import type { PalabraPlana } from "../../tests/ayudas/gastos";
 import { DiccionarioGlosas, mismaPalabra } from "../texto/diccionario";
 import { tokensDeGlosa } from "../texto/normalizar";
@@ -141,20 +142,23 @@ describe("T18 · rendimiento (R-10): 2.000 palabras con un prefijo común y abre
     expect(ms).toBeLessThan(250);
   });
 
-  it("H-027-2-7 · 100 compras × 20 ítems con «PROD.» (4 millones de coincidencias, inherentes al resultado) se puntúan en menos de 800 ms", { timeout: 120_000 }, () => {
-    // T19: T18 comparaba con ≤ 2× `buscar` (≈ 5 ms, porque `buscar` se detiene en la primera coincidencia); aquí cada ítem casa con las 2.000
-    // palabras, así que el costo mínimo es lineal en la salida. El tope absoluto (hoy 2,1 s; lineal ≈ 0,2 s) detecta lo cuadrático sin depender del reloj.
+  it("H-027-2-7 · 100 compras × 20 ítems con «PROD.» (4 millones de coincidencias, inherentes al resultado) se puntúan en tiempo lineal en las palabras", { timeout: 180_000 }, () => {
+    // T19: T18 comparaba con ≤ 2× `buscar` (≈ 5 ms, porque `buscar` se detiene en la primera coincidencia); aquí cada ítem casa con todas las
+    // palabras propias, así que el costo mínimo es lineal en la salida (compras × ítems × palabras).
+    // T25a: el tope absoluto (800 ms) falló bajo cobertura en CI cargado (869 ms; run 45306073754) sin regresión alguna. Ahora se mide la
+    // complejidad: las mismas 100 × 20 glosas con 500 palabras propias (1/4) y con las 2.000 (completo), mínimo de 7 rondas intercaladas
+    // (tests/ayudas/rendimiento.ts). Lineal → razón ≈ 4, cuadrático → ≈ 16; se exige ≤ 8. La instrumentación y la carga escalan ambos
+    // lados por igual, así que el resultado no depende de la máquina.
     const compras = Array.from({ length: 100 }, (_, i) =>
       Array.from({ length: 20 }, (_, j) => `PROD. LIMPIEZA ${i}-${j} UND 2.00`),
     );
-    const ctx = contextoNeutro({ diccionario: d });
-    const correr = (): number => {
-      const a = Date.now();
-      for (const glosas of compras) puntuarGastoPersonal({ glosas, fechaEmision: null, proveedor: PROV, esNuevo: false }, ctx);
-      return Date.now() - a;
+    const correrCon = (palabras: number) => {
+      const ctx = contextoNeutro({ diccionario: efectivo(...propias.slice(0, palabras)) });
+      return (): void => {
+        for (const glosas of compras) puntuarGastoPersonal({ glosas, fechaEmision: null, proveedor: PROV, esNuevo: false }, ctx);
+      };
     };
-    correr();
-    const tiempos = [correr(), correr(), correr()].sort((x, y) => x - y);
-    expect(tiempos[1]).toBeLessThan(800);
+    const e = medirEscala(correrCon(PROPIAS / 4), correrCon(PROPIAS));
+    expect(e.razon, `500 palabras: ${e.chicoMs.toFixed(1)} ms, 2.000: ${e.grandeMs.toFixed(1)} ms`).toBeLessThanOrEqual(topeRazon(4));
   });
 });
