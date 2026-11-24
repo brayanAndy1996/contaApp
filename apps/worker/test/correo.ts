@@ -701,7 +701,7 @@ export class EscenarioCorreo extends EscenarioBuzon {
   ): Promise<void> {
     await this.admin.pool.query(
       `insert into correo_envio (tenant_id, usuario_id, origen, tipo, estado, clave, programado_para, intentos, total_avisos, creado_en, enviado_en)
-       select $1, $2, 'aviso', $3, 'enviado', 'aviso:' || $2::text || ':' || $3 || ':' || gen_random_uuid()::text,
+       select $1::uuid, $2::uuid, 'aviso', $3::text, 'enviado', 'aviso:' || $2::text || ':' || $3::text || ':' || gen_random_uuid()::text,
               clock_timestamp(), 1, 1, clock_timestamp(), clock_timestamp()
          from generate_series(1, $4::int)`,
       [T, usuarioId, tipo, n],
@@ -830,7 +830,7 @@ export class EscenarioCorreo extends EscenarioBuzon {
          union all select to_jsonb(x)::text from correo_envio_aviso x where tenant_id = any($1::uuid[])
          union all select to_jsonb(x)::text from correo_baja_token x where tenant_id = any($1::uuid[])
          union all select to_jsonb(x)::text from correo_preferencia x where tenant_id = any($1::uuid[])
-         union all select to_jsonb(j)::text from job_registro j where tenant_id = any($1::uuid[])
+         union all select to_jsonb(j)::text from job_registro j where tenant_id = any($1::uuid[]) and tipo = 'notificacion.enviar'
          union all select to_jsonb(n)::text from notificacion n where tenant_id = any($1::uuid[])
          union all select to_jsonb(a)::text from auditoria a where tenant_id = any($1::uuid[])
        ) y`,

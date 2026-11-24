@@ -17,8 +17,13 @@ import {
 } from "@contapp/crypto/descifrado";
 import { createDb, type ContappDb } from "@contapp/db";
 import { crearStorage } from "@contapp/storage";
+import type { Correo } from "@contapp/correo";
 import {
   ADAPTADORES,
+  APP_ORIGIN,
+  CORREO,
+  appOriginDesdeEntorno,
+  correoDesdeEntorno,
   crearAdaptadores,
   type Adaptadores,
 } from "../adaptadores/adaptadores.module.js";
@@ -70,6 +75,8 @@ export class TrabajosService
   /** Los adaptadores los entrega `AdaptadoresModule`; sin él (pruebas unitarias) se crean del entorno. */
   constructor(
     @Optional() @Inject(ADAPTADORES) private readonly adaptadores?: Adaptadores,
+    @Optional() @Inject(CORREO) private readonly correo?: Correo,
+    @Optional() @Inject(APP_ORIGIN) private readonly appOrigin?: string,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -88,6 +95,8 @@ export class TrabajosService
       solAuth: adaptadores.solAuth,
       solPortal: adaptadores.solPortal,
       xmlProvider: adaptadores.xmlProvider,
+      correo: this.correo ?? correoDesdeEntorno(env),
+      appOrigin: this.appOrigin ?? appOriginDesdeEntorno(env),
       storage: crearStorage(env, new Logger("Storage")),
       xmlSimuladoEnReglas: env.XML_SIMULADO_EN_REGLAS === "1",
       kek: llavesDesdeEntorno(env),

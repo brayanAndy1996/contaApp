@@ -4,6 +4,11 @@
 // adaptador en `mock`, el arranque falla salvo `PERMITIR_ADAPTADORES_MOCK=1` (entonces avisa con un `warn`).
 import { Global, Logger, Module } from "@nestjs/common";
 import {
+  CorreoConfigInvalidaError,
+  crearCorreo,
+  type Correo,
+} from "@contapp/correo";
+import {
   MockConsultaRuc,
   MockSireApiClient,
   MockSireAuth,
@@ -51,6 +56,9 @@ export const SOL_AUTH = "SOL_AUTH";
 export const SOL_PORTAL = "SOL_PORTAL";
 export const CONSULTA_RUC = "CONSULTA_RUC";
 export const XML_PROVIDER = "XML_PROVIDER";
+/** 028: puerto `Correo` (`CORREO_PROVIDER`) y origen de los enlaces de los correos (`APP_ORIGIN`). */
+export const CORREO = "CORREO";
+export const APP_ORIGIN = "APP_ORIGIN";
 /** Token del conjunto ya creado (y validado) de los 6 puertos. */
 export const ADAPTADORES = "ADAPTADORES";
 
@@ -136,6 +144,64 @@ export function xmlProviderDesdeEntorno(env: Entorno): XmlProvider {
   });
 }
 
+const vacio = (v: string | undefined): v is undefined | "" =>
+  v === undefined || v.trim() === "";
+
+/**
+ * Puerto `Correo` de los avisos y el resumen (028). Misma validación que el backend (`leerEntorno`): `CORREO_PROVIDER` `consola`
+ * (por defecto; no se admite en producción) o `smtp` con `SMTP_URL` y `CORREO_REMITENTE`. El error nombra la variable, nunca su valor.
+ */
+export function correoDesdeEntorno(env: Entorno): Correo {
+  const provider = (env.CORREO_PROVIDER ?? "consola").trim().toLowerCase();
+  const remitente = vacio(env.CORREO_REMITENTE)
+    ? undefined
+    : env.CORREO_REMITENTE.trim();
+  if (provider === "consola") {
+    if (env.NODE_ENV === "production")
+      throw new ConfiguracionAdaptadoresError(
+        "CORREO_PROVIDER no soportado en producción",
+        "CORREO_PROVIDER",
+      );
+    return crearCorreo({ provider, remitente });
+  }
+  if (provider !== "smtp")
+    throw new ConfiguracionAdaptadoresError(
+      "CORREO_PROVIDER no soportado",
+      "CORREO_PROVIDER",
+    );
+  try {
+    return crearCorreo({
+      provider,
+      remitente,
+      smtpUrl: vacio(env.SMTP_URL) ? undefined : env.SMTP_URL.trim(),
+    });
+  } catch (e) {
+    // Solo el nombre de la variable que falta: el error del transporte puede traer el SMTP_URL.
+    if (e instanceof CorreoConfigInvalidaError)
+      throw new ConfiguracionAdaptadoresError(`${e.variable} inválido`, e.variable);
+    throw new ConfiguracionAdaptadoresError("SMTP_URL inválido", "SMTP_URL");
+  }
+}
+
+/** `APP_ORIGIN` de los enlaces de los correos (028): origen http(s) sin ruta ni barra final; por defecto el de desarrollo. */
+export function appOriginDesdeEntorno(env: Entorno): string {
+  if (vacio(env.APP_ORIGIN)) {
+    if (env.NODE_ENV === "production")
+      throw new ConfiguracionAdaptadoresError("APP_ORIGIN inválido", "APP_ORIGIN");
+    return "http://localhost:3000";
+  }
+  const valor = env.APP_ORIGIN.trim();
+  let url: URL;
+  try {
+    url = new URL(valor);
+  } catch {
+    throw new ConfiguracionAdaptadoresError("APP_ORIGIN inválido", "APP_ORIGIN");
+  }
+  if ((url.protocol !== "http:" && url.protocol !== "https:") || url.origin !== valor)
+    throw new ConfiguracionAdaptadoresError("APP_ORIGIN inválido", "APP_ORIGIN");
+  return valor;
+}
+
 /** Variables de adaptador que hoy resuelven a `mock` (ausente cuenta como `mock`). */
 export function variablesEnMock(env: Entorno): VariableAdaptador[] {
   return VARIABLES_ADAPTADOR.filter((v) => (env[v] ?? "mock") === "mock");
@@ -216,6 +282,8 @@ export function crearAdaptadores(
       useFactory: (a: Adaptadores) => a.xmlProvider,
       inject: [ADAPTADORES],
     },
+    { provide: CORREO, useFactory: () => correoDesdeEntorno(process.env) },
+    { provide: APP_ORIGIN, useFactory: () => appOriginDesdeEntorno(process.env) },
   ],
   exports: [
     ADAPTADORES,
@@ -225,6 +293,8 @@ export function crearAdaptadores(
     SOL_PORTAL,
     CONSULTA_RUC,
     XML_PROVIDER,
+    CORREO,
+    APP_ORIGIN,
   ],
 })
 export class AdaptadoresModule {}

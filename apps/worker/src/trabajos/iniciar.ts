@@ -4,6 +4,7 @@
 // `detener`: cierre ordenado (deja de despachar y de tomar trabajos, espera a los en curso hasta `esperaMs`, libera
 // arriendos). `abortar`: muerte del proceso (kill -9): desde ese instante no escribe en la BD ni emite comandos por el
 // Redis recibido, no libera arriendos y abandona lo que está en curso.
+import { CorreoConsola, type Correo } from "@contapp/correo";
 import type { KeyUnwrapper, KeyWrapper } from "@contapp/crypto/descifrado";
 import { leerConfig, type ContappDb } from "@contapp/db";
 import {
@@ -48,12 +49,14 @@ import { abrirMensaje } from "./procesadores/abrir-mensaje.js";
 import { authPurgar } from "./procesadores/auth-purgar.js";
 import { consultarRuc } from "./procesadores/consultar-ruc.js";
 import { descargarPropuesta } from "./procesadores/descargar-propuesta.js";
+import { enviarCorreo } from "./procesadores/enviar-correo.js";
 import { generarArchivo } from "./procesadores/generar-archivo.js";
 import { importarHistorial } from "./procesadores/importar-historial.js";
 import { kekRotar } from "./procesadores/kek-rotar.js";
 import { obtenerDeclaraciones } from "./procesadores/obtener-declaraciones.js";
 import { obtenerXml } from "./procesadores/obtener-xml.js";
 import { programarBuzon } from "./procesadores/programar-buzon.js";
+import { programarCorreo } from "./procesadores/programar-correo.js";
 import { reevaluarPeriodo } from "./procesadores/reevaluar-periodo.js";
 import { revisarBuzon } from "./procesadores/revisar-buzon.js";
 import {
@@ -108,6 +111,10 @@ export interface DepsTrabajos {
   xmlProvider?: XmlProvider;
   /** Almacenamiento de los XML (016) y de los ZIP generados (012b); por defecto el de `STORAGE` (se crea al primer uso). */
   storage?: StorageProvider;
+  /** Puerto de `notificacion.enviar` (028); por defecto `consola` (imprime y no entrega). */
+  correo?: Correo;
+  /** `APP_ORIGIN` (028): origen de los enlaces de los correos (`/ir`, `/baja`); por defecto el de desarrollo. */
+  appOrigin?: string;
   /** `XML_SIMULADO_EN_REGLAS` (016, P-4): si el XML simulado entra en las reglas; apagada por defecto. */
   xmlSimuladoEnReglas?: boolean;
   kek?: LlavesKek;
@@ -129,6 +136,8 @@ export const INTERVALOS_POR_DEFECTO: Required<IntervalosTrabajos> = {
   latidoMs: LATIDO_MS,
 };
 const ESPERA_CIERRE_MS = 30_000;
+/** Mismo valor por omisión que el backend fuera de producción. */
+const APP_ORIGIN_POR_DEFECTO = "http://localhost:3000";
 const ESPERA_ABORTO_MS = 2_000;
 /**
  * Tope de la espera al ciclo en curso del despachador y del reconciliador, y al cierre de BullMQ sin trabajos en curso
@@ -295,6 +304,14 @@ export async function iniciarTrabajos(
       }),
       // 027 (R-12): «Volver a evaluar» el periodo abierto con el diccionario y el contexto de AHORA (cola `xml`, sin credenciales).
       "compras.reevaluar": reevaluarPeriodo({ db, logger }),
+      // 028: correo de avisos y resumen (cola `notificaciones`, sin credenciales ni cliente): lee, arma y envía fuera de transacción.
+      "notificacion.enviar": enviarCorreo({
+        db,
+        correo: deps.correo ?? new CorreoConsola(),
+        appOrigin: deps.appOrigin ?? APP_ORIGIN_POR_DEFECTO,
+        logger,
+        reloj,
+      }),
       // 012b: cola `archivos`; sin credenciales. `permiteProvisional` usa el NODE_ENV del proceso (D2).
       "archivo.generar": generarArchivo({ db, storage, logger }),
       ...(servicio
@@ -371,12 +388,16 @@ export async function iniciarTrabajos(
   const sistema = crearColaSistema({ conexion, prefijo });
   // 023 (D-5): un tick del programador del buzón; el dueño del candado es aleatorio por proceso.
   const tickBuzon = programarBuzon({ db, redis, prefijo, logger });
+  // 028 (R-5): un tick del ciclo de correo (avisos vencidos y resumen del día); mismo patrón y candado propio en la BD.
+  const tickCorreo = programarCorreo({ db, redis, prefijo, logger });
   const procesarSistema = async (data: PayloadSistema): Promise<void> => {
     try {
       if (data.tipo === "auth.purgar") {
         await authPurgar({ db, reloj, logger });
       } else if (data.tipo === "buzon.programar") {
         await tickBuzon();
+      } else if (data.tipo === "correo.programar") {
+        await tickCorreo();
       } else if (deps.kek === undefined) {
         registrar(logger, "error", {
           evento: "kek_rotar_sin_llaves",
@@ -408,6 +429,8 @@ export async function iniciarTrabajos(
   await sistema.programarPurga();
   // 023 (D-5): repetible de 1 min con id fijo (N workers dejan uno). `BUZON_PROGRAMADOR=off` lo apaga (E2E y pruebas).
   if (process.env.BUZON_PROGRAMADOR !== "off") await sistema.programarBuzon();
+  // 028 (R-5): repetible de 1 min con id fijo. `CORREO_PROGRAMADOR=off` lo apaga (E2E y pruebas).
+  if (process.env.CORREO_PROGRAMADOR !== "off") await sistema.programarCorreo();
 
   const bucleDespacho = bucle(async () => {
     await despachador.ciclo();

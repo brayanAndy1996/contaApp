@@ -72,6 +72,8 @@ export async function publicarEvento(
   evento: EventoTrabajo,
   opciones: { prefijo?: string } = {},
 ): Promise<void> {
+  // 028: `notificacion.enviar` no tiene cliente (lo encola la BD) y no sale en el panel: no hay evento que publicar.
+  if ((evento.clienteId as string | null) === null) return;
   const r = eventoTrabajoSchema.safeParse(evento);
   if (!r.success) {
     registrarFallo("evento de trabajo inválido; no se publica");

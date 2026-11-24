@@ -4,6 +4,7 @@
 // TrabajosRepoError 22023 sin borrar nada. No crea filas en job_registro. Los logs llevan solo conteos.
 import {
   estudiosIds,
+  purgarCorreo,
   purgarNotificaciones,
   purgarTerminados,
   purgarAuth,
@@ -24,6 +25,8 @@ export const RETENCIONES_D16: Readonly<RetencionesAuth> = {
 export const TRABAJOS_DIAS = 90;
 /** P-7: las notificaciones se conservan 90 días (leídas o no); la auditoría no se purga. */
 export const NOTIFICACIONES_DIAS = 90;
+/** 028 (R-11): envíos de correo, sus avisos y tokens de baja se conservan 90 días, como las notificaciones. */
+export const CORREO_DIAS = 90;
 const DIA_MS = 86_400_000;
 
 export interface OpcionesAuthPurgar {
@@ -31,6 +34,7 @@ export interface OpcionesAuthPurgar {
   retenciones?: RetencionesAuth;
   trabajosDias?: number;
   notificacionesDias?: number;
+  correoDias?: number;
   reloj?: Reloj;
   logger?: LoggerTrabajos;
 }
@@ -42,6 +46,8 @@ export interface ResultadoAuthPurgar {
   limites: number;
   trabajos: number;
   notificaciones: number;
+  /** Envíos de correo borrados (028). */
+  correo: number;
 }
 
 const diasValidos = (n: unknown): boolean =>
@@ -53,6 +59,7 @@ export async function authPurgar(
   const ret = o.retenciones ?? RETENCIONES_D16;
   const trabajosDias = o.trabajosDias ?? TRABAJOS_DIAS;
   const notificacionesDias = o.notificacionesDias ?? NOTIFICACIONES_DIAS;
+  const correoDias = o.correoDias ?? CORREO_DIAS;
   const dias = [
     ret.sesionDias,
     ret.tokenDias,
@@ -60,6 +67,7 @@ export async function authPurgar(
     ret.limiteDias,
     trabajosDias,
     notificacionesDias,
+    correoDias,
   ];
   // Mismo código que el RAISE de auth.purgar (22023, invalid_parameter_value), antes de abrir ninguna transacción.
   if (!dias.every(diasValidos)) throw new TrabajosRepoError("22023");
@@ -73,15 +81,19 @@ export async function authPurgar(
   const corte = new Date(ahora.getTime() - trabajosDias * DIA_MS);
   let trabajos = 0;
   let notificaciones = 0;
+  let correo = 0;
   for (const tenantId of estudios) {
     const r = await o.db.withTenant({ tenantId }, async (tx) => ({
       trabajos: await purgarTerminados(tx, corte),
+      // Primero el correo: sus avisos apuntan a la notificación que se borra después.
+      correo: await purgarCorreo(tx, correoDias),
       notificaciones: await purgarNotificaciones(tx, notificacionesDias),
     }));
     trabajos += r.trabajos;
+    correo += r.correo;
     notificaciones += r.notificaciones;
   }
-  const r = { ...conteos, trabajos, notificaciones };
+  const r = { ...conteos, trabajos, notificaciones, correo };
   registrar(logger, "info", { evento: "auth_purgar_terminado", ...r });
   return r;
 }

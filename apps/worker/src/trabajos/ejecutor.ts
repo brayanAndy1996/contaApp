@@ -57,6 +57,7 @@ import type { CacheTokenSire } from "./token-sire/cache-token.js";
 export interface TrabajoEnCurso {
   id: string;
   tenantId: string;
+  /** En tiempo de ejecución es `null` solo en `notificacion.enviar` (028: sin cliente); ese procesador no lo lee. */
   clienteId: string;
   ruc: string;
   tipo: string;
