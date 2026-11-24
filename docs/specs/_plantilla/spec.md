@@ -1,5 +1,7 @@
 # Spec NNN · <nombre>
 
+<!-- Tope: ~900 palabras (04-metodologia §7 regla 13). RF/HU por ID, sin copiarlos. -->
+
 Estado: borrador | aprobada | en curso | verificada | hecha
 Nivel de riesgo: A | B | C | D — <una línea con el porqué (preguntas de 04-metodologia §2.1)>
 Cubre: RF-xxx, RF-yyy · HU-zz

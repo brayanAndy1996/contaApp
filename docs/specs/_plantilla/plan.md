@@ -1,5 +1,7 @@
 # Plan NNN · <nombre>
 
+<!-- Tope: ~900 palabras (04-metodologia §7 regla 13). -->
+
 ## Archivos
 | Acción | Ruta | Para qué |
 |---|---|---|
