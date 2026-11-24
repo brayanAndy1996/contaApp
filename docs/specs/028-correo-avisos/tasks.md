@@ -6,7 +6,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → cobe
 
 | #   | Tarea | Rol | Modelo | Depende de | TDD | ADV | Estado |
 | --- | ----- | --- | ------ | ---------- | --- | --- | ------ |
-| T1  | Pruebas de dominio: saneo y escapado, tiempo de Lima, correo de aviso, resumen y avisos pendientes (rojo) | tester | sonnet | — ∥ T2, T3, T4 | ✓ | — | [ ] |
+| T1  | Pruebas de dominio: saneo y escapado, tiempo de Lima, correo de aviso, resumen y avisos pendientes (rojo) | tester | sonnet | — ∥ T2, T3, T4 | ✓ | — | [x] |
 | T2  | Pruebas de contratos: `packages/correo` (pruebas movidas del backend y nuevas), `shared`, cola y tick de sistema (rojo) | tester | sonnet | — ∥ T1, T3, T4 | ✓ | — | [x] |
 | T3  | Pruebas de BD: tablas, grants, RLS, funciones, `interno.notificar` ampliada, ventana y tope, ciclo, baja, purga, concurrencia, rendimiento, catálogo, escalada y limpieza del soporte (rojo) | tester | sonnet | — ∥ T1, T2, T4 | ✓ | — | [ ] |
 | T4  | Pruebas del repositorio `packages/db/src/correo/` (preferencias efectivas, avisos del envío, resumen con oráculo y rendimiento) (rojo) | tester | sonnet | — ∥ T1, T2, T3 | ✓ | — | [ ] |
@@ -60,7 +60,7 @@ Reglas comunes:
 - Tiempo: el reloj es el de la BD (`clock_timestamp()`, `America/Lima`); el dominio no lee reloj (recibe el instante); el worker no decide la hora del resumen.
 - Una ambigüedad nueva que cambie la spec no se decide: `requiere usuario` y se informa al orquestador.
 
-## T1 · [ ] Pruebas de dominio, rojo (tester · sonnet)
+## T1 · [x] Pruebas de dominio, rojo (tester · sonnet)
 - **Contexto (leer solo esto)**: `spec.md` (R-6, R-7, R-13, R-14, D-5; CA-4, CA-7, CA-9), `plan.md` (Contratos: domain), `packages/domain/src/texto/normalizar.ts` (modelo de normalización), `packages/domain/src/ronda2b.adv.spec.ts`, `packages/domain/src/gastos/terminos.spec.ts` (estilo de tabla).
 - **Hacer**: `packages/domain/src/correo/{texto,tiempo,aviso,resumen,pendientes,propiedades}.spec.ts`. Saneo (CA-7): `<img src=x onerror=…>`, `"`, `'`, `&`, `\r\nBcc: x@y`, `\u0000`, `‮`, `​`, 300 caracteres → escapado, una línea, recorte a 60 con «…». Tiempo: `diaLima` en los bordes 04:59:59Z/05:00:00Z, `periodoAnteriorLima` en enero y el 1.º de mes a las 00:30 de Lima. Aviso: 1, 20 y 50 avisos (20 líneas y «y 30 avisos más»), cada tipo con su asunto fijo, sin RUC ni asunto del mensaje aunque vengan en la entrada (no son campos del contrato: claves extra rechazadas). Resumen (CA-4): orden de R-13, 51 clientes → 50 y «y 1 cliente más», estados «sin descargar», «abierto», «revisado», sección de diferidos, `resumenVacio` (pendientes de atender solos no cuentan). Pendientes (R-14). Propiedades (`fast-check`): el HTML nunca contiene `<img`, `<script`, `<style`, `on…=` ni URL fuera de los enlaces dados; texto y HTML llevan los mismos conteos; ninguna entrada produce CR/LF en el asunto; la entrada no se muta. Ampliar `ronda2b.adv.spec.ts`.
 - **Hecho cuando**: las nuevas fallan por módulo o export ausente; las demás de `domain` siguen verdes. Commit `test(028): dominio de correo en rojo`.
