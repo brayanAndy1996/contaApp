@@ -1,6 +1,6 @@
 # Spec 041 · SIRE real de solo lectura
 
-Estado: **borrador** (2026-11-24). Preguntas P-1 a P-8 abiertas (al final); se resuelven antes de aprobar. Plan: `plan.md` · tareas: `tasks.md`.
+Estado: **aprobada** (2026-11-24). P-1 a P-8 resueltas por el usuario: todas con la recomendación (al final). Plan: `plan.md` · tareas: `tasks.md`.
 Nivel de riesgo: **A**. Por 04 §2.1: (1) sí: una columna mal mapeada pone montos o la clasificación DG/DGNG/DNG de la propuesta en el lugar equivocado; (2) sí: maneja `client_secret`, clave SOL y token, y un ticket o archivo ajeno metería datos de otro contribuyente; (3) sí: un desplazamiento de columna o un redondeo silencioso no se ve en la grilla; (4) sí: estados de ticket, varias partes, codificaciones, errores HTTP y concurrencia.
 Cubre: RNF-042, RNF-043 · base de RF-040–045 (descarga real) y de RF-112 (historial, 025). Prerrequisito de 032 (RF-104 · HU-27).
 
@@ -64,6 +64,8 @@ Muestra: solo facturas `01`, PEN, RUC. Sin notas de crédito, USD, boletas, rang
 - Externas: credenciales reales del usuario para la prueba de contrato (la corre él, en su máquina).
 
 ## Preguntas abiertas (recomendación entre corchetes)
+
+**Decisión del usuario (2026-11-24): se aprueban P-1 a P-8 con la recomendación indicada.**
 - **P-1 · Encabezado cambiado**: ¿`ErrorDatos` (como se pidió) o `ErrorPortal`? [`ErrorPortal` con `detalle: "encabezado"`: es justo «SUNAT cambió de forma», no reintenta y alimenta la alerta de RNF-044; con `ErrorDatos`, 025 tomaría cada periodo como «sin datos» y lo ocultaría.]
 - **P-2 · Columnas sin equivalente ≠ 0** (exportación, descuentos, IVAP en ventas; `IMB` en compras; rango de boletas): (a) la descarga falla con `ErrorDatos` `columna_no_soportada` y se abre una spec para ampliar el modelo; (b) ampliar `FilaVentaSire` y las tablas de ventas aquí; (c) sumarlas a `otros`. [(a): no se pierde ni se reinterpreta un monto; (c) cambia el sentido tributario.]
 - **P-3 · Registro presentado**: los servicios 5.50 y 5.51 del manual de compras tienen la misma URL (`…/rce/ajustesposteriores/web/ajustesposteriores/{per}/solicitardescarga`) con `codProceso` 00/01/02, y el ejemplo usa `codProceso=70` («Descarga RCE», anexo I). Opciones: (a) 5.51 con `codProceso` 01 y luego 02; (b) 5.40 «exportar preliminar de registro de compras»; (c) dejar `descargarRegistroPresentado` en mock hasta probarlo con Postman. [(c) y añadir a Postman 5.51 y 5.40 para que el usuario los pruebe; se decide con la respuesta real.]

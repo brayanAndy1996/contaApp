@@ -1,6 +1,6 @@
 # Spec 032 · Enviar a SUNAT y seguir el ticket
 
-Estado: **borrador** (2026-11-24). Preguntas P-1 a P-10 abiertas (al final). Plan: `plan.md` · tareas: `tasks.md`.
+Estado: **aprobada** (2026-11-24), **bloqueada** por P-1 (formato oficial de importación). P-1 a P-10 resueltas por el usuario: todas con la recomendación (al final). Plan: `plan.md` · tareas: `tasks.md`.
 Nivel de riesgo: **A**. Por 04 §2.1: (1) sí: reemplaza el registro real del contribuyente ante SUNAT; un archivo equivocado es una declaración equivocada; (2) sí: usa credenciales del cliente y un envío cruzado entre estudios o clientes escribiría en el RUC de otro; (3) sí: el contador no ve qué llegó a SUNAT sin entrar al portal; (4) sí: estados de ticket, reintentos, cortes de red a mitad de la subida y doble clic. **No existe entorno de pruebas de SUNAT: toda escritura afecta datos reales.**
 Cubre: RF-104 · HU-27. Base: 041 (token, ticket, descarga), 012b (archivo generado), 017 (auditoría y notificaciones).
 
@@ -51,6 +51,8 @@ Que el contador envíe desde ContApp el archivo de reemplazo ya generado y vea e
 - Externas: anexos de la RS 112-2021/SUNAT (estructura y tabla 6); un RUC y periodo piloto del usuario (P-4).
 
 ## Preguntas abiertas (recomendación entre corchetes)
+
+**Decisión del usuario (2026-11-24): se aprueban P-1 a P-10 con la recomendación indicada. Por P-1, 032 queda bloqueada hasta que exista la spec del formato oficial de importación (anexo RS 112-2021/SUNAT).**
 - **P-1 · Formato oficial de importación**: no está en el repo y es distinto al de exportación (041). ¿Quién entrega el anexo y dónde se implementa? [Spec aparte de nivel A «formatos oficiales RCE/RVIE de importación» antes de 032, con el anexo que entregue el equipo; 032 queda bloqueada mientras el formato vigente sea `oficial: false`. Nombre según los ejemplos del manual: `LE{RUC}{AAAAMM}00{libro}02{OIM}2.zip`, a confirmar con la tabla 6: el ejemplo de compras del manual trae un nombre y `codLibro` de ventas.]
 - **P-2 · Metadatos contradictorios del manual**: compras dice `codProceso` 61 pero el ejemplo usa 87; ventas usa 3; `codOrigenEnvio` dice 2 pero los ejemplos usan 1; el ejemplo de compras trae `codLibro` 140000. [Usar lo de las tablas: compras 61, ventas 3, `codOrigenEnvio` 2, `codLibro` 080000/140000; confirmarlo en el piloto; ante 422 1026/1139 detener, nunca probar otros valores solo.]
 - **P-3 · Cliente TUS**: el manual pide Java (`tus-java-client` 0.5.0). Opciones: (a) `tus-js-client` en Node; (b) cliente TUS 1.0 mínimo propio sobre `fetch` (creación + un `PATCH` + `HEAD`); (c) servicio Java aparte. [(b): el ZIP es chico, no suma dependencia ni JVM y se prueba contra un servidor TUS falso con las mismas cabeceras que el cliente Java.]
