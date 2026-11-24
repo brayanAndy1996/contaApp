@@ -39,7 +39,7 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 | 029-cuenta-segura | A | pendiente | — | RF-012, 014 + TOTP del super-admin. |
 | 030-roles-personalizados | A | pendiente | — | RF-022 · HU-05. |
 | 031-auditoria-consulta | B | pendiente | — | RF-151 · HU-39. |
-| 032-envio-sire-ticket | A | pendiente | — | RF-104 · HU-27. Con mock; apagado hasta formato oficial y `SireAuth` real. |
+| 032-envio-sire-ticket | A | borrador | — | RF-104 · HU-27. Spec, plan y tareas en borrador (2026-11-24); P-1 a P-10 para el usuario. Depende de 041 y del formato oficial de importación (P-1). |
 | 033-catalogo-global-icb | A | pendiente | — | RF-084, 087. Curado por super-admin + conteos anónimos desde N estudios (D4 = a). |
 | 034-lupa-ventas | C | pendiente | — | Nota [lupa de ventas]. Antes de 035. |
 | 035-cruce-emitidos-sol | B | pendiente | — | RF-054 · HU-13. |
@@ -48,6 +48,7 @@ Estados: `pendiente` · `borrador` · `aprobada` · `en curso` · `verificada` �
 | 038-diseno-visual | C | hecha | — | Mergeada en `main` (d1cc8fd). Estilo A (verde petróleo) en todas las pantallas: menú lateral en escritorio y barra inferior en celular (P-5), «Ventas» desde la ficha del cliente (P-4), grillas con sus alturas (P-2), compras en celular con desplazamiento y «Generar archivo» fijo (P-3), diálogos propios estilados (P-6). Prueba `diseno.estatico.spec.ts` contra colores sueltos. Revisión en navegador (P-7) en 70 vistas a 1440/390 px sobre el build de producción: sin desbordes, contraste AA, foco visible, objetivos de 44 px. E2E 88 + volumen en verde. Modo oscuro fuera (P-1). |
 | 039-actualizar-next | D | hecha | — | Decisión del usuario 2026-11-17. `next` 16.3–16.4.4 → 16.4.5 (GHSA-mfr8-8qww-v76h); `next build` sin `SecurityFatalError` al primer intento. CI verde con E2E. |
 | 040-avisos-dependencias | C | hecha | — | Decisión del usuario 2026-11-17. `pnpm audit --prod` de 6 avisos a 0: multer 2.5.0 (vía @nestjs/platform-express 12.3.0), nodemailer 10.1.4, fflate 0.8.3, fast-xml-parser 5.12.0. Overrides en `pnpm-workspace.yaml`: is-unsafe 2.0.3, fast-xml-builder 1.3.1, @nestjs/platform-express 12.3.0. Pruebas adversariales de XML en verde. CI verde con E2E. |
+| 041-sire-real-lectura | A | borrador | — | Adaptadores reales de solo lectura `HttpSireAuth`/`HttpSireApiClient` (`SIRE_CLIENT=http`; mock por defecto). Spec, plan y tareas en borrador (2026-11-24); P-1 a P-8 para el usuario. Prerrequisito de 032. |
 
 ## Hallazgos adversariales abiertos
 | Spec | Prueba | Hallazgo | Estado |
