@@ -13,8 +13,8 @@ Nivel A. Flujo 04 §1.3: pruebas (rojo) → implementar (verde) → cobertura �
 | T5 | Migración 0078, esquema drizzle y repositorio `auth/totp`, `auth/sesiones` | backend | opus | T1 ∥ T6 | ✓ | — | [x] |
 | T6 | Puros del backend, `shared`, plantillas de `correo`, `TOTP_CLAVE` y dependencias | backend | sonnet | T2 ∥ T5 | ✓ | — | [x] |
 | T7 | Servicios, guards y controlador: dos pasos, exigencia, sesiones, avisos | backend | opus | T3, T5, T6 ∥ T8, T9 | ✓ | — | [ ] |
-| T8 | CLI `db:totp-restablecer` | backend | sonnet | T1, T5, T6 ∥ T7, T9 | ✓ | — | [ ] |
-| T9 | Pantallas de 029 | frontend | sonnet | T4, T6 ∥ T5, T7, T8 | ✓ | — | [ ] |
+| T8 | CLI `db:totp-restablecer` | backend | sonnet | T1, T5, T6 ∥ T7, T9 | ✓ | — | [x] |
+| T9 | Pantallas de 029 | frontend | sonnet | T4, T6 ∥ T5, T7, T8 | ✓ | — | [x] |
 | T10 | Cobertura ≥ 90 % por archivo (globs) | devops | sonnet | T7, T8 ∥ T9 | — | — | [ ] |
 | T11 | E2E con Mailpit y `pnpm e2e` completo | tester | sonnet | T7, T8, T9 ∥ T12–T16 | — | — | [ ] |
 | T12 | Ronda 1a (caja negra, HTTP): autenticación y sesiones | adversario | opus | T10 ∥ T13 | — | ✓ | [ ] |

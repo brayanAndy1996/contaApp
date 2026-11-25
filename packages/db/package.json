@@ -14,7 +14,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file-if-exists=../../.env dist/cli/migrar.js",
     "db:seed": "node --env-file-if-exists=../../.env dist/cli/seed.js",
-    "db:plataforma-alta": "node --env-file-if-exists=../../.env dist/cli/plataforma-alta.js"
+    "db:plataforma-alta": "node --env-file-if-exists=../../.env dist/cli/plataforma-alta.js",
+    "db:totp-restablecer": "node --env-file-if-exists=../../.env dist/cli/totp-restablecer.js"
   },
   "dependencies": {
     "@contapp/correo": "workspace:*",

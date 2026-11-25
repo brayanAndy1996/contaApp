@@ -14,6 +14,7 @@
     "db:migrate": "pnpm --filter @contapp/db db:migrate",
     "db:seed": "pnpm --filter @contapp/db db:seed",
     "db:plataforma-alta": "pnpm --filter @contapp/db db:plataforma-alta",
+    "db:totp-restablecer": "pnpm --filter @contapp/db db:totp-restablecer",
     "kek:generar": "pnpm --filter @contapp/crypto kek:generar",
     "kek:rotar": "pnpm --filter @contapp/worker kek:rotar",
     "test:aislamiento": "pnpm --filter @contapp/tests-aislamiento test:aislamiento",
