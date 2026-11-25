@@ -1,0 +1,279 @@
+LÍNEA BASE 042 · T3 · worker-cobertura-cola
+Config:        apps/worker/vitest.cobertura-cola.config.mts
+Script raíz:   cobertura:cola (T23: log cob-cola.log)
+Comando lista: pnpm --filter @contapp/worker exec vitest list --filesOnly --config vitest.cobertura-cola.config.mts
+Lista: HEAD 68a9e68 · Tabla de cobertura: T23 de 028 medida en 60cf6b8
+
+[configuración de cobertura]
+coverage.provider: v8
+coverage.include (7):
+  packages/queue/src/**/*.ts
+  packages/sunat/src/**/*.ts
+  packages/db/src/trabajos/**/*.ts
+  packages/db/src/credenciales/estado.ts
+  apps/worker/src/trabajos/**/*.ts
+  apps/backend/src/modules/trabajos/**/*.ts
+  packages/shared/src/trabajos/**/*.ts
+coverage.exclude: **/*.spec.ts, **/*.adv.spec.ts, **/*.int.spec.ts, **/*.adv.int.spec.ts, packages/db/src/trabajos/soporte-prueba.ts, packages/queue/src/soporte-pruebas/**
+coverage.reporter: text, html
+coverage.thresholds: perFile=true; lines=90; statements=90; functions=90; branches=90
+proyectos (vitest): queue-unit, queue-int, sunat, shared-trabajos, db-trabajos, worker-unit, worker-int, backend-unit, backend-int, aislamiento-trabajos
+
+[ejecución T23 · 60cf6b8]
+archivos de prueba ejecutados: 224 · pruebas: 3204 passed (3204) · inicio 03:40:35 · duración 866.77 s
+resumen: sentencias 99.05 % (3582/3616) · ramas 97.12 % (2029/2089) · funciones 99.19 % (742/748) · líneas 99.46 % (3171/3188)
+archivos medidos (include - exclude en HEAD): 79 · listados en la tabla (algún valor < 100): 21 · no listados (100 % o vacíos): 58
+comparación con la lista: HEAD lista 225 y T23 ejecutó 224: la diferencia es apps/worker/src/trabajos/procesadores/enviar-correo-t24.spec.ts (nuevo tras 60cf6b8; la tabla no lo incluye)
+
+[archivos de prueba · HEAD 68a9e68 · 225 archivos]
+archivo	proyecto
+apps/backend/src/modules/trabajos/cancelar.int.spec.ts	backend-int
+apps/backend/src/modules/trabajos/credencial-estado.spec.ts	backend-unit
+apps/backend/src/modules/trabajos/encolador-con.spec.ts	backend-unit
+apps/backend/src/modules/trabajos/encolador-lote.spec.ts	backend-unit
+apps/backend/src/modules/trabajos/encolador.int.spec.ts	backend-int
+apps/backend/src/modules/trabajos/encolador.spec.ts	backend-unit
+apps/backend/src/modules/trabajos/fugas.int.spec.ts	backend-int
+apps/backend/src/modules/trabajos/r1a.adv.int.spec.ts	backend-int
+apps/backend/src/modules/trabajos/redis.spec.ts	backend-unit
+apps/backend/src/modules/trabajos/resumen.int.spec.ts	backend-int
+apps/backend/src/modules/trabajos/stream-notificacion.int.spec.ts	backend-int
+apps/backend/src/modules/trabajos/stream-r1b.adv.int.spec.ts	backend-int
+apps/backend/src/modules/trabajos/stream-r2a.adv.int.spec.ts	backend-int
+apps/backend/src/modules/trabajos/stream-r2b.adv.int.spec.ts	backend-int
+apps/backend/src/modules/trabajos/stream-sesion.int.spec.ts	backend-int
+apps/backend/src/modules/trabajos/stream-t16.spec.ts	backend-unit
+apps/backend/src/modules/trabajos/stream.int.spec.ts	backend-int
+apps/backend/src/modules/trabajos/stream.service.spec.ts	backend-unit
+apps/backend/src/modules/trabajos/trabajos.int.spec.ts	backend-int
+apps/backend/src/modules/trabajos/trabajos.service.spec.ts	backend-unit
+apps/worker/src/trabajos/caida.int.spec.ts	worker-int
+apps/worker/src/trabajos/cierre-bd-despejada.spec.ts	worker-unit
+apps/worker/src/trabajos/cierre-t16.spec.ts	worker-unit
+apps/worker/src/trabajos/conexion.spec.ts	worker-unit
+apps/worker/src/trabajos/ejecutor-r1b.adv.int.spec.ts	worker-int
+apps/worker/src/trabajos/ejecutor-r2a.adv.int.spec.ts	worker-int
+apps/worker/src/trabajos/ejecutor.int.spec.ts	worker-int
+apps/worker/src/trabajos/ejecutor.spec.ts	worker-unit
+apps/worker/src/trabajos/encolar-xml.int.spec.ts	worker-int
+apps/worker/src/trabajos/guardia.spec.ts	worker-unit
+apps/worker/src/trabajos/iniciar.spec.ts	worker-unit
+apps/worker/src/trabajos/notificador-fallo.spec.ts	worker-unit
+apps/worker/src/trabajos/notificador.int.spec.ts	worker-int
+apps/worker/src/trabajos/notificador.spec.ts	worker-unit
+apps/worker/src/trabajos/persistidores/compras-bandera.adv.spec.ts	worker-unit
+apps/worker/src/trabajos/persistidores/compras-bandera.spec.ts	worker-unit
+apps/worker/src/trabajos/persistidores/compras-correcciones-t18.spec.ts	worker-unit
+apps/worker/src/trabajos/persistidores/compras-historial.adv.spec.ts	worker-unit
+apps/worker/src/trabajos/persistidores/compras.adv.spec.ts	worker-unit
+apps/worker/src/trabajos/persistidores/compras.spec.ts	worker-unit
+apps/worker/src/trabajos/persistidores/contexto-gastos.int.spec.ts	worker-int
+apps/worker/src/trabajos/persistidores/contexto-gastos.spec.ts	worker-unit
+apps/worker/src/trabajos/persistidores/correcciones-t18.spec.ts	worker-unit
+apps/worker/src/trabajos/persistidores/persistidor-compras.int.spec.ts	worker-int
+apps/worker/src/trabajos/persistidores/persistidor-reglas-t20.int.spec.ts	worker-int
+apps/worker/src/trabajos/persistidores/persistidor-reglas.int.spec.ts	worker-int
+apps/worker/src/trabajos/persistidores/persistidor-std-rhis.int.spec.ts	worker-int
+apps/worker/src/trabajos/persistidores/persistidor-std.int.spec.ts	worker-int
+apps/worker/src/trabajos/persistidores/ventas.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/abrir-mensaje-r1.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/abrir-mensaje.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/abrir-mensaje.ramas.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/auth-purgar-correo.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/auth-purgar-correo.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/auth-purgar.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/auth-purgar.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/buzon-r1.adv.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/buzon-r1.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/buzon-r2.adv.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/buzon-r2.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/buzon-r3.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/ciiu.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/ciiu.ramas.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/consultar-ruc.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/correo-r1.adv.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/correo-r1.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/correo-r2.adv.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/correo-r2.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/credencial-sol.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/desborde-resumen-forma.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/desborde-resumen.adv.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/desborde-resumen.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/descargar-propuesta-016.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/descargar-propuesta.adv.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/descargar-propuesta.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/descargar-propuesta.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/enviar-correo-t24.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/enviar-correo.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/enviar-correo.ramas.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/enviar-correo.t14.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/generar-archivo-r1.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/generar-archivo-r2.adv.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/generar-archivo-r2.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/generar-archivo.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/generar-archivo.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/importar-historial-r2.adv.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/importar-historial-r2.adv.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/importar-historial.adv.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/importar-historial.filtro.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/importar-historial.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/importar-historial.r1.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/importar-historial.r2.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/importar-historial.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/importar-historial.volumen.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/kek-rotar.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/obtener-declaraciones-r1.adv.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/obtener-declaraciones-r1.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/obtener-declaraciones-r2.adv.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/obtener-declaraciones-r2.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/obtener-declaraciones-t20.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/obtener-declaraciones.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/obtener-declaraciones.ramas.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/obtener-declaraciones.volumen.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/obtener-xml-027.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/obtener-xml-interruptores.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/obtener-xml-ramas.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/obtener-xml-ronda2.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/obtener-xml.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/obtener-xml.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/programar-buzon-detener.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/programar-buzon.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/programar-buzon.ramas.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/programar-correo-t22a.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/programar-correo.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/programar-correo.ramas.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/programar-correo.rendimiento.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/reevaluar-periodo.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/reevaluar-periodo.ramas.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/revisar-buzon.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/revisar-buzon.ramas.spec.ts	worker-unit
+apps/worker/src/trabajos/procesadores/ventas-generado.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/verificar-credencial.adv.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/verificar-credencial.int.spec.ts	worker-int
+apps/worker/src/trabajos/procesadores/verificar-credencial.spec.ts	worker-unit
+apps/worker/src/trabajos/r1a.adv.int.spec.ts	worker-int
+apps/worker/src/trabajos/registro.spec.ts	worker-unit
+apps/worker/src/trabajos/restaurar-config.int.spec.ts	worker-int
+apps/worker/src/trabajos/secretos.int.spec.ts	worker-int
+apps/worker/src/trabajos/sistema.int.spec.ts	worker-int
+apps/worker/src/trabajos/token-sire/cache-token.int.spec.ts	worker-int
+apps/worker/src/trabajos/token-sire/cache-token.spec.ts	worker-unit
+apps/worker/src/trabajos/token-sire/credenciales-sire.spec.ts	worker-unit
+apps/worker/src/trabajos/trabajos.module.spec.ts	worker-unit
+packages/db/src/trabajos/config.spec.ts	db-trabajos
+packages/db/src/trabajos/correcciones-t14.spec.ts	db-trabajos
+packages/db/src/trabajos/correcciones-t16.spec.ts	db-trabajos
+packages/db/src/trabajos/encolar-xml.spec.ts	db-trabajos
+packages/db/src/trabajos/errores.spec.ts	db-trabajos
+packages/db/src/trabajos/exportes.spec.ts	db-trabajos
+packages/db/src/trabajos/registro.spec.ts	db-trabajos
+packages/db/src/trabajos/sistema.spec.ts	db-trabajos
+packages/queue/src/arriendos-t14.spec.ts	queue-unit
+packages/queue/src/arriendos.spec.ts	queue-unit
+packages/queue/src/bordes.spec.ts	queue-unit
+packages/queue/src/carreras-r2b.adv.int.spec.ts	queue-int
+packages/queue/src/catalogo-007b.spec.ts	queue-unit
+packages/queue/src/catalogo-012b.spec.ts	queue-unit
+packages/queue/src/catalogo-013.spec.ts	queue-unit
+packages/queue/src/catalogo-016.spec.ts	queue-unit
+packages/queue/src/catalogo-023.spec.ts	queue-unit
+packages/queue/src/catalogo-025.spec.ts	queue-unit
+packages/queue/src/catalogo-026.spec.ts	queue-unit
+packages/queue/src/catalogo-027.spec.ts	queue-unit
+packages/queue/src/catalogo-028.spec.ts	queue-unit
+packages/queue/src/catalogo-r1b.adv.spec.ts	queue-unit
+packages/queue/src/catalogo.spec.ts	queue-unit
+packages/queue/src/claves-023r1.spec.ts	queue-unit
+packages/queue/src/claves.spec.ts	queue-unit
+packages/queue/src/configuracion.int.spec.ts	queue-int
+packages/queue/src/correcciones-t16.spec.ts	queue-unit
+packages/queue/src/despachador-022.adv.int.spec.ts	queue-int
+packages/queue/src/despachador-022.int.spec.ts	queue-int
+packages/queue/src/despachador-r1b.adv.int.spec.ts	queue-int
+packages/queue/src/despachador-r2a.adv.int.spec.ts	queue-int
+packages/queue/src/despachador-t11c.adv.int.spec.ts	queue-int
+packages/queue/src/despachador-t11c.int.spec.ts	queue-int
+packages/queue/src/despachador.spec.ts	queue-unit
+packages/queue/src/despacho.int.spec.ts	queue-int
+packages/queue/src/encolado-t14.spec.ts	queue-unit
+packages/queue/src/encolado.spec.ts	queue-unit
+packages/queue/src/eventos.spec.ts	queue-unit
+packages/queue/src/outbox.int.spec.ts	queue-int
+packages/queue/src/payload.int.spec.ts	queue-int
+packages/queue/src/periodo-vista-t20a.spec.ts	queue-unit
+packages/queue/src/posicion.spec.ts	queue-unit
+packages/queue/src/reconciliador.spec.ts	queue-unit
+packages/queue/src/recuperacion.int.spec.ts	queue-int
+packages/queue/src/reintentos.spec.ts	queue-unit
+packages/queue/src/reloj-r2b.adv.int.spec.ts	queue-int
+packages/queue/src/restaurar-config.int.spec.ts	queue-int
+packages/queue/src/revalidacion.int.spec.ts	queue-int
+packages/queue/src/revalidacion.spec.ts	queue-unit
+packages/queue/src/ventana.spec.ts	queue-unit
+packages/queue/src/worker/index.spec.ts	queue-unit
+packages/queue/src/worker/sistema-023.spec.ts	queue-unit
+packages/queue/src/worker/sistema-028.spec.ts	queue-unit
+packages/queue/src/worker/sistema-t14.spec.ts	queue-unit
+packages/shared/src/trabajos/esquemas.spec.ts	shared-trabajos
+packages/shared/src/trabajos/periodo-t20a.spec.ts	shared-trabajos
+packages/sunat/src/errores.spec.ts	sunat
+packages/sunat/src/fixtures.humo.spec.ts	sunat
+packages/sunat/src/fixtures.registro.spec.ts	sunat
+packages/sunat/src/formatos/correcciones-t14.spec.ts	sunat
+packages/sunat/src/formatos/correcciones-t16.spec.ts	sunat
+packages/sunat/src/formatos/empaquetar.spec.ts	sunat
+packages/sunat/src/formatos/fixture-012.spec.ts	sunat
+packages/sunat/src/formatos/ronda1a.adv.spec.ts	sunat
+packages/sunat/src/formatos/ronda1b.adv.spec.ts	sunat
+packages/sunat/src/formatos/ronda2a.adv.spec.ts	sunat
+packages/sunat/src/formatos/ronda2b.adv.spec.ts	sunat
+packages/sunat/src/mock/consulta-ruc.ciiu.spec.ts	sunat
+packages/sunat/src/mock/consulta-ruc.mock.spec.ts	sunat
+packages/sunat/src/mock/generador-compras.spec.ts	sunat
+packages/sunat/src/mock/ruta-fixture.spec.ts	sunat
+packages/sunat/src/mock/sire-api-client.defensas.spec.ts	sunat
+packages/sunat/src/mock/sire-api-client.mock.spec.ts	sunat
+packages/sunat/src/mock/sire-api-client.registro.spec.ts	sunat
+packages/sunat/src/mock/sire-api-client.ventas.spec.ts	sunat
+packages/sunat/src/mock/sire-auth.mock.spec.ts	sunat
+packages/sunat/src/mock/sol-auth.mock.spec.ts	sunat
+packages/sunat/src/mock/sol-portal.fixtures.spec.ts	sunat
+packages/sunat/src/mock/sol-portal.mock.spec.ts	sunat
+packages/sunat/src/mock/sol-portal.mock.validacion.spec.ts	sunat
+packages/sunat/src/mock/sol-portal.pdt621.fixtures.spec.ts	sunat
+packages/sunat/src/mock/sol-portal.pdt621.r2.spec.ts	sunat
+packages/sunat/src/mock/sol-portal.pdt621.spec.ts	sunat
+packages/sunat/src/mock/ubl-sintetico.spec.ts	sunat
+packages/sunat/src/mock/xml-provider.mock.spec.ts	sunat
+tests/aislamiento/trabajos-encolar-xml.spec.ts	aislamiento-trabajos
+tests/aislamiento/trabajos-funciones.spec.ts	aislamiento-trabajos
+tests/aislamiento/trabajos-r1a.adv.spec.ts	aislamiento-trabajos
+tests/aislamiento/trabajos-r1b.adv.spec.ts	aislamiento-trabajos
+tests/aislamiento/trabajos-repos.spec.ts	aislamiento-trabajos
+tests/aislamiento/trabajos-ventana.spec.ts	aislamiento-trabajos
+tests/aislamiento/trabajos.spec.ts	aislamiento-trabajos
+
+[cobertura por archivo · T23 · 60cf6b8]
+archivo	stmts	branch	funcs	lines
+apps/backend/src/modules/trabajos/encolador.ts	98.36	95.65	100	100
+apps/backend/src/modules/trabajos/stream.service.ts	97.36	95.04	94.87	98.14
+apps/backend/src/modules/trabajos/trabajos.service.ts	95.12	91.37	100	97.01
+apps/worker/src/trabajos/ejecutor.ts	98.34	100	95.83	98.24
+apps/worker/src/trabajos/iniciar.ts	100	98.61	100	100
+apps/worker/src/trabajos/persistidores/compras.ts	97.89	93.15	100	100
+apps/worker/src/trabajos/procesadores/abrir-mensaje.ts	98.64	96.42	94.73	98.46
+apps/worker/src/trabajos/procesadores/desborde-resumen.ts	95.45	100	100	94.28
+apps/worker/src/trabajos/procesadores/generar-archivo.ts	96.03	91.54	96	99.05
+apps/worker/src/trabajos/procesadores/importar-historial.ts	100	96.61	100	100
+apps/worker/src/trabajos/procesadores/obtener-declaraciones.ts	97.77	94.44	100	97.67
+apps/worker/src/trabajos/procesadores/obtener-xml.ts	100	97.87	100	100
+apps/worker/src/trabajos/procesadores/programar-correo.ts	100	97.43	100	100
+apps/worker/src/trabajos/procesadores/verificar-credencial.ts	98.3	100	94.44	98.03
+packages/db/src/credenciales/estado.ts	96.29	94.11	100	100
+packages/db/src/trabajos/registro.ts	99.2	95.95	100	100
+packages/queue/src/catalogo.ts	100	97.05	100	100
+packages/queue/src/despachador.ts	99.34	92	100	100
+packages/queue/src/reconciliador.ts	100	97.22	100	100
+packages/sunat/src/mock/sire-api-client.mock.ts	98.25	92.03	100	100
+packages/sunat/src/mock/sol-portal.mock.ts	98.63	95.9	100	98.43
+All files	99.05	97.12	99.19	99.46

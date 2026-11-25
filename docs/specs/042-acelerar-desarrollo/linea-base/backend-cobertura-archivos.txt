@@ -1,0 +1,51 @@
+LÍNEA BASE 042 · T3 · backend-cobertura-archivos
+Config:        apps/backend/vitest.cobertura-archivos.config.mts
+Script raíz:   cobertura:archivos (T23: log cob-archivos.log)
+Comando lista: pnpm --filter @contapp/backend exec vitest list --filesOnly --config vitest.cobertura-archivos.config.mts
+Lista: HEAD 68a9e68 · Tabla de cobertura: T23 de 028 medida en 60cf6b8
+
+[configuración de cobertura]
+coverage.provider: v8
+coverage.include (3):
+  apps/backend/src/modules/archivos/**/*.ts
+  apps/backend/src/modules/ventas/estado.service.ts
+  apps/backend/src/modules/ventas/exclusion.service.ts
+coverage.exclude: **/*.spec.ts, **/*.adv.spec.ts, **/*.int.spec.ts, **/*.adv.int.spec.ts
+coverage.reporter: text, json-summary
+coverage.thresholds: perFile=true; lines=90; statements=90; functions=90; branches=90
+proyectos (vitest): ninguno (un solo test.include)
+
+[ejecución T23 · 60cf6b8]
+archivos de prueba ejecutados: 18 · pruebas: 357 passed (357) · inicio 04:08:25 · duración 35.64 s
+resumen: sentencias 98.41 % (310/315) · ramas 96.68 % (146/151) · funciones 100 % (83/83) · líneas 99.21 % (254/256)
+archivos medidos (include - exclude en HEAD): 9 · listados en la tabla (algún valor < 100): 4 · no listados (100 % o vacíos): 5
+comparación con la lista: sin diferencia de conteo con T23
+
+[archivos de prueba · HEAD 68a9e68 · 18 archivos]
+archivo	proyecto
+apps/backend/src/modules/archivos/archivos.controller.spec.ts	-
+apps/backend/src/modules/archivos/archivos.service.spec.ts	-
+apps/backend/src/modules/archivos/autor.int.spec.ts	-
+apps/backend/src/modules/archivos/desborde-forma.spec.ts	-
+apps/backend/src/modules/archivos/desborde.adv.spec.ts	-
+apps/backend/src/modules/archivos/desborde.spec.ts	-
+apps/backend/src/modules/archivos/descarga.int.spec.ts	-
+apps/backend/src/modules/archivos/generar.int.spec.ts	-
+apps/backend/src/modules/archivos/previo-fuera-de-rango.int.spec.ts	-
+apps/backend/src/modules/archivos/previo-gastos.spec.ts	-
+apps/backend/src/modules/archivos/previo-r1.adv.int.spec.ts	-
+apps/backend/src/modules/archivos/previo.int.spec.ts	-
+apps/backend/src/modules/archivos/previo.spec.ts	-
+apps/backend/src/modules/archivos/versiones.int.spec.ts	-
+apps/backend/src/modules/ventas/estado-periodo.int.spec.ts	-
+apps/backend/src/modules/ventas/estado.service.spec.ts	-
+apps/backend/src/modules/ventas/exclusion.int.spec.ts	-
+apps/backend/src/modules/ventas/exclusion.service.spec.ts	-
+
+[cobertura por archivo · T23 · 60cf6b8]
+archivo	stmts	branch	funcs	lines
+apps/backend/src/modules/archivos/archivos.service.ts	96.49	91.3	100	100
+apps/backend/src/modules/archivos/desborde.ts	95.45	100	100	94.28
+apps/backend/src/modules/archivos/previo.ts	100	96.49	100	100
+apps/backend/src/modules/ventas/exclusion.service.ts	97.91	95.83	100	100
+All files	98.41	96.68	100	99.21

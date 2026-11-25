@@ -1,0 +1,47 @@
+LÍNEA BASE 042 · T3 · backend-cobertura-correo
+Config:        apps/backend/vitest.cobertura-correo.config.mts
+Script raíz:   cobertura:correo (T23: log cob-correo.log)
+Comando lista: pnpm --filter @contapp/backend exec vitest list --filesOnly --config vitest.cobertura-correo.config.mts
+Lista: HEAD 68a9e68 · Tabla de cobertura: T23 de 028 medida en 60cf6b8
+
+[configuración de cobertura]
+coverage.provider: v8
+coverage.include (4):
+  apps/backend/src/modules/correo/*.ts
+  apps/backend/src/infra/correo/*.ts
+  apps/backend/src/modules/auth/guards/origen.guard.ts
+  apps/backend/src/modules/auth/guards/decoradores.ts
+coverage.exclude: **/*.spec.ts, **/*.adv.spec.ts, **/*.int.spec.ts, **/*.adv.int.spec.ts
+coverage.reporter: text, json-summary
+coverage.thresholds: perFile=true; lines=90; statements=90; functions=90; branches=90
+proyectos (vitest): ninguno (un solo test.include)
+
+[ejecución T23 · 60cf6b8]
+archivos de prueba ejecutados: 16 · pruebas: 180 passed (180) · inicio 02:50:57 · duración 23.31 s
+resumen: sentencias 100 % (176/176) · ramas 98.92 % (92/93) · funciones 100 % (46/46) · líneas 100 % (146/146)
+archivos medidos (include - exclude en HEAD): 16 · listados en la tabla (algún valor < 100): 1 · no listados (100 % o vacíos): 15
+comparación con la lista: sin diferencia de conteo con T23
+
+[archivos de prueba · HEAD 68a9e68 · 16 archivos]
+archivo	proyecto
+apps/backend/src/infra/correo/cola.spec.ts	-
+apps/backend/src/infra/correo/fabrica-t14.spec.ts	-
+apps/backend/src/infra/correo/fabrica.spec.ts	-
+apps/backend/src/modules/auth/guards/guards.spec.ts	-
+apps/backend/src/modules/auth/guards/origen.guard.sin-origen-r1.spec.ts	-
+apps/backend/src/modules/auth/guards/origen.guard.sin-origen.spec.ts	-
+apps/backend/src/modules/auth/guards/origen.guard.spec.ts	-
+apps/backend/src/modules/correo/baja.int.spec.ts	-
+apps/backend/src/modules/correo/baja.service.spec.ts	-
+apps/backend/src/modules/correo/correo-r1.adv.int.spec.ts	-
+apps/backend/src/modules/correo/correo-r1.int.spec.ts	-
+apps/backend/src/modules/correo/correo-r2.adv.int.spec.ts	-
+apps/backend/src/modules/correo/correo-r2.int.spec.ts	-
+apps/backend/src/modules/correo/preferencias.int.spec.ts	-
+apps/backend/src/modules/correo/preferencias.service.spec.ts	-
+apps/backend/src/modules/correo/un-clic.spec.ts	-
+
+[cobertura por archivo · T23 · 60cf6b8]
+archivo	stmts	branch	funcs	lines
+apps/backend/src/modules/correo/un-clic.ts	100	97.43	100	100
+All files	100	98.92	100	100

@@ -1,0 +1,31 @@
+LÍNEA BASE 042 · T3 · backend-cobertura-reglas
+Config:        apps/backend/vitest.cobertura-reglas.config.mts
+Script raíz:   cobertura:reglas (T23: log cob-reglas.log)
+Comando lista: pnpm --filter @contapp/backend exec vitest list --filesOnly --config vitest.cobertura-reglas.config.mts
+Lista: HEAD 68a9e68 · Tabla de cobertura: T23 de 028 medida en 60cf6b8
+
+[configuración de cobertura]
+coverage.provider: v8
+coverage.include (1):
+  apps/backend/src/modules/reglas/**/*.ts
+coverage.exclude: **/*.spec.ts, **/*.adv.spec.ts, **/*.int.spec.ts, **/*.adv.int.spec.ts
+coverage.reporter: text, json-summary
+coverage.thresholds: perFile=true; lines=90; statements=90; functions=90; branches=90
+proyectos (vitest): ninguno (un solo test.include)
+
+[ejecución T23 · 60cf6b8]
+archivos de prueba ejecutados: 4 · pruebas: 131 passed (131) · inicio 04:13:11 · duración 11.45 s
+resumen: sentencias 100 % (83/83) · ramas 100 % (25/25) · funciones 100 % (35/35) · líneas 100 % (69/69)
+archivos medidos: 7 · sin tabla: todos al 100 % o vacíos (7 archivos al 100 %)
+comparación con la lista: sin diferencia de conteo con T23
+
+[archivos de prueba · HEAD 68a9e68 · 4 archivos]
+archivo	proyecto
+apps/backend/src/modules/reglas/reglas-cliente.int.spec.ts	-
+apps/backend/src/modules/reglas/reglas-correcciones-r1.int.spec.ts	-
+apps/backend/src/modules/reglas/reglas-motor.int.spec.ts	-
+apps/backend/src/modules/reglas/reglas-r1.adv.int.spec.ts	-
+
+[cobertura por archivo · T23 · 60cf6b8]
+archivo	stmts	branch	funcs	lines
+All files	100	100	100	100

@@ -4,7 +4,7 @@
 |---|---|---|---|---|---|---|---|
 | T1 | Spec, plan y tareas | arquitecto | opus | — | — | — | [x] |
 | T2 | Método y plantillas (B2, B3, B4) | devops | sonnet | T1 | — | — | [x] |
-| T3 | Línea base para CA-2: lista de pruebas y cobertura actuales | devops | haiku | 028 en `main` | — | — | [ ] |
+| T3 | Línea base para CA-2: lista de pruebas y cobertura actuales | devops | haiku | 028 en `main` | — | — | [x] |
 | T4 | Config única de cobertura en backend y worker (A1) | devops | sonnet | T3 | — | — | [ ] bloqueada |
 | T5 | `ci.yml`: jobs paralelos, paths-ignore, concurrency, dos niveles (A2–A5) | devops | sonnet | T4 | — | — | [ ] bloqueada |
 | T6 | Reporter compacto (B5) y regla A6 en el método | devops | haiku | T4 | — | — | [ ] bloqueada |

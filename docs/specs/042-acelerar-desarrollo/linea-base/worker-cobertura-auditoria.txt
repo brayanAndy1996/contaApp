@@ -1,0 +1,44 @@
+LÍNEA BASE 042 · T3 · worker-cobertura-auditoria
+Config:        apps/worker/vitest.cobertura-auditoria.config.mts
+Script raíz:   cobertura:auditoria (T23: log cob-auditoria.log)
+Comando lista: pnpm --filter @contapp/worker exec vitest list --filesOnly --config vitest.cobertura-auditoria.config.mts
+Lista: HEAD 68a9e68 · Tabla de cobertura: T23 de 028 medida en 60cf6b8
+
+[configuración de cobertura]
+coverage.provider: v8
+coverage.include (4):
+  apps/worker/src/trabajos/registro.ts
+  apps/worker/src/trabajos/ejecutor.ts
+  apps/worker/src/trabajos/notificador.ts
+  packages/queue/src/eventos.ts
+coverage.exclude: **/*.spec.ts, **/*.adv.spec.ts, **/*.int.spec.ts, **/*.adv.int.spec.ts
+coverage.reporter: text, json-summary
+coverage.thresholds: perFile=true; lines=90; statements=90; functions=90; branches=90
+proyectos (vitest): ninguno (un solo test.include)
+
+[ejecución T23 · 60cf6b8]
+archivos de prueba ejecutados: 12 · pruebas: 164 passed (164) · inicio 04:11:24 · duración 59.24 s
+resumen: sentencias 97.6 % (163/167) · ramas 96.96 % (96/99) · funciones 97.29 % (36/37) · líneas 98.7 % (153/155)
+archivos medidos (include - exclude en HEAD): 4 · listados en la tabla (algún valor < 100): 2 · no listados (100 % o vacíos): 2
+comparación con la lista: sin diferencia de conteo con T23
+
+[archivos de prueba · HEAD 68a9e68 · 12 archivos]
+archivo	proyecto
+apps/worker/src/trabajos/ejecutor-r1b.adv.int.spec.ts	-
+apps/worker/src/trabajos/ejecutor-r2a.adv.int.spec.ts	-
+apps/worker/src/trabajos/ejecutor.int.spec.ts	-
+apps/worker/src/trabajos/ejecutor.spec.ts	-
+apps/worker/src/trabajos/notificador-fallo.spec.ts	-
+apps/worker/src/trabajos/notificador.int.spec.ts	-
+apps/worker/src/trabajos/notificador.spec.ts	-
+apps/worker/src/trabajos/registro.spec.ts	-
+packages/queue/src/bordes.spec.ts	-
+packages/queue/src/despachador.spec.ts	-
+packages/queue/src/eventos.spec.ts	-
+packages/queue/src/reconciliador.spec.ts	-
+
+[cobertura por archivo · T23 · 60cf6b8]
+archivo	stmts	branch	funcs	lines
+apps/worker/src/trabajos/ejecutor.ts	98.34	100	95.83	98.24
+packages/queue/src/eventos.ts	93.54	90.62	100	100
+All files	97.6	96.96	97.29	98.7

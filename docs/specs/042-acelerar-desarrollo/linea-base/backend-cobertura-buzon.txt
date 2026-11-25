@@ -1,0 +1,48 @@
+LÍNEA BASE 042 · T3 · backend-cobertura-buzon
+Config:        apps/backend/vitest.cobertura-buzon.config.mts
+Script raíz:   cobertura:buzon (T23: log cob-buzon.log)
+Comando lista: pnpm --filter @contapp/backend exec vitest list --filesOnly --config vitest.cobertura-buzon.config.mts
+Lista: HEAD 68a9e68 · Tabla de cobertura: T23 de 028 medida en 60cf6b8
+
+[configuración de cobertura]
+coverage.provider: v8
+coverage.include (1):
+  apps/backend/src/modules/buzon/**/*.ts
+coverage.exclude: **/*.spec.ts, **/*.adv.spec.ts, **/*.int.spec.ts, **/*.adv.int.spec.ts
+coverage.reporter: text, json-summary
+coverage.thresholds: perFile=true; lines=90; statements=90; functions=90; branches=90
+proyectos (vitest): ninguno (un solo test.include)
+
+[ejecución T23 · 60cf6b8]
+archivos de prueba ejecutados: 18 · pruebas: 425 passed (425) · inicio 04:23:50 · duración 59.13 s
+resumen: sentencias 98.28 % (287/292) · ramas 96.13 % (174/181) · funciones 100 % (75/75) · líneas 99.58 % (241/242)
+archivos medidos (include - exclude en HEAD): 11 · listados en la tabla (algún valor < 100): 3 · no listados (100 % o vacíos): 8
+comparación con la lista: sin diferencia de conteo con T23
+
+[archivos de prueba · HEAD 68a9e68 · 18 archivos]
+archivo	proyecto
+apps/backend/src/modules/buzon/abrir.int.spec.ts	-
+apps/backend/src/modules/buzon/apoyo.spec.ts	-
+apps/backend/src/modules/buzon/archivo-ausente.int.spec.ts	-
+apps/backend/src/modules/buzon/atencion.int.spec.ts	-
+apps/backend/src/modules/buzon/atencion.service.spec.ts	-
+apps/backend/src/modules/buzon/bandeja.adv.int.spec.ts	-
+apps/backend/src/modules/buzon/bandeja.int.spec.ts	-
+apps/backend/src/modules/buzon/bandeja.rendimiento.int.spec.ts	-
+apps/backend/src/modules/buzon/cursor.spec.ts	-
+apps/backend/src/modules/buzon/descarga.int.spec.ts	-
+apps/backend/src/modules/buzon/detalle-atencion.int.spec.ts	-
+apps/backend/src/modules/buzon/lectura-atencion-nula.spec.ts	-
+apps/backend/src/modules/buzon/lectura.int.spec.ts	-
+apps/backend/src/modules/buzon/mapeo.spec.ts	-
+apps/backend/src/modules/buzon/r1.adv.int.spec.ts	-
+apps/backend/src/modules/buzon/r1.int.spec.ts	-
+apps/backend/src/modules/buzon/revisar-credencial-invalida.int.spec.ts	-
+apps/backend/src/modules/buzon/revisar.int.spec.ts	-
+
+[cobertura por archivo · T23 · 60cf6b8]
+archivo	stmts	branch	funcs	lines
+apps/backend/src/modules/buzon/apoyo.ts	95.91	90.47	100	97.22
+apps/backend/src/modules/buzon/atencion.service.ts	98.03	95.83	100	100
+apps/backend/src/modules/buzon/lectura.service.ts	95.65	90.9	100	100
+All files	98.28	96.13	100	99.58
