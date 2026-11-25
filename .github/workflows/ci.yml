@@ -53,9 +53,11 @@ jobs:
       - name: Build
         run: pnpm build
 
-      # Unitarias de todo el monorepo (turbo run test). Necesitan el build de arriba.
+      # Unitarias del monorepo (nivel 1). Sin @contapp/db: sus pruebas necesitan PostgreSQL y corren
+      # completas en `cobertura:db` (job cobertura-paquetes). En serie: en paralelo, pruebas de foco y de
+      # tiempo del frontend y del backend fallan por carga.
       - name: Pruebas unitarias
-        run: pnpm test
+        run: pnpm exec turbo run test --filter='!@contapp/db' --concurrency=1
 
       - name: Cobertura de @contapp/domain (90 % por archivo)
         run: pnpm cobertura:dominio
