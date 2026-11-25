@@ -10,6 +10,7 @@ if (existsSync(envFile)) {
 
 export default defineConfig({
   test: {
+    reporters: ["dot"],
     include: ["**/*.spec.ts"],
     // Un solo hilo: las suites comparten la misma base de datos.
     fileParallelism: false,

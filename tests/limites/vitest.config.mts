@@ -4,6 +4,7 @@ import { defineConfig } from "vitest/config";
 // de `turbo run test` (suites en paralelo) superan los 5 s por defecto sin fallar ninguna aserción.
 export default defineConfig({
   test: {
+    reporters: ["dot"],
     testTimeout: 30_000,
   },
 });

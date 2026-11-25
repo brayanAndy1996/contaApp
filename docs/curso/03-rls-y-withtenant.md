@@ -251,7 +251,7 @@ Lo prueba `tests/aislamiento/falla-cerrado.spec.ts` (CA-4). El peor caso de un o
 
 ## 5. Lo que enseñó el adversario (spec 002)
 
-El rol *adversario* intenta romper el aislamiento. Sus hallazgos están en `docs/specs/ESTADO.md` ("Hallazgos adversariales abiertos"). Los más didácticos:
+El rol *adversario* intenta romper el aislamiento. Sus hallazgos abiertos están en `docs/specs/ESTADO.md` ("Hallazgos adversariales abiertos") y los cerrados en `docs/specs/HALLAZGOS.md`. Los más didácticos:
 
 - **H1 (alta) – `set_config(..., false)`.** Si el código dentro de `fn` hacía `set_config('app.tenant_id', X, false)` (de **sesión**, no local), el valor sobrevivía al `COMMIT` y la conexión volvía al pool "con carnet puesto". La siguiente petición, con `withUsuario`, veía datos de otro estudio. Arreglo: `LIMPIAR_SESION` con `RESET ALL` antes y después. Lo puedes ver en la práctica (§6).
 - **H8 (baja) – `SET ROLE` sin `LOCAL`.** Misma causa: el rol quedaba pegado a la conexión. Arreglo: `RESET ROLE` (porque `RESET ALL` no incluye el rol).

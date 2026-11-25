@@ -1,0 +1,72 @@
+LÍNEA BASE 042 · T3 · backend-cobertura-xml
+Config:        apps/backend/vitest.cobertura-xml.config.mts
+Script raíz:   cobertura:xml (T23: log cob-xml.log)
+Comando lista: pnpm --filter @contapp/backend exec vitest list --filesOnly --config vitest.cobertura-xml.config.mts
+Lista: HEAD 68a9e68 · Tabla de cobertura: T23 de 028 medida en 60cf6b8
+
+[configuración de cobertura]
+coverage.provider: v8
+coverage.include (2):
+  apps/backend/src/modules/compras/detalle*.ts
+  apps/backend/src/modules/compras/*xml*.ts
+coverage.exclude: **/*.spec.ts, **/*.adv.spec.ts, **/*.int.spec.ts
+coverage.reporter: text, json-summary
+coverage.thresholds: perFile=true; lines=90; statements=90; functions=90; branches=90
+proyectos (vitest): compras-unit, compras-int
+
+[ejecución T23 · 60cf6b8]
+archivos de prueba ejecutados: 42 · pruebas: 939 passed (939) · inicio 03:55:24 · duración 169.9 s
+resumen: sentencias 98.81 % (250/253) · ramas 98.14 % (106/108) · funciones 100 % (54/54) · líneas 99.53 % (215/216)
+archivos medidos (include - exclude en HEAD): 10 · listados en la tabla (algún valor < 100): 2 · no listados (100 % o vacíos): 8
+comparación con la lista: sin diferencia de conteo con T23
+
+[archivos de prueba · HEAD 68a9e68 · 42 archivos]
+archivo	proyecto
+apps/backend/src/modules/compras/acciones-borde.int.spec.ts	compras-int
+apps/backend/src/modules/compras/acciones.int.spec.ts	compras-int
+apps/backend/src/modules/compras/aceptar-apagada-t25a.int.spec.ts	compras-int
+apps/backend/src/modules/compras/aceptar-gp.int.spec.ts	compras-int
+apps/backend/src/modules/compras/autor.int.spec.ts	compras-int
+apps/backend/src/modules/compras/autor.spec.ts	compras-unit
+apps/backend/src/modules/compras/compras.adv.int.spec.ts	compras-int
+apps/backend/src/modules/compras/controlador.spec.ts	compras-unit
+apps/backend/src/modules/compras/correcciones-t18.int.spec.ts	compras-int
+apps/backend/src/modules/compras/correcciones-t20.int.spec.ts	compras-int
+apps/backend/src/modules/compras/correcciones-t22.int.spec.ts	compras-int
+apps/backend/src/modules/compras/cursor.spec.ts	compras-unit
+apps/backend/src/modules/compras/descarga.int.spec.ts	compras-int
+apps/backend/src/modules/compras/desde-xml.int.spec.ts	compras-int
+apps/backend/src/modules/compras/desde-xml.service.spec.ts	compras-unit
+apps/backend/src/modules/compras/desde-xml.spec.ts	compras-unit
+apps/backend/src/modules/compras/deshacer-masivo-022.int.spec.ts	compras-int
+apps/backend/src/modules/compras/detalle-privacidad.int.spec.ts	compras-int
+apps/backend/src/modules/compras/detalle.int.spec.ts	compras-int
+apps/backend/src/modules/compras/detalle.spec.ts	compras-unit
+apps/backend/src/modules/compras/errores-xml.spec.ts	compras-unit
+apps/backend/src/modules/compras/escritor-xlsx.spec.ts	compras-unit
+apps/backend/src/modules/compras/escritura.spec.ts	compras-unit
+apps/backend/src/modules/compras/exportar.int.spec.ts	compras-int
+apps/backend/src/modules/compras/historial.int.spec.ts	compras-int
+apps/backend/src/modules/compras/integracion-012.int.spec.ts	compras-int
+apps/backend/src/modules/compras/lectura.int.spec.ts	compras-int
+apps/backend/src/modules/compras/masivas.int.spec.ts	compras-int
+apps/backend/src/modules/compras/periodo.service.spec.ts	compras-unit
+apps/backend/src/modules/compras/reevaluacion.adv.int.spec.ts	compras-int
+apps/backend/src/modules/compras/reevaluacion.ronda2.int.spec.ts	compras-int
+apps/backend/src/modules/compras/reglas-apagadas-022.int.spec.ts	compras-int
+apps/backend/src/modules/compras/resumen.int.spec.ts	compras-int
+apps/backend/src/modules/compras/resumen.service.spec.ts	compras-unit
+apps/backend/src/modules/compras/std.int.spec.ts	compras-int
+apps/backend/src/modules/compras/transformar-xml.spec.ts	compras-unit
+apps/backend/src/modules/compras/transformar.spec.ts	compras-unit
+apps/backend/src/modules/compras/xml-entrada.spec.ts	compras-unit
+apps/backend/src/modules/compras/xml.adv.int.spec.ts	compras-int
+apps/backend/src/modules/compras/xml.int.spec.ts	compras-int
+apps/backend/src/modules/compras/xml.ronda1.int.spec.ts	compras-int
+apps/backend/src/modules/compras/xml.service.spec.ts	compras-unit
+
+[cobertura por archivo · T23 · 60cf6b8]
+archivo	stmts	branch	funcs	lines
+apps/backend/src/modules/compras/desde-xml.service.ts	97.33	91.66	100	100
+apps/backend/src/modules/compras/xml.service.ts	98.75	100	100	98.52
+All files	98.81	98.14	100	99.53

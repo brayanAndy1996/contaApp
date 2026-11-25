@@ -1,0 +1,14 @@
+LÍNEA BASE 042 · T3 · worker-int-cierre
+Config:        apps/worker/vitest.config.mts (modo int, CIERRE_APARTE=1)
+Script:        test:int:cierre (worker)
+Comando lista: pnpm --filter @contapp/worker exec vitest list --filesOnly --mode int (con CIERRE_APARTE=1)
+Lista: HEAD 68a9e68 · sin tabla de cobertura (no es config de cobertura; sin umbrales)
+
+[selección de la config]
+test.include: src/trabajos/cierre-*.adv.int.spec.ts
+test.exclude: **/node_modules/**
+
+[archivos de prueba · HEAD 68a9e68 · 2 archivos]
+archivo	proyecto
+apps/worker/src/trabajos/cierre-r1b.adv.int.spec.ts	-
+apps/worker/src/trabajos/cierre-r2a.adv.int.spec.ts	-

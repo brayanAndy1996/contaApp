@@ -55,7 +55,14 @@ const rnd = generador(20261122);
 const COMPRAS_GLOSAS: string[][] = Array.from({ length: COMPRAS }, (_, i) => glosasDeCompra(i, rnd));
 
 const RONDAS = 7;
-const reloj = (globalThis as unknown as { performance: { now(): number } }).performance;
+// Tiempo de CPU del proceso (como `tests/ayudas/rendimiento.ts`, 027 T25a): el reloj de pared incluye las esperas por turno de CPU
+// del runner cargado, que caen al azar sobre un lado y desvirtúan la razón (falló 2,15× en el CI de 042). Sin `cpuUsage`, pared.
+const entorno = globalThis as unknown as {
+  performance: { now(): number };
+  process?: { cpuUsage?: (previo?: { user: number; system: number }) => { user: number; system: number } };
+};
+const reloj = entorno.performance;
+const cpu = entorno.process?.cpuUsage?.bind(entorno.process);
 
 /**
  * Mide dos funciones de forma intercalada: calentamiento de ambas y luego RONDAS rondas en las que se alternan
@@ -68,6 +75,12 @@ function minimosIntercalados(a: () => unknown, b: () => unknown): { a: number; b
   let minA = Infinity;
   let minB = Infinity;
   const cronometrar = (f: () => unknown): number => {
+    if (cpu !== undefined) {
+      const c0 = cpu();
+      f();
+      const d = cpu(c0);
+      return (d.user + d.system) / 1000;
+    }
     const t0 = reloj.now();
     f();
     return reloj.now() - t0;

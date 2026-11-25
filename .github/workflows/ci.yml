@@ -1,9 +1,25 @@
 name: CI
 
+# Spec 042 (A2 a A5): CI en dos niveles.
+# Nivel 1, job `ci` (lint, tipos, build, unitarias y cobertura de domain/storage/sunat): corre en todo push, en pull_request y a mano.
+#   En un push a una rama `spec/**` (o a cualquier rama que no sea main) es lo único que corre.
+# Nivel 2, jobs `aislamiento`, `cobertura-*`, `cierre` y `e2e`: solo en pull_request, push a main y workflow_dispatch.
+#   Cada job con base de datos lleva su propio PostgreSQL y Redis (no comparten estado) y corre en paralelo con los demás.
+# Un push de solo documentación no dispara nada (paths-ignore); la corrida anterior de la misma rama se cancela, salvo en main.
 on:
   push:
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
   workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
@@ -37,6 +53,12 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # Unitarias del monorepo (nivel 1). Sin @contapp/db: sus pruebas necesitan PostgreSQL y corren
+      # completas en `cobertura:db` (job cobertura-paquetes). En serie: en paralelo, pruebas de foco y de
+      # tiempo del frontend y del backend fallan por carga.
+      - name: Pruebas unitarias
+        run: pnpm exec turbo run test --filter='!@contapp/db' --concurrency=1
+
       - name: Cobertura de @contapp/domain (90 % por archivo)
         run: pnpm cobertura:dominio
 
@@ -46,8 +68,11 @@ jobs:
       - name: Cobertura de @contapp/sunat (90 % por archivo)
         run: pnpm cobertura:sunat
 
+  # Aislamiento entre estudios (RLS) y pruebas de integración de worker y backend. `ci:db` construye los paquetes,
+  # migra dos veces (idempotencia), siembra y corre `test:aislamiento`, `test:int` del worker y `test:int` del backend.
   aislamiento:
     name: Aislamiento entre estudios (PostgreSQL 17)
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     env:
       MIGRATIONS_DATABASE_URL: postgresql://postgres@localhost:5432/contapp
@@ -106,79 +131,236 @@ jobs:
       - name: Migraciones, seed y suite de aislamiento
         run: pnpm ci:db
 
-      - name: Cobertura de 004 auth (umbral 90 % por archivo)
-        run: pnpm cobertura:auth
+  # Cobertura del backend: una sola corrida con la config única (apps/backend/vitest.cobertura.config.mts).
+  # Mide lo que antes medían los pasos de 004, 005, 012b, 016, 017 y 021 a 028 en el backend.
+  cobertura-backend:
+    name: Cobertura del backend (PostgreSQL 17)
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    env:
+      MIGRATIONS_DATABASE_URL: postgresql://postgres@localhost:5432/contapp
+      KEY_PROVIDER: mock
+      REDIS_URL: redis://localhost:6379
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: contapp
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: pnpm (versión de packageManager en package.json)
+        uses: pnpm/action-setup@v6
+
+      - name: Node (versión de .nvmrc)
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Generar DATABASE_URL del rol de app (contraseña por corrida)
+        run: |
+          PASS="$(openssl rand -hex 24)"
+          echo "::add-mask::${PASS}"
+          echo "DATABASE_URL=postgresql://contapp_app:${PASS}@localhost:5432/contapp" >> "$GITHUB_ENV"
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Build de @contapp/shared y @contapp/db
+        run: pnpm --filter @contapp/shared build && pnpm --filter @contapp/db build
+
+      - name: Migraciones y seed (la BD de este job empieza vacía)
+        run: pnpm db:migrate && pnpm db:seed
+
+      - name: Cobertura del backend (config única, umbral 90 % por archivo)
+        run: pnpm cobertura:backend
         env:
           CORREO_PROVIDER: consola
           APP_ORIGIN: http://localhost:3000
 
-      - name: Cobertura de 005 acceso (umbral 90 % por archivo)
-        run: pnpm cobertura:acceso
+  # Cobertura del worker: una sola corrida con la config única (apps/worker/vitest.cobertura.config.mts).
+  # Mide lo que antes medían los pasos de 008, 012b, 016, 017, 021, 023 y 025 a 028 en el worker.
+  cobertura-worker:
+    name: Cobertura del worker (PostgreSQL 17)
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    env:
+      MIGRATIONS_DATABASE_URL: postgresql://postgres@localhost:5432/contapp
+      KEY_PROVIDER: mock
+      REDIS_URL: redis://localhost:6379
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: contapp
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: pnpm (versión de packageManager en package.json)
+        uses: pnpm/action-setup@v6
+
+      - name: Node (versión de .nvmrc)
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Generar DATABASE_URL del rol de app (contraseña por corrida)
+        run: |
+          PASS="$(openssl rand -hex 24)"
+          echo "::add-mask::${PASS}"
+          echo "DATABASE_URL=postgresql://contapp_app:${PASS}@localhost:5432/contapp" >> "$GITHUB_ENV"
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Build de @contapp/shared y @contapp/db
+        run: pnpm --filter @contapp/shared build && pnpm --filter @contapp/db build
+
+      - name: Migraciones y seed (la BD de este job empieza vacía)
+        run: pnpm db:migrate && pnpm db:seed
+
+      - name: Cobertura del worker (config única, umbral 90 % por archivo)
+        run: pnpm cobertura:worker
         env:
           CORREO_PROVIDER: consola
           APP_ORIGIN: http://localhost:3000
 
-      - name: Cobertura de 008 cola (umbral 90 % por archivo)
-        run: pnpm cobertura:cola
+  # Cobertura de packages/*: las partes de domain, sunat, db, correo, queue y shared de las specs 021 a 028 (sus
+  # configuraciones por spec se mantienen; las de backend y worker las miden los dos jobs de arriba), db y crypto.
+  # En serie y sobre la misma BD, como antes.
+  cobertura-paquetes:
+    name: Cobertura de packages/* (PostgreSQL 17)
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    env:
+      MIGRATIONS_DATABASE_URL: postgresql://postgres@localhost:5432/contapp
+      KEY_PROVIDER: mock
+      REDIS_URL: redis://localhost:6379
+    services:
+      postgres:
+        image: postgres:17
         env:
-          CORREO_PROVIDER: consola
-          APP_ORIGIN: http://localhost:3000
+          POSTGRES_DB: contapp
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
 
-      - name: Cobertura de 016 XML en backend y worker (umbral 90 % por archivo)
-        run: pnpm cobertura:xml
-        env:
-          CORREO_PROVIDER: consola
-          APP_ORIGIN: http://localhost:3000
+      - name: pnpm (versión de packageManager en package.json)
+        uses: pnpm/action-setup@v6
 
-      - name: Cobertura de 012b archivos en backend y worker (umbral 90 % por archivo)
-        run: pnpm cobertura:archivos
-        env:
-          CORREO_PROVIDER: consola
-          APP_ORIGIN: http://localhost:3000
+      - name: Node (versión de .nvmrc)
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
 
-      - name: Cobertura de 017 auditoría y notificaciones en backend y worker (umbral 90 % por archivo)
-        run: pnpm cobertura:auditoria
-        env:
-          CORREO_PROVIDER: consola
-          APP_ORIGIN: http://localhost:3000
+      - name: Generar DATABASE_URL del rol de app (contraseña por corrida)
+        run: |
+          PASS="$(openssl rand -hex 24)"
+          echo "::add-mask::${PASS}"
+          echo "DATABASE_URL=postgresql://contapp_app:${PASS}@localhost:5432/contapp" >> "$GITHUB_ENV"
 
-      - name: Cobertura de 021 reglas aprendidas en domain, db, backend y worker (umbral 90 % por archivo)
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Build de @contapp/shared y @contapp/db
+        run: pnpm --filter @contapp/shared build && pnpm --filter @contapp/db build
+
+      - name: Migraciones y seed (la BD de este job empieza vacía)
+        run: pnpm db:migrate && pnpm db:seed
+
+      - name: Cobertura de 021 reglas aprendidas en domain y db (umbral 90 % por archivo)
         run: pnpm cobertura:reglas
         env:
           CORREO_PROVIDER: consola
           APP_ORIGIN: http://localhost:3000
 
-      - name: Cobertura de 023 buzones en domain, sunat, db, backend y worker (umbral 90 % por archivo)
+      - name: Cobertura de 023 buzones en domain, sunat y db (umbral 90 % por archivo)
         run: pnpm cobertura:buzon
         env:
           CORREO_PROVIDER: consola
           APP_ORIGIN: http://localhost:3000
 
-      - name: Cobertura de 024 bandeja de buzones en db y backend (umbral 90 % por archivo)
+      - name: Cobertura de 024 bandeja de buzones en db (umbral 90 % por archivo)
         run: pnpm cobertura:bandeja
         env:
           CORREO_PROVIDER: consola
           APP_ORIGIN: http://localhost:3000
 
-      - name: Cobertura de 025 aprendizaje en domain, sunat, db, backend y worker (umbral 90 % por archivo)
+      - name: Cobertura de 025 aprendizaje en domain, sunat y db (umbral 90 % por archivo)
         run: pnpm cobertura:aprendizaje
         env:
           CORREO_PROVIDER: consola
           APP_ORIGIN: http://localhost:3000
 
-      - name: Cobertura de 026 prorrata en domain, sunat, db, backend y worker (umbral 90 % por archivo)
+      - name: Cobertura de 026 prorrata en domain, sunat y db (umbral 90 % por archivo)
         run: pnpm cobertura:prorrata
         env:
           CORREO_PROVIDER: consola
           APP_ORIGIN: http://localhost:3000
 
-      - name: Cobertura de 027 gastos no deducibles en domain, sunat, db, backend y worker (umbral 90 % por archivo)
+      - name: Cobertura de 027 gastos no deducibles en domain, sunat y db (umbral 90 % por archivo)
         run: pnpm cobertura:gastos
         env:
           CORREO_PROVIDER: consola
           APP_ORIGIN: http://localhost:3000
 
-      - name: Cobertura de 028 avisos por correo en correo, shared, domain, queue, db, backend y worker (umbral 90 % por archivo)
+      - name: Cobertura de 028 avisos por correo en correo, shared, domain, queue y db (umbral 90 % por archivo)
         run: pnpm cobertura:correo
         env:
           CORREO_PROVIDER: consola
@@ -189,6 +371,72 @@ jobs:
 
       - name: Cobertura de 003 cifrado (umbral 90 %)
         run: pnpm cobertura:crypto
+
+  # Pruebas de cierre de 008: en serie, al final de lo que corría antes y con la BD despejada de trabajos vivos.
+  # Su BD es propia (migrada y sembrada aquí), así que `ci:cierre` no encuentra trabajos de otras suites.
+  cierre:
+    name: Pruebas de cierre de 008 (PostgreSQL 17, redis-server)
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    env:
+      MIGRATIONS_DATABASE_URL: postgresql://postgres@localhost:5432/contapp
+      KEY_PROVIDER: mock
+      REDIS_URL: redis://localhost:6379
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: contapp
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: pnpm (versión de packageManager en package.json)
+        uses: pnpm/action-setup@v6
+
+      - name: Node (versión de .nvmrc)
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Generar DATABASE_URL del rol de app (contraseña por corrida)
+        run: |
+          PASS="$(openssl rand -hex 24)"
+          echo "::add-mask::${PASS}"
+          echo "DATABASE_URL=postgresql://contapp_app:${PASS}@localhost:5432/contapp" >> "$GITHUB_ENV"
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      # ci:cierre construye storage, correo, queue y worker; el worker compilado necesita además estos cinco.
+      - name: Build de @contapp/shared, db, crypto, domain y sunat
+        run: >-
+          pnpm --filter @contapp/shared build &&
+          pnpm --filter @contapp/db build &&
+          pnpm --filter @contapp/crypto build &&
+          pnpm --filter @contapp/domain build &&
+          pnpm --filter @contapp/sunat build
+
+      - name: Migraciones y seed (la BD de este job empieza vacía)
+        run: pnpm db:migrate && pnpm db:seed
 
       # Las pruebas de cierre lanzan su propio redis-server (puerto propio); ubuntu-latest no lo trae.
       # policy-rc.d evita que apt arranque el servicio del sistema (el 6379 ya lo usa el contenedor redis7).
@@ -201,7 +449,7 @@ jobs:
           sudo rm -f /usr/sbin/policy-rc.d
           redis-server --version
 
-      - name: Pruebas de cierre de 008 (paso aparte, al final y en serie, con la BD despejada)
+      - name: Pruebas de cierre de 008 (paso aparte, en serie, con la BD despejada)
         run: pnpm ci:cierre
 
   e2e:

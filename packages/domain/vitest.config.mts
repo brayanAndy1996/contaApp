@@ -5,6 +5,7 @@ import { defineConfig } from "vitest/config";
 // pesada supera los 5 s por defecto sin fallar ninguna aserción.
 export default defineConfig({
   test: {
+    reporters: ["dot"],
     include: ["src/**/*.spec.ts", "tests/**/*.spec.ts"],
     testTimeout: 30_000,
   },

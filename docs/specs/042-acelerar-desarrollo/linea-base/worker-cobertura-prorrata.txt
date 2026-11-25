@@ -1,0 +1,36 @@
+LÍNEA BASE 042 · T3 · worker-cobertura-prorrata
+Config:        apps/worker/vitest.cobertura-prorrata.config.mts
+Script raíz:   cobertura:prorrata (T23: log cob-prorrata.log)
+Comando lista: pnpm --filter @contapp/worker exec vitest list --filesOnly --config vitest.cobertura-prorrata.config.mts
+Lista: HEAD 68a9e68 · Tabla de cobertura: T23 de 028 medida en 60cf6b8
+
+[configuración de cobertura]
+coverage.provider: v8
+coverage.include (1):
+  apps/worker/src/trabajos/procesadores/obtener-declaraciones.ts
+coverage.exclude: **/*.spec.ts, **/*.adv.spec.ts, **/*.int.spec.ts, **/*.adv.int.spec.ts
+coverage.reporter: text, json-summary
+coverage.thresholds: perFile=true; lines=90; statements=90; functions=90; branches=90
+proyectos (vitest): worker-prorrata-unit, worker-prorrata-int
+
+[ejecución T23 · 60cf6b8]
+archivos de prueba ejecutados: 8 · pruebas: 68 passed (68) · inicio 04:40:25 · duración 34.03 s
+resumen: sentencias 97.77 % (44/45) · ramas 94.44 % (17/18) · funciones 100 % (6/6) · líneas 97.67 % (42/43)
+archivos medidos (include - exclude en HEAD): 1 · listados en la tabla (algún valor < 100): 1 · no listados (100 % o vacíos): 0
+comparación con la lista: sin diferencia de conteo con T23
+
+[archivos de prueba · HEAD 68a9e68 · 8 archivos]
+archivo	proyecto
+apps/worker/src/trabajos/procesadores/obtener-declaraciones-r1.adv.int.spec.ts	worker-prorrata-int
+apps/worker/src/trabajos/procesadores/obtener-declaraciones-r1.spec.ts	worker-prorrata-unit
+apps/worker/src/trabajos/procesadores/obtener-declaraciones-r2.adv.int.spec.ts	worker-prorrata-int
+apps/worker/src/trabajos/procesadores/obtener-declaraciones-r2.int.spec.ts	worker-prorrata-int
+apps/worker/src/trabajos/procesadores/obtener-declaraciones-t20.spec.ts	worker-prorrata-unit
+apps/worker/src/trabajos/procesadores/obtener-declaraciones.int.spec.ts	worker-prorrata-int
+apps/worker/src/trabajos/procesadores/obtener-declaraciones.ramas.spec.ts	worker-prorrata-unit
+apps/worker/src/trabajos/procesadores/obtener-declaraciones.volumen.int.spec.ts	worker-prorrata-int
+
+[cobertura por archivo · T23 · 60cf6b8]
+archivo	stmts	branch	funcs	lines
+apps/worker/src/trabajos/procesadores/obtener-declaraciones.ts	97.77	94.44	100	97.67
+All files	97.77	94.44	100	97.67

@@ -4,6 +4,7 @@ import { defineConfig } from "vitest/config";
 // `pnpm cobertura:db` con vitest.cobertura.config.mts.
 export default defineConfig({
   test: {
+    reporters: ["dot"],
     include: ["src/**/*.spec.ts"],
     exclude: ["**/node_modules/**", "**/*.int.spec.ts"],
   },
