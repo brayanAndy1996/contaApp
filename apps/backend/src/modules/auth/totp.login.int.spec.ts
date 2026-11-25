@@ -339,17 +339,17 @@ describe("CA-3 · fuerza bruta: cada código erróneo suma al contador de 004 D7
     expect(fila?.bloqueado_hasta).not.toBeNull();
   });
 
-  it("un código bueno reinicia el contador: 4 malos, uno bueno y otros 4 malos no bloquean", async () => {
+  it("un código bueno reinicia el contador: 3 malos, uno bueno y otros 3 malos no bloquean", async () => {
     const { u, cuenta } = await conTotp();
     const p = await loginPendiente(h, u);
-    for (let i = 0; i < 4; i++) await verificar(h, p, { codigo: codigoErroneo(cuenta.secreto, reloj.ahora()) });
+    for (let i = 0; i < 3; i++) await verificar(h, p, { codigo: codigoErroneo(cuenta.secreto, reloj.ahora()) });
     reloj.avanzar(1);
     expect((await verificar(h, p, { codigo: reloj.codigo(cuenta.secreto) })).status).toBe(200);
     const fila = await contadorFallos(h, claveCorreo(u.correo));
     expect(fila?.fallos ?? 0).toBe(0);
     reloj.avanzar(1);
     const q = await loginPendiente(h, u);
-    for (let i = 0; i < 4; i++) expect((await verificar(h, q, { codigo: codigoErroneo(cuenta.secreto, reloj.ahora()) })).status).toBe(401);
+    for (let i = 0; i < 3; i++) expect((await verificar(h, q, { codigo: codigoErroneo(cuenta.secreto, reloj.ahora()) })).status).toBe(401);
     reloj.avanzar(1);
     expect((await verificar(h, q, { codigo: reloj.codigo(cuenta.secreto) })).status).toBe(200); // no está bloqueada
   });

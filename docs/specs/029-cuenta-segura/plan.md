@@ -42,7 +42,7 @@ Exigencia: 403 `segundo_factor_requerido`. Lista cerrada sin factor exigido: `GE
 **Entorno**: `TOTP_CLAVE=<versión>:<base64 32 B>` (obligatoria en backend), `TOTP_CLAVE_ANTERIOR` opcional (solo descifra).
 
 ## Decisiones
-- Verificar = `totp_intento_reservar` (suma al contador de 004 D7 de forma atómica; al 5.º bloquea 15 min y revoca la `pendiente`) → descifrar y evaluar en el backend → `totp_verificar_exito` (`UPDATE … WHERE ultimo_paso < $paso`, D3; reinicia el contador). Así 20 concurrentes dan ≤ 5 evaluaciones (CA-3).
+- Verificar = `totp_intento_reservar` (suma al contador de 004 D7 de forma atómica; al 5.º bloquea 15 min y revoca la `pendiente`) → descifrar y evaluar en el backend → `totp_verificar_exito` (`UPDATE … WHERE ultimo_paso < $paso`, D3; reinicia el contador). Así 20 concurrentes dan ≤ 5 evaluaciones (CA-3). La 5.ª reserva bloquea y revoca antes de evaluar: no se evalúa, aunque el código sea bueno (decisión: más simple y sin ventana entre evaluar y revocar).
 - Código de recuperación: 60 bits base32, HMAC-SHA-256 con subclave HKDF de `TOTP_CLAVE` (D1); uso = `UPDATE … WHERE usado_en IS NULL` atómico.
 - Exigencia: `factorExigido` en `shared` (U1–U2), evaluada en `PermisoGuard` y en `@SoloPlataforma` con el rol y permisos que ya carga 005 y el `factor` de la validación de sesión (D2, sin consulta extra). `totp_desactivar` repite la regla en SQL sobre todas las membresías vigentes; una tabla de casos común prueba ambas.
 - Sesiones previas (U3): la migración deja `factor = 'sin_factor'`; activar TOTP revoca las demás sesiones (motivo `totp`).
