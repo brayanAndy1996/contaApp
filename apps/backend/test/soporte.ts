@@ -385,6 +385,9 @@ export async function abrirHarness(opciones: OpcionesHarness = {}): Promise<Harn
     cerrar: async () => {
       correo.liberar();
       for (const id of usuarios) {
+        // Spec 029 (T1): lo de la cuenta segura va antes que las sesiones y el usuario (FK a usuario).
+        for (const t of ["cuenta_evento", "totp_recuperacion", "totp"])
+          await sql(`delete from auth.${t} where usuario_id = $1`, [id]).catch(() => undefined);
         await sql("delete from auth.sesion where usuario_id = $1", [id]).catch(() => undefined);
         await sql("delete from notificacion where usuario_id = $1", [id]).catch(() => undefined); // 017 (T2)
         await sql("delete from auth.token_recuperacion where usuario_id = $1", [id]).catch(() => undefined);

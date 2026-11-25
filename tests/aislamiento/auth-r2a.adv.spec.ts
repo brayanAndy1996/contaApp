@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Pool, PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { FUNCIONES_AUTH, FUNCIONES_AUTH_SOLO_WORKER, abrirAdmin } from "./auth-soporte";
+import { FUNCIONES_AUTH, FUNCIONES_AUTH_SOLO_MIGRATOR, FUNCIONES_AUTH_SOLO_WORKER, abrirAdmin } from "./auth-soporte";
 
 let admin: Pool;
 beforeAll(() => {
@@ -44,6 +44,9 @@ async function foto(c: PoolClient) {
     // y se lo daria al backend sobre auth.purgar (008, solo-worker). Reaplicar una migracion vieja no es un escenario real:
     // la ACL de purgar queda fuera de esta comparacion y la fija trabajos.spec.ts.
     (a) => !FUNCIONES_AUTH_SOLO_WORKER.some((n) => String(a.firma).startsWith(`auth.${n}(`)),
+  ).filter(
+    // Ajuste de 029 (T1, U5): igual para auth.totp_restablecer (solo contapp_migrator): 0008 le daria EXECUTE al backend al reaplicarse.
+    (a) => !FUNCIONES_AUTH_SOLO_MIGRATOR.some((n) => String(a.firma).startsWith(`auth.${n}(`)),
   );
   const checks = (
     await c.query(`
@@ -110,7 +113,7 @@ describe("r2a · migración 0008_auth_ronda1", () => {
       expect(ajenos).toEqual([]);
       const backend = despues.acl.filter((a) => a.a_quien === "contapp_backend");
       expect(backend.map((a) => a.priv)).toEqual(
-        Array(FUNCIONES_AUTH.length - FUNCIONES_AUTH_SOLO_WORKER.length).fill("EXECUTE"),
+        Array(FUNCIONES_AUTH.length - FUNCIONES_AUTH_SOLO_WORKER.length - FUNCIONES_AUTH_SOLO_MIGRATOR.length).fill("EXECUTE"),
       );
       expect(backend.some((a) => a.reconcede)).toBe(false);
     } finally {

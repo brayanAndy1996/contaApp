@@ -193,6 +193,8 @@ export async function abrirBancoPlanes(cupo?: object, extra: Record<string, unkn
         await intentar("rollback");
       }
       for (const id of us) {
+        // Spec 029 (T1): lo de la cuenta segura va antes que las sesiones y el usuario (FK a usuario).
+        for (const t of ["cuenta_evento", "totp_recuperacion", "totp"]) await intentar(`delete from auth.${t} where usuario_id = $1`, [id]);
         await intentar("delete from auth.sesion where usuario_id = $1", [id]);
         await intentar("delete from auth.token_recuperacion where usuario_id = $1", [id]);
         await intentar("delete from auth.usuario_contrasena where usuario_id = $1", [id]);

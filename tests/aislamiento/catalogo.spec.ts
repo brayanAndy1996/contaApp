@@ -372,3 +372,30 @@ describe("CA-3 catalogo de RLS", () => {
     expect(ajenas).toEqual([]);
   });
 });
+
+// Spec 029 (T1, CA-7, rojo hasta 0078): las tres tablas nuevas del esquema `auth` son de la cuenta, no del estudio: sin `tenant_id`, con RLS
+// forzada, una sola politica `auth_definer` para contapp_auth (ninguna `tenant_isolation` ni politica para un rol de la app) y dueño
+// contapp_migrator. El detalle de grants y columnas esta en auth-totp-tablas.spec.ts.
+describe("029 · tablas de la cuenta segura en el esquema auth", () => {
+  const TABLAS_029 = ["totp", "totp_recuperacion", "cuenta_evento"];
+
+  it("existen, no tienen tenant_id, tienen RLS ENABLE+FORCE y dueño contapp_migrator", async () => {
+    const r = await pool.query(
+      `select c.relname, c.relrowsecurity as rls, c.relforcerowsecurity as forzada, o.rolname as dueno,
+              exists (select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'tenant_id' and not a.attisdropped) as con_tenant
+         from pg_class c join pg_roles o on o.oid = c.relowner
+        where c.relnamespace = to_regnamespace('auth') and c.relname = any($1::text[]) order by c.relname`,
+      [TABLAS_029],
+    );
+    expect(r.rows.map((x) => x.relname)).toEqual([...TABLAS_029].sort());
+    for (const t of r.rows) expect(t, t.relname).toMatchObject({ rls: true, forzada: true, dueno: "contapp_migrator", con_tenant: false });
+  });
+
+  it("solo tienen la politica auth_definer FOR ALL de contapp_auth: ninguna para los roles de la app", async () => {
+    const r = await pool.query(
+      `select tablename, policyname, cmd, roles::text[] as roles from pg_policies where schemaname = 'auth' and tablename = any($1::text[]) order by 1, 2`,
+      [TABLAS_029],
+    );
+    expect(r.rows).toEqual([...TABLAS_029].sort().map((tablename) => ({ tablename, policyname: "auth_definer", cmd: "ALL", roles: ["contapp_auth"] })));
+  });
+});
