@@ -54,12 +54,10 @@ Una línea por spec; el detalle de las cerradas está en `NNN-*/cierre.md` y los
 
 ## Hallazgos adversariales abiertos
 
-Los cerrados están en [HALLAZGOS.md](HALLAZGOS.md).
+Ninguno. Los cerrados están en [HALLAZGOS.md](HALLAZGOS.md).
 
 | Spec | Prueba | Hallazgo | Estado |
 |---|---|---|---|
-| 003-cifrado | apps/worker/src/ronda2a.adv.int.spec.ts:94 | R2a-3 (baja): sin `kekAnterior`, el CAS de `reemplazarDekEnvuelta` no compara `kek_id` y pisa una re-etiquetación del backend (causa `packages/db/src/credenciales/repositorio.ts:83` y `:191`); la rotación siempre lo pasa, pero `tests/aislamiento/credencial.spec.ts` no | descartado (falso positivo; el adversario reescribió las pruebas en 9f2e0cf y pasan con el código existente) |
-| 003-cifrado | apps/worker/src/ronda2a.adv.int.spec.ts:116 | R2a-4 (baja): con un logger de rechazo asíncrono tras el COMMIT, el `Secreto` se entrega y el rechazo queda sin manejar; el síncrono sí se destruye y relanza (causa `apps/worker/src/credenciales/descifrar-credencial.ts:151-157`) | descartado (falso positivo; el adversario reescribió las pruebas en 9f2e0cf y pasan con el código existente) |
 
 ## Decisiones pendientes del usuario
 

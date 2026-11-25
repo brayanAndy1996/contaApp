@@ -10,7 +10,7 @@ Spec `003-cifrado` · nivel A · estado `hecha`. Texto de su fila de `ESTADO.md`
 
 ## Hallazgos adversariales
 
-Hallazgos de las rondas adversariales: 12 cerrados, en [`../HALLAZGOS.md`](../HALLAZGOS.md) (filas de `003-cifrado`); 2 siguen abiertos en [`../ESTADO.md`](../ESTADO.md).
+Hallazgos de las rondas adversariales: 14 cerrados, en [`../HALLAZGOS.md`](../HALLAZGOS.md) (filas de `003-cifrado`).
 
 ## Notas para specs futuras
 
