@@ -3,7 +3,9 @@
 // la BD, así que con N workers:
 //  (1) `sistema.correo_ciclo_tomar(dueno)`: uno gana y los demás reciben vacío y terminan sin efectos. Trae `resumenDia` (el día de
 //      Lima si ya pasó la hora del resumen, es día hábil y el ciclo de ese día no se cerró) o null.
-//  (2) `sistema.estudios_correo()`: estudios con suscripción activa o prueba vigente y si su plan permite avisos y resumen.
+//  (2) `sistema.estudios_correo()`: estudios con suscripción activa o prueba vigente y si su plan permite avisos y resumen. De paso
+//      cierra `omitido` `sin_plan` los envíos de aviso vencidos y sin trabajo vivo de los estudios sin plan para avisos (0077, D-1
+//      de T22, U-19): no salen todos juntos cuando vuelva el plan.
 //  (3) Por estudio, en su propio `withTenant`: `encolar_correo_avisos` (envíos vencidos → `notificacion.enviar`, solo si el plan admite
 //      avisos) y, si hay `resumenDia` y el plan admite resumen, `crear_correo_resumenes`. Tras el commit, la pista de cada trabajo nuevo
 //      (si se pierde, el reconciliador repone).

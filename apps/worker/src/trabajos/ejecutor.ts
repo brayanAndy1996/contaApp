@@ -307,7 +307,11 @@ export class Ejecutor {
       registrar(logger, "warn", {
         evento: "trabajo_reintento",
         ...campos,
-        codigo: "sunat_no_responde",
+        // Un trabajo de la cola de correo reintenta por su transporte, no por SUNAT (T22a, O-1 de 028).
+        codigo:
+          fila.cola === "notificaciones"
+            ? "correo_no_enviado"
+            : "sunat_no_responde",
         intentos: f.intentos,
       });
     else
