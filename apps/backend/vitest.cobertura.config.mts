@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
@@ -17,6 +18,8 @@ for (const archivo of [ruta("../../.env"), ruta("./.env")]) {
     process.loadEnvFile(archivo);
   }
 }
+// 029 (D1): `TOTP_CLAVE` es obligatoria para arrancar; sin una en el entorno, las pruebas usan una efímera.
+process.env.TOTP_CLAVE ??= `1:${randomBytes(32).toString("base64")}`;
 
 // Los paquetes se importan desde la fuente para que cuenten en cobertura.
 const alias = [

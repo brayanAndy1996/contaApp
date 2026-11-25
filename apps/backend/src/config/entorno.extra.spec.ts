@@ -3,13 +3,16 @@ import { EntornoInvalidoError, leerEntorno } from "./entorno.js";
 
 // Ramas de leerEntorno que entorno.spec.ts no ejercita: APP_ORIGIN, TRUST_PROXY y los datos
 // obligatorios de smtp. Los mensajes nombran la variable, nunca su valor.
-const BASE = { APP_ORIGIN: "http://localhost:3000" };
+// Spec 029: `TOTP_CLAVE` es obligatoria (la validación fina está en entorno.totp.spec.ts).
+const TOTP_CLAVE = `1:${Buffer.alloc(32, 7).toString("base64")}`;
+const BASE = { APP_ORIGIN: "http://localhost:3000", TOTP_CLAVE };
 
 describe("APP_ORIGIN", () => {
   it("ausente: por defecto fuera de producción, error en producción", () => {
-    expect(leerEntorno({}).appOrigin).toBe("http://localhost:3000");
+    expect(leerEntorno({ TOTP_CLAVE }).appOrigin).toBe("http://localhost:3000");
     expect(() =>
       leerEntorno({
+        TOTP_CLAVE,
         NODE_ENV: "production",
         CORREO_PROVIDER: "smtp",
         SMTP_URL: "smtp://h:587",
@@ -24,14 +27,14 @@ describe("APP_ORIGIN", () => {
     ["http://localhost:3000/ruta"],
     ["ftp://x.pe"],
   ])("un origen inválido (%j) impide arrancar", (valor) => {
-    expect(() => leerEntorno({ APP_ORIGIN: valor })).toThrow(
+    expect(() => leerEntorno({ APP_ORIGIN: valor, TOTP_CLAVE })).toThrow(
       EntornoInvalidoError,
     );
   });
 
   it("acepta https con puerto", () => {
     expect(
-      leerEntorno({ APP_ORIGIN: "https://app.estudio.pe:8443" }).appOrigin,
+      leerEntorno({ APP_ORIGIN: "https://app.estudio.pe:8443", TOTP_CLAVE }).appOrigin,
     ).toBe("https://app.estudio.pe:8443");
   });
 });

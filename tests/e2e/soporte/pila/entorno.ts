@@ -143,6 +143,8 @@ export function entornoDeLaPila(
     ARGON2_MEMORIA_KIB: "19456",
     ARGON2_ITERACIONES: "2",
     ARGON2_PARALELISMO: "1",
+    // 029 (D1): clave de prueba del cifrado del secreto TOTP (no es un secreto: solo la pila E2E efímera).
+    TOTP_CLAVE: `1:${Buffer.alloc(32, 0x5a).toString("base64")}`,
   });
   if (config.modoCorreo === "mailpit") {
     Object.assign(env, {

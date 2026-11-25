@@ -13,6 +13,8 @@ const ENV = {
   DATABASE_URL: "postgres://usuario@127.0.0.1:1/inexistente",
   CORREO_PROVIDER: "consola",
   TRUST_PROXY: "2",
+  // Spec 029: `TOTP_CLAVE` es obligatoria para arrancar.
+  TOTP_CLAVE: `1:${Buffer.alloc(32, 7).toString("base64")}`,
 };
 
 let app: INestApplication | undefined;

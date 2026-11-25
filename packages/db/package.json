@@ -17,6 +17,7 @@
     "db:plataforma-alta": "node --env-file-if-exists=../../.env dist/cli/plataforma-alta.js"
   },
   "dependencies": {
+    "@contapp/correo": "workspace:*",
     "@contapp/shared": "workspace:*",
     "@node-rs/argon2": "2.0.2",
     "drizzle-orm": "0.45.4",

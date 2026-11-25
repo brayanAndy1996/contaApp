@@ -11,7 +11,9 @@ import { leerEntorno } from "./entorno.js";
 // Defaults: ARGON2_* = 19456 / 2 / 1, TRUST_PROXY = "loopback", CORREO_PROVIDER = "consola".
 // CORREO_PROVIDER se normaliza con trim + minúsculas; NODE_ENV denota producción sin distinguir
 // mayúsculas ni espacios (mismo criterio que `esProduccion` de la spec 003).
-const BASE = { APP_ORIGIN: "http://localhost:3000" };
+// Spec 029: `TOTP_CLAVE` es obligatoria (la validación fina está en entorno.totp.spec.ts).
+const TOTP_CLAVE = `1:${Buffer.alloc(32, 7).toString("base64")}`;
+const BASE = { APP_ORIGIN: "http://localhost:3000", TOTP_CLAVE };
 const con = (extra: Record<string, string | undefined>) => ({ ...BASE, ...extra });
 
 describe("valores por defecto", () => {
