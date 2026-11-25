@@ -239,12 +239,17 @@ export class Despachador {
             await descartar(fila, "error", "error_interno");
             continue;
           }
-          const acceso = await revalidarEncolado(tx, {
-            id: fila.id,
-            clienteId: fila.clienteId,
-            creadoPor: fila.creadoPor,
-            rolesPermitidos: rolesPermitidos(def.permiso),
-          });
+          // 028: `notificacion.enviar` no tiene cliente ni creador (la encola la BD): no hay acceso que revalidar aquí (el
+          // procesador revalida membresía, preferencia y plan al enviar, R-3).
+          const acceso =
+            (fila.clienteId as string | null) === null
+              ? "ok"
+              : await revalidarEncolado(tx, {
+                  id: fila.id,
+                  clienteId: fila.clienteId,
+                  creadoPor: fila.creadoPor,
+                  rolesPermitidos: rolesPermitidos(def.permiso),
+                });
           if (acceso !== "ok") {
             await descartar(fila, "cancelado", "acceso_retirado");
             continue;

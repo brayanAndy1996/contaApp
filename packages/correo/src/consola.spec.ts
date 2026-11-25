@@ -1,11 +1,10 @@
-import { Logger } from "@nestjs/common";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CorreoConsola } from "./consola.js";
 
 // D11 / CA-10 (spec 004). Contrato (plan: Decisiones: Correo):
 //   class CorreoConsola implements Correo   // new CorreoConsola()
 //   enviar({ para, asunto, texto }) imprime el mensaje completo con process.stdout.write,
-//   FUERA del logger (ni Logger de Nest ni console.*): es la única excepción de CA-10, que
+//   FUERA del logger (ni console.*; en 028 el paquete no depende de Nest, así que se quita el espía de Logger): es la única excepción de CA-10, que
 //   permite imprimir el enlace de recuperación en desarrollo.
 afterEach(() => {
   vi.restoreAllMocks();
@@ -27,17 +26,9 @@ describe("CorreoConsola", () => {
     expect(salida).toContain("http://localhost:3000/recuperar/nueva#t=TOKEN-DE-PRUEBA-123");
   });
 
-  it("no usa el logger de Nest ni console.*", async () => {
+  it("no usa console.* (el paquete no conoce el logger de Nest)", async () => {
     vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     const espias = [
-      vi.spyOn(Logger.prototype, "log"),
-      vi.spyOn(Logger.prototype, "warn"),
-      vi.spyOn(Logger.prototype, "error"),
-      vi.spyOn(Logger.prototype, "debug"),
-      vi.spyOn(Logger.prototype, "verbose"),
-      vi.spyOn(Logger, "log"),
-      vi.spyOn(Logger, "warn"),
-      vi.spyOn(Logger, "error"),
       vi.spyOn(console, "log"),
       vi.spyOn(console, "info"),
       vi.spyOn(console, "warn"),

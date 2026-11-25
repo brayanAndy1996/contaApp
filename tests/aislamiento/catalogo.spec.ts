@@ -19,6 +19,12 @@ const POLITICAS_PERMITIDAS = [
 // no da acceso a la app. Su detalle (cmd, grants, triggers) lo prueban auditoria-tablas.spec.ts y notificaciones-tablas.spec.ts.
 const TABLAS_017 = ["auditoria", "notificacion", "plan_aviso"];
 
+// Spec 028 (T3, R-11, rojo hasta 0073): las cuatro tablas de correo con tenant_id tienen RLS forzada con politicas propias (como las de 017), no
+// necesariamente la `tenant_isolation` FOR ALL: nadie de la app las escribe directo (funciones acotadas) y el backend lee las preferencias y los
+// envios solo por `usuario_id = app.user_id`. El detalle (grants, escritura directa 42501, filas visibles por rol) lo prueba correo-tablas.spec.ts;
+// aqui se exige que toda politica ate a app.tenant_id y que los tokens no tengan politica para la app. `correo_programacion` no tiene tenant_id.
+const TABLAS_028 = ["correo_preferencia", "correo_envio", "correo_envio_aviso", "correo_baja_token"];
+
 let pool: Pool;
 beforeAll(() => {
   pool = abrirPool();
@@ -75,7 +81,7 @@ describe("CA-3 catalogo de RLS", () => {
     const pols = await politicas();
     const sin: string[] = [];
     for (const t of tablas) {
-      if (TABLAS_017.includes(t.tabla)) continue; // politicas propias de 017 (ver arriba)
+      if (TABLAS_017.includes(t.tabla) || TABLAS_028.includes(t.tabla)) continue; // politicas propias de 017 y de 028 (ver arriba)
       const p = pols.find((x) => x.tablename === t.tabla && x.policyname === "tenant_isolation");
       // Ajuste de 006 (T1, plan "BD"): `suscripcion` es la unica con tenant_isolation FOR SELECT (sin WITH CHECK): el
       // estudio la lee pero ninguna escritura pasa por RLS aunque alguien le concediera UPDATE al backend (CA-1).
@@ -99,7 +105,10 @@ describe("CA-3 catalogo de RLS", () => {
       (p) =>
         !POLITICAS_PERMITIDAS.includes(p.policyname) &&
         !(p.tablename === "job_registro" && p.cmd === "DELETE") &&
-        !TABLAS_017.includes(p.tablename),
+        // Ajuste de 028 (T17, 0075, H-028-1-3): RESTRICTIVE de INSERT para contapp_backend sin `notificacion.enviar` (detalle en trabajos.spec.ts).
+        !(p.tablename === "job_registro" && p.cmd === "INSERT" && p.policyname === "job_registro_sin_correo_backend") &&
+        !TABLAS_017.includes(p.tablename) &&
+        !TABLAS_028.includes(p.tablename),
     );
     expect(raras.map((p) => `${p.tablename}.${p.policyname}`)).toEqual([]);
     for (const p of pols.filter((x) => x.policyname === "membresia_por_usuario")) {
@@ -118,7 +127,9 @@ describe("CA-3 catalogo de RLS", () => {
   it("politicas de contapp_auth (004 + 005): auth_definer SELECT en usuario, membresia e invitacion (y, opcional, tenant), USING (true), solo para contapp_auth", async () => {
     const pols = (await politicas()).filter((p) => p.policyname === "auth_definer");
     // Ajuste de 006 (T1): `suscripcion` tambien lleva auth_definer SELECT (contapp_auth la lee en las funciones de cupo).
-    expect(pols.map((p) => p.tablename).filter((t) => t !== "tenant" && t !== "suscripcion").sort()).toEqual([
+    // Ajuste de 028 (T3): `auth.correo_baja_aplicar` (dueño contapp_auth) lee `correo_baja_token`; si T10 lo resuelve con una politica `auth_definer`
+    // SELECT para contapp_auth, es SOLO esta y solo para ese rol (la prueba de TABLAS_028 de abajo exige que no sea de escritura).
+    expect(pols.map((p) => p.tablename).filter((t) => t !== "tenant" && t !== "suscripcion" && t !== "correo_baja_token").sort()).toEqual([
       "invitacion",
       "membresia",
       "usuario",
@@ -288,6 +299,44 @@ describe("CA-3 catalogo de RLS", () => {
     expect(con).not.toContain("gnd_global_historial");
     const pols = (await politicas()).filter((p) => p.tablename === "gnd_palabra_global" || p.tablename === "gnd_global_historial");
     expect(pols.map((p) => `${p.tablename}.${p.policyname}`)).toEqual([]);
+  });
+
+  // Spec 028 (T3, R-11, rojo hasta la migracion 0073): las cuatro tablas del estudio de correo entran al catalogo con tenant_id uuid NOT NULL y
+  // RLS ENABLE + FORCE; correo_programacion es de plataforma (sin tenant_id, RLS ENABLE sin politicas) y existe.
+  it.each(TABLAS_028)("%s (028) esta en el catalogo de tablas con tenant_id, con RLS ENABLE y FORCE", async (tabla) => {
+    const fila = (await tablasConTenantId()).find((x) => x.tabla === tabla);
+    expect(fila, `${tabla} en el catalogo`).toBeDefined();
+    expect({ rls: fila!.rls, forzada: fila!.forzada, no_nula: fila!.no_nula, tipo: fila!.tipo }, tabla).toEqual({
+      rls: true,
+      forzada: true,
+      no_nula: true,
+      tipo: "uuid",
+    });
+  });
+
+  it("las politicas de las tablas de correo (028) siempre atan a app.tenant_id; el backend lee solo las preferencias propias (app.user_id) y la app no tiene politica sobre los tokens", async () => {
+    const pols = (await politicas()).filter((p) => TABLAS_028.includes(p.tablename));
+    const de = (t: string) => pols.filter((p) => p.tablename === t);
+    for (const t of ["correo_preferencia", "correo_envio", "correo_envio_aviso"]) {
+      expect(de(t).length, `${t}: falta su politica (migracion 0073)`).toBeGreaterThan(0);
+      for (const p of de(t)) expect(p.qual, `${t}.${p.policyname}`).toContain("app.tenant_id");
+    }
+    expect(de("correo_preferencia").some((p) => p.qual?.includes("app.user_id")), "el backend lee solo las suyas (app.user_id)").toBe(true);
+    expect(de("correo_envio").some((p) => p.qual?.includes("app.user_id")), "el backend lee solo sus envios (app.user_id)").toBe(true);
+    // los tokens no los lee la app aunque alguien le concediera SELECT: ninguna politica para backend, worker, contapp_app, plataforma ni PUBLIC
+    for (const p of de("correo_baja_token")) {
+      expect(p.roles.every((r) => ["contapp_auth", "contapp_migrator", "contapp_registrador"].includes(r)), `correo_baja_token.${p.policyname} para ${p.roles.join()}`).toBe(true);
+    }
+  });
+
+  it("correo_programacion (028) existe, es de plataforma: sin tenant_id, RLS ENABLE y sin politicas", async () => {
+    const r = await pool.query(
+      `select c.relrowsecurity as rls from pg_class c join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
+        where c.relname = 'correo_programacion' and c.relkind in ('r', 'p')`,
+    );
+    expect(r.rows, "falta correo_programacion (migracion 0073)").toEqual([{ rls: true }]);
+    expect((await tablasConTenantId()).map((t) => t.tabla)).not.toContain("correo_programacion");
+    expect((await politicas()).filter((p) => p.tablename === "correo_programacion")).toEqual([]);
   });
 
   it("tenant_id es uuid NOT NULL en toda tabla de negocio", async () => {

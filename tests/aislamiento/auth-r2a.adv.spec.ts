@@ -70,8 +70,9 @@ describe("r2a · migración 0008_auth_ronda1", () => {
       // quitan dentro de esta transaccion (conexion de migraciones, sin RLS): el ROLLBACK final las restaura, asi que
       // la prueba no altera los datos y sigue verificando lo mismo (repetibilidad y ACL de 0008).
       // Ajuste de 006 (T13a): 0025 agrega `registro_confirmar_ip` (D15) al mismo CHECK; sus filas tambien se quitan.
+      // Ajuste de 028 (T17): 0073 y 0075 agregan `correo_baja_ip` y `correo_baja_token` (baja por enlace); sus filas tambien se quitan.
       await c.query(
-        "DELETE FROM auth.limite_tasa WHERE tipo IN ('registro_ip', 'registro_correo', 'registro_confirmar_ip')",
+        "DELETE FROM auth.limite_tasa WHERE tipo IN ('registro_ip', 'registro_correo', 'registro_confirmar_ip', 'correo_baja_ip', 'correo_baja_token')",
       );
       const antes = await foto(c);
       for (let vuelta = 1; vuelta <= 2; vuelta++) {

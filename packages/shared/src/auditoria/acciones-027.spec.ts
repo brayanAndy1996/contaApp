@@ -26,8 +26,8 @@ describe("acciones de auditoría de 027", () => {
   it("suma exactamente las ocho acciones con prefijo gnd.", () => {
     expect(ACCIONES_AUDITORIA.filter((a) => a.startsWith("gnd.")).sort()).toEqual([...NUEVAS].sort());
   });
-  it("el catálogo queda en 60 sin repetidos y todas con forma entidad.hecho", () => {
-    expect(ACCIONES_AUDITORIA).toHaveLength(60);
+  it("el catálogo queda en 61 (con la de 028) sin repetidos y todas con forma entidad.hecho", () => {
+    expect(ACCIONES_AUDITORIA).toHaveLength(61);
     expect(new Set(ACCIONES_AUDITORIA).size).toBe(ACCIONES_AUDITORIA.length);
     for (const a of ACCIONES_AUDITORIA) expect(a).toMatch(/^[a-z]+\.[a-z_]+$/);
   });

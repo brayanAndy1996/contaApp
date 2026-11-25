@@ -17,6 +17,7 @@ import {
 } from "./soporte";
 import type { Pool } from "pg";
 import { FUNCIONES_AUTH, FUNCIONES_SISTEMA } from "./auth-soporte";
+import { FUNCIONES_CORREO } from "./correo-soporte";
 import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -155,6 +156,10 @@ const FUNCIONES_017: { firma: string; dueno: string }[] = [
   // Spec 027 (T3, rojo hasta la migracion 0070; T20 suma la de 0072): las funciones acotadas de gastos no deducibles de `public` (del backend y la
   // del CIIU del worker). Se verifican abajo, una por una. Las cuatro `auth.gnd_global_*` de plataforma suman a FUNCIONES_AUTH.
   ...FUNCIONES_027.map((f) => ({ firma: f.firma, dueno: MIGRATOR })),
+  // Spec 028 (T3, rojo hasta la migracion 0074): las funciones nuevas de correo (cuatro del backend o internas, seis del worker y tres de
+  // `sistema.*` mas la enumeracion de estudios; ver FUNCIONES_CORREO en correo-soporte.ts). `interno.notificar` ya esta arriba (misma firma y dueño
+  // contapp_registrador; 0074 la reemplaza con CREATE OR REPLACE) y `auth.correo_baja_aplicar` entra por FUNCIONES_AUTH (dueño contapp_auth).
+  ...FUNCIONES_CORREO.map((f) => ({ firma: f.firma, dueno: MIGRATOR })),
 ];
 const nombre017 = (f: string) => (f.includes(".") && f.indexOf(".") < f.indexOf("(") ? f : `public.${f}`).replace(/\(.*$/, "");
 
@@ -559,5 +564,66 @@ describe("ADV escalada desde DATABASE_URL", () => {
         ejecutan: ["contapp_backend"],
       })),
     );
+  });
+
+  // Spec 028 (T3, R-2, R-7, CA-8, rojo hasta 0074): cada funcion de correo la ejecuta solo el rol del plan (ni PUBLIC ni otro rol de la app,
+  // el dueño aparte), es SECURITY DEFINER de contapp_migrator y fija su search_path; `interno.notificar` es la version NUEVA (su cuerpo registra
+  // los avisos de correo en la misma transaccion) con el dueño y los grants de 0043; la baja sin sesion es de contapp_auth y solo la ejecuta el backend.
+  it("las funciones de correo (028): dueno, search_path fijo, sin EXECUTE para PUBLIC y solo el rol del plan; interno.notificar ampliada; la baja, de contapp_auth", async () => {
+    const consulta = (firmas: string[]) =>
+      filasRaw(
+        pool,
+        null,
+        `select f.firma, pg_get_userbyid(p.proowner) as dueno, p.prosecdef, p.proconfig as config,
+                has_function_privilege('public', p.oid, 'EXECUTE') as publico,
+                coalesce((select array_agg(x.rolname::text order by x.rolname) from pg_roles x
+                           where x.oid <> p.proowner and x.rolname like 'contapp\\_%' and has_function_privilege(x.oid, p.oid, 'EXECUTE')), '{}'::text[]) as ejecutan
+           from unnest(array[${firmas.map((f) => `'${f}'`).join(", ")}]::text[]) as f(firma)
+           left join pg_proc p on p.oid::regprocedure::text = f.firma
+          order by f.firma`,
+      );
+    const r = await consulta(FUNCIONES_CORREO.map((f) => f.firma));
+    expect(r).toEqual(
+      [...FUNCIONES_CORREO]
+        .sort((a, b) => (a.firma < b.firma ? -1 : 1))
+        .map((f) => ({
+          firma: f.firma,
+          dueno: "contapp_migrator",
+          prosecdef: true,
+          config: ["search_path=pg_catalog, pg_temp"],
+          publico: false,
+          // la preferencia efectiva es interna: solo la llama `interno.notificar` (dueño contapp_registrador)
+          ejecutan: f.firma.startsWith("correo_preferencia_efectiva(") ? ["contapp_registrador"] : f.ejecuta,
+        })),
+    );
+    expect(await consulta(["interno.notificar(uuid,uuid[],text,uuid,uuid,jsonb,text)"])).toEqual([
+      {
+        firma: "interno.notificar(uuid,uuid[],text,uuid,uuid,jsonb,text)",
+        dueno: "contapp_registrador",
+        prosecdef: true,
+        config: ["search_path=pg_catalog, pg_temp"],
+        publico: false,
+        ejecutan: ["contapp_migrator"],
+      },
+    ]);
+    // Se busca por catalogo (nspname/proname): el cast `'interno.notificar(...)'::regprocedure` corre con el rol de la app, que no tiene USAGE en `interno` (42501).
+    const cuerpo = await filasRaw(
+      pool,
+      null,
+      `select p.prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'interno' and p.proname = 'notificar' and p.pronargs = 7`,
+    );
+    expect(cuerpo, "interno.notificar existe, una sola firma").toHaveLength(1);
+    expect(String(cuerpo[0]?.prosrc), "la version vieja de 0043 no registra avisos de correo").toContain("correo_envio_aviso");
+    expect(await consulta(["auth.correo_baja_aplicar(bytea)"])).toEqual([
+      {
+        firma: "auth.correo_baja_aplicar(bytea)",
+        dueno: "contapp_auth",
+        prosecdef: true,
+        config: ["search_path=pg_catalog, pg_temp"],
+        publico: false,
+        ejecutan: ["contapp_backend"],
+      },
+    ]);
   });
 });

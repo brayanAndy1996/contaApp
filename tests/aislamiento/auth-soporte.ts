@@ -76,7 +76,18 @@ export const FUNCIONES_AUTH_GND = [
   "gnd_global_listar",
 ] as const;
 
-export const FUNCIONES_AUTH = [...FUNCIONES_AUTH_VIGENTES, ...FUNCIONES_AUTH_PLANES, ...FUNCIONES_AUTH_GND] as const;
+/**
+ * Spec 028 (T3, plan Contratos: BD; migracion 0074): la baja de correo sin sesion (esquema `auth`, dueño contapp_auth, EXECUTE solo
+ * contapp_backend, como `auth.recuperacion_consumir`). Se suma a FUNCIONES_AUTH: hasta 0074 `auth.spec.ts` y `auth-r2a.adv.spec.ts` fallan por ella.
+ */
+export const FUNCIONES_AUTH_CORREO = ["correo_baja_aplicar"] as const;
+
+export const FUNCIONES_AUTH = [
+  ...FUNCIONES_AUTH_VIGENTES,
+  ...FUNCIONES_AUTH_PLANES,
+  ...FUNCIONES_AUTH_GND,
+  ...FUNCIONES_AUTH_CORREO,
+] as const;
 
 /** Spec 008: funciones de `auth` que ejecuta contapp_worker (y no contapp_backend). */
 export const FUNCIONES_AUTH_SOLO_WORKER = ["purgar"] as const;

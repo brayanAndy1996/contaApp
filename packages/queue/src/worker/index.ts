@@ -176,6 +176,8 @@ export const payloadSistemaSchema = z.discriminatedUnion("tipo", [
   z.object({ tipo: z.literal("auth.purgar") }).strict(),
   // Spec 023 (D-5): tick del programador del buzón; solo pide el ciclo, el intervalo real lo decide la BD.
   z.object({ tipo: z.literal("buzon.programar") }).strict(),
+  // Spec 028 (R-5): tick del ciclo de correo; solo pide el ciclo, la hora del resumen la decide la BD.
+  z.object({ tipo: z.literal("correo.programar") }).strict(),
 ]);
 export type PayloadSistema = z.infer<typeof payloadSistemaSchema>;
 
@@ -184,6 +186,8 @@ export const PURGA_PATRON = "30 3 * * *";
 export const PURGA_TZ = "America/Lima";
 /** Tick del programador del buzón: cada minuto (spec 023, D-5). */
 export const BUZON_TICK_MS = 60_000;
+/** Tick del ciclo de correo: cada minuto (spec 028, R-5). */
+export const CORREO_TICK_MS = 60_000;
 const OPCIONES_JOB_SISTEMA = {
   attempts: 1,
   removeOnComplete: true,
@@ -197,6 +201,8 @@ export interface ColaSistema {
   programarPurga(): Promise<void>;
   /** Registra (idempotente, id fijo) `buzon.programar` como repetible cada 60 s: N workers dejan UN repetible. */
   programarBuzon(): Promise<void>;
+  /** Registra (idempotente, id fijo) `correo.programar` como repetible cada 60 s: N workers dejan UN repetible. */
+  programarCorreo(): Promise<void>;
   cerrar(): Promise<void>;
 }
 
@@ -230,6 +236,17 @@ export function crearColaSistema(o: OpcionesColas): ColaSistema {
         {
           name: "buzon.programar",
           data: { tipo: "buzon.programar" },
+          opts: OPCIONES_JOB_SISTEMA,
+        },
+      );
+    },
+    programarCorreo: async () => {
+      await cola().upsertJobScheduler(
+        "correo.programar",
+        { every: CORREO_TICK_MS },
+        {
+          name: "correo.programar",
+          data: { tipo: "correo.programar" },
           opts: OPCIONES_JOB_SISTEMA,
         },
       );

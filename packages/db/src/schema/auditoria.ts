@@ -5,7 +5,7 @@ import { tenant } from "./plataforma";
 
 /**
  * Catálogo cerrado de acciones (D-3), las 4 de la ronda adversarial R1 (0045: H-017-1 y H-017-2), `credencial.descifrada` (solo la
- * vista, D-6), `sunat.envio` (reservada, R2) las 8 de la spec 021 (0049) las 5 del buzón de la spec 023 (0054) y las 2 de la atención de la spec 024 (0059), las 2 de la 025 (0061) y las 4 de la prorrata de la 026 (0065) y las 8 de gastos no deducibles de la 027 (0069).
+ * vista, D-6), `sunat.envio` (reservada, R2) las 8 de la spec 021 (0049) las 5 del buzón de la spec 023 (0054) y las 2 de la atención de la spec 024 (0059), las 2 de la 025 (0061) y las 4 de la prorrata de la 026 (0065) y las 8 de gastos no deducibles de la 027 (0069) y la de preferencias de correo de la 028 (0073).
  */
 export const ACCIONES_AUDITORIA_BD = [
   "sesion.ingreso",
@@ -75,6 +75,8 @@ export const ACCIONES_AUDITORIA_BD = [
   "gnd.global_reactivada",
   "gnd.umbral_cambiado",
   "gnd.categorias_cliente",
+  // Spec 028 (0073): preferencias de correo, por `correo_preferencias_fijar` (origen app) y `auth.correo_baja_aplicar` (origen enlace).
+  "correo.preferencia_cambiada",
 ] as const;
 
 const lista = (valores: readonly string[]) => sql.raw(valores.map((v) => `'${v}'`).join(", "));

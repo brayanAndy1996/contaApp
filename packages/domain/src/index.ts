@@ -31,3 +31,4 @@ export * from "./archivos/index";
 export * from "./buzon/index";
 export * from "./prorrata/index";
 export * from "./gastos/index";
+export * from "./correo/index";

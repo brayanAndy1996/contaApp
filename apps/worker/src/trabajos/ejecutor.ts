@@ -57,6 +57,7 @@ import type { CacheTokenSire } from "./token-sire/cache-token.js";
 export interface TrabajoEnCurso {
   id: string;
   tenantId: string;
+  /** En tiempo de ejecución es `null` solo en `notificacion.enviar` (028: sin cliente); ese procesador no lo lee. */
   clienteId: string;
   ruc: string;
   tipo: string;
@@ -306,7 +307,11 @@ export class Ejecutor {
       registrar(logger, "warn", {
         evento: "trabajo_reintento",
         ...campos,
-        codigo: "sunat_no_responde",
+        // Un trabajo de la cola de correo reintenta por su transporte, no por SUNAT (T22a, O-1 de 028).
+        codigo:
+          fila.cola === "notificaciones"
+            ? "correo_no_enviado"
+            : "sunat_no_responde",
         intentos: f.intentos,
       });
     else

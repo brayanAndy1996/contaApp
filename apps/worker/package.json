@@ -23,6 +23,7 @@
     "trabajos:kek-rotar": "node --env-file-if-exists=../../.env --env-file-if-exists=.env dist/cli/encolar-kek-rotar.js"
   },
   "dependencies": {
+    "@contapp/correo": "workspace:*",
     "@contapp/crypto": "workspace:*",
     "@contapp/db": "workspace:*",
     "@contapp/domain": "workspace:*",

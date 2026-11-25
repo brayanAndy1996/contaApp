@@ -34,8 +34,9 @@ export const jobRegistro = pgTable(
       .notNull()
       .default(tenantIdPorDefecto)
       .references(() => tenant.id),
-    clienteId: uuid("cliente_id").notNull(),
-    ruc: char("ruc", { length: 11 }).notNull(),
+    // Spec 028 (0073): `notificacion.enviar` es del estudio, sin cliente (cliente_id y ruc NULL); los demás tipos siguen exigiéndolos.
+    clienteId: uuid("cliente_id"),
+    ruc: char("ruc", { length: 11 }),
     tipo: text("tipo").notNull(),
     cola: text("cola").notNull(),
     canal: text("canal").notNull(),
@@ -116,6 +117,10 @@ export const jobRegistro = pgTable(
       sql`${t.motivo} IS NULL OR ${t.motivo} IN ('sunat_no_responde', 'credencial_invalida', 'datos_invalidos', 'portal_cambio', 'interrumpido', 'acceso_retirado', 'cancelado_usuario', 'error_interno')`,
     ),
     check("job_registro_ruc_11_digitos", sql`${t.ruc} ~ '^[0-9]{11}$'`),
+    check(
+      "job_registro_cliente_requerido",
+      sql`(${t.clienteId} IS NULL) = (${t.ruc} IS NULL) AND (${t.clienteId} IS NOT NULL OR ${t.tipo} = 'notificacion.enviar')`,
+    ),
     check(
       "job_registro_parametros_tamano",
       sql`octet_length(${t.parametros}::text) <= 4096`,

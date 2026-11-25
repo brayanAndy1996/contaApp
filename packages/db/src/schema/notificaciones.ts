@@ -40,6 +40,8 @@ export const notificacion = pgTable(
   },
   (t) => [
     unique("notificacion_dedupe_unique").on(t.tenantId, t.usuarioId, t.claveDedupe),
+    // Spec 028 (0073): destino de la FK compuesta de `correo_envio_aviso` (el aviso es del mismo estudio que su notificación).
+    unique("notificacion_tenant_id_unique").on(t.tenantId, t.id),
     index("notificacion_usuario_idx").on(t.tenantId, t.usuarioId, t.creadaEn.desc(), t.id.desc()),
     index("notificacion_purga_idx").on(t.tenantId, t.creadaEn),
     check(

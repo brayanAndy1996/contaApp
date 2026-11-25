@@ -75,12 +75,13 @@ describe("R1a · catálogo: ningún objeto expone el sobre a contapp_backend", (
     );
     expect(vistas.rows.map((r) => r.obj), "vistas que exponen el sobre al backend").toEqual([]);
 
+    // Ajuste de 028 (T3): palabra completa; `credencial_invalida` (tipo de aviso de correo) no es la tabla `credencial`, y \\m...\\M sigue detectando `credencial`, `public.credencial` y `credencial.col`.
     const funciones = await pool.query(
       `select p.oid::regprocedure::text as obj
          from pg_proc p join pg_namespace n on n.oid = p.pronamespace
         where n.nspname not in ('pg_catalog','information_schema')
           and p.prosecdef
-          and coalesce(p.prosrc, '') ~* 'credencial'
+          and coalesce(p.prosrc, '') ~* '\\mcredencial\\M'
           and has_function_privilege('contapp_backend', p.oid, 'EXECUTE')`,
     );
     expect(

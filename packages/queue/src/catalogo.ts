@@ -323,6 +323,27 @@ export const COMPRAS_REEVALUAR: DefinicionTrabajo<ParametrosReevaluarCompras> = 
   parametros: z.object({ periodo: z.string().regex(PERIODO_AAAAMM) }).strict(),
 };
 
+export interface ParametrosEnviarNotificacion {
+  envioId: string;
+}
+
+/**
+ * Spec 028 (R-1, R-9, U-16): envío de un correo de aviso, resumen o pendientes. Solo lo encola la BD (`encolar_correo_avisos`
+ * y `crear_correo_resumenes`), así que no lleva permiso ni solicitante; sin canal ni credencial (no habla con SUNAT).
+ * Parámetros estrictos `{envioId}`: el destinatario, el asunto y el contenido salen de la BD en el worker; no hay dónde
+ * llevar un correo, un token ni un tenant. Dedupe de 008 por envío (el trabajo no tiene cliente).
+ */
+export const NOTIFICACION_ENVIAR: DefinicionTrabajo<ParametrosEnviarNotificacion> =
+  {
+    tipo: "notificacion.enviar",
+    cola: "notificaciones",
+    canal: "ninguno",
+    credencial: null,
+    permiso: null,
+    idempotente: true,
+    parametros: z.object({ envioId: z.uuid() }).strict(),
+  };
+
 registrarTipo(CLIENTE_CONSULTAR_RUC);
 registrarTipo(CREDENCIAL_VERIFICAR_SOL);
 registrarTipo(CREDENCIAL_VERIFICAR_SIRE);
@@ -334,6 +355,7 @@ registrarTipo(SOL_BUZON_ABRIR);
 registrarTipo(REGLAS_HISTORIAL_IMPORTAR);
 registrarTipo(SOL_DECLARACIONES_DESCARGAR);
 registrarTipo(COMPRAS_REEVALUAR);
+registrarTipo(NOTIFICACION_ENVIAR);
 
 /** Tipo de pruebas: solo existe con NODE_ENV=test (el worker le programa el comportamiento). */
 export const PRUEBA_ECO: DefinicionTrabajo<{ n?: number; rango?: string }> = {

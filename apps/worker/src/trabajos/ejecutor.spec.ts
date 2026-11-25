@@ -7,6 +7,7 @@
 //  - Todo `withTenant` de cierre del trabajo lleva `{ tenantId, trabajoId: fila.id }` (el actor `trabajo` de la auditoría sale de ahí).
 //  - Un fallo del Notificador (rechazo, excepción o aviso colgado) solo se registra con códigos: el trabajo ya está cerrado.
 import type { TrabajoFila } from "@contapp/db";
+import { CorreoNoEnviadoError } from "@contapp/correo";
 import { ErrorCredencial, ErrorTransitorio } from "@contapp/sunat";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -626,5 +627,65 @@ describe("Ejecutor (unitarias)", () => {
       ).credencialInvalida,
     ).not.toHaveBeenCalled();
     expect(notificador.avisar).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Spec 028, T22a (O-1 de la prueba manual T22): el log `trabajo_reintento` de un trabajo de la cola `notificaciones` (un fallo del
+// transporte de correo) lleva un código de correo, no `sunat_no_responde`; el resto de las colas lo conserva.
+registrarTipo({
+  tipo: "unit.correo",
+  cola: "notificaciones",
+  canal: "ninguno",
+  credencial: null,
+  permiso: null,
+  idempotente: true,
+  parametros: z.object({}),
+});
+
+describe("Ejecutor: código del reintento (T22a, O-1)", () => {
+  const reintentos = () =>
+    config(
+      new Map([
+        ["sire", { reintentos: 2, backoffBaseMs: 100, esperaRucMs: 0 }],
+        [
+          "notificaciones",
+          { reintentos: 2, backoffBaseMs: 100, esperaRucMs: 0 },
+        ],
+      ]),
+    );
+
+  it("un fallo del correo que se reintenta se registra con `correo_no_enviado`", async () => {
+    const f = fila({
+      tipo: "unit.correo",
+      cola: "notificaciones",
+      canal: "ninguno",
+    });
+    const { ex, logs } = ejecutor({
+      config: reintentos(),
+      procesadores: {
+        "unit.correo": async () => {
+          throw new CorreoNoEnviadoError();
+        },
+      },
+    });
+    await ex.ejecutar("notificaciones", payload(f));
+    expect(db.filas.get(f.id)).toMatchObject({ estado: "en_cola" });
+    const r = logs.filter((l) => l.e.evento === "trabajo_reintento");
+    expect(r.map((l) => l.e.codigo)).toEqual(["correo_no_enviado"]);
+  });
+
+  it("un fallo transitorio de SUNAT que se reintenta sigue con `sunat_no_responde`", async () => {
+    const f = fila();
+    const { ex, logs } = ejecutor({
+      config: reintentos(),
+      procesadores: {
+        "unit.eco": async () => {
+          throw new ErrorTransitorio();
+        },
+      },
+    });
+    await ex.ejecutar("sire", payload(f));
+    const r = logs.filter((l) => l.e.evento === "trabajo_reintento");
+    expect(r.map((l) => l.e.codigo)).toEqual(["sunat_no_responde"]);
   });
 });
