@@ -7,7 +7,7 @@
 | T3 | Línea base para CA-2: lista de pruebas y cobertura actuales | devops | haiku | 028 en `main` | — | — | [x] |
 | T4 | Config única de cobertura en backend y worker (A1) | devops | sonnet | T3 | — | — | [x] |
 | T5 | `ci.yml`: jobs paralelos, paths-ignore, concurrency, dos niveles (A2–A5) | devops | sonnet | T4 | — | — | [x] |
-| T6 | Reporter compacto (B5) y regla A6 en el método | devops | haiku | T4 | — | — | [ ] bloqueada |
+| T6 | Reporter compacto (B5) y regla A6 en el método | devops | haiku | T4 | — | — | [x] |
 | T7 | Migrar `ESTADO.md` (B1, B6) | devops | sonnet | 028 en `main` ∥ | — | — | [ ] |
 | T8 | Verificar CA-1 a CA-6 y cerrar | devops | sonnet | T5–T7 | — | — | [ ] bloqueada |
 

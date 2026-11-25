@@ -12,6 +12,7 @@ export default defineConfig(({ mode }) => {
   }
   return {
     test: {
+      reporters: ["dot"],
       include: integracion ? ["src/**/*.int.spec.ts"] : ["src/**/*.spec.ts"],
       exclude: integracion
         ? ["**/node_modules/**"]

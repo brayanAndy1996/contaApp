@@ -195,7 +195,7 @@ Para cada spec (y si hace falta, para cada tarea) responder:
 | 3 | Specs y planes de **~1 página** (tope concreto en la regla 13); se referencian RF/HU por ID en lugar de copiarlos. |
 | 4 | TDD solo en niveles A/B; adversarial solo en A. Los niveles C/D no pagan ese costo. |
 | 5 | Pruebas **filtradas** al paquete o archivo afectado mientras se trabaja; suite completa solo al cerrar la spec. |
-| 6 | La salida de pruebas y lint la resume **Haiku**: solo fallos, con archivo y línea. |
+| 6 | La salida de pruebas y lint la resume **Haiku**: solo fallos, con archivo y línea. Las suites usan el reporter `dot` (042 B5). |
 | 7 | El código repetitivo se genera con **CLI** (`nest g`, `shadcn add`, `drizzle-kit generate`), no escrito por el modelo. |
 | 8 | Las tareas mecánicas similares se **agrupan** en una sola sesión de Haiku. |
 | 9 | Un subagente recibe **ruta de spec + ID de tarea**, no el contexto repetido. Solo se lanza si la tarea es independiente. |
@@ -205,3 +205,4 @@ Para cada spec (y si hace falta, para cada tarea) responder:
 | 13 | **Topes de tamaño (042 B2)**: `spec.md` y `plan.md` de hasta ~900 palabras cada uno; en `tasks.md`, cada tarea con «Contexto, Hacer, Hecho cuando» en 6 líneas o menos. Los resultados, evidencias y salidas van a `resultados.md` de la spec, que ningún agente lee para trabajar. |
 | 14 | **Una corrida de CI en verde** cierra una spec (042 B4). |
 | 15 | **`ESTADO.md` liviano (042 B1)**: una línea por spec con nota de hasta 200 caracteres. El detalle de una spec cerrada va a su `cierre.md`; los hallazgos cerrados, a `docs/specs/HALLAZGOS.md`. |
+| 16 | **Specs nuevas (042 A6)**: una spec nueva no agrega un paso de CI ni una config de cobertura por spec: agrega sus archivos/globs a `apps/{backend,worker}/vitest.cobertura.config.mts` (o a la config de su paquete). **CI de dos niveles (042 A5)**: en ramas `spec/*` corren lint, tipos, build y pruebas unitarias; la suite completa corre en pull request, en `main` y a mano. |

@@ -4,6 +4,7 @@ import { defineConfig } from "vitest/config";
 // más que el timeout por defecto, de ahí testTimeout.
 export default defineConfig({
   test: {
+    reporters: ["dot"],
     include: ["src/**/*.spec.ts"],
     exclude: ["**/node_modules/**"],
     testTimeout: 30_000,

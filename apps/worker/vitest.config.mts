@@ -17,6 +17,7 @@ export default defineConfig(({ mode }) => {
   }
   return {
     test: {
+      reporters: ["dot"],
       include: integracion
         ? [cierreAparte ? CIERRE_APARTE_GLOB : "src/**/*.int.spec.ts"]
         : ["src/**/*.spec.ts"],
