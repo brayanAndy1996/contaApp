@@ -53,7 +53,8 @@ describe("auth.totp_intento_reservar (CA-3)", () => {
     const bloq = (await admin.query("select bloqueado_hasta from auth.intento_login where clave = $1", [esc.clave(u.correo)])).rows[0].bloqueado_hasta as Date;
     expect(bloq.getTime() - Date.now()).toBeGreaterThan(14 * 60_000);
     expect(bloq.getTime() - Date.now()).toBeLessThanOrEqual(15 * 60_000 + 5_000);
-    expect((await exito(reservar(p.token)))[0].permitido).toBe(false); // 6.º: ya no se evalua
+    // 6.º: la 5.ª revoco la sesion `pendiente`, asi que ya no hay sesion vigente (cero filas) y no se evalua
+    expect(await exito(reservar(p.token))).toHaveLength(0);
   });
 
   it("al 5.º intento la sesion `pendiente` se revoca (motivo totp) y las de otros usuarios siguen", async () => {
