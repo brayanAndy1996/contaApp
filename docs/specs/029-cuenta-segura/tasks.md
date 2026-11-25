@@ -8,7 +8,7 @@ Nivel A. Flujo 04 §1.3: pruebas (rojo) → implementar (verde) → cobertura �
 |---|---|---|---|---|---|---|---|
 | T1 | Pruebas de BD: tablas, grants, funciones, concurrencia, catálogo, escalada, soportes, CLI y rendimiento (rojo) | tester | sonnet | — ∥ T2, T3, T4 | ✓ | — | [x] |
 | T2 | Pruebas puras: RFC 6238, cifrado, recuperación, dispositivo, `shared` y plantillas de correo (rojo) | tester | sonnet | — ∥ T1, T3, T4 | ✓ | — | [x] |
-| T3 | Pruebas HTTP: login en dos pasos, enrolar, exigencia, sesiones, CSRF, canarios (rojo) | tester | sonnet | — ∥ T1, T2, T4 | ✓ | — | [ ] |
+| T3 | Pruebas HTTP: login en dos pasos, enrolar, exigencia, sesiones, CSRF, canarios (rojo) | tester | sonnet | — ∥ T1, T2, T4 | ✓ | — | [x] |
 | T4 | Pruebas del frontend: paso de código, Seguridad, enrolamiento forzado (rojo) | tester | sonnet | — ∥ T1, T2, T3 | ✓ | — | [x] |
 | T5 | Migración 0078, esquema drizzle y repositorio `auth/totp`, `auth/sesiones` | backend | opus | T1 ∥ T6 | ✓ | — | [ ] |
 | T6 | Puros del backend, `shared`, plantillas de `correo`, `TOTP_CLAVE` y dependencias | backend | sonnet | T2 ∥ T5 | ✓ | — | [ ] |
