@@ -45,10 +45,8 @@ vi.mock("next/navigation", () => ({
 // El QR se dibuja en el navegador con `qrcode` (dependencia que añade T6). Aquí se simula: la pantalla debe
 // pedir `toDataURL(uri)` y pintar el resultado en un <img>; nada más del URI llega al DOM.
 const qr = vi.hoisted(() => ({
-  toDataURL: vi.fn(
-    async (_texto: string) => "data:image/png;base64,QRSIMULADO",
-  ),
-  toString: vi.fn(async (_texto: string) => "<svg></svg>"),
+  toDataURL: vi.fn(async () => "data:image/png;base64,QRSIMULADO"),
+  toString: vi.fn(async () => "<svg></svg>"),
 }));
 vi.mock("qrcode", () => ({ ...qr, default: qr }));
 
@@ -453,7 +451,7 @@ describe("/cuenta/seguridad (029)", () => {
       const servidor = conTotp();
       const f = instalarFetchFalso(
         rutas(servidor, {
-          "POST /api/auth/totp/desactivar": (_l) => {
+          "POST /api/auth/totp/desactivar": () => {
             servidor.sesion = { factor: "sin_factor", totpActivo: false };
             return { status: 204 };
           },
