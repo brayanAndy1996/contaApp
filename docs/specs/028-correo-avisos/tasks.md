@@ -31,10 +31,10 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → cobe
 | T22 | Prueba manual con el sistema levantado y adaptadores en `mock` | tester | sonnet | T20, T21 | — | — | [x] |
 | T22a | Corregir D-1 de T22 (avisos pendientes de estudios sin plan, migración 0077) y O-1 | backend | sonnet | T22 | ✓ | — | [x] |
 | T23 | Verificar CA-1 a CA-15 con evidencia, suites completas, `db:migrate` ×2 y coberturas | tester | sonnet | T22 (y T22a si existe) | — | — | [x] |
-| T24 | Revisión final contra la spec | arquitecto | opus | T23 | — | — | [ ] |
+| T24 | Revisión final contra la spec | arquitecto | opus | T23 | — | — | [x] |
 | T24a | Prueba en rojo de D-T24-1: `CorreoConsola` no imprime el token de baja que va en el enlace del cuerpo (`/baja?t=`) | tester | sonnet | T24 | ✓ | — | [x] |
-| T24b | Corregir D-T24-1 en `packages/correo/src/consola.ts` | backend | opus | T24a | — | — | [ ] |
-| T25 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T24 | — | — | [ ] |
+| T24b | Corregir D-T24-1 en `packages/correo/src/consola.ts` | backend | opus | T24a | — | — | [x] |
+| T25 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T24 | — | — | [x] |
 
 Paralelismo (por oleadas; dentro de una oleada no se comparten archivos):
 - **Oleada 1**: T1 (`packages/domain`, `ronda2b.adv.spec.ts`) ∥ T2 (`packages/correo`, `packages/shared`, `packages/queue`, las pruebas de `apps/backend/src/infra/correo/` que se mueven) ∥ T3 (`tests/aislamiento/`) ∥ T4 (`packages/db/src/correo/*.spec.ts` y su soporte).
@@ -281,7 +281,7 @@ Reglas comunes:
   | CA-14 | los 4 `*.rendimiento*.spec.ts` (`correo-rendimiento`, `resumen.rendimiento`, `resumen-hostil.rendimiento.adv`, `programar-correo.rendimiento.int`) en verde 5 veces seguidas y también dentro de `ci:db` y de `packages/db test` | OK |
   | CA-15 | `pnpm ci:db`, suites por paquete, `test:aislamiento`, typecheck, lint, `db:migrate` ×2, `cobertura:correo` y las otras 17, `pnpm e2e` 105 pasan y `correo.e2e.ts` ×3 (caso punta a punta: críticos → «Revisar buzón ahora» → correo en Mailpit → `/ir` → `/baja` sin petición al cargar y «Darme de baja» → resumen) | OK |
 
-## T24 · [ ] Revisión final (arquitecto · opus)
+## T24 · [x] Revisión final (arquitecto · opus)
 - **Contexto (leer solo esto)**: `spec.md`, `plan.md`, resultados de T15, T18, T22 y T23, `git diff` de la rama desde el commit de esta spec limitado a 0073–0076, `packages/correo/src/smtp.ts`, `packages/domain/src/correo/*.ts`, `packages/db/src/correo/*.ts`, `apps/backend/src/modules/correo/*.service.ts`, `apps/worker/src/trabajos/procesadores/{programar-correo,enviar-correo}.ts`, `apps/frontend/app/{ir,(publico)/baja}/page.tsx`.
 - **Hacer**: comprobar cada CA con su evidencia, los desvíos del plan (ratificar o rechazar con motivo), R-1 a R-16, D-1 a D-7 y U-1 a U-16 tal como quedaron y la DoD de nivel A (rondas cerradas sin fallos abiertos, cobertura ≥ 90 %, rendimiento estable). Defectos → T24a (pruebas en rojo, tester · sonnet) y T24b (corrección, backend · opus).
 - **Hecho cuando**: resultado con CA cumplidos, desvíos y defectos (o «sin defectos») y lo que hay que informar al usuario. Commit `docs(028): revisión final`.
@@ -291,6 +291,7 @@ Reglas comunes:
   - Desviaciones validadas (ratificadas): (1) `public.correo_destinatario(uuid)`, worker-only y en `FUNCIONES_CORREO` (el worker no tiene `SELECT` sobre `usuario`; R-3); (2) `job_registro.cliente_id`/`ruc` nulos solo para `notificacion.enviar` (CHECK `job_registro_cliente_requerido` de 0073: los dos nulos a la vez y solo ese tipo); (3) trigger `buzon_mensaje_aviso` por sentencia con lote en `interno.notificar` (`app.correo_lote` local a la transacción y restaurado; misma regla de 0056; R-16); (4) `components/ui/switch.tsx` hecho a mano dentro de `components/ui` (estilo A de 038, sin dependencias nuevas); (5) `TrabajoEnCurso.clienteId` sigue `string` (el procesador de correo no lo lee; tiparlo `string | null` rompe 008–027): deuda de tipado, sin efecto.
   - Deuda anotada (no se corrige en 028): **O-1** «Límite del plan» con dos líneas del mismo recurso si se cruzan 90 % y 100 % a la vez; **O-2** un worker nuevo no toma el ciclo al arrancar (espera al tick siguiente); **O-3** `/baja` se sirve con `Cache-Control: s-maxage` (página estática sin datos del token); **O-4** avisos diferidos por el tope pueden aparecer días tarde en el resumen cuando vuelve el plan; **O-5** con `SIGKILL` el relevo del ciclo llega a ~119,9 s (al borde de los 2 min de H-028-1-2); **O-6** `tests/aislamiento/auth-r2a.adv.spec.ts` falla si `auth.limite_tasa` tiene filas extra (requiere BD limpia); **O-7** pruebas del worker dependen de `correo_programacion.resumen_cerrado` (una corrida que deja el día cerrado rompe `programar-correo.int`); **O-8** `notificaciones-correcciones.spec.ts` (017) rozó el tope de 5 s una vez en T23; **O-9** `prettier --check` falla en este `tasks.md` desde antes; **O-10** (T22 O-4, por diseño de D-6) un periodo `abierto` sin `sire.propuesta.descargar` completado sale «sin descargar».
   - Para el usuario: nada que decidir; tras T24b, T24 se marca `[x]` sin nueva revisión completa (basta comprobar T24a en verde y `packages/correo` + worker unitarias).
+  - D-T24-1 corregido en T24a/T24b (46109b3); según el arquitecto no requiere repetir la revisión.
 
 ## T24a · [x] Prueba en rojo de D-T24-1 (tester · sonnet)
 - **Contexto (leer solo esto)**: resultado de T24 (D-T24-1), `packages/correo/src/consola.ts`, `packages/correo/src/consola-028.spec.ts`, `apps/worker/src/trabajos/procesadores/enviar-correo.ts` (líneas 285–330: enlaces y `baja.url`), `apps/worker/src/trabajos/procesadores/enviar-correo.ramas.spec.ts` (forma de los dobles).
@@ -304,7 +305,8 @@ Reglas comunes:
 - **Hecho cuando**: T24a en verde; `packages/correo` `test` y `cobertura:correo` del paquete (≥ 90 % por archivo), worker `test`, `typecheck` y `lint` limpios. Commit `fix(028): la consola no imprime el token de baja (T24b)`.
 - **Resultado (T24b, backend · opus, 2026-11-25)**: `packages/correo/src/consola.ts` extrae `t` de `baja.url` (`new URL`, `null` si es inválida o vacía), sustituye `baja.url` por `[baja]` y además toda palabra (separada por espacios) que contenga el token se reemplaza entera por `[baja]`: así el enlace `/baja?t=` del cuerpo no deja ni el token ni `?t=` (lo exige `consola-t24.spec.ts`; sustituir solo el valor dejaría `?t=[baja]`). Puerto, `enviar-correo.ts` y dominio sin cambios. `packages/correo` 71/71, cobertura de `consola.ts` 100 % líneas / 93,75 % ramas; worker 611/611 (incluye `enviar-correo-t24.spec.ts`); `typecheck` y `lint` de correo y worker limpios.
 
-## T25 · [ ] Cierre (devops · haiku)
+## T25 · [x] Cierre (devops · haiku)
 - **Contexto (leer solo esto)**: `tasks.md`, `spec.md` (estado y casillas de CA), resultados de T23 y T24.
 - **Hacer**: marcar tareas y CA, estado de la spec «hecha (fecha)», notas para otras specs (037: borrado de las tablas `correo_*` con el estudio y de preferencias con la membresía, por su camino acotado; proveedor de correo de producción y rebotes: U-13 (b) y U-14 (b) si el volumen lo pide).
 - **Hecho cuando**: commit `docs(028): cierre`; el orquestador actualiza `ESTADO.md`.
+- **Resultado (T25, devops · haiku, 2026-11-25)**: T24 y T24b marcadas `[x]` (D-T24-1 corregido en 46109b3; sin nueva revisión completa, según el arquitecto); CA-1 a CA-15 marcados y spec «hecha (2026-11-25)» en `spec.md`; notas para 037 y para el proveedor de producción (U-13 (b), U-14 (b)) en «Notas para otras specs» de `spec.md`. `ESTADO.md` no se tocó (lo actualiza el orquestador).
