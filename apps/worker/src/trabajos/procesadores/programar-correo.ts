@@ -7,9 +7,11 @@
 //  (3) Por estudio, en su propio `withTenant`: `encolar_correo_avisos` (envíos vencidos → `notificacion.enviar`, solo si el plan admite
 //      avisos) y, si hay `resumenDia` y el plan admite resumen, `crear_correo_resumenes`. Tras el commit, la pista de cada trabajo nuevo
 //      (si se pierde, el reconciliador repone).
-//  (4) Tras cada estudio, `correo_ciclo_renovar`; `false` = perdió el candado: se detiene sin encolar más ni cerrar el día.
+//  (4) Tras cada estudio, `correo_ciclo_renovar`; `false` = perdió el candado (otro lo tomó o se soltó en `detener`): se detiene sin
+//      encolar más ni cerrar el día. Un estudio de más de 90 s no lo pierde si nadie más lo tomó (0076, H-028-2-1).
 //  (5) El día (`correo_resumen_cerrar`) se cierra solo si había `resumenDia` y TODOS los estudios se atendieron sin fallo. Al final, en
-//      `finally`, `correo_ciclo_soltar` (no toca un candado ajeno), aun si `detener` venció mientras tanto (`dbCandado`, H-028-1-1).
+//      `finally`, `correo_ciclo_soltar` (no toca un candado ajeno), aun si `detener` venció mientras tanto (`dbCandado`, H-028-1-1);
+//      con el pool ya cerrado lo suelta `detener` de `iniciarTrabajos` antes del cierre (H-028-2-2).
 //      El candado dura 90 s y se renueva tras cada estudio (0075, H-028-1-2): un worker muerto lo bloquea a lo sumo 90 s.
 // El fallo de un estudio no tumba el ciclo. Los logs llevan solo el estudio, conteos y códigos (nunca correos, clientes ni nombres).
 import { randomUUID } from "node:crypto";

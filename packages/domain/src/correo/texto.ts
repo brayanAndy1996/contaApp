@@ -31,8 +31,42 @@ export function escaparHtml(s: string): string {
  * puntos de código lo corta a `max − 1` y añade «…» (el resultado mide como máximo `max`). No escapa HTML.
  */
 export function limpiarLinea(s: string, max: number): string {
-  const limpia = s.replace(SALTOS, " ").replace(INVISIBLES, "").replace(ESPACIOS, " ").trim();
+  return recortar(sinControles(s), max);
+}
+
+function sinControles(s: string): string {
+  return s.replace(SALTOS, " ").replace(INVISIBLES, "").replace(ESPACIOS, " ").trim();
+}
+
+function recortar(limpia: string, max: number): string {
   const puntos = Array.from(limpia);
   if (puntos.length <= max) return limpia;
   return `${puntos.slice(0, Math.max(0, max - 1)).join("").trimEnd()}…`;
+}
+
+// H-028-2-6 (CA-7): lo que un cliente de correo convertiría en enlace dentro de un texto de usuario. Se neutraliza de más, nunca de
+// menos: todo punto pegado a algo y seguido de dos letras (`ejemplo.com`, `www.x`, `a.b.example`), el punto de `www.`, los dos puntos de
+// `esquema://` y los de los esquemas que se enlazan sin `//` (`mailto:`, `javascript:`…). Un punto entre siglas o cifras (`S.A.C.`,
+// `E.I.R.L.`, `2.5`) o seguido de espacio (`Ltda. del`) no se toca. Como solo se agregan corchetes, un recorte posterior tampoco deja
+// nada enlazable.
+const PUNTO_DOMINIO = /(?<=\S)\.(?=\p{L}{2})/gu;
+const PUNTO_WWW = /(?<![\p{L}\p{N}])(www)\./giu;
+const DOS_PUNTOS_ESQUEMA = /:(?=\/\/)/gu;
+const ESQUEMA_SIN_BARRAS = /(?<![\p{L}\p{N}+.-])(mailto|javascript|vbscript|data|file|tel|sms|callto|news|urn|blob):(?=\S)/giu;
+
+function neutralizarEnlaces(s: string): string {
+  return s
+    .replace(DOS_PUNTOS_ESQUEMA, "[:]")
+    .replace(ESQUEMA_SIN_BARRAS, "$1[:]")
+    .replace(PUNTO_WWW, "$1[.]")
+    .replace(PUNTO_DOMINIO, "[.]");
+}
+
+/**
+ * Texto de usuario (razón social, estudio, categoría, recurso) para el correo: `limpiarLinea` y, antes del recorte a `max`, lo que
+ * parezca URL o dominio queda neutralizado y legible (`www[.]ejemplo[.]com`, `http[:]//ejemplo[.]com`): los únicos enlaces del correo
+ * son los de la app. Un texto sin URL ni dominio sale igual que con `limpiarLinea`. Interno al módulo (no se exporta del índice).
+ */
+export function lineaUsuario(s: string, max: number): string {
+  return recortar(neutralizarEnlaces(sinControles(s)), max);
 }

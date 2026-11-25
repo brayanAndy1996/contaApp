@@ -6,7 +6,7 @@
 // Redis recibido, no libera arriendos y abandona lo que está en curso.
 import { CorreoConsola, type Correo } from "@contapp/correo";
 import type { KeyUnwrapper, KeyWrapper } from "@contapp/crypto/descifrado";
-import { leerConfig, type ContappDb } from "@contapp/db";
+import { leerConfig, soltarCiclo, soltarCicloCorreo, type ContappDb } from "@contapp/db";
 import {
   CacheConfig,
   Despachador,
@@ -390,9 +390,11 @@ export async function iniciarTrabajos(
 
   const sistema = crearColaSistema({ conexion, prefijo });
   // 023 (D-5): un tick del programador del buzón; el dueño del candado es aleatorio por proceso.
-  const tickBuzon = programarBuzon({ db, dbCandado, redis, prefijo, logger });
+  const duenoBuzon = randomUUID();
+  const tickBuzon = programarBuzon({ db, dbCandado, redis, prefijo, logger, dueno: duenoBuzon });
   // 028 (R-5): un tick del ciclo de correo (avisos vencidos y resumen del día); mismo patrón y candado propio en la BD.
-  const tickCorreo = programarCorreo({ db, dbCandado, redis, prefijo, logger });
+  const duenoCorreo = randomUUID();
+  const tickCorreo = programarCorreo({ db, dbCandado, redis, prefijo, logger, dueno: duenoCorreo });
   const procesarSistema = async (data: PayloadSistema): Promise<void> => {
     try {
       if (data.tipo === "auth.purgar") {
@@ -481,6 +483,16 @@ export async function iniciarTrabajos(
         estado.muerto = true;
         await conTope(cerrarBull(true), ESPERA_ABORTO_MS);
       }
+      // H-028-2-2: los candados de los ciclos de este proceso se sueltan aquí, antes de que el llamador cierre el pool (SIGTERM:
+      // `onApplicationShutdown` hace `detener` y enseguida `db.close()`), porque un tick que sigue en curso ya no podrá soltar el suyo en
+      // su `finally`. Solo por dueño (nunca un candado ajeno) y sin efecto si el tick ya lo soltó; su `renovar` siguiente da false.
+      await conTope(
+        Promise.allSettled([
+          dbCandado.withSistema((tx) => soltarCiclo(tx, duenoBuzon)),
+          dbCandado.withSistema((tx) => soltarCicloCorreo(tx, duenoCorreo)),
+        ]),
+        ESPERA_ABORTO_MS,
+      );
       registrar(logger, "info", { evento: "trabajos_detenidos" });
     },
     abortar: async () => {

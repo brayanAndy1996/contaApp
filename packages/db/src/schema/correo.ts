@@ -41,6 +41,8 @@ export const MOTIVOS_OMITIDO_BD = [
   "sin_plan",
   "sin_contenido",
   "sin_novedades",
+  // 0076 (H-028-2-7): resumen que al enviarse ya no es de su día de Lima (R-5).
+  "fuera_de_dia",
 ] as const;
 
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({

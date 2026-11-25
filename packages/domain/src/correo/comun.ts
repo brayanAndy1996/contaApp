@@ -1,7 +1,7 @@
 // Spec 028 · T8: piezas comunes de las plantillas de correo (validación estricta de la entrada y plantilla HTML fija). Interno al módulo:
 // no se exporta del índice. Lógica pura, sin IO ni reloj.
 import { ErrorCorreo } from "./errores";
-import { escaparHtml, limpiarLinea } from "./texto";
+import { escaparHtml, lineaUsuario } from "./texto";
 
 export type TipoAvisoCorreo = "buzon_critico" | "credencial_invalida" | "plan_limite";
 
@@ -81,9 +81,9 @@ export function enlaces(v: unknown): EnlacesCorreo {
   return { pantalla: enlace(o["pantalla"], "enlaces"), baja: enlace(o["baja"], "enlaces") };
 }
 
-/** Nombre del estudio para el pie y el asunto: una línea, sin controles; «Tu estudio» si queda vacío. */
+/** Nombre del estudio para el pie y el asunto: una línea, sin controles ni nada enlazable (`lineaUsuario`); «Tu estudio» si queda vacío. */
 export function nombreEstudio(v: unknown, max: number): string {
-  return limpiarLinea(texto(v, "estudio"), max) || "Tu estudio";
+  return lineaUsuario(texto(v, "estudio"), max) || "Tu estudio";
 }
 
 export function plural(n: number, singular: string, pluralForma: string): string {

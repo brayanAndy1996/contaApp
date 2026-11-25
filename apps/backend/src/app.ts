@@ -112,6 +112,9 @@ const RUTAS_XML = [
 /** Baja por enlace (028, D-4): el cuerpo de RFC 8058 pesa 26 bytes; con más de 1 kB el analizador responde 413. */
 export const LIMITE_BAJA_CORREO = "1kb";
 const RUTA_BAJA_CORREO = "/correo/baja";
+/** Los dos `Content-Type` de la baja de un clic (RFC 8058 §3.1), en cualquier combinación de mayúsculas. */
+const esFormularioUnClic = (req: { headers: { "content-type"?: string } }): boolean =>
+  /^\s*(?:application\/x-www-form-urlencoded|multipart\/form-data)\s*(?:;|$)/i.test(req.headers["content-type"] ?? "");
 
 /** `TRUST_PROXY`: un entero es el número de saltos de confianza; si no, la lista o alias de Express. */
 export function confianzaProxy(valor: string): string | number {
@@ -163,8 +166,9 @@ export async function crearApp(o: OpcionesApp = {}): Promise<INestApplication> {
   app.use(RUTAS_IMPORTACION, raw({ type: "application/octet-stream", limit: LIMITE_ARCHIVO_IMPORTACION }));
   app.use(RUTAS_IMPORTACION_VENTAS, raw({ type: "application/octet-stream", limit: LIMITE_ARCHIVO_VENTAS }));
   app.use(RUTAS_XML, raw({ type: (req) => req.method === "POST", limit: LIMITE_ARCHIVO_XML }));
-  // Baja de un clic de RFC 8058 (028): el cuerpo es el texto crudo `List-Unsubscribe=One-Click` (26 bytes); se lee como bytes y no se registra.
-  app.use(RUTA_BAJA_CORREO, raw({ type: "application/x-www-form-urlencoded", limit: LIMITE_BAJA_CORREO }));
+  // Baja de un clic de RFC 8058 (028): el campo `List-Unsubscribe=One-Click` en urlencoded (26 bytes) o `multipart/form-data` (§3.1, SHOULD;
+  // H-028-2-8); se lee como bytes, lo interpreta `esCuerpoUnClic` y no se registra.
+  app.use(RUTA_BAJA_CORREO, raw({ type: esFormularioUnClic, limit: LIMITE_BAJA_CORREO }));
   app.useBodyParser("json", { limit: LIMITE_JSON });
 
   const reflector = app.get(Reflector);

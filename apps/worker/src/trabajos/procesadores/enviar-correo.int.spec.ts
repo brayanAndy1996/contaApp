@@ -540,7 +540,14 @@ describe("CA-4: contenido del resumen (R-13)", () => {
     expect(correo.enviados[0]!.texto).toContain("Cliente Ye SAC");
 
     await e.responsable(T, Y, dueno);
-    await e.crearResumenes(T, await e.diaLima(1));
+    // T20 (H-028-2-7): un resumen sale solo en su día de Lima (el de otro día queda `fuera_de_dia`), así que el segundo es el de hoy y el
+    // primero pasa a ser el de ayer (su clave y su día), como si se hubiera enviado entonces.
+    const ayer = await e.diaLima(1);
+    await admin.pool.query("update correo_envio set dia_lima = $2::date, clave = 'resumen:' || usuario_id || ':' || $2 where id = $1", [
+      primero.id,
+      ayer,
+    ]);
+    await e.crearResumenes(T, (await e.hoyLima()).dia);
     const segundo = (await e.envios(T, { usuarioId: dueno, origen: "resumen" })).find((f) => f.id !== primero.id)!;
     expect(await ejecutar(T, segundo.id)).toEqual({ estado: "enviado", clientes: 1 });
     expect(correo.enviados[1]!.texto).toContain("Cliente Ye SAC");

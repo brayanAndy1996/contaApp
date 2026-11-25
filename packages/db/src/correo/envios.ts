@@ -23,6 +23,8 @@ export type MotivoEnvio =
   | "sin_plan"
   | "sin_contenido"
   | "sin_novedades"
+  /** Resumen que al enviarse ya no era de su día de Lima (R-5, H-028-2-7, 0076): no avanza el corte. */
+  | "fuera_de_dia"
   | "transporte";
 
 export interface EnvioTomado {
@@ -92,6 +94,7 @@ const MOTIVOS: readonly string[] = [
   "sin_plan",
   "sin_contenido",
   "sin_novedades",
+  "fuera_de_dia",
   "transporte",
 ];
 

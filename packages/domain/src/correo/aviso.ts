@@ -1,5 +1,6 @@
 // Spec 028 · T8: correo de aviso inmediato (R-6, R-7, R-14; CA-7, CA-9). Hasta 20 líneas y «y N avisos más». Solo datos del contrato:
-// nunca RUC, asunto ni contenido de los mensajes. Todo texto de usuario pasa por `limpiarLinea` y, en el HTML, por `escaparHtml`.
+// nunca RUC, asunto ni contenido de los mensajes. Todo texto de usuario pasa por `lineaUsuario` (sin URL ni dominio enlazable, H-028-2-6)
+// y, en el HTML, por `escaparHtml`.
 import {
   ETIQUETA_TIPO,
   MAX_ASUNTO,
@@ -24,7 +25,7 @@ import {
 } from "./comun";
 import { ErrorCorreo } from "./errores";
 import { fechaHoraLima } from "./tiempo";
-import { escaparHtml, limpiarLinea } from "./texto";
+import { escaparHtml, limpiarLinea, lineaUsuario } from "./texto";
 
 /** Un aviso a listar. `categoria` y `recurso` llegan ya como texto para mostrar («Coactiva», «clientes»). */
 export interface AvisoCorreo {
@@ -77,9 +78,9 @@ function validarAviso(v: unknown, tipo: TipoAvisoCorreo): AvisoValido {
   if (porcentaje !== null && porcentaje > 100) throw new ErrorCorreo("avisos");
   if (tipo === "plan_limite" && porcentaje === null) throw new ErrorCorreo("avisos");
   return {
-    razon: limpiarLinea(razon ?? "", MAX_CUERPO) || SIN_NOMBRE,
-    categoria: limpiarLinea(categoria ?? "", MAX_CUERPO),
-    recurso: limpiarLinea(recurso, MAX_CUERPO),
+    razon: lineaUsuario(razon ?? "", MAX_CUERPO) || SIN_NOMBRE,
+    categoria: lineaUsuario(categoria ?? "", MAX_CUERPO),
+    recurso: lineaUsuario(recurso, MAX_CUERPO),
     porcentaje,
     fecha: fechaHoraLima(o["fecha"] as Date),
   };
@@ -90,14 +91,15 @@ function lineaAviso(a: AvisoValido, tipo: TipoAvisoCorreo): string {
   return [a.razon, a.categoria, a.fecha].filter((p) => p !== "").join(" · ");
 }
 
-function asuntoAviso(tipo: TipoAvisoCorreo, listados: readonly AvisoValido[]): string {
+/** Asunto con TODOS los avisos del envío (H-028-2-5): los clientes distintos se cuentan también fuera de las 20 líneas. */
+function asuntoAviso(tipo: TipoAvisoCorreo, avisos: readonly AvisoValido[]): string {
   if (tipo === "plan_limite") {
-    const mayor = listados.reduce((m, a) => ((a.porcentaje ?? 0) > (m.porcentaje ?? 0) ? a : m), listados[0] as AvisoValido);
+    const mayor = avisos.reduce((m, a) => ((a.porcentaje ?? 0) > (m.porcentaje ?? 0) ? a : m), avisos[0] as AvisoValido);
     const recurso = limpiarLinea(mayor.recurso, MAX_ASUNTO) || "tu plan";
     return `Tu estudio llegó al ${mayor.porcentaje ?? 0} % de ${recurso}`;
   }
-  const clientes = new Set(listados.map((a) => a.razon));
-  const quien = clientes.size === 1 ? limpiarLinea(listados[0]?.razon ?? "", MAX_ASUNTO) : `${clientes.size} clientes`;
+  const clientes = new Set(avisos.map((a) => a.razon));
+  const quien = clientes.size === 1 ? limpiarLinea(avisos[0]?.razon ?? "", MAX_ASUNTO) : `${clientes.size} clientes`;
   return `${PREFIJO_ASUNTO[tipo]} · ${quien}`;
 }
 
@@ -145,5 +147,5 @@ export function armarCorreoAviso(entrada: EntradaCorreoAviso): CorreoArmado {
     estudio,
   });
 
-  return { asunto: asuntoAviso(tipo, listados), texto: textoPlano, html };
+  return { asunto: asuntoAviso(tipo, validos), texto: textoPlano, html };
 }

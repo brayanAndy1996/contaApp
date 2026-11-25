@@ -25,7 +25,7 @@ import {
   type TipoAvisoCorreo,
 } from "./comun";
 import { ErrorCorreo } from "./errores";
-import { escaparHtml, limpiarLinea } from "./texto";
+import { escaparHtml, limpiarLinea, lineaUsuario } from "./texto";
 
 /** Estado de un libro del periodo pendiente; un libro `generado` no es pendiente y llega como `null`. */
 export type EstadoPendiente = "sin_descargar" | "abierto" | "revisado";
@@ -84,7 +84,7 @@ function validarCliente(v: unknown): ClienteValido {
   const o = objeto(v, "clientes");
   soloClaves(o, ["razonSocial", "nuevos", "criticosNuevos", "pendientesAtender", "compras", "ventas"], "clientes");
   return {
-    razon: limpiarLinea(texto(o["razonSocial"], "clientes"), MAX_CUERPO) || "Cliente sin nombre",
+    razon: lineaUsuario(texto(o["razonSocial"], "clientes"), MAX_CUERPO) || "Cliente sin nombre",
     nuevos: entero(o["nuevos"], 0, "clientes"),
     criticos: entero(o["criticosNuevos"], 0, "clientes"),
     pendientes: entero(o["pendientesAtender"], 0, "clientes"),

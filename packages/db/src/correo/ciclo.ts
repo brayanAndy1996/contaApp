@@ -68,7 +68,7 @@ export async function tomarCicloCorreo(
   return { resumenDia: typeof dia === "string" ? dia : null };
 }
 
-/** false si perdió el candado. */
+/** false si perdió el candado (otro lo tomó o ya se soltó); vencido pero aún suyo, lo renueva (0076, H-028-2-1). */
 export async function renovarCicloCorreo(
   tx: TxConsulta,
   dueno: string,

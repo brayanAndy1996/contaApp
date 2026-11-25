@@ -7,9 +7,7 @@ import { DB } from "../auth/inyeccion.js";
 import type { DbAuth } from "../auth/auth.service.js";
 import { sujetoIpValidado } from "../auth/limites/ip.js";
 import { hashToken, tokenConFormatoValido } from "../auth/sesion/token.js";
-
-/** Cuerpo exacto de RFC 8058 (`List-Unsubscribe-Post: List-Unsubscribe=One-Click`). */
-const CUERPO_UN_CLIC = "List-Unsubscribe=One-Click";
+import { esCuerpoUnClic } from "./un-clic.js";
 
 /**
  * Baja por enlace (spec 028; R-7, D-4, U-12, U-18; CA-8). Sin sesión ni estudio: el token (43 caracteres base64url, SHA-256 del texto) es la
@@ -33,13 +31,14 @@ export class BajaService {
   }
 
   /**
-   * `POST /correo/baja?t=` (RFC 8058, cliente de correo): límite por IP -> solo con el cuerpo exacto y un token con forma de token se
-   * cuenta en el límite del token (el mismo contador que la página) y se aplica; todo lo demás es 200 sin efectos (el cliente de correo no
-   * debe ver un error).
+   * `POST /correo/baja?t=` (RFC 8058, cliente de correo): límite por IP -> solo con el cuerpo de un clic (`esCuerpoUnClic`: el urlencoded
+   * exacto o el `multipart/form-data` con el campo `List-Unsubscribe=One-Click`, H-028-2-8) y un token con forma de token se cuenta en el
+   * límite del token (el mismo contador que la página) y se aplica; todo lo demás es 200 sin efectos (el cliente de correo no debe ver un
+   * error). Sin `tipoContenido`, solo vale el urlencoded exacto.
    */
-  async unClic(token: unknown, cuerpo: unknown, ip: string | undefined): Promise<Record<string, never>> {
+  async unClic(token: unknown, cuerpo: unknown, ip: string | undefined, tipoContenido?: string): Promise<Record<string, never>> {
     await this.limitar(ip);
-    const exacto = Buffer.isBuffer(cuerpo) && cuerpo.toString("latin1") === CUERPO_UN_CLIC;
+    const exacto = esCuerpoUnClic(cuerpo, tipoContenido);
     if (exacto && tokenConFormatoValido(token)) {
       await this.limitarToken(token);
       await this.aplicar(token);

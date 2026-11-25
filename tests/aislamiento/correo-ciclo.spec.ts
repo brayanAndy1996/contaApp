@@ -112,7 +112,9 @@ describe("candado del ciclo: un solo ciclo vivo, con vencimiento y reloj de BD (
     expect(ms(e.ciclo_hasta) - antes).toBeGreaterThan(88_000);
   });
 
-  it("renovar: solo el dueño con el candado vigente (true, +90 s); otro dueño o candado vencido: false y sin cambios", async () => {
+  // T20 (H-028-2-1, decisión del 2026-11-24 en tasks.md, T19): el dueño renueva su candado aunque haya vencido si nadie más lo tomó;
+  // antes, «candado vencido: false». Otro dueño sigue sin poder renovar.
+  it("renovar: solo el dueño del candado (true, +90 s), aunque haya vencido si nadie lo tomó; otro dueño: false y sin cambios", async () => {
     await fijarCandado("dueno-A", "1 minute");
     expect(await renovar("dueno-B")).toBe(false);
     expect((await estadoCiclo()).ciclo_dueno).toBe("dueno-A");
@@ -121,8 +123,11 @@ describe("candado del ciclo: un solo ciclo vivo, con vencimiento y reloj de BD (
     expect(ms((await estadoCiclo()).ciclo_hasta) - antes).toBeGreaterThan(88_000);
     await fijarCandado("dueno-A", "-1 minute");
     const e0 = await estadoCiclo();
-    expect(await renovar("dueno-A")).toBe(false);
+    expect(await renovar("dueno-B")).toBe(false);
     expect(await estadoCiclo()).toEqual(e0);
+    const antesVencido = await ahoraBd();
+    expect(await renovar("dueno-A")).toBe(true);
+    expect(ms((await estadoCiclo()).ciclo_hasta) - antesVencido).toBeGreaterThan(88_000);
   });
 
   it("soltar: el dueño libera el candado y anota el fin; otro dueño no hace nada", async () => {

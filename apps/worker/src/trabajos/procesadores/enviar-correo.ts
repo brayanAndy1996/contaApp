@@ -1,8 +1,9 @@
 // Procesador de `notificacion.enviar` (spec 028; R-1, R-3, R-6, R-7, R-9, R-12 a R-14; CA-3 a CA-6, CA-9 a CA-11). Cola `notificaciones`.
 // Parámetros `{envioId}` revalidados ANTES de abrir ninguna transacción (la cola no lleva correo, tenant ni contenido):
 //  (1) Tx 1, `withTenant` del estudio: `tomarEnvioParaEnviar` (marca la toma, suma el intento y trae preferencia y plan), revalida
-//      R-3 y R-12 (membresía, correo vigente, preferencia, plan), lee el contenido (`leerAvisosEnvio` o `leerResumen`, ya filtrados por
-//      cliente visible y no archivado), crea el token de baja (32 bytes, la BD guarda su SHA-256) y arma el correo con `domain`.
+//      R-3 y R-12 (membresía, correo vigente, preferencia, plan) y R-5 (un resumen fuera de su día de Lima: `fuera_de_dia`, sin
+//      corte), lee el contenido (`leerAvisosEnvio` o `leerResumen`, ya filtrados por cliente visible y no archivado), crea el token
+//      de baja (32 bytes, la BD guarda su SHA-256) y arma el correo con `domain`.
 //      Si no queda nada, `cerrarEnvio(omitido, código)` y termina sin enviar.
 //  (2) Fuera de transacción: `Correo.enviar` con `idMensaje = envioId` (al menos una vez: un reintento repite el `Message-ID`).
 //  (3) Tx 2: `enviado` con `corte_hasta` = el instante en que se armó (el siguiente resumen cuenta desde ahí).
@@ -228,12 +229,17 @@ export function enviarCorreo(d: DepsEnviarCorreo): Procesador {
       t.plan.vigente &&
       (envio.origen === "resumen" ? t.plan.resumen : t.plan.avisos);
     if (!planOk) return omitir("sin_plan");
+    // R-5 (H-028-2-7): un resumen sale solo en su día de Lima. Si la cola lo toma después (tick de las 23:59:59, cola atascada,
+    // reintentos que cruzan la medianoche) queda `fuera_de_dia` SIN corte: lo nuevo y sus diferidos van al resumen siguiente.
+    const hoy = diaLima(ahora);
+    if (envio.origen === "resumen" && (envio.diaLima ?? hoy) !== hoy) return omitir("fuera_de_dia");
 
     // Contenido (R-3: lo que ya no es visible se quita) y enlaces con el token de este correo.
     const avisos = await leerAvisosEnvio(tx, envioId);
     let resumenEntrada: Omit<EntradaCorreoResumen, "enlaces"> | null = null;
     if (envio.origen === "resumen") {
       const desde = envio.corteDesde ?? new Date(ahora.getTime() - DIA_MS);
+      // Periodo y fecha del asunto con el día del resumen, que aquí es hoy en Lima (el de otro día ya quedó `fuera_de_dia`).
       const periodo = periodoAnteriorLima(ahora);
       const clientes = await leerResumen(tx, {
         usuarioId: envio.usuarioId,
@@ -243,7 +249,7 @@ export function enviarCorreo(d: DepsEnviarCorreo): Procesador {
       });
       resumenEntrada = {
         estudio: dest.estudioNombre,
-        dia: envio.diaLima ?? diaLima(ahora),
+        dia: hoy,
         clientes: clientes.map((c) => ({
           razonSocial: c.razonSocial,
           nuevos: c.nuevos,

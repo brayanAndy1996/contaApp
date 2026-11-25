@@ -7,7 +7,7 @@ import { CorreoError } from "./errores.js";
 /**
  * Baja pública (spec 028, CA-8). `@Publico` + `@SinEstudio` + `@SinOrigen`: sin sesión, sin CSRF y sin `Origin` (el servidor del correo no lo
  * manda) solo para la variante de RFC 8058; la variante JSON exige el origen propio (`OrigenGuard`, H-028-1-7). Un cuerpo `application/json` es la variante de la página (`{token}`); cualquier otro es la de RFC 8058 (token en la consulta y
- * cuerpo crudo `List-Unsubscribe=One-Click`, leído como bytes por `app.ts`). Ningún `GET` cambia estado: 405. Nada de esto se registra.
+ * cuerpo crudo `List-Unsubscribe=One-Click`, urlencoded o `multipart/form-data` (H-028-2-8), leído como bytes por `app.ts`). Ningún `GET` cambia estado: 405. Nada de esto se registra.
  */
 @Controller("correo/baja")
 export class BajaController {
@@ -21,7 +21,7 @@ export class BajaController {
   baja(@Req() req: Request, @Body() cuerpo: unknown, @Query("t") t: unknown): Promise<Record<string, never>> {
     const tipo = req.headers["content-type"];
     if (typeof tipo === "string" && /^\s*application\/json\b/i.test(tipo)) return this.servicio.confirmar(cuerpo, req.ip);
-    return this.servicio.unClic(t, cuerpo, req.ip);
+    return this.servicio.unClic(t, cuerpo, req.ip, typeof tipo === "string" ? tipo : undefined);
   }
 
   @Publico()
