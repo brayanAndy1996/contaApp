@@ -1,7 +1,8 @@
 // AuthRepo: una función TS por función SQL `auth.*` (SECURITY DEFINER, migraciones 0007_auth a 0010_auth_final,
 // 0013_acceso_auth, que agrega las tres de invitación, y 0024_planes_auth, que agrega las 11 de registro, cupo de
 // aceptación y plataforma; 0025_planes_ronda1 cambia la salida de registro_confirmar_existente, D14; 0070_gnd_funciones agrega las
-// cuatro del diccionario global de gastos no deducibles, spec 027).
+// cuatro del diccionario global de gastos no deducibles, spec 027; 0078_cuenta_segura suma a login_exito el factor, el dispositivo y la
+// red, y a la validación de sesión el `factor`, spec 029).
 // SQL estático `select * from auth.<función>($1, ...)` con parámetros posicionales (nunca se interpola un
 // valor); columnas de salida = nombres OUT del plan (las escalares: columna con el nombre de la función);
 // camelCase en TS; cero filas -> null; cualquier error de `pg` -> AuthRepoError (solo SQLSTATE). Las de plataforma
@@ -33,12 +34,18 @@ export interface SesionEmitida {
   sesionId: string;
   expiraAbsoluta: Date;
 }
+/** 029 (D2): segundo factor de la sesión. `pendiente` = login a medias (solo puede verificar o salir). */
+export type FactorSesion = "pendiente" | "verificado" | "sin_factor";
+const FACTORES: readonly string[] = ["pendiente", "verificado", "sin_factor"];
+
 export interface SesionValida {
   sesionId: string;
   usuarioId: string;
   tenantActivo: string | null;
   estudioRevocado: boolean;
   expiraAbsoluta: Date;
+  /** 029 (D2): lo trae la misma validación (sin consulta extra). */
+  factor: FactorSesion;
 }
 export interface LoginExitoArgs {
   clave: Buffer;
@@ -49,6 +56,12 @@ export interface LoginExitoArgs {
   tenantActivo: string | null;
   hashNuevo: string | null;
   tokenAnteriorHash: Buffer | null;
+  /** 029: por omisión 'sin_factor'. Con TOTP activo la BD crea la sesión `pendiente` (5 min, sin estudio) pida lo que pida. */
+  factor?: "sin_factor" | "pendiente";
+  /** 029 (U6): lista cerrada navegador/SO o «Otro» (≤ 60 caracteres). */
+  dispositivo?: string | null;
+  /** 029 (U6): IP truncada a /24 o /48 (cidr). */
+  ipRed?: string | null;
 }
 export interface RecuperacionConsumida {
   usuarioId: string;
@@ -228,7 +241,7 @@ const SQL = {
   limiteConsumir: "select * from auth.limite_consumir($1::text, $2::text)",
   loginPreparar: "select * from auth.login_preparar($1::text, $2::bytea)",
   loginExito:
-    "select * from auth.login_exito($1::bytea, $2::uuid, $3::text, $4::bytea, $5::uuid, $6::text, $7::bytea)",
+    "select * from auth.login_exito($1::bytea, $2::uuid, $3::text, $4::bytea, $5::uuid, $6::text, $7::bytea, $8::text, $9::text, $10::cidr)",
   sesionValidar: "select * from auth.sesion_validar($1::bytea)",
   sesionConsultar: "select * from auth.sesion_consultar($1::bytea)",
   sesionRotar: "select * from auth.sesion_rotar($1::bytea, $2::bytea, $3::uuid)",
@@ -271,6 +284,9 @@ const sesionEmitida = (f: Fila): SesionEmitida => ({
   expiraAbsoluta: f.expira_absoluta,
 });
 
+/** Falla cerrado: un factor fuera de la lista (o ausente) nunca pasa como `verificado`; se degrada a `sin_factor`. */
+const factorDe = (v: unknown): FactorSesion => (typeof v === "string" && FACTORES.includes(v) ? (v as FactorSesion) : "sin_factor");
+
 const sesionValida = (f: Fila[]): SesionValida | null =>
   f.length === 0
     ? null
@@ -280,6 +296,7 @@ const sesionValida = (f: Fila[]): SesionValida | null =>
         tenantActivo: f[0]!.tenant_activo ?? null,
         estudioRevocado: f[0]!.estudio_revocado === true,
         expiraAbsoluta: f[0]!.expira_absoluta,
+        factor: factorDe(f[0]!.factor),
       };
 
 const planFila = (f: Fila): PlanFila => ({
@@ -366,7 +383,18 @@ export function crearAuthRepo(tx: TxConsulta): AuthRepo {
     loginExito: (a) =>
       ejecutar(
         SQL.loginExito,
-        [a.clave, a.usuarioId, a.hashVerificado, a.tokenHash, a.tenantActivo, a.hashNuevo, a.tokenAnteriorHash],
+        [
+          a.clave,
+          a.usuarioId,
+          a.hashVerificado,
+          a.tokenHash,
+          a.tenantActivo,
+          a.hashNuevo,
+          a.tokenAnteriorHash,
+          a.factor ?? "sin_factor",
+          a.dispositivo ?? null,
+          a.ipRed ?? null,
+        ],
         (f) => (f.length === 0 ? null : sesionEmitida(f[0]!)),
       ),
     sesionValidar: (tokenHash) => ejecutar(SQL.sesionValidar, [tokenHash], sesionValida),

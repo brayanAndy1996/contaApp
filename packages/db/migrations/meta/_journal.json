@@ -547,6 +547,13 @@
       "when": 1795571076198,
       "tag": "0077_correo_t22a",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1795647046898,
+      "tag": "0078_cuenta_segura",
+      "breakpoints": true
     }
   ]
 }

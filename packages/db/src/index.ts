@@ -46,7 +46,21 @@ export type {
   SesionValida,
   SuscripcionAsignada,
   TipoLimite,
+  FactorSesion,
 } from "./auth/repositorio";
+// Spec 029: segundo factor TOTP y sesiones del usuario (0078).
+export { crearTotpRepo } from "./auth/totp";
+export type {
+  ConfirmarArgs,
+  IntentoReservado,
+  RecuperacionUsarArgs,
+  ResultadoDesactivar,
+  TotpFila,
+  TotpRepo,
+  VerificarExitoArgs,
+} from "./auth/totp";
+export { crearSesionesRepo } from "./auth/sesiones";
+export type { SesionListada, SesionesRepo } from "./auth/sesiones";
 export { AuthRepoError, PlataformaReglaError } from "./auth/errores";
 export type { MotivoPlataforma } from "./auth/errores";
 // Spec 005: repositorios de acceso (todos con la `tx` de withTenant como primer argumento).

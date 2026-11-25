@@ -10,7 +10,7 @@ Nivel A. Flujo 04 §1.3: pruebas (rojo) → implementar (verde) → cobertura �
 | T2 | Pruebas puras: RFC 6238, cifrado, recuperación, dispositivo, `shared` y plantillas de correo (rojo) | tester | sonnet | — ∥ T1, T3, T4 | ✓ | — | [x] |
 | T3 | Pruebas HTTP: login en dos pasos, enrolar, exigencia, sesiones, CSRF, canarios (rojo) | tester | sonnet | — ∥ T1, T2, T4 | ✓ | — | [x] |
 | T4 | Pruebas del frontend: paso de código, Seguridad, enrolamiento forzado (rojo) | tester | sonnet | — ∥ T1, T2, T3 | ✓ | — | [x] |
-| T5 | Migración 0078, esquema drizzle y repositorio `auth/totp`, `auth/sesiones` | backend | opus | T1 ∥ T6 | ✓ | — | [ ] |
+| T5 | Migración 0078, esquema drizzle y repositorio `auth/totp`, `auth/sesiones` | backend | opus | T1 ∥ T6 | ✓ | — | [x] |
 | T6 | Puros del backend, `shared`, plantillas de `correo`, `TOTP_CLAVE` y dependencias | backend | sonnet | T2 ∥ T5 | ✓ | — | [x] |
 | T7 | Servicios, guards y controlador: dos pasos, exigencia, sesiones, avisos | backend | opus | T3, T5, T6 ∥ T8, T9 | ✓ | — | [ ] |
 | T8 | CLI `db:totp-restablecer` | backend | sonnet | T1, T5, T6 ∥ T7, T9 | ✓ | — | [ ] |
