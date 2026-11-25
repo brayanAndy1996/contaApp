@@ -2,8 +2,12 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
-// Cobertura de 008 (DoD A): mide la cola, sunat, lo que 008 agrega en db y shared, el worker de
-// trabajos y el módulo trabajos del backend, con todas las suites en un solo run.
+// Cobertura única del worker (spec 042, A1): una sola corrida, con todas las suites de trabajos, mide lo que
+// antes medían las 10 configuraciones por spec (008 cola, 012b archivos, 016 XML, 017 auditoría, 021 reglas,
+// 023 buzones, 025 aprendizaje, 026 prorrata, 027 gastos y 028 correo).
+// Umbral de 90 % por archivo en cada glob de `medidos` (D1: no se baja). Una spec nueva agrega sus globs a
+// `medidos` y, si sus suites no entran en un proyecto, el proyecto; no agrega una config ni un paso de CI (A6).
+// Las cierre-*.adv.int.spec.ts de 008 van en su paso aparte (ci:cierre) y aquí no se repiten.
 const raiz = fileURLToPath(new URL("../..", import.meta.url));
 const ruta = (relativa: string) =>
   fileURLToPath(new URL(relativa, import.meta.url));
@@ -58,6 +62,29 @@ const proyecto = (
 
 const sinInt = ["**/node_modules/**", "**/*.int.spec.ts"];
 
+// Lo que se mide: unión de los `coverage.include` de las 10 configuraciones. Los de 012b a 028 (procesadores,
+// persistidores, ejecutor, iniciar y trabajos.module) ya caen dentro de `apps/worker/src/trabajos/**`;
+// `eventos.ts` de 017, dentro de `packages/queue/src/**`.
+const medidos = [
+  "packages/queue/src/**/*.ts",
+  "packages/sunat/src/**/*.ts",
+  "packages/db/src/trabajos/**/*.ts",
+  "packages/db/src/credenciales/estado.ts",
+  "packages/shared/src/trabajos/**/*.ts",
+  "apps/worker/src/trabajos/**/*.ts",
+  "apps/worker/src/adaptadores/adaptadores.module.ts",
+  "apps/backend/src/modules/trabajos/**/*.ts",
+];
+
+// Mismo umbral que tenía cada configuración: 90 % por archivo en las cuatro métricas.
+const porArchivo = {
+  perFile: true,
+  lines: 90,
+  statements: 90,
+  functions: 90,
+  branches: 90,
+};
+
 export default defineConfig({
   root: raiz,
   test: {
@@ -74,7 +101,10 @@ export default defineConfig({
       proyecto("db-trabajos", ["packages/db/src/trabajos/**/*.spec.ts"]),
       proyecto(
         "worker-unit",
-        ["apps/worker/src/trabajos/**/*.spec.ts"],
+        [
+          "apps/worker/src/trabajos/**/*.spec.ts",
+          "apps/worker/src/adaptadores/*.spec.ts",
+        ],
         sinInt,
       ),
       // Spec 009 (D18): las pruebas de cierre de 008 van en su paso aparte (ci:cierre) y aquí no se repiten.
@@ -83,7 +113,8 @@ export default defineConfig({
         ["apps/worker/src/trabajos/**/*.int.spec.ts"],
         ["**/node_modules/**", "**/cierre-*.adv.int.spec.ts"],
         // 012b T24: la instrumentación v8 encarece generar 20.000 filas (6,4 s); la prueba de rendimiento de
-        // generar-archivo.int.spec.ts multiplica su límite por 3 con esta marca (como vitest.cobertura-archivos).
+        // generar-archivo.int.spec.ts multiplica su límite por 3 con esta marca. Bajo cobertura las pruebas de
+        // tiempo corren sin comparar (ver test/tiempos.ts); la comparación estricta queda en `test:int`.
         { CONTAPP_COBERTURA: "1" },
       ),
       proyecto(
@@ -98,15 +129,7 @@ export default defineConfig({
     ],
     coverage: {
       provider: "v8",
-      include: [
-        "packages/queue/src/**/*.ts",
-        "packages/sunat/src/**/*.ts",
-        "packages/db/src/trabajos/**/*.ts",
-        "packages/db/src/credenciales/estado.ts",
-        "apps/worker/src/trabajos/**/*.ts",
-        "apps/backend/src/modules/trabajos/**/*.ts",
-        "packages/shared/src/trabajos/**/*.ts",
-      ],
+      include: medidos,
       exclude: [
         "**/*.spec.ts",
         "**/*.adv.spec.ts",
@@ -116,14 +139,9 @@ export default defineConfig({
         "packages/db/src/trabajos/soporte-prueba.ts",
         "packages/queue/src/soporte-pruebas/**",
       ],
-      reporter: ["text", "html"],
-      thresholds: {
-        perFile: true,
-        lines: 90,
-        statements: 90,
-        functions: 90,
-        branches: 90,
-      },
+      reporter: ["text", "json-summary"],
+      // Un bloque por glob medido.
+      thresholds: Object.fromEntries(medidos.map((g) => [g, porArchivo])),
     },
   },
 });
