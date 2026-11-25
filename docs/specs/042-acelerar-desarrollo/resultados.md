@@ -25,3 +25,18 @@
 - Cobertura: ningún archivo bajo 90 % ni métrica por debajo de la línea base (57 y 36 filas de sus tablas). Mínimos: backend ramas 90,9 % (`buzon/lectura.service.ts`), sentencias 95 %, funciones 94,9 %, líneas 94,3 %; worker ramas 91,4 % (`trabajos.service.ts`), sentencias 95,1 %, funciones 94,4 %, líneas 94,3 %. Sin casos D1.
 - `ci.yml` (T5), pasos rotos porque su script ya no existe (6): `cobertura:auth`, `acceso`, `cola`, `xml`, `archivos`, `auditoria`. Parciales (7): `cobertura:reglas`, `buzon`, `bandeja`, `aprendizaje`, `prorrata`, `gastos`, `correo` siguen, pero ya sin backend ni worker; T5 debe agregar `cobertura:backend` y `cobertura:worker`. Sin cambio: `dominio`, `storage`, `sunat`, `db`, `crypto`.
 - A decidir en T5 (el plan no lo cubre): esos 7 scripts eran los únicos que corrían 20 configs por spec de `packages/*` (domain 6, sunat 4, db 7, correo, queue y shared 1 cada una; las de db usan PostgreSQL). Se dejaron sus pasos para no perder cobertura (A1: «las de `packages/*` se mantienen»); T5 debe correrlos en algún job o unirlas por paquete.
+
+## T5 (2026-11-25)
+- `ci.yml`: `paths-ignore` (`docs/**`, `**/*.md`) en push y PR, `workflow_dispatch` sin filtro; `concurrency` `ci-${{ github.ref }}` con cancelación salvo en `main`. `ci` corre siempre; `aislamiento`, `cobertura-backend`, `cobertura-worker`, `cobertura-paquetes`, `cierre` y `e2e` solo en `pull_request`, push a `main` y dispatch, en paralelo (sin `needs`; `e2e` idéntico).
+- Cada job con BD: `postgres:17`, `redis:7`, `env` y `DATABASE_URL` por corrida iguales a los de `aislamiento` de antes. Los 4 nuevos suman «Build de shared y db» + `pnpm db:migrate && pnpm db:seed` (lo hacía `ci:db`; `db` solo importa `shared`); `cierre` además construye crypto, domain y sunat (el worker compilado los necesita) e instala `redis-server`. `CORREO_PROVIDER` y `APP_ORIGIN` solo en los pasos que los tenían.
+
+| Paso del CI viejo | Ahora |
+|---|---|
+| `ci:db` · `ci:cierre` | jobs `aislamiento` · `cierre` |
+| `cobertura:auth`, `acceso`, `cola`, `xml`, `archivos`, `auditoria` (scripts borrados en T4) | `cobertura:backend` · `cobertura:worker` |
+| `cobertura:reglas`, `buzon`, `bandeja`, `aprendizaje`, `prorrata`, `gastos`, `correo` | partes backend y worker en los dos de arriba; partes `packages/*` en `cobertura-paquetes` (mismos scripts y orden) |
+| `cobertura:db`, `cobertura:crypto` | `cobertura-paquetes` (al final) |
+| lint, typecheck, build, `cobertura:dominio/storage/sunat`, `e2e` | sin cambio (`ci` suma `pnpm test`) |
+
+- Verificación: YAML válido (`yaml.safe_load`); `actionlint` no está instalado. Script de comprobación (no versionado): cada `pnpm X` existe en el `package.json` raíz, `e2e` idéntico, `env` y `services` de los 4 jobs nuevos iguales a `aislamiento` anterior; de las invocaciones de vitest del CI viejo solo desaparecen las 21 configs por spec de backend/worker (las cubren las 2 únicas de T4) y las 25 de `packages/*` siguen.
+- **`pnpm test` local falla** (Node 22.22, 4 vCPU, `CI=true`, sin variables de BD): (1) `@contapp/db`: 25 de 104 archivos (`aprendizaje/*`, `buzon/{bandeja,indicador}`, `correo/*`, `gastos/*`, `prorrata/*`, todos `.spec.ts` sin `.int.`) lanzan «Faltan variables de entorno» y `ci` no tiene BD; (2) con las suites en paralelo (turbo por defecto y `--concurrency=2`) falla `frontend` `compras/page.integracion.spec.tsx` («Editar» en la lupa, foco; pasa sola y con turbo solo, 175 s) y una vez `backend` `lector-ventas.adv.spec.ts` adv-l1 (< 3 s; tardó 8 s bajo carga). Sin `db` y en serie, `pnpm exec turbo run test --filter='!@contapp/db' --concurrency=1` pasa 11 de 11 en 5 min 9 s. El paso quedó como `pnpm test` hasta decidir: dejar `db` fuera del nivel 1 o mover esos 25 archivos a `.int.spec.ts`, y serializar.
