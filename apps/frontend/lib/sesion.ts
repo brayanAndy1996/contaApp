@@ -5,7 +5,21 @@ export interface Sesion {
   usuario: { id: string; nombre: string; correo: string };
   estudioActivo: { id: string; nombre: string } | null;
   csrf: string;
+  // Spec 029: estado del segundo factor. Opcionales: un backend anterior no los envía.
+  factor?: "pendiente" | "verificado" | "sin_factor";
+  totpActivo?: boolean;
+  factorExigido?: boolean;
 }
+
+/** Evento de `window` cuando la sesión cambió de estado en una pantalla (p. ej. se activó el TOTP). */
+export const EVENTO_SESION_ACTUALIZADA = "contapp:sesion-actualizada";
+
+/** Ruta donde se enrola el segundo factor (spec 029). */
+export const RUTA_SEGURIDAD = "/cuenta/seguridad";
+
+/** Solo puede enrolar: el rol exige TOTP y la sesión aún no lo verificó. */
+export const bloqueadaPorFactor = (s: Sesion): boolean =>
+  s.factorExigido === true && s.factor !== "verificado";
 
 let guardada: Sesion | null = null;
 let pendiente: Promise<Sesion | null> | null = null;

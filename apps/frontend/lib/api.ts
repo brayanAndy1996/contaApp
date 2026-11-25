@@ -1,4 +1,9 @@
-import { obtenerSesion, reiniciarSesion, type Sesion } from "./sesion";
+import {
+  RUTA_SEGURIDAD,
+  obtenerSesion,
+  reiniciarSesion,
+  type Sesion,
+} from "./sesion";
 
 // Cliente HTTP del frontend (spec 004, CA-12). Todas las llamadas van a `/api/*` (Next las reescribe
 // al backend), con la cookie de sesión del mismo origen. Añade `X-CSRF-Token` en los no-GET y
@@ -45,6 +50,12 @@ async function leerCuerpo(respuesta: Response): Promise<unknown> {
 
 function irALogin(): void {
   if (window.location.pathname !== "/login") window.location.assign("/login");
+}
+
+// Spec 029: el rol exige el segundo factor y la sesión no lo tiene verificado → solo se puede enrolar.
+function irASeguridad(): void {
+  if (window.location.pathname !== RUTA_SEGURIDAD)
+    window.location.assign(RUTA_SEGURIDAD);
 }
 
 // Comprobación de sesión tras un 401, compartida por todas las peticiones que lo reciben a la vez.
@@ -123,6 +134,12 @@ async function ejecutar<T>(
       // (`ultimo_dueno`, `cupo_usuarios`…) llegan tal cual a la pantalla.
       await obtenerSesion(true);
       window.dispatchEvent(new Event(EVENTO_ESTUDIO_DESFASADO));
+    } else if (
+      respuesta.status === 403 &&
+      (datos as { codigo?: string } | null)?.codigo ===
+        "segundo_factor_requerido"
+    ) {
+      irASeguridad();
     } else if (
       respuesta.status === 403 &&
       !reintento &&

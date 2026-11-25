@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { verificarSegundoFactorSchema } from "@contapp/shared";
 import { api } from "../../../lib/api";
+import { MENSAJES_SEGURIDAD, codigoDe } from "../../../lib/seguridad";
 import { reiniciarSesion } from "../../../lib/sesion";
 import {
   Alert,
@@ -29,7 +31,11 @@ const ERROR_GENERAL = "No se pudo iniciar sesión. Inténtalo de nuevo.";
 interface RespuestaLogin {
   estudioActivo: { id: string; nombre: string } | null;
   requiereEstudio: boolean;
+  // Spec 029: con TOTP activo el login deja la sesión «pendiente» y pide el código.
+  segundoFactor?: boolean;
 }
+
+type ModoCodigo = "totp" | "recuperacion";
 
 export default function Login() {
   const router = useRouter();
@@ -37,6 +43,9 @@ export default function Login() {
   const [contrasena, setContrasena] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [pidiendoCodigo, setPidiendoCodigo] = useState(false);
+  const [modo, setModo] = useState<ModoCodigo>("totp");
+  const [codigo, setCodigo] = useState("");
 
   async function ingresar(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -48,6 +57,15 @@ export default function Login() {
         body: { correo, contrasena },
         sinSesion: true,
       });
+      if (r.ok && r.datos?.segundoFactor === true) {
+        // La contraseña ya no se necesita ni se conserva; la sesión «pendiente» solo sirve para verificar.
+        reiniciarSesion();
+        setContrasena("");
+        setCodigo("");
+        setModo("totp");
+        setPidiendoCodigo(true);
+        return;
+      }
       if (r.ok) {
         reiniciarSesion();
         router.push(r.datos?.estudioActivo ? "/" : "/estudios");
@@ -65,6 +83,111 @@ export default function Login() {
     } finally {
       setEnviando(false);
     }
+  }
+
+  function cambiarModo(nuevo: ModoCodigo) {
+    setModo(nuevo);
+    setCodigo("");
+    setError(null);
+  }
+
+  async function verificar(evento: FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    const cuerpo =
+      modo === "totp"
+        ? { codigo: codigo.trim() }
+        : { codigoRecuperacion: codigo.trim().toUpperCase() };
+    setError(null);
+    if (!verificarSegundoFactorSchema.safeParse(cuerpo).success) {
+      setError(MENSAJES_SEGURIDAD.codigoIncorrecto);
+      return;
+    }
+    setEnviando(true);
+    try {
+      // 401 `codigo_invalido` es un dato erróneo, no sesión caducada: `manejar401: false`.
+      const r = await api<RespuestaLogin>("/auth/2fa/verificar", {
+        method: "POST",
+        body: cuerpo,
+        manejar401: false,
+      });
+      if (r.ok) {
+        reiniciarSesion();
+        router.push(r.datos?.estudioActivo ? "/" : "/estudios");
+        return;
+      }
+      if (r.status === 401 && codigoDe(r.datos) === "sesion_invalida") {
+        setPidiendoCodigo(false);
+        setError(MENSAJES_SEGURIDAD.sesionCaducada);
+        return;
+      }
+      setError(
+        r.status === 401
+          ? MENSAJES_SEGURIDAD.codigoIncorrecto
+          : r.status === 429
+            ? MENSAJES_SEGURIDAD.demasiadosIntentos
+            : ERROR_GENERAL,
+      );
+    } catch {
+      setError(ERROR_GENERAL);
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  if (pidiendoCodigo) {
+    const recuperacion = modo === "recuperacion";
+    return (
+      <main className="flex flex-1 items-center justify-center p-6">
+        <Card className="w-full max-w-md">
+          <h1 className="m-0 font-titulo text-[28px] font-extrabold leading-tight tracking-tight text-tinta">
+            Verificación en dos pasos
+          </h1>
+          <form onSubmit={verificar} className="flex flex-col gap-4">
+            <Label>
+              {recuperacion
+                ? "Código de recuperación"
+                : "Código de verificación"}
+              <Input
+                key={modo}
+                type="text"
+                required
+                autoFocus
+                value={codigo}
+                onChange={(e) => setCodigo(e.target.value)}
+                {...(recuperacion
+                  ? {
+                      autoComplete: "off",
+                      autoCapitalize: "characters",
+                      spellCheck: false,
+                      placeholder: "XXXX-XXXX-XXXX",
+                    }
+                  : {
+                      autoComplete: "one-time-code",
+                      inputMode: "numeric" as const,
+                      placeholder: "000000",
+                    })}
+                className="max-lg:h-11"
+              />
+            </Label>
+            {error && <Alert tono="error">{error}</Alert>}
+            <Button type="submit" disabled={enviando} className="max-lg:h-11">
+              Verificar
+            </Button>
+            <button
+              type="button"
+              onClick={() =>
+                cambiarModo(recuperacion ? "totp" : "recuperacion")
+              }
+              className={cn(ENLACE, "self-start text-left")}
+            >
+              {recuperacion
+                ? "Usar el código de mi aplicación"
+                : "Usar un código de recuperación"}
+            </button>
+          </form>
+        </Card>
+      </main>
+    );
   }
 
   return (

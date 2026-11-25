@@ -1,7 +1,7 @@
 "use client";
 
 import { Info, TriangleAlert } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Fragment,
   Suspense,
@@ -15,7 +15,15 @@ import { Campana } from "../../components/notificaciones/campana";
 import { Alert, AlertDescription } from "../../components/ui";
 import { cargarYo, type Yo } from "../../lib/acceso";
 import { api, EVENTO_ESTUDIO_DESFASADO } from "../../lib/api";
-import { obtenerSesion, reiniciarSesion, type Sesion } from "../../lib/sesion";
+import { MENSAJES_SEGURIDAD } from "../../lib/seguridad";
+import {
+  EVENTO_SESION_ACTUALIZADA,
+  RUTA_SEGURIDAD,
+  bloqueadaPorFactor,
+  obtenerSesion,
+  reiniciarSesion,
+  type Sesion,
+} from "../../lib/sesion";
 
 interface Estudio {
   id: string;
@@ -33,8 +41,23 @@ const AVISO_DESFASADO =
 const CAJA_MENU =
   "fixed inset-x-0 bottom-0 z-40 h-[var(--alto-barra-inferior,calc(4.5rem+env(safe-area-inset-bottom)))] border-t border-linea bg-hoja-alterna lg:inset-x-auto lg:inset-y-0 lg:left-0 lg:h-auto lg:w-64 lg:border-r lg:border-t-0";
 
+/**
+ * `usePathname()` es dato de la URL en tiempo de petición: Next exige un límite de Suspense. Aquí vive solo el
+ * hook y avisa la ruta al layout, para que el resto del marco no dependa de él al prerenderizar.
+ */
+function ObservadorRuta({
+  alCambiar,
+}: {
+  alCambiar: (ruta: string | null) => void;
+}) {
+  const ruta = usePathname();
+  useEffect(() => alCambiar(ruta), [ruta, alCambiar]);
+  return null;
+}
+
 export default function LayoutApp({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const [ruta, setRuta] = useState<string | null>(null);
   const [sesion, setSesion] = useState<Sesion | null>(null);
   const [estudios, setEstudios] = useState<Estudio[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -58,13 +81,19 @@ export default function LayoutApp({ children }: { children: ReactNode }) {
     (async () => {
       const actual = await obtenerSesion();
       if (!vigente) return;
-      if (!actual) return router.replace("/login");
-      if (!actual.estudioActivo) return router.replace("/estudios");
-      const lista = await api<Estudio[]>("/auth/estudios");
-      if (!vigente) return;
+      if (!actual || actual.factor === "pendiente")
+        return router.replace("/login");
+      // Con el segundo factor exigido y sin verificar solo se puede enrolar: se omite `/estudios` y `acceso/yo`.
+      const bloqueada = bloqueadaPorFactor(actual);
+      if (!actual.estudioActivo && !bloqueada)
+        return router.replace("/estudios");
+      if (actual.estudioActivo) {
+        const lista = await api<Estudio[]>("/auth/estudios");
+        if (!vigente) return;
+        if (lista.ok && lista.datos) setEstudios(lista.datos);
+      }
       setSesion(actual);
-      if (lista.ok && lista.datos) setEstudios(lista.datos);
-      await refrescarYo();
+      if (!bloqueada) await refrescarYo();
     })().catch(() => {
       if (vigente) setError(ERROR_CARGA);
     });
@@ -72,6 +101,29 @@ export default function LayoutApp({ children }: { children: ReactNode }) {
       vigente = false;
     };
   }, [router, refrescarYo]);
+
+  const bloqueada = sesion !== null && bloqueadaPorFactor(sesion);
+  const enSeguridad = ruta === RUTA_SEGURIDAD;
+
+  useEffect(() => {
+    if (bloqueada && ruta !== null && !enSeguridad)
+      router.replace(RUTA_SEGURIDAD);
+  }, [bloqueada, ruta, enSeguridad, router]);
+
+  // Se activó el TOTP en la pantalla de seguridad: la sesión rotó y ya no está bloqueada.
+  useEffect(() => {
+    if (!bloqueada) return;
+    const alActualizar = () => {
+      void obtenerSesion().then((s) => {
+        if (!s) return;
+        setSesion(s);
+        if (!bloqueadaPorFactor(s)) void refrescarYo();
+      });
+    };
+    window.addEventListener(EVENTO_SESION_ACTUALIZADA, alActualizar);
+    return () =>
+      window.removeEventListener(EVENTO_SESION_ACTUALIZADA, alActualizar);
+  }, [bloqueada, refrescarYo]);
 
   // Otra pestaña cambió de estudio: `api()` ya recargó la sesión; aquí se refleja y se refrescan datos.
   useEffect(() => {
@@ -132,6 +184,9 @@ export default function LayoutApp({ children }: { children: ReactNode }) {
 
   return (
     <>
+      <Suspense fallback={null}>
+        <ObservadorRuta alCambiar={setRuta} />
+      </Suspense>
       {/* `usePathname()` del menú es dato de la URL en tiempo de petición: Next exige un límite de Suspense. El
           fallback es una barra fija vacía con la misma caja, así que el contenido no se mueve. */}
       <Suspense fallback={<div aria-hidden="true" className={CAJA_MENU} />}>
@@ -166,7 +221,19 @@ export default function LayoutApp({ children }: { children: ReactNode }) {
             )}
           </div>
         )}
-        <Fragment key={epoca}>{children}</Fragment>
+        {bloqueada && !enSeguridad && (
+          <div className="px-4 pt-4 sm:px-6">
+            <Alert tono="aviso">
+              <TriangleAlert aria-hidden="true" />
+              <AlertDescription>
+                {MENSAJES_SEGURIDAD.exigidoAviso}
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
+        {!(bloqueada && !enSeguridad) && (
+          <Fragment key={epoca}>{children}</Fragment>
+        )}
       </div>
     </>
   );
