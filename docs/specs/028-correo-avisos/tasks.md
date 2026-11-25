@@ -298,10 +298,11 @@ Reglas comunes:
 - **Hecho cuando**: las pruebas nuevas fallan por D-T24-1 y el resto de `packages/correo` y del worker (`test`) sigue en verde. Commit `test(028): token de baja en la consola (T24a)`.
 - **Resultado (T24a, tester · sonnet, 2026-11-25)**: `packages/correo/src/consola-t24.spec.ts` (5 casos; 3 en rojo: el enlace `/baja?t=` del texto, el canario suelto y el canario en para/asunto salen en stdout; 2 en verde como control: se conserva para/asunto/texto/`/ir` y una `baja.url` inválida no rompe) y `apps/worker/src/trabajos/procesadores/enviar-correo-t24.spec.ts` (1 caso en rojo: `enviarCorreo` con `CorreoConsola` real y repositorio simulado; el token del `List-Unsubscribe` aparece en stdout dentro de `/baja?t=`). Sin cambios de producción ni de aserciones existentes. Resto de `packages/correo` (68/68) y del worker (610/610) en verde.
 
-## T24b · [ ] Corregir D-T24-1 (backend · opus)
+## T24b · [x] Corregir D-T24-1 (backend · opus)
 - **Contexto (leer solo esto)**: resultado de T24 y T24a, `packages/correo/src/consola.ts`, las pruebas de T24a.
 - **Hacer**: en `CorreoConsola`, ocultar el token además de la URL: extraer el valor de `t` de `baja.url` (`new URL(...).searchParams.get("t")`, tolerando una URL inválida) y sustituir toda aparición de ese valor (y de `baja.url`) por `[baja]` en para, asunto y texto. Sin cambiar el puerto, `enviar-correo.ts` ni el dominio.
 - **Hecho cuando**: T24a en verde; `packages/correo` `test` y `cobertura:correo` del paquete (≥ 90 % por archivo), worker `test`, `typecheck` y `lint` limpios. Commit `fix(028): la consola no imprime el token de baja (T24b)`.
+- **Resultado (T24b, backend · opus, 2026-11-25)**: `packages/correo/src/consola.ts` extrae `t` de `baja.url` (`new URL`, `null` si es inválida o vacía), sustituye `baja.url` por `[baja]` y además toda palabra (separada por espacios) que contenga el token se reemplaza entera por `[baja]`: así el enlace `/baja?t=` del cuerpo no deja ni el token ni `?t=` (lo exige `consola-t24.spec.ts`; sustituir solo el valor dejaría `?t=[baja]`). Puerto, `enviar-correo.ts` y dominio sin cambios. `packages/correo` 71/71, cobertura de `consola.ts` 100 % líneas / 93,75 % ramas; worker 611/611 (incluye `enviar-correo-t24.spec.ts`); `typecheck` y `lint` de correo y worker limpios.
 
 ## T25 · [ ] Cierre (devops · haiku)
 - **Contexto (leer solo esto)**: `tasks.md`, `spec.md` (estado y casillas de CA), resultados de T23 y T24.
