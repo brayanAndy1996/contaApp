@@ -263,6 +263,8 @@ export interface Harness {
   /** Mueve marcas de tiempo (conexión de migraciones; el plan lo prevé). */
   reiniciarIntentos(correo: string): Promise<void>;
   cerrar(): Promise<void>;
+  /** 029: con `true`, las sesiones conservan el factor que da el servidor (ver `marcarFactorLegado`). */
+  factorReal?: boolean;
 }
 
 /** Opciones extra para `crearApp` (spec 005: `cupoUsuarios`). Se pasan sin tipar: la opción nace en T9. */
@@ -330,7 +332,25 @@ export async function abrirHarness(opciones: OpcionesHarness = {}): Promise<Harn
     };
     // CA-10: ninguna respuesta incluye un hash de contraseña.
     expect(`${r.text}\n${JSON.stringify(r.headers)}`).not.toMatch(/\$argon2/);
+    await marcarFactorLegado(setCookies);
     return r;
+  };
+
+  /**
+   * Ajuste de 029 (T7, CA-4): Dueño, Administrador y el super-admin sin el segundo factor verificado reciben 403
+   * `segundo_factor_requerido`. Las suites anteriores a 029 no hacen el paso del TOTP: cada sesión que el servidor emite (Set-Cookie) y
+   * nace `sin_factor` se marca `verificado` con la conexión de migraciones, como si el usuario ya hubiera verificado. Así sus aserciones
+   * no cambian. Las suites de 029 (`soporte-totp.ts`, que deja `purgarTotp` en el harness) y las que pongan `factorReal = true` ven el
+   * factor real del servidor.
+   */
+  const marcarFactorLegado = async (setCookies: string[]): Promise<void> => {
+    const extra = harness as Harness & { purgarTotp?: unknown };
+    if (extra.factorReal === true || extra.purgarTotp !== undefined) return;
+    for (const linea of setCookies) {
+      const c = analizarSetCookie(linea);
+      if (c.nombre !== COOKIE || c.valor === "") continue;
+      await sql("update auth.sesion set factor = 'verificado' where token_hash = $1 and factor = 'sin_factor'", [sha256(c.valor)]);
+    }
   };
 
   const crearUsuario: Harness["crearUsuario"] = async (o = {}) => {
@@ -362,7 +382,7 @@ export async function abrirHarness(opciones: OpcionesHarness = {}): Promise<Harn
     return { cookie, valor: c.valor, csrf: s.body.csrf, estudioActivo: s.body.estudioActivo, login: l };
   };
 
-  return {
+  const harness: Harness = {
     app,
     correo,
     hasher,
@@ -403,6 +423,7 @@ export async function abrirHarness(opciones: OpcionesHarness = {}): Promise<Harn
       await dbBackend.close();
     },
   };
+  return harness;
 }
 
 function safeJson(t: string | undefined): unknown {

@@ -554,6 +554,13 @@
       "when": 1795647046898,
       "tag": "0078_cuenta_segura",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1795648080149,
+      "tag": "0079_cuenta_segura_t7",
+      "breakpoints": true
     }
   ]
 }

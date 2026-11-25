@@ -22,11 +22,13 @@ async function foto(c: PoolClient) {
   // Ajuste de 006 (T1): la migracion de auth de 006 redefine `auth.limite_consumir` (mismo cuerpo + los tipos registro_ip y
   // registro_correo) y amplia limite_tasa_tipo_valido. Reaplicar 0008 (escenario artificial) los devolveria a su version de 004,
   // asi que el cuerpo de limite_consumir y ese CHECK quedan fuera de esta comparacion (su existencia, dueño y ACL si cuentan); planes.spec.ts y planes-funciones.spec.ts fijan su version vigente.
+  // Ajuste de 029 (T7, 0079): igual para el cuerpo de contrasena_cambiar (0079 hace que la sesion rotada conserve factor, dispositivo y red;
+  // reaplicar 0008 la devolveria a su version de 004). Su version vigente la fija auth-cuenta-segura-t7.spec.ts.
   const funciones = (
     await c.query(`
       select p.oid::regprocedure::text as firma, pg_get_userbyid(p.proowner) as dueno, p.prosecdef as definer,
              coalesce(p.proconfig::text, '') as config, p.provolatile as volatil,
-             case when p.proname = 'limite_consumir' then '' else md5(p.prosrc) end as cuerpo
+             case when p.proname in ('limite_consumir', 'contrasena_cambiar') then '' else md5(p.prosrc) end as cuerpo
         from pg_proc p join pg_namespace n on n.oid = p.pronamespace
        where n.nspname = 'auth' order by 1`)
   ).rows;

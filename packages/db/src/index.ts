@@ -1,5 +1,5 @@
 export { createDb } from "./client";
-export type { ContappDb, ContextoTenant, OpcionesDb, RolApp, Tx } from "./client";
+export type { ContappDb, ContextoTenant, OpcionesDb, ReposCuenta, RolApp, Tx } from "./client";
 export {
   ConfiguracionDbError,
   ContextoInvalidoError,

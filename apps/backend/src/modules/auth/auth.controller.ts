@@ -5,10 +5,11 @@ import {
   type EstadoSesion,
   type Estudio,
   type RespuestaLogin,
+  type RespuestaSegundoFactor,
   type SesionResuelta,
 } from "./auth.service.js";
 import { AuthError } from "./errores.js";
-import { Publico, Sesion, SesionOpcional, SinEstudio } from "./guards/decoradores.js";
+import { PermitirPendiente, Publico, Sesion, SesionOpcional, SinEstudio } from "./guards/decoradores.js";
 import { RecuperacionService } from "./recuperacion.service.js";
 
 const SET_COOKIE = "Set-Cookie";
@@ -33,14 +34,15 @@ export class AuthController {
     @Body() cuerpo: unknown,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<RespuestaLogin> {
-    const { respuesta, cookie } = await this.auth.login(cuerpo, req.ip, req.headers.cookie);
+  ): Promise<RespuestaLogin | RespuestaSegundoFactor> {
+    const { respuesta, cookie } = await this.auth.login(cuerpo, req.ip, req.headers.cookie, req.headers["user-agent"]);
     res.setHeader(SET_COOKIE, cookie);
     return respuesta;
   }
 
   @Post("logout")
   @SesionOpcional()
+  @PermitirPendiente()
   @HttpCode(204)
   async logout(@Sesion() sesion: SesionResuelta | null, @Res({ passthrough: true }) res: Response): Promise<void> {
     res.setHeader(SET_COOKIE, await this.auth.logout(sesion));

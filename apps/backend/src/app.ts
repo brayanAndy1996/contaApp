@@ -147,6 +147,7 @@ export async function crearApp(o: OpcionesApp = {}): Promise<INestApplication> {
         prefijo: o.redis?.prefijo ?? PREFIJO_POR_DEFECTO,
       },
       storage: o.storage ?? crearStorage(env, new Logger("Storage")),
+      totp: entorno.totp,
     }),
     // El analizador de cuerpo se registra a mano: solo JSON y con límite propio.
     { bodyParser: false },

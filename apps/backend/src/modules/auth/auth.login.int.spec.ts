@@ -111,7 +111,8 @@ describe("CA-1 · login correcto", () => {
     expect(typeof r.body.csrf).toBe("string");
     expect(r.body.csrf.length).toBeGreaterThanOrEqual(32);
     expect(r.body.csrf).not.toBe(s.valor);
-    expect(Object.keys(r.body).sort()).toEqual(["csrf", "estudioActivo", "usuario"]);
+    // Ajuste de 029 (T7, plan: Contratos HTTP): GET /auth/sesion suma `factor`, `totpActivo` y `factorExigido`.
+    expect(Object.keys(r.body).sort()).toEqual(["csrf", "estudioActivo", "factor", "factorExigido", "totpActivo", "usuario"]);
     expect(r.text).not.toContain(s.valor);
   });
 

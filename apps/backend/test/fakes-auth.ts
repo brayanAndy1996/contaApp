@@ -34,7 +34,15 @@ export function crearEntorno(): Entorno {
     loginExito: vi.fn(async () => ({ sesionId: "s-nueva", expiraAbsoluta: new Date(Date.now() + 12 * HORA) })),
     sesionValidar: vi.fn(async () => null),
     // 008 (D22, T11c): sin uso en las unitarias de 004; solo para que el doble cumpla `AuthRepo`.
-    sesionConsultar: vi.fn(async () => null),
+    // 029: el login lee el factor de la sesión recién creada (sin TOTP la BD la crea `sin_factor`).
+    sesionConsultar: vi.fn(async () => ({
+      sesionId: "s-nueva",
+      usuarioId: U,
+      tenantActivo: null,
+      estudioRevocado: false,
+      expiraAbsoluta: new Date(Date.now() + 12 * HORA),
+      factor: "sin_factor" as const,
+    })),
     sesionRotar: vi.fn(async () => ({ sesionId: "s-rotada", expiraAbsoluta: new Date(Date.now() + HORA) })),
     sesionRevocar: vi.fn(async () => undefined),
     sesionesCerrarTodas: vi.fn(async () => 2),
@@ -94,8 +102,13 @@ export function crearEntorno(): Entorno {
       }),
     },
   };
+  // 029: repositorios de la cuenta (segundo argumento de `withAuth`); sin TOTP por defecto.
+  const cuenta = {
+    totp: { leer: vi.fn(async () => null), intentoAcierto: vi.fn(async () => undefined) },
+    sesiones: { listar: vi.fn(async () => []), revocar: vi.fn(async () => undefined), revocarOtras: vi.fn(async () => 0) },
+  };
   const db = {
-    withAuth: vi.fn(async (fn: (a: AuthRepo) => Promise<unknown>) => fn(repo)),
+    withAuth: vi.fn(async (fn: (a: AuthRepo, c: typeof cuenta) => Promise<unknown>) => fn(repo, cuenta)),
     withUsuario: vi.fn(async (_ctx: { userId: string }, fn: (t: typeof tx) => Promise<unknown>) => fn(tx)),
   } as unknown as Entorno["db"];
   const hasher: Mocks<Hasher> = {

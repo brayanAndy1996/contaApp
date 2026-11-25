@@ -96,6 +96,9 @@ export const TABLAS_AUTH_CUENTA = ["totp", "totp_recuperacion", "cuenta_evento"]
  * FUNCIONES_AUTH = 33 + 12 = 45. Hasta 0078 `auth.spec.ts`, `auth-r2a.adv.spec.ts` y `escalada.adv.spec.ts` fallan por ellas.
  */
 export const FUNCIONES_AUTH_CUENTA = [
+  // Ajuste de 029 (T7, migracion 0079): `intento_acierto` descuenta del contador de 004 D7 un intento reservado que acerto (contrasena o
+  // codigo dentro de una sesion). Mismo patron: dueño contapp_auth, EXECUTE solo contapp_backend. FUNCIONES_AUTH = 45 + 1 = 46.
+  "intento_acierto",
   "sesion_revocar_id",
   "sesiones_listar",
   "sesiones_revocar_otras",

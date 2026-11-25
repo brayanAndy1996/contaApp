@@ -10,3 +10,5 @@ export const COLA_CORREO = Symbol("AUTH_COLA_CORREO");
 export const COMUNES = Symbol("AUTH_COMUNES");
 /** `APP_ORIGIN` exacto (D6). */
 export const APP_ORIGIN = Symbol("AUTH_APP_ORIGIN");
+/** 029 (D1): `{ actual, anterior? }` de `TOTP_CLAVE`/`TOTP_CLAVE_ANTERIOR` (la anterior solo descifra y prueba códigos viejos). */
+export const TOTP_CLAVES = Symbol("AUTH_TOTP_CLAVES");

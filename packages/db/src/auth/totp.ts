@@ -58,6 +58,11 @@ export interface TotpRepo {
   confirmar(a: ConfirmarArgs): Promise<SesionEmitida | null>;
   desactivar(tokenHash: Buffer, paso: bigint): Promise<ResultadoDesactivar>;
   recuperacionRegenerar(tokenHash: Buffer, paso: bigint, hashes: Buffer[]): Promise<boolean>;
+  /**
+   * 0079: el intento reservado (contraseña con `loginPreparar` o código con `intentoReservar`) acertó dentro de una sesión que no es
+   * `pendiente`: descuenta uno del contador de 004 D7. Sin efectos si la sesión no sirve.
+   */
+  intentoAcierto(tokenHash: Buffer): Promise<void>;
 }
 
 const SQL = {
@@ -69,6 +74,7 @@ const SQL = {
   confirmar: "select * from auth.totp_confirmar($1::bytea, $2::bigint, $3::bytea[], $4::bytea)",
   desactivar: "select * from auth.totp_desactivar($1::bytea, $2::bigint)",
   recuperacionRegenerar: "select * from auth.totp_recuperacion_regenerar($1::bytea, $2::bigint, $3::bytea[])",
+  intentoAcierto: "select auth.intento_acierto($1::bytea)",
 } as const;
 
 const RESULTADOS_DESACTIVAR: readonly string[] = ["desactivado", "exigido", "invalido"];
@@ -131,5 +137,6 @@ export function crearTotpRepo(tx: TxConsulta): TotpRepo {
       }),
     recuperacionRegenerar: (tokenHash, p, hashes) =>
       ejecutar(SQL.recuperacionRegenerar, () => [tokenHash, paso(p), hashes], (f) => f[0]?.totp_recuperacion_regenerar === true),
+    intentoAcierto: (tokenHash) => ejecutar(SQL.intentoAcierto, () => [tokenHash], () => undefined),
   };
 }
