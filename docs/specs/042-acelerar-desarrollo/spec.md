@@ -1,6 +1,6 @@
 # Spec 042 · Acelerar el desarrollo: CI más rápido y método más liviano en tokens
 
-Estado: hecha salvo CA-1 (dos corridas en `main`). Aprobada por el usuario 2026-11-24 (todas las recomendaciones de P-1 a P-6); fases 1 y 2 implementadas; CA verificados en `resultados.md` (T8).
+Estado: hecha (2026-11-25). Aprobada por el usuario 2026-11-24 (todas las recomendaciones de P-1 a P-6); fases 1 y 2 implementadas; CA verificados en `resultados.md` (T8).
 Nivel de riesgo: D — no toca código de producción ni datos. Riesgo indirecto: que una prueba deje de correr sin que nadie lo note. Se cubre con CA-2 (mismas pruebas y mismos umbrales) y CA-3.
 Cubre: `docs/04-metodologia.md` §2.3 y §7, `.github/workflows/ci.yml`, configuraciones de cobertura de `apps/backend` y `apps/worker`, `docs/specs/ESTADO.md` y `docs/specs/_plantilla/`.
 
@@ -41,7 +41,7 @@ El desarrollo se volvió lento y caro. El CI tarda unas 2 horas por corrida, tam
 - D2 **El aislamiento entre estudios (RLS) corre siempre** en la suite completa, sin excepciones.
 
 ## Criterios de aceptación
-- [ ] CA-1: Una corrida completa del CI en `main` tarda **45 min o menos** (hoy unas 2 h), medida en dos corridas. En el PR #2: 27 min 9 s (`resultados.md` T8). Pendiente: dos corridas en `main`.
+- [x] CA-1: Una corrida completa del CI en `main` tarda **45 min o menos** (hoy unas 2 h), medida en dos corridas. PR #2: 27 min 9 s; `main`: 30 min 36 s (run 45677490117, push) y 27 min 22 s (run 45683546805, a mano), ambas en verde.
 - [x] CA-2: La suite completa ejecuta el mismo conjunto de archivos de prueba que antes, con el mismo resultado, y los umbrales por archivo son los mismos. Se comprueba comparando la lista de archivos de prueba y la tabla de cobertura antes y después.
 - [x] CA-3: Un push de solo documentación no dispara el CI. Un segundo push a la misma rama `spec/*` cancela la corrida anterior. En `main` nada se cancela.
 - [x] CA-4: En una rama `spec/*` el CI responde en **15 min o menos** (si P-2 = sí).

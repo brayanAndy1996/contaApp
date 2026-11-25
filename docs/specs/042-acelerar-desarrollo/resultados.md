@@ -71,3 +71,8 @@ Verificación en HEAD 61f7085. Los tiempos de CI los midió el orquestador en Gi
 - Intermitente corregida (61f7085): `packages/domain/src/gastos/puntaje.rendimiento.spec.ts` (027) falló 2,15× contra el tope de 2× al entrar las unitarias de `domain` en el nivel 1: medía reloj de pared y, en un runner cargado, las esperas por turno de CPU caen al azar sobre uno de los dos lados. Ahora mide tiempo de CPU (`process.cpuUsage`, como `tests/ayudas/rendimiento.ts` de 027 T25a), con el mismo tope y las mismas rondas intercaladas; 5/5 en verde con 6 núcleos ocupados y verde en el PR.
 - `tasks.md`: T7 y T8 en `[x]`. T7 (commits 6ce102b y f0489a5) no tiene sección en este archivo; su criterio de hecho es CA-5, comprobado arriba.
 - Estado: CA-2 a CA-6 cumplidos. CA-1 queda abierto hasta tener dos corridas completas en `main` (≤ 45 min); el orquestador lo cierra y anota aquí los tiempos.
+
+## CA-1 en `main` (2026-11-25, orquestador)
+- Corrida 1: run 45677490117 (push del merge b3255e5), 18:40:08→19:10:44 = **30 min 36 s**, verde (incluye E2E @volumen, que solo corre en `main`).
+- Corrida 2: run 45683546805 (`workflow_dispatch` en `main`, mismo commit), 19:16:28→19:43:50 = **27 min 22 s**, verde.
+- Antes: 2 h 46 min (run 45552022936). CA-1 cumple (≤ 45 min en ambas).

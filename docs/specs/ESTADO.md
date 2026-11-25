@@ -50,7 +50,7 @@ Una línea por spec; el detalle de las cerradas está en `NNN-*/cierre.md` y los
 | 038-diseno-visual | C | hecha | — | Mergeada en `main` (d1cc8fd). Modo oscuro fuera (P-1). Detalle: `038-*/cierre.md` |
 | 039-actualizar-next | D | hecha | — | Decisión del usuario 2026-11-17. `next` → 16.4.5 (GHSA-mfr8-8qww-v76h). CI verde con E2E. Detalle: `039-*/cierre.md` |
 | 040-avisos-dependencias | C | hecha | — | Decisión del usuario 2026-11-17. `pnpm audit --prod` de 6 avisos a 0. CI verde con E2E. Detalle: `040-*/cierre.md` |
-| 042-acelerar-desarrollo | D | en curso | T3–T8 | Aprobada 2026-11-24 (todas las recomendaciones). Fase 1 hecha: método y plantillas (1 ronda adversarial, topes, 1 CI en verde). Fase 2 (CI y ESTADO) tras fusionar 028. |
+| 042-acelerar-desarrollo | D | hecha | — | Merge b3255e5 (PR #2). CI completo 2 h 46 min → 27–31 min; nivel 1 en spec/* 6–7 min; cobertura única por app; ESTADO liviano. Detalle: `042-acelerar-desarrollo/cierre.md` |
 
 ## Hallazgos adversariales abiertos
 
