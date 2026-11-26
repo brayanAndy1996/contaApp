@@ -1,0 +1,882 @@
+{
+  "info": {
+    "name": "ContApp · SIRE (solo lectura)",
+    "description": "Banco de pruebas de las APIs SIRE de SUNAT (Compras RCE v28 y Ventas RVIE v30). SOLO LECTURA: token, periodos, descargar propuesta, consultar ticket y descargar archivo. No incluye aceptar/reemplazar/registrar/eliminar. Ver README.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{sire_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Avisa si el token no existe o ya venció (no lo pide solo: ejecuta '0. Obtener token').",
+          "if (pm.info.requestName.startsWith('0.')) return;",
+          "const exp = Number(pm.environment.get('sire_token_expira') || 0);",
+          "if (!pm.environment.get('sire_token') || Date.now() > exp) console.warn('Token SIRE ausente o vencido: ejecuta primero \"0. Obtener token\".');"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "rce_ticket",
+      "value": ""
+    },
+    {
+      "key": "rce_codProceso",
+      "value": ""
+    },
+    {
+      "key": "rce_perTributario",
+      "value": ""
+    },
+    {
+      "key": "rce_nomArchivoReporte",
+      "value": ""
+    },
+    {
+      "key": "rce_codTipoArchivoReporte",
+      "value": ""
+    },
+    {
+      "key": "rvie_ticket",
+      "value": ""
+    },
+    {
+      "key": "rvie_codProceso",
+      "value": ""
+    },
+    {
+      "key": "rvie_perTributario",
+      "value": ""
+    },
+    {
+      "key": "rvie_nomArchivoReporte",
+      "value": ""
+    },
+    {
+      "key": "rvie_codTipoArchivoReporte",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Obtener token",
+      "auth": {
+        "type": "noauth"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "const r = pm.response.json();",
+              "if (r.access_token) {",
+              "  // Se guarda como 'current value' del entorno (local, no se sincroniza si no lo compartes).",
+              "  pm.environment.set('sire_token', r.access_token);",
+              "  const seg = Number(r.expires_in || 3600);",
+              "  pm.environment.set('sire_token_expira', String(Date.now() + (seg - 60) * 1000));",
+              "  console.log('Token OK. Tipo:', r.token_type, '| expira en (s):', seg, '| campos:', Object.keys(r).join(', '));",
+              "} else {",
+              "  console.log('Sin access_token. Campos de la respuesta:', Object.keys(r).join(', '));",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "password"
+            },
+            {
+              "key": "scope",
+              "value": "https://api-sire.sunat.gob.pe"
+            },
+            {
+              "key": "client_id",
+              "value": "{{client_id}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{client_secret}}"
+            },
+            {
+              "key": "username",
+              "value": "{{ruc}}{{usuario_sol}}",
+              "description": "RUC + usuario SOL pegados, sin espacio"
+            },
+            {
+              "key": "password",
+              "value": "{{clave_sol}}"
+            }
+          ]
+        },
+        "url": {
+          "raw": "https://api-seguridad.sunat.gob.pe/v1/clientessol/{{client_id}}/oauth2/token/",
+          "protocol": "https",
+          "host": [
+            "api-seguridad",
+            "sunat",
+            "gob",
+            "pe"
+          ],
+          "path": [
+            "v1",
+            "clientessol",
+            "{{client_id}}",
+            "oauth2",
+            "token",
+            ""
+          ]
+        },
+        "description": "Servicio 5.1 Api Seguridad. La respuesta contiene el token: no la compartas ni la pegues en chats."
+      }
+    },
+    {
+      "name": "Compras (RCE · 080000)",
+      "item": [
+        {
+          "name": "1. Periodos habilitados (RCE)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const ej = pm.response.json();",
+                  "const lista = Array.isArray(ej) ? ej : [ej];",
+                  "lista.forEach(e => console.log(e.numEjercicio, (e.lisPeriodos || []).map(p => `${p.perTributario}:${p.desEstado}`).join(' | ')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://api-sire.sunat.gob.pe/v1/contribuyente/migeigv/libros/rvierce/padron/web/omisos/080000/periodos",
+              "protocol": "https",
+              "host": [
+                "api-sire",
+                "sunat",
+                "gob",
+                "pe"
+              ],
+              "path": [
+                "v1",
+                "contribuyente",
+                "migeigv",
+                "libros",
+                "rvierce",
+                "padron",
+                "web",
+                "omisos",
+                "080000",
+                "periodos"
+              ],
+              "query": []
+            },
+            "description": "Servicio 'consultar año y mes'. codLibro 080000. Solo lectura."
+          }
+        },
+        {
+          "name": "2. Descargar propuesta (RCE) → ticket",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "if (r.numTicket) {",
+                  "  pm.collectionVariables.set('rce_ticket', r.numTicket);",
+                  "  console.log('Ticket guardado en rce_ticket:', r.numTicket);",
+                  "} else { console.log('Respuesta sin numTicket', r); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://api-sire.sunat.gob.pe/v1/contribuyente/migeigv/libros/rce/propuesta/web/propuesta/{{periodo}}/exportacioncomprobantepropuesta?codTipoArchivo=0&codOrigenEnvio=2",
+              "protocol": "https",
+              "host": [
+                "api-sire",
+                "sunat",
+                "gob",
+                "pe"
+              ],
+              "path": [
+                "v1",
+                "contribuyente",
+                "migeigv",
+                "libros",
+                "rce",
+                "propuesta",
+                "web",
+                "propuesta",
+                "{{periodo}}",
+                "exportacioncomprobantepropuesta"
+              ],
+              "query": [
+                {
+                  "key": "codTipoArchivo",
+                  "value": "0",
+                  "disabled": false,
+                  "description": "0 = txt, 1 = csv"
+                },
+                {
+                  "key": "codOrigenEnvio",
+                  "value": "2",
+                  "disabled": false,
+                  "description": "2 = servicio API"
+                },
+                {
+                  "key": "fecEmisionIni",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filtro opcional"
+                },
+                {
+                  "key": "fecEmisionFin",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filtro opcional"
+                },
+                {
+                  "key": "codTipoCDP",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filtro opcional (tabla 03)"
+                },
+                {
+                  "key": "numSerieCDP",
+                  "value": "",
+                  "disabled": true,
+                  "description": "El manual lo marca obligatorio; probar primero sin él"
+                },
+                {
+                  "key": "numCDP",
+                  "value": "",
+                  "disabled": true,
+                  "description": "El manual lo marca obligatorio; probar primero sin él"
+                },
+                {
+                  "key": "codInconsistencia",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filtro opcional"
+                },
+                {
+                  "key": "codCar",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filtro opcional"
+                },
+                {
+                  "key": "numDocAdquiriente",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filtro opcional"
+                },
+                {
+                  "key": "mtoDesde",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filtro opcional"
+                },
+                {
+                  "key": "mtoHasta",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filtro opcional"
+                }
+              ]
+            },
+            "description": "Servicio 5.34. No devuelve datos: genera un ticket. Luego pasos 3 y 4."
+          }
+        },
+        {
+          "name": "3. Consultar estado del ticket (RCE)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "const t = pm.collectionVariables.get('rce_ticket');",
+                  "const reg = (r.registros || []).find(x => x.numTicket === t) || (r.registros || [])[0];",
+                  "if (!reg) { console.log('Sin registros para el ticket', t); return; }",
+                  "console.log('Estado:', reg.codEstadoProceso, reg.desEstadoProceso, '| proceso', reg.codProceso, reg.desProceso);",
+                  "const arch = (reg.archivoReporte || [])[0];",
+                  "pm.collectionVariables.set('rce_codProceso', reg.codProceso || '');",
+                  "pm.collectionVariables.set('rce_perTributario', reg.perTributario || '');",
+                  "if (arch) {",
+                  "  pm.collectionVariables.set('rce_nomArchivoReporte', arch.nomArchivoReporte || '');",
+                  "  pm.collectionVariables.set('rce_codTipoArchivoReporte', arch.codTipoAchivoReporte ?? arch.codTipoArchivoReporte ?? 'null');",
+                  "  console.log('Archivo listo:', arch.nomArchivoReporte, '(', (reg.archivoReporte || []).length, 'archivo(s) )');",
+                  "} else { console.log('Aún no hay archivo: vuelve a consultar en unos segundos.'); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://api-sire.sunat.gob.pe/v1/contribuyente/migeigv/libros/rvierce/gestionprocesosmasivos/web/masivo/consultaestadotickets?perIni={{periodo}}&perFin={{periodo}}&page=1&perPage=20&numTicket={{rce_ticket}}",
+              "protocol": "https",
+              "host": [
+                "api-sire",
+                "sunat",
+                "gob",
+                "pe"
+              ],
+              "path": [
+                "v1",
+                "contribuyente",
+                "migeigv",
+                "libros",
+                "rvierce",
+                "gestionprocesosmasivos",
+                "web",
+                "masivo",
+                "consultaestadotickets"
+              ],
+              "query": [
+                {
+                  "key": "perIni",
+                  "value": "{{periodo}}",
+                  "disabled": false,
+                  "description": "Periodo inicial yyyymm"
+                },
+                {
+                  "key": "perFin",
+                  "value": "{{periodo}}",
+                  "disabled": false,
+                  "description": "Periodo final yyyymm"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false,
+                  "description": ""
+                },
+                {
+                  "key": "perPage",
+                  "value": "20",
+                  "disabled": false,
+                  "description": ""
+                },
+                {
+                  "key": "numTicket",
+                  "value": "{{rce_ticket}}",
+                  "disabled": false,
+                  "description": "Lo llena el paso 2"
+                },
+                {
+                  "key": "codLibro",
+                  "value": "080000",
+                  "disabled": true,
+                  "description": "El manual lo marca obligatorio pero su ejemplo no lo envía. Actívalo si SUNAT lo pide."
+                },
+                {
+                  "key": "codOrigenEnvio",
+                  "value": "2",
+                  "disabled": true,
+                  "description": "Idem: 2 = servicio web."
+                }
+              ]
+            },
+            "description": "Repite hasta que codEstadoProceso sea 06 (terminado) o 04 (sin errores). Anexo III: 01 cargado, 02 validando, 03 con errores, 04 sin errores, 05 en proceso, 06 terminado."
+          }
+        },
+        {
+          "name": "4. Descargar archivo ZIP (RCE)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://api-sire.sunat.gob.pe/v1/contribuyente/migeigv/libros/rvierce/gestionprocesosmasivos/web/masivo/archivoreporte?nomArchivoReporte={{rce_nomArchivoReporte}}&codTipoArchivoReporte={{rce_codTipoArchivoReporte}}&perTributario={{rce_perTributario}}&codProceso={{rce_codProceso}}&numTicket={{rce_ticket}}&codLibro=080000",
+              "protocol": "https",
+              "host": [
+                "api-sire",
+                "sunat",
+                "gob",
+                "pe"
+              ],
+              "path": [
+                "v1",
+                "contribuyente",
+                "migeigv",
+                "libros",
+                "rvierce",
+                "gestionprocesosmasivos",
+                "web",
+                "masivo",
+                "archivoreporte"
+              ],
+              "query": [
+                {
+                  "key": "nomArchivoReporte",
+                  "value": "{{rce_nomArchivoReporte}}",
+                  "disabled": false,
+                  "description": "Lo llena el paso 3"
+                },
+                {
+                  "key": "codTipoArchivoReporte",
+                  "value": "{{rce_codTipoArchivoReporte}}",
+                  "disabled": false,
+                  "description": "Si SUNAT devolvió null, se envía 'null' (así lo dice el manual)"
+                },
+                {
+                  "key": "perTributario",
+                  "value": "{{rce_perTributario}}",
+                  "disabled": false,
+                  "description": ""
+                },
+                {
+                  "key": "codProceso",
+                  "value": "{{rce_codProceso}}",
+                  "disabled": false,
+                  "description": ""
+                },
+                {
+                  "key": "numTicket",
+                  "value": "{{rce_ticket}}",
+                  "disabled": false,
+                  "description": ""
+                },
+                {
+                  "key": "codLibro",
+                  "value": "080000",
+                  "disabled": false,
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Devuelve binario (ZIP). En Postman usa la flecha de 'Send' → 'Send and Download' para guardarlo. Guárdalo FUERA del repositorio o en tools/sire-postman/respuestas/ (ignorada por git)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Ventas (RVIE · 140000)",
+      "item": [
+        {
+          "name": "1. Periodos habilitados (RVIE)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const ej = pm.response.json();",
+                  "const lista = Array.isArray(ej) ? ej : [ej];",
+                  "lista.forEach(e => console.log(e.numEjercicio, (e.lisPeriodos || []).map(p => `${p.perTributario}:${p.desEstado}`).join(' | ')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://api-sire.sunat.gob.pe/v1/contribuyente/migeigv/libros/rvierce/padron/web/omisos/140000/periodos",
+              "protocol": "https",
+              "host": [
+                "api-sire",
+                "sunat",
+                "gob",
+                "pe"
+              ],
+              "path": [
+                "v1",
+                "contribuyente",
+                "migeigv",
+                "libros",
+                "rvierce",
+                "padron",
+                "web",
+                "omisos",
+                "140000",
+                "periodos"
+              ],
+              "query": []
+            },
+            "description": "Servicio 'consultar año y mes'. codLibro 140000. Solo lectura."
+          }
+        },
+        {
+          "name": "2. Descargar propuesta (RVIE) → ticket",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "if (r.numTicket) {",
+                  "  pm.collectionVariables.set('rvie_ticket', r.numTicket);",
+                  "  console.log('Ticket guardado en rvie_ticket:', r.numTicket);",
+                  "} else { console.log('Respuesta sin numTicket', r); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://api-sire.sunat.gob.pe/v1/contribuyente/migeigv/libros/rvie/propuesta/web/propuesta/{{periodo}}/exportapropuesta?codTipoArchivo=0",
+              "protocol": "https",
+              "host": [
+                "api-sire",
+                "sunat",
+                "gob",
+                "pe"
+              ],
+              "path": [
+                "v1",
+                "contribuyente",
+                "migeigv",
+                "libros",
+                "rvie",
+                "propuesta",
+                "web",
+                "propuesta",
+                "{{periodo}}",
+                "exportapropuesta"
+              ],
+              "query": [
+                {
+                  "key": "codTipoArchivo",
+                  "value": "0",
+                  "disabled": false,
+                  "description": "0 = txt, 1 = xls"
+                },
+                {
+                  "key": "mtoTotalDesde",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filtro opcional"
+                },
+                {
+                  "key": "mtoTotalHasta",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filtro opcional"
+                },
+                {
+                  "key": "fecDocumentoDesde",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filtro opcional dd/mm/aaaa"
+                },
+                {
+                  "key": "fecDocumentoHasta",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filtro opcional dd/mm/aaaa"
+                },
+                {
+                  "key": "numRucAdquiriente",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filtro opcional"
+                },
+                {
+                  "key": "numCarSunat",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filtro opcional"
+                },
+                {
+                  "key": "codTipoCDP",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filtro opcional"
+                },
+                {
+                  "key": "codTipoInconsistencia",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filtro opcional"
+                }
+              ]
+            },
+            "description": "Servicio 5.18. Genera un ticket. Luego pasos 3 y 4."
+          }
+        },
+        {
+          "name": "3. Consultar estado del ticket (RVIE)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "const t = pm.collectionVariables.get('rvie_ticket');",
+                  "const reg = (r.registros || []).find(x => x.numTicket === t) || (r.registros || [])[0];",
+                  "if (!reg) { console.log('Sin registros para el ticket', t); return; }",
+                  "console.log('Estado:', reg.codEstadoProceso, reg.desEstadoProceso, '| proceso', reg.codProceso, reg.desProceso);",
+                  "const arch = (reg.archivoReporte || [])[0];",
+                  "pm.collectionVariables.set('rvie_codProceso', reg.codProceso || '');",
+                  "pm.collectionVariables.set('rvie_perTributario', reg.perTributario || '');",
+                  "if (arch) {",
+                  "  pm.collectionVariables.set('rvie_nomArchivoReporte', arch.nomArchivoReporte || '');",
+                  "  pm.collectionVariables.set('rvie_codTipoArchivoReporte', arch.codTipoAchivoReporte ?? arch.codTipoArchivoReporte ?? 'null');",
+                  "  console.log('Archivo listo:', arch.nomArchivoReporte, '(', (reg.archivoReporte || []).length, 'archivo(s) )');",
+                  "} else { console.log('Aún no hay archivo: vuelve a consultar en unos segundos.'); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://api-sire.sunat.gob.pe/v1/contribuyente/migeigv/libros/rvierce/gestionprocesosmasivos/web/masivo/consultaestadotickets?perIni={{periodo}}&perFin={{periodo}}&page=1&perPage=20&numTicket={{rvie_ticket}}",
+              "protocol": "https",
+              "host": [
+                "api-sire",
+                "sunat",
+                "gob",
+                "pe"
+              ],
+              "path": [
+                "v1",
+                "contribuyente",
+                "migeigv",
+                "libros",
+                "rvierce",
+                "gestionprocesosmasivos",
+                "web",
+                "masivo",
+                "consultaestadotickets"
+              ],
+              "query": [
+                {
+                  "key": "perIni",
+                  "value": "{{periodo}}",
+                  "disabled": false,
+                  "description": "Periodo inicial yyyymm"
+                },
+                {
+                  "key": "perFin",
+                  "value": "{{periodo}}",
+                  "disabled": false,
+                  "description": "Periodo final yyyymm"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false,
+                  "description": ""
+                },
+                {
+                  "key": "perPage",
+                  "value": "20",
+                  "disabled": false,
+                  "description": ""
+                },
+                {
+                  "key": "numTicket",
+                  "value": "{{rvie_ticket}}",
+                  "disabled": false,
+                  "description": "Lo llena el paso 2"
+                },
+                {
+                  "key": "codLibro",
+                  "value": "140000",
+                  "disabled": true,
+                  "description": "El manual lo marca obligatorio pero su ejemplo no lo envía. Actívalo si SUNAT lo pide."
+                },
+                {
+                  "key": "codOrigenEnvio",
+                  "value": "2",
+                  "disabled": true,
+                  "description": "Idem: 2 = servicio web."
+                }
+              ]
+            },
+            "description": "Repite hasta que codEstadoProceso sea 06 (terminado) o 04 (sin errores). Anexo III: 01 cargado, 02 validando, 03 con errores, 04 sin errores, 05 en proceso, 06 terminado."
+          }
+        },
+        {
+          "name": "4. Descargar archivo ZIP (RVIE)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://api-sire.sunat.gob.pe/v1/contribuyente/migeigv/libros/rvierce/gestionprocesosmasivos/web/masivo/archivoreporte?nomArchivoReporte={{rvie_nomArchivoReporte}}&codTipoArchivoReporte={{rvie_codTipoArchivoReporte}}&perTributario={{rvie_perTributario}}&codProceso={{rvie_codProceso}}&numTicket={{rvie_ticket}}&codLibro=140000",
+              "protocol": "https",
+              "host": [
+                "api-sire",
+                "sunat",
+                "gob",
+                "pe"
+              ],
+              "path": [
+                "v1",
+                "contribuyente",
+                "migeigv",
+                "libros",
+                "rvierce",
+                "gestionprocesosmasivos",
+                "web",
+                "masivo",
+                "archivoreporte"
+              ],
+              "query": [
+                {
+                  "key": "nomArchivoReporte",
+                  "value": "{{rvie_nomArchivoReporte}}",
+                  "disabled": false,
+                  "description": "Lo llena el paso 3"
+                },
+                {
+                  "key": "codTipoArchivoReporte",
+                  "value": "{{rvie_codTipoArchivoReporte}}",
+                  "disabled": false,
+                  "description": "Si SUNAT devolvió null, se envía 'null' (así lo dice el manual)"
+                },
+                {
+                  "key": "perTributario",
+                  "value": "{{rvie_perTributario}}",
+                  "disabled": false,
+                  "description": ""
+                },
+                {
+                  "key": "codProceso",
+                  "value": "{{rvie_codProceso}}",
+                  "disabled": false,
+                  "description": ""
+                },
+                {
+                  "key": "numTicket",
+                  "value": "{{rvie_ticket}}",
+                  "disabled": false,
+                  "description": ""
+                },
+                {
+                  "key": "codLibro",
+                  "value": "140000",
+                  "disabled": false,
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Devuelve binario (ZIP). En Postman usa la flecha de 'Send' → 'Send and Download' para guardarlo. Guárdalo FUERA del repositorio o en tools/sire-postman/respuestas/ (ignorada por git)."
+          }
+        }
+      ]
+    }
+  ]
+}
