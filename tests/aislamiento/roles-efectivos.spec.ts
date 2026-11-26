@@ -90,13 +90,13 @@ describe("acceso.permisos_membresia · espejo de CASOS_EFECTIVOS (D3, CA-4)", ()
     expect((await efectivo(x.id, m.id))[0]?.permisos).not.toContain("plan.gestionar");
   });
 
-  it("la funcion no es ejecutable por los roles de la app (recibe un estudio arbitrario; solo las funciones definer y el migrador la usan)", async () => {
+  it("la funcion no es ejecutable por platform ni app (recibe un estudio arbitrario); solo las funciones definer, el migrador y el worker (T17a: revalidacion al despachar) la usan", async () => {
     const f = "acceso.permisos_membresia(uuid, uuid)";
     const r = await adm(
       `select r, has_function_privilege(r, $1, 'EXECUTE') as ok from unnest(array['contapp_worker', 'contapp_platform', 'contapp_app']) r`,
       [f],
     );
-    expect(r.filter((x) => x.ok).map((x) => x.r)).toEqual([]);
+    expect(r.filter((x) => x.ok).map((x) => x.r)).toEqual(["contapp_worker"]);
     const [p] = await adm("select prosecdef, proconfig::text as cfg, pg_get_userbyid(proowner) as dueno from pg_proc where oid = $1::regprocedure", [f]);
     expect(p.prosecdef).toBe(true);
     expect(p.cfg).toContain("search_path=pg_catalog, pg_temp");

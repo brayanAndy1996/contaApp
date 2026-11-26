@@ -2,6 +2,8 @@
 // una (resolvedor / explicita U10 / sin cambio). Lee pg_proc.prosrc: una funcion nueva que mencione `rol` y no este en la lista falla aqui, de modo que
 // nadie la olvide (plan.md, Riesgos). T6 mantiene esta lista junto con `catalogo.spec.ts`.
 // Rojo por: el esquema `acceso` y sus funciones no existen y las que deben usar el resolvedor aun deciden por `rol IN (...)`.
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { abrirAdmin } from "./auth-soporte";
@@ -114,6 +116,35 @@ describe("inventario cerrado de funciones que mencionan `rol` (plan.md#riesgos)"
   });
 });
 
+// T17a (dictamen T17-1): el inventario de arriba solo ve `pg_proc.prosrc`; el SQL que escriben los repositorios en TS tambien decide por clave de rol.
+// Cualquier `rol in (...)`, `rol = any(...)` o la lista 'dueno', 'admin' en `packages/db/src/**` fuera de la lista cerrada de abajo falla aqui.
+describe("inventario de SQL en TypeScript que decide por clave de rol (T17a)", () => {
+  /** U10: avisos y destinatarios, explicitos para Dueño y Administrador (mismas reglas que EXPLICITAS_U10). */
+  const AVISOS_U10 = ["correo/envios.ts", "correo/resumen.ts", "correo/preferencias.ts"];
+  /** Filtros de listado por clave de rol del catalogo (no deciden acceso): miembros e invitaciones. */
+  const LISTADOS = ["acceso/miembros.ts", "acceso/invitaciones.ts"];
+  const RAIZ = join(__dirname, "..", "..", "packages", "db", "src");
+  // `schema/` es DDL de drizzle (CHECK de la columna rol), no una decision de acceso.
+  const archivos = (dir: string): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((d) =>
+      d.isDirectory() ? (d.name === "schema" ? [] : archivos(join(dir, d.name))) : /\.ts$/.test(d.name) && !/\.(spec|test)\.ts$/.test(d.name) ? [join(dir, d.name)] : [],
+    );
+  const sinComentarios = (t: string): string => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  const DECIDE = /\brol\s*(?:=\s*any\s*\(|in\s*\()|'dueno'\s*,\s*'admin'/i;
+
+  it("fuera de los avisos U10 y de los listados, ningun archivo de packages/db/src arma SQL que decida por `rol in (...)`, `rol = any(...)` o 'dueno', 'admin'", () => {
+    const todos = archivos(RAIZ);
+    expect(todos.length, "archivos TS barridos").toBeGreaterThan(20);
+    const con = todos.filter((f) => DECIDE.test(sinComentarios(readFileSync(f, "utf8")))).map((f) => relative(RAIZ, f).split(sep).join("/"));
+    const inesperados = con.filter((f) => !AVISOS_U10.includes(f) && !LISTADOS.includes(f)).sort();
+    expect(inesperados, "SQL en TS que decide por clave de rol (usar acceso.permisos_membresia)").toEqual([]);
+  });
+
+  it("control del barrido: los archivos de avisos U10 si coinciden con el patron (la lista de excepciones no esta obsoleta)", () => {
+    for (const f of ["correo/envios.ts", "correo/resumen.ts"]) expect(DECIDE.test(sinComentarios(readFileSync(join(RAIZ, f), "utf8"))), f).toBe(true);
+  });
+});
+
 describe("esquema acceso y funciones nuevas (D3, D4, CA-9)", () => {
   it("el esquema acceso existe, es del migrador y ningun rol de la app puede crear en el", async () => {
     const [s] = (await admin.query("select pg_get_userbyid(nspowner) as dueno from pg_namespace where nspname = 'acceso'")).rows;
@@ -126,6 +157,33 @@ describe("esquema acceso y funciones nuevas (D3, D4, CA-9)", () => {
     ).rows;
     expect(r.filter((x) => x.crea)).toEqual([]);
     expect(r.find((x) => x.r === "contapp_backend")?.usa).toBe(true);
+    expect(r.find((x) => x.r === "contapp_worker")?.usa, "T17a: el worker revalida con acceso.permisos_membresia").toBe(true);
+    expect(r.filter((x) => x.usa).map((x) => x.r)).not.toContain("contapp_platform");
+    expect(r.filter((x) => x.usa).map((x) => x.r)).not.toContain("contapp_app");
+  });
+
+  it("T17a: contapp_worker ejecuta acceso.permisos_membresia (sin permission denied) y no las demas funciones de acceso", async () => {
+    const c = await admin.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query("SET LOCAL ROLE contapp_worker");
+      const z = "00000000-0000-0000-0000-000000000000";
+      const r = await c.query("select rol_sistema, permisos, alcance from acceso.permisos_membresia($1::uuid, $2::uuid)", [z, z]);
+      expect(r.rows).toEqual([]);
+      await c.query("ROLLBACK");
+      for (const sql of [
+        "select acceso.rol_eliminar('00000000-0000-0000-0000-000000000000'::uuid)",
+        "select acceso.rol_guardar('00000000-0000-0000-0000-000000000000'::uuid, 'x', 'global', '{}'::text[])",
+      ]) {
+        await c.query("BEGIN");
+        await c.query("SET LOCAL ROLE contapp_worker");
+        await expect(c.query(sql), sql).rejects.toMatchObject({ code: "42501" });
+        await c.query("ROLLBACK");
+      }
+    } finally {
+      await c.query("ROLLBACK").catch(() => undefined);
+      c.release();
+    }
   });
 
   it("tiene las cuatro funciones del plan y todas las del esquema son SECURITY DEFINER, con search_path fijo y del migrador", async () => {
@@ -139,7 +197,7 @@ describe("esquema acceso y funciones nuevas (D3, D4, CA-9)", () => {
     }
   });
 
-  it("EXECUTE: PUBLIC no lo tiene; contapp_backend solo ejecuta rol_guardar, rol_eliminar y rol_impacto; worker, platform y app, ninguna", async () => {
+  it("EXECUTE: PUBLIC no lo tiene; contapp_backend solo ejecuta rol_guardar, rol_eliminar y rol_impacto; el worker solo permisos_membresia (T17a); platform y app, ninguna", async () => {
     const firmas: Record<string, string> = {
       permisos_membresia: "acceso.permisos_membresia(uuid, uuid)",
       rol_guardar: "acceso.rol_guardar(uuid, text, text, text[])",
@@ -156,7 +214,7 @@ describe("esquema acceso y funciones nuevas (D3, D4, CA-9)", () => {
     const vistos: Record<string, string[]> = {};
     for (const [n, f] of Object.entries(firmas)) vistos[n] = await quien(f);
     expect(vistos).toEqual({
-      permisos_membresia: [],
+      permisos_membresia: ["contapp_worker"],
       rol_guardar: ["contapp_backend"],
       rol_eliminar: ["contapp_backend"],
       rol_impacto: ["contapp_backend"],

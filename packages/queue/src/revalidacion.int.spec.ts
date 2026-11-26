@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { ContappDb } from "@contapp/db";
 import type { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -57,12 +58,57 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await restaurarConfig(admin).catch(() => undefined);
+  await limpiarRolesPropios();
   await e?.limpiar();
   for (const p of prefijos)
     await limpiarPrefijo(redis, p).catch(() => undefined);
   redis?.disconnect();
   await Promise.all([backend?.close(), admin?.close()]);
 });
+
+/** Borra los roles propios sembrados (la limpieza del escenario no los conoce y `membresia_rol_fk` es RESTRICT). */
+async function limpiarRolesPropios(): Promise<void> {
+  if (e === undefined || e.estudios.length === 0) return;
+  const c = await admin.pool.connect();
+  try {
+    await c.query("SET session_replication_role = replica");
+    await c.query(
+      "delete from membresia where tenant_id = any($1::uuid[]) and rol_id is not null",
+      [e.estudios],
+    );
+    await c.query("delete from rol where tenant_id = any($1::uuid[])", [
+      e.estudios,
+    ]);
+  } catch {
+    /* limpieza de mejor esfuerzo */
+  } finally {
+    c.release(true);
+  }
+}
+
+/** Miembro activo con un rol propio recién sembrado (conexión administrativa): `permisos` tal cual, sin completar U3. */
+async function miembroPropio(
+  T: string,
+  alcance: "global" | "asignado",
+  permisos: readonly string[],
+): Promise<{ usuarioId: string; rolId: string }> {
+  const rolId = randomUUID();
+  await admin.pool.query(
+    "insert into rol (tenant_id, id, nombre, alcance) values ($1, $2, $3, $4)",
+    [T, rolId, `Rol T17a ${rolId.slice(0, 8)}`, alcance],
+  );
+  for (const p of permisos)
+    await admin.pool.query(
+      "insert into rol_permiso (tenant_id, rol_id, permiso) values ($1, $2, $3)",
+      [T, rolId, p],
+    );
+  const usuarioId = await e.usuario(T, "lectura");
+  await admin.pool.query(
+    "update membresia set rol = 'propio', rol_id = $3 where tenant_id = $1 and usuario_id = $2",
+    [T, usuarioId, rolId],
+  );
+  return { usuarioId, rolId };
+}
 
 /** Despachador a mano, eventos suscritos y un helper para encolar con el rol backend. */
 async function escenario() {
@@ -300,6 +346,180 @@ describe("CA-9 (despachador): credencial inválida del cliente", () => {
         async () => (await s.estado(tras)) === "completado",
         "el cliente desbloqueado se ejecuta",
       );
+    } finally {
+      await s.cerrar();
+    }
+  });
+});
+
+/** Cicla el despachador hasta que cada trabajo esté terminado (completado, cancelado o error); devuelve sus filas. */
+async function hastaTerminar(
+  s: { ciclos: (n?: number) => Promise<void> },
+  ids: string[],
+) {
+  const terminal = ["completado", "cancelado", "error"];
+  let filas: Array<Record<string, unknown>> = [];
+  for (let i = 0; i < 40; i++) {
+    await s.ciclos(1);
+    filas = await Promise.all(ids.map((id) => e.fila(id)));
+    if (filas.every((f) => terminal.includes(f.estado as string))) break;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  return filas;
+}
+
+// Spec 030, T17a (rojo; dictamen T17-1, D3, CA-4): el despachador debe revalidar a quien encoló con los permisos EFECTIVOS y su alcance
+// (igual que `acceso.permisos_membresia`), no por clave de rol de sistema: un miembro con rol propio que tiene el permiso no puede
+// terminar `cancelado/acceso_retirado`. El tipo `prueba.eco` exige `sire.descargar`.
+// Rojo por: SQL_REVALIDAR filtra `m.rol = any(rolesPermitidos)` (solo los 5 de sistema) y trata solo dueno/admin como alcance global.
+describe("T17a (spec 030): revalidación con permisos efectivos y alcance (rol propio)", () => {
+  const PERMISO = "sire.descargar";
+
+  it("rol propio con el permiso y alcance global se ejecuta sin asignación al cliente", async () => {
+    const s = await escenario();
+    try {
+      const { usuarioId } = await miembroPropio(s.T, "global", [PERMISO]);
+      const c = await e.cliente(s.T);
+      const id = await s.encolar(c, usuarioId);
+      const [f] = await hastaTerminar(s, [id]);
+      expect(f).toMatchObject({ estado: "completado" });
+      expect(s.a.ejecutor.iniciados).toContain(id);
+    } finally {
+      await s.cerrar();
+    }
+  });
+
+  it("rol propio con el permiso solo en clientes asignados: se ejecuta en el cliente asignado y se cancela en otro", async () => {
+    const s = await escenario();
+    try {
+      const { usuarioId } = await miembroPropio(s.T, "asignado", [PERMISO]);
+      const [propio, ajeno] = [await e.cliente(s.T), await e.cliente(s.T)];
+      await e.asignar(s.T, propio.id, usuarioId);
+      const [iOk, iNo] = [
+        await s.encolar(propio, usuarioId),
+        await s.encolar(ajeno, usuarioId),
+      ];
+      const [fOk] = await hastaTerminar(s, [iOk, iNo]);
+      expect(fOk).toMatchObject({ estado: "completado" });
+      expect(await e.fila(iNo)).toMatchObject({
+        estado: "cancelado",
+        motivo: "acceso_retirado",
+      });
+      expect(s.a.ejecutor.iniciados).not.toContain(iNo);
+    } finally {
+      await s.cerrar();
+    }
+  });
+
+  it.each([["global" as const], ["asignado" as const]])(
+    "rol propio (%s) sin el permiso del tipo: cancelado/acceso_retirado sin ejecutarse",
+    async (alcance) => {
+      const s = await escenario();
+      try {
+        const { usuarioId } = await miembroPropio(s.T, alcance, [
+          "clientes.ver",
+        ]);
+        const c = await e.cliente(s.T);
+        await e.asignar(s.T, c.id, usuarioId);
+        const id = await s.encolar(c, usuarioId);
+        await s.ciclos(4);
+        expect(await e.fila(id)).toMatchObject({
+          estado: "cancelado",
+          motivo: "acceso_retirado",
+        });
+        expect(s.a.ejecutor.iniciados).not.toContain(id);
+      } finally {
+        await s.cerrar();
+      }
+    },
+  );
+
+  it("rol propio al que se le quita el permiso (o la asignación) después de encolar: acceso_retirado", async () => {
+    const s = await escenario();
+    try {
+      const [g, a] = [
+        await miembroPropio(s.T, "global", [PERMISO]),
+        await miembroPropio(s.T, "asignado", [PERMISO]),
+      ];
+      const [c1, c2] = [await e.cliente(s.T), await e.cliente(s.T)];
+      await e.asignar(s.T, c2.id, a.usuarioId);
+      const [i1, i2] = [
+        await s.encolar(c1, g.usuarioId),
+        await s.encolar(c2, a.usuarioId),
+      ];
+      await admin.pool.query(
+        "delete from rol_permiso where tenant_id = $1 and rol_id = $2",
+        [s.T, g.rolId],
+      );
+      await admin.pool.query(
+        "delete from asignacion where tenant_id = $1 and usuario_id = $2",
+        [s.T, a.usuarioId],
+      );
+      await s.ciclos(4);
+      for (const id of [i1, i2])
+        expect(await e.fila(id)).toMatchObject({
+          estado: "cancelado",
+          motivo: "acceso_retirado",
+        });
+    } finally {
+      await s.cerrar();
+    }
+  });
+
+  it("rol propio con membresía desactivada: acceso_retirado aunque tenga el permiso", async () => {
+    const s = await escenario();
+    try {
+      const { usuarioId } = await miembroPropio(s.T, "global", [PERMISO]);
+      const c = await e.cliente(s.T);
+      const id = await s.encolar(c, usuarioId);
+      await admin.pool.query(
+        "update membresia set desactivada_en = now() where tenant_id = $1 and usuario_id = $2",
+        [s.T, usuarioId],
+      );
+      await s.ciclos(4);
+      expect(await e.fila(id)).toMatchObject({
+        estado: "cancelado",
+        motivo: "acceso_retirado",
+      });
+    } finally {
+      await s.cerrar();
+    }
+  });
+
+  it("roles de sistema sin cambio: contador sin asignación y lectura se cancelan; contador asignado, admin y dueño se ejecutan", async () => {
+    const s = await escenario();
+    try {
+      const [cont, lect, adm, due, asig] = [
+        await e.usuario(s.T, "contador"),
+        await e.usuario(s.T, "lectura"),
+        await e.usuario(s.T, "admin"),
+        await e.usuario(s.T, "dueno"),
+        await e.usuario(s.T, "contador"),
+      ];
+      const cs = [
+        await e.cliente(s.T),
+        await e.cliente(s.T),
+        await e.cliente(s.T),
+        await e.cliente(s.T),
+        await e.cliente(s.T),
+      ];
+      await e.asignar(s.T, cs[1]!.id, lect);
+      await e.asignar(s.T, cs[4]!.id, asig);
+      const ids = {
+        cont: await s.encolar(cs[0]!, cont),
+        lect: await s.encolar(cs[1]!, lect),
+        adm: await s.encolar(cs[2]!, adm),
+        due: await s.encolar(cs[3]!, due),
+        asig: await s.encolar(cs[4]!, asig),
+      };
+      await hastaTerminar(s, Object.values(ids));
+      for (const id of [ids.adm, ids.due, ids.asig])
+        expect(await e.fila(id)).toMatchObject({ estado: "completado" });
+      for (const id of [ids.cont, ids.lect])
+        expect(await e.fila(id)).toMatchObject({
+          estado: "cancelado",
+          motivo: "acceso_retirado",
+        });
     } finally {
       await s.cerrar();
     }

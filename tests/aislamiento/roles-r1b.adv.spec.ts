@@ -139,9 +139,9 @@ describe("T12 · privilegios, RLS FORCE y EXECUTE de lo nuevo de 030", () => {
     expect(vistos).toEqual({ desdeA: { r: 1, p: 1 }, sinEstudio: 0, insertar: "42501", editar: "42501", permiso: "42501", borrar: "42501" });
   });
 
-  it("EXECUTE cerrado: acceso.*, el disparador y auth.totp_activo solo para quien el plan dice; PUBLIC nunca; USAGE de `acceso` solo backend y auth", async () => {
+  it("EXECUTE cerrado: acceso.*, el disparador y auth.totp_activo solo para quien el plan dice; PUBLIC nunca; USAGE de `acceso` solo backend, auth y worker", async () => {
     const esperado: Record<string, string[]> = {
-      "acceso.permisos_membresia": ["contapp_auth"],
+      "acceso.permisos_membresia": ["contapp_auth", "contapp_worker"], // T17a: el worker revalida con el resolvedor (rojo hasta 0087)
       "acceso.rol_asignable": ["contapp_backend"],
       "acceso.rol_eliminar": ["contapp_backend"],
       "acceso.rol_guardar": ["contapp_backend"],
@@ -174,7 +174,7 @@ describe("T12 · privilegios, RLS FORCE y EXECUTE de lo nuevo de 030", () => {
               array(select r from unnest($1::text[]) r where has_schema_privilege(r, 'acceso', 'CREATE') order by r) as crea`,
       [ROLES_BD],
     );
-    expect(esq[0]).toEqual({ usa: ["contapp_auth", "contapp_backend"], crea: [] });
+    expect(esq[0]).toEqual({ usa: ["contapp_auth", "contapp_backend", "contapp_worker"], crea: [] }); // T17a: USAGE del worker (rojo hasta 0087)
   });
 
   it("rol_id entre estudios: desde A no se asigna, invita, edita, elimina ni mide un rol de B, y rol_asignable con el estudio ajeno dice no", async () => {

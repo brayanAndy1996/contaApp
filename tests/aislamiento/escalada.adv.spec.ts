@@ -162,7 +162,8 @@ const FUNCIONES_017: { firma: string; dueno: string }[] = [
   ...FUNCIONES_CORREO.map((f) => ({ firma: f.firma, dueno: MIGRATOR })),
 ];
 // Spec 030 (T6, migracion 0082): las funciones del esquema `acceso` (todas SECURITY DEFINER de contapp_migrator con search_path fijo) y el rol
-// de la app que ejecuta cada una (ninguno: solo las usan otras funciones definer). permisos_membresia la ejecuta ademas contapp_auth (dueño de
+// de la app que ejecuta cada una (ninguno: solo las usan otras funciones definer). permisos_membresia la ejecuta ademas contapp_worker (T17a: revalida
+// con permisos efectivos y alcance al despachar; rojo hasta la migracion 0087) y contapp_auth (dueño de
 // las funciones de invitacion y de totp_desactivar, que la llaman); `auth.totp_activo` entra por FUNCIONES_AUTH (dueño contapp_auth).
 // El disparador `public.rol_propio_asignar()` es SECURITY INVOKER (como membresia_ultimo_dueno) y no entra en la lista de definer.
 const FUNCIONES_030: { firma: string; ejecutan: string[] }[] = [
@@ -170,7 +171,7 @@ const FUNCIONES_030: { firma: string; ejecutan: string[] }[] = [
   { firma: "acceso.combinacion_valida(text[])", ejecutan: [] },
   { firma: "acceso.contiene(text[],text,text[],text)", ejecutan: [] },
   { firma: "acceso.permisos_asignables()", ejecutan: [] },
-  { firma: "acceso.permisos_membresia(uuid,uuid)", ejecutan: ["contapp_auth"] },
+  { firma: "acceso.permisos_membresia(uuid,uuid)", ejecutan: ["contapp_auth", "contapp_worker"] },
   { firma: "acceso.permisos_sistema(text)", ejecutan: [] },
   { firma: "acceso.rol_asignable(uuid,uuid)", ejecutan: ["contapp_backend"] },
   { firma: "acceso.rol_eliminar(uuid)", ejecutan: ["contapp_backend"] },
