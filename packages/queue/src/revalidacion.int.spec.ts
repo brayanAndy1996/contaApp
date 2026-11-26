@@ -66,7 +66,11 @@ afterAll(async () => {
   await Promise.all([backend?.close(), admin?.close()]);
 });
 
-/** Borra los roles propios sembrados (la limpieza del escenario no los conoce y `membresia_rol_fk` es RESTRICT). */
+/**
+ * Borra los roles propios sembrados (la limpieza del escenario no los conoce y `membresia_rol_fk` es RESTRICT).
+ * Spec 030 (T17b): con `replica` no corre el ON DELETE CASCADE de `rol_permiso`; se borra antes que `rol` (y lo que referencia a
+ * `rol`: membresías e invitaciones con `rol_id`). Al final se comprueba, sin tragar el error, que no quedan filas huérfanas.
+ */
 async function limpiarRolesPropios(): Promise<void> {
   if (e === undefined || e.estudios.length === 0) return;
   const c = await admin.pool.connect();
@@ -76,14 +80,44 @@ async function limpiarRolesPropios(): Promise<void> {
       "delete from membresia where tenant_id = any($1::uuid[]) and rol_id is not null",
       [e.estudios],
     );
+    await c.query(
+      "delete from invitacion where tenant_id = any($1::uuid[]) and rol_id is not null",
+      [e.estudios],
+    );
+    await c.query(
+      "delete from rol_permiso where tenant_id = any($1::uuid[])",
+      [e.estudios],
+    );
     await c.query("delete from rol where tenant_id = any($1::uuid[])", [
       e.estudios,
     ]);
-  } catch {
-    /* limpieza de mejor esfuerzo */
   } finally {
-    c.release(true);
+    c.release(true); // se destruye la conexión: no vuelve al pool con session_replication_role = replica
   }
+  const consultas: Array<[string, string]> = [
+    [
+      "select count(*)::int as n from rol where tenant_id = any($1::uuid[])",
+      "rol",
+    ],
+    [
+      "select count(*)::int as n from rol_permiso where tenant_id = any($1::uuid[])",
+      "rol_permiso",
+    ],
+  ];
+  for (const [texto, tabla] of consultas) {
+    const r = await admin.pool.query(texto, [e.estudios]);
+    if ((r.rows[0].n as number) > 0)
+      throw new Error(
+        `limpiarRolesPropios dejó filas de ${tabla} de los estudios de la prueba`,
+      );
+  }
+  const huerfanos = await admin.pool.query(
+    "select count(*)::int as n from rol_permiso p where not exists (select 1 from rol r where r.tenant_id = p.tenant_id and r.id = p.rol_id)",
+  );
+  if ((huerfanos.rows[0].n as number) > 0)
+    throw new Error(
+      "limpiarRolesPropios dejó filas huérfanas en rol_permiso (sin su rol)",
+    );
 }
 
 /** Miembro activo con un rol propio recién sembrado (conexión administrativa): `permisos` tal cual, sin completar U3. */
