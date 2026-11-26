@@ -211,6 +211,8 @@ jobs:
       MIGRATIONS_DATABASE_URL: postgresql://postgres@localhost:5432/contapp
       KEY_PROVIDER: mock
       REDIS_URL: redis://localhost:6379
+      # 029 (D1): las suites backend-int del worker arrancan la app del backend, que exige TOTP_CLAVE (clave de desarrollo, no es un secreto).
+      TOTP_CLAVE: 1:ZsPxN5o4uaKslN8Glw1ddWkM0cYXVHPeYdPHJnl3DLc=
     services:
       postgres:
         image: postgres:17
