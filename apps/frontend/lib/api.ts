@@ -26,6 +26,11 @@ export interface OpcionesApi {
   /** Login y recuperación: sin consultar la sesión ni añadir cabeceras de sesión. */
   sinSesion?: boolean;
   /**
+   * Solo con `sinSesion`: token CSRF que ya trae la respuesta del login (sesión `pendiente`, que no puede
+   * leer `GET /auth/sesion`). Se envía como `X-CSRF-Token` en los no-GET; sin `X-Estudio`.
+   */
+  csrf?: string;
+  /**
    * Por defecto (`true`) todo 401 es sesión caducada: se comprueba la sesión real (una vez, por si fue
    * la rotación del cambio de estudio y se reintenta la petición una vez); si no hay sesión, se vacía
    * y se va a /login. Con
@@ -91,7 +96,10 @@ async function ejecutar<T>(
   else if (opciones.body !== undefined)
     headers["Content-Type"] = "application/json";
 
-  if (!opciones.sinSesion) {
+  if (opciones.sinSesion) {
+    if (opciones.csrf && metodo !== "GET")
+      headers["X-CSRF-Token"] = opciones.csrf;
+  } else {
     const sesion = await obtenerSesion();
     if (!sesion) {
       irALogin();

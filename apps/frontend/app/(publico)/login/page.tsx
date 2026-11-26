@@ -33,6 +33,8 @@ interface RespuestaLogin {
   requiereEstudio: boolean;
   // Spec 029: con TOTP activo el login deja la sesión «pendiente» y pide el código.
   segundoFactor?: boolean;
+  // Solo con `segundoFactor`: CSRF de la sesión `pendiente` (la verificación no puede leer GET /auth/sesion).
+  csrf?: string;
 }
 
 type ModoCodigo = "totp" | "recuperacion";
@@ -46,6 +48,8 @@ export default function Login() {
   const [pidiendoCodigo, setPidiendoCodigo] = useState(false);
   const [modo, setModo] = useState<ModoCodigo>("totp");
   const [codigo, setCodigo] = useState("");
+  // Solo en estado (nunca en almacenamiento ni URL); se descarta al verificar, caducar o volver.
+  const [csrf, setCsrf] = useState<string | null>(null);
 
   async function ingresar(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -57,9 +61,10 @@ export default function Login() {
         body: { correo, contrasena },
         sinSesion: true,
       });
-      if (r.ok && r.datos?.segundoFactor === true) {
+      if (r.ok && r.datos?.segundoFactor === true && r.datos.csrf) {
         // La contraseña ya no se necesita ni se conserva; la sesión «pendiente» solo sirve para verificar.
         reiniciarSesion();
+        setCsrf(r.datos.csrf);
         setContrasena("");
         setCodigo("");
         setModo("totp");
@@ -102,21 +107,30 @@ export default function Login() {
       setError(MENSAJES_SEGURIDAD.codigoIncorrecto);
       return;
     }
+    if (!csrf) {
+      setPidiendoCodigo(false);
+      setError(MENSAJES_SEGURIDAD.sesionCaducada);
+      return;
+    }
     setEnviando(true);
     try {
-      // 401 `codigo_invalido` es un dato erróneo, no sesión caducada: `manejar401: false`.
+      // Sesión `pendiente`: `sinSesion` + `csrf` del login (sin GET /auth/sesion ni X-Estudio); un 401
+      // `codigo_invalido` es un dato erróneo y llega a la pantalla sin reintento ni /login.
       const r = await api<RespuestaLogin>("/auth/2fa/verificar", {
         method: "POST",
         body: cuerpo,
-        manejar401: false,
+        sinSesion: true,
+        csrf,
       });
       if (r.ok) {
+        setCsrf(null);
         reiniciarSesion();
         router.push(r.datos?.estudioActivo ? "/" : "/estudios");
         return;
       }
       if (r.status === 401 && codigoDe(r.datos) === "sesion_invalida") {
         setPidiendoCodigo(false);
+        setCsrf(null);
         setError(MENSAJES_SEGURIDAD.sesionCaducada);
         return;
       }
