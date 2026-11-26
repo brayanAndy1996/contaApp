@@ -22,10 +22,11 @@ CICLO POR SPEC:
 3. PUERTA HUMANA: muéstrame un resumen de la spec en ≤10 líneas (objetivo, nivel, criterios clave, preguntas abiertas) y ESPERA mi aprobación. Niveles C/D: puedes juntarlas y pedirme aprobación en bloque.
 4. Con la spec aprobada, lanza al mismo rol para plan.md + tasks.md.
 5. Ejecuta las tareas de tasks.md en orden de dependencias, cada una con su rol y modelo. Lanza en paralelo las marcadas ∥ que no comparten archivos.
-   A cada subagente pásale SOLO: ruta de la spec, ID de la tarea y la instrucción "lee el Contexto de la tarea y nada más". No le repitas el contenido de los docs.
+   A cada subagente pásale SOLO: una primera línea "Tarea: docs/specs/NNN-nombre/tasks.md#Tn", y la instrucción "lee el Contexto de la tarea y nada más". No le repitas el contenido de los docs.
+   Pasa SIEMPRE model explícito, el de la columna Modelo (o mayor si escalas). Un hook (spec 043) bloquea el lanzamiento si el modelo es menor y lo registra en agentes.log: si te bloquea, relanza con el modelo que indica; no lo esquives.
 6. Escalamiento: haiku falla 1 vez → mismo rol con sonnet; sonnet falla 2 veces o hay ambigüedad → mismo rol con opus o al arquitecto si es de diseño. Anótalo en tasks.md.
 7. Hallazgos del adversario: regístralos en ESTADO.md, haz que el rol implementador los corrija y que el tester re-verifique.
-8. Cierre: tester (o devops en C/D) verifica cada criterio con evidencia; en nivel A además revisión final del arquitecto; devops hace commit (rama spec/NNN-nombre, Conventional Commits) y actualiza ESTADO.md.
+8. Cierre: tester (o devops en C/D) verifica cada criterio con evidencia y abre el pull request en BORRADOR; la spec no se cierra hasta que su CI completo esté en verde (el CI de la rama no basta); en nivel A además revisión final del arquitecto; devops hace commit (rama spec/NNN-nombre, Conventional Commits) y actualiza ESTADO.md.
 9. Repórtame en ≤8 líneas: spec cerrada, qué quedó, hallazgos, y cuál sigue. Luego continúa con el paso 1 salvo que haya una decisión mía pendiente.
 
 REGLAS:

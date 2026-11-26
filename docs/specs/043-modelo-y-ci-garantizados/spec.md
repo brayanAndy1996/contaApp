@@ -1,6 +1,6 @@
 # Spec 043 · Modelo y CI completo garantizados
 
-Estado: borrador (pedida por el usuario 2026-11-26; espera aprobación de P-1 a P-3).
+Estado: aprobada (usuario 2026-11-26: P-1 a P-3 con la opción (a) recomendada).
 Nivel de riesgo: D. No toca código de producción ni datos. El riesgo indirecto es un hook que bloquee trabajo legítimo o que deje pasar un modelo equivocado. Se cubre con las pruebas de CA-1 a CA-4.
 Áreas críticas: ninguna.
 Cubre: `docs/04-metodologia.md` §2.3, §3.1, §5 y §7 · `docs/prompt-orquestador.md` · `.claude/` · `.github/workflows/ci.yml` · `docs/specs/_plantilla/`.
@@ -47,6 +47,4 @@ La spec 029 se hizo en 4,6 h con el método de la 042, pero dejó dos huecos. Pr
 - Externas: el hook `PreToolUse` de Claude Code, que recibe `tool_input` con `subagent_type`, `model` y `prompt`, y bloquea con salida 2.
 
 ## Preguntas abiertas
-- **P-1**: ¿con qué se dispara el CI completo al cerrar? **(a) Recomendada:** pull request en borrador (ya es el flujo P-6 de la 042). (b) `workflow_dispatch` a mano en la rama.
-- **P-2**: ante un modelo menor al exigido, ¿qué hace el hook? **(a) Recomendada:** bloquear. (b) Solo avisar y registrar.
-- **P-3**: ¿dónde queda el registro? **(a) Recomendada:** `agentes.log` commiteado en la carpeta de la spec. (b) Fuera del repo, solo local.
+Ninguna. Decisiones del usuario (2026-11-26), todas la opción (a): **P-1** CI completo con el pull request en borrador · **P-2** el hook bloquea · **P-3** `agentes.log` commiteado en la carpeta de la spec.

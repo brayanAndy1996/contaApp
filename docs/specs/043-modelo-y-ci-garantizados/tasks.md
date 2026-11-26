@@ -4,11 +4,11 @@ Leyenda: rol `arquitecto` · `backend` · `frontend` · `tester` · `adversario`
 
 | # | Tarea | Rol | Modelo | Depende de | TDD | ADV | Estado |
 |---|---|---|---|---|---|---|---|
-| T1 | Pruebas del hook y del validador (rojo) | tester | sonnet | spec aprobada | ✓ | — | [ ] |
-| T2 | Hook `modelo-tarea` y `settings.json` | devops | sonnet | T1 | ✓ | — | [ ] |
-| T3 | Validador `specs:validar` | devops | sonnet | T1 ∥ T2 | ✓ | — | [ ] |
+| T1 | Pruebas del hook y del validador (rojo) | tester | sonnet | spec aprobada | ✓ | — | [x] |
+| T2 | Hook `modelo-tarea` y `settings.json` | devops | sonnet | T1 | ✓ | — | [x] |
+| T3 | Validador `specs:validar` | devops | sonnet | T1 ∥ T2 | ✓ | — | [x] |
 | T4 | CI: nivel 1 con hooks y validador; nivel 2 con `--filter "<paquete>..."` | devops | haiku | T2, T3, 029 en `main` | — | — | [ ] |
-| T5 | Metodología, plantillas y prompt del orquestador | devops | haiku | T2 ∥ T4 | — | — | [ ] |
+| T5 | Metodología, plantillas y prompt del orquestador | devops | haiku | T2 ∥ T4 | — | — | [x] |
 | T6 | Verificar CA-1 a CA-7 (sesión real + PR en borrador con CI completo) | tester | sonnet | T4, T5 | — | — | [ ] |
 | T7 | Cierre: `tasks.md`, `cierre.md`, `ESTADO.md` y commit | devops | haiku | T6 | — | — | [ ] |
 

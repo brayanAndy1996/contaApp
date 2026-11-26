@@ -11,6 +11,8 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
+    "hooks:test": "node --test \".claude/hooks/*.test.mjs\" \"scripts/*.test.mjs\"",
+    "specs:validar": "node scripts/specs-validar.mjs",
     "db:migrate": "pnpm --filter @contapp/db db:migrate",
     "db:seed": "pnpm --filter @contapp/db db:seed",
     "db:plataforma-alta": "pnpm --filter @contapp/db db:plataforma-alta",

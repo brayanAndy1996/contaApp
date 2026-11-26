@@ -4,6 +4,7 @@
 
 Estado: borrador | aprobada | en curso | verificada | hecha
 Nivel de riesgo: A | B | C | D — <una línea con el porqué (preguntas de 04-metodologia §2.1)>
+Áreas críticas: ninguna | <aislamiento (RLS), cifrado y credenciales, autenticación y sesiones, dinero, archivo SUNAT> — si hay alguna, ADV y revisión final van con opus (043)
 Cubre: RF-xxx, RF-yyy · HU-zz
 
 ## Objetivo

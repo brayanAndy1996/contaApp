@@ -121,6 +121,8 @@ Para cada spec (y si hace falta, para cada tarea) responder:
 
 **Modelo por tarea**: el rol define el modelo **por defecto**, pero el modelo efectivo es el que indica `tasks.md`. Así, `backend` usa Opus en el núcleo crítico (dinero, reglas, cifrado, RLS, despachador) y Sonnet en el resto; `frontend` usa Haiku en pantallas mecánicas. El orquestador lanza el subagente con `subagent_type = rol`, y `model` y `effort` según la tarea (Opus → high, Sonnet → high, Haiku → max).
 
+**Verificación del modelo (043)**: el prompt de cada subagente empieza con `Tarea: docs/specs/NNN-*/tasks.md#Tn` y lleva `model` explícito. El hook `.claude/hooks/modelo-tarea.mjs` compara el modelo efectivo (el `model` pedido o, si falta, el del rol) con la columna «Modelo» de esa fila: si es menor, **bloquea** el lanzamiento; si es mayor, lo deja pasar como escalamiento. Cada lanzamiento queda en `docs/specs/NNN-*/agentes.log`, que se commitea con la spec. `adversario` y `arquitecto` sin referencia de tarea se bloquean. La celda «Modelo» es una sola palabra (`opus`, `sonnet`, `haiku`, con el rol secundario entre paréntesis), y si `spec.md` declara «Áreas críticas» distintas de «ninguna», las tareas ADV y la revisión final son `opus`: lo comprueba `pnpm specs:validar` en el CI.
+
 ### 3.2 Criterios de modelo
 
 | Modelo | Esfuerzo | Cuándo |
@@ -172,7 +174,7 @@ Para cada spec (y si hace falta, para cada tarea) responder:
 | **B** | Pruebas TDD verdes · casos reales cubiertos si aplica · revisión de Sonnet contra la spec |
 | **C** | 1 caso feliz + 1 de error por comportamiento público · typecheck y lint limpios |
 | **D** | typecheck y lint limpios · la app levanta |
-| **Todos** | Criterios de aceptación con evidencia · `tasks.md` actualizado · sin secretos en el código ni en logs · **una** corrida de CI en verde (042 B4); repetir solo pruebas de tiempo con antecedentes de fallos intermitentes |
+| **Todos** | Criterios de aceptación con evidencia · `tasks.md` actualizado · sin secretos en el código ni en logs · **una** corrida del **CI completo** en verde (042 B4, 043 B2): la verificación final abre el pull request en borrador y la spec no se cierra sin ese CI en verde; repetir solo pruebas de tiempo con antecedentes de fallos intermitentes · `agentes.log` commiteado |
 
 ---
 
@@ -203,6 +205,6 @@ Para cada spec (y si hace falta, para cada tarea) responder:
 | 11 | Al terminar una spec se abre una **sesión nueva** para la siguiente, en vez de arrastrar un historial largo. |
 | 12 | El adversarial tiene **presupuesto fijo**: 1 ronda de ~15 pruebas; la 2.ª solo con hallazgos media/alta (§2.3). |
 | 13 | **Topes de tamaño (042 B2)**: `spec.md` y `plan.md` de hasta ~900 palabras cada uno; en `tasks.md`, cada tarea con «Contexto, Hacer, Hecho cuando» en 6 líneas o menos. Los resultados, evidencias y salidas van a `resultados.md` de la spec, que ningún agente lee para trabajar. |
-| 14 | **Una corrida de CI en verde** cierra una spec (042 B4). |
+| 14 | **Una corrida del CI completo en verde** cierra una spec (042 B4): la del pull request en borrador que abre la verificación final (043 B2). El CI liviano de la rama no basta. |
 | 15 | **`ESTADO.md` liviano (042 B1)**: una línea por spec con nota de hasta 200 caracteres. El detalle de una spec cerrada va a su `cierre.md`; los hallazgos cerrados, a `docs/specs/HALLAZGOS.md`. |
 | 16 | **Specs nuevas (042 A6)**: una spec nueva no agrega un paso de CI ni una config de cobertura por spec: agrega sus archivos/globs a `apps/{backend,worker}/vitest.cobertura.config.mts` (o a la config de su paquete). **CI de dos niveles (042 A5)**: en ramas `spec/*` corren lint, tipos, build y pruebas unitarias; la suite completa corre en pull request, en `main` y a mano. |

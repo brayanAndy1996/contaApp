@@ -7,7 +7,6 @@
 | crear | `.claude/hooks/modelo-tarea.mjs` | Entrada del hook: lee el JSON de stdin, llama a `decidir()`, escribe el registro y sale con 0 o 2 |
 | crear | `.claude/hooks/lib/modelo.mjs` | Funciones puras: `referenciaTarea`, `modeloDeFila`, `modeloEfectivo`, `decidir` |
 | crear | `.claude/hooks/modelo.test.mjs` | Pruebas con `node:test` de CA-1 a CA-4 y fixtures |
-| crear | `.claude/hooks/fixtures/` | `tasks.md`, `spec.md` y frontmatter de prueba |
 | crear | `scripts/specs-validar.mjs` (+ `.test.mjs`) | Validador A4 |
 | modificar | `package.json` (raíz) | `specs:validar` y `hooks:test` |
 | modificar | `.github/workflows/ci.yml` | Nivel 1: `pnpm hooks:test` y `pnpm specs:validar`. Nivel 2: builds con `--filter "<paquete>..."` |
@@ -32,7 +31,7 @@
 ## Decisiones
 - La lógica vive en un módulo puro y probado; la entrada solo hace IO. Así las pruebas no simulan stdin.
 - El registro se escribe también al bloquear, para que quede el intento.
-- `specs:validar` revisa solo las specs con estado distinto de `hecha`: las cerradas no se reescriben (042, fuera de alcance).
+- `specs:validar` toma el estado de `ESTADO.md` (el `Estado:` de las specs antiguas está desactualizado) y revisa solo las carpetas cuya fila no está `hecha`; las cerradas no se reescriben. Las pruebas usan textos en línea en vez de archivos de fixture.
 - `--filter "@contapp/db..."` incluye las dependencias del espacio de trabajo en orden topológico; ya es lo que hace `pnpm build` en el nivel 1.
 
 ## Riesgos
