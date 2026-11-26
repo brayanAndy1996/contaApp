@@ -41,7 +41,7 @@ Toda spec se desarrolla con los **roles** de §3. El **orquestador** (conversaci
 | 3. Planificar | `plan.md` + `tasks.md` con rol, modelo, TDD, ADV y contexto por tarea | igual que paso 1 | ✓ | ✓ | ✓ (sin plan) | ✓ (sin plan) |
 | 4. Pruebas primero | Pruebas desde los criterios; confirmar rojo | tester · sonnet | ✓ | ✓ | — | — |
 | 5. Implementar | Verde + refactor | backend / frontend / devops · según tarea | ✓ | ✓ | ✓ (+ pruebas mínimas) | ✓ |
-| 6. Atacar | Ronda(s) adversarial(es) | adversario · opus | ✓ | solo si la spec lo pide | — | — |
+| 6. Atacar | 1 ronda adversarial (2.ª solo si quedan hallazgos media/alta, §2.3) | adversario · opus en áreas críticas, sonnet en el resto | ✓ | solo si la spec lo pide | — | — |
 | 7. Corregir | Hacer pasar los `*.adv.spec.ts` | backend / frontend · mismo modelo del paso 5 | ✓ | si hubo 6 | — | — |
 | 8. Verificar | Suite del paquete + criterios con evidencia | tester · sonnet (A/B) · devops · haiku (C/D) | ✓ | ✓ | ✓ | ✓ |
 | 9. Revisión final | Contra la spec | arquitecto · opus | ✓ | — | — | — |
@@ -84,11 +84,11 @@ Para cada spec (y si hace falta, para cada tarea) responder:
 **Objetivo:** que un agente **distinto** al que implementó intente romper el código con entradas y escenarios que el implementador no consideró.
 
 **Reglas**
-- Lo ejecuta el rol `adversario` (Opus 5.5 high). Nunca el mismo agente o sesión que implementó.
+- Lo ejecuta el rol `adversario`. Nunca el mismo agente o sesión que implementó. **Modelo según el área (042 B3):** Opus 5.5 high en aislamiento entre estudios (RLS), cifrado y credenciales, autenticación y sesiones, dinero y reglas que mueven montos, y archivo SUNAT (prevalidación, formatos, envío); Sonnet 5.5 high en el resto.
 - Primero **caja negra** (solo spec + interfaz pública) y luego **caja blanca** (lee la implementación).
 - **Solo escribe pruebas**, en `*.adv.spec.ts`. No modifica código de producción.
 - Cada prueba que falla es un hallazgo. El implementador lo corrige o la spec se ajusta con aprobación del usuario.
-- **Presupuesto:** máximo 2 rondas y unas 15 pruebas por ronda. Se termina antes si una ronda no produce fallos nuevos.
+- **Presupuesto (042 B3):** **1 ronda por defecto** de unas 15 pruebas. La 2.ª ronda solo se hace si la 1.ª deja hallazgos de severidad media o alta, y nunca más de 2.
 - Las pruebas adversariales que pasan **se quedan** en el repo como regresión.
 
 **Catálogo de ataques por tipo de módulo**
@@ -172,7 +172,7 @@ Para cada spec (y si hace falta, para cada tarea) responder:
 | **B** | Pruebas TDD verdes · casos reales cubiertos si aplica · revisión de Sonnet contra la spec |
 | **C** | 1 caso feliz + 1 de error por comportamiento público · typecheck y lint limpios |
 | **D** | typecheck y lint limpios · la app levanta |
-| **Todos** | Criterios de aceptación con evidencia · `tasks.md` actualizado · sin secretos en el código ni en logs |
+| **Todos** | Criterios de aceptación con evidencia · `tasks.md` actualizado · sin secretos en el código ni en logs · **una** corrida de CI en verde (042 B4); repetir solo pruebas de tiempo con antecedentes de fallos intermitentes |
 
 ---
 
@@ -192,13 +192,17 @@ Para cada spec (y si hace falta, para cada tarea) responder:
 |---|---|
 | 1 | **`CLAUDE.md` corto** (convenciones + punteros). Los docs se leen **por sección**, no completos. |
 | 2 | Cada tarea de `tasks.md` lista su **Contexto**: los archivos exactos a leer. El agente no explora fuera de esa lista salvo que esté bloqueado. |
-| 3 | Specs y planes de **~1 página**; se referencian RF/HU por ID en lugar de copiarlos. |
+| 3 | Specs y planes de **~1 página** (tope concreto en la regla 13); se referencian RF/HU por ID en lugar de copiarlos. |
 | 4 | TDD solo en niveles A/B; adversarial solo en A. Los niveles C/D no pagan ese costo. |
 | 5 | Pruebas **filtradas** al paquete o archivo afectado mientras se trabaja; suite completa solo al cerrar la spec. |
-| 6 | La salida de pruebas y lint la resume **Haiku**: solo fallos, con archivo y línea. |
+| 6 | La salida de pruebas y lint la resume **Haiku**: solo fallos, con archivo y línea. Las suites usan el reporter `dot` (042 B5). |
 | 7 | El código repetitivo se genera con **CLI** (`nest g`, `shadcn add`, `drizzle-kit generate`), no escrito por el modelo. |
 | 8 | Las tareas mecánicas similares se **agrupan** en una sola sesión de Haiku. |
 | 9 | Un subagente recibe **ruta de spec + ID de tarea**, no el contexto repetido. Solo se lanza si la tarea es independiente. |
 | 10 | No releer archivos ya leídos en la sesión; ediciones puntuales en vez de reescribir archivos. |
 | 11 | Al terminar una spec se abre una **sesión nueva** para la siguiente, en vez de arrastrar un historial largo. |
-| 12 | El adversarial tiene **presupuesto fijo** (2 rondas / ~15 pruebas). |
+| 12 | El adversarial tiene **presupuesto fijo**: 1 ronda de ~15 pruebas; la 2.ª solo con hallazgos media/alta (§2.3). |
+| 13 | **Topes de tamaño (042 B2)**: `spec.md` y `plan.md` de hasta ~900 palabras cada uno; en `tasks.md`, cada tarea con «Contexto, Hacer, Hecho cuando» en 6 líneas o menos. Los resultados, evidencias y salidas van a `resultados.md` de la spec, que ningún agente lee para trabajar. |
+| 14 | **Una corrida de CI en verde** cierra una spec (042 B4). |
+| 15 | **`ESTADO.md` liviano (042 B1)**: una línea por spec con nota de hasta 200 caracteres. El detalle de una spec cerrada va a su `cierre.md`; los hallazgos cerrados, a `docs/specs/HALLAZGOS.md`. |
+| 16 | **Specs nuevas (042 A6)**: una spec nueva no agrega un paso de CI ni una config de cobertura por spec: agrega sus archivos/globs a `apps/{backend,worker}/vitest.cobertura.config.mts` (o a la config de su paquete). **CI de dos niveles (042 A5)**: en ramas `spec/*` corren lint, tipos, build y pruebas unitarias; la suite completa corre en pull request, en `main` y a mano. |

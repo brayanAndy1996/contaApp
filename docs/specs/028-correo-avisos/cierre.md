@@ -1,0 +1,9 @@
+# Cierre 028 · Avisos por correo y resumen diario
+
+Spec `028-correo-avisos` · nivel A · estado `hecha`. Texto de su fila de `ESTADO.md` movido sin cambios (042 B1/B6); el tablero conserva una nota corta.
+
+## Fila de ESTADO.md
+
+| Spec | Nivel | Estado | Tarea actual | Bloqueo / nota |
+|---|---|---|---|---|
+| 028-correo-avisos | A | hecha | — | Mergeada en `main` (df50fd7). RF-161, 162. Paquete `@contapp/correo` (puerto, consola, memoria, SMTP) y avisos por correo de los hechos críticos (buzón, credencial inválida, límite del plan) creados en la misma transacción por `interno.notificar`, con ventana de 10 min, tope diario de 30 por usuario (diferidos al resumen) y preferencias por usuario y tipo (`/cuenta/correo`); resumen diario a la hora del estudio con ciclo de candado único en el worker; baja de un clic RFC 8058 (`/baja`, token de un solo tipo, 90 días) y redirección `/ir` con lista cerrada de pantallas; sin datos de clientes ni del mensaje en asuntos, logs, envíos ni auditoría. CA-1 a CA-15 con evidencia (T23); prueba manual T22 con D-1 corregido (T22a, 0077: avisos de estudios sin plan quedan `omitido`); revisión T24 con D-T24-1 corregido (T24a/T24b: la consola no imprime el token de baja). Rondas adversariales con correcciones en 0075 y 0076. Desviaciones aceptadas: función `correo_destinatario`, `job_registro.cliente_id`/`ruc` nulos solo para `notificacion.enviar`, trigger del buzón por sentencia, `switch` propio, `TrabajoEnCurso.clienteId` como `string`. Deuda O-1–O-10 en la tarjeta T24 (p. ej. dos líneas de «Límite del plan» al cruzar 90 % y 100 % a la vez, un worker nuevo no toma el ciclo al arrancar, `/baja` con `s-maxage`, diferidos días tarde tras volver el plan). Frágiles: `auth-r2a.adv.spec.ts` exige `auth.limite_tasa` limpia. Migraciones 0073–0077 (siguiente libre: 0078). CI verde (run 45552022936). |

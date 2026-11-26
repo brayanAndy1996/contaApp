@@ -1,0 +1,41 @@
+LÍNEA BASE 042 · T3 · backend-cobertura-gastos
+Config:        apps/backend/vitest.cobertura-gastos.config.mts
+Script raíz:   cobertura:gastos (T23: log cob-gastos.log)
+Comando lista: pnpm --filter @contapp/backend exec vitest list --filesOnly --config vitest.cobertura-gastos.config.mts
+Lista: HEAD 68a9e68 · Tabla de cobertura: T23 de 028 medida en 60cf6b8
+
+[configuración de cobertura]
+coverage.provider: v8
+coverage.include (1):
+  apps/backend/src/modules/gastos/*.ts
+coverage.exclude: **/*.spec.ts, **/*.adv.spec.ts, **/*.int.spec.ts, **/*.adv.int.spec.ts
+coverage.reporter: text, json-summary
+coverage.thresholds: perFile=true; lines=90; statements=90; functions=90; branches=90
+proyectos (vitest): ninguno (un solo test.include)
+
+[ejecución T23 · 60cf6b8]
+archivos de prueba ejecutados: 13 · pruebas: 1019 passed (1019) · inicio 02:53:36 · duración 105.94 s
+resumen: sentencias 99.63 % (270/271) · ramas 99.06 % (106/107) · funciones 100 % (95/95) · líneas 100 % (233/233)
+archivos medidos (include - exclude en HEAD): 13 · listados en la tabla (algún valor < 100): 1 · no listados (100 % o vacíos): 12
+comparación con la lista: sin diferencia de conteo con T23
+
+[archivos de prueba · HEAD 68a9e68 · 13 archivos]
+archivo	proyecto
+apps/backend/src/aislamiento/hu40-api.int.spec.ts	-
+apps/backend/src/modules/gastos/aprender.int.spec.ts	-
+apps/backend/src/modules/gastos/categorias.int.spec.ts	-
+apps/backend/src/modules/gastos/contexto.int.spec.ts	-
+apps/backend/src/modules/gastos/diccionario.int.spec.ts	-
+apps/backend/src/modules/gastos/permisos-027.int.spec.ts	-
+apps/backend/src/modules/gastos/plataforma.int.spec.ts	-
+apps/backend/src/modules/gastos/plural.int.spec.ts	-
+apps/backend/src/modules/gastos/ramas.spec.ts	-
+apps/backend/src/modules/gastos/reevaluar.int.spec.ts	-
+apps/backend/src/modules/gastos/ronda1.adv.int.spec.ts	-
+apps/backend/src/modules/gastos/ronda2.adv.int.spec.ts	-
+apps/backend/src/modules/gastos/ronda2.correcciones.int.spec.ts	-
+
+[cobertura por archivo · T23 · 60cf6b8]
+archivo	stmts	branch	funcs	lines
+apps/backend/src/modules/gastos/plataforma.service.ts	97.67	95	100	100
+All files	99.63	99.06	100	100

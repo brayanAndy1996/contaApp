@@ -13,14 +13,10 @@
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run --passWithNoTests",
     "test:int": "vitest run --mode int --passWithNoTests",
-    "test:cobertura": "vitest run --config vitest.cobertura.config.mts --coverage",
-    "test:cobertura:acceso": "vitest run --config vitest.cobertura-acceso.config.mts --coverage",
-    "test:cobertura:xml": "vitest run --config vitest.cobertura-xml.config.mts --coverage",
-    "test:cobertura:archivos": "vitest run --config vitest.cobertura-archivos.config.mts --coverage",
-    "test:cobertura:auditoria": "vitest run --config vitest.cobertura-auditoria.config.mts --coverage",
-    "test:cobertura:reglas": "vitest run --config vitest.cobertura-reglas.config.mts --coverage"
+    "test:cobertura": "vitest run --config vitest.cobertura.config.mts --coverage"
   },
   "dependencies": {
+    "@contapp/correo": "workspace:*",
     "@contapp/crypto": "workspace:*",
     "@contapp/db": "workspace:*",
     "@contapp/domain": "workspace:*",
@@ -35,7 +31,6 @@
     "fast-xml-parser": "5.12.0",
     "fflate": "0.8.3",
     "ioredis": "6.0.0",
-    "nodemailer": "10.1.4",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
   },
@@ -44,7 +39,6 @@
     "@nestjs/schematics": "^12.0.0",
     "@types/express": "^5.0.0",
     "@types/node": "^24.0.0",
-    "@types/nodemailer": "8.0.2",
     "@types/supertest": "7.2.1",
     "@vitest/coverage-v8": "5.0.5",
     "cross-env": "10.1.0",

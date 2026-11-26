@@ -33,6 +33,8 @@ vi.mock("@contapp/db", async (original) => ({
     h.llamadasTrabajos.push(tx);
     return 5;
   }),
+  // 028: la purga de correo corre en el mismo `withTenant`; aquí no borra nada (la prueba de 028 está en auth-purgar-correo.spec.ts).
+  purgarCorreo: vi.fn(async () => 0),
   purgarNotificaciones: vi.fn(async (tx: unknown, dias: unknown) => {
     const ctx = (tx as { ctx: { tenantId: string } }).ctx;
     h.llamadasNotif.push({ tx, dias, ctx });
@@ -115,6 +117,7 @@ describe("auth.purgar y las notificaciones (P-7, CA-15)", () => {
       limites: 4,
       trabajos: 10,
       notificaciones: 7,
+      correo: 0, // 028
     });
   });
 

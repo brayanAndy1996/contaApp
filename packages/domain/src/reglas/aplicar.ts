@@ -13,6 +13,8 @@ import { DineroError, Money } from "../dinero/index";
 import type { Moneda } from "../dinero/index";
 import { esMoneyReal, esMontosReal, leerArreglo, leerObjeto, validarContexto, validarFilas } from "./entrada";
 import type { ContextoInterno, FilaInterna } from "./entrada";
+import { esEntero } from "../texto/entero";
+import type { Entero } from "../texto/entero";
 import { evaluarFila } from "./motor";
 import {
   ConfirmacionInvalidaError,
@@ -86,7 +88,59 @@ type SugerenciaLeida =
   | { tipo: "separar"; columnaBi: ColumnaCompra; min: Money; max: Money; estimado: Money; exacto: Money | null }
   | { tipo: "ajustar"; valores: Map<string, Money> }
   | { tipo: "clasificar" }
-  | { tipo: "excluir"; palabra: string; categoria: string };
+  | { tipo: "excluir"; palabra: string | null; categoria: string | null; puntaje: Entero | null; senales: SenalLeida[] | null };
+
+/** Señal de R-GP (027) con sus claves en orden fijo: lo guardado en jsonb vuelve con otro orden de claves. */
+interface SenalLeida {
+  codigo: string;
+  puntos: Entero;
+  palabra?: string;
+  categoria?: string;
+  items?: { coinciden: Entero; total: Entero };
+}
+
+const CODIGOS_SENAL: readonly string[] = ["S1", "S2", "S3", "S4", "S5", "S6", "S7"];
+const CLAVES_SENAL = ["codigo", "puntos", "palabra", "categoria", "items"];
+
+function entero(x: unknown, minimo: Entero | null): Entero {
+  if (!esEntero(x, minimo)) invalida();
+  return x as Entero;
+}
+
+function leerSenal(o: unknown): SenalLeida {
+  const v = leerObjeto(o, CLAVES_SENAL, ["codigo", "puntos"]);
+  const codigo = v.get("codigo");
+  if (typeof codigo !== "string" || !CODIGOS_SENAL.includes(codigo)) invalida();
+  const senal: SenalLeida = { codigo: codigo as string, puntos: entero(v.get("puntos"), null) };
+  for (const k of ["palabra", "categoria"] as const) {
+    const x = v.get(k);
+    if (x === undefined) continue;
+    if (typeof x !== "string") invalida();
+    senal[k] = x as string;
+  }
+  if (v.get("items") !== undefined) {
+    const items = leerObjeto(v.get("items"), ["coinciden", "total"]);
+    senal.items = { coinciden: entero(items.get("coinciden"), 0), total: entero(items.get("total"), 0) };
+  }
+  return senal;
+}
+
+/** R-GP: palabra y categoría (o null); 027 suma puntaje y señales, ausentes en lo guardado por 011. */
+function leerExcluir(o: unknown): SugerenciaLeida {
+  const v = leerObjeto(o, ["tipo", "palabra", "categoria", "puntaje", "senales"], ["tipo", "palabra", "categoria"]);
+  const palabra = v.get("palabra");
+  const categoria = v.get("categoria");
+  if (palabra !== null && typeof palabra !== "string") invalida();
+  if (categoria !== null && typeof categoria !== "string") invalida();
+  const conPuntaje = v.get("puntaje") !== undefined || v.get("senales") !== undefined;
+  return {
+    tipo: "excluir",
+    palabra: palabra as string | null,
+    categoria: categoria as string | null,
+    puntaje: conPuntaje ? entero(v.get("puntaje"), null) : null,
+    senales: conPuntaje ? leerArreglo(v.get("senales")).map(leerSenal) : null,
+  };
+}
 
 interface HallazgoLeido {
   readonly filaId: string;
@@ -129,13 +183,8 @@ function leerSugerencia(o: unknown, regla: CodigoRegla): SugerenciaLeida {
     case "clasificar":
       leerObjeto(o, ["tipo"]);
       return { tipo };
-    default: {
-      const v = leerObjeto(o, ["tipo", "palabra", "categoria"]);
-      const palabra = v.get("palabra");
-      const categoria = v.get("categoria");
-      if (typeof palabra !== "string" || typeof categoria !== "string") invalida();
-      return { tipo: "excluir", palabra: palabra as string, categoria: categoria as string };
-    }
+    default:
+      return leerExcluir(o);
   }
 }
 

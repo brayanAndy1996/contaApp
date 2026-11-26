@@ -22,6 +22,11 @@ const nextConfig: NextConfig = {
       { source: "/invitacion", headers: politica },
       // La confirmación del registro también usa el fragmento (#t=): sin Referer (spec 006, D3).
       { source: "/registro/confirmar", headers: politica },
+      // El token de baja del correo viaja en la consulta (?t=): sin Referer y sin indexar (spec 028, D-4).
+      {
+        source: "/baja",
+        headers: [...politica, { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }],
+      },
     ];
   },
   // El navegador llama a /api/*; Next lo reenvía al backend (mismo origen para la cookie).

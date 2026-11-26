@@ -100,6 +100,15 @@ const ACCIONES: Record<AccionAuditoria, string> = {
   "prorrata.mes_manual_guardado": "Ingresó a mano un mes de la prorrata",
   "prorrata.mes_manual_eliminado": "Eliminó un mes de la prorrata ingresado a mano",
   "prorrata.usada_guardada": "Guardó la prorrata usada en la declaración",
+  "gnd.palabra_agregada": "Agregó una palabra al diccionario de gastos no deducibles",
+  "gnd.palabra_desactivada": "Desactivó una palabra propia del diccionario de gastos no deducibles",
+  "gnd.palabra_reactivada": "Reactivó una palabra propia del diccionario de gastos no deducibles",
+  "gnd.palabra_aprendida": "Aprendió una palabra de gastos no deducibles al excluir una compra",
+  "gnd.global_desactivada": "Desactivó una palabra global del diccionario para el estudio",
+  "gnd.global_reactivada": "Reactivó una palabra global del diccionario para el estudio",
+  "gnd.umbral_cambiado": "Cambió el umbral de gastos no deducibles",
+  "gnd.categorias_cliente": "Cambió las categorías permitidas de un cliente en gastos no deducibles",
+  "correo.preferencia_cambiada": "Cambió una preferencia de correo",
 };
 
 /** Spec 025 (D-5): una regla creada al activar una candidata del historial no se lee como «Recordó una regla». */

@@ -1,0 +1,80 @@
+LÍNEA BASE 042 · T3 · worker-int
+Config:        apps/worker/vitest.config.mts (modo int)
+Script:        test:int (worker)
+Comando lista: pnpm --filter @contapp/worker exec vitest list --filesOnly --mode int
+Lista: HEAD 68a9e68 · sin tabla de cobertura (no es config de cobertura; sin umbrales)
+
+[selección de la config]
+test.include: src/**/*.int.spec.ts
+test.exclude: **/node_modules/**, src/trabajos/cierre-*.adv.int.spec.ts
+
+[archivos de prueba · HEAD 68a9e68 · 68 archivos]
+archivo	proyecto
+apps/worker/src/cli/kek-rotar-corruptas.int.spec.ts	-
+apps/worker/src/cli/kek-rotar.int.spec.ts	-
+apps/worker/src/credenciales/descifrar-credencial.int.spec.ts	-
+apps/worker/src/credenciales/descifrar-r2b.adv.int.spec.ts	-
+apps/worker/src/credenciales/rotar-kek.int.spec.ts	-
+apps/worker/src/ronda1b.adv.int.spec.ts	-
+apps/worker/src/ronda2a.adv.int.spec.ts	-
+apps/worker/src/trabajos/caida.int.spec.ts	-
+apps/worker/src/trabajos/ejecutor-r1b.adv.int.spec.ts	-
+apps/worker/src/trabajos/ejecutor-r2a.adv.int.spec.ts	-
+apps/worker/src/trabajos/ejecutor.int.spec.ts	-
+apps/worker/src/trabajos/encolar-xml.int.spec.ts	-
+apps/worker/src/trabajos/notificador.int.spec.ts	-
+apps/worker/src/trabajos/persistidores/contexto-gastos.int.spec.ts	-
+apps/worker/src/trabajos/persistidores/persistidor-compras.int.spec.ts	-
+apps/worker/src/trabajos/persistidores/persistidor-reglas-t20.int.spec.ts	-
+apps/worker/src/trabajos/persistidores/persistidor-reglas.int.spec.ts	-
+apps/worker/src/trabajos/persistidores/persistidor-std-rhis.int.spec.ts	-
+apps/worker/src/trabajos/persistidores/persistidor-std.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/abrir-mensaje.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/auth-purgar-correo.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/auth-purgar.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/buzon-r1.adv.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/buzon-r1.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/buzon-r2.adv.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/buzon-r2.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/buzon-r3.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/ciiu.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/consultar-ruc.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/correo-r1.adv.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/correo-r1.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/correo-r2.adv.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/correo-r2.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/descargar-propuesta.adv.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/descargar-propuesta.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/enviar-correo.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/generar-archivo-r1.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/generar-archivo-r2.adv.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/generar-archivo-r2.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/generar-archivo.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/importar-historial-r2.adv.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/importar-historial.filtro.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/importar-historial.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/importar-historial.volumen.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/obtener-declaraciones-r1.adv.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/obtener-declaraciones-r2.adv.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/obtener-declaraciones-r2.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/obtener-declaraciones.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/obtener-declaraciones.volumen.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/obtener-xml-027.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/obtener-xml-interruptores.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/obtener-xml-ronda2.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/obtener-xml.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/programar-buzon-detener.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/programar-buzon.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/programar-correo-t22a.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/programar-correo.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/programar-correo.rendimiento.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/reevaluar-periodo.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/revisar-buzon.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/ventas-generado.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/verificar-credencial.adv.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/verificar-credencial.int.spec.ts	-
+apps/worker/src/trabajos/r1a.adv.int.spec.ts	-
+apps/worker/src/trabajos/restaurar-config.int.spec.ts	-
+apps/worker/src/trabajos/secretos.int.spec.ts	-
+apps/worker/src/trabajos/sistema.int.spec.ts	-
+apps/worker/src/trabajos/token-sire/cache-token.int.spec.ts	-

@@ -1,0 +1,33 @@
+LÍNEA BASE 042 · T3 · worker-cobertura-archivos
+Config:        apps/worker/vitest.cobertura-archivos.config.mts
+Script raíz:   cobertura:archivos (T23: log cob-archivos.log)
+Comando lista: pnpm --filter @contapp/worker exec vitest list --filesOnly --config vitest.cobertura-archivos.config.mts
+Lista: HEAD 68a9e68 · Tabla de cobertura: T23 de 028 medida en 60cf6b8
+
+[configuración de cobertura]
+coverage.provider: v8
+coverage.include (1):
+  apps/worker/src/trabajos/procesadores/generar-archivo.ts
+coverage.exclude: **/*.spec.ts, **/*.adv.spec.ts, **/*.int.spec.ts, **/*.adv.int.spec.ts
+coverage.reporter: text, json-summary
+coverage.thresholds: perFile=true; lines=90; statements=90; functions=90; branches=90
+proyectos (vitest): ninguno (un solo test.include)
+
+[ejecución T23 · 60cf6b8]
+archivos de prueba ejecutados: 5 · pruebas: 86 passed (86) · inicio 04:09:01 · duración 102.41 s
+resumen: sentencias 96.03 % (121/126) · ramas 91.54 % (65/71) · funciones 96 % (24/25) · líneas 99.05 % (105/106)
+archivos medidos (include - exclude en HEAD): 1 · listados en la tabla (algún valor < 100): 1 · no listados (100 % o vacíos): 0
+comparación con la lista: sin diferencia de conteo con T23
+
+[archivos de prueba · HEAD 68a9e68 · 5 archivos]
+archivo	proyecto
+apps/worker/src/trabajos/procesadores/generar-archivo-r1.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/generar-archivo-r2.adv.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/generar-archivo-r2.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/generar-archivo.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/generar-archivo.spec.ts	-
+
+[cobertura por archivo · T23 · 60cf6b8]
+archivo	stmts	branch	funcs	lines
+apps/worker/src/trabajos/procesadores/generar-archivo.ts	96.03	91.54	96	99.05
+All files	96.03	91.54	96	99.05

@@ -237,8 +237,9 @@ describe("caso real: gasto personal, glosa 'zapatilla' · CA-12 / D-5", () => {
       const h = unico(evaluar(conGlosa(g)).hallazgos);
       expect(h.regla).toBe("R-GP");
       expect(h.filaId).toBe("F1");
-      expect(h.explicacion.toLowerCase()).toContain("zapatilla");
-      expect(h.sugerencia).toEqual({ tipo: "excluir", palabra: "zapatilla", categoria: "calzado-ropa" });
+      // 027 (D-1): explicación fija; la sugerencia suma `puntaje` y `senales` (la palabra va en la sugerencia).
+      expect(h.explicacion).toBe("Posible gasto no deducible");
+      expect(h.sugerencia).toMatchObject({ tipo: "excluir", palabra: "zapatilla", categoria: "calzado-ropa" });
     },
   );
 

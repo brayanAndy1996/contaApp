@@ -1,0 +1,41 @@
+LÍNEA BASE 042 · T3 · worker-cobertura-buzon
+Config:        apps/worker/vitest.cobertura-buzon.config.mts
+Script raíz:   cobertura:buzon (T23: log cob-buzon.log)
+Comando lista: pnpm --filter @contapp/worker exec vitest list --filesOnly --config vitest.cobertura-buzon.config.mts
+Lista: HEAD 68a9e68 · Tabla de cobertura: T23 de 028 medida en 60cf6b8
+
+[configuración de cobertura]
+coverage.provider: v8
+coverage.include (4):
+  apps/worker/src/trabajos/procesadores/revisar-buzon.ts
+  apps/worker/src/trabajos/procesadores/abrir-mensaje.ts
+  apps/worker/src/trabajos/procesadores/programar-buzon.ts
+  apps/worker/src/trabajos/procesadores/credencial-sol.ts
+coverage.exclude: **/*.spec.ts, **/*.adv.spec.ts, **/*.int.spec.ts, **/*.adv.int.spec.ts
+coverage.reporter: text, json-summary
+coverage.thresholds: perFile=true; lines=90; statements=90; functions=90; branches=90
+proyectos (vitest): ninguno (un solo test.include)
+
+[ejecución T23 · 60cf6b8]
+archivos de prueba ejecutados: 9 · pruebas: 80 passed (80) · inicio 04:24:50 · duración 25.54 s
+resumen: sentencias 99.17 % (241/243) · ramas 96.55 % (112/116) · funciones 98.14 % (53/54) · líneas 99.53 % (215/216)
+archivos medidos (include - exclude en HEAD): 4 · listados en la tabla (algún valor < 100): 2 · no listados (100 % o vacíos): 2
+comparación con la lista: sin diferencia de conteo con T23
+
+[archivos de prueba · HEAD 68a9e68 · 9 archivos]
+archivo	proyecto
+apps/worker/src/trabajos/procesadores/abrir-mensaje-r1.spec.ts	-
+apps/worker/src/trabajos/procesadores/abrir-mensaje.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/abrir-mensaje.ramas.spec.ts	-
+apps/worker/src/trabajos/procesadores/credencial-sol.spec.ts	-
+apps/worker/src/trabajos/procesadores/programar-buzon-detener.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/programar-buzon.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/programar-buzon.ramas.spec.ts	-
+apps/worker/src/trabajos/procesadores/revisar-buzon.int.spec.ts	-
+apps/worker/src/trabajos/procesadores/revisar-buzon.ramas.spec.ts	-
+
+[cobertura por archivo · T23 · 60cf6b8]
+archivo	stmts	branch	funcs	lines
+apps/worker/src/trabajos/procesadores/abrir-mensaje.ts	98.64	92.85	94.73	98.46
+apps/worker/src/trabajos/procesadores/revisar-buzon.ts	98.93	96.42	100	100
+All files	99.17	96.55	98.14	99.53

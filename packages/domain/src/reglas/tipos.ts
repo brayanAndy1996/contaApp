@@ -2,7 +2,9 @@
 // de 010; los resultados de evaluarReglas salen congelados.
 import type { ColumnaCompra, Destino, MontosComprobante } from "../comprobante/index";
 import type { Money, Moneda, TipoCambio } from "../dinero/index";
-import type { DiccionarioGlosas } from "../texto/index";
+import type { ContextoGastos } from "../gastos/contexto";
+import type { Senal } from "../gastos/puntaje";
+import type { DiccionarioGlosas, Entero } from "../texto/index";
 
 export type CodigoRegla = "R-ISC" | "R-MIX" | "R-RED" | "R-NEW" | "R-GP" | "R-STD";
 
@@ -53,6 +55,8 @@ export interface ResumenXml {
   readonly total: Money;
   /** Descripción de cada ítem. */
   readonly glosas: readonly string[];
+  /** 027 (S4): `IssueDate` del XML (AAAA-MM-DD). Ausente o no válida: S4 no suma. */
+  readonly fechaEmision?: string;
 }
 
 export interface OrigenUsd {
@@ -84,6 +88,11 @@ export interface ContextoReglas {
   readonly modoEstandar?: boolean;
   /** Proveedores con regla aprendida activa (025, D-8): R-STD no los sugiere. Ausente = ninguno. */
   readonly proveedoresConRegla?: readonly DocProveedor[];
+  /**
+   * Contexto de la R-GP completa (027, D-5; `validarContextoGastos`). Ausente = la R-GP de 011: `diccionario`, umbral 3 y sin
+   * CIIU, historial ni ajuste de categorías (solo S1 y S5).
+   */
+  readonly gastos?: ContextoGastos;
 }
 
 /**
@@ -120,10 +129,17 @@ export interface SugerenciaAjustar {
 export interface SugerenciaClasificar {
   tipo: "clasificar";
 }
+/**
+ * R-GP (027, D-1): `palabra` y `categoria` son las de S1, `puntaje` la suma de `senales`. Desde T21a (decisión del usuario
+ * 2026-11-22) no hay hallazgo sin S1, así que la evaluación ya no produce `palabra` null; el tipo lo admite para leer hallazgos
+ * guardados antes. Un hallazgo guardado antes de 027 no trae `puntaje` ni `senales` (se sigue leyendo).
+ */
 export interface SugerenciaExcluir {
   tipo: "excluir";
-  palabra: string;
-  categoria: string;
+  palabra: string | null;
+  categoria: string | null;
+  puntaje?: Entero;
+  senales?: readonly Senal[];
 }
 export type Sugerencia =
   | SugerenciaMover

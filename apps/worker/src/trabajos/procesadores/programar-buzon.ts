@@ -42,6 +42,11 @@ export interface DepsProgramarBuzon {
   logger?: LoggerTrabajos;
   /** Dueño del candado: por omisión, un uuid aleatorio de esta instancia (proceso). */
   dueno?: string;
+  /**
+   * BD con la que el `finally` suelta el candado (H-028-1-1). `iniciarTrabajos` pasa una que solo se corta con `abortar` (kill -9): tras un
+   * `detener` vencido el tick en curso aún suelta su propio candado y el siguiente worker toma el ciclo enseguida. Por omisión, `db`.
+   */
+  dbCandado?: Pick<ContappDb, "withSistema">;
 }
 
 export interface ResultadoCicloBuzon {
@@ -169,7 +174,7 @@ export function programarBuzon(
         codigo: codigoDe(e),
       });
     } finally {
-      await d.db
+      await (d.dbCandado ?? d.db)
         .withSistema((tx) => soltarCiclo(tx, dueno))
         .catch(() => undefined);
     }

@@ -10,7 +10,9 @@ import {
   leerFilasReemplazo,
   leerFilasReemplazoVentas,
   leerProveedoresConocidos,
+  leerReglasMotor,
   listarJustificados,
+  normalizarIdentidadXml,
   ultimaVersion,
   type Alcance,
   type LibroArchivo,
@@ -18,6 +20,7 @@ import {
   type VentaFila,
 } from "@contapp/db";
 import {
+  aResumenXml,
   compraLeidaAFila,
   DICCIONARIO_GLOSAS_BASE,
   DineroError,
@@ -27,9 +30,11 @@ import {
   type ArchivoPreparado,
   type AvisoArchivo,
   type CabeceraTxt,
+  type DetalleXml,
   type ErrorPrevalidacion,
   type FilaReemplazo,
   type FilaReemplazoVenta,
+  type ResumenXml,
 } from "@contapp/domain";
 import {
   MAX_ITEMS_PREVIO,
@@ -44,6 +49,7 @@ import { sha256Hex } from "@contapp/storage";
 import { exigirCliente } from "../compras/apoyo.js";
 import { ComprasError } from "../compras/errores.js";
 import { exigir } from "../compras/escritura.js";
+import { contextoGastos } from "../gastos/contexto.js";
 import { respuestaEstado } from "../compras/periodo.service.js";
 import { prepararSinDesborde } from "./desborde.js";
 
@@ -135,13 +141,85 @@ interface Filas {
   excluidasOmitidas: number;
 }
 
+/** Identidad del comprobante de una compra (la que une una compra con su `documento_xml`). */
+interface ComprobanteCompra {
+  compraId: string;
+  clienteId: string;
+  tipoDoc: string;
+  serie: string;
+  numero: string;
+  docNumero: string;
+}
+
+// El XML vigente (mayor `n`) de cada comprobante, por su identidad normalizada (RUC del emisor, tipo, serie y número sin ceros): la misma
+// que usa `packages/db` al evaluar. Una sentencia por lote de 500; las compras sin XML no salen.
+const SQL_XML_VIGENTES = `select x.compra_id, d.origen, d.detalle
+  from jsonb_to_recordset($1::jsonb) as x(compra_id uuid, cliente_id uuid, ruc text, tipo text, serie text, numero text)
+  cross join lateral (select y.origen, y.detalle from documento_xml y
+    where y.cliente_id = x.cliente_id and y.ruc_emisor = x.ruc and y.tipo = x.tipo and y.serie = x.serie and y.numero = x.numero
+    order by y.n desc limit 1) d`;
+const LOTE_XML = 500;
+
+/**
+ * El resumen del XML vigente de cada compra para las reglas (016, P-4: el XML simulado solo entra con `XML_SIMULADO_EN_REGLAS=1`).
+ * Un `detalle` con un monto ilegible se ignora (la fila se evalúa como sin XML). Es lo que R-GP necesita (027): sin XML no se puntúa.
+ */
+async function leerResumenesXml(tx: Tx, compras: readonly ComprobanteCompra[]): Promise<Map<string, ResumenXml>> {
+  const salida = new Map<string, ResumenXml>();
+  const simuladoEnReglas = process.env.XML_SIMULADO_EN_REGLAS === "1";
+  for (let desde = 0; desde < compras.length; desde += LOTE_XML) {
+    const lote = compras.slice(desde, desde + LOTE_XML).map((c) => {
+      const i = normalizarIdentidadXml({ rucEmisor: c.docNumero, tipo: c.tipoDoc, serie: c.serie, numero: c.numero });
+      return { compra_id: c.compraId, cliente_id: c.clienteId, ruc: i.rucEmisor, tipo: i.tipo, serie: i.serie, numero: i.numero };
+    });
+    const r = await tx.query<{ compra_id: string; origen: string; detalle: unknown }>(SQL_XML_VIGENTES, [JSON.stringify(lote)]);
+    for (const f of r.rows) {
+      if (f.origen === "simulado" && !simuladoEnReglas) continue;
+      try {
+        salida.set(f.compra_id, aResumenXml(f.detalle as DetalleXml));
+      } catch (err) {
+        if (!(err instanceof DineroError)) throw err;
+      }
+    }
+  }
+  return salida;
+}
+
 async function prepararCompras(tx: Tx, e: EntradaPrevio, cabecera: CabeceraTxt, permitir: boolean): Promise<Filas> {
   const porFila = new Map<string, AvisoArchivo[]>();
-  const { original, vigente } = await leerFilasReemplazo(tx, e.clienteId, e.periodo, (c) => {
+  const comprobantes = new Map<string, ComprobanteCompra>();
+  const { original, vigente: vigenteSinXml } = await leerFilasReemplazo(tx, e.clienteId, e.periodo, (c) => {
     const r = compraLeidaAFila(c);
     if (r.avisos.length > 0) porFila.set(r.fila.id, r.avisos);
+    comprobantes.set(c.id, {
+      compraId: c.id,
+      clienteId: c.clienteId,
+      tipoDoc: c.tipoDoc,
+      serie: c.serie,
+      numero: c.numero,
+      docNumero: c.docNumero,
+    });
     return r.fila;
   });
+  // 027 (D-5, CA-13): R-GP puntúa con el XML vigente y el contexto del estudio (diccionario, umbral, categorías, CIIU e historial), los
+  // mismos de las acciones de la grilla. Solo avisa: nunca bloquea. Con R-GP apagada (021, R-8) no se lee ni el XML ni el contexto.
+  const rGpApagada = (await leerReglasMotor(tx)).filas.some((f) => f.codigo === "R-GP" && !f.activa);
+  let vigente = vigenteSinXml;
+  let gastos: Awaited<ReturnType<typeof contextoGastos>> | undefined;
+  if (!rGpApagada) {
+    const vivas = vigenteSinXml.filter((f: FilaReemplazo) => f.estado !== "excluida");
+    const resumenes = await leerResumenesXml(tx, vivas.flatMap((f) => comprobantes.get(f.id) ?? []));
+    vigente = vigenteSinXml.map((f: FilaReemplazo) => {
+      const xml = resumenes.get(f.id);
+      return xml === undefined ? f : { ...f, xml };
+    });
+    gastos = await contextoGastos(
+      tx,
+      e.clienteId,
+      e.periodo,
+      vivas.map((f) => ({ tipo: f.proveedor.tipo, numero: f.proveedor.numero })),
+    );
+  }
   // Un aviso por razón social recortada, solo de las filas que van al TXT (las excluidas no).
   const avisosAdaptador = vigente.filter((f: FilaReemplazo) => f.estado !== "excluida").flatMap((f) => porFila.get(f.id) ?? []);
   const conocidos = await leerProveedoresConocidos(tx, e.clienteId, e.periodo);
@@ -151,7 +229,12 @@ async function prepararCompras(tx: Tx, e: EntradaPrevio, cabecera: CabeceraTxt, 
       cabecera,
       original,
       vigente,
-      reglas: { proveedoresConocidos: conocidos, proveedoresIsc: [], diccionario: DICCIONARIO_GLOSAS_BASE },
+      reglas: {
+        proveedoresConocidos: conocidos,
+        proveedoresIsc: [],
+        diccionario: gastos === undefined ? DICCIONARIO_GLOSAS_BASE : gastos.diccionario,
+        ...(gastos === undefined ? {} : { gastos }),
+      },
       permitirProvisional: permitir,
     },
     fueraDeRango,

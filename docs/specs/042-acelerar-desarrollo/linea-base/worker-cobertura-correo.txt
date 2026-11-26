@@ -1,0 +1,60 @@
+LÍNEA BASE 042 · T3 · worker-cobertura-correo
+Config:        apps/worker/vitest.cobertura-correo.config.mts
+Script raíz:   cobertura:correo (T23: log cob-correo.log)
+Comando lista: pnpm --filter @contapp/worker exec vitest list --filesOnly --config vitest.cobertura-correo.config.mts
+Lista: HEAD 68a9e68 · Tabla de cobertura: T23 de 028 medida en 60cf6b8
+
+[configuración de cobertura]
+coverage.provider: v8
+coverage.include (7):
+  apps/worker/src/trabajos/procesadores/programar-correo.ts
+  apps/worker/src/trabajos/procesadores/enviar-correo.ts
+  apps/worker/src/trabajos/procesadores/auth-purgar.ts
+  apps/worker/src/adaptadores/adaptadores.module.ts
+  apps/worker/src/trabajos/iniciar.ts
+  apps/worker/src/trabajos/ejecutor.ts
+  apps/worker/src/trabajos/trabajos.module.ts
+coverage.exclude: **/*.spec.ts, **/*.adv.spec.ts, **/*.int.spec.ts, **/*.adv.int.spec.ts
+coverage.reporter: text, json-summary
+coverage.thresholds: perFile=true; lines=90; statements=90; functions=90; branches=90
+proyectos (vitest): worker-correo-unit, worker-correo-int
+
+[ejecución T23 · 60cf6b8]
+archivos de prueba ejecutados: 21 · pruebas: 228 passed (228) · inicio 02:51:22 · duración 69.56 s
+resumen: sentencias 98.93 % (560/566) · ramas 98.19 % (327/333) · funciones 99.21 % (127/128) · líneas 99.22 % (514/518)
+archivos medidos (include - exclude en HEAD): 7 · listados en la tabla (algún valor < 100): 5 · no listados (100 % o vacíos): 2
+comparación con la lista: HEAD lista 22 y T23 ejecutó 21: la diferencia es apps/worker/src/trabajos/procesadores/enviar-correo-t24.spec.ts (nuevo tras 60cf6b8; la tabla no lo incluye)
+
+[archivos de prueba · HEAD 68a9e68 · 22 archivos]
+archivo	proyecto
+apps/worker/src/adaptadores/adaptadores-023.spec.ts	worker-correo-unit
+apps/worker/src/adaptadores/adaptadores-028.spec.ts	worker-correo-unit
+apps/worker/src/adaptadores/adaptadores.module.spec.ts	worker-correo-unit
+apps/worker/src/trabajos/cierre-t16.spec.ts	worker-correo-unit
+apps/worker/src/trabajos/ejecutor-r1b.adv.int.spec.ts	worker-correo-int
+apps/worker/src/trabajos/ejecutor-r2a.adv.int.spec.ts	worker-correo-int
+apps/worker/src/trabajos/ejecutor.int.spec.ts	worker-correo-int
+apps/worker/src/trabajos/ejecutor.spec.ts	worker-correo-unit
+apps/worker/src/trabajos/iniciar.spec.ts	worker-correo-unit
+apps/worker/src/trabajos/procesadores/auth-purgar-correo.int.spec.ts	worker-correo-int
+apps/worker/src/trabajos/procesadores/auth-purgar-correo.spec.ts	worker-correo-unit
+apps/worker/src/trabajos/procesadores/auth-purgar.int.spec.ts	worker-correo-int
+apps/worker/src/trabajos/procesadores/auth-purgar.spec.ts	worker-correo-unit
+apps/worker/src/trabajos/procesadores/enviar-correo-t24.spec.ts	worker-correo-unit
+apps/worker/src/trabajos/procesadores/enviar-correo.int.spec.ts	worker-correo-int
+apps/worker/src/trabajos/procesadores/enviar-correo.ramas.spec.ts	worker-correo-unit
+apps/worker/src/trabajos/procesadores/enviar-correo.t14.spec.ts	worker-correo-unit
+apps/worker/src/trabajos/procesadores/programar-correo-t22a.int.spec.ts	worker-correo-int
+apps/worker/src/trabajos/procesadores/programar-correo.int.spec.ts	worker-correo-int
+apps/worker/src/trabajos/procesadores/programar-correo.ramas.spec.ts	worker-correo-unit
+apps/worker/src/trabajos/sistema.int.spec.ts	worker-correo-int
+apps/worker/src/trabajos/trabajos.module.spec.ts	worker-correo-unit
+
+[cobertura por archivo · T23 · 60cf6b8]
+archivo	stmts	branch	funcs	lines
+apps/worker/src/adaptadores/adaptadores.module.ts	97.77	96.42	100	98.85
+apps/worker/src/trabajos/ejecutor.ts	98.34	100	95.83	98.24
+apps/worker/src/trabajos/iniciar.ts	99.25	97.22	100	99.15
+apps/worker/src/trabajos/procesadores/enviar-correo.ts	99	98.73	100	100
+apps/worker/src/trabajos/procesadores/programar-correo.ts	100	97.43	100	100
+All files	98.93	98.19	99.21	99.22

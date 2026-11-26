@@ -1,5 +1,5 @@
 {
   "extends": "./tsconfig.json",
   "include": ["src"],
-  "exclude": ["**/*.spec.ts", "src/trabajos/soporte-prueba.ts", "src/buzon/soporte-prueba.ts", "src/aprendizaje/soporte-prueba.ts", "src/prorrata/soporte-prueba.ts"]
+  "exclude": ["**/*.spec.ts", "src/trabajos/soporte-prueba.ts", "src/buzon/soporte-prueba.ts", "src/aprendizaje/soporte-prueba.ts", "src/prorrata/soporte-prueba.ts", "src/gastos/soporte-prueba.ts", "src/correo/soporte-prueba.ts"]
 }

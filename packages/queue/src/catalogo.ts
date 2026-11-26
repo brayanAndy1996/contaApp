@@ -303,6 +303,47 @@ export const SOL_DECLARACIONES_DESCARGAR: DefinicionTrabajo<ParametrosDescargarD
   parametros: z.object({ periodo: periodoProrrataSchema }).strict(),
 };
 
+export interface ParametrosReevaluarCompras {
+  periodo: string;
+}
+
+/**
+ * Spec 027 (R-12, CA-12): «Volver a evaluar» las compras vivas de un periodo abierto con el diccionario, el umbral y las
+ * categorías vigentes (cola `xml` como `xml.obtener`; sin canal ni credencial: no habla con SUNAT, así que no usa el bloqueo
+ * por RUC). Parámetros estrictos `{periodo}`: el cliente sale del trabajo y las compras, del periodo en el worker; no hay
+ * dónde llevar un cliente, un secreto ni una lista de compras. Dedupe de 008 por (tipo, cliente, periodo).
+ */
+export const COMPRAS_REEVALUAR: DefinicionTrabajo<ParametrosReevaluarCompras> = {
+  tipo: "compras.reevaluar",
+  cola: "xml",
+  canal: "ninguno",
+  credencial: null,
+  permiso: "sire.clasificar",
+  idempotente: true,
+  parametros: z.object({ periodo: z.string().regex(PERIODO_AAAAMM) }).strict(),
+};
+
+export interface ParametrosEnviarNotificacion {
+  envioId: string;
+}
+
+/**
+ * Spec 028 (R-1, R-9, U-16): envío de un correo de aviso, resumen o pendientes. Solo lo encola la BD (`encolar_correo_avisos`
+ * y `crear_correo_resumenes`), así que no lleva permiso ni solicitante; sin canal ni credencial (no habla con SUNAT).
+ * Parámetros estrictos `{envioId}`: el destinatario, el asunto y el contenido salen de la BD en el worker; no hay dónde
+ * llevar un correo, un token ni un tenant. Dedupe de 008 por envío (el trabajo no tiene cliente).
+ */
+export const NOTIFICACION_ENVIAR: DefinicionTrabajo<ParametrosEnviarNotificacion> =
+  {
+    tipo: "notificacion.enviar",
+    cola: "notificaciones",
+    canal: "ninguno",
+    credencial: null,
+    permiso: null,
+    idempotente: true,
+    parametros: z.object({ envioId: z.uuid() }).strict(),
+  };
+
 registrarTipo(CLIENTE_CONSULTAR_RUC);
 registrarTipo(CREDENCIAL_VERIFICAR_SOL);
 registrarTipo(CREDENCIAL_VERIFICAR_SIRE);
@@ -313,6 +354,8 @@ registrarTipo(SOL_BUZON_REVISAR);
 registrarTipo(SOL_BUZON_ABRIR);
 registrarTipo(REGLAS_HISTORIAL_IMPORTAR);
 registrarTipo(SOL_DECLARACIONES_DESCARGAR);
+registrarTipo(COMPRAS_REEVALUAR);
+registrarTipo(NOTIFICACION_ENVIAR);
 
 /** Tipo de pruebas: solo existe con NODE_ENV=test (el worker le programa el comportamiento). */
 export const PRUEBA_ECO: DefinicionTrabajo<{ n?: number; rango?: string }> = {

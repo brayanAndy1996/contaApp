@@ -63,6 +63,7 @@ import { rutaArchivo, sha256Hex, type StorageProvider } from "@contapp/storage";
 import { ErrorDatos, empaquetar } from "@contapp/sunat";
 import type { Procesador, TrabajoEnCurso } from "../ejecutor.js";
 import { registrar, type LoggerTrabajos } from "../registro.js";
+import { contextoGastos } from "../persistidores/contexto-gastos.js";
 import { prepararSinDesborde } from "./desborde-resumen.js";
 
 export type DetalleErrorArchivo =
@@ -162,8 +163,19 @@ async function prepararCompras(
   permitirProvisional: boolean,
 ): Promise<Preparado> {
   const filas = await leerFilasReemplazo(tx, t.clienteId, cabecera.periodo, compraLeidaAFila);
-  const reglas = contextoReglas(await leerProveedoresConocidos(tx, t.clienteId, cabecera.periodo));
   const vigente = filas.vigente.map((f) => f.fila);
+  // 027 (D-5, CA-13): el contexto de R-GP del estudio se lee en esta misma transacción (solo lee). R-GP es un aviso: nunca bloquea.
+  const gastos = await contextoGastos(
+    tx,
+    t.clienteId,
+    cabecera.periodo,
+    vigente.map((f) => ({ tipo: f.proveedor.tipo, numero: f.proveedor.numero })),
+  );
+  const reglas: ContextoReglas = {
+    ...contextoReglas(await leerProveedoresConocidos(tx, t.clienteId, cabecera.periodo)),
+    diccionario: gastos.diccionario,
+    gastos,
+  };
   const preparado = prepararSinDesborde(
     { libro: "compras", cabecera, original: filas.original.map((f) => f.fila), vigente, reglas, permitirProvisional },
     fueraDeRango,

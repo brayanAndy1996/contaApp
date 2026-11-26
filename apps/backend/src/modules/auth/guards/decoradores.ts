@@ -8,6 +8,7 @@ export const META_PUBLICO = "auth:publico";
 export const META_SIN_ESTUDIO = "auth:sin-estudio";
 export const META_SESION_OPCIONAL = "auth:sesion-opcional";
 export const META_SIN_RENOVAR = "auth:sin-renovar-sesion";
+export const META_SIN_ORIGEN = "auth:sin-origen";
 
 /** Sin sesión ni CSRF (login, recuperación). `OrigenGuard` sigue aplicando. */
 export const Publico = () => SetMetadata(META_PUBLICO, true);
@@ -17,6 +18,12 @@ export const SinEstudio = () => SetMetadata(META_SIN_ESTUDIO, true);
 export const SesionOpcional = () => SetMetadata(META_SESION_OPCIONAL, true);
 /** 008 D22: valida la sesión sin renovarla (no cuenta como actividad). Solo `GET /trabajos/stream`. */
 export const SinRenovarSesion = () => SetMetadata(META_SIN_RENOVAR, true);
+
+/**
+ * 028, D-4: la ruta queda fuera de `OrigenGuard`. Solo `POST /correo/baja`: el POST de un clic de RFC 8058 lo hace el servidor del
+ * correo, sin `Origin` ni `Sec-Fetch-Site`; sin sesión ni cookies, la credencial es el token del enlace.
+ */
+export const SinOrigen = () => SetMetadata(META_SIN_ORIGEN, true);
 
 /** Contexto de la petición (03 §4.1): lo fija `SesionGuard` fuera de `withTenant`. */
 export interface ContextoPeticion {

@@ -42,6 +42,8 @@ export function crearEntorno(): Entorno {
     recuperacionCrear: vi.fn(async () => true),
     recuperacionVigente: vi.fn(async () => true),
     recuperacionConsumir: vi.fn(async () => ({ usuarioId: U, correo: CORREO })),
+    // 028: baja de correo por enlace (sin uso en las unitarias de 004; solo para cumplir `AuthRepo`).
+    aplicarBaja: vi.fn(async () => undefined),
     contrasenaCambiar: vi.fn(async () => CORREO),
     // 005: funciones de invitación (sin uso en las unitarias de 004).
     invitacionVigente: vi.fn(async () => null),
@@ -65,6 +67,15 @@ export function crearEntorno(): Entorno {
     suscripcionAsignar: vi.fn(async () => {
       throw new Error("no usado en 004");
     }),
+    // 027: diccionario global de gastos no deducibles (sin uso en las unitarias de 004; solo para cumplir `AuthRepo`).
+    gndGlobalListar: vi.fn(async () => []),
+    gndGlobalAgregar: vi.fn(async () => {
+      throw new Error("no usado en 004");
+    }),
+    gndGlobalEditar: vi.fn(async () => {
+      throw new Error("no usado en 004");
+    }),
+    gndGlobalHistorial: vi.fn(async () => []),
   };
   const datos: Entorno["datos"] = {
     tenants: [{ id: T_A, nombre: "Estudio A" }],

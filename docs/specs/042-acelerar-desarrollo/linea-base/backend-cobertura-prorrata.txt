@@ -1,0 +1,42 @@
+LÍNEA BASE 042 · T3 · backend-cobertura-prorrata
+Config:        apps/backend/vitest.cobertura-prorrata.config.mts
+Script raíz:   cobertura:prorrata (T23: log cob-prorrata.log)
+Comando lista: pnpm --filter @contapp/backend exec vitest list --filesOnly --config vitest.cobertura-prorrata.config.mts
+Lista: HEAD 68a9e68 · Tabla de cobertura: T23 de 028 medida en 60cf6b8
+
+[configuración de cobertura]
+coverage.provider: v8
+coverage.include (1):
+  apps/backend/src/modules/prorrata/*.ts
+coverage.exclude: **/*.spec.ts, **/*.adv.spec.ts, **/*.int.spec.ts, **/*.adv.int.spec.ts
+coverage.reporter: text, json-summary
+coverage.thresholds: perFile=true; lines=90; statements=90; functions=90; branches=90
+proyectos (vitest): ninguno (un solo test.include)
+
+[ejecución T23 · 60cf6b8]
+archivos de prueba ejecutados: 14 · pruebas: 958 passed (958) · inicio 04:38:55 · duración 88.64 s
+resumen: sentencias 100 % (185/185) · ramas 99.02 % (102/103) · funciones 100 % (53/53) · líneas 100 % (161/161)
+archivos medidos (include - exclude en HEAD): 8 · listados en la tabla (algún valor < 100): 1 · no listados (100 % o vacíos): 7
+comparación con la lista: sin diferencia de conteo con T23
+
+[archivos de prueba · HEAD 68a9e68 · 14 archivos]
+archivo	proyecto
+apps/backend/src/aislamiento/hu40-api.int.spec.ts	-
+apps/backend/src/modules/prorrata/guardas.spec.ts	-
+apps/backend/src/modules/prorrata/igv-compras.int.spec.ts	-
+apps/backend/src/modules/prorrata/lectura.int.spec.ts	-
+apps/backend/src/modules/prorrata/lectura.service.spec.ts	-
+apps/backend/src/modules/prorrata/manual.int.spec.ts	-
+apps/backend/src/modules/prorrata/obtener.int.spec.ts	-
+apps/backend/src/modules/prorrata/permisos-026.int.spec.ts	-
+apps/backend/src/modules/prorrata/prorrata.rendimiento.int.spec.ts	-
+apps/backend/src/modules/prorrata/r1.adv.int.spec.ts	-
+apps/backend/src/modules/prorrata/r2.adv.int.spec.ts	-
+apps/backend/src/modules/prorrata/r2.int.spec.ts	-
+apps/backend/src/modules/prorrata/rango.int.spec.ts	-
+apps/backend/src/modules/prorrata/usada.int.spec.ts	-
+
+[cobertura por archivo · T23 · 60cf6b8]
+archivo	stmts	branch	funcs	lines
+apps/backend/src/modules/prorrata/vistas.ts	100	98.48	100	100
+All files	100	99.02	100	100

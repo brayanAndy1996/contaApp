@@ -5,6 +5,8 @@
 //      Lo que no es del cliente/periodo/estudio, está descartado, no admite XML o ya lo tiene se cuenta como `omitido`.
 //  (3) Por compra, SIN transacción abierta (008 D6): `XmlProvider.obtener` con la `referencia` de la versión 1 (solo la usa el
 //      mock) -> `leerUbl` -> `compararIdentidad` (emisor, tipo, serie, número y receptor = RUC del cliente) -> bytes a storage.
+//      027: antes de (4), `asegurarCiiu` consulta (fuera de transacción) el CIIU del proveedor y del cliente si la caché del estudio no
+//      lo tiene o tiene más de 30 días; nunca falla el XML.
 //  (4) Un `withTenant` por compra: `guardarDocumentoXml` y, si el XML entra en las reglas (P-4: el simulado solo con
 //      `XML_SIMULADO_EN_REGLAS`), `reevaluarComprobante` (evaluación nueva, sin versión, de todas las compras vivas del
 //      comprobante en cualquier periodo; H-016-11). Un XML rechazado no escribe nada.
@@ -34,6 +36,7 @@ import {
   ErrorDatos,
   ErrorTransitorio,
   clasificarError,
+  type ConsultaRuc,
   type ReferenciaXml,
   type XmlProvider,
 } from "@contapp/sunat";
@@ -44,6 +47,8 @@ import {
   leerPerfilCliente,
   leerProveedoresConRegla,
 } from "../persistidores/compras-std.js";
+import { contextoGastos } from "../persistidores/contexto-gastos.js";
+import { asegurarCiiu } from "./ciiu.js";
 
 export interface DepsObtenerXml {
   db: Pick<ContappDb, "withTenant">;
@@ -51,6 +56,8 @@ export interface DepsObtenerXml {
   storage: StorageProvider;
   /** `XML_SIMULADO_EN_REGLAS` (P-4): si el XML simulado entra en las reglas. Apagada por defecto. */
   xmlSimuladoEnReglas?: boolean;
+  /** 027 (R-14): puerto del padrón para el CIIU del proveedor y del cliente; sin él no se consulta (la R-GP puntúa sin CIIU). */
+  consultaRuc?: ConsultaRuc;
 }
 
 /** Los seis contadores excluyentes del `resultado` (suman el tamaño del lote). */
@@ -228,6 +235,10 @@ export function obtenerXml(d: DepsObtenerXml): Procesador {
         continue;
       }
 
+      // 027 (R-14): el CIIU de proveedor y cliente, fuera de toda transacción y antes de la de escritura. Nunca lanza.
+      if (d.consultaRuc !== undefined)
+        await asegurarCiiu({ db: d.db, consultaRuc: d.consultaRuc }, estudio, [c.docNumero, t.ruc]);
+
       // Storage primero (fuera de la transacción); si la BD no lo guarda, se borra el archivo.
       const ruta = rutaXml(t.tenantId, t.clienteId, randomUUID());
       await d.storage.guardar(ruta, bytes as Uint8Array);
@@ -255,13 +266,24 @@ export function obtenerXml(d: DepsObtenerXml): Procesador {
             // leen antes de bloquear las compras: mismo orden que la descarga (reglas, luego compras).
             const perfil = await leerPerfilCliente(tx, t.clienteId);
             const proveedoresConRegla = await leerProveedoresConRegla(tx, t.clienteId);
-            const evaluarDe = async (p: string) =>
-              crearEvaluarCompras(await leerProveedoresConocidos(tx, t.clienteId, p), {
-                xmlSimuladoEnReglas: enReglas,
-                reglasApagadas,
-                proveedoresConRegla,
-                perfil,
-              });
+            // 027 (D-5): el contexto de R-GP del estudio (diccionario, umbral, CIIU, categorías e historial del periodo de cada
+            // compra) se lee en esta misma transacción, una vez por periodo.
+            const porPeriodo = new Map<string, Promise<ReturnType<typeof crearEvaluarCompras>>>();
+            const evaluarDe = (p: string) => {
+              let e = porPeriodo.get(p);
+              if (e === undefined) {
+                e = (async () =>
+                  crearEvaluarCompras(await leerProveedoresConocidos(tx, t.clienteId, p), {
+                    xmlSimuladoEnReglas: enReglas,
+                    reglasApagadas,
+                    proveedoresConRegla,
+                    perfil,
+                    gastos: await contextoGastos(tx, t.clienteId, p, [{ tipo: c.docTipo, numero: c.docNumero }]),
+                  }))();
+                porPeriodo.set(p, e);
+              }
+              return e;
+            };
             const reevaluadas = await reevaluarComprobante(tx, t.clienteId, identidadDe(c), {
               evaluarDe,
               bloqueo: "funcion",

@@ -35,6 +35,10 @@ REGLAS:
 - No avances a la siguiente spec si la actual tiene criterios sin cumplir o hallazgos adversariales abiertos.
 - Al terminar cada spec sugiéreme abrir una conversación nueva con este mismo prompt si el historial ya es largo; ESTADO.md permite retomar.
 - La fuente real de descarga de XML la entregaré después: usa MockXmlProvider (XML_PROVIDER=mock) y no investigues SOL por tu cuenta.
+- Tamaño (042 B2): `spec.md` y `plan.md` ≤ ~900 palabras; cada tarea de `tasks.md` en ≤ 6 líneas. Evidencias y salidas van a `resultados.md`, que ningún agente lee para trabajar.
+- Adversarial (042 B3): 1 ronda por defecto; la 2.ª solo si la 1.ª deja hallazgos de severidad media o alta.
+- Pruebas (042 B4/B5): una corrida en verde cierra la spec; las suites salen con reporter `dot` (solo fallos).
+- CI (042 A5/A6): en ramas `spec/*` corren lint, tipos, build y unitarias; la suite completa, en PR a `main`, en `main` y a mano. Cierre: PR `spec/NNN-nombre` → `main`. Una spec nueva no agrega pasos de CI: sus globs van a la config de cobertura de su app.
 
 EMPIEZA: lee el contexto indicado, muéstrame en ≤5 líneas el estado actual y la próxima spec, y arranca el paso 2.
 ```

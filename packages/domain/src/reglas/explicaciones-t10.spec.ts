@@ -28,6 +28,8 @@ describe("catálogo: casos cerrados en T10", () => {
     const f = fila({ xml: xml({ glosas: ["perfumes"] }) });
     const r = evaluar([f], ctx({ proveedoresConocidos: [] })).hallazgos;
     expect(unico(r, "R-NEW").explicacion).toBe("Proveedor nuevo: elige la clasificación");
-    expect(unico(r, "R-GP").explicacion).toBe('Posible gasto personal: la glosa dice "perfume"');
+    // 027 (D-1): la explicación de R-GP es fija; la palabra va en la sugerencia.
+    expect(unico(r, "R-GP").explicacion).toBe("Posible gasto no deducible");
+    expect(unico(r, "R-GP").sugerencia).toMatchObject({ tipo: "excluir", palabra: "perfume" });
   });
 });

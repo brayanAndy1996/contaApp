@@ -27,12 +27,16 @@ export type {
   AceptacionExistente,
   AceptacionNueva,
   AuthRepo,
+  CambioGlobalFila,
   ConfirmacionNueva,
+  DatosPalabraGlobal,
+  EdicionPalabraGlobal,
   DatosPlan,
   EstudioPlataforma,
   InvitacionVigente,
   LoginExitoArgs,
   LoginPreparado,
+  PalabraGlobalFila,
   PlanFila,
   RecuperacionConsumida,
   RegistroConfirmado,
@@ -324,8 +328,13 @@ export type {
   FilaPorObtener,
   ObtencionXml,
 } from "./xml/obtencion";
-export { reevaluarCompra, reevaluarComprobante } from "./xml/reevaluar";
-export type { BloqueoReevaluar, FuncionesReevaluar, ResultadoReevaluar } from "./xml/reevaluar";
+export { reevaluarCompra, reevaluarComprobante, reevaluarLoteSiCambia } from "./xml/reevaluar";
+export type {
+  BloqueoReevaluar,
+  FuncionesReevaluar,
+  ResultadoLoteReevaluado,
+  ResultadoReevaluar,
+} from "./xml/reevaluar";
 export { leerDetalleXml } from "./xml/detalle";
 export type { DetalleXmlLeido } from "./xml/detalle";
 export { leerHistorialProveedor, TOPE_HISTORIAL } from "./xml/historial";
@@ -453,6 +462,45 @@ export type {
   ProveedorConRegla,
   ResumenImportacion,
 } from "./aprendizaje";
+// Spec 027: gastos no deducibles (tablas y semilla de 0069, funciones acotadas de 0070). El contexto de R-GP (D-5) y la caché de CIIU
+// se leen con la `tx` del backend o del worker; el diccionario, el umbral, las categorías y aprender se escriben con la del backend;
+// la caché de CIIU con la del worker. Las funciones de plataforma del diccionario global están en el AuthRepo.
+export {
+  ACCIONES_HISTORIAL_GLOBAL_BD,
+  CATEGORIAS_GND_BD,
+  ORIGENES_PALABRA_BD,
+  gndCiiu,
+  gndClienteCategorias,
+  gndConfig,
+  gndGlobalDesactivada,
+  gndGlobalHistorial,
+  gndPalabraEstudio,
+  gndPalabraGlobal,
+} from "./schema/gastos";
+export {
+  agregarPalabra,
+  aprender,
+  cambiarEstadoGlobal,
+  cambiarEstadoPalabra,
+  ciiuPendientes,
+  esUuidGastos,
+  excepcionesSugeridas,
+  fijarCategoriasCliente,
+  fijarUmbral,
+  GastosRepoError,
+  guardarCiiu,
+  leerCategoriasCliente,
+  leerContextoGastos,
+  leerGastosEstudio,
+  leerGlosasCompra,
+} from "./gastos";
+export type {
+  CategoriasClienteLeidas,
+  ContextoGastosLeido,
+  GastosEstudioLeido,
+  PalabraContexto,
+  ProveedorDoc,
+} from "./gastos";
 // Spec 026: prorrata (tablas solo de inserción de 0065, funciones acotadas de 0066). Registrar la obtención con la `tx` del worker;
 // guardar y eliminar el mes manual, guardar la prorrata usada y todas las lecturas (también los totales de ventas) con la del backend.
 export {
@@ -536,3 +584,56 @@ export type {
   PosicionBandeja,
   ResultadoAtencionBuzon,
 } from "./buzon";
+// Spec 028: avisos por correo y resumen diario (tablas de 0073, funciones acotadas de 0074). Preferencias con la `tx` del backend;
+// envíos, avisos, destinatario, resumen, ciclo, token de baja y purga con la del worker. La baja sin sesión es `AuthRepo.aplicarBaja`.
+export {
+  ESTADOS_ENVIO_BD,
+  MOTIVOS_OMITIDO_BD,
+  ORIGENES_ENVIO_BD,
+  TIPOS_AVISO_CORREO_BD,
+  TIPOS_CORREO_BD,
+  correoBajaToken,
+  correoEnvio,
+  correoEnvioAviso,
+  correoPreferencia,
+  correoProgramacion,
+} from "./schema/correo";
+export {
+  CorreoRepoError,
+  cerrarEnvio,
+  cerrarResumenCorreo,
+  crearResumenesCorreo,
+  crearTokenBaja,
+  encolarAvisosCorreo,
+  estudiosCorreo,
+  fijarPreferencias,
+  leerAvisosEnvio,
+  leerDestinatario,
+  leerPreferencias,
+  leerResumen,
+  purgarCorreo,
+  renovarCicloCorreo,
+  soltarCicloCorreo,
+  tomarCicloCorreo,
+  tomarEnvio,
+  tomarEnvioParaEnviar,
+} from "./correo";
+export type {
+  AvisoEnvio,
+  CicloCorreo,
+  CierreEnvio,
+  ClienteResumen,
+  Destinatario,
+  EnvioTomado,
+  EnvioTomadoParaEnviar,
+  EstadoCierre,
+  EstadoPeriodoResumen,
+  EstudioCorreo,
+  MotivoEnvio,
+  OrigenEnvio,
+  ParametrosResumen,
+  PlanCorreo,
+  PreferenciasAFijar,
+  PreferenciasLeidas,
+  TipoCorreo,
+} from "./correo";

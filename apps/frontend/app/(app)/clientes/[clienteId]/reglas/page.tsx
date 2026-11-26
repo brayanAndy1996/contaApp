@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { Alert, EncabezadoPagina, buttonVariants } from "../../../../../components/ui";
 import { cn } from "../../../../../lib/utils";
+import { CategoriasCliente } from "../../../../../components/gastos/categorias-cliente";
 import { CandidatasImportadas } from "../../../../../components/reglas/candidatas-importadas";
 import { ImportarHistorial } from "../../../../../components/reglas/importar-historial";
 import { TablaReglasCliente } from "../../../../../components/reglas/tabla-reglas-cliente";
@@ -61,6 +62,7 @@ function ReglasDelCliente() {
             clienteId={clienteId}
             alNoEncontrado={alNoEncontrado}
           />
+          <CategoriasCliente clienteId={clienteId} alNoEncontrado={alNoEncontrado} />
         </>
       )}
     </main>

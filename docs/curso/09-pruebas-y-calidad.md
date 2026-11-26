@@ -101,7 +101,7 @@ Es la auditoría externa después de la interna. Hay un catálogo de ataques por
 
 ### Cómo se registra un hallazgo
 
-En `docs/specs/ESTADO.md`, sección "Hallazgos adversariales abiertos", una fila por hallazgo: spec, archivo:línea de la prueba, ID y severidad con la causa (`archivo:línea`), y estado con el commit que lo corrige. Ejemplo real (resumido):
+En `docs/specs/ESTADO.md`, sección "Hallazgos adversariales abiertos", una fila por hallazgo: spec, archivo:línea de la prueba, ID y severidad con la causa (`archivo:línea`), y estado con el commit que lo corrige. Al cerrarse, la fila pasa a `docs/specs/HALLAZGOS.md`. Ejemplo real (resumido):
 
 | Spec | Prueba | Hallazgo | Estado |
 |---|---|---|---|

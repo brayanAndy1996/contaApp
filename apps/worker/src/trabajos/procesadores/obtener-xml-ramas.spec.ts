@@ -14,6 +14,9 @@ import {
 } from "@contapp/sunat";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// 027: `asegurarCiiu` se prueba aparte (ciiu.int.spec.ts); aquí solo cuándo y con qué se le llama.
+vi.mock("./ciiu.js", () => ({ asegurarCiiu: vi.fn(async () => undefined) }));
+
 vi.mock("@contapp/db", async (original) => ({
   ...(await original<typeof import("@contapp/db")>()),
   leerDetalleCompra: vi.fn(),
@@ -32,6 +35,22 @@ vi.mock("../persistidores/compras-std.js", () => ({
   leerProveedoresConRegla: vi.fn(async () => []),
 }));
 
+// 027 (D-5): el contexto de R-GP del estudio se lee de la BD (cubierto en contexto-gastos.int.spec.ts); aquí, el de un estudio sin
+// ajustes (diccionario base, umbral 3, sin CIIU, historial ni categorías), equivalente a la R-GP de 011.
+vi.mock("../persistidores/contexto-gastos.js", async () => {
+  const { DICCIONARIO_GLOSAS_BASE } = await import("@contapp/domain");
+  return {
+    contextoGastos: vi.fn(async () => ({
+      diccionario: DICCIONARIO_GLOSAS_BASE,
+      umbral: 3,
+      ciiuCliente: null,
+      ciiuProveedores: [],
+      categoriasCliente: { permitidas: [], quitadas: [] },
+      historial: [],
+    })),
+  };
+});
+
 import {
   ComprasReglaError,
   fijarObtencion,
@@ -41,6 +60,7 @@ import {
   leerXmlVigente,
   reevaluarComprobante,
 } from "@contapp/db";
+import { asegurarCiiu } from "./ciiu.js";
 import { obtenerXml, type ResultadoObtenerXml } from "./obtener-xml.js";
 
 const TX = { tx: true };
@@ -102,7 +122,7 @@ const trabajo = (compraIds: string[]) => ({
   creadoPor: "u-1",
 });
 
-function armar(opciones: { enReglas?: boolean } = {}) {
+function armar(opciones: { enReglas?: boolean; consultaRuc?: { consultar: () => Promise<never> } } = {}) {
   const withTenant = vi.fn(
     async (_estudio: unknown, fn: (tx: unknown) => Promise<unknown>) => fn(TX),
   );
@@ -114,6 +134,7 @@ function armar(opciones: { enReglas?: boolean } = {}) {
     xmlProvider: { obtener } as never,
     storage: { guardar, leer: vi.fn(), eliminar } as never,
     ...(opciones.enReglas === undefined ? {} : { xmlSimuladoEnReglas: opciones.enReglas }),
+    ...(opciones.consultaRuc === undefined ? {} : { consultaRuc: opciones.consultaRuc as never }),
   });
   const correr = (ids: string[]): Promise<ResultadoObtenerXml> =>
     procesador({ trabajo: trabajo(ids), conToken: vi.fn() } as never) as Promise<ResultadoObtenerXml>;
@@ -514,5 +535,39 @@ describe("obtenerXml: el proveedor se llama fuera de toda transacción (008 D6)"
     });
     await n.correr([ID(1)]);
     expect(abiertasAlPedir).toBe(0);
+  });
+});
+
+describe("obtenerXml: CIIU al llegar el XML (027, R-14)", () => {
+  const consultaRuc = { consultar: vi.fn(async () => Promise.reject(new Error("no se llama aquí"))) };
+
+  it("con el puerto del padrón pide el CIIU del proveedor y del cliente, fuera de la transacción de escritura y antes de guardar", async () => {
+    const n = armar({ consultaRuc });
+    n.obtener.mockResolvedValue(respuesta(XML_MIXTA, "subido"));
+    await n.correr([ID(1)]);
+
+    expect(asegurarCiiu).toHaveBeenCalledTimes(1);
+    const [deps, estudio, rucs] = vi.mocked(asegurarCiiu).mock.calls[0]!;
+    expect(deps.consultaRuc).toBe(consultaRuc);
+    expect(estudio).toEqual({ tenantId: TENANT });
+    expect(rucs).toEqual(["20700000045", RUC_CLIENTE]);
+    const orden = vi.mocked(asegurarCiiu).mock.invocationCallOrder[0]!;
+    expect(orden).toBeLessThan(n.guardar.mock.invocationCallOrder[0]!);
+    expect(orden).toBeLessThan(vi.mocked(guardarDocumentoXml).mock.invocationCallOrder[0]!);
+  });
+
+  it("sin el puerto del padrón no consulta nada (la R-GP puntúa sin CIIU)", async () => {
+    const n = armar();
+    n.obtener.mockResolvedValue(respuesta(XML_MIXTA, "subido"));
+    await n.correr([ID(1)]);
+    expect(asegurarCiiu).not.toHaveBeenCalled();
+  });
+
+  it("un XML ilegible o que no llega no pide ningún CIIU", async () => {
+    const n = armar({ consultaRuc });
+    n.obtener.mockResolvedValueOnce(respuesta("no es xml", "subido")).mockRejectedValueOnce(new ErrorDatos());
+    await n.correr([ID(1)]);
+    await n.correr([ID(1)]);
+    expect(asegurarCiiu).not.toHaveBeenCalled();
   });
 });

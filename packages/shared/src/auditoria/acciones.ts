@@ -62,6 +62,18 @@ export const ACCIONES_AUDITORIA = [
   "prorrata.mes_manual_guardado",
   "prorrata.mes_manual_eliminado",
   "prorrata.usada_guardada",
+  // Spec 027: diccionario de gastos no deducibles (las registran las funciones acotadas de 0070 en la misma transacción).
+  // Los cambios del super-admin no son acciones: quedan en `gnd_global_historial`.
+  "gnd.palabra_agregada",
+  "gnd.palabra_desactivada",
+  "gnd.palabra_reactivada",
+  "gnd.palabra_aprendida",
+  "gnd.global_desactivada",
+  "gnd.global_reactivada",
+  "gnd.umbral_cambiado",
+  "gnd.categorias_cliente",
+  // Spec 028: preferencias de correo (la registran `correo_preferencias_fijar` y `auth.correo_baja_aplicar`; los envíos no se auditan uno por uno).
+  "correo.preferencia_cambiada",
 ] as const;
 
 export type AccionAuditoria = (typeof ACCIONES_AUDITORIA)[number];

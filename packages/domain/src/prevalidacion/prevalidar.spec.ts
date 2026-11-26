@@ -294,7 +294,7 @@ describe("avisos R-ISC, R-NEW y R-GP: no bloquean (D11)", () => {
     expect(r.apto).toBe(true);
     expect(r.errores).toEqual([]);
     expect(r.avisos.map((a) => a.codigo)).toEqual(["R-GP"]);
-    expect(r.avisos[0]?.explicacion.toLowerCase()).toContain("zapatilla");
+    expect(r.avisos[0]?.explicacion).toBe("Posible gasto no deducible"); // 027 (D-1): explicación fija
   });
 
   it("R-MIX y R-RED nunca salen como avisos: van como sugerencia del error", () => {

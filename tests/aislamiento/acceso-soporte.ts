@@ -168,12 +168,39 @@ export class EscenarioAcceso {
         ])
       ).rows.map((x) => x.id as string);
       const t = this.estudios;
+      // Spec 028 (T3): las cuatro tablas de correo con FK a tenant (correo_preferencia, correo_envio, correo_envio_aviso, correo_baja_token) y los
+      // trabajos `notificacion.enviar` que dejan `crear_correo_resumenes` y `encolar_correo_avisos`; con `replica` las FK no corren, asi que
+      // se borran antes del estudio. Ademas se descubre en `information_schema` TODA tabla publica con `tenant_id` (como
+      // `packages/db/src/gastos/soporte-prueba.ts`) para que ninguna tabla futura deje un estudio vivo (leccion de 026/027); sin tablas, no hace nada.
+      const conTenant = await c
+        .query(
+          `select c.table_name from information_schema.columns c
+             join information_schema.tables t on t.table_schema = c.table_schema and t.table_name = c.table_name
+            where c.table_schema = 'public' and c.column_name = 'tenant_id' and t.table_type = 'BASE TABLE' order by c.table_name`,
+        )
+        .then((r) => (r.rows as { table_name: string }[]).map((x) => x.table_name).filter((n) => /^[a-z][a-z0-9_]*$/.test(n)))
+        .catch(() => [] as string[]);
+      for (const tabla of ["correo_envio_aviso", "correo_baja_token", "correo_envio", "correo_preferencia"]) {
+        await c.query(`delete from ${tabla} where tenant_id = any($1::uuid[])`, [this.estudios]).catch(() => undefined);
+      }
+      for (const tabla of conTenant) {
+        // eslint-disable-next-line sql-crudo/sin-sql-crudo -- identificador de information_schema validado por regex; solo en la limpieza de la prueba
+        await c.query(`delete from public."${tabla}" where tenant_id = any($1::uuid[])`, [this.estudios]).catch(() => undefined);
+      }
       const pasos: Array<[string, unknown[]]> = [
         // Spec 017 (T2): los triggers crean filas de notificacion, plan_aviso y auditoria (inmutable: solo `replica` la borra) en casi
         // cualquier prueba; con FK a tenant, sin borrarlas antes el estudio no se borra y queda sin suscripcion (lección de 016).
         ["delete from notificacion where tenant_id = any($1::uuid[]) or usuario_id = any($2::uuid[])", [t, usuarios]],
         ["delete from plan_aviso where tenant_id = any($1::uuid[])", [t]],
         ["delete from auditoria where tenant_id = any($1::uuid[])", [t]],
+        // Spec 027 (T3): las cinco tablas gnd_ del estudio (FK a cliente, compra, usuario y gnd_palabra_global; con `replica` las FK no
+        // corren, asi que quedarian huerfanas). Las dos de plataforma (gnd_palabra_global, gnd_global_historial) no tienen estudio: las
+        // limpia quien las siembra (`EscenarioGnd.limpiar`). Si aun no existen las tablas, el catch lo ignora.
+        ["delete from gnd_palabra_estudio where tenant_id = any($1::uuid[])", [t]],
+        ["delete from gnd_global_desactivada where tenant_id = any($1::uuid[])", [t]],
+        ["delete from gnd_config where tenant_id = any($1::uuid[])", [t]],
+        ["delete from gnd_cliente_categorias where tenant_id = any($1::uuid[])", [t]],
+        ["delete from gnd_ciiu where tenant_id = any($1::uuid[])", [t]],
         ["delete from asignacion where tenant_id = any($1::uuid[])", [t]],
         ["delete from invitacion where tenant_id = any($1::uuid[])", [t]],
         ["delete from auth.sesion where usuario_id = any($1::uuid[])", [usuarios]],
@@ -196,6 +223,12 @@ export class EscenarioAcceso {
       c.release(true); // se destruye la conexion: no vuelve al pool con session_replication_role = replica
     }
     await this.esc.limpiar();
+    // Si un estudio sigue vivo (una tabla con FK a tenant que esta limpieza no conoce), se dice: `planes.spec.ts` fallaria despues en CI por estudios
+    // que quedan (leccion de 026/027). Sin datos del estudio en el mensaje.
+    if (this.estudios.length > 0) {
+      const quedan = await this.admin.query("select count(*)::int as n from tenant where id = any($1::uuid[])", [this.estudios]).catch(() => undefined);
+      if (quedan && (quedan.rows[0].n as number) > 0) throw new Error("la limpieza de acceso-soporte no pudo borrar todos los estudios de la prueba");
+    }
   }
 }
 

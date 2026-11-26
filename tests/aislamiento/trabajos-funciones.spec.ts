@@ -266,7 +266,9 @@ describe("job_registro: FK compuestas con el estudio (23503)", () => {
     expect(codigo(r)).toBe("23503");
   });
 
-  it("un cliente inexistente -> 23503 y cliente_id NULL -> 23502", async () => {
+  // Ajuste de 028 (T10, migración 0073): cliente_id admite NULL solo en `notificacion.enviar`; en cualquier otro tipo lo rechaza el
+  // CHECK job_registro_cliente_requerido (23514) en lugar del NOT NULL (23502).
+  it("un cliente inexistente -> 23503 y cliente_id NULL -> 23514", async () => {
     expect(
       codigo(
         await enRollbackAdmin((c) =>
@@ -280,7 +282,7 @@ describe("job_registro: FK compuestas con el estudio (23503)", () => {
       codigo(
         await enRollbackAdmin((c) => insertarFila(c, { cliente_id: null })),
       ),
-    ).toBe("23502");
+    ).toBe("23514");
   });
 });
 

@@ -114,6 +114,12 @@ describe("T13b · ronda adversarial 2b", () => {
       "MAX_PAGINAS_LECTURA",
       // 026 (T1, plan Contratos: domain): prorrata/ (ventana, porcentaje, meses, coeficiente, IGV estimado, diferencia).
       "calcularProrrata", "compararProrrata", "estimarIgv", "porcentajeProrrata", "resolverMes", "ventanaProrrata",
+      // 027 (T1, plan Contratos: domain): gastos/ (categorías, CIIU, matriz, feriados, contexto, puntaje y términos de la R-GP completa).
+      "CATEGORIAS_GND", "categoriasPermitidas", "crearDiccionarioEfectivo", "esDiaNoLaborable", "proponerTerminos",
+      "puntuarGastoPersonal", "seccionCiiu", "validarContextoGastos",
+      // 028 (T1, plan Contratos: domain): correo/ (saneo, hora de Lima y plantillas de aviso, resumen y avisos pendientes).
+      "armarCorreoAviso", "armarCorreoPendientes", "armarCorreoResumen", "diaLima", "escaparHtml", "fechaHoraLima",
+      "limpiarLinea", "periodoAnteriorLima", "resumenVacio",
     ].sort();
     expect(Object.keys(Publico).sort()).toEqual(esperados);
 

@@ -4,8 +4,9 @@
 // `detener`: cierre ordenado (deja de despachar y de tomar trabajos, espera a los en curso hasta `esperaMs`, libera
 // arriendos). `abortar`: muerte del proceso (kill -9): desde ese instante no escribe en la BD ni emite comandos por el
 // Redis recibido, no libera arriendos y abandona lo que está en curso.
+import { CorreoConsola, type Correo } from "@contapp/correo";
 import type { KeyUnwrapper, KeyWrapper } from "@contapp/crypto/descifrado";
-import { leerConfig, type ContappDb } from "@contapp/db";
+import { leerConfig, soltarCiclo, soltarCicloCorreo, type ContappDb } from "@contapp/db";
 import {
   CacheConfig,
   Despachador,
@@ -48,12 +49,15 @@ import { abrirMensaje } from "./procesadores/abrir-mensaje.js";
 import { authPurgar } from "./procesadores/auth-purgar.js";
 import { consultarRuc } from "./procesadores/consultar-ruc.js";
 import { descargarPropuesta } from "./procesadores/descargar-propuesta.js";
+import { enviarCorreo } from "./procesadores/enviar-correo.js";
 import { generarArchivo } from "./procesadores/generar-archivo.js";
 import { importarHistorial } from "./procesadores/importar-historial.js";
 import { kekRotar } from "./procesadores/kek-rotar.js";
 import { obtenerDeclaraciones } from "./procesadores/obtener-declaraciones.js";
 import { obtenerXml } from "./procesadores/obtener-xml.js";
 import { programarBuzon } from "./procesadores/programar-buzon.js";
+import { programarCorreo } from "./procesadores/programar-correo.js";
+import { reevaluarPeriodo } from "./procesadores/reevaluar-periodo.js";
 import { revisarBuzon } from "./procesadores/revisar-buzon.js";
 import {
   verificarSire,
@@ -107,6 +111,10 @@ export interface DepsTrabajos {
   xmlProvider?: XmlProvider;
   /** Almacenamiento de los XML (016) y de los ZIP generados (012b); por defecto el de `STORAGE` (se crea al primer uso). */
   storage?: StorageProvider;
+  /** Puerto de `notificacion.enviar` (028); por defecto `consola` (imprime y no entrega). */
+  correo?: Correo;
+  /** `APP_ORIGIN` (028): origen de los enlaces de los correos (`/ir`, `/baja`); por defecto el de desarrollo. */
+  appOrigin?: string;
   /** `XML_SIMULADO_EN_REGLAS` (016, P-4): si el XML simulado entra en las reglas; apagada por defecto. */
   xmlSimuladoEnReglas?: boolean;
   kek?: LlavesKek;
@@ -128,6 +136,8 @@ export const INTERVALOS_POR_DEFECTO: Required<IntervalosTrabajos> = {
   latidoMs: LATIDO_MS,
 };
 const ESPERA_CIERRE_MS = 30_000;
+/** Mismo valor por omisión que el backend fuera de producción. */
+const APP_ORIGIN_POR_DEFECTO = "http://localhost:3000";
 const ESPERA_ABORTO_MS = 2_000;
 /**
  * Tope de la espera al ciclo en curso del despachador y del reconciliador, y al cierre de BullMQ sin trabajos en curso
@@ -204,9 +214,12 @@ async function conTope(p: Promise<unknown>, ms: number): Promise<boolean> {
 export async function iniciarTrabajos(
   deps: DepsTrabajos,
 ): Promise<TrabajosEnMarcha> {
-  const estado = { muerto: false, cerrando: false };
+  const estado = { muerto: false, cerrando: false, abortado: false };
   const muerto = () => estado.muerto;
   const db = dbGuardada(deps.db, muerto);
+  // H-028-1-1: los ciclos programados sueltan su candado aun tras un `detener` vencido (solo su propio candado, por dueño); solo `abortar`
+  // (kill -9) lo impide. Si no, el candado quedaba tomado hasta vencer y el siguiente worker no tomaba el ciclo.
+  const dbCandado = dbGuardada(deps.db, () => estado.abortado);
   const redis = redisGuardado(deps.redis, muerto);
   const reloj: Reloj = deps.reloj ?? { ahora: () => new Date() };
   const prefijo = deps.prefijo ?? PREFIJO_POR_DEFECTO;
@@ -289,6 +302,18 @@ export async function iniciarTrabajos(
         xmlProvider: deps.xmlProvider ?? new MockXmlProvider(),
         storage,
         xmlSimuladoEnReglas: deps.xmlSimuladoEnReglas ?? false,
+        // 027 (R-14): el CIIU del proveedor y del cliente se consulta al llegar cada XML.
+        consultaRuc: deps.consultaRuc ?? new MockConsultaRuc(),
+      }),
+      // 027 (R-12): «Volver a evaluar» el periodo abierto con el diccionario y el contexto de AHORA (cola `xml`, sin credenciales).
+      "compras.reevaluar": reevaluarPeriodo({ db, logger }),
+      // 028: correo de avisos y resumen (cola `notificaciones`, sin credenciales ni cliente): lee, arma y envía fuera de transacción.
+      "notificacion.enviar": enviarCorreo({
+        db,
+        correo: deps.correo ?? new CorreoConsola(),
+        appOrigin: deps.appOrigin ?? APP_ORIGIN_POR_DEFECTO,
+        logger,
+        reloj,
       }),
       // 012b: cola `archivos`; sin credenciales. `permiteProvisional` usa el NODE_ENV del proceso (D2).
       "archivo.generar": generarArchivo({ db, storage, logger }),
@@ -365,13 +390,19 @@ export async function iniciarTrabajos(
 
   const sistema = crearColaSistema({ conexion, prefijo });
   // 023 (D-5): un tick del programador del buzón; el dueño del candado es aleatorio por proceso.
-  const tickBuzon = programarBuzon({ db, redis, prefijo, logger });
+  const duenoBuzon = randomUUID();
+  const tickBuzon = programarBuzon({ db, dbCandado, redis, prefijo, logger, dueno: duenoBuzon });
+  // 028 (R-5): un tick del ciclo de correo (avisos vencidos y resumen del día); mismo patrón y candado propio en la BD.
+  const duenoCorreo = randomUUID();
+  const tickCorreo = programarCorreo({ db, dbCandado, redis, prefijo, logger, dueno: duenoCorreo });
   const procesarSistema = async (data: PayloadSistema): Promise<void> => {
     try {
       if (data.tipo === "auth.purgar") {
         await authPurgar({ db, reloj, logger });
       } else if (data.tipo === "buzon.programar") {
         await tickBuzon();
+      } else if (data.tipo === "correo.programar") {
+        await tickCorreo();
       } else if (deps.kek === undefined) {
         registrar(logger, "error", {
           evento: "kek_rotar_sin_llaves",
@@ -403,6 +434,8 @@ export async function iniciarTrabajos(
   await sistema.programarPurga();
   // 023 (D-5): repetible de 1 min con id fijo (N workers dejan uno). `BUZON_PROGRAMADOR=off` lo apaga (E2E y pruebas).
   if (process.env.BUZON_PROGRAMADOR !== "off") await sistema.programarBuzon();
+  // 028 (R-5): repetible de 1 min con id fijo. `CORREO_PROGRAMADOR=off` lo apaga (E2E y pruebas).
+  if (process.env.CORREO_PROGRAMADOR !== "off") await sistema.programarCorreo();
 
   const bucleDespacho = bucle(async () => {
     await despachador.ciclo();
@@ -450,9 +483,20 @@ export async function iniciarTrabajos(
         estado.muerto = true;
         await conTope(cerrarBull(true), ESPERA_ABORTO_MS);
       }
+      // H-028-2-2: los candados de los ciclos de este proceso se sueltan aquí, antes de que el llamador cierre el pool (SIGTERM:
+      // `onApplicationShutdown` hace `detener` y enseguida `db.close()`), porque un tick que sigue en curso ya no podrá soltar el suyo en
+      // su `finally`. Solo por dueño (nunca un candado ajeno) y sin efecto si el tick ya lo soltó; su `renovar` siguiente da false.
+      await conTope(
+        Promise.allSettled([
+          dbCandado.withSistema((tx) => soltarCiclo(tx, duenoBuzon)),
+          dbCandado.withSistema((tx) => soltarCicloCorreo(tx, duenoCorreo)),
+        ]),
+        ESPERA_ABORTO_MS,
+      );
       registrar(logger, "info", { evento: "trabajos_detenidos" });
     },
     abortar: async () => {
+      estado.abortado = true;
       estado.muerto = true;
       estado.cerrando = true;
       bucleDespacho.abortar();

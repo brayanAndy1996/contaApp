@@ -46,6 +46,8 @@ import {
   type ResultadoGuardado,
 } from "../../../../../components/compras/grilla-compras";
 import { ResumenCompras } from "../../../../../components/compras/resumen-compras";
+import { AnfitrionAprender } from "../../../../../components/gastos/anfitrion-aprender";
+import { VolverAEvaluar } from "../../../../../components/gastos/volver-a-evaluar";
 import { Alert, Button, EncabezadoPagina, Input, Label, enlace, velo } from "../../../../../components/ui";
 import { MENSAJES, cargarYo, mensajeDeError, tiene } from "../../../../../lib/acceso";
 import { obtenerCliente, type ClienteDto } from "../../../../../lib/clientes";
@@ -481,6 +483,8 @@ function Compras() {
 
   return (
     // En celular (P-3) «Generar archivo» queda fijo abajo: el `pb-28` deja ver el final de la página.
+    // T13a: «Aprender estas palabras» sale de un anfitrión por encima de la grilla (al excluir, la fila se desmonta).
+    <AnfitrionAprender>
     <main className="flex flex-col gap-6 p-4 pb-28 md:p-6 md:pb-6">
       <EncabezadoPagina
         titulo={M.titulo}
@@ -554,6 +558,14 @@ function Compras() {
                 setErrorGeneral(MENSAJES.errorGeneral),
               )
             }
+          />
+        )}
+
+        {periodoValido && !archivado && (
+          <VolverAEvaluar
+            key={`reevaluar|${clienteId}|${periodo}`}
+            contexto={contexto}
+            alTerminar={reintentar}
           />
         )}
 
@@ -771,6 +783,7 @@ function Compras() {
         <div ref={setRanuraPanel} className="contents" />
       </div>
     </main>
+    </AnfitrionAprender>
   );
 }
 

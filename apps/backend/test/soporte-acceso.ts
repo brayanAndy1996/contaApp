@@ -153,6 +153,18 @@ export async function abrirBanco(cupo?: object, extra: Record<string, unknown> =
         const r = await c.query("select id from usuario where email = any($1)", [correos]).catch(() => null);
         for (const f of r?.rows ?? []) todos.push(f.id);
       }
+      // 028: tablas públicas con columna `tenant_id` (salvo `tenant`), para borrarlas en modo `replica` antes del estudio.
+      const descubiertas: string[] = (
+        await c
+          .query(
+            `select c.table_name from information_schema.columns c
+               join information_schema.tables t on t.table_schema = c.table_schema and t.table_name = c.table_name
+              where c.table_schema = 'public' and c.column_name = 'tenant_id' and t.table_type = 'BASE TABLE'
+                and c.table_name not in ('tenant', 'membresia', 'cliente', 'suscripcion')
+              order by 1`,
+          )
+          .catch(() => ({ rows: [] as { table_name: string }[] }))
+      ).rows.map((f: { table_name: string }) => f.table_name);
       await c.query("begin");
       enTx = true;
       // El trigger del último Dueño (D10) impide borrar al único Dueño de un estudio de prueba.
@@ -171,6 +183,17 @@ export async function abrirBanco(cupo?: object, extra: Record<string, unknown> =
         // su DELETE audita `asignacion.quitada` y dejaría una fila nueva que bloquea el borrado del estudio.
         // 026: las tablas de la prorrata son de solo inserción (trigger) y tienen FK al estudio; sin borrarlas aquí, con `replica`,
         // `delete from tenant` falla y el estudio queda sin suscripción (`planes.spec.ts`; lo deja `permisos-026.int.spec.ts`).
+        // 027: las cinco tablas del estudio de gastos no deducibles tienen FK a `tenant` (y a `cliente`, `compra` y `usuario`) y se escriben
+        // solo por funciones acotadas; sin borrarlas aquí, con `replica`, `delete from cliente`/`tenant` fallan (FK) y el estudio queda
+        // sin suscripción (`planes.spec.ts`). Mientras T10 no las cree, `intentar` las ignora (savepoint).
+        // 028: las cuatro tablas de correo con FK a `tenant` (preferencias, envíos, avisos de cada envío y tokens de baja) se borran aquí, con
+        // `replica`: los envíos y avisos los escribe el worker y las funciones de BD, nunca la API, y sin borrarlos `delete from tenant` falla y
+        // el estudio queda sin suscripción (`planes.spec.ts`, como en 026 y 027). Mientras T10 no las cree, `intentar` las ignora (savepoint).
+        for (const tabla of ["correo_baja_token", "correo_envio_aviso", "correo_envio", "correo_preferencia"])
+          await intentar(`delete from ${tabla} where tenant_id = $1`, [t]);
+        // Y cualquier tabla futura con `tenant_id` (descubierta en `information_schema`, como `packages/db/src/gastos/soporte-prueba.ts`):
+        // lo que no se conoce hoy tampoco puede dejar al estudio colgado.
+        for (const tabla of descubiertas) await intentar(`delete from "${tabla}" where tenant_id = $1`, [t]);
         for (const tabla of [
           "archivo_generado",
           "venta_exclusion",
@@ -183,6 +206,11 @@ export async function abrirBanco(cupo?: object, extra: Record<string, unknown> =
           "prorrata_mes_manual",
           "declaracion_mensual",
           "prorrata_obtencion",
+          "gnd_palabra_estudio",
+          "gnd_global_desactivada",
+          "gnd_config",
+          "gnd_cliente_categorias",
+          "gnd_ciiu",
         ])
           await intentar(`delete from ${tabla} where tenant_id = $1`, [t]);
         // 0045: el DELETE de `cliente` y de `membresia` audita y recalcula `plan_aviso` (filas con FK al estudio): también van con
@@ -221,6 +249,11 @@ export async function abrirBanco(cupo?: object, extra: Record<string, unknown> =
       }
       for (const t of tenants) await intentar("delete from suscripcion where tenant_id = $1", [t]);
       for (const t of tenants) await intentar("delete from tenant where id = $1", [t]);
+      // Una fuga se ve (lección de 026 y 027): si un estudio de prueba sigue existiendo, la suite falla aquí y no en `planes.spec.ts` de CI.
+      const quedan = (await c.query("select id from tenant where id = any($1::uuid[])", [tenants])).rows;
+      if (quedan.length > 0) {
+        throw new Error(`limpieza del soporte de acceso: ${quedan.length} estudio(s) de prueba siguen existiendo (¿tabla nueva con FK a tenant sin limpiar?)`);
+      }
     } finally {
       c.release();
     }

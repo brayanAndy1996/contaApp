@@ -31,6 +31,20 @@
 // un PDT (declaración), un mes manual y una prorrata ingresada en su primer cliente (sembrados por SQL); sus ids y el motivo del manual son marcas
 // de fuga. Un usuario de A con el cliente (o un id cualquiera) de B recibe 404 (o 403 sin `prorrata.gestionar`) igual que ante un id inexistente,
 // y las cuatro tablas, los trabajos y las reglas de ambos estudios quedan intactos. Rojo hasta T10 (tablas) y T12 (rutas).
+// 027 (T6) agrega las 14 rutas de gastos no deducibles (`GET|PUT …/estudio/reglas-motor/gastos/{umbral,palabras,palabras/:id,globales/:id}`, `GET|PUT
+// …/clientes/:clienteId/gastos/categorias`, `GET|POST …/clientes/:clienteId/periodos/:periodo/gastos/aprender/:compraId`, `POST …/gastos/reevaluar`
+// y las cuatro de `/plataforma/diccionario*`): cada estudio tiene una palabra propia, una global desactivada, un umbral, un ajuste de categorías y una
+// entrada de CIIU en su primer cliente (sembrados por SQL); sus ids, su palabra y el RUC de la caché son marcas de fuga. Un usuario de A con ids de B
+// recibe 404 (o 403 sin `reglas.gestionar`) igual que ante un id inexistente, el estudio sale de la sesión (un `tenantId` en el cuerpo es 400), las rutas
+// de plataforma dan 403 a quien no es super-admin, y las cinco tablas, los trabajos y la auditoría de ambos estudios quedan intactos. Rojo hasta T10
+// (tablas) y T12 (rutas).
+// 028 (T6) agrega las 4 rutas de correo (`GET|PUT /cuenta/correo`, `POST|GET /correo/baja`): cada estudio tiene, sembradas por SQL, las cuatro
+// preferencias del Dueño y de la asistente (con valores distintos entre A y B), un envío `fallido` del Dueño y su token de baja de resumen; el id
+// del envío y el token (en claro, en base64url y en hex del hash) son marcas de fuga. Un usuario de A con el `usuarioId` o `tenantId` de B en el
+// cuerpo o la consulta recibe 400 o su propia vista, el hash almacenado de B usado como token y los cuerpos mal formados no aplican nada (200 `{}`
+// o 400), y `GET /correo/baja?t=<token real de B>` es 405 sin efectos; las cuatro tablas de correo y la auditoría `correo.preferencia_cambiada`
+// de ambos estudios quedan intactas. Los `PUT` válidos y la baja con el token propio se prueban en «las pruebas no son vacías» (restauran lo que
+// cambian). Rojo hasta T10 (tablas) y T12 (rutas): hasta entonces solo fallan los casos nuevos.
 // 006 (T3) agrega los casos de `/registro/*`, `GET /plan/uso` y las 6 rutas `/plataforma/*` (CA-8): los usuarios de A
 // (ninguno super-admin) con IDs, tokens y correos de B. Rojo hasta T7 (uso), T8 (registro) y T9 (plataforma).
 import { createHash, randomBytes, randomUUID } from "node:crypto";
@@ -58,6 +72,7 @@ import {
   sembrarDescifrado,
   sembrarNotificacion,
 } from "../../test/soporte-notificaciones.js";
+import { borrarCorreoDeEstudios, sembrarEnvio, sembrarToken } from "../../test/soporte-correo.js";
 import { csvVentas, fila as filaVenta } from "../../test/soporte-ventas.js";
 import {
   abrirHarness,
@@ -112,6 +127,10 @@ interface Recursos {
   proveedorCandidata?: { numero: string; razonSocial: string };
   /** 026: obtención, PDT, mes manual y prorrata ingresada del primer cliente (sembrados por SQL; ausentes si faltan las tablas). */
   prorrata?: { obtencionId: string; declaracionId: string; manualId: string; usadaId: string; motivo: string };
+  /** 027: palabra propia, global desactivada, umbral, ajuste de categorías del primer cliente y CIIU en la caché (ausentes si faltan las tablas). */
+  gastos?: { propiaId: string; palabra: string; categoriasClienteId: string; ruc: string };
+  /** 028: envío `fallido` del Dueño y su token de baja de resumen (token en claro; hash en base64url y en hex). Ausente si faltan las tablas. */
+  correo?: { envioId: string; token: string; hashB64: string; hashHex: string };
 }
 interface Sesion {
   cookie: string;
@@ -184,6 +203,10 @@ const candidatasSembradas: string[] = [];
 const importacionesSembradas: string[] = [];
 /** 026: si la siembra de la prorrata falló (¿tablas de T10?), el motivo; los casos nuevos lo muestran. */
 let falloSiembra026: string | null = null;
+/** 027: si la siembra de gastos no deducibles falló (¿tablas de T10?), el motivo; los casos nuevos lo muestran. */
+let falloSiembra027: string | null = null;
+/** 028: si la siembra de correo (preferencias, envío fallido y token de baja) falló (¿tablas de T10?), el motivo; los casos nuevos lo muestran. */
+let falloSiembra028: string | null = null;
 
 const todos = (...n: number[]): Esperado => ({ dueno: n, asistente: n });
 const E404: Esperado = { dueno: [404], asistente: [403, 404] };
@@ -395,6 +418,63 @@ async function sembrarProrrata(r: Recursos, etiqueta: "A" | "B"): Promise<void> 
   r.prorrata = { obtencionId: ob[0].id, declaracionId: de[0].id, manualId: ma[0].id, usadaId: us[0].id, motivo };
 }
 
+/**
+ * 027: una palabra propia, la global «polo» desactivada, el umbral 7, el ajuste de categorías del primer cliente y una entrada de CIIU en la caché
+ * del estudio, por SQL. La palabra y el RUC son únicos de la prueba: marcas de fuga. Sin las tablas de T10 falla (42P01) y lo captura el arranque.
+ */
+async function sembrarGastos(r: Recursos, etiqueta: "A" | "B"): Promise<void> {
+  const palabra = `hu40${etiqueta.toLowerCase()}${sufijo}`;
+  const ruc = etiqueta === "A" ? "20700027001" : "20700027002";
+  const pa = await h.sql(
+    `insert into gnd_palabra_estudio (tenant_id, palabra, categoria, excepciones, origen, activa, version, creado_por)
+     values ($1, $2, 'entretenimiento', '{}', 'manual', true, 1, $3) returning id`,
+    [r.tenantId, palabra, r.dueno.id],
+  );
+  await h.sql(
+    `insert into gnd_global_desactivada (tenant_id, palabra_global_id, usuario_id)
+     select $1, id, $2 from gnd_palabra_global where palabra = 'polo'`,
+    [r.tenantId, r.dueno.id],
+  );
+  await h.sql("insert into gnd_config (tenant_id, umbral, version) values ($1, 7, 1)", [r.tenantId]);
+  const ca = await h.sql(
+    `insert into gnd_cliente_categorias (tenant_id, cliente_id, permitidas, quitadas, version) values ($1, $2, '{juguetes}', '{}', 1) returning cliente_id`,
+    [r.tenantId, r.clientes[0]],
+  );
+  await h.sql("insert into gnd_ciiu (tenant_id, ruc, ciiu) values ($1, $2, '4752')", [r.tenantId, ruc]);
+  r.gastos = { propiaId: pa[0].id, palabra, categoriasClienteId: ca[0].cliente_id, ruc };
+}
+
+/**
+ * 028: las cuatro preferencias del Dueño y de la asistente (valores distintos entre A y B para que una vista cruzada se note), un envío `fallido`
+ * del Dueño y su token de baja de resumen, por SQL. El id del envío y el token son marcas de fuga. Sin las tablas de T10 falla (42P01) y lo
+ * captura el arranque.
+ */
+type PrefsSembradas = { buzon: boolean; cred: boolean; plan: boolean; resumen: boolean };
+const PREFS_028: Record<"A" | "B", Record<"dueno" | "asistente", PrefsSembradas>> = {
+  A: { dueno: { buzon: false, cred: true, plan: true, resumen: true }, asistente: { buzon: true, cred: true, plan: true, resumen: true } },
+  B: { dueno: { buzon: true, cred: false, plan: true, resumen: true }, asistente: { buzon: true, cred: true, plan: false, resumen: true } },
+};
+async function sembrarCorreo(r: Recursos, etiqueta: "A" | "B"): Promise<void> {
+  for (const rol of ["dueno", "asistente"] as const) {
+    const v = PREFS_028[etiqueta][rol];
+    for (const [tipo, activo] of [
+      ["buzon_critico", v.buzon],
+      ["credencial_invalida", v.cred],
+      ["plan_limite", v.plan],
+      ["resumen", v.resumen],
+    ] as const)
+      await h.sql("insert into correo_preferencia (tenant_id, usuario_id, tipo, activo, todos_clientes) values ($1, $2, $3, $4, false)", [
+        r.tenantId,
+        r[rol].id,
+        tipo,
+        activo,
+      ]);
+  }
+  const envioId = await sembrarEnvio(h.sql, { tenantId: r.tenantId, usuarioId: r.dueno.id, tipo: "resumen", estado: "fallido", hace: "5 minutes" });
+  const t = await sembrarToken(h.sql, { tenantId: r.tenantId, usuarioId: r.dueno.id, tipo: "resumen", envioId });
+  r.correo = { envioId, token: t.token, hashB64: t.hash.toString("base64url"), hashHex: t.hash.toString("hex") };
+}
+
 /** Marcadores: todo lo que existe en `de` y no en `contra` (los usuarios de ambos, como uAB, no cuentan). */
 async function calcularMarcadores(
   de: Recursos,
@@ -441,6 +521,15 @@ async function calcularMarcadores(
     otros.add(de.proveedorCandidata.razonSocial);
   }
   if (de.prorrata) otros.add(de.prorrata.motivo);
+  if (de.gastos) {
+    ids.add(de.gastos.propiaId);
+    otros.add(de.gastos.palabra);
+    otros.add(de.gastos.ruc);
+  }
+  if (de.correo) {
+    ids.add(de.correo.envioId);
+    for (const m of [de.correo.token, de.correo.hashB64, de.correo.hashHex]) otros.add(m);
+  }
   for (const f of clientesDe) {
     ids.add(f.id);
     otros.add(f.razon_social);
@@ -478,6 +567,37 @@ async function instantaneaProrrata(
       throw e;
     });
   }
+  return salida;
+}
+
+/** 027: las cinco tablas del estudio de gastos no deducibles de `r` (vacías, sin romper, mientras no existan: rojo hasta T10). */
+async function instantaneaGastos(
+  r: Recursos,
+  q: (texto: string, valores: unknown[]) => Promise<unknown[]>,
+): Promise<Record<string, unknown>> {
+  const salida: Record<string, unknown> = {};
+  for (const tabla of ["gnd_palabra_estudio", "gnd_global_desactivada", "gnd_config", "gnd_cliente_categorias", "gnd_ciiu"]) {
+    salida[tabla] = await q(`select to_jsonb(g) j from ${tabla} g where tenant_id = $1 order by 1`, [r.tenantId]).catch((e: { code?: string }) => {
+      if (e.code === "42P01") return [];
+      throw e;
+    });
+  }
+  return salida;
+}
+
+/** 028: las cuatro tablas de correo del estudio y las filas de auditoría `correo.preferencia_cambiada` (vacías, sin romper, mientras no existan: rojo hasta T10). */
+async function instantaneaCorreo(
+  r: Recursos,
+  q: (texto: string, valores: unknown[]) => Promise<unknown[]>,
+): Promise<Record<string, unknown>> {
+  const salida: Record<string, unknown> = {};
+  for (const tabla of ["correo_preferencia", "correo_envio", "correo_envio_aviso", "correo_baja_token"]) {
+    salida[tabla] = await q(`select to_jsonb(g) j from ${tabla} g where tenant_id = $1 order by 1`, [r.tenantId]).catch((e: { code?: string }) => {
+      if (e.code === "42P01") return [];
+      throw e;
+    });
+  }
+  salida.auditoria_correo = await q("select to_jsonb(g) j from auditoria g where tenant_id = $1 and accion = 'correo.preferencia_cambiada' order by 1", [r.tenantId]);
   return salida;
 }
 
@@ -539,6 +659,10 @@ async function instantanea(
     }),
     // 026: obtenciones, PDT, manuales y prorratas ingresadas (0065). Mientras las tablas no existan (rojo) la instantánea no las incluye.
     ...(await instantaneaProrrata(r, q)),
+    // 027: las cinco tablas de gastos no deducibles (0069). Mientras no existan (rojo) la instantánea no las incluye.
+    ...(await instantaneaGastos(r, q)),
+    // 028: las cuatro tablas de correo y su auditoría (0073). Mientras no existan (rojo) la instantánea no las incluye.
+    ...(await instantaneaCorreo(r, q)),
     // 024: historial de atención (0059). Mientras la tabla no exista (rojo) la instantánea no la incluye y no rompe los casos de 004 a 023.
     buzon_atencion: await q(
       "select to_jsonb(g) j from buzon_atencion g where tenant_id = $1 and cliente_id = any($2::uuid[]) order by id",
@@ -1751,6 +1875,367 @@ function casosProrrata(): Caso[] {
   ];
 }
 
+/* ---------------------------- 027 · gastos no deducibles ----------------------------
+ * Diccionario, umbral y globales del estudio (`/estudio/reglas-motor/gastos*`: escribir exige `reglas.gestionar` y alcance global), categorías del cliente
+ * y aprender (`/clientes/:clienteId/…/gastos/*`: `reglas.gestionar` y cliente visible), «Volver a evaluar» (`sire.clasificar`) y el diccionario de
+ * plataforma (solo super-admin: 403 para todos aquí). Un id de B (palabra, cliente, compra) desde A: el mismo 404 `no_encontrado` que ante un id
+ * inexistente; la asistente (sin `reglas.gestionar`) recibe 403 antes de mirar el recurso. Un `tenantId` o `clienteId` en el cuerpo es 400 (esquemas
+ * estrictos): el estudio sale de la sesión. Las cinco tablas, los trabajos `compras.reevaluar` y la auditoría de ambos estudios quedan como estaban. */
+const PERIODO_GASTOS = "202610";
+const RUTA_GASTOS = "/estudio/reglas-motor/gastos";
+
+/** Ni una fila nueva ni una cambiada: cada estudio conserva SU palabra, su umbral, su ajuste, su CIIU y su global desactivada, y no hay trabajos de reevaluar. */
+async function gastosIntacto(c: Contexto): Promise<void> {
+  for (const r of [c.mio, c.ajeno]) {
+    const p = await h.sql("select id, palabra, activa, version::int as version from gnd_palabra_estudio where tenant_id = $1", [r.tenantId]);
+    expect(p, `palabras de ${r.nombre}: la siembra de 027 falló o se escribió algo`).toEqual([{ id: r.gastos!.propiaId, palabra: r.gastos!.palabra, activa: true, version: 1 }]);
+    const g = await h.sql("select count(*)::int n from gnd_global_desactivada where tenant_id = $1", [r.tenantId]);
+    expect(g[0].n, `globales desactivadas de ${r.nombre}`).toBe(1);
+    const u = await h.sql("select umbral::int as umbral, version::int as version from gnd_config where tenant_id = $1", [r.tenantId]);
+    expect(u, `umbral de ${r.nombre}`).toEqual([{ umbral: 7, version: 1 }]);
+    const k = await h.sql("select permitidas, quitadas, version::int as version from gnd_cliente_categorias where tenant_id = $1", [r.tenantId]);
+    expect(k, `categorías de ${r.nombre}`).toEqual([{ permitidas: ["juguetes"], quitadas: [], version: 1 }]);
+    const j = await h.sql("select count(*)::int n from job_registro where tipo = 'compras.reevaluar' and cliente_id = any($1::uuid[])", [r.clientes]);
+    expect(j[0].n, `trabajos de reevaluar de ${r.nombre}`).toBe(0);
+    const a = await h.sql("select count(*)::int n from auditoria where tenant_id = $1 and accion like 'gnd.%'", [r.tenantId]);
+    expect(a[0].n, `auditoría de 027 de ${r.nombre}`).toBe(0);
+  }
+}
+
+function casosGastos(): Caso[] {
+  const exigirSiembra = (): void => expect(falloSiembra027, "la siembra de 027 falló (¿tablas de T10?)").toBeNull();
+  /** Ids de B (y de otras cosas de B) como ids de palabra, de global o de compra: ninguno existe para quien llama. */
+  const idsAjenos = (c: Contexto): string[] => [c.ajeno.gastos?.propiaId ?? randomUUID(), c.ajeno.asignacionId, c.ajeno.tenantId, c.ajeno.reglaId, randomUUID()];
+  /** Escrituras con ids de B: la asistente (sin reglas.gestionar) recibe 403; el Dueño, el 404 de siempre y lo mismo que ante un id inexistente. */
+  const verificarEscritura = async (c: Contexto, respuestas: Resp[], referencia: Pet): Promise<void> => {
+    exigirSiembra();
+    const ref = await c.pedir(referencia);
+    expect(ref.status, ref.text).toBe(c.yo.rol === "asistente" ? 403 : 404);
+    for (const r of respuestas) {
+      if (c.yo.rol === "asistente") {
+        expect(r.status, r.text).toBe(403);
+        expect(r.body).toEqual(PERMISO_DENEGADO);
+      } else {
+        expect(r.status, r.text).toBe(404);
+        expect(r.body).toEqual(NO_ENCONTRADO);
+        expect(r.text).toBe(ref.text);
+      }
+    }
+    await gastosIntacto(c);
+  };
+  /** Escrituras con cuerpo ajeno: `tenantId`, `clienteId` o `usuarioId` en el cuerpo (el estudio sale de la sesión): 400 para el Dueño, 403 para la asistente. */
+  const verificarCuerpoAjeno = async (c: Contexto, respuestas: Resp[]): Promise<void> => {
+    exigirSiembra();
+    for (const r of respuestas) {
+      if (c.yo.rol === "asistente") {
+        expect(r.status, r.text).toBe(403);
+        expect(r.body).toEqual(PERMISO_DENEGADO);
+      } else {
+        expect(r.status, r.text).toBe(400);
+        expect(r.body).toEqual({ codigo: "solicitud_invalida" });
+      }
+    }
+    await gastosIntacto(c);
+  };
+  const lecturaCliente = async (c: Contexto, respuestas: Resp[], ruta: (cl: string) => string, propio: (r: Resp) => void): Promise<void> => {
+    exigirSiembra();
+    const noExiste = await c.pedir({ ruta: ruta(randomUUID()) });
+    expect(noExiste.status).toBe(404);
+    expect(noExiste.body).toEqual(NO_ENCONTRADO);
+    mismoNoEncontrado(respuestas, noExiste);
+    const mio = await c.pedir({ ruta: ruta(c.mio.clientes[0]) });
+    expect(mio.status, mio.text).toBe(200);
+    propio(mio);
+    const g = c.ajeno.gastos!;
+    for (const marca of [g.propiaId, g.palabra, g.ruc]) expect(mio.text).not.toContain(marca);
+    const noVisible = await c.pedir({ ruta: ruta(c.mio.clientes[1]) });
+    if (c.yo.rol === "asistente") {
+      expect(noVisible.status, noVisible.text).toBe(404);
+      expect(noVisible.text).toBe(noExiste.text);
+    } else {
+      expect(noVisible.status, noVisible.text).toBe(200);
+    }
+    await gastosIntacto(c);
+  };
+  const PLAT_PALABRA = { categoria: "juguetes", excepciones: [], activa: true, version: 1 };
+
+  return [
+    {
+      ruta: "GET /estudio/reglas-motor/gastos",
+      esperado: todos(200),
+      construir: (c) => [{ ruta: RUTA_GASTOS }, { ruta: `${RUTA_GASTOS}?tenantId=${c.ajeno.tenantId}&estudioId=${c.ajeno.tenantId}` }],
+      extra: async (c, respuestas) => {
+        exigirSiembra();
+        for (const r of respuestas) {
+          // Solo lo propio: su palabra, su umbral y su global desactivada; nada de B (las marcas de fuga se buscan además en cada respuesta).
+          expect(r.body.umbral).toBe(7);
+          expect((r.body.propias as any[]).map((p) => p.id)).toEqual([c.mio.gastos!.propiaId]);
+          expect((r.body.globales as any[]).find((g) => g.palabra === "polo").desactivadaPorEstudio).toBe(true);
+        }
+        await gastosIntacto(c);
+      },
+    },
+    {
+      ruta: "PUT /estudio/reglas-motor/gastos/umbral",
+      esperado: { dueno: [400], asistente: [403] },
+      construir: (c) => [
+        { metodo: "PUT", ruta: `${RUTA_GASTOS}/umbral`, cuerpo: { umbral: 5, version: 1, tenantId: c.ajeno.tenantId } },
+        { metodo: "PUT", ruta: `${RUTA_GASTOS}/umbral?tenantId=${c.ajeno.tenantId}`, cuerpo: { umbral: 5, version: 1, estudioId: c.ajeno.tenantId } },
+      ],
+      extra: verificarCuerpoAjeno,
+    },
+    {
+      ruta: "POST /estudio/reglas-motor/gastos/palabras",
+      esperado: { dueno: [400], asistente: [403] },
+      construir: (c) => [
+        { metodo: "POST", ruta: `${RUTA_GASTOS}/palabras`, cuerpo: { palabra: `hu40intruso${sufijo}`, categoria: "juguetes", tenantId: c.ajeno.tenantId } },
+        { metodo: "POST", ruta: `${RUTA_GASTOS}/palabras?tenantId=${c.ajeno.tenantId}`, cuerpo: { palabra: `hu40intruso${sufijo}`, categoria: "juguetes", usuarioId: c.ajeno.dueno.id } },
+      ],
+      extra: async (c, respuestas) => {
+        await verificarCuerpoAjeno(c, respuestas);
+        const f = await h.sql("select count(*)::int n from gnd_palabra_estudio where palabra like $1", [`hu40intruso${sufijo}%`]);
+        expect(f[0].n).toBe(0);
+      },
+    },
+    {
+      ruta: "PUT /estudio/reglas-motor/gastos/palabras/:id",
+      esperado: { dueno: [404], asistente: [403] },
+      construir: (c) => idsAjenos(c).map((id) => ({ metodo: "PUT" as const, ruta: `${RUTA_GASTOS}/palabras/${id}`, cuerpo: { activa: false, version: 1 } })),
+      extra: (c, respuestas) =>
+        verificarEscritura(c, respuestas, { metodo: "PUT", ruta: `${RUTA_GASTOS}/palabras/${randomUUID()}`, cuerpo: { activa: false, version: 1 } }),
+    },
+    {
+      ruta: "PUT /estudio/reglas-motor/gastos/globales/:id",
+      esperado: { dueno: [404], asistente: [403] },
+      construir: (c) => idsAjenos(c).map((id) => ({ metodo: "PUT" as const, ruta: `${RUTA_GASTOS}/globales/${id}`, cuerpo: { activa: false } })),
+      extra: (c, respuestas) =>
+        verificarEscritura(c, respuestas, { metodo: "PUT", ruta: `${RUTA_GASTOS}/globales/${randomUUID()}`, cuerpo: { activa: false } }),
+    },
+    {
+      ruta: "GET /clientes/:clienteId/gastos/categorias",
+      esperado: { dueno: [404], asistente: [404] },
+      construir: (c) => idsDeCliente(c.ajeno).map((id) => ({ ruta: `/clientes/${id}/gastos/categorias` })),
+      extra: (c, respuestas) =>
+        lecturaCliente(c, respuestas, (cl) => `/clientes/${cl}/gastos/categorias`, (r) => expect(r.body).toMatchObject({ permitidas: ["juguetes"], quitadas: [], version: 1 })),
+    },
+    {
+      ruta: "PUT /clientes/:clienteId/gastos/categorias",
+      esperado: { dueno: [404], asistente: [403] },
+      construir: (c) =>
+        idsDeCliente(c.ajeno).map((id) => ({ metodo: "PUT" as const, ruta: `/clientes/${id}/gastos/categorias`, cuerpo: { permitidas: ["calzado-ropa"], quitadas: [], version: 1 } })),
+      extra: async (c, respuestas) => {
+        await verificarEscritura(c, respuestas, { metodo: "PUT", ruta: `/clientes/${randomUUID()}/gastos/categorias`, cuerpo: { permitidas: ["calzado-ropa"], quitadas: [], version: 1 } });
+        // Con un cliente PROPIO, un cuerpo con ids de B no se acepta: el cliente sale de la ruta, nunca del cuerpo (esquema estricto).
+        const r = await c.pedir({
+          metodo: "PUT",
+          ruta: `/clientes/${c.mio.clientes[0]}/gastos/categorias`,
+          cuerpo: { permitidas: ["calzado-ropa"], quitadas: [], version: 1, clienteId: c.ajeno.clientes[0], tenantId: c.ajeno.tenantId },
+        });
+        expect(r.status, r.text).toBe(c.yo.rol === "asistente" ? 403 : 400);
+        await gastosIntacto(c);
+      },
+    },
+    {
+      ruta: "GET /clientes/:clienteId/periodos/:periodo/gastos/aprender/:compraId",
+      esperado: { dueno: [404], asistente: [403] },
+      construir: (c) => idsDeCliente(c.ajeno).map((id) => ({ ruta: `/clientes/${id}/periodos/${PERIODO_GASTOS}/gastos/aprender/${randomUUID()}` })),
+      extra: async (c, respuestas) => {
+        exigirSiembra();
+        const base = `periodos/${PERIODO_GASTOS}/gastos/aprender`;
+        const noExiste = await c.pedir({ ruta: `/clientes/${randomUUID()}/${base}/${randomUUID()}` });
+        if (c.yo.rol === "asistente") {
+          // Sin `reglas.gestionar`: 403 antes de mirar el cliente o la compra.
+          expect(noExiste.status, noExiste.text).toBe(403);
+          for (const r of respuestas) expect(r.body).toEqual(PERMISO_DENEGADO);
+        } else {
+          expect(noExiste.status, noExiste.text).toBe(404);
+          expect(noExiste.body).toEqual(NO_ENCONTRADO);
+          mismoNoEncontrado(respuestas, noExiste);
+          // Un cliente propio con una compra inexistente o de B: el mismo 404.
+          for (const compraId of [randomUUID(), c.ajeno.asignacionId, c.ajeno.tenantId]) {
+            const r = await c.pedir({ ruta: `/clientes/${c.mio.clientes[0]}/${base}/${compraId}` });
+            expect(r.status, r.text).toBe(404);
+            expect(r.text).toBe(noExiste.text);
+          }
+        }
+        await gastosIntacto(c);
+      },
+    },
+    {
+      ruta: "POST /clientes/:clienteId/periodos/:periodo/gastos/aprender/:compraId",
+      esperado: { dueno: [404], asistente: [403] },
+      construir: (c) =>
+        idsDeCliente(c.ajeno).map((id) => ({
+          metodo: "POST" as const,
+          ruta: `/clientes/${id}/periodos/${PERIODO_GASTOS}/gastos/aprender/${randomUUID()}`,
+          cuerpo: { terminos: [{ termino: "intruso", categoria: "juguetes" }] },
+        })),
+      extra: async (c, respuestas) => {
+        await verificarEscritura(c, respuestas, {
+          metodo: "POST",
+          ruta: `/clientes/${randomUUID()}/periodos/${PERIODO_GASTOS}/gastos/aprender/${randomUUID()}`,
+          cuerpo: { terminos: [{ termino: "intruso", categoria: "juguetes" }] },
+        });
+        // Un cliente propio con una compra de B y `tenantId` en el cuerpo (esquema estricto): 400 para el Dueño, 403 para la asistente.
+        const r = await c.pedir({
+          metodo: "POST",
+          ruta: `/clientes/${c.mio.clientes[0]}/periodos/${PERIODO_GASTOS}/gastos/aprender/${c.ajeno.asignacionId}`,
+          cuerpo: { terminos: [{ termino: "intruso", categoria: "juguetes" }], tenantId: c.ajeno.tenantId },
+        });
+        expect(r.status, r.text).toBe(c.yo.rol === "asistente" ? 403 : 400);
+        await gastosIntacto(c);
+      },
+    },
+    {
+      ruta: "POST /clientes/:clienteId/periodos/:periodo/gastos/reevaluar",
+      esperado: { dueno: [404], asistente: [404] },
+      construir: (c) => idsDeCliente(c.ajeno).map((id) => ({ metodo: "POST" as const, ruta: `/clientes/${id}/periodos/${PERIODO_GASTOS}/gastos/reevaluar`, cuerpo: {} })),
+      extra: async (c, respuestas) => {
+        exigirSiembra();
+        const noExiste = await c.pedir({ metodo: "POST", ruta: `/clientes/${randomUUID()}/periodos/${PERIODO_GASTOS}/gastos/reevaluar`, cuerpo: {} });
+        expect(noExiste.status, noExiste.text).toBe(404);
+        expect(noExiste.body).toEqual(NO_ENCONTRADO);
+        mismoNoEncontrado(respuestas, noExiste);
+        // El cliente no visible de la asistente (el segundo) también es el mismo 404; el propio sí se encola (y se quita para no dejar trabajos).
+        if (c.yo.rol === "asistente") {
+          const noVisible = await c.pedir({ metodo: "POST", ruta: `/clientes/${c.mio.clientes[1]}/periodos/${PERIODO_GASTOS}/gastos/reevaluar`, cuerpo: {} });
+          expect(noVisible.status, noVisible.text).toBe(404);
+          expect(noVisible.text).toBe(noExiste.text);
+        }
+        // Un cuerpo con ids de B no se acepta ni encola nada.
+        const conCuerpo = await c.pedir({
+          metodo: "POST",
+          ruta: `/clientes/${c.mio.clientes[0]}/periodos/${PERIODO_GASTOS}/gastos/reevaluar`,
+          cuerpo: { clienteId: c.ajeno.clientes[0], tenantId: c.ajeno.tenantId },
+        });
+        expect(conCuerpo.status, conCuerpo.text).toBe(400);
+        await gastosIntacto(c);
+      },
+    },
+    // Diccionario de plataforma: solo el super-admin; ningún usuario de estudio (ni con ids de B) llega a las funciones.
+    { ruta: "GET /plataforma/diccionario", esperado: todos(403), construir: () => [{ ruta: "/plataforma/diccionario" }] },
+    {
+      ruta: "POST /plataforma/diccionario",
+      esperado: todos(403),
+      construir: (c) => [{ metodo: "POST", ruta: "/plataforma/diccionario", cuerpo: { palabra: `hu40plat${sufijo}`, categoria: "juguetes", tenantId: c.ajeno.tenantId } }],
+      extra: async () => {
+        expect(await h.sql("select 1 from gnd_palabra_global where palabra like $1", [`hu40plat${sufijo}%`])).toHaveLength(0);
+      },
+    },
+    {
+      ruta: "PUT /plataforma/diccionario/:id",
+      esperado: todos(403),
+      construir: (c) =>
+        [c.ajeno.gastos?.propiaId ?? randomUUID(), c.ajeno.tenantId, ...c.ajeno.clientes].map((id) => ({
+          metodo: "PUT" as const,
+          ruta: `/plataforma/diccionario/${id}`,
+          cuerpo: PLAT_PALABRA,
+        })),
+      extra: async () => {
+        const f = await h.sql("select categoria, activa, version::int as version from gnd_palabra_global where palabra = 'zapatilla'");
+        expect(f).toEqual([{ categoria: "calzado-ropa", activa: true, version: 1 }]); // la semilla sin tocar
+      },
+    },
+    { ruta: "GET /plataforma/diccionario/historial", esperado: todos(403), construir: () => [{ ruta: "/plataforma/diccionario/historial?limite=10" }] },
+  ];
+}
+
+/* ---------------------------- 028 · correo: preferencias y baja ----------------------------
+ * `GET|PUT /cuenta/correo` (solo estudio: el usuario y el estudio salen de la sesión; un `usuarioId`/`tenantId` en el cuerpo es 400, en la consulta se
+ * ignora) y `POST|GET /correo/baja` (públicas: el token es la credencial; el hash almacenado de B no sirve de token, un cuerpo mal formado es 400 y un
+ * GET es 405 aun con un token real). Las cuatro tablas de correo y la auditoría de ambos estudios quedan como estaban. */
+const BODY_028 = { buzonCritico: false, credencialInvalida: true, planLimite: true, resumen: true, todosClientes: false };
+/** Lo que ve cada usuario sembrado en `etiqueta` (la asistente es responsable de un cliente: sin «todos»; solo el Dueño tiene un envío fallido). */
+const vistaSembrada = (etiqueta: "A" | "B", rol: "dueno" | "asistente") => {
+  const v = PREFS_028[etiqueta][rol];
+  return {
+    buzonCritico: v.buzon,
+    credencialInvalida: v.cred,
+    planLimite: v.plan,
+    resumen: v.resumen,
+    todosClientes: false,
+    todosDisponible: rol === "dueno",
+    todosIgnorado: false,
+    invitacionResumen: false,
+    ultimoEnvioFallido: rol === "dueno" ? expect.any(String) : null,
+  };
+};
+const etiquetaDe = (r: Recursos): "A" | "B" => (r.tenantId === A.tenantId ? "A" : "B");
+
+function casosCorreo(): Caso[] {
+  const exigirSiembra = (): void => expect(falloSiembra028, "la siembra de 028 falló (¿tablas de T10?)").toBeNull();
+  const tokenInventado = (): string => randomBytes(32).toString("base64url");
+  return [
+    {
+      ruta: "GET /cuenta/correo",
+      esperado: { dueno: [200, 400], asistente: [200, 400] },
+      construir: (c) => {
+        exigirSiembra();
+        return [{ ruta: "/cuenta/correo" }, { ruta: `/cuenta/correo?usuarioId=${c.ajeno.dueno.id}&tenantId=${c.ajeno.tenantId}` }];
+      },
+      extra: async (c, respuestas) => {
+        // La vista es la del usuario de la sesión en su estudio (su valor sembrado, distinto del de B), con o sin ids ajenos en la consulta.
+        const esperada = vistaSembrada(etiquetaDe(c.mio), c.yo.rol);
+        expect(respuestas[0]!.status, respuestas[0]!.text).toBe(200);
+        expect(respuestas[0]!.body).toEqual(esperada);
+        if (respuestas[1]!.status === 200) expect(respuestas[1]!.body).toEqual(esperada);
+        expect(esperada).not.toEqual(vistaSembrada(etiquetaDe(c.ajeno), c.yo.rol)); // la prueba no es vacía: lo de B se distingue
+      },
+    },
+    {
+      ruta: "PUT /cuenta/correo",
+      esperado: todos(400),
+      construir: (c) => {
+        exigirSiembra();
+        return [
+          { metodo: "PUT", ruta: "/cuenta/correo", cuerpo: { ...BODY_028, tenantId: c.ajeno.tenantId } },
+          { metodo: "PUT", ruta: "/cuenta/correo", cuerpo: { ...BODY_028, usuarioId: c.ajeno.dueno.id } },
+          { metodo: "PUT", ruta: "/cuenta/correo", cuerpo: { ...BODY_028, usuarioId: c.ajeno.asistente.id, tenantId: c.ajeno.tenantId } },
+        ];
+      },
+      extra: async (c, respuestas) => {
+        for (const r of respuestas) expect(r.body).toEqual({ codigo: "solicitud_invalida" });
+        // Lo propio tampoco cambió (la instantánea del final lo exige también): sigue lo sembrado.
+        const v = await c.pedir({ ruta: "/cuenta/correo" });
+        expect(v.body).toEqual(vistaSembrada(etiquetaDe(c.mio), c.yo.rol));
+      },
+    },
+    {
+      ruta: "POST /correo/baja",
+      publica: true,
+      esperado: todos(200, 400),
+      construir: (c) => {
+        exigirSiembra();
+        const k = c.ajeno.correo!;
+        return [
+          { metodo: "POST", ruta: "/correo/baja", cuerpo: { token: k.hashB64 } }, // el hash almacenado no es el token
+          { metodo: "POST", ruta: "/correo/baja", cuerpo: { token: tokenInventado() } },
+          { metodo: "POST", ruta: "/correo/baja", cuerpo: { token: k.hashHex } }, // 64 caracteres: no cumple el esquema
+          { metodo: "POST", ruta: "/correo/baja", cuerpo: { token: k.token, usuarioId: c.mio.dueno.id, tenantId: c.mio.tenantId } }, // clave extra: 400
+        ];
+      },
+      extra: async (c, respuestas) => {
+        expect(respuestas.map((r) => r.status)).toEqual([200, 200, 400, 400]);
+        expect(respuestas[0]!.text).toBe("{}");
+        expect(respuestas[0]!.text).toBe(respuestas[1]!.text);
+        // Control: B conserva su token y su preferencia de resumen activa (la instantánea del final lo exige además).
+        const filas = await h.sql("select count(*)::int n from correo_baja_token where tenant_id = $1", [c.ajeno.tenantId]);
+        expect(filas[0].n).toBe(1);
+      },
+    },
+    {
+      ruta: "GET /correo/baja",
+      publica: true,
+      esperado: todos(405),
+      construir: (c) => {
+        exigirSiembra();
+        const t = c.ajeno.correo!.token;
+        return [{ ruta: "/correo/baja" }, { ruta: `/correo/baja?t=${t}` }, { ruta: `/correo/baja?t=${t}&List-Unsubscribe=One-Click` }];
+      },
+    },
+  ];
+}
+
 const CASOS: Caso[] = [
   /* ---------- 004 ---------- */
   {
@@ -2780,6 +3265,12 @@ const CASOS: Caso[] = [
 
   /* ---------- 026: prorrata e IGV estimado ---------- */
   ...casosProrrata(),
+
+  /* ---------- 027: gastos no deducibles ---------- */
+  ...casosGastos(),
+
+  /* ---------- 028: correo (preferencias y baja) ---------- */
+  ...casosCorreo(),
 ];
 
 const POR_RUTA = new Map(CASOS.map((c) => [c.ruta, c]));
@@ -2807,6 +3298,20 @@ beforeAll(async () => {
   } catch (e) {
     falloSiembra026 = e instanceof Error ? e.message : String(e);
   }
+  // 027: igual, con las cinco tablas de gastos no deducibles (T10); antes de los marcadores: sus ids, la palabra y el RUC son marcas de fuga.
+  try {
+    await sembrarGastos(A, "A");
+    await sembrarGastos(B, "B");
+  } catch (e) {
+    falloSiembra027 = e instanceof Error ? e.message : String(e);
+  }
+  // 028: igual, con las preferencias, el envío fallido y el token de baja (T10); antes de los marcadores: el id del envío y el token son marcas de fuga.
+  try {
+    await sembrarCorreo(A, "A");
+    await sembrarCorreo(B, "B");
+  } catch (e) {
+    falloSiembra028 = e instanceof Error ? e.message : String(e);
+  }
   await calcularMarcadores(A, B);
   await calcularMarcadores(B, A);
   // 017: si las tablas de T7 aún no existen, la siembra falla y solo fallan los casos nuevos (los demás no la necesitan).
@@ -2826,6 +3331,16 @@ async function limpiar(): Promise<void> {
   await borrarPorId("notificacion", todos.flatMap((x) => [...x.notifDueno, ...x.notifAsistente]));
   await borrarPorId("auditoria", todos.flatMap((x) => x.auditoria));
   await borrarPorId("auditoria_descifrado", todos.flatMap((x) => x.descifrado));
+  // 028: las cuatro tablas de correo de los dos estudios del seed y su auditoría (solo cede en modo `replica`), antes que las membresías y los clientes.
+  await borrarCorreoDeEstudios(h.sql, [A.tenantId, B.tenantId]);
+  const auditoriaCorreo = await h
+    .sql("select id from auditoria where tenant_id = any($1::uuid[]) and accion = 'correo.preferencia_cambiada'", [[A.tenantId, B.tenantId]])
+    .catch(() => [] as { id: string }[]);
+  await borrarPorId("auditoria", auditoriaCorreo.map((f) => f.id));
+  // 027: las cinco tablas del estudio (escritas solo por funciones; el superusuario de la conexión de migraciones puede borrar), antes que los clientes.
+  for (const t of ["gnd_palabra_estudio", "gnd_global_desactivada", "gnd_config", "gnd_cliente_categorias", "gnd_ciiu"])
+    await h.sql(`delete from ${t} where tenant_id = any($1::uuid[])`, [[A.tenantId, B.tenantId]]).catch(() => undefined);
+  await h.sql("delete from job_registro where tipo = 'compras.reevaluar' and cliente_id = any($1::uuid[])", [clientesCreados]).catch(() => undefined);
   // 026: tablas de solo inserción (el superusuario de la conexión de migraciones puede borrar); de la hija a la madre, antes que los clientes.
   for (const t of ["declaracion_mensual", "prorrata_mes_manual", "prorrata_usada_manual", "prorrata_obtencion"])
     await h.sql(`delete from ${t} where cliente_id = any($1::uuid[])`, [clientesCreados]).catch(() => undefined);
@@ -3086,6 +3601,84 @@ describe("HU-40 por API · 026 · las pruebas no son vacías (prorrata propia)",
       expect((await pedir(a, `/clientes/${mio.clientes[0]}/prorrata?periodo=${PERIODO_PRORRATA}`)).status).toBe(200);
       const escribe = await pedir(a, `/clientes/${mio.clientes[0]}/prorrata/meses/202602`, { metodo: "PUT", cuerpo: cuerpoManualPropio });
       expect(escribe.status, escribe.text).toBe(403);
+    }
+  });
+});
+
+describe("HU-40 por API · 027 · las pruebas no son vacías (gastos no deducibles propios)", () => {
+  it("cada estudio ve su palabra, su umbral, su ajuste de categorías y su global desactivada y nunca los del otro; la asistente los lee y no escribe", async () => {
+    expect(falloSiembra027, "la siembra de 027 falló (¿tablas de T10?)").toBeNull();
+    for (const [mio, ajeno] of [
+      [A, B],
+      [B, A],
+    ] as const) {
+      const d = await abrirSesion(mio.dueno, mio.tenantId);
+      const pedir = (s: Sesion, ruta: string, o: { metodo?: Peticion["metodo"]; cuerpo?: unknown } = {}) =>
+        h.pedir({ ruta, cookie: s.cookie, csrf: s.csrf, estudio: mio.tenantId, ...o });
+      const vista = await pedir(d, RUTA_GASTOS);
+      expect(vista.status, vista.text).toBe(200);
+      expect(vista.body.umbral).toBe(7);
+      expect((vista.body.propias as any[]).map((p) => [p.id, p.palabra])).toEqual([[mio.gastos!.propiaId, mio.gastos!.palabra]]);
+      expect((vista.body.globales as any[]).find((g) => g.palabra === "polo").desactivadaPorEstudio).toBe(true);
+      for (const marca of [ajeno.gastos!.propiaId, ajeno.gastos!.palabra]) expect(vista.text).not.toContain(marca);
+      const cat = await pedir(d, `/clientes/${mio.clientes[0]}/gastos/categorias`);
+      expect(cat.status, cat.text).toBe(200);
+      expect(cat.body).toMatchObject({ permitidas: ["juguetes"], quitadas: [], version: 1 });
+
+      const a = await abrirSesion(mio.asistente, mio.tenantId);
+      expect((await pedir(a, RUTA_GASTOS)).status).toBe(200);
+      const escribe = await pedir(a, `${RUTA_GASTOS}/umbral`, { metodo: "PUT", cuerpo: { umbral: 5, version: 1 } });
+      expect(escribe.status, escribe.text).toBe(403);
+    }
+  });
+});
+
+describe("HU-40 por API · 028 · las pruebas no son vacías (preferencias y baja propias)", () => {
+  it("cada estudio ve SUS preferencias y su fallo y nunca las del otro; el PUT propio responde 200; GET /correo/baja no apaga y el POST con el token propio sí", async () => {
+    expect(falloSiembra028, "la siembra de 028 falló (¿tablas de T10?)").toBeNull();
+    for (const [mio, ajeno] of [
+      [A, B],
+      [B, A],
+    ] as const) {
+      const e = etiquetaDe(mio);
+      const pedir = (s: Sesion, ruta: string, o: { metodo?: Peticion["metodo"]; cuerpo?: unknown } = {}) =>
+        h.pedir({ ruta, cookie: s.cookie, csrf: s.csrf, estudio: mio.tenantId, ...o });
+      const d = await abrirSesion(mio.dueno, mio.tenantId);
+      const a = await abrirSesion(mio.asistente, mio.tenantId);
+      for (const [rol, s] of [
+        ["dueno", d],
+        ["asistente", a],
+      ] as const) {
+        const v = await pedir(s, "/cuenta/correo");
+        expect(v.status, v.text).toBe(200);
+        expect(v.body, `${mio.nombre} ${rol}`).toEqual(vistaSembrada(e, rol));
+        expect(v.body).not.toEqual(vistaSembrada(etiquetaDe(ajeno), rol));
+        expect(v.text).not.toContain(ajeno.correo!.envioId);
+      }
+      // PUT propio con los mismos valores: 200 y la misma vista (nada cambia, nada se audita).
+      const mismos = { buzonCritico: PREFS_028[e].dueno.buzon, credencialInvalida: PREFS_028[e].dueno.cred, planLimite: PREFS_028[e].dueno.plan, resumen: true, todosClientes: false };
+      const put = await pedir(d, "/cuenta/correo", { metodo: "PUT", cuerpo: mismos });
+      expect(put.status, put.text).toBe(200);
+      expect(put.body).toEqual(vistaSembrada(e, "dueno"));
+      // GET con el token propio: 405 y el resumen sigue activo; el POST con ese token lo apaga SOLO al Dueño de este estudio.
+      const get = await h.pedir({ ruta: `/correo/baja?t=${mio.correo!.token}` });
+      expect(get.status, get.text).toBe(405);
+      expect((await pedir(d, "/cuenta/correo")).body.resumen).toBe(true);
+      try {
+        const baja = await h.pedir({ metodo: "POST", ruta: "/correo/baja", cuerpo: { token: mio.correo!.token } });
+        expect(baja.status, baja.text).toBe(200);
+        expect((await pedir(d, "/cuenta/correo")).body).toEqual({ ...vistaSembrada(e, "dueno"), resumen: false });
+        expect((await pedir(a, "/cuenta/correo")).body).toEqual(vistaSembrada(e, "asistente")); // la asistente no
+        const ajenoDueno = await abrirSesion(ajeno.dueno, ajeno.tenantId);
+        expect((await h.pedir({ ruta: "/cuenta/correo", cookie: ajenoDueno.cookie, csrf: ajenoDueno.csrf, estudio: ajeno.tenantId })).body.resumen).toBe(true);
+        const auditoria = await h.sql("select datos from auditoria where tenant_id = $1 and accion = 'correo.preferencia_cambiada'", [mio.tenantId]);
+        expect(auditoria.map((f) => f.datos)).toEqual([{ tipo: "resumen", de: true, a: false, origen: "enlace" }]);
+      } finally {
+        // Restaura lo sembrado para los casos que siguen (la auditoría solo cede en modo `replica`).
+        await h.sql("update correo_preferencia set activo = true where tenant_id = $1 and usuario_id = $2 and tipo = 'resumen'", [mio.tenantId, mio.dueno.id]);
+        const filas = await h.sql("select id from auditoria where tenant_id = $1 and accion = 'correo.preferencia_cambiada'", [mio.tenantId]);
+        await borrarPorId("auditoria", filas.map((f) => f.id));
+      }
     }
   });
 });

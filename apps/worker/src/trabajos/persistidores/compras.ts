@@ -31,6 +31,7 @@ import {
   planificarHistorialDescarga,
 } from "./compras-historial.js";
 import { leerPerfilCliente, leerProveedoresConRegla } from "./compras-std.js";
+import { contextoGastos } from "./contexto-gastos.js";
 import { ErrorPropuesta } from "./errores.js";
 import type {
   ContextoPersistidor,
@@ -235,6 +236,14 @@ export const persistidorCompras: PersistidorLibro<CompraNueva> = {
     const perfil = await leerPerfilCliente(tx, ctx.clienteId);
     const conRegla = await leerProveedoresConRegla(tx, ctx.clienteId);
     const datos = nuevas.map((n) => n.datos);
+    // Spec 027 (D-5, R-8): el contexto de R-GP del estudio (diccionario, umbral, CIIU, categorías e historial de los proveedores de
+    // la descarga) para las compras cuyo comprobante ya tiene XML guardado; sin XML la R-GP no evalúa nada (U-9).
+    const gastos = await contextoGastos(
+      tx,
+      ctx.clienteId,
+      ctx.periodo,
+      datos.map((x) => ({ tipo: x.docTipo, numero: x.docNumero })),
+    );
     // Sin reglas vigentes (o con R-HIS apagado, que no las devuelve) no hay nada que planificar: `insertarCompras` igual que antes.
     const planificado =
       reglas.length > 0 && rHisActiva
@@ -252,6 +261,7 @@ export const persistidorCompras: PersistidorLibro<CompraNueva> = {
           reglasApagadas,
           proveedoresConRegla: conRegla,
           perfil,
+          gastos,
         }),
         ...(planificado === null ? {} : { historial: planificado.historial }),
       },

@@ -1,0 +1,38 @@
+LÍNEA BASE 042 · T3 · backend-cobertura-bandeja
+Config:        apps/backend/vitest.cobertura-bandeja.config.mts
+Script raíz:   cobertura:bandeja (T23: log cob-bandeja.log)
+Comando lista: pnpm --filter @contapp/backend exec vitest list --filesOnly --config vitest.cobertura-bandeja.config.mts
+Lista: HEAD 68a9e68 · Tabla de cobertura: T23 de 028 medida en 60cf6b8
+
+[configuración de cobertura]
+coverage.provider: v8
+coverage.include (4):
+  apps/backend/src/modules/buzon/bandeja.controller.ts
+  apps/backend/src/modules/buzon/bandeja.service.ts
+  apps/backend/src/modules/buzon/atencion.service.ts
+  apps/backend/src/modules/buzon/cursor.ts
+coverage.exclude: **/*.spec.ts, **/*.adv.spec.ts, **/*.int.spec.ts, **/*.adv.int.spec.ts, apps/backend/test/soporte-bandeja.ts
+coverage.reporter: text, json-summary
+coverage.thresholds: perFile=true; lines=90; statements=90; functions=90; branches=90
+proyectos (vitest): ninguno (un solo test.include)
+
+[ejecución T23 · 60cf6b8]
+archivos de prueba ejecutados: 7 · pruebas: 247 passed (247) · inicio 04:25:43 · duración 30.71 s
+resumen: sentencias 99.11 % (112/113) · ramas 98.82 % (84/85) · funciones 100 % (31/31) · líneas 100 % (98/98)
+archivos medidos (include - exclude en HEAD): 4 · listados en la tabla (algún valor < 100): 1 · no listados (100 % o vacíos): 3
+comparación con la lista: sin diferencia de conteo con T23
+
+[archivos de prueba · HEAD 68a9e68 · 7 archivos]
+archivo	proyecto
+apps/backend/src/modules/buzon/atencion.int.spec.ts	-
+apps/backend/src/modules/buzon/atencion.service.spec.ts	-
+apps/backend/src/modules/buzon/bandeja.int.spec.ts	-
+apps/backend/src/modules/buzon/bandeja.rendimiento.int.spec.ts	-
+apps/backend/src/modules/buzon/cursor.spec.ts	-
+apps/backend/src/modules/buzon/detalle-atencion.int.spec.ts	-
+apps/backend/src/modules/buzon/mapeo.spec.ts	-
+
+[cobertura por archivo · T23 · 60cf6b8]
+archivo	stmts	branch	funcs	lines
+apps/backend/src/modules/buzon/atencion.service.ts	98.03	95.83	100	100
+All files	99.11	98.82	100	100

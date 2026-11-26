@@ -1,0 +1,9 @@
+# Cierre 024 · Bandeja de buzones
+
+Spec `024-bandeja-buzones` · nivel B · estado `hecha`. Texto de su fila de `ESTADO.md` movido sin cambios (042 B1/B6); el tablero conserva una nota corta.
+
+## Fila de ESTADO.md
+
+| Spec | Nivel | Estado | Tarea actual | Bloqueo / nota |
+|---|---|---|---|---|
+| 024-bandeja-buzones | B | hecha | — | Mergeada en `main` (96308db). RF-121, 124, 125 · HU-32, 34. Bandeja `/buzon` con filtros, partición pendientes/atendidos/históricos, cursor ligado a filtros y ruta, atención individual y en lote (máx. 100, sin deshacer en lote), indicador de mensajes nuevos; permiso `buzon.atender` (Dueño, Admin, Contador, Asistente); auditoría `buzon.atendido`/`buzon.atencion_deshecha` sin texto del comentario. Migraciones 0059–0060 (la siguiente libre es 0061). Decisiones del usuario: U-1 cliente archivado no se atiende (409 `cliente_archivado`), U-2 deshacer un histórico atendido lo devuelve a Históricos, U-3 sin deshacer en lote. Revisión final T17 sin defectos; ADV (15 pruebas) sin hallazgos. CI verde (run 44815463057). Notas y riesgos aceptados: la reclasificación de 0059 exige migrar como superusuario (con otro rol no clasifica filas); `mapeo.ts` fuera de `cobertura:bandeja`; `GET /clientes?conMensajesNuevos[]=1` se ignora (esquema de 007a); desasignación durante un lote: vale el estado leído en la comprobación; el plan decía `parametros_invalidos`, se usa `solicitud_invalida`; abrir un mensaje desde `/buzon` lleva a la bandeja del cliente y «Volver» regresa ahí (D-10; detalle lateral en `/buzon` iría en otra spec, pregunta abierta); `listarBandeja` (db) acepta límite 1..1000 y el backend topa en 100; el índice parcial en Drizzle no declara `INCLUDE` (sí en SQL); tiempos de `EXPLAIN ANALYZE` de T7 sin anotar; BD huérfana `contapp_e2e` en local (`E2E_CONSERVAR_BD=1`). |

@@ -10,6 +10,11 @@ export function esEnteroPositivo(x: unknown): x is Entero {
   return Number.isSafeInteger(x) && (x as Entero) >= 1;
 }
 
+/** 027: `true` si `x` es un entero seguro (sin coerción), sin cota o mayor o igual que `minimo`. */
+export function esEntero(x: unknown, minimo: Entero | null = null): x is Entero {
+  return Number.isSafeInteger(x) && (minimo === null || (x as Entero) >= minimo);
+}
+
 const DIGITOS_1_A_8 = /^[0-9]{1,8}$/;
 
 /**

@@ -1,0 +1,36 @@
+LÍNEA BASE 042 · T3 · worker-cobertura-gastos
+Config:        apps/worker/vitest.cobertura-gastos.config.mts
+Script raíz:   cobertura:gastos (T23: log cob-gastos.log)
+Comando lista: pnpm --filter @contapp/worker exec vitest list --filesOnly --config vitest.cobertura-gastos.config.mts
+Lista: HEAD 68a9e68 · Tabla de cobertura: T23 de 028 medida en 60cf6b8
+
+[configuración de cobertura]
+coverage.provider: v8
+coverage.include (3):
+  apps/worker/src/trabajos/procesadores/reevaluar-periodo.ts
+  apps/worker/src/trabajos/procesadores/ciiu.ts
+  apps/worker/src/trabajos/persistidores/contexto-gastos.ts
+coverage.exclude: **/*.spec.ts, **/*.adv.spec.ts, **/*.int.spec.ts, **/*.adv.int.spec.ts
+coverage.reporter: text, json-summary
+coverage.thresholds: perFile=true; lines=90; statements=90; functions=90; branches=90
+proyectos (vitest): worker-gastos-unit, worker-gastos-int
+
+[ejecución T23 · 60cf6b8]
+archivos de prueba ejecutados: 6 · pruebas: 54 passed (54) · inicio 02:55:23 · duración 21.96 s
+resumen: sentencias 100 % (64/64) · ramas 95 % (19/20) · funciones 100 % (14/14) · líneas 100 % (54/54)
+archivos medidos (include - exclude en HEAD): 3 · listados en la tabla (algún valor < 100): 1 · no listados (100 % o vacíos): 2
+comparación con la lista: sin diferencia de conteo con T23
+
+[archivos de prueba · HEAD 68a9e68 · 6 archivos]
+archivo	proyecto
+apps/worker/src/trabajos/persistidores/contexto-gastos.int.spec.ts	worker-gastos-int
+apps/worker/src/trabajos/persistidores/contexto-gastos.spec.ts	worker-gastos-unit
+apps/worker/src/trabajos/procesadores/ciiu.int.spec.ts	worker-gastos-int
+apps/worker/src/trabajos/procesadores/ciiu.ramas.spec.ts	worker-gastos-unit
+apps/worker/src/trabajos/procesadores/reevaluar-periodo.int.spec.ts	worker-gastos-int
+apps/worker/src/trabajos/procesadores/reevaluar-periodo.ramas.spec.ts	worker-gastos-unit
+
+[cobertura por archivo · T23 · 60cf6b8]
+archivo	stmts	branch	funcs	lines
+apps/worker/src/trabajos/procesadores/ciiu.ts	100	90	100	100
+All files	100	95	100	100

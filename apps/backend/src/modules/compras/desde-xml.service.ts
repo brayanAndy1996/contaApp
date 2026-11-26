@@ -188,7 +188,9 @@ export class DesdeXmlComprasService {
           throw new XmlError("xml_existente");
         }
         await exigirEscritura(tx, alcance, permisos, clienteId, periodo, { crear: true, archivado: true });
-        const entorno = await entornoDeReglas(tx, cliente.id, periodo);
+        // 027: el contexto de gastos de la compra nueva se lee solo para el proveedor del comprobante.
+        const proveedores = [{ tipo: compra.proveedor.tipo, numero: compra.proveedor.numero.toUpperCase() }];
+        const entorno = await entornoDeReglas(tx, cliente.id, periodo, proveedores);
         const id = await altaCompra(tx, ctx.userId, cliente.id, periodo, compra, montos, entorno);
         // H-016-11: el XML nuevo es el vigente del comprobante (D-4): se re-evalúan las demás compras vivas del mismo comprobante,
         // en cualquier periodo (la nueva ya se evaluó con él al crearse).

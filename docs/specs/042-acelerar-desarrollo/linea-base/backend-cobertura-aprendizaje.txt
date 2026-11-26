@@ -1,0 +1,38 @@
+LÍNEA BASE 042 · T3 · backend-cobertura-aprendizaje
+Config:        apps/backend/vitest.cobertura-aprendizaje.config.mts
+Script raíz:   cobertura:aprendizaje (T23: log cob-aprendizaje.log)
+Comando lista: pnpm --filter @contapp/backend exec vitest list --filesOnly --config vitest.cobertura-aprendizaje.config.mts
+Lista: HEAD 68a9e68 · Tabla de cobertura: T23 de 028 medida en 60cf6b8
+
+[configuración de cobertura]
+coverage.provider: v8
+coverage.include (1):
+  apps/backend/src/modules/aprendizaje/*.ts
+coverage.exclude: **/*.spec.ts, **/*.adv.spec.ts, **/*.int.spec.ts, **/*.adv.int.spec.ts
+coverage.reporter: text, json-summary
+coverage.thresholds: perFile=true; lines=90; statements=90; functions=90; branches=90
+proyectos (vitest): ninguno (un solo test.include)
+
+[ejecución T23 · 60cf6b8]
+archivos de prueba ejecutados: 10 · pruebas: 819 passed (819) · inicio 04:26:57 · duración 80.01 s
+resumen: sentencias 99.27 % (137/138) · ramas 96.96 % (64/66) · funciones 100 % (43/43) · líneas 100 % (118/118)
+archivos medidos (include - exclude en HEAD): 7 · listados en la tabla (algún valor < 100): 1 · no listados (100 % o vacíos): 6
+comparación con la lista: sin diferencia de conteo con T23
+
+[archivos de prueba · HEAD 68a9e68 · 10 archivos]
+archivo	proyecto
+apps/backend/src/aislamiento/hu40-api.int.spec.ts	-
+apps/backend/src/modules/aprendizaje/apoyo.spec.ts	-
+apps/backend/src/modules/aprendizaje/aprendizaje-r1.adv.int.spec.ts	-
+apps/backend/src/modules/aprendizaje/aprendizaje-r1.int.spec.ts	-
+apps/backend/src/modules/aprendizaje/aprendizaje-r2.adv.int.spec.ts	-
+apps/backend/src/modules/aprendizaje/candidatas.int.spec.ts	-
+apps/backend/src/modules/aprendizaje/candidatas.rendimiento.int.spec.ts	-
+apps/backend/src/modules/aprendizaje/importaciones.int.spec.ts	-
+apps/backend/src/modules/aprendizaje/importaciones.ramas.spec.ts	-
+apps/backend/src/modules/aprendizaje/permisos-025.int.spec.ts	-
+
+[cobertura por archivo · T23 · 60cf6b8]
+archivo	stmts	branch	funcs	lines
+apps/backend/src/modules/aprendizaje/candidatas.service.ts	98.21	93.33	100	100
+All files	99.27	96.96	100	100
