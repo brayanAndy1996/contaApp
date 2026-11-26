@@ -5,7 +5,16 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ETIQUETA_ROL, type Rol } from "../../../lib/acceso";
 import { api } from "../../../lib/api";
-import { reiniciarSesion } from "../../../lib/sesion";
+import {
+  AvisoFactorExigido,
+  PasoCodigo,
+} from "../../../components/seguridad/paso-codigo";
+import { MENSAJES_SEGURIDAD } from "../../../lib/seguridad";
+import {
+  bloqueadaPorFactor,
+  obtenerSesion,
+  reiniciarSesion,
+} from "../../../lib/sesion";
 import {
   Alert,
   Button,
@@ -35,6 +44,8 @@ const LONGITUD = "La contraseña debe tener entre 12 y 128 caracteres.";
 const COMUN = "Esa contraseña es demasiado común. Elige otra.";
 const ERROR_GENERAL = "Ocurrió un error. Inténtalo de nuevo.";
 const unidoA = (estudio: string) => `Te uniste a ${estudio}.`;
+const REABRIR_ENLACE =
+  "Cuando lo hayas activado, vuelve a abrir el enlace de la invitación.";
 
 interface Consulta {
   estudio: { nombre: string };
@@ -49,6 +60,8 @@ type Fase =
   | "error"
   | "nueva"
   | "existente"
+  | "codigo"
+  | "exigido"
   | "creada"
   | "unido";
 
@@ -74,6 +87,8 @@ export default function Invitacion() {
   const [contrasena, setContrasena] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  // CSRF de la sesión `pendiente` del login con segundo factor: solo en estado, se descarta al terminar.
+  const [csrfPendiente, setCsrfPendiente] = useState<string | null>(null);
   const [estudioUnido, setEstudioUnido] = useState<{
     id: string;
     nombre: string;
@@ -159,17 +174,45 @@ export default function Invitacion() {
     }
   }
 
+  /**
+   * Con la sesión ya verificada: si el rol exige el segundo factor y la sesión no lo tiene, se avisa sin
+   * llamar al backend (un 403 redirigiría a Seguridad y el token, solo en memoria, se perdería).
+   */
+  async function aceptarConSesion(tokenInvitacion: string) {
+    reiniciarSesion();
+    const sesion = await obtenerSesion();
+    if (sesion && bloqueadaPorFactor(sesion)) {
+      setFase("exigido");
+      return;
+    }
+    const r = await api<{ estudio?: { id: string; nombre: string } }>(
+      "/invitaciones/aceptar-con-sesion",
+      { method: "POST", body: { token: tokenInvitacion } },
+    );
+    if (r.ok && r.datos?.estudio) {
+      setEstudioUnido(r.datos.estudio);
+      setFase("unido");
+    } else if (r.status === 400) {
+      setFase("invalida");
+    } else if (r.status !== 401) {
+      setError(ERROR_GENERAL);
+    }
+  }
+
   async function iniciarYAceptar(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
     if (!token || !info) return;
     setEnviando(true);
     setError(null);
     try {
-      const login = await api("/auth/login", {
-        method: "POST",
-        body: { correo: info.correo, contrasena },
-        sinSesion: true,
-      });
+      const login = await api<{ segundoFactor?: boolean; csrf?: string }>(
+        "/auth/login",
+        {
+          method: "POST",
+          body: { correo: info.correo, contrasena },
+          sinSesion: true,
+        },
+      );
       setContrasena("");
       if (!login.ok) {
         setError(
@@ -181,19 +224,13 @@ export default function Invitacion() {
         );
         return;
       }
-      reiniciarSesion();
-      const r = await api<{ estudio?: { id: string; nombre: string } }>(
-        "/invitaciones/aceptar-con-sesion",
-        { method: "POST", body: { token } },
-      );
-      if (r.ok && r.datos?.estudio) {
-        setEstudioUnido(r.datos.estudio);
-        setFase("unido");
-      } else if (r.status === 400) {
-        setFase("invalida");
-      } else if (r.status !== 401) {
-        setError(ERROR_GENERAL);
+      if (login.datos?.segundoFactor === true && login.datos.csrf) {
+        reiniciarSesion();
+        setCsrfPendiente(login.datos.csrf);
+        setFase("codigo");
+        return;
       }
+      await aceptarConSesion(token);
     } catch {
       setError(ERROR_GENERAL);
     } finally {
@@ -297,6 +334,32 @@ export default function Invitacion() {
               Iniciar sesión y aceptar
             </Button>
           </form>
+        )}
+        {fase === "codigo" && csrfPendiente && token && (
+          <>
+            {resumen}
+            <p className="text-sm">
+              Ingresa el código de verificación para aceptar la invitación.
+            </p>
+            <PasoCodigo
+              csrf={csrfPendiente}
+              alVerificar={async () => {
+                setCsrfPendiente(null);
+                await aceptarConSesion(token);
+              }}
+              alCaducar={() => {
+                setCsrfPendiente(null);
+                setError(MENSAJES_SEGURIDAD.sesionCaducada);
+                setFase("existente");
+              }}
+            />
+          </>
+        )}
+        {fase === "exigido" && (
+          <>
+            <AvisoFactorExigido />
+            <p className="text-sm">{REABRIR_ENLACE}</p>
+          </>
         )}
         {fase === "creada" && (
           <>

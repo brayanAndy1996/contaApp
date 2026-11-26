@@ -10,7 +10,16 @@ import {
   MENSAJES_REGISTRO,
   type ConsultaRegistro,
 } from "../../../../lib/registro";
-import { reiniciarSesion } from "../../../../lib/sesion";
+import {
+  AvisoFactorExigido,
+  PasoCodigo,
+} from "../../../../components/seguridad/paso-codigo";
+import { MENSAJES_SEGURIDAD } from "../../../../lib/seguridad";
+import {
+  bloqueadaPorFactor,
+  obtenerSesion,
+  reiniciarSesion,
+} from "../../../../lib/sesion";
 import {
   Alert,
   Button,
@@ -37,6 +46,8 @@ type Fase =
   | "error"
   | "nueva"
   | "existente"
+  | "codigo"
+  | "exigido"
   | "creada"
   | "conEstudio";
 
@@ -56,6 +67,9 @@ function tomarTokenDelFragmento(): string | null {
   return token ? token : null;
 }
 
+const REABRIR_ENLACE =
+  "Cuando lo hayas activado, vuelve a abrir el enlace del registro.";
+
 function contrasenaDe(formulario: HTMLFormElement): string {
   return String(new FormData(formulario).get("contrasena") ?? "");
 }
@@ -70,6 +84,8 @@ export default function ConfirmarRegistro() {
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [creado, setCreado] = useState<EstudioCreado | null>(null);
+  // CSRF de la sesión `pendiente` del login con segundo factor: solo en estado, se descarta al terminar.
+  const [csrfPendiente, setCsrfPendiente] = useState<string | null>(null);
   // D14: la cuenta ya originó su prueba; el estudio creado no tiene plan (no se presenta como uno con prueba).
   const [sinPlan, setSinPlan] = useState(false);
 
@@ -150,6 +166,33 @@ export default function ConfirmarRegistro() {
     }
   }
 
+  /**
+   * Con la sesión ya verificada: si el rol exige el segundo factor y la sesión no lo tiene, se avisa sin
+   * llamar al backend (un 403 redirigiría a Seguridad y el token, solo en memoria, se perdería).
+   */
+  async function crearConSesion(tokenRegistro: string) {
+    // Sesión nueva: la llamada siguiente toma de ella el CSRF, no el de antes del login.
+    reiniciarSesion();
+    const sesion = await obtenerSesion();
+    if (sesion && bloqueadaPorFactor(sesion)) {
+      setFase("exigido");
+      return;
+    }
+    const r = await api<{ estudio?: EstudioCreado; sinPlan?: boolean }>(
+      "/registro/confirmar-con-sesion",
+      { method: "POST", body: { token: tokenRegistro } },
+    );
+    if (r.ok && r.datos?.estudio) {
+      setCreado(r.datos.estudio);
+      setSinPlan(r.datos.sinPlan === true);
+      setFase("conEstudio");
+    } else if (r.status === 400) {
+      setFase("invalida");
+    } else if (r.status !== 401) {
+      setError(MENSAJES.errorGeneral);
+    }
+  }
+
   async function iniciarYCrear(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
     if (!token || !info || enviando) return;
@@ -158,11 +201,14 @@ export default function ConfirmarRegistro() {
     setEnviando(true);
     setError(null);
     try {
-      const login = await api("/auth/login", {
-        method: "POST",
-        body: { correo: info.correo, contrasena },
-        sinSesion: true,
-      });
+      const login = await api<{ segundoFactor?: boolean; csrf?: string }>(
+        "/auth/login",
+        {
+          method: "POST",
+          body: { correo: info.correo, contrasena },
+          sinSesion: true,
+        },
+      );
       if (!login.ok) {
         setError(
           login.status === 401
@@ -173,21 +219,13 @@ export default function ConfirmarRegistro() {
         );
         return;
       }
-      // Sesión nueva: la llamada siguiente toma de ella el CSRF, no el de antes del login.
-      reiniciarSesion();
-      const r = await api<{ estudio?: EstudioCreado; sinPlan?: boolean }>(
-        "/registro/confirmar-con-sesion",
-        { method: "POST", body: { token } },
-      );
-      if (r.ok && r.datos?.estudio) {
-        setCreado(r.datos.estudio);
-        setSinPlan(r.datos.sinPlan === true);
-        setFase("conEstudio");
-      } else if (r.status === 400) {
-        setFase("invalida");
-      } else if (r.status !== 401) {
-        setError(MENSAJES.errorGeneral);
+      if (login.datos?.segundoFactor === true && login.datos.csrf) {
+        reiniciarSesion();
+        setCsrfPendiente(login.datos.csrf);
+        setFase("codigo");
+        return;
       }
+      await crearConSesion(token);
     } catch {
       setError(MENSAJES.errorGeneral);
     } finally {
@@ -288,6 +326,32 @@ export default function ConfirmarRegistro() {
               Iniciar sesión y crear estudio
             </Button>
           </form>
+        )}
+        {fase === "codigo" && csrfPendiente && token && (
+          <>
+            {resumen}
+            <p className="text-sm">
+              Ingresa el código de verificación para crear el estudio.
+            </p>
+            <PasoCodigo
+              csrf={csrfPendiente}
+              alVerificar={async () => {
+                setCsrfPendiente(null);
+                await crearConSesion(token);
+              }}
+              alCaducar={() => {
+                setCsrfPendiente(null);
+                setError(MENSAJES_SEGURIDAD.sesionCaducada);
+                setFase("existente");
+              }}
+            />
+          </>
+        )}
+        {fase === "exigido" && (
+          <>
+            <AvisoFactorExigido />
+            <p className="text-sm">{REABRIR_ENLACE}</p>
+          </>
         )}
         {fase === "creada" && (
           <>

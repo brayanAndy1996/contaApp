@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { verificarSegundoFactorSchema } from "@contapp/shared";
 import { api } from "../../../lib/api";
-import { MENSAJES_SEGURIDAD, codigoDe } from "../../../lib/seguridad";
+import { PasoCodigo } from "../../../components/seguridad/paso-codigo";
+import { MENSAJES_SEGURIDAD } from "../../../lib/seguridad";
 import { reiniciarSesion } from "../../../lib/sesion";
 import {
   Alert,
@@ -37,8 +37,6 @@ interface RespuestaLogin {
   csrf?: string;
 }
 
-type ModoCodigo = "totp" | "recuperacion";
-
 export default function Login() {
   const router = useRouter();
   const [correo, setCorreo] = useState("");
@@ -46,8 +44,6 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [pidiendoCodigo, setPidiendoCodigo] = useState(false);
-  const [modo, setModo] = useState<ModoCodigo>("totp");
-  const [codigo, setCodigo] = useState("");
   // Solo en estado (nunca en almacenamiento ni URL); se descarta al verificar, caducar o volver.
   const [csrf, setCsrf] = useState<string | null>(null);
 
@@ -66,8 +62,6 @@ export default function Login() {
         reiniciarSesion();
         setCsrf(r.datos.csrf);
         setContrasena("");
-        setCodigo("");
-        setModo("totp");
         setPidiendoCodigo(true);
         return;
       }
@@ -90,115 +84,26 @@ export default function Login() {
     }
   }
 
-  function cambiarModo(nuevo: ModoCodigo) {
-    setModo(nuevo);
-    setCodigo("");
-    setError(null);
-  }
-
-  async function verificar(evento: FormEvent<HTMLFormElement>) {
-    evento.preventDefault();
-    const cuerpo =
-      modo === "totp"
-        ? { codigo: codigo.trim() }
-        : { codigoRecuperacion: codigo.trim().toUpperCase() };
-    setError(null);
-    if (!verificarSegundoFactorSchema.safeParse(cuerpo).success) {
-      setError(MENSAJES_SEGURIDAD.codigoIncorrecto);
-      return;
-    }
-    if (!csrf) {
-      setPidiendoCodigo(false);
-      setError(MENSAJES_SEGURIDAD.sesionCaducada);
-      return;
-    }
-    setEnviando(true);
-    try {
-      // Sesión `pendiente`: `sinSesion` + `csrf` del login (sin GET /auth/sesion ni X-Estudio); un 401
-      // `codigo_invalido` es un dato erróneo y llega a la pantalla sin reintento ni /login.
-      const r = await api<RespuestaLogin>("/auth/2fa/verificar", {
-        method: "POST",
-        body: cuerpo,
-        sinSesion: true,
-        csrf,
-      });
-      if (r.ok) {
-        setCsrf(null);
-        reiniciarSesion();
-        router.push(r.datos?.estudioActivo ? "/" : "/estudios");
-        return;
-      }
-      if (r.status === 401 && codigoDe(r.datos) === "sesion_invalida") {
-        setPidiendoCodigo(false);
-        setCsrf(null);
-        setError(MENSAJES_SEGURIDAD.sesionCaducada);
-        return;
-      }
-      setError(
-        r.status === 401
-          ? MENSAJES_SEGURIDAD.codigoIncorrecto
-          : r.status === 429
-            ? MENSAJES_SEGURIDAD.demasiadosIntentos
-            : ERROR_GENERAL,
-      );
-    } catch {
-      setError(ERROR_GENERAL);
-    } finally {
-      setEnviando(false);
-    }
-  }
-
-  if (pidiendoCodigo) {
-    const recuperacion = modo === "recuperacion";
+  if (pidiendoCodigo && csrf) {
     return (
       <main className="flex flex-1 items-center justify-center p-6">
         <Card className="w-full max-w-md">
           <h1 className="m-0 font-titulo text-[28px] font-extrabold leading-tight tracking-tight text-tinta">
             Verificación en dos pasos
           </h1>
-          <form onSubmit={verificar} className="flex flex-col gap-4">
-            <Label>
-              {recuperacion
-                ? "Código de recuperación"
-                : "Código de verificación"}
-              <Input
-                key={modo}
-                type="text"
-                required
-                autoFocus
-                value={codigo}
-                onChange={(e) => setCodigo(e.target.value)}
-                {...(recuperacion
-                  ? {
-                      autoComplete: "off",
-                      autoCapitalize: "characters",
-                      spellCheck: false,
-                      placeholder: "XXXX-XXXX-XXXX",
-                    }
-                  : {
-                      autoComplete: "one-time-code",
-                      inputMode: "numeric" as const,
-                      placeholder: "000000",
-                    })}
-                className="max-lg:h-11"
-              />
-            </Label>
-            {error && <Alert tono="error">{error}</Alert>}
-            <Button type="submit" disabled={enviando} className="max-lg:h-11">
-              Verificar
-            </Button>
-            <button
-              type="button"
-              onClick={() =>
-                cambiarModo(recuperacion ? "totp" : "recuperacion")
-              }
-              className={cn(ENLACE, "self-start text-left")}
-            >
-              {recuperacion
-                ? "Usar el código de mi aplicación"
-                : "Usar un código de recuperación"}
-            </button>
-          </form>
+          <PasoCodigo
+            csrf={csrf}
+            alVerificar={(datos) => {
+              setCsrf(null);
+              reiniciarSesion();
+              router.push(datos?.estudioActivo ? "/" : "/estudios");
+            }}
+            alCaducar={() => {
+              setPidiendoCodigo(false);
+              setCsrf(null);
+              setError(MENSAJES_SEGURIDAD.sesionCaducada);
+            }}
+          />
         </Card>
       </main>
     );

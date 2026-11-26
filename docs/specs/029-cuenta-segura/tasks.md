@@ -26,7 +26,7 @@ Nivel A. Flujo 04 §1.3: pruebas (rojo) → implementar (verde) → cobertura �
 | T17 | Verificar CA-1 a CA-11 con evidencia y prueba manual | tester | sonnet | T11, T11b, T16 | — | — | [x] |
 | T17a | Ajustar `equipo.e2e.ts:382` al enrolamiento forzado de 029 (defecto de T17) | tester | sonnet | T17 | — | — | [x] |
 | T18 | Revisión final contra la spec | arquitecto | opus | T17 | — | — | [x] |
-| T18a | Paso de código en invitación y registro con cuenta existente (defecto de T18) | tester → frontend | sonnet | T18 ∥ T18b | ✓ | — | [ ] |
+| T18a | Paso de código en invitación y registro con cuenta existente (defecto de T18) | tester → frontend | sonnet | T18 ∥ T18b | ✓ | — | [x] |
 | T18b | Rechazar en producción la `TOTP_CLAVE` de `.env.example` (observación de T18) | backend | sonnet | T18 ∥ T18a | ✓ | — | [x] |
 | T19 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T18a, T18b | — | — | [ ] |
 
