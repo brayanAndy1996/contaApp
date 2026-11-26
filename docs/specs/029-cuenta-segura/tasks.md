@@ -23,8 +23,8 @@ Nivel A. Flujo 04 §1.3: pruebas (rojo) → implementar (verde) → cobertura �
 | T14 | Corregir hallazgos de la ronda 1 | backend (+frontend) | opus (sonnet) | T12, T13 | — | — | [ ] |
 | T15 | Ronda 2: regresión y ataques a las correcciones (solo con hallazgos media/alta) | adversario | opus | T14 | — | ✓ | [ ] |
 | T16 | Corregir hallazgos de la ronda 2 | backend (+frontend) | opus (sonnet) | T15 | — | — | [ ] |
-| T17 | Verificar CA-1 a CA-11 con evidencia y prueba manual | tester | sonnet | T11, T11b, T16 | — | — | [ ] |
-| T17a | Ajustar `equipo.e2e.ts:382` al enrolamiento forzado de 029 (defecto de T17) | tester | sonnet | T17 | — | — | [ ] |
+| T17 | Verificar CA-1 a CA-11 con evidencia y prueba manual | tester | sonnet | T11, T11b, T16 | — | — | [x] |
+| T17a | Ajustar `equipo.e2e.ts:382` al enrolamiento forzado de 029 (defecto de T17) | tester | sonnet | T17 | — | — | [x] |
 | T18 | Revisión final contra la spec | arquitecto | opus | T17 | — | — | [ ] |
 | T19 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T18 | — | — | [ ] |
 

@@ -62,10 +62,10 @@ Rama `spec/029-cuenta-segura` en `cd98f90` (tras T14 y T16: migraciones 0080 y 0
 
 Ningún archivo de 029 baja de 90 %.
 
-## Defecto abierto
+## Defecto cerrado
 
-**T17a (tester · sonnet).** `tests/e2e/flujos/equipo.e2e.ts:406` falla de forma determinista (también en solitario): «quien ya tiene cuenta acepta la invitación a otro estudio y cambia a él». La persona invitada es `a.dueno`, Dueño de otro estudio sin TOTP. Al iniciar sesión desde la página de invitación, 029 la lleva a `/cuenta/seguridad` («Tu cuenta exige la verificación en dos pasos», U1 y U3) y el aviso «Te uniste a Estudio Destino E2E.» no llega a verse. El comportamiento coincide con la spec; falla la prueba, que no se ajustó en T11. Corrección: sembrar al invitado con factor verificado, o aceptar por la ruta de enrolamiento forzado. No hay cambio en producción. Hasta cerrarla, T17 queda sin marcar. La spec lo da por cumplido, pero la regla de cierre pide E2E completa en verde.
+**T17a (tester · sonnet), cerrado.** `equipo.e2e.ts` «quien ya tiene cuenta acepta la invitación a otro estudio y cambia a él» invitaba a `a.dueno` (Dueño sin TOTP), que al iniciar sesión desde la página de invitación quedaba `sin_factor` y era llevado a `/cuenta/seguridad` (U1, U3). La página de invitación no tiene paso de código, así que ni sembrar un TOTP ni enrolar a mitad del flujo la completan. La persona con cuenta previa pasó a ser un Contador del estudio de origen (`siembra.miembro(a.tenantId, "contador")`, rol que no exige el segundo factor); se conservaron todas las aserciones y no hay cambio en producción. Resultado: `pnpm e2e equipo` 8 de 8 y `pnpm e2e` completo 109 de 109 en verde.
 
 ## Prueba manual
 
-No se hizo una sesión manual en navegador: la E2E con la pila real (backend, worker y frontend compilado, adaptadores `mock`, Mailpit) hace ese recorrido (login en dos pasos, enrolamiento forzado, sesiones, operador y avisos) y pasa, salvo T17a.
+No se hizo una sesión manual en navegador: la E2E con la pila real (backend, worker y frontend compilado, adaptadores `mock`, Mailpit) hace ese recorrido (login en dos pasos, enrolamiento forzado, sesiones, operador y avisos) y pasa (109 de 109).

@@ -388,9 +388,12 @@ test.describe("roles y estudios", () => {
     const a = await siembra.estudio({ nombre: "Estudio Origen E2E" });
     const b = await siembra.estudio({ nombre: "Estudio Destino E2E" });
     const duenoB = await sesiones.paginaDe(b.dueno);
+    // Spec 029 (U1, U3): un Dueño sin TOTP que inicia sesión desde la página de invitación queda `sin_factor` y va a /cuenta/seguridad
+    // (esa página no tiene paso de código). La persona con cuenta previa es, pues, una de rol que no exige el segundo factor.
+    const existente = await siembra.miembro(a.tenantId, "contador");
 
-    await invitar(duenoB.page, a.dueno.correo, "Contador");
-    const enlace = await correo.enlaceDe(a.dueno.correo, ASUNTO_INVITACION);
+    await invitar(duenoB.page, existente.correo, "Contador");
+    const enlace = await correo.enlaceDe(existente.correo, ASUNTO_INVITACION);
 
     const persona = await paginaAnonima(browser);
     await persona.goto(enlace);
@@ -399,7 +402,7 @@ test.describe("roles y estudios", () => {
     ).toBeVisible();
     await persona
       .getByLabel("Contraseña", { exact: true })
-      .fill(a.dueno.contrasena);
+      .fill(existente.contrasena);
     await persona
       .getByRole("button", { name: "Iniciar sesión y aceptar" })
       .click();
