@@ -132,7 +132,11 @@ export class TotpService {
     const hashes = codigos.map((x) => hashCodigoRecuperacion(x, this.claves.actual));
     const token = generarToken();
     const tokenHashNuevo = hashToken(token);
-    const emitida = await this.db.withAuth((_a, c) => c.totp.confirmar({ tokenHash, paso, hashes, tokenHashNuevo }));
+    // `evaluar` ya comprobó que hay pendiente: se confirma ese mismo (CA-1), no uno que otra pestaña enroló después.
+    const pendienteCifrado = fila!.pendienteCifrado!;
+    const emitida = await this.db.withAuth((_a, c) =>
+      c.totp.confirmar({ tokenHash, paso, hashes, tokenHashNuevo, pendienteCifrado }),
+    );
     if (emitida === null) throw new AuthError("codigo_invalido");
     await this.db.withAuth((_a, c) => c.totp.intentoAcierto(tokenHashNuevo));
     this.avisar(s.usuarioId, "totp_activado", origen);

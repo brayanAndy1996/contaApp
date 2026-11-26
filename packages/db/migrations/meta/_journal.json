@@ -568,6 +568,13 @@
       "when": 1795653700973,
       "tag": "0080_cuenta_segura_r1",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1795656003877,
+      "tag": "0081_cuenta_segura_r2",
+      "breakpoints": true
     }
   ]
 }

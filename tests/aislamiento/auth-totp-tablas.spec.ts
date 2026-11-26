@@ -114,6 +114,9 @@ describe("columnas y restricciones de 0078", () => {
       "pendiente_expira",
       "ultimo_paso",
       "activado_en",
+      // Ajuste de 029 (T16, 0081, hallazgo r2 de T15): marca del pendiente que reemplazo a otro vigente (totp_confirmar sin el pendiente
+      // evaluado no lo confirma).
+      "pendiente_reemplazado",
     ]);
     expect(cols.find((c) => c.column_name === "ultimo_paso")?.data_type).toBe("bigint");
     expect(cols.find((c) => c.column_name === "activo_cifrado")?.data_type).toBe("bytea");

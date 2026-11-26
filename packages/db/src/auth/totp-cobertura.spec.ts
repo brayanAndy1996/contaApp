@@ -25,7 +25,8 @@ function repoCon(rows: unknown[]) {
 describe("TotpRepo: el paso TOTP fuera del rango de bigint se rechaza antes de consultar", () => {
   const llamadores: Array<[string, (r: ReturnType<typeof crearTotpRepo>, p: bigint) => Promise<unknown>]> = [
     ["verificarExito", (r, p) => r.verificarExito({ tokenHash: T1, paso: p, tokenHashNuevo: T2, tenantNuevo: null })],
-    ["confirmar", (r, p) => r.confirmar({ tokenHash: T1, paso: p, hashes: DIEZ, tokenHashNuevo: T2 })],
+    // Ajuste de 029 (T16, 0081): confirmar lleva el pendiente cifrado evaluado.
+    ["confirmar", (r, p) => r.confirmar({ tokenHash: T1, paso: p, hashes: DIEZ, tokenHashNuevo: T2, pendienteCifrado: H })],
     ["desactivar", (r, p) => r.desactivar(T1, p)],
     ["recuperacionRegenerar", (r, p) => r.recuperacionRegenerar(T1, p, DIEZ)],
   ];

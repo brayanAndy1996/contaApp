@@ -40,6 +40,8 @@ export interface ConfirmarArgs {
   /** Exactamente 10 HMAC distintos de 32 bytes (si no, AuthRepoError 22023). */
   hashes: Buffer[];
   tokenHashNuevo: Buffer;
+  /** 0081 (CA-1): el pendiente cifrado que el backend evaluó; solo se confirma si sigue siendo el vigente (un re-enrolamiento lo invalida). */
+  pendienteCifrado: Buffer;
 }
 export type ResultadoDesactivar = "desactivado" | "exigido" | "invalido";
 
@@ -54,7 +56,7 @@ export interface TotpRepo {
   verificarExito(a: VerificarExitoArgs): Promise<SesionEmitida | null>;
   /** CA-9: null si el código no existe, ya se usó o la sesión no sirve. */
   recuperacionUsar(a: RecuperacionUsarArgs): Promise<SesionEmitida | null>;
-  /** CA-1: null si no hay pendiente vigente, el paso no es nuevo o la sesión no sirve. */
+  /** CA-1: null si no hay pendiente vigente, ya no es el evaluado, el paso no es nuevo o la sesión no sirve. */
   confirmar(a: ConfirmarArgs): Promise<SesionEmitida | null>;
   desactivar(tokenHash: Buffer, paso: bigint): Promise<ResultadoDesactivar>;
   recuperacionRegenerar(tokenHash: Buffer, paso: bigint, hashes: Buffer[]): Promise<boolean>;
@@ -71,7 +73,7 @@ const SQL = {
   intentoReservar: "select * from auth.totp_intento_reservar($1::bytea)",
   verificarExito: "select * from auth.totp_verificar_exito($1::bytea, $2::bigint, $3::bytea, $4::uuid)",
   recuperacionUsar: "select * from auth.totp_recuperacion_usar($1::bytea, $2::bytea, $3::bytea, $4::uuid)",
-  confirmar: "select * from auth.totp_confirmar($1::bytea, $2::bigint, $3::bytea[], $4::bytea)",
+  confirmar: "select * from auth.totp_confirmar($1::bytea, $2::bigint, $3::bytea[], $4::bytea, $5::bytea)",
   desactivar: "select * from auth.totp_desactivar($1::bytea, $2::bigint)",
   recuperacionRegenerar: "select * from auth.totp_recuperacion_regenerar($1::bytea, $2::bigint, $3::bytea[])",
   intentoAcierto: "select auth.intento_acierto($1::bytea)",
@@ -128,7 +130,7 @@ export function crearTotpRepo(tx: TxConsulta): TotpRepo {
     recuperacionUsar: (a) =>
       ejecutar(SQL.recuperacionUsar, () => [a.tokenHash, a.hash, a.tokenHashNuevo, a.tenantNuevo], emitida),
     confirmar: (a) =>
-      ejecutar(SQL.confirmar, () => [a.tokenHash, paso(a.paso), a.hashes, a.tokenHashNuevo], emitida),
+      ejecutar(SQL.confirmar, () => [a.tokenHash, paso(a.paso), a.hashes, a.tokenHashNuevo, a.pendienteCifrado], emitida),
     desactivar: (tokenHash, p) =>
       ejecutar(SQL.desactivar, () => [tokenHash, paso(p)], (f) => {
         const r = f[0]?.totp_desactivar as unknown;

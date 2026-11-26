@@ -152,19 +152,21 @@ const casos: Caso[] = [
     filas: [],
     esperado: null,
   },
+  // Ajuste de 029 (T16, 0081, hallazgo r2 de T15): confirmar envia el pendiente cifrado que el backend evaluo (5.º parametro); la BD solo
+  // confirma ese pendiente, no uno que otra pestana enrolo despues.
   {
     metodo: "confirmar",
     funcion: "totp_confirmar",
-    llamar: (r) => r.confirmar({ tokenHash: T1, paso: PASO, hashes: DIEZ, tokenHashNuevo: T2 }),
-    valores: [T1, PASO.toString(), DIEZ, T2],
+    llamar: (r) => r.confirmar({ tokenHash: T1, paso: PASO, hashes: DIEZ, tokenHashNuevo: T2, pendienteCifrado: CIFRADO }),
+    valores: [T1, PASO.toString(), DIEZ, T2, CIFRADO],
     filas: [{ sesion_id: S, expira_absoluta: F }],
     esperado: { sesionId: S, expiraAbsoluta: F },
   },
   {
     metodo: "confirmar (cero filas)",
     funcion: "totp_confirmar",
-    llamar: (r) => r.confirmar({ tokenHash: T1, paso: PASO, hashes: DIEZ, tokenHashNuevo: T2 }),
-    valores: [T1, PASO.toString(), DIEZ, T2],
+    llamar: (r) => r.confirmar({ tokenHash: T1, paso: PASO, hashes: DIEZ, tokenHashNuevo: T2, pendienteCifrado: CIFRADO }),
+    valores: [T1, PASO.toString(), DIEZ, T2, CIFRADO],
     filas: [],
     esperado: null,
   },
