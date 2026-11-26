@@ -17,7 +17,7 @@ Nivel A. Flujo 04 §1.3: pruebas (rojo) → implementar (verde) → cobertura �
 | T9 | Pantallas de 029 | frontend | sonnet | T4, T6 ∥ T5, T7, T8 | ✓ | — | [x] |
 | T10 | Cobertura ≥ 90 % por archivo (globs) | devops | sonnet | T7, T8 ∥ T9 | — | — | [x] |
 | T11 | E2E con Mailpit y `pnpm e2e` completo | tester | sonnet | T7, T8, T9 ∥ T12–T16 | — | — | [x] |
-| T11b | CSRF del paso de código en la respuesta del login (defecto de T11) | tester → backend → frontend | sonnet | T11 ∥ T10 | ✓ | — | [~] |
+| T11b | CSRF del paso de código en la respuesta del login (defecto de T11) | tester → backend → frontend | sonnet | T11 ∥ T10 | ✓ | — | [x] |
 | T12 | Ronda 1a (caja negra, HTTP): autenticación y sesiones | adversario | opus | T10 ∥ T13 | — | ✓ | [ ] |
 | T13 | Ronda 1b (caja blanca, BD y secretos) | adversario | opus | T10 ∥ T12 | — | ✓ | [ ] |
 | T14 | Corregir hallazgos de la ronda 1 | backend (+frontend) | opus (sonnet) | T12, T13 | — | — | [ ] |
