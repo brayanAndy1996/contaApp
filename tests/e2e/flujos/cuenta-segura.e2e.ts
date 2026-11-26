@@ -13,14 +13,18 @@ import type { Browser, BrowserContext, Page } from "@playwright/test";
 import { URL_BACKEND, URL_FRONTEND } from "../soporte/pila/entorno.js";
 import { restablecerTotp } from "../soporte/cli-totp.js";
 import { ipUnica } from "../soporte/sesiones.js";
-import { expect, test as base } from "../soporte/fixtures.js";
+import { estado, expect, test as base } from "../soporte/fixtures.js";
 import { SiembraCuenta } from "../soporte/siembra-cuenta.js";
 import {
   loginPendiente,
   obtener,
   verificarSegundoPaso,
 } from "../soporte/segundo-paso.js";
-import { ingresar } from "../soporte/selectores/acceso.js";
+import {
+  ASUNTO_INVITACION,
+  TEXTOS as TEXTOS_ACCESO,
+  ingresar,
+} from "../soporte/selectores/acceso.js";
 import {
   ASUNTOS,
   TEXTOS,
@@ -524,5 +528,154 @@ test.describe("E-13 · cuenta segura", () => {
         "totp_desactivado",
       ]);
     });
+  });
+});
+
+/** El Dueño del estudio invita desde `/usuarios` a un correo con el rol dado (por su etiqueta en pantalla). */
+async function invitarPorPantalla(
+  page: Page,
+  correoInvitado: string,
+  rol: string,
+): Promise<void> {
+  await page.goto("/usuarios");
+  await expect(
+    page.getByRole("heading", { name: "Invitar a una persona" }),
+  ).toBeVisible();
+  await page.getByLabel("Correo", { exact: true }).fill(correoInvitado);
+  await page
+    .getByRole("combobox", { name: /^Rol/ })
+    .selectOption({ label: rol });
+  await page.getByRole("button", { name: "Invitar", exact: true }).click();
+  await expect(estado(page, TEXTOS_ACCESO.invitacionEnviada)).toBeVisible();
+}
+
+test.describe("E-13 · invitación con segundo factor (T18a)", () => {
+  test("quien ya tiene cuenta y TOTP activo acepta la invitación pasando por el paso de código de la propia página, sin perder el token", async ({
+    page,
+    siembra,
+    sesiones,
+    cuentas,
+    correo,
+    paginaNueva,
+    vigilancia,
+  }) => {
+    vigilancia.permitirError(/401/);
+    const a = await siembra.estudio({ nombre: "Estudio Origen 2FA E2E" });
+    const b = await siembra.estudio({ nombre: "Estudio Destino 2FA E2E" });
+    // Rol que no exige el factor: puede enrolar por su cuenta y entrar a su estudio.
+    const existente = await siembra.miembro(a.tenantId, "contador");
+    cuentas.registrar(a, existente);
+    cuentas.registrar(b);
+
+    await page.goto("/login");
+    await ingresar(page, existente.correo, existente.contrasena);
+    await expect(page).toHaveURL(/\/$/);
+    await page.goto("/cuenta/seguridad");
+    const { autenticador } = await activarPorPantalla(
+      page,
+      existente.contrasena,
+    );
+
+    const duenoB = await sesiones.paginaDe(b.dueno);
+    await invitarPorPantalla(duenoB.page, existente.correo, "Contador");
+    const enlace = await correo.enlaceDe(existente.correo, ASUNTO_INVITACION);
+
+    const persona = (await paginaNueva()).page;
+    await persona.goto(enlace);
+    await expect(
+      persona.getByText("Ya tienes una cuenta: inicia sesión para aceptar."),
+    ).toBeVisible();
+    // El token se lee una vez y se borra de la URL.
+    expect(persona.url()).not.toContain("#t=");
+    await persona
+      .getByLabel("Contraseña", { exact: true })
+      .fill(existente.contrasena);
+    await persona
+      .getByRole("button", { name: "Iniciar sesión y aceptar" })
+      .click();
+
+    await test.step("pide el código en la misma página (no manda a /login ni a Seguridad)", async () => {
+      await expect(campoCodigoLogin(persona)).toBeVisible();
+      await expect(persona).toHaveURL(/\/invitacion$/);
+      await expect(
+        persona.getByText("Ingresa el código de verificación para aceptar"),
+      ).toBeVisible();
+      expect((await persona.request.get("/api/auth/sesion")).status()).toBe(
+        401,
+      );
+    });
+
+    await test.step("un código incorrecto se queda en el paso y no pierde la invitación", async () => {
+      await campoCodigoLogin(persona).fill("000000");
+      await verificar(persona).click();
+      await expect(persona.getByText(TEXTOS.codigoIncorrecto)).toBeVisible();
+      await expect(campoCodigoLogin(persona)).toBeVisible();
+      await expect(persona).toHaveURL(/\/invitacion$/);
+    });
+
+    await test.step("con el código correcto acepta la invitación y sigue en la misma página", async () => {
+      await campoCodigoLogin(persona).fill(await autenticador.siguiente());
+      await verificar(persona).click();
+      await expect(estado(persona, `Te uniste a ${b.nombre}.`)).toBeVisible();
+      expect(await estadoDeSesion(persona)).toMatchObject({
+        factor: "verificado",
+        totpActivo: true,
+      });
+      await persona
+        .getByRole("button", { name: "Cambiar a este estudio" })
+        .click();
+      await expect(
+        persona.getByRole("combobox", { name: /^Estudio/ }),
+      ).toHaveValue(b.tenantId);
+      await expect(
+        persona.getByRole("option", { name: a.nombre }),
+      ).toBeAttached();
+    });
+  });
+
+  test("un rol que exige el segundo factor y aún no lo activó ve el aviso con «Ir a Seguridad», sin aceptar la invitación", async ({
+    siembra,
+    sesiones,
+    cuentas,
+    correo,
+    paginaNueva,
+    vigilancia,
+  }) => {
+    vigilancia.permitirError(/40[13]/);
+    const a = await siembra.estudio({ nombre: "Estudio Origen Exigido E2E" });
+    const b = await siembra.estudio({ nombre: "Estudio Destino Exigido E2E" });
+    // El Dueño de A exige el factor (U1) y no lo ha activado: inicia sesión como `sin_factor`.
+    cuentas.registrar(a);
+    cuentas.registrar(b);
+    const exigido = a.dueno;
+
+    const duenoB = await sesiones.paginaDe(b.dueno);
+    await invitarPorPantalla(duenoB.page, exigido.correo, "Contador");
+    const enlace = await correo.enlaceDe(exigido.correo, ASUNTO_INVITACION);
+
+    const persona = (await paginaNueva()).page;
+    await persona.goto(enlace);
+    await persona
+      .getByLabel("Contraseña", { exact: true })
+      .fill(exigido.contrasena);
+    await persona
+      .getByRole("button", { name: "Iniciar sesión y aceptar" })
+      .click();
+
+    await expect(persona.getByText(TEXTOS.exigidoAviso).first()).toBeVisible();
+    await expect(persona).toHaveURL(/\/invitacion$/);
+    await expect(
+      persona.getByText("vuelve a abrir el enlace de la invitación"),
+    ).toBeVisible();
+    await expect(estado(persona, `Te uniste a ${b.nombre}.`)).toHaveCount(0);
+    expect(await estadoDeSesion(persona)).toMatchObject({
+      factor: "sin_factor",
+      factorExigido: true,
+    });
+    expect(await cuentas.esMiembro(exigido.id, b.tenantId)).toBe(false);
+
+    await persona.getByRole("link", { name: "Ir a Seguridad" }).click();
+    await expect(persona).toHaveURL(/\/cuenta\/seguridad$/);
+    await expect(activarTotp(persona)).toBeVisible();
   });
 });

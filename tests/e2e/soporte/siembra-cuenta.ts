@@ -109,6 +109,15 @@ export class SiembraCuenta {
     return Number(r.rows[0]?.n ?? 0);
   }
 
+  /** ¿El usuario tiene una membresía en ese estudio? (para comprobar que una invitación no se aceptó). */
+  async esMiembro(usuarioId: string, tenantId: string): Promise<boolean> {
+    const r = await this.pool.query(
+      "select 1 from membresia where usuario_id = $1 and tenant_id = $2",
+      [usuarioId, tenantId],
+    );
+    return (r.rowCount ?? 0) > 0;
+  }
+
   async cerrar(): Promise<void> {
     await this.pool.end();
   }
