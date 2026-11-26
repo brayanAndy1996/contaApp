@@ -1,6 +1,7 @@
 import type { ArgumentsHost } from "@nestjs/common";
 import { HttpException } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
+import { AccesoError } from "../modules/acceso/errores.js";
 import { FiltroErrores } from "./filtro-errores.js";
 
 // Ramas del filtro que filtro-errores.spec.ts no ejercita: errores del analizador de cuerpo.
@@ -79,5 +80,19 @@ describe("HttpException sin código conocido por estado", () => {
       estado: 400,
       cuerpo: { codigo: "contrasena_invalida" },
     });
+  });
+});
+
+describe("AccesoError con datos (030)", () => {
+  it("rol_en_uso responde sus conteos y combinacion_invalida el permiso; sin datos, solo el código", () => {
+    expect(ejecutar(new AccesoError("rol_en_uso", { miembros: 2, invitaciones: 1 }))).toEqual({
+      estado: 409,
+      cuerpo: { codigo: "rol_en_uso", miembros: 2, invitaciones: 1 },
+    });
+    expect(ejecutar(new AccesoError("combinacion_invalida", { permiso: "clientes.ver" }))).toEqual({
+      estado: 422,
+      cuerpo: { codigo: "combinacion_invalida", permiso: "clientes.ver" },
+    });
+    expect(ejecutar(new AccesoError("escalada"))).toEqual({ estado: 403, cuerpo: { codigo: "escalada" } });
   });
 });

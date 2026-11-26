@@ -68,6 +68,10 @@ const SQL_USO = `select (select count(*) from membresia m where m.rol_id = $1::u
 const SQL_IMPACTO =
   "select miembros, clientes_sin_responsable, miembros_sin_totp_exigidos from acceso.rol_impacto($1::uuid, $2::text, $3::text[])";
 
+// Mismo candado que toman `rol_guardar` y `rol_eliminar` (D4: primero este, luego membresías y la fila del rol): reentrante en la
+// misma transacción. Sirve para leer-y-escribir sin perder una edición concurrente (PATCH parcial).
+const SQL_BLOQUEAR = "select pg_advisory_xact_lock(hashtextextended('acceso.roles:' || current_setting('app.tenant_id', true), 0))";
+
 const numero = (v: unknown): number => Number(v ?? 0);
 const ordenados = (v: unknown): string[] => (Array.isArray(v) ? [...(v as string[])].sort() : []);
 
@@ -120,4 +124,9 @@ export async function impactoRol(
     clientesSinResponsable: numero(f?.clientes_sin_responsable),
     miembrosSinTotpExigidos: numero(f?.miembros_sin_totp_exigidos),
   };
+}
+
+/** Toma el candado de roles del estudio hasta el fin de la transacción (D4: debe ser lo primero que se bloquea). */
+export async function bloquearRoles(tx: TxConsulta): Promise<void> {
+  await consultar(tx, SQL_BLOQUEAR, []);
 }

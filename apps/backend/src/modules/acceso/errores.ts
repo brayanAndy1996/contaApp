@@ -18,7 +18,15 @@ export type CodigoAcceso =
   | "codigo_existente"
   | "cliente_archivado"
   | "ruc_duplicado"
-  | "credencial_no_configurada";
+  | "credencial_no_configurada"
+  // Spec 030: roles propios.
+  | "escalada"
+  | "rol_propio"
+  | "rol_en_uso"
+  | "nombre_duplicado"
+  | "limite_roles"
+  | "permiso_invalido"
+  | "combinacion_invalida";
 
 const ESTADO: Record<CodigoAcceso, number> = {
   permiso_denegado: HttpStatus.FORBIDDEN,
@@ -38,17 +46,31 @@ const ESTADO: Record<CodigoAcceso, number> = {
   cliente_archivado: HttpStatus.CONFLICT,
   ruc_duplicado: HttpStatus.CONFLICT,
   credencial_no_configurada: HttpStatus.CONFLICT,
+  escalada: HttpStatus.FORBIDDEN,
+  rol_propio: HttpStatus.FORBIDDEN,
+  rol_en_uso: HttpStatus.CONFLICT,
+  nombre_duplicado: HttpStatus.CONFLICT,
+  limite_roles: HttpStatus.CONFLICT,
+  permiso_invalido: HttpStatus.UNPROCESSABLE_ENTITY,
+  combinacion_invalida: HttpStatus.UNPROCESSABLE_ENTITY,
 };
 
+/** Datos propios del sistema que acompañan al código (conteos de `rol_en_uso`, permiso faltante); nunca eco de la entrada. */
+export type DatosError = Readonly<Record<string, number | string>>;
+
 /**
- * Error de `acceso`: cuerpo `{ codigo }` sin eco de la entrada (ni IDs ni motivo) y el estado del plan.
- * El filtro global de 004 lo responde tal cual.
+ * Error de `acceso`: cuerpo `{ codigo }` (más `datos`, solo conteos o un permiso del catálogo) sin eco de la entrada (ni IDs ni
+ * motivo) y el estado del plan. El filtro global de 004 lo responde tal cual.
  */
 export class AccesoError extends HttpException {
   readonly codigo: CodigoAcceso;
+  /** Lo que el filtro global responde tal cual. */
+  readonly cuerpo: { codigo: CodigoAcceso } & DatosError;
 
-  constructor(codigo: CodigoAcceso) {
-    super({ codigo }, ESTADO[codigo]);
+  constructor(codigo: CodigoAcceso, datos?: DatosError) {
+    const cuerpo = { codigo, ...datos };
+    super(cuerpo, ESTADO[codigo]);
+    this.cuerpo = cuerpo;
     this.name = "AccesoError";
     this.codigo = codigo;
   }

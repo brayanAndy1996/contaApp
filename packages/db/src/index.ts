@@ -89,6 +89,7 @@ export type {
 } from "./acceso/miembros";
 // Spec 030: roles propios (escritura solo por las funciones de 0082).
 export {
+  bloquearRoles,
   eliminarRol,
   guardarRol,
   impactoRol,
