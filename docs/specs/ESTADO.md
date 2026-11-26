@@ -39,7 +39,7 @@ Una línea por spec; el detalle de las cerradas está en `NNN-*/cierre.md` y los
 | 027-gastos-no-deducibles | A | hecha | — | Mergeada en `main` (28872de). Migraciones 0069–0072. Pendiente: un contador del equipo revisa palabras, excepciones, matriz, rubros y feriados. Detalle: `027-*/cierre.md` |
 | 028-correo-avisos | A | hecha | — | Mergeada en `main` (df50fd7). Migraciones 0073–0077 (siguiente libre: 0078). Deuda O-1–O-10 en la tarjeta T24. Detalle: `028-*/cierre.md` |
 | 029-cuenta-segura | A | hecha | — | Rama spec/029-cuenta-segura sin mergear (desde main). Migraciones 0078–0081 (siguiente libre: 0082). 2 riesgos bajos aceptados. Detalle: `029-*/cierre.md` |
-| 030-roles-personalizados | A | pendiente | — | RF-022 · HU-05. |
+| 030-roles-personalizados | A | en curso | T1–T5 (pruebas) | Spec aprobada (U1–U10 = recomendadas). 18 tareas. Rama desde spec/029 (sin mergear). Migraciones desde 0082. |
 | 031-auditoria-consulta | B | pendiente | — | RF-151 · HU-39. |
 | 032-envio-sire-ticket | A | pendiente | — | RF-104 · HU-27. Con mock; apagado hasta formato oficial y `SireAuth` real. |
 | 033-catalogo-global-icb | A | pendiente | — | RF-084, 087. Curado por super-admin + conteos anónimos desde N estudios (D4 = a). |
