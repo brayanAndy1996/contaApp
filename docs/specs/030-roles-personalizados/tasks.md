@@ -116,6 +116,11 @@ Reglas comunes:
 - **Hacer**: levantar la pila (`contapp_e2e` migrada, sin borrar), correr `roles.e2e` y luego `pnpm e2e` completo; defectos de producción se devuelven como T15a.
 - **Hecho cuando**: `pnpm e2e` verde (con las `test.fail` conocidas), conteo en `resultados.md`.
 
+## T15a · Nombre del rol propio en la invitación (tester → backend sonnet ∥ frontend sonnet)
+- **Defecto** (E2E): `/invitacion` mostraba «como propio». **Contrato**: `POST /invitaciones/consultar` con rol propio → `rol: "propio"` + `rolPropio: { nombre }` (solo el nombre actual; sin id, permisos ni alcance); con rol de sistema no trae `rolPropio`; no viva o rol eliminado: el mismo 400.
+- **Pruebas en rojo**: `apps/backend/src/modules/acceso/invitaciones.rolpropio.int.spec.ts` (4 rojas, 3 guardas) y `apps/frontend/app/(publico)/invitacion/rol-propio.spec.tsx` (3 rojas, 6 guardas).
+- **Hacer**: backend (`invitaciones.service.ts`, y `auth.invitacion_vigente`/repositorio si hace falta una migración nueva) ∥ frontend (`invitacion/page.tsx`, `etiquetaDeRol`). **Hecho cuando**: ambas verdes sin regresiones.
+
 ## T16 · Verificar (tester · sonnet · BD 16)
 - **Contexto**: `spec.md` (CA-1–CA-12), `resultados.md`.
 - **Hacer**: por criterio, la prueba o comando que lo demuestra; correr `test:aislamiento`, backend, shared y frontend en BD 16 limpia.
