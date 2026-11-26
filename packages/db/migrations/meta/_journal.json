@@ -610,6 +610,13 @@
       "when": 1795671433388,
       "tag": "0086_roles_propios_r2",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1795708824851,
+      "tag": "0087_roles_worker_revalidar",
+      "breakpoints": true
     }
   ]
 }

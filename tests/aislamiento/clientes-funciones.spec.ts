@@ -4,7 +4,7 @@
 //
 // Contrato que fija:
 //   contarRucs(tx, tenantId) y usoDelEstudio(tx, tenantId).rucsUsados cuentan solo `archivado_at IS NULL` (T5).
-//   revalidarEncolado(tx, { clienteId, creadoPor, rolesPermitidos }) devuelve 'acceso_retirado' si el cliente esta archivado,
+//   revalidarEncolado(tx, { clienteId, creadoPor, permiso }) devuelve 'acceso_retirado' si el cliente esta archivado,
 //       tambien con `creadoPor = null` (trabajo `programado`), y 'ok' al reactivarlo (T8; agrega `c.archivado_at is null`).
 // Orden de bloqueo (plan.md, Decisiones): bloquearMiembros(actor y responsable) -> CupoRucs.reservar (= bloquearCupo + contar +
 //   comparar con el limite) -> cliente -> asignacion. Archivar toca solo `cliente` por id: sin bloqueo de cupo ni de miembros.
@@ -24,7 +24,7 @@ const usoDelEstudio = (tx: Tx, t: string): Promise<{ rucsUsados: number } | null
 const bloquearMiembros = (tx: Tx, ids: string[]) => exportado<Fn>("bloquearMiembros")(tx, ids);
 const asignarRepo = (tx: Tx, a: { clienteId: string; usuarioId: string; tipo: "responsable" | "colaborador" }) =>
   exportado<Fn>("asignar")(tx, a);
-const revalidarEncolado = (tx: Tx, t: { clienteId: string; creadoPor: string | null; rolesPermitidos: string[] | null }) =>
+const revalidarEncolado = (tx: Tx, t: { clienteId: string; creadoPor: string | null; permiso: string | null }) =>
   exportado<Fn>("revalidarEncolado")(tx, t) as Promise<"ok" | "acceso_retirado">;
 
 let admin: Pool;
@@ -245,13 +245,14 @@ describe("cupo con archivados (CA-2): sin cupo no entra nada; archivar libera; r
 
 // =================================================================================================
 describe("revalidarEncolado con clientes archivados (D5, CA-5)", () => {
-  const TODOS = ["dueno", "admin", "contador", "asistente", "lectura"];
+  // 030 T17a: `permiso` del tipo en lugar de la lista de roles de sistema. `clientes.ver` lo tienen los cinco (antes TODOS).
+  const TODOS = "clientes.ver";
   let x: string;
   let otroEstudio: string;
   let dueno: string;
   let contador: string;
   const worker = () => dbDe("contapp_worker", 3);
-  const rev = (t: string, a: { clienteId: string; creadoPor: string | null; rolesPermitidos: string[] | null }) =>
+  const rev = (t: string, a: { clienteId: string; creadoPor: string | null; permiso: string | null }) =>
     worker().withTenant({ tenantId: t }, (tx) => revalidarEncolado(tx, a));
 
   beforeAll(async () => {
@@ -265,10 +266,10 @@ describe("revalidarEncolado con clientes archivados (D5, CA-5)", () => {
   async function clienteDe(creadoPor: "dueno" | "contador" | "programado") {
     const id = await ep.ea.cliente(x);
     await ep.ea.asignar(x, id, contador, "colaborador");
-    const args = (roles: string[] | null) => ({
+    const args = (permiso: string | null) => ({
       clienteId: id,
       creadoPor: creadoPor === "programado" ? null : creadoPor === "dueno" ? dueno : contador,
-      rolesPermitidos: roles,
+      permiso,
     });
     return { id, args };
   }
@@ -289,7 +290,7 @@ describe("revalidarEncolado con clientes archivados (D5, CA-5)", () => {
     const c = await clienteDe("programado");
     await archivarAdmin([c.id]);
     expect(await rev(x, c.args(null))).toBe("acceso_retirado");
-    expect(await rev(x, c.args(["dueno"]))).toBe("acceso_retirado");
+    expect(await rev(x, c.args("plan.gestionar"))).toBe("acceso_retirado"); // antes ["dueno"]
   });
 
   it("archivar un cliente no afecta a otro del mismo estudio ni a uno de otro estudio", async () => {
@@ -299,13 +300,13 @@ describe("revalidarEncolado con clientes archivados (D5, CA-5)", () => {
     await archivarAdmin([a.id]);
     expect(await rev(x, a.args(TODOS))).toBe("acceso_retirado");
     expect(await rev(x, b.args(TODOS))).toBe("ok");
-    expect(await rev(otroEstudio, { clienteId: ajeno, creadoPor: null, rolesPermitidos: null })).toBe("ok");
+    expect(await rev(otroEstudio, { clienteId: ajeno, creadoPor: null, permiso: null })).toBe("ok");
   });
 
   it("archivar tambien retira al creador con acceso global (el Dueño no 've' un archivado)", async () => {
     const c = await clienteDe("dueno");
     await archivarAdmin([c.id]);
-    expect(await rev(x, c.args(["dueno", "admin"]))).toBe("acceso_retirado");
+    expect(await rev(x, c.args("usuarios.gestionar"))).toBe("acceso_retirado"); // antes ["dueno", "admin"]
   });
 
   it("un trabajo vivo del cliente archivado se descarta aunque el creador conserve su membresia y asignacion", async () => {

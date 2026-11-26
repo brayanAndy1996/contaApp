@@ -26,12 +26,12 @@
 //   listarTrabajos(tx, alcance: Alcance, filtros?: { clienteId?, estado? }) -> TrabajoVista[]   (creado_en DESC, maximo 100)
 //   posicion(tx, id) -> number | null           (1 + en_cola del mismo estudio y cola que salen antes; null si no esta en_cola)
 //   purgarTerminados(tx, antesDe: Date) -> number     (borra completado/error/cancelado con terminado_en < antesDe; rol worker)
-//   revalidarEncolado(tx, { clienteId, creadoPor: string | null, rolesPermitidos: readonly string[] | null })
+//   revalidarEncolado(tx, { clienteId, creadoPor: string | null, permiso: string | null })   (030 T17a: antes rolesPermitidos)
 //        -> 'ok' | 'acceso_retirado'                  (D17; rol worker; lecturas sin FOR UPDATE)
 //        (puede recibir ademas el resto del TrabajoDespacho, p. ej. `id`, que queue pasa tal cual; solo se leen esos 3 campos)
 //        - el cliente debe existir en el estudio; creadoPor null (programado) solo exige eso;
-//        - si no: membresia ACTIVA, rol dentro de rolesPermitidos (null = sin permiso requerido) y, para roles distintos de
-//          dueno y admin, una asignacion al cliente (alcance 'asignado', como filtroAlcance).
+//        - si no: membresia ACTIVA, `permiso` entre sus permisos efectivos (acceso.permisos_membresia; null = sin permiso
+//          requerido) y, si su alcance no es global (sistema: distinto de dueno y admin), una asignacion al cliente.
 //   marcarCredencialInvalida(tx, clienteId, tipo, motivo = 'credencial_invalida') -> boolean   (rol worker; true solo si la
 //        credencial existia y no estaba ya 'invalida'; fija estado, estado_motivo y estado_at)
 //   estadoCredencial(tx, clienteId, tipo) -> 'configurada' | 'verificada' | 'invalida' | null
@@ -749,28 +749,31 @@ describe("purgarTerminados (D16, CA-13)", () => {
 describe("revalidarEncolado (D17, CA-14)", () => {
   const revalida = (tenantId: string, args: object) =>
     worker().withTenant({ tenantId }, (tx) => f("revalidarEncolado")(tx, args));
-  const TODOS = ["dueno", "admin", "contador", "asistente", "lectura"];
+  // 030 T17a: `permiso` del tipo en lugar de la lista de roles. `clientes.ver` lo tienen los cinco roles (antes TODOS);
+  // `credenciales.editar`, dueno/admin/contador (antes ["dueno", "admin", "contador"]); "permiso.inexistente", nadie.
+  const TODOS = "clientes.ver";
+  const DAC = "credenciales.editar";
 
   it("programado (creadoPor null): solo exige que el cliente exista", async () => {
     expect(
       await revalida(X, {
         clienteId: cx.id,
         creadoPor: null,
-        rolesPermitidos: ["dueno"],
+        permiso: "plan.gestionar",
       }),
     ).toBe("ok");
     expect(
       await revalida(X, {
         clienteId: "00000000-0000-4000-8000-000000000000",
         creadoPor: null,
-        rolesPermitidos: null,
+        permiso: null,
       }),
     ).toBe("acceso_retirado");
     expect(
       await revalida(X, {
         clienteId: cy.id,
         creadoPor: null,
-        rolesPermitidos: null,
+        permiso: null,
       }),
     ).toBe("acceso_retirado"); // cliente de otro estudio
   });
@@ -781,7 +784,7 @@ describe("revalidarEncolado (D17, CA-14)", () => {
         await revalida(X, {
           clienteId: cx.id,
           creadoPor: u,
-          rolesPermitidos: TODOS,
+          permiso: TODOS,
         }),
       ).toBe("ok");
     }
@@ -796,7 +799,7 @@ describe("revalidarEncolado (D17, CA-14)", () => {
         await revalida(t, {
           clienteId: c.id,
           creadoPor: u,
-          rolesPermitidos: TODOS,
+          permiso: TODOS,
         }),
         `sin asignar ${u}`,
       ).toBe("acceso_retirado");
@@ -805,34 +808,34 @@ describe("revalidarEncolado (D17, CA-14)", () => {
         await revalida(t, {
           clienteId: c.id,
           creadoPor: u,
-          rolesPermitidos: TODOS,
+          permiso: TODOS,
         }),
         `asignado ${u}`,
       ).toBe("ok");
     }
   });
 
-  it("el rol debe estar entre los permitidos del tipo (p. ej. lectura no puede encolar)", async () => {
+  it("el permiso del tipo debe estar entre los efectivos del rol (p. ej. lectura no puede encolar)", async () => {
     expect(
       await revalida(X, {
         clienteId: cx.id,
         creadoPor: lectura,
-        rolesPermitidos: ["dueno", "admin", "contador"],
+        permiso: DAC,
       }),
     ).toBe("acceso_retirado");
     expect(
       await revalida(X, {
         clienteId: cx.id,
         creadoPor: dueno,
-        rolesPermitidos: ["contador"],
+        permiso: "permiso.inexistente", // antes ["contador"]: un permiso que el Dueño no tiene
       }),
     ).toBe("acceso_retirado");
-    // rolesPermitidos null = el tipo no pide permiso: basta ser miembro activo con alcance.
+    // permiso null = el tipo no pide permiso: basta ser miembro activo con alcance.
     expect(
       await revalida(X, {
         clienteId: cx.id,
         creadoPor: dueno,
-        rolesPermitidos: null,
+        permiso: null,
       }),
     ).toBe("ok");
   });
@@ -844,21 +847,21 @@ describe("revalidarEncolado (D17, CA-14)", () => {
       await revalida(t, {
         clienteId: c.id,
         creadoPor: inactivo,
-        rolesPermitidos: TODOS,
+        permiso: TODOS,
       }),
     ).toBe("acceso_retirado");
     expect(
       await revalida(X, {
         clienteId: cx.id,
         creadoPor: usuarioY,
-        rolesPermitidos: TODOS,
+        permiso: TODOS,
       }),
     ).toBe("acceso_retirado");
     expect(
       await revalida(X, {
         clienteId: cx.id,
         creadoPor: "00000000-0000-4000-8000-000000000000",
-        rolesPermitidos: TODOS,
+        permiso: TODOS,
       }),
     ).toBe("acceso_retirado");
   });
@@ -872,7 +875,7 @@ describe("revalidarEncolado (D17, CA-14)", () => {
       await revalida(t, {
         clienteId: c.id,
         creadoPor: u,
-        rolesPermitidos: TODOS,
+        permiso: TODOS,
       }),
     ).toBe("ok");
     await admin.query(
@@ -883,7 +886,7 @@ describe("revalidarEncolado (D17, CA-14)", () => {
       await revalida(t, {
         clienteId: c.id,
         creadoPor: u,
-        rolesPermitidos: TODOS,
+        permiso: TODOS,
       }),
     ).toBe("acceso_retirado");
     await admin.query(
@@ -894,7 +897,7 @@ describe("revalidarEncolado (D17, CA-14)", () => {
       await revalida(t, {
         clienteId: c.id,
         creadoPor: u,
-        rolesPermitidos: TODOS,
+        permiso: TODOS,
       }),
     ).toBe("ok"); // ahora es global
     await admin.query(
@@ -905,7 +908,7 @@ describe("revalidarEncolado (D17, CA-14)", () => {
       await revalida(t, {
         clienteId: c.id,
         creadoPor: u,
-        rolesPermitidos: ["dueno", "admin", "contador"],
+        permiso: DAC,
       }),
     ).toBe("acceso_retirado");
   });
@@ -926,7 +929,7 @@ describe("revalidarEncolado (D17, CA-14)", () => {
         revalida(X, {
           clienteId: cx.id,
           creadoPor: dueno,
-          rolesPermitidos: TODOS,
+          permiso: TODOS,
         }),
         new Promise((res) => setTimeout(() => res("bloqueado"), 3000)),
       ]);

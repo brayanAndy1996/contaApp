@@ -78,7 +78,10 @@ export function definicionDe(tipo: string): DefinicionTrabajo {
   return d;
 }
 
-/** Roles de PERMISOS_POR_ROL que tienen el permiso del tipo, o null si el tipo no exige permiso (D17). */
+/**
+ * Roles de SISTEMA (PERMISOS_POR_ROL) que tienen el permiso del tipo, o null si el tipo no exige permiso. Solo informativo (catálogo y
+ * pruebas): no decide acceso. El despachador revalida con `def.permiso` contra los permisos efectivos de la membresía (spec 030, T17a).
+ */
 export function rolesPermitidos(permiso: Permiso | null): string[] | null {
   return permiso === null
     ? null

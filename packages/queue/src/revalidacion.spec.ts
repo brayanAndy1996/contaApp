@@ -1,7 +1,12 @@
 import { PERMISOS_POR_ROL, ROLES, type Permiso } from "@contapp/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { Despachador, crearClaves, registrarTipo } from "./index.js";
+import {
+  Despachador,
+  crearClaves,
+  registrarTipo,
+  rolesPermitidos,
+} from "./index.js";
 import {
   bd,
   dbFalsa,
@@ -19,10 +24,11 @@ vi.mock(
 // T4b (plan 008, Despachador y "Ratificaciones" (4); D17, CA-14): lo que el despachador pasa a
 // `revalidarEncolado` y a `transicionar` (firmas definitivas: encabezado de
 // tests/aislamiento/trabajos-repos.spec.ts, reflejadas en soporte-pruebas/bd-falsa.ts).
-//  - revalidarEncolado(tx, { clienteId, creadoPor, rolesPermitidos, ...resto del despacho }):
-//    rolesPermitidos = roles de PERMISOS_POR_ROL que tienen `definicionDe(tipo).permiso`, o `null`
-//    si el tipo no exige permiso. El doble devuelve `acceso_retirado` si el rol que la prueba asigna
-//    en `bd.roles` al creador no esta en rolesPermitidos.
+//  - revalidarEncolado(tx, { clienteId, creadoPor, permiso, ...resto del despacho }):
+//    permiso = `definicionDe(tipo).permiso`, o `null` si el tipo no exige permiso (030 T17a: la BD lo
+//    contrasta con los permisos efectivos; antes se pasaba `rolesPermitidos`, la lista de roles de
+//    sistema, que aqui se sigue comprobando con `rolesPermitidos(permiso)`). El doble devuelve
+//    `acceso_retirado` si el rol que la prueba asigna en `bd.roles` al creador no tiene el permiso.
 //  - transicionar(tx, id, desde, hacia, campos?): quien llama NUNCA pasa fechas (iniciadoEn,
 //    terminadoEn, actualizadoEn): las fija la BD.
 const [TA, TB] = [uuidDe(0xa1), uuidDe(0xb1)];
@@ -103,7 +109,7 @@ beforeEach(() => {
 });
 
 describe("argumentos de revalidarEncolado (D17)", () => {
-  it("pasa clienteId, creadoPor y rolesPermitidos al repo, dentro del withTenant del trabajo", async () => {
+  it("pasa clienteId, creadoPor y permiso al repo, dentro del withTenant del trabajo", async () => {
     const f = await sembrar({ tipo: "test.rev.descargar", tenantId: TB });
     await despachador().ciclo();
     expect(bd.revalidaciones).toHaveLength(1);
@@ -111,13 +117,19 @@ describe("argumentos de revalidarEncolado (D17)", () => {
     expect(r.tenantId).toBe(TB);
     expect(r.args.clienteId).toBe(f.clienteId);
     expect(r.args.creadoPor).toBe(CREADOR);
-    expect(Array.isArray(r.args.rolesPermitidos)).toBe(true);
+    expect(r.args.permiso).toBe("sire.descargar");
+    expect(r.args).not.toHaveProperty("rolesPermitidos");
+    expect(Array.isArray(rolesPermitidos(r.args.permiso as Permiso))).toBe(
+      true,
+    );
   });
 
   it("sire.descargar -> dueno, admin, contador y asistente (lectura no)", async () => {
     await sembrar({ tipo: "test.rev.descargar" });
     await despachador().ciclo();
-    const roles = bd.revalidaciones[0]!.args.rolesPermitidos as string[];
+    const roles = rolesPermitidos(
+      bd.revalidaciones[0]!.args.permiso as Permiso,
+    )!;
     expect([...roles].sort()).toEqual(
       ["admin", "asistente", "contador", "dueno"].sort(),
     );
@@ -128,11 +140,14 @@ describe("argumentos de revalidarEncolado (D17)", () => {
     ["plan.gestionar", "test.rev.plan", "plan.gestionar"],
     ["clientes.ver", "test.rev.ver", "clientes.ver"],
   ] as const)(
-    "rolesPermitidos de %s sale de PERMISOS_POR_ROL",
+    "permiso de %s y sus roles de sistema salen de PERMISOS_POR_ROL",
     async (_n, tipo, permiso) => {
       await sembrar({ tipo });
       await despachador().ciclo();
-      const roles = bd.revalidaciones[0]!.args.rolesPermitidos as string[];
+      expect(bd.revalidaciones[0]!.args.permiso).toBe(permiso);
+      const roles = rolesPermitidos(
+        bd.revalidaciones[0]!.args.permiso as Permiso,
+      )!;
       expect([...roles].sort()).toEqual([...rolesCon(permiso)].sort());
     },
   );
@@ -143,7 +158,9 @@ describe("argumentos de revalidarEncolado (D17)", () => {
     const d = despachador();
     await d.ciclo(); // un trabajo por tenant y ciclo
     await d.ciclo();
-    const porTipo = bd.revalidaciones.map((r) => r.args.rolesPermitidos);
+    const porTipo = bd.revalidaciones.map((r) =>
+      rolesPermitidos(r.args.permiso as Permiso),
+    );
     expect(porTipo).toContainEqual(["dueno"]);
     expect(
       porTipo.some(
@@ -152,10 +169,10 @@ describe("argumentos de revalidarEncolado (D17)", () => {
     ).toBe(true);
   });
 
-  it("un tipo sin permiso pasa rolesPermitidos = null", async () => {
+  it("un tipo sin permiso pasa permiso = null", async () => {
     const f = await sembrar({ tipo: "test.rev.libre" });
     await despachador().ciclo();
-    expect(bd.revalidaciones[0]!.args.rolesPermitidos).toBeNull();
+    expect(bd.revalidaciones[0]!.args.permiso).toBeNull();
     expect(f.estado).toBe("ejecutando");
   });
 

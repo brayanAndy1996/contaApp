@@ -406,7 +406,7 @@ describe("purgarTerminados y revalidarEncolado", () => {
       id: FILA.id,
       clienteId: FILA.cliente_id,
       creadoPor: FILA.creado_por,
-      rolesPermitidos: ["dueno"],
+      permiso: "sire.descargar",
     }).catch((x: unknown) => x);
     expect(e).toBeInstanceOf(TrabajosRepoError);
   });
@@ -416,7 +416,7 @@ describe("purgarTerminados y revalidarEncolado", () => {
       id: FILA.id,
       clienteId: FILA.cliente_id,
       creadoPor: FILA.creado_por,
-      rolesPermitidos: null,
+      permiso: null,
     });
     expect(r).toBe("acceso_retirado");
   });
