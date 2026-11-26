@@ -77,6 +77,13 @@ const SQL_REVOCAR_PENDIENTES_DE = `update invitacion set revocada_en = now()
    and not (case when rol = 'propio' then rol_id::text = any($2::text[]) else rol = any($2::text[]) end)
  returning id`;
 
+// T15a (030): nombre ACTUAL del rol propio de una invitación viva, para `POST /invitaciones/consultar`. Solo el nombre (nunca id,
+// permisos ni alcance). Con la `tx` de withTenant del estudio que devolvió `auth.invitacion_vigente` (RLS de invitacion y rol por
+// app.tenant_id): no alcanza roles de otro estudio. Repite el criterio de vigencia; null si ya no está viva o no es de rol propio.
+const SQL_NOMBRE_ROL_PROPIO = `select r.nombre
+  from invitacion i join rol r on r.tenant_id = i.tenant_id and r.id = i.rol_id
+ where i.token_hash = $1 and i.rol = 'propio' and i.aceptada_en is null and i.revocada_en is null and i.vence_en > now()`;
+
 const invitacion = (f: Fila): InvitacionListada => ({
   id: f.id,
   correo: f.correo,
@@ -150,4 +157,14 @@ export async function revocarPendientesDe(
       rolesQueConserva.map((r) => (typeof r === "string" ? r : r.rolId.toLowerCase())),
     ])
   ).length;
+}
+
+/** T15a (030): nombre actual del rol propio de la invitación viva con ese hash de token; null si no hay. Nunca el hash de vuelta. */
+export async function nombreRolPropioDeInvitacion(
+  tx: TxConsulta,
+  tokenHash: Buffer,
+): Promise<string | null> {
+  const filas = await consultar(tx, SQL_NOMBRE_ROL_PROPIO, [tokenHash]);
+  const nombre: unknown = filas[0]?.nombre;
+  return typeof nombre === "string" ? nombre : null;
 }

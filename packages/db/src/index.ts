@@ -108,6 +108,7 @@ export type {
 export {
   crearInvitacion,
   listarInvitaciones,
+  nombreRolPropioDeInvitacion,
   reenviar,
   revocar,
   revocarPendientesDe,

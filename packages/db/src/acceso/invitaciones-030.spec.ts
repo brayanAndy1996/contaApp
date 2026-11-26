@@ -2,7 +2,7 @@
 // tests/aislamiento/roles-t6.spec.ts.
 import { describe, expect, it } from "vitest";
 import { AccesoRepoError } from "./errores";
-import { crearInvitacion, revocarPendientesDe } from "./invitaciones";
+import { crearInvitacion, nombreRolPropioDeInvitacion, revocarPendientesDe } from "./invitaciones";
 import { cambiarRol, listarMiembros, miembroActual } from "./miembros";
 
 const U1 = "01920000-0000-7000-8000-00000000c0b1";
@@ -59,5 +59,28 @@ describe("rol propio sin rolId y filas sin rol_id (030)", () => {
     expect([m[0]!.rolId, m[0]!.rolNombre]).toEqual([null, null]);
     const p = await miembroActual(txEspia([{ usuario_id: U1, rol: "propio", permisos: ["clientes.ver"], alcance: "global" }]).tx, U1);
     expect(p).toEqual({ usuarioId: U1, rol: "propio", rolId: null, propio: { permisos: ["clientes.ver"], alcance: "global" } });
+  });
+});
+
+describe("nombreRolPropioDeInvitacion (T15a)", () => {
+  const H = Buffer.alloc(32, 7);
+  it("devuelve solo el nombre del rol de la invitación viva por su hash (criterio de vigencia y join por estudio)", async () => {
+    const { tx, llamadas } = txEspia([{ nombre: "Practicante" }]);
+    expect(await nombreRolPropioDeInvitacion(tx, H)).toBe("Practicante");
+    expect(llamadas[0]!.valores).toEqual([H]);
+    expect(llamadas[0]!.texto).toMatch(/r\.tenant_id = i\.tenant_id and r\.id = i\.rol_id/);
+    expect(llamadas[0]!.texto).toMatch(/aceptada_en is null and i\.revocada_en is null and i\.vence_en > now\(\)/);
+  });
+
+  it("sin fila (no viva o no propia) -> null; un error de pg sale como AccesoRepoError solo con el SQLSTATE", async () => {
+    expect(await nombreRolPropioDeInvitacion(txEspia([]).tx, H)).toBeNull();
+    const tx = {
+      query: async () => {
+        throw Object.assign(new Error("detalle CANARIO-T15a"), { code: "42501" });
+      },
+    } as unknown as TxFalsa;
+    const e = (await nombreRolPropioDeInvitacion(tx, H).catch((x: unknown) => x)) as AccesoRepoError;
+    expect(e).toBeInstanceOf(AccesoRepoError);
+    expect(e.codigo).toBe("42501");
   });
 });

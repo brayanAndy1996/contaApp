@@ -5,6 +5,7 @@ import {
   crearInvitacion,
   listarInvitaciones,
   listarMiembros,
+  nombreRolPropioDeInvitacion,
   reenviar,
   revocar,
   type AceptacionNueva,
@@ -115,6 +116,8 @@ export function respuestaDe(i: InvitacionListada): InvitacionRespuesta {
 export interface InvitacionConsultada {
   estudio: { nombre: string };
   rol: string;
+  /** T15a (030): solo con rol propio y solo su nombre actual (nunca id, permisos ni alcance). */
+  rolPropio?: { nombre: string };
   correo: string;
   cuentaExiste: boolean;
 }
@@ -208,9 +211,21 @@ export class InvitacionesService {
   async consultar(cuerpo: unknown): Promise<InvitacionConsultada> {
     const { token } = parsearCuerpo(consultarInvitacionSchema, cuerpo);
     const v = await this.vigente(token);
+    // T15a (030): el nombre del rol propio se lee con la RLS del estudio de la propia invitación (tenantId de la BD, nunca de la
+    // entrada) y por el mismo hash de token. Si ya no está viva o su rol no se puede leer: el mismo 400 que un token inválido.
+    let rolPropio: { nombre: string } | undefined;
+    if (v.rol === "propio") {
+      const nombre = await this.db.withTenant(
+        { tenantId: v.tenantId, foto: true },
+        (tx) => nombreRolPropioDeInvitacion(tx, hashToken(token)),
+      );
+      if (nombre === null) throw new AccesoError("invitacion_invalida");
+      rolPropio = { nombre };
+    }
     return {
       estudio: { nombre: v.estudioNombre },
       rol: v.rol,
+      ...(rolPropio === undefined ? {} : { rolPropio }),
       correo: v.correo,
       cuentaExiste: v.cuentaExiste,
     };
