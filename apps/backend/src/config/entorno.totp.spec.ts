@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { EntornoInvalidoError, leerEntorno } from "./entorno.js";
 
@@ -113,6 +114,88 @@ describe("TOTP_CLAVE_ANTERIOR (opcional, solo descifra)", () => {
           "TOTP_CLAVE_ANTERIOR",
         );
       }
+    },
+  );
+});
+
+// Spec 029 T18b: en producción la clave de `.env.example` (pública en el repo) no sirve para cifrar secretos.
+// El valor se lee del archivo de ejemplo para no duplicarlo ni fijarlo en la prueba.
+function claveDeEjemplo(variable: string): string {
+  const ruta = new URL("../../../../.env.example", import.meta.url);
+  const linea = readFileSync(ruta, "utf8")
+    .split(/\r?\n/)
+    .find((l) => l.startsWith(`${variable}=`));
+  const valor = linea?.slice(variable.length + 1).trim() ?? "";
+  if (valor === "") throw new Error(`.env.example no define ${variable}`);
+  return valor;
+}
+
+describe("TOTP_CLAVE de ejemplo en producción (T18b)", () => {
+  const PROD = {
+    NODE_ENV: "production",
+    APP_ORIGIN: "https://app.estudio.pe",
+    CORREO_PROVIDER: "smtp",
+    SMTP_URL: "smtp://h:587",
+    CORREO_REMITENTE: "a@x.pe",
+  };
+  const ejemplo = claveDeEjemplo("TOTP_CLAVE");
+  const propia = () => `2:${b64()}`;
+
+  function variableDelError(env: Record<string, string>): string | undefined {
+    try {
+      leerEntorno(env);
+    } catch (e) {
+      expect(e).toBeInstanceOf(EntornoInvalidoError);
+      return (e as EntornoInvalidoError).variable;
+    }
+    return undefined;
+  }
+
+  it("TOTP_CLAVE igual a la de ejemplo impide arrancar con EntornoInvalidoError(TOTP_CLAVE)", () => {
+    expect(variableDelError({ ...PROD, TOTP_CLAVE: ejemplo })).toBe("TOTP_CLAVE");
+  });
+
+  it("con espacios alrededor sigue siendo la de ejemplo", () => {
+    expect(variableDelError({ ...PROD, TOTP_CLAVE: `  ${ejemplo}  ` })).toBe("TOTP_CLAVE");
+  });
+
+  it("NODE_ENV se compara sin distinguir mayúsculas ni espacios", () => {
+    expect(variableDelError({ ...PROD, NODE_ENV: " Production ", TOTP_CLAVE: ejemplo })).toBe("TOTP_CLAVE");
+  });
+
+  it("TOTP_CLAVE_ANTERIOR igual a la de ejemplo impide arrancar con EntornoInvalidoError(TOTP_CLAVE_ANTERIOR)", () => {
+    const env = { ...PROD, TOTP_CLAVE: propia(), TOTP_CLAVE_ANTERIOR: ejemplo };
+    expect(variableDelError(env)).toBe("TOTP_CLAVE_ANTERIOR");
+  });
+
+  it("una clave propia en producción arranca", () => {
+    const e = leerEntorno({ ...PROD, TOTP_CLAVE: propia(), TOTP_CLAVE_ANTERIOR: `1:${b64()}` });
+    expect(e.produccion).toBe(true);
+    expect(e.totp.anterior?.version).toBe(1);
+  });
+
+  it("fuera de producción la clave de ejemplo sigue valiendo (desarrollo local)", () => {
+    const e = leerEntorno({ ...BASE, TOTP_CLAVE: ejemplo });
+    expect(e.totp.actual.version).toBe(1);
+  });
+
+  it.each(["TOTP_CLAVE", "TOTP_CLAVE_ANTERIOR"] as const)(
+    "el error por %s de ejemplo no incluye el valor (CA-6)",
+    (variable) => {
+      const env: Record<string, string> =
+        variable === "TOTP_CLAVE"
+          ? { ...PROD, TOTP_CLAVE: ejemplo }
+          : { ...PROD, TOTP_CLAVE: propia(), TOTP_CLAVE_ANTERIOR: ejemplo };
+      let error: unknown;
+      try {
+        leerEntorno(env);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).toBeInstanceOf(EntornoInvalidoError);
+      const texto = `${(error as Error).message} ${String((error as Error).stack)}`;
+      expect(texto).not.toContain(ejemplo);
+      expect(texto).not.toContain(ejemplo.slice(ejemplo.indexOf(":") + 1));
     },
   );
 });
