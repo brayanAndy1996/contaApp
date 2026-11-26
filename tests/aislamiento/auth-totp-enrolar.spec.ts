@@ -159,18 +159,23 @@ describe("auth.totp_confirmar (CA-1, U3, U4)", () => {
     expect(await exito(confirmar(rev.token, PASO, diez(), nuevoToken()))).toHaveLength(0);
   });
 
-  it("re-enrolar con TOTP activo: el nuevo secreto reemplaza al viejo, los codigos viejos se borran y el paso no puede retroceder", async () => {
+  // Ajuste de 029 (T14, 0080, hallazgo r1b de T13): con TOTP activo, totp_confirmar ya no reemplaza el secreto (CA-1: re-enrolar exige un
+  // codigo del vigente; el backend responde 409 `totp_activo` al enrolar). Antes esta prueba esperaba el reemplazo con un paso nuevo.
+  it("re-enrolar con TOTP activo: totp_confirmar no reemplaza el secreto ni los codigos, con un paso viejo ni con uno nuevo", async () => {
     const { u, s } = await paraConfirmar({ conActivo: true, ultimoPaso: 100n, factor: "verificado" });
     await esc.codigos(u.id, 10);
     const viejos = (await esc.filasCodigos(u.id)).map((c) => c.hash.toString("hex"));
+    const activo = (await esc.filaTotp(u.id))!.activo_cifrado as Buffer;
     // un paso <= ultimo_paso es un replay: no confirma
     expect(await exito(confirmar(s.token, 100n, diez(), nuevoToken()))).toHaveLength(0);
     expect((await esc.filaTotp(u.id))!.pendiente_cifrado).not.toBeNull();
-    const [ok] = await exito(confirmar(s.token, 101n, diez(), nuevoToken()));
-    expect(ok.sesion_id).toBeTruthy();
+    // un paso nuevo tampoco: hay TOTP activo
+    expect(await exito(confirmar(s.token, 101n, diez(), nuevoToken()))).toHaveLength(0);
+    expect(((await esc.filaTotp(u.id))!.activo_cifrado as Buffer).equals(activo)).toBe(true);
+    expect(BigInt((await esc.filaTotp(u.id))!.ultimo_paso)).toBe(100n);
     const nuevos = (await esc.filasCodigos(u.id)).map((c) => c.hash.toString("hex"));
     expect(nuevos).toHaveLength(10);
-    expect(nuevos.filter((h) => viejos.includes(h))).toEqual([]);
+    expect(nuevos.filter((h) => !viejos.includes(h))).toEqual([]);
   });
 
   it.each([

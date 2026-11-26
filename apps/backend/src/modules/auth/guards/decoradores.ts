@@ -27,6 +27,16 @@ export const SinRenovarSesion = () => SetMetadata(META_SIN_RENOVAR, true);
  */
 export const PermitirPendiente = () => SetMetadata(META_PERMITIR_PENDIENTE, true);
 
+/** 029: la ruta sin estudio está en la lista cerrada de la exigencia (U1–U3). */
+export const META_PERMITIR_SIN_FACTOR = "auth:permitir-sin-factor";
+
+/**
+ * 029 (CA-4, U1–U3, plan: «Lista cerrada sin factor exigido»): si la cuenta exige el segundo factor y la sesión no lo verificó, una ruta
+ * `@SinEstudio`/`@SesionOpcional` solo se atiende con esta marca: ver la sesión, listar y elegir estudio, enrolar, confirmar, verificar y
+ * salir. Cualquier otra (también una nueva) responde 403 `segundo_factor_requerido` (`PermisoGuard`, falla cerrado).
+ */
+export const PermitirSinFactor = () => SetMetadata(META_PERMITIR_SIN_FACTOR, true);
+
 /**
  * 028, D-4: la ruta queda fuera de `OrigenGuard`. Solo `POST /correo/baja`: el POST de un clic de RFC 8058 lo hace el servidor del
  * correo, sin `Origin` ni `Sec-Fetch-Site`; sin sesión ni cookies, la credencial es el token del enlace.

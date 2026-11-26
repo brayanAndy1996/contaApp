@@ -13,9 +13,11 @@ import {
   type Permiso as TipoPermiso,
   type Rol,
 } from "@contapp/shared";
+import type { AuthService } from "../../auth/auth.service.js";
 import { AuthError } from "../../auth/errores.js";
 import {
   marcada,
+  META_PERMITIR_SIN_FACTOR,
   META_PUBLICO,
   META_SESION_OPCIONAL,
   META_SIN_ESTUDIO,
@@ -33,13 +35,6 @@ import {
   type PeticionAcceso,
 } from "./decoradores.js";
 
-const DECLARACIONES_SIN_PERMISO = [
-  META_SOLO_ESTUDIO,
-  META_PUBLICO,
-  META_SIN_ESTUDIO,
-  META_SESION_OPCIONAL,
-] as const;
-
 const esPermiso = (v: unknown): v is TipoPermiso =>
   typeof v === "string" && (PERMISOS as readonly string[]).includes(v);
 
@@ -52,13 +47,16 @@ const esPermiso = (v: unknown): v is TipoPermiso =>
  * 029 (CA-4, U1–U2, D2): sin el segundo factor verificado en la sesión, 403 `segundo_factor_requerido` en toda ruta `@SoloPlataforma` y
  * en las de estudio (`@Permiso`, `@SoloEstudio`) cuyo rol lo exige (`factorExigido` de shared). El factor viene de la validación de
  * sesión; el rol, del mismo `miembroActual` de `@Permiso`. Una sesión `verificado` no hace ninguna consulta extra; solo una sin factor
- * en una ruta `@SoloEstudio` lee su rol. Las rutas `@SinEstudio` (las de `/auth`, la lista cerrada del plan) no exigen el factor.
+ * en una ruta `@SoloEstudio` lee su rol. En las rutas `@SinEstudio`/`@SesionOpcional` con sesión sin factor verificado, si la cuenta lo
+ * exige (`AuthService.factorExigido`, la regla de `GET /auth/sesion`) solo pasan las de la lista cerrada (`@PermitirSinFactor`); sin el
+ * servicio, falla cerrado.
  */
 @Injectable()
 export class PermisoGuard implements CanActivate {
   constructor(
     @Inject(Reflector) private readonly reflector: Reflector,
     @Inject(DB) private readonly db: Pick<ContappDb, "withTenant">,
+    private readonly exigencia?: Pick<AuthService, "factorExigido">,
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -92,8 +90,9 @@ export class PermisoGuard implements CanActivate {
       if (marcada(this.reflector, ctx, META_SOLO_ESTUDIO)) {
         return this.soloEstudio(ctx);
       }
-      for (const meta of DECLARACIONES_SIN_PERMISO) {
-        if (marcada(this.reflector, ctx, meta)) return true;
+      if (marcada(this.reflector, ctx, META_PUBLICO)) return true;
+      if (marcada(this.reflector, ctx, META_SIN_ESTUDIO) || marcada(this.reflector, ctx, META_SESION_OPCIONAL)) {
+        return this.sinEstudio(ctx);
       }
       throw new AccesoError("permiso_denegado");
     }
@@ -126,6 +125,20 @@ export class PermisoGuard implements CanActivate {
     if (verificada(sesion)) return true;
     const { rol } = await this.rolActivo(req);
     exigirFactor(sesion, rol);
+    return true;
+  }
+
+  /**
+   * `@SinEstudio`/`@SesionOpcional` (029, CA-4, U1–U3): sin sesión (opcional) o con la sesión verificada pasa sin consultar; en la lista
+   * cerrada (`@PermitirSinFactor`) también. Si no, 403 `segundo_factor_requerido` cuando la cuenta exige el factor.
+   */
+  private async sinEstudio(ctx: ExecutionContext): Promise<boolean> {
+    const sesion = sesionDe(ctx.switchToHttp().getRequest<PeticionAuth>());
+    if (sesion === null || verificada(sesion)) return true;
+    if (marcada(this.reflector, ctx, META_PERMITIR_SIN_FACTOR)) return true;
+    if (this.exigencia === undefined || (await this.exigencia.factorExigido(sesion))) {
+      throw new AuthError("segundo_factor_requerido");
+    }
     return true;
   }
 

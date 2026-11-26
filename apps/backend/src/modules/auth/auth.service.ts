@@ -65,6 +65,10 @@ export interface Origen {
 export function origenDe(userAgent: unknown, ip: unknown): Origen {
   return { dispositivo: resumirDispositivo(userAgent), ipRed: truncarIp(ip) };
 }
+/** 029 (U1–U2): alguna membresía VIGENTE del usuario tiene un rol que exige el segundo factor. */
+function algunaExige(membresias: { usuarioId: string; rol: string; desactivadaEn: Date | null }[], usuarioId: string): boolean {
+  return membresias.some((m) => m.usuarioId === usuarioId && m.desactivadaEn === null && rolExigeFactor(m.rol));
+}
 /** Respuesta más el valor de `Set-Cookie` que el controlador debe emitir. */
 export interface ConCookie<T> {
   respuesta: T;
@@ -243,9 +247,7 @@ export class AuthService {
       plataforma: (await a.plataformaYo(hashToken(s.token))) !== null,
       totpActivo: ((await c.totp.leer(s.usuarioId))?.activoCifrado ?? null) !== null,
     }));
-    const exigido =
-      plataforma ||
-      membresias.some((m) => m.usuarioId === s.usuarioId && m.desactivadaEn === null && rolExigeFactor(m.rol));
+    const exigido = plataforma || algunaExige(membresias, s.usuarioId);
     return {
       usuario: { id: u.id, nombre: u.nombre, correo: u.correo },
       estudioActivo: activo === undefined ? null : { id: activo.id, nombre: activo.nombre },
@@ -254,6 +256,26 @@ export class AuthService {
       totpActivo,
       factorExigido: exigido,
     };
+  }
+
+  /**
+   * 029 (U1–U3): ¿la cuenta de la sesión exige el segundo factor? La misma regla que `factorExigido` de `GET /auth/sesion`: super-admin o
+   * alguna membresía VIGENTE cuyo rol lo exige. Para la lista cerrada de las rutas sin estudio (`PermisoGuard`); solo se consulta con una
+   * sesión sin factor verificado.
+   */
+  async factorExigido(s: SesionResuelta): Promise<boolean> {
+    const plataforma = await this.db.withAuth((a) => a.plataformaYo(hashToken(s.token)));
+    if (plataforma !== null) return true;
+    const membresias = await this.db.withUsuario({ userId: s.usuarioId }, (tx) =>
+      tx.orm
+        .select({
+          usuarioId: schema.membresia.usuarioId,
+          rol: schema.membresia.rol,
+          desactivadaEn: schema.membresia.desactivadaEn,
+        })
+        .from(schema.membresia),
+    );
+    return algunaExige(membresias, s.usuarioId);
   }
 
   /** 029: estudios con membresía activa (para el estudio de la sesión verificada, como en el login). */

@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpCode, Inject, Param, Post, Req, Res } from "
 import type { Request, Response } from "express";
 import type { SesionCuenta } from "@contapp/shared";
 import { origenDe, type RespuestaLogin, type SesionResuelta } from "../auth.service.js";
-import { PermitirPendiente, Sesion, SinEstudio } from "../guards/decoradores.js";
+import { PermitirPendiente, PermitirSinFactor, Sesion, SinEstudio } from "../guards/decoradores.js";
 import { SesionesService } from "./sesiones.service.js";
 import { TotpService } from "./totp.service.js";
 
@@ -10,7 +10,7 @@ const SET_COOKIE = "Set-Cookie";
 
 /**
  * Rutas de la cuenta segura (spec 029, plan: Contratos HTTP). Todas `@SinEstudio` (sesión sin estudio activo) con Origen y CSRF de 004;
- * solo `2fa/verificar` admite la sesión `pendiente`. `Cache-Control: no-store` lo pone la app en toda respuesta. Delgado: los servicios
+ * solo `2fa/verificar` admite la sesión `pendiente`. Sin el factor exigido solo atienden las `@PermitirSinFactor()` (lista cerrada). `Cache-Control: no-store` lo pone la app en toda respuesta. Delgado: los servicios
  * validan el cuerpo con zod y devuelven la cookie que aquí se emite.
  */
 @Controller("auth")
@@ -23,6 +23,7 @@ export class TotpController {
 
   @Post("2fa/verificar")
   @PermitirPendiente()
+  @PermitirSinFactor()
   @HttpCode(200)
   async verificar(
     @Sesion() sesion: SesionResuelta,
@@ -36,12 +37,14 @@ export class TotpController {
   }
 
   @Post("totp/enrolar")
+  @PermitirSinFactor()
   @HttpCode(200)
   enrolar(@Sesion() sesion: SesionResuelta, @Body() cuerpo: unknown): Promise<{ uri: string }> {
     return this.totp.enrolar(sesion, cuerpo);
   }
 
   @Post("totp/confirmar")
+  @PermitirSinFactor()
   @HttpCode(200)
   async confirmar(
     @Sesion() sesion: SesionResuelta,

@@ -179,7 +179,7 @@ export async function crearApp(o: OpcionesApp = {}): Promise<INestApplication> {
     new SesionGuard(reflector, app.get(AuthService)),
     new EstudioGuard(reflector),
     new CsrfGuard(reflector),
-    new PermisoGuard(reflector, db),
+    new PermisoGuard(reflector, db, app.get(AuthService)),
     new ClienteScopeGuard(reflector, db),
   );
   app.useGlobalFilters(new FiltroErrores());

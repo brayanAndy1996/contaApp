@@ -9,7 +9,7 @@ import {
   type SesionResuelta,
 } from "./auth.service.js";
 import { AuthError } from "./errores.js";
-import { PermitirPendiente, Publico, Sesion, SesionOpcional, SinEstudio } from "./guards/decoradores.js";
+import { PermitirPendiente, PermitirSinFactor, Publico, Sesion, SesionOpcional, SinEstudio } from "./guards/decoradores.js";
 import { RecuperacionService } from "./recuperacion.service.js";
 
 const SET_COOKIE = "Set-Cookie";
@@ -17,7 +17,7 @@ const SET_COOKIE = "Set-Cookie";
 /**
  * Rutas `/auth/*` (plan: Contratos HTTP). Delgado: el cuerpo llega crudo a los servicios (ellos lo
  * validan con zod) y estos devuelven la cookie que aquí se emite. Todas son `@SinEstudio()`: el estudio
- * activo no es requisito para iniciar sesión ni para elegir uno.
+ * activo no es requisito para iniciar sesión ni para elegir uno. 029: sin el factor exigido solo atienden las `@PermitirSinFactor()`.
  */
 @Controller("auth")
 @SinEstudio()
@@ -43,22 +43,26 @@ export class AuthController {
   @Post("logout")
   @SesionOpcional()
   @PermitirPendiente()
+  @PermitirSinFactor()
   @HttpCode(204)
   async logout(@Sesion() sesion: SesionResuelta | null, @Res({ passthrough: true }) res: Response): Promise<void> {
     res.setHeader(SET_COOKIE, await this.auth.logout(sesion));
   }
 
   @Get("sesion")
+  @PermitirSinFactor()
   sesion(@Sesion() sesion: SesionResuelta): Promise<EstadoSesion> {
     return this.auth.estadoSesion(sesion);
   }
 
   @Get("estudios")
+  @PermitirSinFactor()
   estudios(@Sesion() sesion: SesionResuelta): Promise<(Estudio & { ultimoUsado: boolean })[]> {
     return this.auth.listarEstudios(sesion);
   }
 
   @Post("estudio")
+  @PermitirSinFactor()
   @HttpCode(200)
   async estudio(
     @Sesion() sesion: SesionResuelta,
