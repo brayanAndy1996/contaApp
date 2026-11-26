@@ -14,6 +14,12 @@ export interface CasoFactorExigido {
   permisos: readonly Permiso[];
   /** Resultado esperado: ¿se exige TOTP verificado? */
   exigido: boolean;
+  /**
+   * Spec 030 (CA-7): `true` si `permisos` se puede guardar como rol propio (cumple U3 y no lleva `plan.gestionar`), de modo que
+   * las pruebas de BD (`auth.totp_desactivar` sobre roles reales) pueden crearlo con `acceso.rol_guardar`. Las filas de 029 sin
+   * esta marca solo prueban la función pura y pueden incumplir U3.
+   */
+  guardable?: true;
 }
 
 export const CASOS_FACTOR_EXIGIDO: readonly CasoFactorExigido[] = [
@@ -197,5 +203,135 @@ export const CASOS_FACTOR_EXIGIDO: readonly CasoFactorExigido[] = [
       "auditoria.ver",
     ],
     exigido: false,
+  },
+  // Spec 030 (CA-7): roles propios guardables (U3 cumplido, sin plan.gestionar). Misma regla en TS y SQL.
+  {
+    nombre: "030: propio con usuarios.gestionar (+ usuarios.ver)",
+    plataforma: false,
+    rolSistema: null,
+    permisos: ["usuarios.ver", "usuarios.gestionar"],
+    exigido: true,
+    guardable: true,
+  },
+  {
+    nombre: "030: propio con roles.gestionar (+ usuarios.ver)",
+    plataforma: false,
+    rolSistema: null,
+    permisos: ["usuarios.ver", "roles.gestionar"],
+    exigido: true,
+    guardable: true,
+  },
+  {
+    nombre: "030: propio con credenciales.editar (+ clientes.ver)",
+    plataforma: false,
+    rolSistema: null,
+    permisos: ["clientes.ver", "credenciales.editar"],
+    exigido: true,
+    guardable: true,
+  },
+  {
+    nombre: "030: propio con los tres sensibles asignables y sus requisitos",
+    plataforma: false,
+    rolSistema: null,
+    permisos: [
+      "usuarios.ver",
+      "usuarios.gestionar",
+      "roles.gestionar",
+      "clientes.ver",
+      "credenciales.editar",
+    ],
+    exigido: true,
+    guardable: true,
+  },
+  {
+    nombre: "030: propio con los 23 permisos asignables",
+    plataforma: false,
+    rolSistema: null,
+    permisos: [
+      "estudio.configurar",
+      "usuarios.ver",
+      "usuarios.gestionar",
+      "roles.gestionar",
+      "clientes.ver",
+      "clientes.crear",
+      "clientes.editar",
+      "clientes.archivar",
+      "clientes.asignar",
+      "credenciales.editar",
+      "sire.descargar",
+      "sire.clasificar",
+      "sire.aprobar_generar",
+      "ajustes.crear",
+      "ajustes.generar",
+      "buzon.ver",
+      "buzon.marcar_leido",
+      "buzon.atender",
+      "reglas.ver",
+      "reglas.gestionar",
+      "prorrata.ver",
+      "prorrata.gestionar",
+      "auditoria.ver",
+    ],
+    exigido: true,
+    guardable: true,
+  },
+  {
+    nombre: "030: propio vacío",
+    plataforma: false,
+    rolSistema: null,
+    permisos: [],
+    exigido: false,
+    guardable: true,
+  },
+  {
+    nombre: "030: propio solo con usuarios.ver",
+    plataforma: false,
+    rolSistema: null,
+    permisos: ["usuarios.ver"],
+    exigido: false,
+    guardable: true,
+  },
+  {
+    nombre: "030: propio solo con estudio.configurar",
+    plataforma: false,
+    rolSistema: null,
+    permisos: ["estudio.configurar"],
+    exigido: false,
+    guardable: true,
+  },
+  {
+    nombre: "030: propio de consulta (clientes, buzón, reglas, prorrata)",
+    plataforma: false,
+    rolSistema: null,
+    permisos: ["clientes.ver", "buzon.ver", "reglas.ver", "prorrata.ver"],
+    exigido: false,
+    guardable: true,
+  },
+  {
+    nombre: "030: propio operativo sin sensibles (SIRE, ajustes, buzón, reglas, prorrata)",
+    plataforma: false,
+    rolSistema: null,
+    permisos: [
+      "clientes.ver",
+      "clientes.crear",
+      "clientes.editar",
+      "clientes.archivar",
+      "clientes.asignar",
+      "sire.descargar",
+      "sire.clasificar",
+      "sire.aprobar_generar",
+      "ajustes.crear",
+      "ajustes.generar",
+      "buzon.ver",
+      "buzon.marcar_leido",
+      "buzon.atender",
+      "reglas.ver",
+      "reglas.gestionar",
+      "prorrata.ver",
+      "prorrata.gestionar",
+      "auditoria.ver",
+    ],
+    exigido: false,
+    guardable: true,
   },
 ];

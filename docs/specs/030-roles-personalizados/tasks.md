@@ -7,7 +7,7 @@ Nivel A. Flujo 04 §1.3: pruebas (rojo, con cobertura y E2E planificadas) → im
 | # | Tarea | Rol | Modelo | Depende de | TDD | ADV | Estado |
 |---|---|---|---|---|---|---|---|
 | T1 | Pruebas de BD: tablas, `CHECK`, funciones, escalada en BD, concurrencia, inventario de funciones, rendimiento (rojo) | tester | sonnet | — ∥ T2, T3, T4, T5 | ✓ | — | [ ] |
-| T2 | Pruebas puras de `shared`: resolvedor, U3, `puedeGestionar`, zod, casos TS/SQL (rojo) | tester | sonnet | — ∥ T1, T3, T4, T5 | ✓ | — | [ ] |
+| T2 | Pruebas puras de `shared`: resolvedor, U3, `puedeGestionar`, zod, casos TS/SQL (rojo) | tester | sonnet | — ∥ T1, T3, T4, T5 | ✓ | — | [x] |
 | T3 | Pruebas HTTP: `/roles`, asignación, tabla por permiso, escalada, TOTP, auditoría (rojo) | tester | sonnet | — ∥ T1, T2, T4, T5 | ✓ | — | [ ] |
 | T4 | Pruebas del frontend: Roles, selector de rol, avisos (rojo) | tester | sonnet | — ∥ T1, T2, T3, T5 | ✓ | — | [x] |
 | T5 | E2E `roles.e2e.ts` con login, invitación (Mailpit) y TOTP (rojo) | tester | sonnet | — ∥ T1, T2, T3, T4 | ✓ | — | [ ] |
