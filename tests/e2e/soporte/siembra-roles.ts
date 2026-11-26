@@ -83,6 +83,15 @@ export class SiembraRoles {
     return Number(r.rows[0]?.n ?? 0);
   }
 
+  /** Cuántas asignaciones de cliente tiene el estudio (para comprobar que un 404 no escribe). */
+  async cuantasAsignaciones(tenantId: string): Promise<number> {
+    const r = await this.pool.query<{ n: string }>(
+      "select count(*)::text as n from asignacion where tenant_id = $1",
+      [tenantId],
+    );
+    return Number(r.rows[0]?.n ?? 0);
+  }
+
   /** `rol` y `rol_id` de la membresía del usuario en el estudio. */
   async rolDeMembresia(
     tenantId: string,

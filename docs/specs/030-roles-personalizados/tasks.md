@@ -20,7 +20,7 @@ Nivel A. Flujo 04 §1.3: pruebas (rojo, con cobertura y E2E planificadas) → im
 | T12 | Ronda 1b (caja blanca, SQL, RLS, bloqueos) | adversario | opus | T8, T9 ∥ T11 | — | ✓ | [ ] |
 | T13 | Corregir hallazgos de la ronda | backend (+frontend) | opus (sonnet) | T11, T12 | — | — | [ ] |
 | T14 | Cobertura ≥ 90 % por archivo | devops (+tester) | sonnet | T13 | — | — | [ ] |
-| T15 | E2E con Mailpit y `pnpm e2e` completo | tester | sonnet | T13 ∥ T14 | — | — | [ ] |
+| T15 | E2E con Mailpit y `pnpm e2e` completo | tester | sonnet | T13 ∥ T14 | — | — | [x] |
 | T16 | Verificar CA-1 a CA-12 con evidencia | tester | sonnet | T14, T15 | — | — | [ ] |
 | T17 | Revisión final contra la spec | arquitecto | opus | T16 | — | — | [ ] |
 | T18 | Cierre: `tasks.md`, `spec.md`, `cierre.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T17 | — | — | [ ] |

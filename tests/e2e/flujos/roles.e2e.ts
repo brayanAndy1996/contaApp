@@ -8,6 +8,13 @@
 // Los nombres de rutas, campos y códigos salen de `plan.md#contratos`; los de la pantalla, de `soporte/selectores/roles.ts`.
 import type { Browser, BrowserContext, Page } from "@playwright/test";
 import { ipUnica } from "../soporte/sesiones.js";
+import type { Sesion } from "../soporte/sesiones.js";
+import {
+  loginPendiente,
+  obtener,
+  verificarSegundoPaso,
+} from "../soporte/segundo-paso.js";
+import type { Autenticador } from "../soporte/totp.js";
 import { alerta, estado, expect, test as base } from "../soporte/fixtures.js";
 import type { Api } from "../soporte/fixtures.js";
 import { correoUnico } from "../soporte/siembra.js";
@@ -25,13 +32,16 @@ import {
   activarPorPantalla,
 } from "../soporte/selectores/cuenta-segura.js";
 import {
-  RUTA_ROLES,
   TEXTOS,
+  abrirNuevoRol,
+  campoNombre,
   casillaPermiso,
+  confirmarRol,
   crearRolPorPantalla,
   editarRol,
   elegirRolPropio,
   guardarRol,
+  irARoles,
 } from "../soporte/selectores/roles.js";
 import type { Vigilancia } from "../soporte/vigilancia.js";
 
@@ -119,6 +129,31 @@ async function consultar(
   return { status: r.status(), codigo: cuerpo?.codigo, cuerpo };
 }
 
+/** Login por API de quien ya tiene TOTP: contraseña → sesión `pendiente` → segundo paso con su autenticador → sesión de trabajo. */
+async function sesionConSegundoPaso(
+  usuario: Sesion["usuario"],
+  tenantId: string,
+  autenticador: Autenticador,
+): Promise<Sesion> {
+  const pendiente = await loginPendiente(usuario.correo, usuario.contrasena);
+  const entro = await verificarSegundoPaso(pendiente, {
+    codigo: await autenticador.siguiente(),
+  });
+  expect(entro.status).toBe(200);
+  const viva = { ...pendiente, cookie: entro.cookie ?? "" };
+  const sesion = await obtener(viva, "/auth/sesion", tenantId);
+  expect(sesion.status).toBe(200);
+  const csrf = sesion.cuerpo?.csrf;
+  if (typeof csrf !== "string") throw new Error("La sesión no trae csrf.");
+  return {
+    usuario,
+    tenantId,
+    ip: pendiente.ip,
+    cookie: viva.cookie,
+    csrf,
+  } as unknown as Sesion;
+}
+
 const texto = (cuerpo: unknown): string => JSON.stringify(cuerpo ?? null);
 
 /** El Dueño invita desde `/usuarios` a un correo con un rol propio (por su nombre) y espera la confirmación. */
@@ -142,7 +177,6 @@ test.describe("E-14 · roles personalizados", () => {
   test("el Dueño crea «Practicante», lo invita, ve solo lo asignado, le suma un permiso sensible y no puede eliminarlo en uso", async ({
     page,
     siembra,
-    sesiones,
     api,
     cuentas,
     roles,
@@ -164,18 +198,31 @@ test.describe("E-14 · roles personalizados", () => {
       razonSocial: "CLIENTE AJENO ROLES E2E S.A.C.",
     });
 
-    // La sesión por API del Dueño se abre antes de que enrole (con TOTP activo el login por API queda `pendiente`).
-    const apiDueno: Api = api(await sesiones.entrar(dueno));
+    // Al enrolar, las sesiones por API anteriores del Dueño caen: su sesión por API se abre después, con el segundo paso real.
+    let apiDueno!: Api;
 
     await test.step("el Dueño exige el TOTP (U1): entra, enrola por la pantalla y queda verificado", async () => {
       await page.goto("/login");
       await ingresar(page, dueno.correo, dueno.contrasena);
       await expect(page).toHaveURL(/\/cuenta\/seguridad$/);
-      await activarPorPantalla(page, dueno.contrasena);
+      const { autenticador } = await activarPorPantalla(page, dueno.contrasena);
       expect(await estadoDeSesion(page)).toMatchObject({
         factor: "verificado",
         totpActivo: true,
       });
+      apiDueno = api(
+        await sesionConSegundoPaso(dueno, estudio.tenantId, autenticador),
+      );
+    });
+
+    await test.step("el formulario rechaza un nombre con carácter invisible (ronda 1) y no guarda nada", async () => {
+      await irARoles(page);
+      await abrirNuevoRol(page);
+      await campoNombre(page).fill("Prac\u200Bticante");
+      await casillaPermiso(page, "clientes.ver").check();
+      await guardarRol(page).click();
+      await expect(alerta(page, TEXTOS.nombreInvalido)).toBeVisible();
+      expect(await roles.cuantosRoles(estudio.tenantId)).toBe(0);
     });
 
     const permisosIniciales = ["clientes.ver", "sire.descargar"];
@@ -214,9 +261,10 @@ test.describe("E-14 · roles personalizados", () => {
       });
       const enlace = await correo.enlaceDe(invitado, ASUNTO_INVITACION);
       await persona.goto(enlace);
+      // La página pública solo conoce el rol de sistema (`consultar` no devuelve el nombre del propio): ver el reporte de T15.
       await expect(
         persona.getByText("Te invitaron a", { exact: false }),
-      ).toContainText("Practicante");
+      ).toContainText("Estudio Roles E2E");
       expect(persona.url()).not.toContain("#t=");
       await persona.getByLabel("Nombre", { exact: true }).fill(nombre);
       await persona.getByLabel("Contraseña", { exact: true }).fill(contrasena);
@@ -310,13 +358,19 @@ test.describe("E-14 · roles personalizados", () => {
       ).toEqual(permisosIniciales);
     });
 
-    await test.step("el Dueño edita el rol: la pantalla avisa de la verificación en dos pasos y, al guardar, aplica en la siguiente petición (005 D3)", async () => {
-      await page.goto(RUTA_ROLES);
+    await test.step("el Dueño edita el rol: al guardar, la pantalla avisa del impacto (segundo factor) y solo aplica al confirmar (005 D3)", async () => {
+      await irARoles(page);
       await editarRol(page, "Practicante").click();
       await casillaPermiso(page, "usuarios.ver").check();
       await casillaPermiso(page, "usuarios.gestionar").check();
-      await expect(page.getByText(TEXTOS.aviso2fa).first()).toBeVisible();
       await guardarRol(page).click();
+      await expect(page.getByText(TEXTOS.impactoMiembros)).toBeVisible();
+      await expect(page.getByText(TEXTOS.aviso2fa)).toBeVisible();
+      // Antes de confirmar no se escribe nada.
+      expect(
+        (await roles.rolPorNombre(estudio.tenantId, "Practicante"))?.permisos,
+      ).toEqual(permisosIniciales);
+      await confirmarRol(page).click();
       await expect(
         page.getByRole("status").filter({ hasText: TEXTOS.rolGuardado }),
       ).toBeVisible();
@@ -535,6 +589,62 @@ test.describe("E-14 · roles personalizados", () => {
       ).toBe(404);
       expect((await apiA.pedir("DELETE", `/roles/${rolB}`)).status).toBe(404);
       expect(await roles.rolPorNombre(b.tenantId, "Revisor")).not.toBeNull();
+    });
+
+    await test.step("ronda 1/2 · con alcance asignado, `POST /asignaciones/por-usuario` sobre un cliente fuera de alcance da el mismo 404 que uno inexistente y no escribe", async () => {
+      const dentro = await siembra.cliente(a.tenantId, {
+        ruc: "20700000011",
+        razonSocial: "CLIENTE DENTRO ROLES E2E S.A.C.",
+      });
+      const fuera = await siembra.cliente(a.tenantId, {
+        ruc: "20700000045",
+        razonSocial: "CLIENTE FUERA ROLES E2E S.A.C.",
+      });
+      const asignador = await siembra.miembro(a.tenantId, "lectura");
+      cuentas.registrar(a, asignador);
+      const rol = await apiA.pedir<{ id?: string }>("POST", "/roles", {
+        nombre: "Asignador",
+        alcance: "asignado",
+        permisos: ["clientes.ver", "clientes.asignar"],
+      });
+      expect(rol.status).toBe(201);
+      const rolAsignador = (await roles.rolPorNombre(a.tenantId, "Asignador"))
+        ?.id;
+      if (rolAsignador === undefined)
+        throw new Error("No se creó el rol Asignador.");
+      expect(
+        (
+          await apiA.pedir("PATCH", `/usuarios/${asignador.id}/rol`, {
+            rol: rolAsignado(rolAsignador),
+          })
+        ).status,
+      ).toBe(200);
+      await roles.asignar(dentro, asignador.id, "colaborador");
+      const apiAsignador = api(await sesiones.entrar(asignador));
+      const filas = () => roles.cuantasAsignaciones(a.tenantId);
+      const antes = await filas();
+
+      const porUsuario = (clienteId: string) =>
+        apiAsignador.pedir("POST", "/asignaciones/por-usuario", {
+          usuarioId: contador.id,
+          clienteIds: [clienteId],
+          tipo: "colaborador",
+        });
+      const inexistente = await porUsuario(
+        "00000000-0000-4000-8000-000000000000",
+      );
+      const fueraDeAlcance = await porUsuario(fuera.id);
+      expect(inexistente.status).toBe(404);
+      expect({
+        status: fueraDeAlcance.status,
+        cuerpo: fueraDeAlcance.cuerpo,
+      }).toEqual({ status: 404, cuerpo: inexistente.cuerpo });
+      expect(await filas()).toBe(antes);
+
+      // Control positivo: el cliente asignado al actor sí se puede asignar.
+      const permitido = await porUsuario(dentro.id);
+      expect(permitido.status).toBe(200);
+      expect(await filas()).toBe(antes + 1);
     });
   });
 });

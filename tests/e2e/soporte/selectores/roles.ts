@@ -1,18 +1,21 @@
-// Selectores y textos de «Equipo → Roles» (spec 030, T5). La pantalla la construye T10 y aún no existe: aquí vive TODO lo que el flujo
-// supone de ella, para que T15 lo ajuste en un solo lugar si T10 eligió otros nombres. Lo que se supone:
-//  - `/usuarios` trae un enlace «Roles» que lleva a `/usuarios/roles` (encabezado «Roles»).
-//  - Un botón (o enlace) «Nuevo rol» y, por rol propio, «Editar» abren el formulario: campo «Nombre», lista desplegable «Alcance» con
-//    valores `global` y `asignado`, y una casilla por permiso con `value="<permiso>"` (por ejemplo `clientes.ver`).
-//  - «Guardar rol» envía el formulario y un `role="status"` confirma «Rol guardado.»; la lista muestra una fila (o ítem) por rol.
-//  - Al editar, un aviso de impacto (U6, U8) menciona la verificación en dos pasos antes de guardar.
+// Selectores y textos de «Equipo → Roles» (spec 030, T5, ajustados a la pantalla real en T15; `apps/frontend/app/(app)/usuarios/roles/`):
+//  - El menú principal trae el enlace «Roles» (solo con `roles.gestionar`) que lleva a `/usuarios/roles` (encabezado «Roles»).
+//  - El botón «Crear rol» y, por rol propio, «Editar» abren el formulario: campo «Nombre», lista «Alcance» (valores `global` y `asignado`)
+//    y una casilla por permiso cuyo nombre accesible es el código (por ejemplo `clientes.ver`).
+//  - «Guardar» envía el formulario y un `role="status"` confirma «Rol creado.» o «Rol guardado.».
+//  - Al editar un rol en uso, «Guardar» abre el aviso de impacto (U6, U8: «Afecta a N miembros.», «N miembros deberán activar el segundo
+//    factor (TOTP).») y «Confirmar» aplica el cambio.
 //  - El selector de rol de la invitación lista los roles propios por su nombre (la opción contiene «Practicante»).
 import { expect, type Locator, type Page } from "@playwright/test";
 
 export const RUTA_ROLES = "/usuarios/roles";
 
 export const TEXTOS = {
+  rolCreado: "Rol creado.",
   rolGuardado: "Rol guardado.",
-  aviso2fa: /verificación en dos pasos/i,
+  nombreInvalido: "El nombre tiene espacios o caracteres no permitidos.",
+  impactoMiembros: "Afecta a 1 miembros.",
+  aviso2fa: /1 miembros deberán activar el segundo factor \(TOTP\)\./,
 } as const;
 
 export const enlaceRoles = (page: Page): Locator =>
@@ -25,14 +28,16 @@ const boton = (donde: Page | Locator, nombre: string | RegExp): Locator =>
     .getByRole("button", { name: nombre })
     .or(donde.getByRole("link", { name: nombre }));
 
-export const nuevoRol = (page: Page): Locator => boton(page, "Nuevo rol");
+export const nuevoRol = (page: Page): Locator => boton(page, "Crear rol");
 export const guardarRol = (page: Page): Locator =>
-  page.getByRole("button", { name: /^Guardar/ });
+  page.getByRole("button", { name: "Guardar", exact: true });
+export const confirmarRol = (page: Page): Locator =>
+  page.getByRole("button", { name: "Confirmar", exact: true });
 export const campoNombre = (page: Page): Locator =>
   page.getByLabel("Nombre", { exact: true });
 export const campoAlcance = (page: Page): Locator => page.getByLabel("Alcance");
 export const casillaPermiso = (page: Page, permiso: string): Locator =>
-  page.locator(`input[type="checkbox"][value="${permiso}"]`);
+  page.getByRole("checkbox", { name: permiso, exact: true });
 
 /** La fila (o ítem de lista) del rol con ese nombre. */
 export const filaRol = (page: Page, nombre: string): Locator =>
@@ -43,7 +48,7 @@ export const filaRol = (page: Page, nombre: string): Locator =>
 export const editarRol = (page: Page, nombre: string): Locator =>
   boton(filaRol(page, nombre).first(), /^Editar/);
 
-/** Crea un rol propio como lo haría el Dueño: «Roles» → «Nuevo rol» → nombre, alcance y permisos → «Guardar rol». */
+/** Crea un rol propio como lo haría el Dueño: «Roles» → «Crear rol» → nombre, alcance y permisos → «Guardar». */
 export async function crearRolPorPantalla(
   page: Page,
   rol: {
@@ -52,11 +57,8 @@ export async function crearRolPorPantalla(
     permisos: readonly string[];
   },
 ): Promise<void> {
-  await page.goto("/usuarios");
-  await enlaceRoles(page).click();
-  await expect(page).toHaveURL(new RegExp(`${RUTA_ROLES}$`));
-  await expect(encabezadoRoles(page)).toBeVisible();
-  await nuevoRol(page).click();
+  await irARoles(page);
+  await abrirNuevoRol(page);
   await campoNombre(page).fill(rol.nombre);
   await campoAlcance(page).selectOption(rol.alcance);
   for (const permiso of rol.permisos) {
@@ -64,9 +66,23 @@ export async function crearRolPorPantalla(
   }
   await guardarRol(page).click();
   await expect(
-    page.getByRole("status").filter({ hasText: TEXTOS.rolGuardado }),
+    page.getByRole("status").filter({ hasText: TEXTOS.rolCreado }),
   ).toBeVisible();
   await expect(filaRol(page, rol.nombre).first()).toBeVisible();
+}
+
+/** Desde `/usuarios`: el enlace «Roles» del menú y el formulario «Crear rol» abierto y vacío. */
+export async function abrirNuevoRol(page: Page): Promise<void> {
+  await nuevoRol(page).click();
+  await expect(campoNombre(page)).toBeVisible();
+}
+
+/** Lleva a «Roles» por el menú (desde `/usuarios`) y espera el encabezado. */
+export async function irARoles(page: Page): Promise<void> {
+  await page.goto("/usuarios");
+  await enlaceRoles(page).click();
+  await expect(page).toHaveURL(new RegExp(`${RUTA_ROLES}$`));
+  await expect(encabezadoRoles(page)).toBeVisible();
 }
 
 /** Elige en el selector «Rol» de la invitación la opción de un rol propio por su nombre (sin suponer cómo se rotula el resto). */
