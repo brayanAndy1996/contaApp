@@ -18,11 +18,11 @@ import {
   asignarPorClienteSchema,
   asignarPorUsuarioSchema,
   puedeSerResponsable,
-  tienePermiso,
-  type Rol,
+  type Efectivo,
 } from "@contapp/shared";
 import type { SesionResuelta } from "../auth/auth.service.js";
 import { DB } from "../auth/inyeccion.js";
+import { efectivoDe, releerEfectivos, tiene, type MiembroEfectivo } from "../acceso/efectivo.js";
 import { AccesoError } from "../acceso/errores.js";
 import { contextoDe, esUuid } from "./contexto.js";
 
@@ -58,9 +58,10 @@ function noNulo<T>(valor: T | null): T {
  * `clientes.asignar` (los roles que lo tienen son de alcance global, así que la visibilidad del guard sigue
  * valiendo). Un actor degradado o desactivado a mitad de la petición no completa la asignación.
  */
-export function exigirAsignador(actor: MiembroEstado | null): void {
+export function exigirAsignador(actor: MiembroEstado | null, efectivo: Efectivo | null = efectivoDe(actor)): void {
   if (actor === null || !actor.activo) throw new AccesoError("estudio_requerido");
-  if (!tienePermiso(actor.rol as Rol, "clientes.asignar")) throw new AccesoError("permiso_denegado");
+  // 030 (D3): con los permisos efectivos (rol de sistema o propio, releído con su fila bloqueada).
+  if (!tiene(efectivo, "clientes.asignar")) throw new AccesoError("permiso_denegado");
 }
 
 /**
@@ -73,9 +74,10 @@ async function bloquearActorYMiembros(
   tx: Tx,
   actorId: string,
   usuarioIds: readonly string[],
-): Promise<Map<string, MiembroEstado>> {
-  const filas = await bloquearMiembros(tx, [actorId, ...usuarioIds]);
-  exigirAsignador(filas.get(actorId.toLowerCase()) ?? null);
+): Promise<Map<string, MiembroEfectivo>> {
+  const filas = await releerEfectivos(tx, await bloquearMiembros(tx, [actorId, ...usuarioIds]));
+  const actor = filas.get(actorId.toLowerCase()) ?? null;
+  exigirAsignador(actor?.estado ?? null, actor?.efectivo ?? null);
   return filas;
 }
 
@@ -162,7 +164,9 @@ export class AsignacionesService {
   ): Promise<void> {
     const id = usuarioId.toLowerCase();
     const m = noNulo((await bloquearActorYMiembros(tx, actorId, [id])).get(id) ?? null);
-    if (!m.activo) throw new AccesoError("miembro_no_asignable");
-    if (tipo === "responsable" && !puedeSerResponsable(m.rol as Rol)) throw new AccesoError("miembro_no_asignable");
+    if (!m.estado.activo) throw new AccesoError("miembro_no_asignable");
+    // D18 (030: también un rol propio): responsable solo con `sire.clasificar` efectivo.
+    if (tipo === "responsable" && (m.efectivo === null || !puedeSerResponsable(m.efectivo)))
+      throw new AccesoError("miembro_no_asignable");
   }
 }

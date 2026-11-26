@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { Inject, Injectable } from "@nestjs/common";
-import { schema, type ContappDb, type SesionValida } from "@contapp/db";
+import { miembroActual, schema, type ContappDb, type SesionValida } from "@contapp/db";
 import {
   CONTRASENA_MAX_PUNTOS,
   cambiarContrasenaSchema,
@@ -20,10 +20,11 @@ import { construirCookie, cookieBorrada, leerTokenDeCookie } from "./sesion/cook
 import { derivarCsrf } from "./sesion/csrf.js";
 import { generarToken, hashToken } from "./sesion/token.js";
 import { resumirDispositivo, truncarIp } from "./totp/dispositivo.js";
-import { rolExigeFactor } from "./totp/exigencia.js";
+import { efectivoDe } from "../acceso/efectivo.js";
+import { efectivoExigeFactor, rolExigeFactor } from "./totp/exigencia.js";
 
 /** Lo que `auth` usa de `ContappDb`: `withAuth` (funciones `auth.*`) y `withUsuario` (RLS, P7). */
-export type DbAuth = Pick<ContappDb, "withAuth" | "withUsuario">;
+export type DbAuth = Pick<ContappDb, "withAuth" | "withUsuario" | "withTenant">;
 /** Lo que `auth` usa de `ColaCorreo`: encolar sin esperar (D8). */
 export interface Encolador {
   encolar(m: MensajeCorreo): void;
@@ -65,9 +66,32 @@ export interface Origen {
 export function origenDe(userAgent: unknown, ip: unknown): Origen {
   return { dispositivo: resumirDispositivo(userAgent), ipRed: truncarIp(ip) };
 }
-/** 029 (U1–U2): alguna membresía VIGENTE del usuario tiene un rol que exige el segundo factor. */
-function algunaExige(membresias: { usuarioId: string; rol: string; desactivadaEn: Date | null }[], usuarioId: string): boolean {
-  return membresias.some((m) => m.usuarioId === usuarioId && m.desactivadaEn === null && rolExigeFactor(m.rol));
+/** Membresía tal como la lee `withUsuario` para la regla de exigencia. */
+interface MembresiaFactor {
+  tenantId: string;
+  usuarioId: string;
+  rol: string;
+  desactivadaEn: Date | null;
+}
+/**
+ * 029 (U1–U2): alguna membresía VIGENTE del usuario tiene un rol que exige el segundo factor. 030 (CA-7): un rol propio decide por sus
+ * permisos efectivos, leídos con `miembroActual` en el estudio de esa membresía (solo para las de rol propio y solo si ninguna de
+ * sistema ya lo exige). Un rol propio que no se resuelve lo exige (falla cerrado).
+ */
+async function algunaExige(
+  db: Pick<ContappDb, "withTenant">,
+  membresias: MembresiaFactor[],
+  usuarioId: string,
+): Promise<boolean> {
+  const vigentes = membresias.filter((m) => m.usuarioId === usuarioId && m.desactivadaEn === null);
+  if (vigentes.some((m) => m.rol !== "propio" && rolExigeFactor(m.rol))) return true;
+  for (const m of vigentes.filter((x) => x.rol === "propio")) {
+    const leida = await db.withTenant({ tenantId: m.tenantId, userId: usuarioId }, (tx) => miembroActual(tx, usuarioId));
+    // Desactivada entretanto: ya no cuenta.
+    if (leida === null) continue;
+    if (efectivoExigeFactor(efectivoDe(leida))) return true;
+  }
+  return false;
 }
 /** Respuesta más el valor de `Set-Cookie` que el controlador debe emitir. */
 export interface ConCookie<T> {
@@ -234,6 +258,7 @@ export class AuthService {
       estudios: await tx.orm.select({ id: schema.tenant.id, nombre: schema.tenant.nombre }).from(schema.tenant),
       membresias: await tx.orm
         .select({
+          tenantId: schema.membresia.tenantId,
           usuarioId: schema.membresia.usuarioId,
           rol: schema.membresia.rol,
           desactivadaEn: schema.membresia.desactivadaEn,
@@ -247,7 +272,7 @@ export class AuthService {
       plataforma: (await a.plataformaYo(hashToken(s.token))) !== null,
       totpActivo: ((await c.totp.leer(s.usuarioId))?.activoCifrado ?? null) !== null,
     }));
-    const exigido = plataforma || algunaExige(membresias, s.usuarioId);
+    const exigido = plataforma || (await algunaExige(this.db, membresias, s.usuarioId));
     return {
       usuario: { id: u.id, nombre: u.nombre, correo: u.correo },
       estudioActivo: activo === undefined ? null : { id: activo.id, nombre: activo.nombre },
@@ -269,13 +294,14 @@ export class AuthService {
     const membresias = await this.db.withUsuario({ userId: s.usuarioId }, (tx) =>
       tx.orm
         .select({
+          tenantId: schema.membresia.tenantId,
           usuarioId: schema.membresia.usuarioId,
           rol: schema.membresia.rol,
           desactivadaEn: schema.membresia.desactivadaEn,
         })
         .from(schema.membresia),
     );
-    return algunaExige(membresias, s.usuarioId);
+    return algunaExige(this.db, membresias, s.usuarioId);
   }
 
   /** 029: estudios con membresía activa (para el estudio de la sesión verificada, como en el login). */

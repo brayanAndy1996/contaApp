@@ -1,7 +1,7 @@
 import { Inject, Injectable, Optional } from "@nestjs/common";
 import {
   AuthRepoError,
-  bloquearMiembro,
+  bloquearMiembros,
   crearInvitacion,
   listarInvitaciones,
   listarMiembros,
@@ -17,8 +17,6 @@ import {
   aceptarInvitacionSchema,
   consultarInvitacionSchema,
   invitarSchema,
-  puedeGestionar,
-  type Rol,
 } from "@contapp/shared";
 import {
   correoDeEntrada,
@@ -54,10 +52,15 @@ import {
   parsearCuerpo,
   traducirInvitacionExistente,
 } from "./entrada.js";
+import { releerEfectivos } from "./efectivo.js";
 import { AccesoError, type CodigoAcceso } from "./errores.js";
 import { mensajeInvitacion } from "./mensajes.js";
+import type { RolPropioRef } from "./yo.controller.js";
 import {
+  exigirContencion,
   exigirGestor as exigirGestorDe,
+  resolverRol,
+  traducirAsignacion,
   type Llamante,
 } from "./usuarios.service.js";
 
@@ -66,6 +69,8 @@ import {
  * de control (H-005-1b-2: NUL daba 500 y BEL/ESC llegaban a la BD y al correo; la BD también lo rechaza).
  */
 const FORMA_CORREO = /^[^\s@\p{Cc}]+@[^\s@\p{Cc}]+$/u;
+/** UUID que ningún rol tiene: un rol propio sin id se busca como inexistente (404). */
+const UUID_NULO = "00000000-0000-0000-0000-000000000000";
 /** Nombre visible de la cuenta nueva (sin espacios al borde). */
 const NOMBRE_MAX = 200;
 /**
@@ -94,7 +99,19 @@ const TRAS_ACEPTAR: Record<AceptacionNueva, CodigoAcceso | null> = {
   invalida: "invitacion_invalida",
 };
 
-export type InvitacionRespuesta = InvitacionListada;
+/** Invitación pendiente tal como se responde: con `rolPropio: {id, nombre}` (030) en vez de las columnas del rol propio. */
+export type InvitacionRespuesta = Omit<InvitacionListada, "rolId" | "rolNombre"> & {
+  rolPropio: RolPropioRef | null;
+};
+
+/** 030: `rolPropio` por fila (null con un rol de sistema). */
+export function respuestaDe(i: InvitacionListada): InvitacionRespuesta {
+  const { rolId, rolNombre, ...resto } = i;
+  return {
+    ...resto,
+    rolPropio: i.rol === "propio" && rolId !== null && rolNombre !== null ? { id: rolId, nombre: rolNombre } : null,
+  };
+}
 export interface InvitacionConsultada {
   estudio: { nombre: string };
   rol: string;
@@ -125,10 +142,11 @@ export class InvitacionesService {
   ) {}
 
   async listar(l: Llamante): Promise<InvitacionRespuesta[]> {
-    return this.db.withTenant(
+    const filas = await this.db.withTenant(
       { tenantId: l.tenantId, userId: l.usuarioId },
       (tx) => listarInvitaciones(tx),
     );
+    return filas.map(respuestaDe);
   }
 
   /**
@@ -142,7 +160,10 @@ export class InvitacionesService {
     const token = generarToken();
     let avisar: string[] = [];
     const creada = await this.enTenant(l, async (tx) => {
-      await this.exigirGestor(tx, l, null, entrada.rol);
+      // 030: el rol puede ser propio (`{ rolId }`): ajeno o inexistente 404; contenido en el actor (U2, U4) o 403.
+      const actor = await this.actorGestor(tx, l);
+      const nuevo = await resolverRol(tx, entrada.rol);
+      exigirContencion(actor, null, nuevo);
       // RLS: solo los miembros de este estudio; no revela cuentas de otros estudios (CA-2).
       const miembros = await listarMiembros(tx);
       if (miembros.some((m) => m.correo === correo))
@@ -150,7 +171,8 @@ export class InvitacionesService {
       await this.cupo.alInvitar(tx, l.tenantId);
       const invitacion = await crearInvitacion(tx, {
         correo,
-        rol: entrada.rol,
+        rol: nuevo.rol,
+        rolId: nuevo.rolId,
         invitadoPor: l.usuarioId,
         tokenHash: hashToken(token),
       });
@@ -160,7 +182,7 @@ export class InvitacionesService {
     // Spec 017 (D-9): aviso en vivo tras el commit (el 90 % o el 100 % de usuarios que cruzó la invitación).
     await this.notificador?.avisar(l.tenantId, avisar);
     this.cola.encolar(mensajeInvitacion(correo, this.appOrigin, token));
-    return creada;
+    return respuestaDe(creada);
   }
 
   /** Nuevo token (el anterior deja de valer) y 72 h más; solo un Dueño toca una invitación de rol `dueno`. */
@@ -174,7 +196,7 @@ export class InvitacionesService {
       reenviar(tx, id, hashToken(token)),
     );
     this.cola.encolar(mensajeInvitacion(inv.correo, this.appOrigin, token));
-    return inv;
+    return respuestaDe(inv);
   }
 
   async revocar(l: Llamante, idRuta: string | undefined): Promise<void> {
@@ -281,36 +303,32 @@ export class InvitacionesService {
         fn,
       );
     } catch (e) {
-      throw traducirInvitacionExistente(e);
+      throw traducirAsignacion(traducirInvitacionExistente(e));
     }
   }
 
-  /** Actor releído y bloqueado en la transacción (D3): activo, con `usuarios.gestionar` y D8 sobre el rol. */
-  private async exigirGestor(
-    tx: Tx,
-    l: Llamante,
-    objetivo: Rol | null,
-    nuevo: Rol | null,
-  ): Promise<void> {
-    const rol = exigirGestorDe(await bloquearMiembro(tx, l.usuarioId));
-    if (!puedeGestionar(rol, objetivo, nuevo))
-      throw new AccesoError("permiso_denegado");
+  /** Actor releído y bloqueado en la transacción (D3): activo y con `usuarios.gestionar`, con sus permisos efectivos (030). */
+  private async actorGestor(tx: Tx, l: Llamante) {
+    const filas = await releerEfectivos(tx, await bloquearMiembros(tx, [l.usuarioId]));
+    return exigirGestorDe(filas.get(l.usuarioId.toLowerCase()) ?? null);
   }
 
   /**
    * Reenviar/revocar: aplica el cambio y comprueba D8 sobre el rol de la invitación en la misma transacción
-   * (si falla, se deshace). `null` (inexistente, ajena, aceptada o revocada) -> 404.
+   * (si falla, se deshace). `null` (inexistente, ajena, aceptada o revocada) -> 404. 030: con el rol propio de la invitación.
    */
   private async sobreInvitacion(
     l: Llamante,
     cambio: (tx: Tx) => Promise<InvitacionListada | null>,
   ): Promise<InvitacionListada> {
     return this.enTenant(l, async (tx) => {
-      const rol = exigirGestorDe(await bloquearMiembro(tx, l.usuarioId));
+      const actor = await this.actorGestor(tx, l);
       const inv = await cambio(tx);
       if (inv === null) throw new AccesoError("no_encontrado");
-      if (!puedeGestionar(rol, inv.rol, inv.rol))
-        throw new AccesoError("permiso_denegado");
+      // El rol de la invitación (030: también propio). Uno que no se puede leer (la FK y el CHECK lo impiden) da 404 y se deshace.
+      const rol = await resolverRol(tx, inv.rol === "propio" ? { rolId: inv.rolId ?? UUID_NULO } : inv.rol);
+      const actual = { rol: inv.rol, efectivo: rol.efectivo };
+      exigirContencion(actor, actual, actual);
       return inv;
     });
   }

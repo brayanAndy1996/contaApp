@@ -5,6 +5,7 @@ import {
   guardarCredencialSolSchema,
   puedeSerResponsable,
   validarRuc,
+  type Efectivo,
   type Rol,
 } from "@contapp/shared";
 import type { FilaLeida } from "./tipos.js";
@@ -28,8 +29,11 @@ export interface Motivo {
 export interface ContextoValidacion {
   /** RUC que ya existen en el estudio (activos y archivados). */
   existentes: ReadonlyMap<string, { archivado: boolean }>;
-  /** Miembros ACTIVOS del estudio por correo en minúsculas (P1 a: el responsable se identifica por correo). */
-  miembros: ReadonlyMap<string, { usuarioId: string; rol: Rol }>;
+  /**
+   * Miembros ACTIVOS del estudio por correo en minúsculas (P1 a: el responsable se identifica por correo). `rol`: clave de un rol de sistema
+   * o, desde 030, sus permisos efectivos (también de un rol propio); `null` si el rol no se resuelve (no puede ser responsable).
+   */
+  miembros: ReadonlyMap<string, { usuarioId: string; rol: Rol | Efectivo | null }>;
 }
 
 export interface FilaValidada {
@@ -136,7 +140,7 @@ export function validarFilas(
     if (correo !== "" && !PELIGROSA.test(fila.responsable)) {
       const miembro = ctx.miembros.get(correo);
       if (miembro === undefined) agregar({ codigo: "responsable_inexistente" });
-      else if (!puedeSerResponsable(miembro.rol))
+      else if (miembro.rol === null || !puedeSerResponsable(miembro.rol))
         agregar({ codigo: "responsable_no_asignable" });
       else responsableId = miembro.usuarioId;
     }

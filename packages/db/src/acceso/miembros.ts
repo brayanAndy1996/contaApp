@@ -32,6 +32,9 @@ export interface MiembroActual {
   propio: { permisos: string[]; alcance: AlcanceRol } | null;
 }
 
+/** Rol de una membresía (activa o no) con la definición de su rol propio (030). */
+export type DefinicionMiembro = Omit<MiembroActual, "usuarioId">;
+
 export interface MiembroEstado {
   usuarioId: string;
   rol: RolMiembro;
@@ -59,6 +62,13 @@ const SQL_LISTAR = `select m.usuario_id, u.nombre, u.email as correo, m.rol, m.r
   left join rol r on r.tenant_id = m.tenant_id and r.id = m.rol_id
  where m.rol = any($1::text[])
  order by u.nombre, m.usuario_id`;
+
+// 030 (D3): rol propio y su definición de miembros ya bloqueados (activos o desactivados), en una sola consulta. Sin bloqueo propio: la
+// fila de la membresía ya está tomada FOR UPDATE y `rol_guardar` toma las de los miembros del rol antes de cambiarlo (D4).
+const SQL_DEFINICIONES = `select m.usuario_id, m.rol, m.rol_id, r.alcance,
+       (select array_agg(p.permiso order by p.permiso) from rol_permiso p where p.rol_id = m.rol_id) as permisos
+  from membresia m left join rol r on r.tenant_id = m.tenant_id and r.id = m.rol_id
+ where m.usuario_id = any($1::uuid[])`;
 
 const SQL_BLOQUEAR = `select usuario_id, rol, desactivada_en is null as activo
   from membresia where usuario_id = $1::uuid for update`;
@@ -90,16 +100,9 @@ const estado = (f: Fila | undefined): MiembroEstado | null =>
     ? null
     : { usuarioId: f.usuario_id, rol: f.rol, activo: f.activo === true };
 
-/** Rol de la membresía ACTIVA del usuario en el estudio (D3) con su rol propio, si lo tiene; o null. */
-export async function miembroActual(
-  tx: TxConsulta,
-  usuarioId: string,
-): Promise<MiembroActual | null> {
-  const f = (await consultar(tx, SQL_ACTUAL, [usuarioId]))[0];
-  if (f === undefined) return null;
+const definicion = (f: Fila): DefinicionMiembro => {
   const propio = f.rol === "propio";
   return {
-    usuarioId: f.usuario_id,
     rol: f.rol,
     rolId: propio ? (f.rol_id ?? null) : null,
     propio: propio
@@ -109,6 +112,31 @@ export async function miembroActual(
         }
       : null,
   };
+};
+
+/** Rol de la membresía ACTIVA del usuario en el estudio (D3) con su rol propio, si lo tiene; o null. */
+export async function miembroActual(
+  tx: TxConsulta,
+  usuarioId: string,
+): Promise<MiembroActual | null> {
+  const f = (await consultar(tx, SQL_ACTUAL, [usuarioId]))[0];
+  if (f === undefined) return null;
+  return { usuarioId: f.usuario_id, ...definicion(f) };
+}
+
+/**
+ * 030 (D3): rol y definición del rol propio de las membresías del estudio (activas o desactivadas), por ID en minúsculas; falta quien
+ * no es del estudio. Para releer, tras `bloquearMiembros`, el actor y el objetivo con rol propio (una consulta).
+ */
+export async function definicionesDe(
+  tx: TxConsulta,
+  usuarioIds: readonly string[],
+): Promise<Map<string, DefinicionMiembro>> {
+  const ids = [...new Set(usuarioIds.map((id) => id.toLowerCase()))];
+  const m = new Map<string, DefinicionMiembro>();
+  if (ids.length === 0) return m;
+  for (const f of await consultar(tx, SQL_DEFINICIONES, [ids])) m.set(f.usuario_id, definicion(f));
+  return m;
 }
 
 /** Miembros del estudio, activos y desactivados. */

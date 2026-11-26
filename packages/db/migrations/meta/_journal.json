@@ -582,6 +582,13 @@
       "when": 1795665421132,
       "tag": "0082_roles_propios",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1795666848718,
+      "tag": "0083_roles_propios_auditoria",
+      "breakpoints": true
     }
   ]
 }

@@ -72,6 +72,7 @@ export {
   bloquearMiembro,
   bloquearMiembros,
   cambiarRol,
+  definicionesDe,
   desactivar,
   listarMiembros,
   miembroActual,
@@ -79,6 +80,7 @@ export {
   ROLES_MIEMBRO,
 } from "./acceso/miembros";
 export type {
+  DefinicionMiembro,
   MiembroActual,
   MiembroEstado,
   MiembroListado,
