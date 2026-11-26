@@ -25,8 +25,10 @@ Nivel A. Flujo 04 §1.3: pruebas (rojo) → implementar (verde) → cobertura �
 | T16 | Corregir hallazgos de la ronda 2 | backend (+frontend) | opus (sonnet) | T15 | — | — | [ ] |
 | T17 | Verificar CA-1 a CA-11 con evidencia y prueba manual | tester | sonnet | T11, T11b, T16 | — | — | [x] |
 | T17a | Ajustar `equipo.e2e.ts:382` al enrolamiento forzado de 029 (defecto de T17) | tester | sonnet | T17 | — | — | [x] |
-| T18 | Revisión final contra la spec | arquitecto | opus | T17 | — | — | [ ] |
-| T19 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T18 | — | — | [ ] |
+| T18 | Revisión final contra la spec | arquitecto | opus | T17 | — | — | [x] |
+| T18a | Paso de código en invitación y registro con cuenta existente (defecto de T18) | tester → frontend | sonnet | T18 ∥ T18b | ✓ | — | [ ] |
+| T18b | Rechazar en producción la `TOTP_CLAVE` de `.env.example` (observación de T18) | backend | sonnet | T18 ∥ T18a | ✓ | — | [x] |
+| T19 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T18a, T18b | — | — | [ ] |
 
 Paralelismo: oleada 1 = T1 (`tests/aislamiento/`, `packages/db/src/**/*.spec.ts`) ∥ T2 (specs de `totp/`, `packages/shared`, `packages/correo`) ∥ T3 (`apps/backend/src/modules/**/*.int.spec.ts`, `apps/backend/test/`) ∥ T4 (`apps/frontend/**/*.spec.tsx`). Oleada 2 = T5 (`packages/db/migrations`, `src/auth`, `src/schema`) ∥ T6 (`apps/backend/src/modules/auth/totp/` puros, `config/`, `shared`, `correo`, `package.json` de db y frontend, `pnpm-lock.yaml`) ∥ T9 desde que T6 termina. Oleada 3 = T7 (`apps/backend/src/modules/{auth,acceso,plataforma}`) ∥ T8 (`packages/db/src/cli/`, `package.json` raíz) ∥ T9 (`apps/frontend`). Rondas y correcciones en serie; T11 (`tests/e2e/`) ∥ T12–T16, y su `pnpm e2e` se repite tras T16 si T14 o T16 tocaron producción. Si la ronda 1 no deja hallazgos media/alta, T15 y T16 se marcan `[x]` «sin hallazgos».
 
@@ -144,6 +146,17 @@ Reglas comunes:
 - **Contexto**: spec, plan, `resultados.md`, diff de la rama.
 - **Hacer**: revisar cada CA con su evidencia y las reglas de `CLAUDE.md` (secretos, RLS, puertos).
 - **Hecho cuando**: veredicto en `resultados.md`; defectos como T18a (tester, rojo) y T18b (backend · opus).
+
+## T18a · Invitación y registro con TOTP (tester → frontend · sonnet, TDD)
+- **Contexto**: `resultados.md#revisión-final`; `apps/frontend/app/(publico)/{invitacion,registro/confirmar,login}/page.tsx` y sus specs; `lib/api.ts`; `tests/e2e/flujos/equipo.e2e.ts:382`, `soporte/totp.ts`. Sin tocar el backend (P10 = a).
+- **Tester (rojo)**: si el login responde `segundoFactor`, la página pide el código (TOTP o recuperación, `sinSesion` con el `csrf` del login) y luego acepta o confirma sin perder el token. Si `GET /auth/sesion` trae `factorExigido` y la sesión no está `verificado`, se muestra un aviso con enlace a Seguridad y no se redirige. La E2E vuelve a `a.dueno` con TOTP activo.
+- **Frontend**: reutilizar el paso de código de `login` (componente compartido); el token y el `csrf` solo en estado y se descartan al terminar.
+- **Hecho cuando**: las specs de las dos páginas y `equipo.e2e` (Dueño con TOTP) en verde; `pnpm e2e` completo, lint y `next build` OK.
+
+## T18b · `TOTP_CLAVE` de ejemplo en producción (backend · sonnet, TDD)
+- **Contexto**: `apps/backend/src/config/entorno.ts` y su spec; `.env.example:38-42`.
+- **Hacer**: con `NODE_ENV=production`, `EntornoInvalidoError("TOTP_CLAVE")` si `TOTP_CLAVE` o `TOTP_CLAVE_ANTERIOR` es el valor de `.env.example`; el mensaje nombra la variable, no el valor.
+- **Hecho cuando**: la prueba nueva pasa de rojo a verde y las pruebas del backend sobre `config` siguen en verde.
 
 ## T19 · Cierre (devops · haiku)
 - **Contexto**: esta tabla; `cierre.md` de la plantilla.

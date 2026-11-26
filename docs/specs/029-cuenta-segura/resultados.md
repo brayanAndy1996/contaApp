@@ -69,3 +69,39 @@ Ningún archivo de 029 baja de 90 %.
 ## Prueba manual
 
 No se hizo una sesión manual en navegador: la E2E con la pila real (backend, worker y frontend compilado, adaptadores `mock`, Mailpit) hace ese recorrido (login en dos pasos, enrolamiento forzado, sesiones, operador y avisos) y pasa (109 de 109).
+
+## Revisión final (T18, arquitecto · opus)
+
+**Veredicto: CON OBSERVACIONES.** CA-1 a CA-11 y U1 a U9 están cumplidos con la evidencia de T17. Un defecto funcional en un flujo vecino (invitación y registro con cuenta existente) bloquea el cierre hasta T18a. No es un hueco de seguridad: el backend falla cerrado.
+
+**Contraste.** Cada CA tiene suite y resultado arriba. Lo comprobado en el código:
+- **Clave propia (D1).** `TOTP_CLAVE` solo aparece en `apps/backend`: `config/entorno.ts`, `totp/{cifrado,recuperacion,totp.service}.ts`, `auth.module.ts`, `inyeccion.ts` y `infra/nucleo.module.ts`. No está en `apps/worker`, `apps/frontend` ni `packages/*`. `cifrado.ts` y `recuperacion.ts` solo importan `node:crypto`. El backend sigue sin descifrar credenciales SOL: `credenciales/key-wrapper.ts` solo tiene la llave pública.
+- **BD y RLS.** En 0078–0081 no hay `DISABLE ROW LEVEL SECURITY`, `NO FORCE` ni `BYPASSRLS`. Las tablas nuevas solo tienen `GRANT` a `contapp_auth`, dueño de las funciones definer (patrón 0007). `totp_restablecer` es `EXECUTE` solo de `contapp_migrator`. Las 12 funciones nuevas, `intento_acierto` incluida, están en `FUNCIONES_AUTH` (`auth-soporte.ts`), que usan `escalada.adv` y `catalogo`.
+- **Migraciones.** 0079 (T7), 0080 (ronda 1) y 0081 (ronda 2) solo reemplazan funciones, agregan columnas `IF NOT EXISTS` y repiten `REVOKE`/`GRANT`. El orden de bloqueo está documentado y no tiene ciclos. `db:migrate` ×2 sin cambios. `sesion_revocar` del plan se implementó como `sesion_revocar_id`: es solo el nombre.
+- **Dinero.** No aplica: 029 no maneja montos.
+- **Rondas adversariales.** Las 2 rondas están cerradas: las correcciones están documentadas en las cabeceras de 0080 y 0081 y las suites `*.adv*` de 029 pasan. Falta una tabla de hallazgos en este archivo, porque T17 la reemplazó; T19 la resume en `cierre.md`.
+- **Riesgos bajos aceptados por el usuario.** Son dos:
+  1. Las funciones heredadas no listadas aceptan una sesión `pendiente`. 0080 ya filtró `plataforma_yo`, `sesiones_cerrar_todas` y `ultimo_estudio`. El resto solo se alcanza por HTTP, y ahí `SesionGuard` da 401 a una `pendiente`.
+  2. `intento_acierto` no está ligado a una reserva: `auth-totp-r1b.adv.spec.ts:384` está como `it.fails`. Si algún día pasa, vitest lo marca.
+
+**Defecto (T18a): con TOTP activo o exigido no se puede aceptar una invitación ni crear otro estudio con la cuenta existente.** Las páginas `(publico)/invitacion/page.tsx` (`iniciarYAceptar`) y `(publico)/registro/confirmar/page.tsx` (`iniciarYCrear`) hacen login por su cuenta y no tienen paso de código.
+- **Con TOTP activo.** El login responde `segundoFactor` y deja la sesión `pendiente`. `api()` sin `sinSesion` pide `GET /auth/sesion`, recibe 401 y `irALogin()` lleva a `/login`. El token de la invitación solo vivía en memoria (005 D15) y se pierde. Reabrir el enlace repite el ciclo, así que la persona no puede completar nunca el flujo.
+- **Dueño o Administrador sin TOTP (U1, U3).** La sesión queda `sin_factor`. `aceptar-con-sesion` y `confirmar-con-sesion` no están en `@PermitirSinFactor`, a propósito (`totp-r2.adv.int.spec.ts:77`), así que responden 403 y `irASeguridad()` también pierde el token. Después de enrolar, se cae en el caso anterior.
+- **Alcance.** Es una regresión de 005 y del registro con cuenta existente, causada por 029. La sufre justo la población a la que U1 obliga a usar TOTP. T17a la ocultó al cambiar la persona de la E2E a un Contador.
+- **Seguridad.** No hay hueco: el backend rechaza la `pendiente` y la `sin_factor` exigida. Solo hay que corregir el frontend.
+
+**Código muerto de T10a.** Recomiendo **no retirar** ninguna de las dos líneas ahora:
+- `packages/db/src/cli/totp-restablecer.ts:54` (`throw e`) relanza un error distinto de `CorreoNoAsciiError`. Quitarlo lo silenciaría.
+- `packages/correo/src/seguridad.ts:53` (`?? ""`) es el respaldo de `formatToParts`.
+
+Las dos son defensivas, ya superan el 90 % de cobertura y retirarlas no aporta.
+
+**Observación baja (T18b).** En producción, `entorno.ts` acepta el `TOTP_CLAVE` de desarrollo publicado en `.env.example:40`. Si alguien copia el ejemplo a producción, un volcado de la BD más el repositorio bastan para generar códigos, y se pierde D1 / CA-6. Se corrige como ya se hace con `APP_ORIGIN` y `CORREO_PROVIDER`: rechazar ese valor con `NODE_ENV=production`.
+
+**Pregunta para el usuario (P10).** ¿Deben `aceptar-con-sesion` y `confirmar-con-sesion` atender a una cuenta con factor exigido y sin verificar?
+- (a) No: primero enrola en Seguridad y luego reabre el enlace. Se mantienen la lista cerrada de CA-4 y `totp-r2:77`. **(Recom.)**
+- (b) Sí: añadirlas a `@PermitirSinFactor`. Es un paso menos, pero cambia CA-4 y requiere ajustar la prueba adversarial.
+
+T18a asume la opción (a).
+
+**Para el cierre (T19).** Marcar T12–T16 `[x]`, que hoy figuran `[ ]` aunque están hechas, después de cerrar T18a y T18b.

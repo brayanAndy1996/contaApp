@@ -25,6 +25,8 @@ export const MENSAJES_SEG = {
   errorRevocar: "No se pudo revocar la sesión. Inténtalo de nuevo.",
   demasiadosIntentos:
     "Demasiados intentos. Inténtalo de nuevo en unos minutos.",
+  // 401 `sesion_invalida` en el paso de código (T18a): la sesión pendiente caducó.
+  sesionCaducada: "La sesión caducó. Ingresa de nuevo.",
 } as const;
 
 export type Factor = "pendiente" | "verificado" | "sin_factor";
