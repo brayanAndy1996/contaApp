@@ -98,9 +98,21 @@ function correo(env: EnvCrudo, produccion: boolean): Entorno["correo"] {
   throw new EntornoInvalidoError("CORREO_PROVIDER");
 }
 
-function claveTotp(env: EnvCrudo, variable: "TOTP_CLAVE" | "TOTP_CLAVE_ANTERIOR"): ClaveTotp {
+/** Clave de `.env.example` (pública en el repo, solo desarrollo local): en producción no se acepta (029 T18b). */
+const CLAVE_TOTP_DE_EJEMPLO = "1:ZsPxN5o4uaKslN8Glw1ddWkM0cYXVHPeYdPHJnl3DLc=";
+
+function claveTotp(
+  env: EnvCrudo,
+  variable: "TOTP_CLAVE" | "TOTP_CLAVE_ANTERIOR",
+  produccion: boolean,
+): ClaveTotp {
   try {
-    return parsearClaveTotp((env[variable] ?? "").trim());
+    const clave = parsearClaveTotp((env[variable] ?? "").trim());
+    // Se compara el material de la clave, no el texto: cambiar solo la versión no la hace propia.
+    if (produccion && clave.clave.equals(parsearClaveTotp(CLAVE_TOTP_DE_EJEMPLO).clave)) {
+      throw new EntornoInvalidoError(variable);
+    }
+    return clave;
   } catch (e) {
     if (e instanceof ClaveTotpInvalidaError) throw new EntornoInvalidoError(variable);
     throw e;
@@ -108,10 +120,10 @@ function claveTotp(env: EnvCrudo, variable: "TOTP_CLAVE" | "TOTP_CLAVE_ANTERIOR"
 }
 
 /** `TOTP_CLAVE` es obligatoria en cualquier entorno; `TOTP_CLAVE_ANTERIOR` es opcional y de otra versión. */
-function totp(env: EnvCrudo): Entorno["totp"] {
-  const actual = claveTotp(env, "TOTP_CLAVE");
+function totp(env: EnvCrudo, produccion: boolean): Entorno["totp"] {
+  const actual = claveTotp(env, "TOTP_CLAVE", produccion);
   if (vacio(env.TOTP_CLAVE_ANTERIOR)) return { actual };
-  const anterior = claveTotp(env, "TOTP_CLAVE_ANTERIOR");
+  const anterior = claveTotp(env, "TOTP_CLAVE_ANTERIOR", produccion);
   if (anterior.version === actual.version) throw new EntornoInvalidoError("TOTP_CLAVE_ANTERIOR");
   return { actual, anterior };
 }
@@ -128,6 +140,6 @@ export function leerEntorno(env: EnvCrudo): Entorno {
       paralelismo: entero(env, "ARGON2_PARALELISMO", PISO_ARGON2.paralelismo),
     },
     correo: correo(env, produccion),
-    totp: totp(env),
+    totp: totp(env, produccion),
   };
 }
