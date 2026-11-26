@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   ScrollText,
   SlidersHorizontal,
+  UserLock,
   UserCog,
   Users,
 } from "lucide-react";
@@ -47,6 +48,8 @@ export const VARIABLE_ALTO_BARRA = "--alto-barra-inferior";
 const activa = "bg-primario-suave text-primario hover:bg-primario-suave";
 
 function esActiva(ruta: string | null, href: string): boolean {
+  // «Roles» cuelga de /usuarios/roles: no deja «Usuarios» marcada a la vez.
+  if (href === "/usuarios" && ruta?.startsWith("/usuarios/roles")) return false;
   return ruta === href || (ruta?.startsWith(`${href}/`) ?? false);
 }
 
@@ -194,6 +197,16 @@ export function MenuPrincipal({
           >
             <UserCog aria-hidden="true" className="size-5 shrink-0" />
             Usuarios
+          </Link>
+        )}
+        {tiene(yo, "roles.gestionar") && (
+          <Link
+            href="/usuarios/roles"
+            aria-current={actual("/usuarios/roles")}
+            className={clase("/usuarios/roles", cn(entradaGrupo, "lg:order-5"))}
+          >
+            <UserLock aria-hidden="true" className="size-5 shrink-0" />
+            Roles
           </Link>
         )}
         {tiene(yo, "auditoria.ver") && (

@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
-import { ROLES, puedeGestionar, type Rol } from "@contapp/shared";
+import {
+  ROLES,
+  permisosEfectivos,
+  puedeGestionar,
+  type Efectivo,
+  type Permiso,
+  type Rol,
+} from "@contapp/shared";
 import { api } from "./api";
 
 // Acceso en la UI (spec 005, CA-15). Solo presentación: qué mostrar según `GET /acceso/yo` y qué
@@ -15,9 +22,16 @@ export const ETIQUETA_ROL: Record<Rol, string> = {
   lectura: "Lectura",
 };
 
-/** Cuerpo de `GET /acceso/yo`. */
+/** Referencia a un rol propio del estudio (spec 030). */
+export interface RolPropioRef {
+  id: string;
+  nombre: string;
+}
+
+/** Cuerpo de `GET /acceso/yo`. Con `rol: "propio"` (030) el nombre del rol viene en `rolPropio`. */
 export interface Yo {
-  rol: Rol;
+  rol: Rol | "propio";
+  rolPropio?: RolPropioRef | null;
   permisos: string[];
   alcance: "global" | "asignado";
 }
@@ -26,9 +40,18 @@ export interface Miembro {
   usuarioId: string;
   nombre: string;
   correo: string;
-  rol: Rol;
+  rol: Rol | "propio";
+  rolPropio?: RolPropioRef | null;
   activo: boolean;
   esYo: boolean;
+}
+
+/** Texto del rol de un miembro o invitación: la etiqueta del rol de sistema o el nombre del rol propio. */
+export function etiquetaDeRol(
+  rol: Rol | "propio",
+  rolPropio?: RolPropioRef | null,
+): string {
+  return rol === "propio" ? (rolPropio?.nombre ?? "Rol propio") : ETIQUETA_ROL[rol];
 }
 
 export const MENSAJES = {
@@ -43,6 +66,8 @@ export const MENSAJES = {
   clienteArchivado:
     "Hay clientes archivados en la selección. Reactívalos o quítalos para asignar.",
   sinResponsable: "Sin responsable",
+  escalada: "No puedes otorgar permisos ni un alcance que tú no tienes.",
+  rolPropio: "No puedes modificar el rol que tienes asignado.",
 } as const;
 
 const POR_CODIGO_409: Record<string, string> = {
@@ -56,7 +81,12 @@ const POR_CODIGO_409: Record<string, string> = {
 
 /** Mensaje genérico para un error del backend; nunca muestra el `codigo` ni detalles internos. */
 export function mensajeDeError(status: number, datos: unknown): string {
-  if (status === 403) return MENSAJES.sinPermiso;
+  if (status === 403) {
+    const codigo = (datos as { codigo?: string } | null)?.codigo;
+    if (codigo === "escalada") return MENSAJES.escalada;
+    if (codigo === "rol_propio") return MENSAJES.rolPropio;
+    return MENSAJES.sinPermiso;
+  }
   if (status === 404) return MENSAJES.noEncontrado;
   if (status === 409) {
     const codigo = (datos as { codigo?: string } | null)?.codigo ?? "";
@@ -77,6 +107,19 @@ export const puedeOtorgar = (actor: Rol, rol: Rol): boolean =>
 
 export const puedeTocar = (actor: Rol, objetivo: Rol): boolean =>
   puedeGestionar(actor, objetivo, null);
+
+/**
+ * Presentación de U2 con el rol propio del actor: cabe lo que está contenido en sus permisos y su alcance. Solo se
+ * usa cuando el actor tiene un rol propio y no se pudo cargar `GET /roles/asignables`; el servidor decide.
+ */
+export function puedeOtorgarComoPropio(yo: Yo, rol: Rol): boolean {
+  const actor: Efectivo = {
+    rolSistema: null,
+    permisos: new Set(yo.permisos as Permiso[]),
+    alcance: yo.alcance,
+  };
+  return puedeGestionar(actor, null, permisosEfectivos(rol));
+}
 
 /** Carga `GET /acceso/yo`; `null` si falla (el menú y las pantallas lo tratan como "sin permisos"). */
 export async function cargarYo(): Promise<{
