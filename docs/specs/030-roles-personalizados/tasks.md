@@ -24,7 +24,8 @@ Nivel A. Flujo 04 §1.3: pruebas (rojo, con cobertura y E2E planificadas) → im
 | T16 | Verificar CA-1 a CA-12 con evidencia | tester | sonnet | T14, T15 | — | — | [x] |
 | T17 | Revisión final contra la spec | arquitecto | opus | T16 | — | — | [ ] |
 | T17a | Corregir T17-1: revalidar al encolador del worker con permisos efectivos y alcance (pruebas rojas del tester; luego migración 0087, `SQL_REVALIDAR`, `Revalidable`) | tester → backend | sonnet → opus | T17 | — | ✓ | [x] |
-| T18 | Cierre: `tasks.md`, `spec.md`, `cierre.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T17a | — | — | [ ] |
+| T17b | Corregir T17-2: `limpiarRolesPropios` de `revalidacion.int.spec.ts` borra `rol_permiso` antes de `rol` y verifica la limpieza | tester | sonnet | T17a | — | — | [ ] |
+| T18 | Cierre: `tasks.md`, `spec.md`, `cierre.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T17b | — | — | [ ] |
 
 Paralelismo: oleada 1 = T1 (`tests/aislamiento/roles-*.spec.ts`, `packages/db/src/**/*.spec.ts`) ∥ T2 (`packages/shared/**/*.spec.ts`, `factor-exigido.casos.ts`, `efectivos.casos.ts`) ∥ T3 (`apps/backend/src/modules/**/*.int.spec.ts`, `apps/backend/test/fakes-auth.ts`) ∥ T4 (`apps/frontend/**/*.spec.tsx`) ∥ T5 (`tests/e2e/flujos/roles.e2e.ts`, `tests/e2e/soporte/siembra-roles.ts`). Oleada 2 = T6 (`packages/db/**` sin specs nuevas, soportes y catálogos) ∥ T7 (`packages/shared/src` sin specs). Oleada 3 = T8 (`guards/`, `auth/totp/exigencia.ts`, `usuarios.service.ts`, `invitaciones.service.ts`, `yo.controller.ts`) ∥ T9 (`acceso/roles/`, `acceso.module.ts`, `errores.ts`, `mensajes.ts`) ∥ T10 (`apps/frontend`). T11 ∥ T12; T14 (`vitest.cobertura.config.mts`, specs de cobertura) ∥ T15 (`tests/e2e/`). El resto en serie.
 
@@ -137,6 +138,11 @@ Reglas comunes:
 - **Contexto**: «Bloqueante T17-1» de `resultados.md`; `packages/db/src/trabajos/registro.ts` (`SQL_REVALIDAR`), `packages/queue/src/catalogo.ts` (`rolesPermitidos`), `packages/queue/src/revalidacion.int.spec.ts`, `tests/aislamiento/roles-funciones-rol.spec.ts`.
 - **Hacer**: (1) tester, rojo: revalidación con rol propio (global; solo asignado con y sin asignación; sin el permiso; permiso quitado), roles de sistema sin cambio; el worker usa el esquema `acceso` y ejecuta `acceso.permisos_membresia`; el inventario barre SQL en TS de `packages/db/src` (excepto avisos U10). (2) migración 0087 con `GRANT USAGE` y `EXECUTE` a `contapp_worker`; `SQL_REVALIDAR` con `acceso.permisos_membresia`; `Revalidable.permiso`.
 - **Hecho cuando**: las pruebas rojas pasan a verde y `escalada.adv`, `roles-r1b.adv` y `roles-efectivos` reflejan el nuevo privilegio.
+
+## T17b · Corregir T17-2 (tester · sonnet · BD 17)
+- **Contexto**: «Re-revisión T17 tras T17a» de `resultados.md`; `packages/queue/src/revalidacion.int.spec.ts` (`limpiarRolesPropios`), `tests/aislamiento/acceso-soporte.ts:205-250` (patrón de limpieza).
+- **Hacer**: borrar `rol_permiso` del estudio antes de `rol` y comprobar que no quedan filas de `rol`/`rol_permiso` de los estudios de la prueba (error explícito, no tragado). Recrear `contapp_029t17`, migrar dos veces y sembrar.
+- **Hecho cuando**: queue `--mode int` verde y, después, en la misma BD `tests/aislamiento` (`roles-`, `escalada`, `trabajos`, `clientes-funciones`) sin fallas salvo las 5 conocidas de `escalada.adv`; `select count(*) from rol_permiso p where not exists (select 1 from rol r where r.tenant_id = p.tenant_id and r.id = p.rol_id)` = 0.
 
 ## T18 · Cierre (devops · haiku)
 - **Contexto**: `resultados.md`, veredicto de T17, plantilla `_plantilla/cierre.md`.
