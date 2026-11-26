@@ -52,6 +52,8 @@ export const estadoFactorSchema = z.object({
 export const loginSegundoFactorRespuestaSchema = z.strictObject({
   segundoFactor: z.literal(true),
   estudioActivo: z.null(),
+  /** CSRF derivado del token pendiente (SHA-256 en base64url, 43 caracteres). */
+  csrf: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
 });
 
 /** Sesión de la cuenta tal como se lista: sin hash ni token. */

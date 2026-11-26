@@ -3,6 +3,7 @@
 import { codigosRecuperacionRespuestaSchema, enrolarTotpRespuestaSchema } from "@contapp/shared";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { cookieSesion, COOKIE, seedAuth, type Harness } from "../../../test/soporte.js";
+import { derivarCsrf } from "./sesion/csrf.js";
 import {
   abrirHarnessTotp,
   activarTotp,
@@ -255,7 +256,7 @@ describe("CA-1 · re-enrolar con el TOTP activo exige el código vigente", () =>
     // El secreto activo sigue sirviendo: login con TOTP con el paso siguiente.
     reloj.avanzar(1);
     const l = await h.login(u.correo, u.contrasena);
-    expect(l.body).toEqual({ segundoFactor: true, estudioActivo: null });
+    expect(l.body).toEqual({ segundoFactor: true, estudioActivo: null, csrf: derivarCsrf(cookieSesion(l)!.valor) });
   });
 
   it("sin sesión `verificado` (otra sesión `sin_factor` de la misma cuenta) tampoco enrola", async () => {

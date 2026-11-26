@@ -45,6 +45,7 @@ export interface RespuestaLogin {
 export interface RespuestaSegundoFactor {
   segundoFactor: true;
   estudioActivo: null;
+  csrf: string;
 }
 export interface EstadoSesion {
   usuario: { id: string; nombre: string; correo: string };
@@ -196,7 +197,7 @@ export class AuthService {
       token,
       maxAgeSesion(emitida.expiraAbsoluta, emitida.pendiente ? VIDA_PENDIENTE_S : VIDA_SESION_S),
     );
-    if (emitida.pendiente) return { respuesta: { segundoFactor: true, estudioActivo: null }, cookie };
+    if (emitida.pendiente) return { respuesta: { segundoFactor: true, estudioActivo: null, csrf: derivarCsrf(token) }, cookie };
     return { respuesta: { estudioActivo: activo, requiereEstudio: estudios.length > 1 }, cookie };
   }
 
