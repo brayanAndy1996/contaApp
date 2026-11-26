@@ -38,7 +38,7 @@ Una línea por spec; el detalle de las cerradas está en `NNN-*/cierre.md` y los
 | 026-prorrata-igv | A | hecha | — | Mergeada en `main` (c7471fd). Migraciones 0065–0068. Pendiente: un contador del equipo revisa la tabla de casos de CA-2; PDT 621 provisional. Detalle: `026-*/cierre.md` |
 | 027-gastos-no-deducibles | A | hecha | — | Mergeada en `main` (28872de). Migraciones 0069–0072. Pendiente: un contador del equipo revisa palabras, excepciones, matriz, rubros y feriados. Detalle: `027-*/cierre.md` |
 | 028-correo-avisos | A | hecha | — | Mergeada en `main` (df50fd7). Migraciones 0073–0077 (siguiente libre: 0078). Deuda O-1–O-10 en la tarjeta T24. Detalle: `028-*/cierre.md` |
-| 029-cuenta-segura | A | en curso | T1–T4 (pruebas) | Spec aprobada (U1–U9 = recomendadas). 19 tareas. Migraciones desde 0078. |
+| 029-cuenta-segura | A | en curso | T14 (corregir ronda 1) | Ronda 1: 2 hallazgos medios y 4 bajos; corrigiendo (T14). Migraciones 0078–0079 (siguiente libre: 0080 o la que use T14). |
 | 030-roles-personalizados | A | pendiente | — | RF-022 · HU-05. |
 | 031-auditoria-consulta | B | pendiente | — | RF-151 · HU-39. |
 | 032-envio-sire-ticket | A | pendiente | — | RF-104 · HU-27. Con mock; apagado hasta formato oficial y `SireAuth` real. |
@@ -58,6 +58,12 @@ Ninguno. Los cerrados están en [HALLAZGOS.md](HALLAZGOS.md).
 
 | Spec | Prueba | Hallazgo | Estado |
 |---|---|---|---|
+| 029 | apps/backend/src/modules/auth/totp-r1a.adv.int.spec.ts:247 | MEDIA: sesión `sin_factor` de un Dueño usa rutas de /auth fuera de la lista cerrada (GET /auth/sesiones 200, POST /auth/contrasena 204, revocar-otras/cerrar-todas) | abierto |
+| 029 | tests/aislamiento/auth-totp-r1b.adv.spec.ts:350 | MEDIA: `recuperacion_consumir` (0007) borra `auth.intento_login`; restablecer contraseña levanta el bloqueo de 5 códigos TOTP erróneos (CA-3/CA-4) | abierto |
+| 029 | tests/aislamiento/auth-totp-r1b.adv.spec.ts:279 | BAJA: carrera `login_exito` vs `totp_confirmar` deja sesión `sin_factor` viva con TOTP activo (U3) | abierto |
+| 029 | tests/aislamiento/auth-totp-r1b.adv.spec.ts:268 | BAJA: `totp_confirmar` no exige que no haya TOTP activo (re-enrolar sin código vigente) | abierto |
+| 029 | tests/aislamiento/auth-totp-r1b.adv.spec.ts:366 | BAJA: funciones de antes de 029 aceptan una sesión `pendiente` (sin segunda barrera en BD) | abierto |
+| 029 | tests/aislamiento/auth-totp-r1b.adv.spec.ts:382 | BAJA: `intento_acierto` (0079) no está ligada a una reserva; 5 llamadas levantan un bloqueo ajeno | abierto |
 
 ## Decisiones pendientes del usuario
 
