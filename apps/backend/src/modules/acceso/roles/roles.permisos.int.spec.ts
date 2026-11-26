@@ -146,7 +146,9 @@ describe("CA-4 · tabla por permiso: rol que solo lo tiene (2xx) frente a rol qu
 describe("CA-4 · alcance asignado: el cliente no asignado da 404 (HU-08); editar el rol cambia el alcance en la siguiente petición", () => {
   it("lista solo lo asignado, 404 en el resto (lectura y escritura); global lo abre y volver a asignado lo cierra", async () => {
     const [c1, c2, c3] = (await b.clientes(E.tenantId, 3)) as [string, string, string];
-    const { rol, miembro } = await rolConMiembro(b, T, ["clientes.ver", "clientes.editar", "buzon.ver"], "asignado");
+    // `reglas.ver` va en el rol: el guard (005) comprueba el permiso antes que el alcance. Con el permiso del módulo, un cliente fuera
+    // de alcance da 404 (CA-4/HU-08); sin él daría 403 antes de mirar el cliente (se prueba al final de este caso).
+    const { rol, miembro } = await rolConMiembro(b, T, ["clientes.ver", "clientes.editar", "buzon.ver", "reglas.ver"], "asignado");
     await b.asignar(E.tenantId, c1, miembro.id, "colaborador");
 
     const lista = await b.llamar(miembro, "GET", "/clientes");
@@ -162,6 +164,10 @@ describe("CA-4 · alcance asignado: el cliente no asignado da 404 (HU-08); edita
       expect(r.status, `${metodo} ${ruta}`).toBe(404);
     }
     expect((await b.llamar(miembro, "GET", "/acceso/yo")).body.alcance).toBe("asignado");
+
+    // Sin `reglas.ver` el mismo cliente fuera de alcance da 403 permiso_denegado (permiso antes que alcance), no 404.
+    const { miembro: sinReglas } = await rolConMiembro(b, T, ["clientes.ver"], "asignado");
+    deniega(await b.llamar(sinReglas, "GET", `/clientes/${c3}/reglas`), "sin reglas.ver en cliente no asignado");
 
     expect((await editar(b, T, rol.id, { alcance: "global" })).status).toBe(200);
     const abierta = await b.llamar(miembro, "GET", "/clientes");

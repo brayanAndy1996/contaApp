@@ -85,7 +85,8 @@ describe("CA-1 · crear un rol propio", () => {
   it("nombre de 1 y de 40 caracteres valen; el administrador también crea; el rol del cuerpo `baseRolId` ajeno o inexistente da 404", async () => {
     expect((await crear(b, D(), { nombre: "A", permisos: [] })).status).toBe(201);
     expect((await crear(b, D(), { nombre: "x".repeat(40), permisos: [] })).status).toBe(201);
-    expect((await crear(b, actores.admin, { permisos: ["clientes.ver"] })).status).toBe(201);
+    const admin = await b.miembro(E.tenantId, "admin");
+    expect((await crear(b, admin, { permisos: ["clientes.ver"] })).status).toBe(201);
     const base = await crearOk(b, D(), { permisos: ["clientes.ver"] });
     const conBase = await crear(b, D(), { permisos: ["clientes.ver", "clientes.crear"], baseRolId: base.id });
     expect(conBase.status, conBase.text).toBe(201);
