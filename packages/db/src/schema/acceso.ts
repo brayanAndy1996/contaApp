@@ -21,9 +21,19 @@ const bytea = customType<{ data: Buffer; driverData: Buffer }>({
   dataType: () => "bytea",
 });
 
+// Spec 030 (T13, 0085): clases de regex de `nombre_clave` (escapes \uXXXX y \UXXXXXXXX del motor de regex de Postgres).
+// Invisibles y de formato que se ignoran: Cc, Cf (incluye bidi y ZW*), Default_Ignorable (rellenos Hangul, selectores de variación, etiquetas).
+const INVISIBLES_NOMBRE =
+  "[\\u0001-\\u001f\\u007f-\\u009f\\u00ad\\u034f\\u061c\\u115f\\u1160\\u17b4\\u17b5\\u180b-\\u180f\\u200b-\\u200f\\u202a-\\u202e" +
+  "\\u2060-\\u206f\\u3164\\ufe00-\\ufe0f\\ufeff\\uffa0\\ufff0-\\ufffb\\u0600-\\u0605\\u06dd\\u070f\\u0890\\u0891\\u08e2" +
+  "\\U000110bd\\U000110cd\\U00013430-\\U0001343f\\U0001bca0-\\U0001bca3\\U0001d173-\\U0001d17a\\U000e0000-\\U000e0fff]";
+// Espacios (el ASCII y los Zs, Zl y Zp): toda racha queda como un espacio ASCII.
+const ESPACIOS_NOMBRE = "[ \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]+";
+
 // Spec 030 (D1): roles propios del estudio. Los de sistema siguen en código (005 D21). RLS FORCE y escritura solo por las
 // funciones `acceso.rol_guardar` / `acceso.rol_eliminar` (0082). `nombre_clave`: el nombre sin espacios al borde, sin tildes y en
-// minúsculas (único por estudio y distinto de los de sistema).
+// minúsculas (único por estudio y distinto de los de sistema). Desde 0085 (T13) también sin caracteres invisibles ni de formato
+// (Cc, Cf, selectores de variación, bidi) y con todo espacio Unicode (Zs, Zl, Zp) como un solo espacio ASCII; nunca vacío.
 export const rol = pgTable(
   "rol",
   {
@@ -36,7 +46,7 @@ export const rol = pgTable(
     nombreClave: text("nombre_clave")
       .notNull()
       .generatedAlwaysAs(
-        sql`lower(regexp_replace(normalize(btrim(nombre), NFD), '[\\u0300-\\u036f]', '', 'g'))`,
+        sql`lower(regexp_replace(normalize(btrim(regexp_replace(regexp_replace(nombre, '${sql.raw(INVISIBLES_NOMBRE)}', '', 'g'), '${sql.raw(ESPACIOS_NOMBRE)}', ' ', 'g')), NFD), '[\\u0300-\\u036f]', '', 'g'))`,
       ),
     alcance: text("alcance").notNull(),
     creadoEn: timestamp("creado_en", { withTimezone: true })
@@ -58,6 +68,7 @@ export const rol = pgTable(
       "rol_nombre_clave_no_sistema",
       sql`${t.nombreClave} NOT IN ('dueno', 'administrador', 'admin', 'contador', 'asistente', 'lectura', 'solo lectura')`,
     ),
+    check("rol_nombre_clave_no_vacia", sql`${t.nombreClave} <> ''`),
   ],
 );
 

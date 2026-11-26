@@ -37,6 +37,9 @@ const COLUMNAS = `i.id, i.correo, i.rol, i.rol_id, (select r.nombre from rol r w
        i.invitado_por, u.nombre as invitado_por_nombre, i.creada_en, i.vence_en, i.vence_en <= now() as vencida`;
 
 // Una vencida pendiente del mismo correo se revoca antes de emitir la nueva (libera el índice único parcial).
+// D4 (030, T13): toda sentencia sobre `invitacion` toma antes el advisory `acceso.roles:<estudio>` (disparador por sentencia de 0085,
+// el mismo que toma bloquearMiembros), así bloquear esta fila y luego el rol (FK y disparador de asignación al insertar) no se cruza
+// con rol_eliminar (advisory -> membresías -> rol -> invitaciones).
 const SQL_REVOCAR_VENCIDAS = `update invitacion set revocada_en = now()
  where correo = $1 and aceptada_en is null and revocada_en is null and vence_en <= now()`;
 

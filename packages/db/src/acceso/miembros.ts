@@ -70,12 +70,18 @@ const SQL_DEFINICIONES = `select m.usuario_id, m.rol, m.rol_id, r.alcance,
   from membresia m left join rol r on r.tenant_id = m.tenant_id and r.id = m.rol_id
  where m.usuario_id = any($1::uuid[])`;
 
+// 030 (D4, T13): antes de las membresías, el advisory `acceso.roles:<estudio>` (el de rol_guardar, rol_eliminar, aceptar y el disparador
+// por sentencia de `invitacion`, 0085). Va como filtro de una sola vez (InitPlan): se evalúa antes de leer y bloquear ninguna fila, en
+// la misma sentencia (pg_advisory_xact_lock devuelve void, que no es NULL). El id del estudio va en su forma canónica (::uuid::text).
+const ADVISORY_ROLES = `(select pg_advisory_xact_lock(hashtextextended('acceso.roles:' ||
+  coalesce((nullif(current_setting('app.tenant_id', true), '')::uuid)::text, ''), 0))) is not null`;
+
 const SQL_BLOQUEAR = `select usuario_id, rol, desactivada_en is null as activo
-  from membresia where usuario_id = $1::uuid for update`;
+  from membresia where ${ADVISORY_ROLES} and usuario_id = $1::uuid for update`;
 
 // Una sola sentencia: PostgreSQL bloquea las filas en el orden del ORDER BY (LockRows sobre Sort).
 const SQL_BLOQUEAR_VARIOS = `select usuario_id, rol, desactivada_en is null as activo
-  from membresia where usuario_id = any($1::uuid[]) order by usuario_id for update`;
+  from membresia where ${ADVISORY_ROLES} and usuario_id = any($1::uuid[]) order by usuario_id for update`;
 
 // `rol_id` siempre se escribe: NULL al pasar a un rol de sistema (nunca queda colgando; el CHECK de 0082 lo exige).
 const SQL_CAMBIAR_ROL = `update membresia set rol = $2, rol_id = $3::uuid, updated_at = now() where usuario_id = $1::uuid
