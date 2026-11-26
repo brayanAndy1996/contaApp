@@ -10,7 +10,7 @@ Nivel A. Flujo 04 §1.3: pruebas (rojo, con cobertura y E2E planificadas) → im
 | T2 | Pruebas puras de `shared`: resolvedor, U3, `puedeGestionar`, zod, casos TS/SQL (rojo) | tester | sonnet | — ∥ T1, T3, T4, T5 | ✓ | — | [x] |
 | T3 | Pruebas HTTP: `/roles`, asignación, tabla por permiso, escalada, TOTP, auditoría (rojo) | tester | sonnet | — ∥ T1, T2, T4, T5 | ✓ | — | [ ] |
 | T4 | Pruebas del frontend: Roles, selector de rol, avisos (rojo) | tester | sonnet | — ∥ T1, T2, T3, T5 | ✓ | — | [x] |
-| T5 | E2E `roles.e2e.ts` con login, invitación (Mailpit) y TOTP (rojo) | tester | sonnet | — ∥ T1, T2, T3, T4 | ✓ | — | [ ] |
+| T5 | E2E `roles.e2e.ts` con login, invitación (Mailpit) y TOTP (rojo) | tester | sonnet | — ∥ T1, T2, T3, T4 | ✓ | — | [x] |
 | T6 | Migración 0082, drizzle, repositorio, soportes y catálogos | backend | opus | T1, T2 ∥ T7 | ✓ | — | [ ] |
 | T7 | Núcleo en `shared`: resolvedor, combinación, `puedeGestionar`, esquemas, casos | backend | opus | T2 ∥ T6 | ✓ | — | [ ] |
 | T8 | Núcleo del backend: guards, alcance, escalada al asignar, TOTP, `/yo` | backend | opus | T3, T6, T7 ∥ T9, T10 | ✓ | — | [ ] |
