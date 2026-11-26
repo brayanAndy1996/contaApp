@@ -14,7 +14,7 @@ const aislamiento = fileURLToPath(
 );
 
 // 017 (T14): umbral de 90 % por archivo para auditoría, notificaciones, autor y origen. Se fija por glob
-// (no como `perFile` global) para no cambiar la medición del resto de `src`.
+// (no como `perFile` global) para no cambiar la medición del resto de `src`. 029 agrega totp, sesiones y el CLI.
 const porArchivo = {
   perFile: true,
   lines: 90,
@@ -69,6 +69,10 @@ export default defineConfig({
         "src/notificaciones/**/*.ts": porArchivo,
         "src/acceso/autores.ts": porArchivo,
         "src/clientes/origen.ts": porArchivo,
+        // 029 (T10): repositorios de TOTP y sesiones, y el CLI `db:totp-restablecer`.
+        "src/auth/totp.ts": porArchivo,
+        "src/auth/sesiones.ts": porArchivo,
+        "src/cli/totp-restablecer.ts": porArchivo,
       },
     },
   },

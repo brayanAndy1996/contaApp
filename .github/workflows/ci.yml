@@ -78,6 +78,8 @@ jobs:
       MIGRATIONS_DATABASE_URL: postgresql://postgres@localhost:5432/contapp
       KEY_PROVIDER: mock
       REDIS_URL: redis://localhost:6379
+      # 029 (D1): clave de desarrollo del cifrado TOTP; el backend no arranca sin ella (no es un secreto).
+      TOTP_CLAVE: 1:ZsPxN5o4uaKslN8Glw1ddWkM0cYXVHPeYdPHJnl3DLc=
     services:
       postgres:
         image: postgres:17
@@ -141,6 +143,8 @@ jobs:
       MIGRATIONS_DATABASE_URL: postgresql://postgres@localhost:5432/contapp
       KEY_PROVIDER: mock
       REDIS_URL: redis://localhost:6379
+      # 029 (D1): clave de desarrollo del cifrado TOTP; el backend no arranca sin ella (no es un secreto).
+      TOTP_CLAVE: 1:ZsPxN5o4uaKslN8Glw1ddWkM0cYXVHPeYdPHJnl3DLc=
     services:
       postgres:
         image: postgres:17
@@ -462,6 +466,8 @@ jobs:
       MIGRATIONS_DATABASE_URL: postgresql://postgres@localhost:5432/contapp
       REDIS_URL: redis://localhost:6379
       E2E_CORREO: mailpit
+      # 029 (D1): la pila E2E fija su propia TOTP_CLAVE; esta cubre cualquier arranque del backend fuera de ella.
+      TOTP_CLAVE: 1:ZsPxN5o4uaKslN8Glw1ddWkM0cYXVHPeYdPHJnl3DLc=
     services:
       postgres:
         image: postgres:17

@@ -15,7 +15,7 @@ Nivel A. Flujo 04 §1.3: pruebas (rojo) → implementar (verde) → cobertura �
 | T7 | Servicios, guards y controlador: dos pasos, exigencia, sesiones, avisos | backend | opus | T3, T5, T6 ∥ T8, T9 | ✓ | — | [x] |
 | T8 | CLI `db:totp-restablecer` | backend | sonnet | T1, T5, T6 ∥ T7, T9 | ✓ | — | [x] |
 | T9 | Pantallas de 029 | frontend | sonnet | T4, T6 ∥ T5, T7, T8 | ✓ | — | [x] |
-| T10 | Cobertura ≥ 90 % por archivo (globs) | devops | sonnet | T7, T8 ∥ T9 | — | — | [ ] |
+| T10 | Cobertura ≥ 90 % por archivo (globs) | devops | sonnet | T7, T8 ∥ T9 | — | — | [x] |
 | T11 | E2E con Mailpit y `pnpm e2e` completo | tester | sonnet | T7, T8, T9 ∥ T12–T16 | — | — | [x] |
 | T12 | Ronda 1a (caja negra, HTTP): autenticación y sesiones | adversario | opus | T10 ∥ T13 | — | ✓ | [ ] |
 | T13 | Ronda 1b (caja blanca, BD y secretos) | adversario | opus | T10 ∥ T12 | — | ✓ | [ ] |

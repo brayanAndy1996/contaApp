@@ -5,7 +5,8 @@ import { defineConfig } from "vitest/config";
 
 // Cobertura única del backend (spec 042, A1): una sola corrida, con todas las suites, mide lo que antes medían
 // las 12 configuraciones por spec (004 auth, 005 acceso, 012b archivos, 016 XML, 017 auditoría, 021 reglas,
-// 023 buzones, 024 bandeja, 025 aprendizaje, 026 prorrata, 027 gastos y 028 correo).
+// 023 buzones, 024 bandeja, 025 aprendizaje, 026 prorrata, 027 gastos y 028 correo). 029 (cuenta segura) cae en
+// `modules/**` (auth/totp), `packages/db/src/auth/**` (totp, sesiones) y `packages/shared/src/auth/**` (seguridad).
 // Umbral de 90 % por archivo en cada glob de `medidos` (D1: no se baja). Una spec nueva agrega sus globs a
 // `medidos` y, si sus suites no entran en un proyecto, el proyecto; no agrega una config ni un paso de CI (A6).
 const raiz = fileURLToPath(new URL("../..", import.meta.url));
