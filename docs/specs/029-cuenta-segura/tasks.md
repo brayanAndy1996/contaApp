@@ -17,12 +17,13 @@ Nivel A. Flujo 04 §1.3: pruebas (rojo) → implementar (verde) → cobertura �
 | T9 | Pantallas de 029 | frontend | sonnet | T4, T6 ∥ T5, T7, T8 | ✓ | — | [x] |
 | T10 | Cobertura ≥ 90 % por archivo (globs) | devops | sonnet | T7, T8 ∥ T9 | — | — | [x] |
 | T11 | E2E con Mailpit y `pnpm e2e` completo | tester | sonnet | T7, T8, T9 ∥ T12–T16 | — | — | [x] |
+| T11b | CSRF del paso de código en la respuesta del login (defecto de T11) | tester → backend → frontend | sonnet | T11 ∥ T10 | ✓ | — | [ ] |
 | T12 | Ronda 1a (caja negra, HTTP): autenticación y sesiones | adversario | opus | T10 ∥ T13 | — | ✓ | [ ] |
 | T13 | Ronda 1b (caja blanca, BD y secretos) | adversario | opus | T10 ∥ T12 | — | ✓ | [ ] |
 | T14 | Corregir hallazgos de la ronda 1 | backend (+frontend) | opus (sonnet) | T12, T13 | — | — | [ ] |
 | T15 | Ronda 2: regresión y ataques a las correcciones (solo con hallazgos media/alta) | adversario | opus | T14 | — | ✓ | [ ] |
 | T16 | Corregir hallazgos de la ronda 2 | backend (+frontend) | opus (sonnet) | T15 | — | — | [ ] |
-| T17 | Verificar CA-1 a CA-11 con evidencia y prueba manual | tester | sonnet | T11, T16 | — | — | [ ] |
+| T17 | Verificar CA-1 a CA-11 con evidencia y prueba manual | tester | sonnet | T11, T11b, T16 | — | — | [ ] |
 | T18 | Revisión final contra la spec | arquitecto | opus | T17 | — | — | [ ] |
 | T19 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T18 | — | — | [ ] |
 
@@ -95,6 +96,13 @@ Reglas comunes:
 - **Contexto**: `tests/e2e/README.md`, `soporte/correo.ts`, `flujos/correo.e2e.ts`, `flujos/alta.e2e.ts`; spec CA-2, CA-4, CA-10.
 - **Hacer**: `flujos/cuenta-segura.e2e.ts`: super-admin forzado a enrolar, login en dos pasos con TOTP calculado en la prueba, código de recuperación, revocar otra sesión, avisos en Mailpit sin códigos.
 - **Hecho cuando**: el flujo y `pnpm e2e` completo en verde con adaptadores `mock`.
+
+## T11b · CSRF del paso de código (tester → backend → frontend · sonnet)
+- **Contexto**: CA-2; `plan.md` (`POST /auth/login`, decisión CSRF); `packages/shared/src/auth/seguridad{,.spec}.ts`; `apps/backend/src/modules/auth/{auth.service,auth.controller}.ts`, `totp.login.int.spec.ts`; `apps/frontend/lib/api.ts`, `app/(publico)/login/{page,segundo-factor.spec}.tsx`, `pruebas/seguridad.ts`; `tests/e2e/flujos/cuenta-segura.e2e.ts`.
+- **Tester (rojo, primero)**: el esquema exige `csrf` (43 car. base64url, sigue estricto); `totp.login`: `csrf` = `derivarCsrf` del token de la cookie, sirve para verificar y logout, y `GET /auth/sesion` con la `pendiente` sigue en 401; `segundo-factor.spec`: verificar lleva el `csrf` del login, sin `GET /api/auth/sesion` previo ni `X-Estudio`; E2E: quitar `test.fail` y usar el `csrf` de la respuesta en vez de `derivarCsrf`.
+- **Backend**: `csrf` en `loginSegundoFactorRespuestaSchema`, `RespuestaSegundoFactor` y el login pendiente; no se toca `@Get("sesion")` ni la lista de `@PermitirPendiente`.
+- **Frontend**: `OpcionesApi.csrf` (solo con `sinSesion`; `X-CSRF-Token` en no-GET); `page.tsx` guarda el `csrf` solo en estado, verifica con `sinSesion: true, csrf` y lo descarta al verificar, caducar o volver.
+- **Hecho cuando**: lo anterior en verde (antes rojo por esa causa); `auth*`/`totp*` del backend, shared y frontend verdes; `pnpm e2e` completo verde sin `test.fail`.
 
 ## T12 · Ronda 1a, caja negra (adversario · opus)
 - **Contexto**: spec CA-11 y CA-1–CA-6; `plan.md#contratos`; 04 §2.3. Sin leer la implementación.

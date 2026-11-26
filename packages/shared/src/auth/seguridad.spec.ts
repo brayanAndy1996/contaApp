@@ -33,7 +33,7 @@ import { CASOS_FACTOR_EXIGIDO } from "./factor-exigido.casos.js";
 //   codigosRecuperacionRespuestaSchema{ codigosRecuperacion: 10 × codigoRecuperacion }
 //   FACTORES_SESION                   ["pendiente", "verificado", "sin_factor"]
 //   estadoFactorSchema                { factor, totpActivo: boolean, factorExigido: boolean } (se suma a GET /auth/sesion)
-//   loginSegundoFactorRespuestaSchema { segundoFactor: true, estudioActivo: null }
+//   loginSegundoFactorRespuestaSchema { segundoFactor: true, estudioActivo: null, csrf: 43 car. base64url } (estricto)
 //   sesionCuentaSchema                { id: uuid, creadaEn: ISO, ultimoUso: ISO, dispositivo: string ≤ 60, ip: string | null, actual: boolean }
 //                                     (estricto: sin hash ni token); sesionesCuentaRespuestaSchema = array de ellas
 //   CODIGOS_ERROR_SEGURIDAD           ["codigo_invalido", "segundo_factor_requerido", "totp_exigido"]; errorSeguridadSchema = { codigo } estricto
@@ -247,25 +247,68 @@ describe("respuestas", () => {
     ).toBe(false);
   });
 
-  it("loginSegundoFactorRespuestaSchema: { segundoFactor: true, estudioActivo: null }", () => {
-    expect(
-      loginSegundoFactorRespuestaSchema.safeParse({
-        segundoFactor: true,
-        estudioActivo: null,
-      }).success,
-    ).toBe(true);
-    expect(
-      loginSegundoFactorRespuestaSchema.safeParse({
-        segundoFactor: false,
-        estudioActivo: null,
-      }).success,
-    ).toBe(false);
-    expect(
-      loginSegundoFactorRespuestaSchema.safeParse({
-        segundoFactor: true,
-        estudioActivo: UUID,
-      }).success,
-    ).toBe(false);
+  describe("loginSegundoFactorRespuestaSchema: { segundoFactor: true, estudioActivo: null, csrf }", () => {
+    const CSRF = "Zm9vYmFyLWJhei1fMDEyMzQ1Njc4OWFiY2RlZmdoaWo"; // 43 car. base64url
+    const valida = { segundoFactor: true, estudioActivo: null, csrf: CSRF };
+
+    it("acepta el csrf de 43 caracteres base64url", () => {
+      expect(CSRF).toHaveLength(43);
+      expect(loginSegundoFactorRespuestaSchema.safeParse(valida).success).toBe(
+        true,
+      );
+    });
+
+    it("exige el csrf: sin él no pasa", () => {
+      expect(
+        loginSegundoFactorRespuestaSchema.safeParse({
+          segundoFactor: true,
+          estudioActivo: null,
+        }).success,
+      ).toBe(false);
+    });
+
+    it.each([
+      [""],
+      ["x".repeat(42)],
+      ["x".repeat(44)],
+      ["x".repeat(42) + "+"],
+      ["x".repeat(42) + "/"],
+      ["x".repeat(42) + "="],
+      ["x".repeat(42) + " "],
+      ["x".repeat(42) + "\n"],
+    ])("rechaza un csrf inválido (%j)", (csrf) => {
+      expect(
+        loginSegundoFactorRespuestaSchema.safeParse({ ...valida, csrf }).success,
+      ).toBe(false);
+    });
+
+    it("rechaza un csrf que no es cadena", () => {
+      for (const csrf of [null, undefined, 1, ["x"]]) {
+        expect(
+          loginSegundoFactorRespuestaSchema.safeParse({ ...valida, csrf })
+            .success,
+        ).toBe(false);
+      }
+    });
+
+    it("sigue estricto: segundoFactor false, estudio activo o claves extra no pasan", () => {
+      expect(
+        loginSegundoFactorRespuestaSchema.safeParse({
+          ...valida,
+          segundoFactor: false,
+        }).success,
+      ).toBe(false);
+      expect(
+        loginSegundoFactorRespuestaSchema.safeParse({
+          ...valida,
+          estudioActivo: UUID,
+        }).success,
+      ).toBe(false);
+      expect(
+        loginSegundoFactorRespuestaSchema.safeParse({ ...valida, token: "x" })
+          .success,
+      ).toBe(false);
+    });
   });
 
   describe("sesionCuentaSchema (CA-5: sin hashes ni tokens)", () => {

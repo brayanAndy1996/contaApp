@@ -1,14 +1,15 @@
 // Segundo paso del login por API (spec 029, T11): contraseña → sesión `pendiente` → `POST /auth/2fa/verificar`, con las cabeceras del
-// navegador (`Origin`, IP propia). La sesión `pendiente` no puede leer `GET /auth/sesion`, así que el `X-CSRF-Token` (D6) se deriva
-// del valor de la cookie como lo hace `apps/backend/src/modules/auth/sesion/csrf.ts`; solo se usa aquí, para probar el contrato
-// del servidor (replay, ventana, código de recuperación) sin pasar por la pantalla.
-import { createHash } from "node:crypto";
+// navegador (`Origin`, IP propia). La sesión `pendiente` no puede leer `GET /auth/sesion`, así que el `X-CSRF-Token` (D6) es el `csrf`
+// que trae la respuesta del login (T11b); no se deriva aquí, para probar el contrato real del servidor (replay, ventana, código de
+// recuperación) sin pasar por la pantalla.
 import { URL_BACKEND, URL_FRONTEND } from "./pila/entorno.js";
 import { NOMBRE_COOKIE, ipUnica } from "./sesiones.js";
 
 export interface Pendiente {
   readonly cookie: string;
   readonly ip: string;
+  /** `csrf` de la respuesta del login pendiente. */
+  readonly csrf: string;
 }
 
 export interface Respuesta {
@@ -41,11 +42,6 @@ async function leer(r: Response): Promise<Respuesta> {
   return { status: r.status, cuerpo, cookie: cookieDe(r) };
 }
 
-const csrfDeCookie = (cookie: string): string =>
-  createHash("sha256")
-    .update(`contapp-csrf|v1|${cookie.slice(NOMBRE_COOKIE.length + 1)}`, "utf8")
-    .digest("base64url");
-
 /** Login con contraseña de quien tiene TOTP activo: la API responde `segundoFactor: true` y deja una sesión `pendiente`. */
 export async function loginPendiente(
   correo: string,
@@ -61,7 +57,10 @@ export async function loginPendiente(
   );
   if (r.status !== 200 || r.cookie === null)
     throw new Error(`El login de prueba respondió ${r.status}.`);
-  return { ...r, cookie: r.cookie, ip };
+  const csrf = r.cuerpo?.csrf;
+  if (typeof csrf !== "string")
+    throw new Error("La respuesta del login pendiente no trae `csrf`.");
+  return { ...r, cookie: r.cookie, ip, csrf };
 }
 
 /** `POST /auth/2fa/verificar` con `{codigo}` o `{codigoRecuperacion}`. */
@@ -74,7 +73,7 @@ export async function verificarSegundoPaso(
       method: "POST",
       headers: {
         ...cabeceras(p.ip, p.cookie),
-        "X-CSRF-Token": csrfDeCookie(p.cookie),
+        "X-CSRF-Token": p.csrf,
       },
       body: JSON.stringify(cuerpo),
     }),

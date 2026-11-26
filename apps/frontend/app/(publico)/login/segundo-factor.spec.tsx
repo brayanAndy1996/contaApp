@@ -11,10 +11,10 @@ import {
 } from "../../../pruebas/soporte";
 import { verificarSegundoFactorSchema } from "@contapp/shared";
 import {
+  CSRF_PENDIENTE,
   MENSAJES_SEG,
   errorSeg,
   respuestaSegundoFactor,
-  sesionSegura,
 } from "../../../pruebas/seguridad";
 
 const router = vi.hoisted(() => ({
@@ -34,15 +34,16 @@ vi.mock("next/navigation", () => ({
 import Login from "./page";
 
 // Contrato (plan 029, Contratos HTTP y Alcance «Login en dos pasos»; CA-2, CA-3, CA-6). La pantalla /login,
-// tras `POST /api/auth/login` → 200 `{ segundoFactor: true, estudioActivo: null }` (sesión `pendiente`),
+// tras `POST /api/auth/login` → 200 `{ segundoFactor: true, estudioActivo: null, csrf }` (sesión `pendiente`),
 // NO navega y reemplaza el formulario por el paso de código:
 //   - campo «Código de verificación» (type=text, inputMode numeric, autocomplete="one-time-code") y botón
 //     «Verificar»; ya no muestra los campos «Correo» ni «Contraseña» (la contraseña no queda en pantalla);
 //   - botón «Usar un código de recuperación» → cambia al campo «Código de recuperación» (+ «Verificar»);
 //     un botón «Usar el código de mi aplicación» vuelve al anterior.
-// `POST /api/auth/2fa/verificar` con `{ codigo }` o `{ codigoRecuperacion }`, con sesión (la `pendiente` lee
-// `GET /api/auth/sesion`: X-CSRF-Token de esa lectura; sin X-Estudio porque no hay estudio activo) y con
-// `manejar401: false` (el 401 `codigo_invalido` NO es sesión caducada: se muestra, sin reintento ni /login).
+// `POST /api/auth/2fa/verificar` con `{ codigo }` o `{ codigoRecuperacion }`, con sesión y el `csrf` que trajo la
+// respuesta del login (la `pendiente` no puede leer `GET /api/auth/sesion`, que da 401: no se llama; X-CSRF-Token =
+// ese `csrf`; sin X-Estudio porque no hay estudio activo) y con `manejar401: false` (el 401 `codigo_invalido` NO es
+// sesión caducada: se muestra, sin reintento ni /login).
 //   200 → igual que el login: con estudioActivo → «/»; sin él → «/estudios».
 //   401 → MENSAJES_SEG.codigoIncorrecto (mismo texto para TOTP y recuperación; el campo queda para reintentar).
 //   429 → MENSAJES.demasiadosIntentos.
@@ -53,6 +54,7 @@ const CONTRASENA = "canario-contrasena-de-prueba-1";
 const CODIGO = "492817";
 const RECUPERACION = "ABCD-EFGH-JK23";
 const VERIFICAR = "POST /api/auth/2fa/verificar";
+const SESION = "GET /api/auth/sesion";
 const ESTUDIO = { id: "e-1", nombre: "Estudio Uno" };
 
 function rutas(
@@ -66,15 +68,8 @@ function rutas(
       status: 200,
       cuerpo: respuestaSegundoFactor(),
     },
-    "GET /api/auth/sesion": {
-      status: 200,
-      cuerpo: sesionSegura({
-        factor: "pendiente",
-        totpActivo: true,
-        estudio: null,
-        csrf: "csrf-pendiente-1",
-      }),
-    },
+    // La API responde 401 a la sesión pendiente en esta ruta; la pantalla no debe llamarla.
+    [SESION]: { status: 401, cuerpo: { codigo: "no_autenticado" } },
     [VERIFICAR]: verificar,
   };
 }
@@ -122,7 +117,7 @@ describe("/login · paso de código (029)", () => {
     expect(destinos(router)).toEqual([]);
   });
 
-  it("envía POST /2fa/verificar { codigo } con X-CSRF-Token de la sesión pendiente y sin X-Estudio", async () => {
+  it("envía POST /2fa/verificar { codigo } con el csrf del login, sin leer GET /auth/sesion y sin X-Estudio", async () => {
     const f = instalarFetchFalso(rutas());
     render(<Login />);
     const user = await hastaElPasoDeCodigo();
@@ -136,8 +131,59 @@ describe("/login · paso de código (029)", () => {
       true,
     );
     expect(llamada?.credentials).toBe("same-origin");
-    expect(llamada?.headers["x-csrf-token"]).toBe("csrf-pendiente-1");
+    expect(llamada?.headers["x-csrf-token"]).toBe(CSRF_PENDIENTE);
     expect(llamada?.headers["x-estudio"]).toBeUndefined();
+    expect(f.de(SESION)).toHaveLength(0);
+  });
+
+  it("el csrf es el de la respuesta del login (no uno fijo) y también viaja con el código de recuperación", async () => {
+    const otro = "b3Ryby1jc3JmLTEyMzQ1Njc4OTAtYWJjZGVmZ2hpamtsbQ";
+    const f = instalarFetchFalso({
+      ...rutas(),
+      "POST /api/auth/login": { status: 200, cuerpo: respuestaSegundoFactor(otro) },
+    });
+    render(<Login />);
+    const user = await conRecuperacion();
+    await user.type(screen.getByLabelText("Código de recuperación"), RECUPERACION);
+    await user.click(screen.getByRole("button", { name: "Verificar" }));
+    await vi.waitFor(() => expect(f.de(VERIFICAR)).toHaveLength(1));
+    expect(f.de(VERIFICAR)[0]?.headers["x-csrf-token"]).toBe(otro);
+    expect(f.de(SESION)).toHaveLength(0);
+  });
+
+  it("un 401 de la verificación no vuelve a pedir GET /auth/sesion y el reintento reutiliza el mismo csrf", async () => {
+    const f = instalarFetchFalso(
+      rutas((_l, vez) =>
+        vez === 1
+          ? { status: 401, cuerpo: errorSeg("codigo_invalido") }
+          : { status: 200, cuerpo: { estudioActivo: ESTUDIO, requiereEstudio: false } },
+      ),
+    );
+    render(<Login />);
+    const user = await hastaElPasoDeCodigo();
+    const campo = screen.getByLabelText("Código de verificación");
+    await user.type(campo, "000000");
+    await user.click(screen.getByRole("button", { name: "Verificar" }));
+    await screen.findByText(MENSAJES_SEG.codigoIncorrecto);
+    await user.clear(campo);
+    await user.type(campo, CODIGO);
+    await user.click(screen.getByRole("button", { name: "Verificar" }));
+    await vi.waitFor(() => expect(destinos(router)).toEqual(["/"]));
+    expect(f.de(VERIFICAR).map((l) => l.headers["x-csrf-token"])).toEqual([CSRF_PENDIENTE, CSRF_PENDIENTE]);
+    expect(f.de(SESION)).toHaveLength(0);
+  });
+
+  it("el csrf no queda en almacenamiento ni en la URL", async () => {
+    instalarFetchFalso(rutas());
+    render(<Login />);
+    const user = await hastaElPasoDeCodigo();
+    await user.type(screen.getByLabelText("Código de verificación"), CODIGO);
+    await user.click(screen.getByRole("button", { name: "Verificar" }));
+    await vi.waitFor(() => expect(destinos(router)).toEqual(["/"]));
+    const almacenado = JSON.stringify([{ ...window.localStorage }, { ...window.sessionStorage }, document.cookie]);
+    expect(almacenado).not.toContain(CSRF_PENDIENTE);
+    expect(window.location.href).not.toContain(CSRF_PENDIENTE);
+    expect(destinos(router).join("")).not.toContain(CSRF_PENDIENTE);
   });
 
   it("200 con un estudio activo → va a /", async () => {

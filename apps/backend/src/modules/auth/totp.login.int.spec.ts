@@ -28,6 +28,7 @@ import {
   type CuentaTotp,
   type Reloj,
 } from "../../../test/soporte-totp.js";
+import { derivarCsrf } from "./sesion/csrf.js";
 
 let h: Harness;
 let reloj: Reloj;
@@ -53,11 +54,11 @@ describe("CA-2 · el login con TOTP crea una sesión pendiente", () => {
     const antes = (await sesionesDe(h, u.id)).length;
     const r = await h.login(u.correo, u.contrasena);
     expect(r.status).toBe(200);
-    expect(r.body).toEqual({ segundoFactor: true, estudioActivo: null });
-    expect(loginSegundoFactorRespuestaSchema.safeParse(r.body).success).toBe(true);
-    expect(r.headers["cache-control"]).toMatch(/no-store/);
     const c = cookieSesion(r);
     expect(c).toBeDefined();
+    expect(r.body).toEqual({ segundoFactor: true, estudioActivo: null, csrf: derivarCsrf(c!.valor) });
+    expect(loginSegundoFactorRespuestaSchema.safeParse(r.body).success).toBe(true);
+    expect(r.headers["cache-control"]).toMatch(/no-store/);
     expect(maxAge(c!)).toBeLessThanOrEqual(300);
     expect(maxAge(c!)).toBeGreaterThan(0);
     const filas = await sesionesDe(h, u.id);
@@ -71,6 +72,48 @@ describe("CA-2 · el login con TOTP crea una sesión pendiente", () => {
     );
     expect(Number(vida.seg)).toBeLessThanOrEqual(300);
     expect(Number(vida.seg)).toBeGreaterThan(240);
+  });
+
+  it("el csrf de la respuesta del login es el derivado del token de la cookie pendiente (43 car. base64url) y distinto en cada login", async () => {
+    const { u } = await conTotp();
+    const a = await h.login(u.correo, u.contrasena);
+    const b = await h.login(u.correo, u.contrasena);
+    for (const r of [a, b]) {
+      const c = cookieSesion(r)!;
+      expect((r.body as { csrf?: unknown }).csrf).toBe(derivarCsrf(c.valor));
+      expect((r.body as { csrf: string }).csrf).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    }
+    expect((a.body as { csrf: string }).csrf).not.toBe((b.body as { csrf: string }).csrf);
+  });
+
+  it("ese csrf sirve para verificar y para salir, sin leer GET /auth/sesion (que sigue en 401 para la pendiente)", async () => {
+    const { u, cuenta } = await conTotp();
+    const r1 = await h.login(u.correo, u.contrasena);
+    const c1 = cookieSesion(r1)!;
+    const csrf1 = (r1.body as { csrf: string }).csrf;
+    expect((await h.pedir({ ruta: "/auth/sesion", cookie: `${COOKIE}=${c1.valor}` })).status).toBe(401);
+    reloj.avanzar(1);
+    const ok = await verificar(h, { cookie: `${COOKIE}=${c1.valor}`, csrf: csrf1 }, { codigo: reloj.codigo(cuenta.secreto) });
+    expect(ok.status).toBe(200);
+    expect(cookieSesion(ok)).toBeDefined();
+
+    const r2 = await h.login(u.correo, u.contrasena);
+    const c2 = cookieSesion(r2)!;
+    const salir = await h.pedir({ ruta: "/auth/logout", cuerpo: {}, cookie: `${COOKIE}=${c2.valor}`, csrf: (r2.body as { csrf: string }).csrf });
+    expect(salir.status).toBe(204);
+  });
+
+  it("el csrf de otra sesión pendiente no sirve (403 csrf_invalido) y el código no se consume", async () => {
+    const { u, cuenta } = await conTotp();
+    const a = await h.login(u.correo, u.contrasena);
+    const b = await h.login(u.correo, u.contrasena);
+    reloj.avanzar(1);
+    const codigo = reloj.codigo(cuenta.secreto);
+    const mal = await verificar(h, { cookie: `${COOKIE}=${cookieSesion(a)!.valor}`, csrf: (b.body as { csrf: string }).csrf }, { codigo });
+    expect(mal.status).toBe(403);
+    expect(mal.body).toEqual({ codigo: "csrf_invalido" });
+    const bien = await verificar(h, { cookie: `${COOKIE}=${cookieSesion(a)!.valor}`, csrf: (a.body as { csrf: string }).csrf }, { codigo });
+    expect(bien.status).toBe(200);
   });
 
   it("sin TOTP el login no cambia: mismo cuerpo de 004 y sesión sin_factor", async () => {
@@ -292,7 +335,7 @@ describe("CA-2 · verificar con el código TOTP", () => {
     expect(cookieSesion(rest)).toBeUndefined();
     expect((await sesionesDe(h, u.id)).filter((f) => f.revocada_en === null)).toHaveLength(0);
     const l = await h.login(u.correo, nueva);
-    expect(l.body).toEqual({ segundoFactor: true, estudioActivo: null });
+    expect(l.body).toEqual({ segundoFactor: true, estudioActivo: null, csrf: derivarCsrf(cookieSesion(l)!.valor) });
     expect((await h.pedir({ ruta: "/auth/sesion", cookie: `${COOKIE}=${cookieSesion(l)!.valor}` })).status).toBe(401);
     reloj.avanzar(1);
     expect((await verificar(h, await loginPendiente(h, { correo: u.correo, contrasena: nueva }), { codigo: reloj.codigo(cuenta.secreto) })).status).toBe(200);

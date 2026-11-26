@@ -194,6 +194,7 @@ test.describe("E-13 · cuenta segura", () => {
         segundoFactor: true,
         estudioActivo: null,
       });
+      expect(p.csrf).toMatch(/^[A-Za-z0-9_-]{43}$/);
       // CA-2: la sesión `pendiente` recibe 401 en toda ruta salvo verificar y salir.
       for (const ruta of [
         "/auth/sesion",
@@ -344,10 +345,8 @@ test.describe("E-13 · cuenta segura", () => {
     });
   });
 
-  // Defecto de producción (T11): la pantalla de «Verificación en dos pasos» no puede terminar el login. `api()` pide `GET /auth/sesion`
-  // para leer el CSRF y la API responde 401 a una sesión `pendiente` (`@Get("sesion")` sin `@PermitirPendiente()`, el plan lo da por
-  // «cualquiera»): la pantalla muestra «El código no es correcto» sin enviar el código. Mientras siga así, esta prueba se espera fallida
-  // (`test.fail`); al corregirlo, Playwright la marca como fallo inesperado y hay que quitar la anotación.
+  // T11b: la pantalla de «Verificación en dos pasos» toma el CSRF de la respuesta del login (la sesión `pendiente` no lee
+  // `GET /auth/sesion`, que responde 401) y termina el login.
   test("login en dos pasos por pantalla: el código llega al servidor y entra", async ({
     page,
     siembra,
@@ -355,10 +354,6 @@ test.describe("E-13 · cuenta segura", () => {
     paginaNueva,
     vigilancia,
   }) => {
-    test.fail(
-      true,
-      "T11: GET /auth/sesion responde 401 a la sesión pendiente y la pantalla no puede obtener el CSRF para verificar",
-    );
     vigilancia.permitirError(/40[13]/);
     const estudio = await siembra.estudio();
     cuentas.registrar(estudio);

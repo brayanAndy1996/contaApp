@@ -19,9 +19,9 @@
 **HTTP** (`@SinEstudio`, Origen + CSRF de 004; respuestas con secretos `Cache-Control: no-store`):
 | Ruta | Sesión | Respuesta |
 |---|---|---|
-| `POST /auth/login` | pública | como 004; si hay TOTP: `{segundoFactor: true, estudioActivo: null}` y sesión `pendiente` |
+| `POST /auth/login` | pública | como 004; si hay TOTP: `{segundoFactor: true, estudioActivo: null, csrf}` y sesión `pendiente` |
 | `POST /auth/2fa/verificar` `{codigo}` \| `{codigoRecuperacion}` | solo `pendiente` (`@PermitirPendiente`) | 200 como login, token rotado · 401 `codigo_invalido` · 429 `demasiados_intentos` |
-| `GET /auth/sesion` | cualquiera | + `factor`, `totpActivo`, `factorExigido` |
+| `GET /auth/sesion` | no `pendiente` | + `factor`, `totpActivo`, `factorExigido` |
 | `POST /auth/totp/enrolar` `{contrasena}` | no `pendiente` | 200 `{uri}` · 401 `credenciales_invalidas` |
 | `POST /auth/totp/confirmar` `{codigo}` | ídem | 200 `{codigosRecuperacion: string[10]}`, token rotado, sesión `verificado`, otras revocadas |
 | `POST /auth/totp/desactivar` `{contrasena, codigo}` | `verificado` | 204 · 409 `totp_exigido` |
@@ -42,6 +42,7 @@ Exigencia: 403 `segundo_factor_requerido`. Lista cerrada sin factor exigido: `GE
 **Entorno**: `TOTP_CLAVE=<versión>:<base64 32 B>` (obligatoria en backend), `TOTP_CLAVE_ANTERIOR` opcional (solo descifra).
 
 ## Decisiones
+- CSRF del paso de código: `derivarCsrf` del token `pendiente` en la respuesta del login; la `pendiente` no lee `GET /auth/sesion` (CA-2).
 - Verificar = `totp_intento_reservar` (suma al contador de 004 D7 de forma atómica; al 5.º bloquea 15 min y revoca la `pendiente`) → descifrar y evaluar en el backend → `totp_verificar_exito` (`UPDATE … WHERE ultimo_paso < $paso`, D3; reinicia el contador). Así 20 concurrentes dan ≤ 5 evaluaciones (CA-3). La 5.ª reserva bloquea y revoca antes de evaluar: no se evalúa, aunque el código sea bueno (decisión: más simple y sin ventana entre evaluar y revocar).
 - Código de recuperación: 60 bits base32, HMAC-SHA-256 con subclave HKDF de `TOTP_CLAVE` (D1); uso = `UPDATE … WHERE usado_en IS NULL` atómico.
 - Exigencia: `factorExigido` en `shared` (U1–U2), evaluada en `PermisoGuard` y en `@SoloPlataforma` con el rol y permisos que ya carga 005 y el `factor` de la validación de sesión (D2, sin consulta extra). `totp_desactivar` repite la regla en SQL sobre todas las membresías vigentes; una tabla de casos común prueba ambas.
