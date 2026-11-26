@@ -1,6 +1,6 @@
 # Spec 029 · Cuenta segura (TOTP y sesiones)
 
-Estado: **aprobada (2026-11-25)**, P1–P9 con la opción (a) (U1–U9). Rama `spec/029-cuenta-segura`; `plan.md`, `tasks.md`.
+Estado: **hecha (2026-11-26)**, P1–P9 con la opción (a) (U1–U9). Rama `spec/029-cuenta-segura`; `plan.md`, `tasks.md`, `cierre.md`.
 Nivel de riesgo: A — (2) una contraseña robada bastaría, también para el panel; (3) un código reusable o una sesión revocada viva no se notan; (4) tiempo, concurrencia, sesiones y estudios.
 Cubre: RF-012, RF-014 (resto tras 004 P2), RF-015 (segundo paso) · TOTP del super-admin (006) · RNF-004, RNF-007, RNF-009
 

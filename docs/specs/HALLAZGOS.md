@@ -175,6 +175,18 @@ Hallazgos de las rondas adversariales ya cerrados (corregidos, aceptados por el 
 | 021-reglas-aprendidas | rondas ADV / T25 | H-T25-1 (baja): aceptar una sugerencia de una regla apagada | corregido (a71dde1; decisión del usuario) |
 | 021-reglas-aprendidas | rondas ADV / T25 | H-T25-2 (media): descarga con reglas 6,6× más lenta | corregido (0c6ff2a; por lotes, 0052; decisión del usuario) |
 | 022-rendimiento | CI 43948801592 · `compras-existentes-022.spec.ts` | Plan malo intermitente de `leerExistentesCompras` con estadísticas de `compra_version` en 0 (29–42 s) | corregido (d107433; 0053, índice parcial `compra_version_operacion_idx`) |
+| 029-cuenta-segura | T12 · `apps/backend/src/modules/auth/totp-r1a.adv.int.spec.ts:247` | H-029-1a-1 (media): sesión `sin_factor` de un Dueño usa rutas de /auth fuera de la lista cerrada (GET /auth/sesiones 200, POST /auth/contrasena 204, revocar-otras/cerrar-todas) | corregido (c363c8d; 0080) |
+| 029-cuenta-segura | T13 · `tests/aislamiento/auth-totp-r1b.adv.spec.ts:350` | H-029-1b-1 (media): `recuperacion_consumir` (0007) borra `auth.intento_login`; restablecer contraseña levanta el bloqueo de 5 códigos TOTP erróneos (CA-3/CA-4) | corregido (c363c8d; 0080) |
+| 029-cuenta-segura | T13 · `tests/aislamiento/auth-totp-r1b.adv.spec.ts:279` | H-029-1b-2 (baja): carrera `login_exito` vs `totp_confirmar` deja sesión `sin_factor` viva con TOTP activo (U3) | corregido (c363c8d; 0080) |
+| 029-cuenta-segura | T13 · `tests/aislamiento/auth-totp-r1b.adv.spec.ts:268` | H-029-1b-3 (baja): `totp_confirmar` no exige que no haya TOTP activo (re-enrolar sin código vigente) | corregido (c363c8d; 0080) |
+| 029-cuenta-segura | T13 · `tests/aislamiento/auth-totp-r1b.adv.spec.ts:366` | H-029-1b-4 (baja): funciones de antes de 029 aceptan una sesión `pendiente` (sin segunda barrera en BD) | riesgo aceptado (el guard HTTP da 401 a `pendiente`) |
+| 029-cuenta-segura | T13 · `tests/aislamiento/auth-totp-r1b.adv.spec.ts:382` (hoy :384, `it.fails`) | H-029-1b-5 (baja): `intento_acierto` (0079) no está ligada a una reserva; 5 llamadas levantan un bloqueo ajeno | riesgo aceptado (vitest avisa si la prueba empieza a pasar) |
+| 029-cuenta-segura | T15 · ronda 2 | H-029-2-1 (alta): `contrasena_cambiar` reinicia el contador de códigos | corregido (cd98f90; 0081) |
+| 029-cuenta-segura | T15 · ronda 2 | H-029-2-2 (media): bloqueo de códigos levantado por cambio de contraseña | corregido (cd98f90; 0081) |
+| 029-cuenta-segura | T15 · ronda 2 | H-029-2-3 (media): sesión rotada `sin_factor` con TOTP activo | corregido (cd98f90; 0081) |
+| 029-cuenta-segura | T15 · ronda 2 | H-029-2-4 (media): sesión `verificado` tras `totp_restablecer` | corregido (cd98f90; 0081) |
+| 029-cuenta-segura | T15 · ronda 2 | H-029-2-5 (baja): `totp_confirmar` sin comprobar el pendiente evaluado | corregido (cd98f90; 0081) |
+| 029-cuenta-segura | T15 · ronda 2 | H-029-2-6 (baja): contador borrado al restablecer con 4 fallos | corregido (cd98f90; 0081) |
 
 ## Notas movidas
 

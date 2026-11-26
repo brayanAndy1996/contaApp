@@ -18,17 +18,17 @@ Nivel A. Flujo 04 §1.3: pruebas (rojo) → implementar (verde) → cobertura �
 | T10 | Cobertura ≥ 90 % por archivo (globs) | devops | sonnet | T7, T8 ∥ T9 | — | — | [x] |
 | T11 | E2E con Mailpit y `pnpm e2e` completo | tester | sonnet | T7, T8, T9 ∥ T12–T16 | — | — | [x] |
 | T11b | CSRF del paso de código en la respuesta del login (defecto de T11) | tester → backend → frontend | sonnet | T11 ∥ T10 | ✓ | — | [x] |
-| T12 | Ronda 1a (caja negra, HTTP): autenticación y sesiones | adversario | opus | T10 ∥ T13 | — | ✓ | [ ] |
-| T13 | Ronda 1b (caja blanca, BD y secretos) | adversario | opus | T10 ∥ T12 | — | ✓ | [ ] |
-| T14 | Corregir hallazgos de la ronda 1 | backend (+frontend) | opus (sonnet) | T12, T13 | — | — | [ ] |
-| T15 | Ronda 2: regresión y ataques a las correcciones (solo con hallazgos media/alta) | adversario | opus | T14 | — | ✓ | [ ] |
-| T16 | Corregir hallazgos de la ronda 2 | backend (+frontend) | opus (sonnet) | T15 | — | — | [ ] |
+| T12 | Ronda 1a (caja negra, HTTP): autenticación y sesiones | adversario | opus | T10 ∥ T13 | — | ✓ | [x] |
+| T13 | Ronda 1b (caja blanca, BD y secretos) | adversario | opus | T10 ∥ T12 | — | ✓ | [x] |
+| T14 | Corregir hallazgos de la ronda 1 | backend (+frontend) | opus (sonnet) | T12, T13 | — | — | [x] |
+| T15 | Ronda 2: regresión y ataques a las correcciones (solo con hallazgos media/alta) | adversario | opus | T14 | — | ✓ | [x] |
+| T16 | Corregir hallazgos de la ronda 2 | backend (+frontend) | opus (sonnet) | T15 | — | — | [x] |
 | T17 | Verificar CA-1 a CA-11 con evidencia y prueba manual | tester | sonnet | T11, T11b, T16 | — | — | [x] |
 | T17a | Ajustar `equipo.e2e.ts:382` al enrolamiento forzado de 029 (defecto de T17) | tester | sonnet | T17 | — | — | [x] |
 | T18 | Revisión final contra la spec | arquitecto | opus | T17 | — | — | [x] |
 | T18a | Paso de código en invitación y registro con cuenta existente (defecto de T18) | tester → frontend | sonnet | T18 ∥ T18b | ✓ | — | [x] |
 | T18b | Rechazar en producción la `TOTP_CLAVE` de `.env.example` (observación de T18) | backend | sonnet | T18 ∥ T18a | ✓ | — | [x] |
-| T19 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T18a, T18b | — | — | [ ] |
+| T19 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T18a, T18b | — | — | [x] |
 
 Paralelismo: oleada 1 = T1 (`tests/aislamiento/`, `packages/db/src/**/*.spec.ts`) ∥ T2 (specs de `totp/`, `packages/shared`, `packages/correo`) ∥ T3 (`apps/backend/src/modules/**/*.int.spec.ts`, `apps/backend/test/`) ∥ T4 (`apps/frontend/**/*.spec.tsx`). Oleada 2 = T5 (`packages/db/migrations`, `src/auth`, `src/schema`) ∥ T6 (`apps/backend/src/modules/auth/totp/` puros, `config/`, `shared`, `correo`, `package.json` de db y frontend, `pnpm-lock.yaml`) ∥ T9 desde que T6 termina. Oleada 3 = T7 (`apps/backend/src/modules/{auth,acceso,plataforma}`) ∥ T8 (`packages/db/src/cli/`, `package.json` raíz) ∥ T9 (`apps/frontend`). Rondas y correcciones en serie; T11 (`tests/e2e/`) ∥ T12–T16, y su `pnpm e2e` se repite tras T16 si T14 o T16 tocaron producción. Si la ronda 1 no deja hallazgos media/alta, T15 y T16 se marcan `[x]` «sin hallazgos».
 

@@ -38,7 +38,7 @@ Una línea por spec; el detalle de las cerradas está en `NNN-*/cierre.md` y los
 | 026-prorrata-igv | A | hecha | — | Mergeada en `main` (c7471fd). Migraciones 0065–0068. Pendiente: un contador del equipo revisa la tabla de casos de CA-2; PDT 621 provisional. Detalle: `026-*/cierre.md` |
 | 027-gastos-no-deducibles | A | hecha | — | Mergeada en `main` (28872de). Migraciones 0069–0072. Pendiente: un contador del equipo revisa palabras, excepciones, matriz, rubros y feriados. Detalle: `027-*/cierre.md` |
 | 028-correo-avisos | A | hecha | — | Mergeada en `main` (df50fd7). Migraciones 0073–0077 (siguiente libre: 0078). Deuda O-1–O-10 en la tarjeta T24. Detalle: `028-*/cierre.md` |
-| 029-cuenta-segura | A | en curso | T14 (corregir ronda 1) | Ronda 1: 2 hallazgos medios y 4 bajos; corrigiendo (T14). Migraciones 0078–0079 (siguiente libre: 0080 o la que use T14). |
+| 029-cuenta-segura | A | hecha | — | Rama spec/029-cuenta-segura sin mergear (desde main). Migraciones 0078–0081 (siguiente libre: 0082). 2 riesgos bajos aceptados. Detalle: `029-*/cierre.md` |
 | 030-roles-personalizados | A | pendiente | — | RF-022 · HU-05. |
 | 031-auditoria-consulta | B | pendiente | — | RF-151 · HU-39. |
 | 032-envio-sire-ticket | A | pendiente | — | RF-104 · HU-27. Con mock; apagado hasta formato oficial y `SireAuth` real. |
@@ -55,15 +55,6 @@ Una línea por spec; el detalle de las cerradas está en `NNN-*/cierre.md` y los
 ## Hallazgos adversariales abiertos
 
 Ninguno. Los cerrados están en [HALLAZGOS.md](HALLAZGOS.md).
-
-| Spec | Prueba | Hallazgo | Estado |
-|---|---|---|---|
-| 029 | apps/backend/src/modules/auth/totp-r1a.adv.int.spec.ts:247 | MEDIA: sesión `sin_factor` de un Dueño usa rutas de /auth fuera de la lista cerrada (GET /auth/sesiones 200, POST /auth/contrasena 204, revocar-otras/cerrar-todas) | abierto |
-| 029 | tests/aislamiento/auth-totp-r1b.adv.spec.ts:350 | MEDIA: `recuperacion_consumir` (0007) borra `auth.intento_login`; restablecer contraseña levanta el bloqueo de 5 códigos TOTP erróneos (CA-3/CA-4) | abierto |
-| 029 | tests/aislamiento/auth-totp-r1b.adv.spec.ts:279 | BAJA: carrera `login_exito` vs `totp_confirmar` deja sesión `sin_factor` viva con TOTP activo (U3) | abierto |
-| 029 | tests/aislamiento/auth-totp-r1b.adv.spec.ts:268 | BAJA: `totp_confirmar` no exige que no haya TOTP activo (re-enrolar sin código vigente) | abierto |
-| 029 | tests/aislamiento/auth-totp-r1b.adv.spec.ts:366 | BAJA: funciones de antes de 029 aceptan una sesión `pendiente` (sin segunda barrera en BD) | abierto |
-| 029 | tests/aislamiento/auth-totp-r1b.adv.spec.ts:382 | BAJA: `intento_acierto` (0079) no está ligada a una reserva; 5 llamadas levantan un bloqueo ajeno | abierto |
 
 ## Decisiones pendientes del usuario
 
@@ -86,11 +77,10 @@ No son decisiones tomadas ni pendientes del usuario: cada spec las resuelve al p
 - [despliegue] Riesgo bajo aceptado: Node 24 (Unicode 16) vs ICU de PostgreSQL: la BD puede rechazar letras muy nuevas. → `HALLAZGOS.md#notas-movidas`
 - [005] Riesgo bajo aceptado: se rechazan ZWJ/ZWNJ en nombres de invitación (persa, índicos, emojis); no afecta al español. → `005-*/cierre.md`
 - [005] Riesgo bajo aceptado: `invitacion_vigente` lee la membresía del invitador sin bloqueo. → `005-*/cierre.md`
-- [siguientes] Próxima migración libre: 0078 (ver fila de 028); rangos usados por cada spec hasta 021. → `HALLAZGOS.md#notas-movidas`
+- [siguientes] Próxima migración libre: 0082 (ver fila de 029); rangos usados por cada spec hasta 021. → `HALLAZGOS.md#notas-movidas`
 - [permisos] Si se separan `clientes.crear` y `clientes.asignar`, revisar `POST /clientes` con `responsableId` y el select de responsable. → `HALLAZGOS.md#notas-movidas`
 - [RF-005/006] Un plan asignado a un estudio en Prueba lo deja en `prueba` (decisión 2026-11-03): resolver antes de aplicar vencimientos. → `HALLAZGOS.md#notas-movidas`
 - [R3] El Dueño aún no cambia de plan por su cuenta (RF-005); lo hace el super-admin.
-- [R2] El super-admin no tiene TOTP. Se da de alta con `pnpm db:plataforma-alta --correo <c>` (`MIGRATIONS_DATABASE_URL`).
 - [despliegue] `db:plataforma-alta` lee la lista de contraseñas comunes de `apps/backend` por ruta relativa: correrlo desde un checkout completo. → `HALLAZGOS.md#notas-movidas`
 - [006] D4 de la spec dice `FOR UPDATE`; prevalece el bloqueo advisory `plan.cupo:<tenant>` de `plan.md` (ratificado en T15).
 - [pruebas] `seed-r2b.adv.spec.ts:29` falló una vez en local (¿timeout del `import` en frío?): si reaparece en CI, subir su timeout. → `HALLAZGOS.md#notas-movidas`
@@ -148,3 +138,5 @@ No son decisiones tomadas ni pendientes del usuario: cada spec las resuelve al p
 - [033] Las confirmaciones de 021 (`regla_confirmacion`, 0049) son solo inserción, RUC 20 y con el aporte encendido; ninguna ruta las lee aún.
 - [frontend] De 038 a 390 px: historial de compra desplaza 37 px sin pista; nombres largos truncados; áreas táctiles de ventas solapadas 8 px. → `038-*/cierre.md`
 - [dependencias] Overrides de 040 en `pnpm-workspace.yaml` (fast-xml-builder, @nestjs/platform-express): revisarlos en la próxima actualización de dependencias. → `040-*/cierre.md`
+- [029] Aceptado: las funciones previas a 029 (plan, gnd, estudios_listar, suscripcion_asignar, invitación y registro) aceptan una sesión pendiente; el guard HTTP las cubre.
+- [029] El token de invitación/registro vive solo en memoria (005 D15): quien debe enrolar TOTP reabre el enlace después. → `029-*/cierre.md`
