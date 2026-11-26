@@ -113,3 +113,20 @@ T18a asume la opción (a).
   - Con cuenta previa y TOTP activo, la persona acepta la invitación pasando por el paso de código de la propia página: un código incorrecto se queda en el paso, el correcto muestra «Te uniste a …» y la sesión queda `verificado`. La URL nunca recupera `#t=` y no se va a `/login`.
   - Con un rol que exige el factor y sin TOTP, se ve el aviso con «Ir a Seguridad» y «vuelve a abrir el enlace». La sesión queda `sin_factor`, no se crea la membresía y el enlace lleva a `/cuenta/seguridad`.
 - **Resultado:** 111 pasaron (2,1 min), 0 fallos. Las 4 ✘ de `soporte.e2e.ts` son los `test.fail` esperados (cuentan como pasadas).
+
+## Modelos efectivos
+
+Verificados en los transcripts de los subagentes (campo `model` de cada llamada).
+
+| Tarea | Rol | Modelo efectivo |
+|---|---|---|
+| T5 | backend | claude-opus-5-5 |
+| T7 | backend | claude-opus-5-5 |
+| T12 (ronda 1a) | adversario | claude-opus-5-5 |
+| T13 (ronda 1b) | adversario | claude-opus-5-5 |
+| T14 | backend | claude-opus-5-5 |
+| T15 (ronda 2) | adversario | claude-opus-5-5 |
+| T16 | backend | claude-opus-5-5 |
+| T18 | arquitecto | claude-opus-5-5 |
+
+Ninguna tarea marcada opus corrió en otro modelo; las 3 rondas adversariales (T12, T13, T15) corrieron en Opus.
