@@ -1,24 +1,24 @@
 import { z } from "zod";
-import { ROLES } from "./roles.js";
+import { rolAsignadoSchema } from "./roles-propios.js";
 
 /** Longitud máxima de un lote de asignación (CA-8). */
 export const LOTE_MAX = 500;
 
 const CORREO_MAX = 320;
 
-const rolSchema = z.enum(ROLES);
 const tipoAsignacionSchema = z.enum(["responsable", "colaborador"]);
 const anteriorSchema = z.enum(["colaborador", "retirar"]);
 const lote = z.array(z.uuid()).min(1).max(LOTE_MAX);
 
 // `z.object` descarta las claves desconocidas (CA-4: nada de `tenantId`/`rol` por el cuerpo).
 
+// Spec 030 (D5): `rol` es un rol de sistema o `{rolId}` de un rol propio (compatible con 005).
 export const invitarSchema = z.object({
   correo: z.string().max(CORREO_MAX),
-  rol: rolSchema,
+  rol: rolAsignadoSchema,
 });
 
-export const cambiarRolSchema = z.object({ rol: rolSchema });
+export const cambiarRolSchema = z.object({ rol: rolAsignadoSchema });
 
 export const consultarInvitacionSchema = z.object({ token: z.string() });
 

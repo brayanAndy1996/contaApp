@@ -54,16 +54,18 @@ const PRORRATA_026 = ["prorrata.declaraciones_obtenidas", "prorrata.mes_manual_g
 const GND_027 = ["gnd.palabra_agregada", "gnd.palabra_desactivada", "gnd.palabra_reactivada", "gnd.palabra_aprendida", "gnd.global_desactivada", "gnd.global_reactivada", "gnd.umbral_cambiado", "gnd.categorias_cliente"];
 // Spec 028 (T2): 1 acción de las preferencias de correo (60 + 1 = 61).
 const CORREO_028 = ["correo.preferencia_cambiada"];
+// Spec 030 (T7): 3 acciones de roles propios (61 + 3 = 64).
+const ROLES_030 = ["rol.creado", "rol.editado", "rol.eliminado"];
 const BUZON_023 = ["buzon.contenido_obtenido", "buzon.captura_solicitada", "buzon.apertura_solicitada", "buzon.contenido_visto", "buzon.adjunto_descargado"];
 
 describe("ACCIONES_AUDITORIA", () => {
-  it("es exactamente el catálogo de D-3, las 4 de la ronda R1, credencial.descifrada, sunat.envio y las 8 de 021, las 5 de 023, las 2 de 024, las 2 de 025, las 4 de 026, las 8 de 027 y la de 028", () => {
-    expect([...ACCIONES_AUDITORIA].sort()).toEqual([...CATALOGO_D3, ...RONDA_R1, ...EXTRAS, ...REGLAS_021, ...BUZON_023, ...BUZON_024, ...REGLAS_025, ...PRORRATA_026, ...GND_027, ...CORREO_028].sort());
+  it("es exactamente el catálogo de D-3, las 4 de la ronda R1, credencial.descifrada, sunat.envio y las 8 de 021, las 5 de 023, las 2 de 024, las 2 de 025, las 4 de 026, las 8 de 027, la de 028 y las 3 de 030", () => {
+    expect([...ACCIONES_AUDITORIA].sort()).toEqual([...CATALOGO_D3, ...RONDA_R1, ...EXTRAS, ...REGLAS_021, ...BUZON_023, ...BUZON_024, ...REGLAS_025, ...PRORRATA_026, ...GND_027, ...CORREO_028, ...ROLES_030].sort());
   });
 
   it("no repite acciones", () => {
     expect(new Set(ACCIONES_AUDITORIA).size).toBe(ACCIONES_AUDITORIA.length);
-    expect(ACCIONES_AUDITORIA).toHaveLength(61);
+    expect(ACCIONES_AUDITORIA).toHaveLength(64); // 030: + 3 acciones rol.*
   });
 
   it("todas son minúsculas con forma entidad.hecho", () => {
