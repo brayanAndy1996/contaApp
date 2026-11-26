@@ -10,6 +10,10 @@
 //     Si `process.cpuUsage` no existe, se usa `performance.now()`.
 //   · cada lado se mide como el MÍNIMO de varias rondas (descarta picos de máquina cargada y pausas del GC), con ambos lados
 //     intercalados (y el orden invertido en las rondas impares) para que vean la misma carga.
+//   · si la razón supera el tope tras las rondas base, se siguen midiendo rondas intercaladas (hasta `rondasMax`) y se vuelve a tomar el
+//     mínimo (`adaptativa`). Más muestras solo pueden bajar cada mínimo hacia su piso real: una regresión de verdad sigue por encima del
+//     tope en todas las rondas, mientras que una ráfaga de carga del runner (turbo corre otras suites a la vez) deja de inflar un lado.
+//     No baja la exigencia: el tope no cambia y la prueba nunca se salta.
 //   · el lado chico se acota por debajo (`PISO_MS`): con tiempos de 1-2 ms el ruido del reloj dominaría la razón.
 const entorno = globalThis as unknown as {
   performance: { now(): number };
@@ -40,13 +44,37 @@ const cronometrar = (f: () => unknown): number => {
   return reloj.now() - t0;
 };
 
-/** Mide `chico` y `grande` (misma carga de trabajo, tamaños distintos) de forma intercalada y devuelve los mínimos y su razón. */
-export function medirEscala(chico: () => unknown, grande: () => unknown, rondas: number = RONDAS): Escala {
+/**
+ * Rondas extra opcionales: mientras la razón supere `tope`, se miden más rondas (hasta `rondasMax` en total). Antes de cada ronda extra
+ * se espera `pausaMs` sin gastar CPU (no entra en lo medido), para que las rondas extra caigan en otro momento y no en la misma ráfaga de
+ * carga (las demás suites del runner arrancan a la vez y compiten por caché y memoria más con el lado que más aloja).
+ */
+export interface Adaptativa {
+  readonly tope: number;
+  readonly rondasMax: number;
+  readonly pausaMs?: number;
+}
+
+const pausar = (ms: number): void => {
+  if (ms > 0) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+};
+
+/**
+ * Mide `chico` y `grande` (misma carga de trabajo, tamaños distintos) de forma intercalada y devuelve los mínimos y su razón.
+ * Con `adaptativa`, si tras `rondas` la razón supera el tope sigue midiendo rondas hasta `rondasMax`; sin ella, el comportamiento es fijo.
+ */
+export function medirEscala(chico: () => unknown, grande: () => unknown, rondas: number = RONDAS, adaptativa?: Adaptativa): Escala {
   chico();
   grande(); // calentamiento de ambos lados (JIT, cachés)
   let minChico = Infinity;
   let minGrande = Infinity;
-  for (let r = 0; r < rondas; r++) {
+  const razon = (): number => minGrande / Math.max(minChico, PISO_MS);
+  const total = adaptativa === undefined ? rondas : Math.max(rondas, adaptativa.rondasMax);
+  for (let r = 0; r < total; r++) {
+    if (r >= rondas) {
+      if (razon() <= adaptativa!.tope) break;
+      pausar(adaptativa!.pausaMs ?? 0);
+    }
     if (r % 2 === 0) {
       minChico = Math.min(minChico, cronometrar(chico));
       minGrande = Math.min(minGrande, cronometrar(grande));
@@ -55,7 +83,7 @@ export function medirEscala(chico: () => unknown, grande: () => unknown, rondas:
       minChico = Math.min(minChico, cronometrar(chico));
     }
   }
-  return { chicoMs: minChico, grandeMs: minGrande, razon: minGrande / Math.max(minChico, PISO_MS) };
+  return { chicoMs: minChico, grandeMs: minGrande, razon: razon() };
 }
 
 /** Tope de la razón para una entrada `factor` veces mayor: media geométrica entre lineal (`factor`) y cuadrático (`factor`²) = factor^1,5. */

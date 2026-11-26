@@ -1,5 +1,5 @@
 // Spec 027 · T1 (rojo). Rendimiento (CA-15, R-10): 5.000 compras × 20 ítems con 2.000 palabras propias no tardan más del doble que la
-// misma evaluación con la R-GP de 011 (mínimo de 7 rondas intercaladas). Fuera de cobertura (T14). Sin datos aleatorios: generador determinista.
+// misma evaluación con la R-GP de 011 (`medirEscala`: tiempo de CPU, mínimo de rondas intercaladas). Fuera de cobertura (T14). Sin datos aleatorios: generador determinista.
 import { describe, expect, it } from "vitest";
 import { MontosComprobante } from "../comprobante/index";
 import { Money } from "../dinero/index";
@@ -7,6 +7,8 @@ import { evaluarReglas } from "../reglas/index";
 import type { ContextoReglas, FilaEvaluable, ResumenXml } from "../reglas/index";
 import { DICCIONARIO_GLOSAS_BASE, tokensDeGlosa } from "../texto/index";
 import { PROV, SEMILLA_GLOBAL, contextoGastos, contextoNeutro } from "../../tests/ayudas/gastos";
+import { RONDAS, medirEscala } from "../../tests/ayudas/rendimiento";
+import type { Escala } from "../../tests/ayudas/rendimiento";
 import type { PalabraPlana } from "../../tests/ayudas/gastos";
 import { crearDiccionarioEfectivo, puntuarGastoPersonal } from "../index";
 
@@ -54,48 +56,13 @@ function glosasDeCompra(i: number, rnd: () => number): string[] {
 const rnd = generador(20261122);
 const COMPRAS_GLOSAS: string[][] = Array.from({ length: COMPRAS }, (_, i) => glosasDeCompra(i, rnd));
 
-const RONDAS = 7;
-// Tiempo de CPU del proceso (como `tests/ayudas/rendimiento.ts`, 027 T25a): el reloj de pared incluye las esperas por turno de CPU
-// del runner cargado, que caen al azar sobre un lado y desvirtúan la razón (falló 2,15× en el CI de 042). Sin `cpuUsage`, pared.
-const entorno = globalThis as unknown as {
-  performance: { now(): number };
-  process?: { cpuUsage?: (previo?: { user: number; system: number }) => { user: number; system: number } };
-};
-const reloj = entorno.performance;
-const cpu = entorno.process?.cpuUsage?.bind(entorno.process);
-
-/**
- * Mide dos funciones de forma intercalada: calentamiento de ambas y luego RONDAS rondas en las que se alternan
- * (y se invierte el orden en las rondas impares). Devuelve el mínimo de cada lado: el mínimo descarta los picos
- * de la máquina cargada y, al intercalar, ambos lados ven la misma carga.
- */
-function minimosIntercalados(a: () => unknown, b: () => unknown): { a: number; b: number } {
-  a();
-  b();
-  let minA = Infinity;
-  let minB = Infinity;
-  const cronometrar = (f: () => unknown): number => {
-    if (cpu !== undefined) {
-      const c0 = cpu();
-      f();
-      const d = cpu(c0);
-      return (d.user + d.system) / 1000;
-    }
-    const t0 = reloj.now();
-    f();
-    return reloj.now() - t0;
-  };
-  for (let r = 0; r < RONDAS; r++) {
-    if (r % 2 === 0) {
-      minA = Math.min(minA, cronometrar(a));
-      minB = Math.min(minB, cronometrar(b));
-    } else {
-      minB = Math.min(minB, cronometrar(b));
-      minA = Math.min(minA, cronometrar(a));
-    }
-  }
-  return { a: minA, b: minB };
-}
+// Medición compartida del proyecto (027 T25a): tiempo de CPU del proceso, mínimo de rondas intercaladas con el orden invertido en las
+// impares. Si tras las 7 rondas base la razón supera el tope, se siguen midiendo rondas (hasta RONDAS_MAX, con una pausa sin CPU entre ellas) y se retoma el mínimo: más
+// muestras solo acercan cada lado a su piso real, así que una regresión sigue fallando y una ráfaga de carga del runner (turbo corre
+// las suites de domain, worker, crypto, sunat y storage a la vez; CI 45751818895 midió 2,17×) deja de inflar un lado. El tope no cambia.
+const RONDAS_MAX = 40;
+const PAUSA_MS = 100;
+const medir = (referencia: () => unknown, nueva: () => unknown): Escala => medirEscala(referencia, nueva, RONDAS, { tope: TOPE, rondasMax: RONDAS_MAX, pausaMs: PAUSA_MS });
 
 /** Referencia: el algoritmo de la R-GP de 011 (palabra × token, sin índice) con su diccionario base. */
 const BASE_011 = ["zapatilla", "zapato", "polo", "casaca", "blusa", "vestido", "juguete", "peluche", "muneca", "perfume", "colonia", "maquillaje", "labial", "videojuego", "cine"];
@@ -117,7 +84,10 @@ describe("CA-15 · puntuar 5.000 compras × 20 ítems con 2.000 palabras propias
     const diccionario = crearDiccionarioEfectivo({ globales: SEMILLA_GLOBAL, desactivadas: [], propias });
     const ctx = contextoNeutro({ diccionario, ciiuCliente: "4752", ciiuProveedores: [{ proveedor: { ...PROV }, ciiu: "4771" }] });
     let marcadas = 0;
-    const { a: nueva, b: referencia } = minimosIntercalados(
+    const e = medir(
+      () => {
+        for (const glosas of COMPRAS_GLOSAS) buscar011(glosas);
+      },
       () => {
         marcadas = 0;
         for (const glosas of COMPRAS_GLOSAS) {
@@ -125,12 +95,9 @@ describe("CA-15 · puntuar 5.000 compras × 20 ítems con 2.000 palabras propias
           if (r.palabra !== null) marcadas++;
         }
       },
-      () => {
-        for (const glosas of COMPRAS_GLOSAS) buscar011(glosas);
-      },
     );
     expect(marcadas, "la prueba debe encontrar coincidencias reales").toBeGreaterThan(0);
-    expect(nueva).toBeLessThanOrEqual(TOPE * referencia);
+    expect(e.razon, `puntaje ${e.grandeMs.toFixed(1)} ms · búsqueda 011 ${e.chicoMs.toFixed(1)} ms`).toBeLessThanOrEqual(TOPE);
   });
 });
 
@@ -165,13 +132,13 @@ describe("CA-15 · evaluarReglas con la R-GP completa frente a la de 011", () =>
     const diccionario = crearDiccionarioEfectivo({ globales: SEMILLA_GLOBAL, desactivadas: [], propias });
     const gastos = contextoGastos({ diccionario, ciiuCliente: null, ciiuProveedores: [] });
     let hallazgos = 0;
-    const { a: completa, b: minima } = minimosIntercalados(
+    const e = medir(
+      () => evaluarReglas(filas, base),
       () => {
         hallazgos = evaluarReglas(filas, { ...base, gastos } as ContextoReglas).hallazgos.filter((h) => h.regla === "R-GP").length;
       },
-      () => evaluarReglas(filas, base),
     );
     expect(hallazgos, "la prueba debe marcar compras de verdad").toBeGreaterThan(0);
-    expect(completa).toBeLessThanOrEqual(TOPE * minima);
+    expect(e.razon, `completa ${e.grandeMs.toFixed(1)} ms · base ${e.chicoMs.toFixed(1)} ms`).toBeLessThanOrEqual(TOPE);
   });
 });
