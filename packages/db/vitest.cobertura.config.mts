@@ -51,6 +51,8 @@ export default defineConfig({
           name: "aislamiento",
           root: aislamiento,
           include: ["**/*.spec.ts"],
+          // 030: el rendimiento (CA-11) mide tiempos y va fuera de cobertura.
+          exclude: ["**/node_modules/**", "**/*.rendimiento.spec.ts"],
           fileParallelism: false,
         },
       },
@@ -73,6 +75,11 @@ export default defineConfig({
         "src/auth/totp.ts": porArchivo,
         "src/auth/sesiones.ts": porArchivo,
         "src/cli/totp-restablecer.ts": porArchivo,
+        // 030 (T14): roles propios (repositorio, miembros, invitaciones y esquema de acceso).
+        "src/acceso/roles.ts": porArchivo,
+        "src/acceso/miembros.ts": porArchivo,
+        "src/acceso/invitaciones.ts": porArchivo,
+        "src/schema/acceso.ts": porArchivo,
       },
     },
   },
