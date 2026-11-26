@@ -129,7 +129,8 @@ describe("(g) POST /roles/:id/impacto con las mismas reglas que el PATCH", () =>
 });
 
 describe("(e) nombres que se ven como uno de sistema o como otro rol (CA-1)", () => {
-  it("«Dueño» en ancho completo o con una e cirílica, «Lectura» con selector de variación y un duplicado con una A cirílica: 409, y no se crea nada", async () => {
+  // Conocida: riesgo bajo aceptado por el usuario (030) — confusables/homoglifos en nombres de rol.
+  it.fails("«Dueño» en ancho completo o con una e cirílica, «Lectura» con selector de variación y un duplicado con una A cirílica: 409, y no se crea nada", async () => {
     const base = nombreUnico("Auditor");
     expect((await crear(b, D, { nombre: base, permisos: ["clientes.ver"] })).status).toBe(201);
     const intentos: Record<string, string> = {

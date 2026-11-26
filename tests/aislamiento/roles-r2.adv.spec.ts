@@ -379,7 +379,8 @@ describe("R2 · (g) acceso.rol_impacto con la regla de U2 también en la BD", ()
     // T13 movió la regla de impacto al servicio (HTTP 403); la función SECURITY DEFINER solo pide actor_gestor, a diferencia de
     // rol_guardar/rol_eliminar, que sí aplican U2 dentro de la BD.
     const a = await base();
-    const g = await er.actor(a.x.id, ["roles.gestionar", "usuarios.gestionar"], "asignado");
+    // El gestor necesita clientes.ver para que el control (rol «chico» con clientes.ver) sea un caso permitido por U2.
+    const g = await er.actor(a.x.id, ["roles.gestionar", "usuarios.gestionar", "clientes.ver"], "asignado");
     const P = await poderoso(a.x.id);
     await er.miembroPropio(a.x.id, P.id);
     const chico = await er.rol(a.x.id, { alcance: "asignado", permisos: ["clientes.ver"] });
@@ -395,7 +396,8 @@ describe("R2 · (g) acceso.rol_impacto con la regla de U2 también en la BD", ()
 });
 
 describe("R2 · (e) nombre_clave: lo que se ve igual es igual (CA-1)", () => {
-  it("nombres de sistema disfrazados (ancho completo, cirílico, matemático, braille en blanco) y duplicados visualmente idénticos se rechazan en la BD", async () => {
+  // Conocida: riesgo bajo aceptado por el usuario (030) — confusables/homoglifos en nombres de rol.
+  it.fails("nombres de sistema disfrazados (ancho completo, cirílico, matemático, braille en blanco) y duplicados visualmente idénticos se rechazan en la BD", async () => {
     const a = await base();
     const n = (nombre: string) => guardar(db, a.cD, { nombre, alcance: "asignado", permisos: ["clientes.ver"] });
     const base1 = `Auditor ${er.esc.marca}`;
