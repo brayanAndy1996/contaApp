@@ -16,8 +16,20 @@ export const PUERTO_BACKEND = 4210;
 export const URL_FRONTEND = `http://localhost:${PUERTO_FRONTEND}`;
 export const URL_BACKEND = `http://localhost:${PUERTO_BACKEND}`;
 
-/** La única BD que la E2E crea, migra y borra. Nunca es `contapp` (la de desarrollo). */
-export const BD_E2E = "contapp_e2e";
+/**
+ * La única BD que la E2E crea, migra y borra: `contapp_e2e`, o la que se pida con `E2E_BD` (p. ej. `contapp_029t11`, una BD
+ * propia de la tarea para no chocar con otra corrida). Debe llamarse `contapp_<algo>`: nunca `contapp` (la de desarrollo).
+ */
+function nombreDeBd(env: NodeJS.ProcessEnv = process.env): string {
+  const pedida = env.E2E_BD;
+  if (pedida === undefined || pedida === "") return "contapp_e2e";
+  if (!/^contapp_[a-z0-9_]{1,40}$/.test(pedida)) {
+    throw new Error("E2E_BD debe ser contapp_<nombre> (nunca contapp).");
+  }
+  return pedida;
+}
+
+export const BD_E2E = nombreDeBd();
 
 export type ModoCorreo = "mailpit" | "consola";
 

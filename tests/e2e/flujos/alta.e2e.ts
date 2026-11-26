@@ -2,6 +2,7 @@
 // credenciales correctas y erróneas (mensaje único); enlace de registro ya usado. El registro y el correo van
 // por la UI (D-4); el contexto de cada prueba lleva su propio `X-Forwarded-For`.
 import { correoUnico } from "../soporte/siembra.js";
+import { activarPorPantalla } from "../soporte/selectores/cuenta-segura.js";
 import { alerta, estado, expect, test } from "../soporte/fixtures.js";
 import {
   ASUNTO_REGISTRO,
@@ -14,7 +15,10 @@ import {
 test("el registro por correo termina en el panel del estudio nuevo", async ({
   page,
   correo,
+  vigilancia,
 }) => {
+  // Spec 029: antes de enrolar, las rutas del estudio del Dueño responden 403 `segundo_factor_requerido`.
+  vigilancia.permitirError(/403/);
   const estudio = nombreDeEstudio();
   const dueno = correoUnico();
   const contrasena = contrasenaNueva();
@@ -45,6 +49,10 @@ test("el registro por correo termina en el panel del estudio nuevo", async ({
   ).toBeVisible();
   await ingresar(page, dueno, contrasena);
 
+  // Spec 029 (U1, U3): el Dueño exige el segundo factor; sin él solo puede enrolar. Al activarlo ya entra al panel.
+  await expect(page).toHaveURL(/\/cuenta\/seguridad$/);
+  await activarPorPantalla(page, contrasena);
+  await page.goto("/");
   await expect(
     page.getByRole("heading", { name: "ContApp", exact: true }),
   ).toBeVisible();
@@ -126,9 +134,11 @@ test("con la contraseña correcta el login lleva al panel", async ({
   siembra,
 }) => {
   const estudio = await siembra.estudio();
+  // Spec 029: un rol que no exige el segundo factor (el Dueño sí) entra directo al panel.
+  const contador = await siembra.miembro(estudio.tenantId, "contador");
 
   await page.goto("/login");
-  await ingresar(page, estudio.dueno.correo, estudio.dueno.contrasena);
+  await ingresar(page, contador.correo, contador.contrasena);
 
   await expect(
     page.getByRole("heading", { name: "ContApp", exact: true }),
@@ -168,8 +178,10 @@ test("cerrar sesión desde el panel devuelve al login y se puede volver a entrar
   // Con la sesión cerrada, `GET /api/auth/sesion` da 401: es lo esperado al volver al panel.
   vigilancia.permitirError(/401/);
   const estudio = await siembra.estudio();
+  // Spec 029: un rol que no exige el segundo factor (el Dueño sí) entra solo con la contraseña, antes y después de cerrar sesión.
+  const contador = await siembra.miembro(estudio.tenantId, "contador");
   await page.goto("/login");
-  await ingresar(page, estudio.dueno.correo, estudio.dueno.contrasena);
+  await ingresar(page, contador.correo, contador.contrasena);
   await expect(
     page.getByRole("heading", { name: "ContApp", exact: true }),
   ).toBeVisible();
@@ -185,7 +197,7 @@ test("cerrar sesión desde el panel devuelve al login y se puede volver a entrar
   await page.goto("/", { waitUntil: "commit" });
   await expect(page).toHaveURL(/\/login$/);
 
-  await ingresar(page, estudio.dueno.correo, estudio.dueno.contrasena);
+  await ingresar(page, contador.correo, contador.contrasena);
   await expect(
     page.getByRole("heading", { name: "ContApp", exact: true }),
   ).toBeVisible();
