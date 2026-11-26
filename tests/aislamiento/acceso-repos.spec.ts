@@ -194,7 +194,9 @@ describe("miembros: lectura, rol, desactivar y reactivar (CA-6, CA-9, D3, D19)",
     expect(porId[d.id]).toMatchObject({ rol: "dueno", activo: true, correo: d.correo });
     expect(porId[a.id]).toMatchObject({ rol: "admin", activo: true });
     expect(porId[i.id]).toMatchObject({ rol: "lectura", activo: false });
-    expect(Object.keys(porId[d.id]).sort()).toEqual(["activo", "correo", "nombre", "rol", "usuarioId"]);
+    // Ajuste de 030 (T6, D2): + rolId y rolNombre (nulos en los roles de sistema).
+    expect(Object.keys(porId[d.id]).sort()).toEqual(["activo", "correo", "nombre", "rol", "rolId", "rolNombre", "usuarioId"]);
+    expect([porId[d.id].rolId, porId[d.id].rolNombre]).toEqual([null, null]);
   });
 
   it("bloquearMiembro encuentra tambien a los desactivados y devuelve null para uno de otro estudio", async () => {
@@ -577,7 +579,9 @@ describe("invitaciones: repositorio (CA-2, CA-14)", () => {
     });
     expect(porId[vencida.id].vencida).toBe(true);
     for (const i of r) {
-      expect(Object.keys(i).sort()).toEqual(["correo", "creadaEn", "id", "invitadoPor", "rol", "venceEn", "vencida"]);
+      // Ajuste de 030 (T6, D2): + rolId y rolNombre (nulos en los roles de sistema).
+      expect(Object.keys(i).sort()).toEqual(["correo", "creadaEn", "id", "invitadoPor", "rol", "rolId", "rolNombre", "venceEn", "vencida"]);
+      expect([i.rolId, i.rolNombre]).toEqual([null, null]);
       const volcado = JSON.stringify(i);
       expect(volcado).not.toContain(viva.token.toString("hex"));
       expect(volcado).not.toContain(viva.tokenHash.toString("hex"));

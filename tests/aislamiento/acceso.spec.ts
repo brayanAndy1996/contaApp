@@ -78,6 +78,8 @@ describe("tablas asignacion e invitacion: dueño, RLS y tenant_isolation (CA-13)
         "invitado_por",
         "revocada_en",
         "rol",
+        // Ajuste de 030 (T6, D2): rol propio (uuid, FK compuesta), no es un token.
+        "rol_id",
         "tenant_id",
         "token_hash",
         "vence_en",
@@ -497,7 +499,11 @@ describe("trigger membresia_ultimo_dueno: catalogo (D10, RF-028)", () => {
     // membresia_ultimo_dueno (005) sigue siendo el unico que protege el ultimo dueño; 017 (0042, 0043) agrega auditoria y aviso, y la
     // ronda R1 (T16/T17: baja de membresia auditada y con plan_aviso recalculado) puede sumar triggers propios con esas mismas funciones.
     expect(r.filter((x) => x.tgname === "membresia_ultimo_dueno")).toHaveLength(1);
-    const de017 = r.filter((x) => x.tgname !== "membresia_ultimo_dueno");
+    // Ajuste de 030 (T6, D2): el disparador BEFORE de asignacion de un rol propio (escalada en BD) es el unico otro admitido; no toca
+    // al ultimo Dueño (rechaza o deja pasar la fila sin cambiarla) y su detalle lo prueba roles-funciones.spec.ts.
+    const de030 = r.filter((x) => x.tgname === "membresia_rol_propio");
+    expect(de030.map((x) => [x.proname, x.despues])).toEqual([["rol_propio_asignar", false]]);
+    const de017 = r.filter((x) => x.tgname !== "membresia_ultimo_dueno" && x.tgname !== "membresia_rol_propio");
     expect(de017.map((x) => x.tgname)).toEqual(expect.arrayContaining(["auditoria_membresia", "plan_aviso_alta", "plan_aviso_cambio"]));
     for (const t of de017) expect(["auditoria_capturar_membresia", "plan_aviso_disparar"], t.tgname).toContain(t.proname);
     // Los de 017 no pueden vetar ni alterar la fila: son AFTER.

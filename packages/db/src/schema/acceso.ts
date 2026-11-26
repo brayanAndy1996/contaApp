@@ -5,6 +5,7 @@ import {
   foreignKey,
   index,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -20,8 +21,72 @@ const bytea = customType<{ data: Buffer; driverData: Buffer }>({
   dataType: () => "bytea",
 });
 
+// Spec 030 (D1): roles propios del estudio. Los de sistema siguen en código (005 D21). RLS FORCE y escritura solo por las
+// funciones `acceso.rol_guardar` / `acceso.rol_eliminar` (0082). `nombre_clave`: el nombre sin espacios al borde, sin tildes y en
+// minúsculas (único por estudio y distinto de los de sistema).
+export const rol = pgTable(
+  "rol",
+  {
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .default(tenantIdPorDefecto)
+      .references(() => tenant.id),
+    id: id(),
+    nombre: text("nombre").notNull(),
+    nombreClave: text("nombre_clave")
+      .notNull()
+      .generatedAlwaysAs(
+        sql`lower(regexp_replace(normalize(btrim(nombre), NFD), '[\\u0300-\\u036f]', '', 'g'))`,
+      ),
+    alcance: text("alcance").notNull(),
+    creadoEn: timestamp("creado_en", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    actualizadoEn: timestamp("actualizado_en", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    unique("rol_tenant_nombre_clave_unique").on(t.tenantId, t.nombreClave),
+    unique("rol_tenant_id_unique").on(t.tenantId, t.id),
+    check("rol_alcance_valido", sql`${t.alcance} IN ('global', 'asignado')`),
+    check(
+      "rol_nombre_valido",
+      sql`char_length(${t.nombre}) BETWEEN 1 AND 40 AND btrim(${t.nombre}) <> '' AND ${t.nombre} !~ '[[:cntrl:]]'`,
+    ),
+    check(
+      "rol_nombre_clave_no_sistema",
+      sql`${t.nombreClave} NOT IN ('dueno', 'administrador', 'admin', 'contador', 'asistente', 'lectura', 'solo lectura')`,
+    ),
+  ],
+);
+
+// Spec 030 (D1): permisos de un rol propio; el catálogo de 01 §4 sin `plan.gestionar` (CA-2).
+export const rolPermiso = pgTable(
+  "rol_permiso",
+  {
+    tenantId: uuid("tenant_id").notNull().default(tenantIdPorDefecto),
+    rolId: uuid("rol_id").notNull(),
+    permiso: text("permiso").notNull(),
+  },
+  (t) => [
+    primaryKey({ name: "rol_permiso_pk", columns: [t.rolId, t.permiso] }),
+    index("rol_permiso_tenant_rol_idx").on(t.tenantId, t.rolId),
+    foreignKey({
+      name: "rol_permiso_rol_fk",
+      columns: [t.tenantId, t.rolId],
+      foreignColumns: [rol.tenantId, rol.id],
+    }).onDelete("cascade"),
+    check(
+      "rol_permiso_catalogo",
+      sql`${t.permiso} IN ('estudio.configurar', 'usuarios.ver', 'usuarios.gestionar', 'roles.gestionar', 'clientes.ver', 'clientes.crear', 'clientes.editar', 'clientes.archivar', 'clientes.asignar', 'credenciales.editar', 'sire.descargar', 'sire.clasificar', 'sire.aprobar_generar', 'ajustes.crear', 'ajustes.generar', 'buzon.ver', 'buzon.marcar_leido', 'buzon.atender', 'reglas.ver', 'reglas.gestionar', 'prorrata.ver', 'prorrata.gestionar', 'auditoria.ver')`,
+    ),
+  ],
+);
+
 // Tabla de negocio con RLS (políticas en 0002_rls_y_grants). Spec 005: desactivada_en (D9) y CHECK de rol
-// (D21); el trigger membresia_ultimo_dueno (0012) impide dejar un estudio sin Dueño activo (D10).
+// (D21); el trigger membresia_ultimo_dueno (0012) impide dejar un estudio sin Dueño activo (D10). Spec 030 (D2): `rol_id` (rol
+// propio, FK compuesta RESTRICT) si y solo si `rol = 'propio'`.
 export const membresia = pgTable(
   "membresia",
   {
@@ -34,6 +99,7 @@ export const membresia = pgTable(
       .notNull()
       .references(() => usuario.id),
     rol: text("rol").notNull(),
+    rolId: uuid("rol_id"),
     desactivadaEn: timestamp("desactivada_en", { withTimezone: true }),
     ...marcasDeTiempo(),
   },
@@ -41,8 +107,18 @@ export const membresia = pgTable(
     unique("membresia_tenant_usuario_unique").on(t.tenantId, t.usuarioId),
     check(
       "membresia_rol_valido",
-      sql`${t.rol} IN ('dueno', 'admin', 'contador', 'asistente', 'lectura')`,
+      sql`${t.rol} IN ('dueno', 'admin', 'contador', 'asistente', 'lectura', 'propio')`,
     ),
+    check(
+      "membresia_rol_propio_coherente",
+      sql`(${t.rol} = 'propio') = (${t.rolId} IS NOT NULL)`,
+    ),
+    index("membresia_tenant_rol_idx").on(t.tenantId, t.rolId),
+    foreignKey({
+      name: "membresia_rol_fk",
+      columns: [t.tenantId, t.rolId],
+      foreignColumns: [rol.tenantId, rol.id],
+    }).onDelete("restrict"),
   ],
 );
 
@@ -94,6 +170,8 @@ export const invitacion = pgTable(
     tenantId: uuid("tenant_id").notNull().default(tenantIdPorDefecto),
     correo: text("correo").notNull(),
     rol: text("rol").notNull(),
+    // Spec 030 (D2): rol propio, como en membresia.
+    rolId: uuid("rol_id"),
     invitadoPor: uuid("invitado_por").notNull(),
     // Única sin tenant_id: la aceptación busca por hash sin conocer el estudio (256 bits aleatorios).
     tokenHash: bytea("token_hash")
@@ -102,7 +180,10 @@ export const invitacion = pgTable(
     creadaEn: timestamp("creada_en", { withTimezone: true })
       .notNull()
       .defaultNow(),
-    venceEn: timestamp("vence_en", { withTimezone: true }).notNull(),
+    // Spec 030 (T6): 72 h por defecto (D7), como lo fija el repositorio; así un alta directa también vence.
+    venceEn: timestamp("vence_en", { withTimezone: true })
+      .notNull()
+      .default(sql`now() + interval '72 hours'`),
     aceptadaEn: timestamp("aceptada_en", { withTimezone: true }),
     aceptadaPor: uuid("aceptada_por").references(() => usuario.id),
     revocadaEn: timestamp("revocada_en", { withTimezone: true }),
@@ -110,7 +191,11 @@ export const invitacion = pgTable(
   (t) => [
     check(
       "invitacion_rol_valido",
-      sql`${t.rol} IN ('dueno', 'admin', 'contador', 'asistente', 'lectura')`,
+      sql`${t.rol} IN ('dueno', 'admin', 'contador', 'asistente', 'lectura', 'propio')`,
+    ),
+    check(
+      "invitacion_rol_propio_coherente",
+      sql`(${t.rol} = 'propio') = (${t.rolId} IS NOT NULL)`,
     ),
     // El mismo CHECK que usuario.email (0007/0008): btrim, minúsculas, NFC y solo ASCII.
     check(
@@ -129,5 +214,11 @@ export const invitacion = pgTable(
       columns: [t.tenantId, t.invitadoPor],
       foreignColumns: [membresia.tenantId, membresia.usuarioId],
     }),
+    index("invitacion_tenant_rol_idx").on(t.tenantId, t.rolId),
+    foreignKey({
+      name: "invitacion_rol_fk",
+      columns: [t.tenantId, t.rolId],
+      foreignColumns: [rol.tenantId, rol.id],
+    }).onDelete("restrict"),
   ],
 );

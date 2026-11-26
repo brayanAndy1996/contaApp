@@ -1,23 +1,35 @@
 // Miembros del estudio (spec 005): rol, estado (D9) y transiciones. Todo con la `tx` de withTenant (la RLS
 // limita al estudio del contexto). El trigger membresia_ultimo_dueno (0012) rechaza dejar el estudio sin Dueño
 // activo: sale como AccesoRepoError con codigo P0001 (-> 409 ultimo_dueno).
+// Spec 030 (D2): `rol = 'propio'` con `rol_id` (rol propio del estudio); el disparador de 0082 exige que el actor contenga el rol
+// asignado (42501) y la FK compuesta rechaza un rol de otro estudio o inexistente (23503).
 import { consultar, type Fila, type TxConsulta } from "./errores";
+import type { AlcanceRol } from "./roles";
 
-export type RolMiembro =
+/** Roles de sistema (005 D21). */
+export type RolSistemaMiembro =
   "dueno" | "admin" | "contador" | "asistente" | "lectura";
 
-/** Roles del catálogo (D21); el CHECK de la BD es el mismo. */
+/** Valor de `membresia.rol`: uno de sistema o 'propio' (030, D2). */
+export type RolMiembro = RolSistemaMiembro | "propio";
+
+/** Roles del catálogo (D21) y 'propio' (030); el CHECK de la BD es el mismo. */
 export const ROLES_MIEMBRO: readonly RolMiembro[] = Object.freeze([
   "dueno",
   "admin",
   "contador",
   "asistente",
   "lectura",
+  "propio",
 ]);
 
 export interface MiembroActual {
   usuarioId: string;
   rol: RolMiembro;
+  /** Rol propio asignado (null en los de sistema). */
+  rolId: string | null;
+  /** Permisos (ordenados) y alcance guardados del rol propio; null en los de sistema. */
+  propio: { permisos: string[]; alcance: AlcanceRol } | null;
 }
 
 export interface MiembroEstado {
@@ -29,14 +41,22 @@ export interface MiembroEstado {
 export interface MiembroListado extends MiembroEstado {
   nombre: string;
   correo: string;
+  /** Rol propio (null en los de sistema). */
+  rolId: string | null;
+  rolNombre: string | null;
 }
 
-const SQL_ACTUAL =
-  "select usuario_id, rol from membresia where usuario_id = $1::uuid and desactivada_en is null";
+// Una consulta (D4 de 030, CA-11): la membresía activa con su rol propio y sus permisos (array_agg por la PK de rol_permiso).
+const SQL_ACTUAL = `select m.usuario_id, m.rol, m.rol_id, r.alcance,
+       (select array_agg(p.permiso order by p.permiso) from rol_permiso p where p.rol_id = m.rol_id) as permisos
+  from membresia m left join rol r on r.tenant_id = m.tenant_id and r.id = m.rol_id
+ where m.usuario_id = $1::uuid and m.desactivada_en is null`;
 
-// `rol = any($1)`: solo roles del catálogo (defensa en profundidad; el CHECK ya lo garantiza).
-const SQL_LISTAR = `select m.usuario_id, u.nombre, u.email as correo, m.rol, m.desactivada_en is null as activo
+// `rol = any($1)`: solo roles del catálogo y 'propio' (defensa en profundidad; el CHECK ya lo garantiza).
+const SQL_LISTAR = `select m.usuario_id, u.nombre, u.email as correo, m.rol, m.rol_id, r.nombre as rol_nombre,
+       m.desactivada_en is null as activo
   from membresia m join usuario u on u.id = m.usuario_id
+  left join rol r on r.tenant_id = m.tenant_id and r.id = m.rol_id
  where m.rol = any($1::text[])
  order by u.nombre, m.usuario_id`;
 
@@ -47,7 +67,8 @@ const SQL_BLOQUEAR = `select usuario_id, rol, desactivada_en is null as activo
 const SQL_BLOQUEAR_VARIOS = `select usuario_id, rol, desactivada_en is null as activo
   from membresia where usuario_id = any($1::uuid[]) order by usuario_id for update`;
 
-const SQL_CAMBIAR_ROL = `update membresia set rol = $2, updated_at = now() where usuario_id = $1::uuid
+// `rol_id` siempre se escribe: NULL al pasar a un rol de sistema (nunca queda colgando; el CHECK de 0082 lo exige).
+const SQL_CAMBIAR_ROL = `update membresia set rol = $2, rol_id = $3::uuid, updated_at = now() where usuario_id = $1::uuid
   returning usuario_id, rol, desactivada_en is null as activo`;
 
 // D18: al pasar a un rol sin `sire.clasificar`, sus filas de responsable quedan como colaborador.
@@ -69,13 +90,25 @@ const estado = (f: Fila | undefined): MiembroEstado | null =>
     ? null
     : { usuarioId: f.usuario_id, rol: f.rol, activo: f.activo === true };
 
-/** Rol de la membresía ACTIVA del usuario en el estudio (D3), o null. */
+/** Rol de la membresía ACTIVA del usuario en el estudio (D3) con su rol propio, si lo tiene; o null. */
 export async function miembroActual(
   tx: TxConsulta,
   usuarioId: string,
 ): Promise<MiembroActual | null> {
   const f = (await consultar(tx, SQL_ACTUAL, [usuarioId]))[0];
-  return f === undefined ? null : { usuarioId: f.usuario_id, rol: f.rol };
+  if (f === undefined) return null;
+  const propio = f.rol === "propio";
+  return {
+    usuarioId: f.usuario_id,
+    rol: f.rol,
+    rolId: propio ? (f.rol_id ?? null) : null,
+    propio: propio
+      ? {
+          permisos: Array.isArray(f.permisos) ? [...(f.permisos as string[])].sort() : [],
+          alcance: f.alcance,
+        }
+      : null,
+  };
 }
 
 /** Miembros del estudio, activos y desactivados. */
@@ -89,6 +122,8 @@ export async function listarMiembros(
     correo: f.correo,
     rol: f.rol,
     activo: f.activo === true,
+    rolId: f.rol_id ?? null,
+    rolNombre: f.rol_nombre ?? null,
   }));
 }
 
@@ -119,15 +154,19 @@ export async function bloquearMiembros(
 
 /**
  * Cambia el rol. Con `responsableAColaborador` (el servicio lo decide con `puedeSerResponsable`, D18) sus filas
- * de responsable pasan a colaborador en la misma transacción.
+ * de responsable pasan a colaborador en la misma transacción. Con `rol = 'propio'`, `rolId` es el rol propio (030); con uno
+ * de sistema se ignora y `rol_id` queda NULL.
  */
 export async function cambiarRol(
   tx: TxConsulta,
   usuarioId: string,
   rol: RolMiembro,
   responsableAColaborador?: boolean,
+  rolId?: string | null,
 ): Promise<MiembroEstado | null> {
-  const m = estado((await consultar(tx, SQL_CAMBIAR_ROL, [usuarioId, rol]))[0]);
+  const m = estado(
+    (await consultar(tx, SQL_CAMBIAR_ROL, [usuarioId, rol, rol === "propio" ? (rolId ?? null) : null]))[0],
+  );
   await consultar(tx, SQL_RESPONSABLE_A_COLABORADOR, [
     usuarioId,
     m !== null && responsableAColaborador === true,

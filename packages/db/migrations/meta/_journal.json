@@ -575,6 +575,13 @@
       "when": 1795656003877,
       "tag": "0081_cuenta_segura_r2",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1795665421132,
+      "tag": "0082_roles_propios",
+      "breakpoints": true
     }
   ]
 }

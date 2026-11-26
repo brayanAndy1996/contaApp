@@ -25,12 +25,15 @@ const dialecto = new PgDialect();
 
 describe("esquema: inventario", () => {
   // Ajuste de 005 (T2): el esquema pasa de 4 a 6 tablas (asignacion e invitacion); su detalle se prueba en acceso.spec.ts.
-  it("exporta las seis tablas del esquema", () => {
+  // Ajuste de 030 (T6, D1): suma rol y rol_permiso (8 tablas); su detalle se prueba en acceso.spec.ts.
+  it("exporta las seis tablas del esquema (y las dos de roles propios de 030)", () => {
     expect(configs.map((c) => c.name).sort()).toEqual([
       "asignacion",
       "cliente",
       "invitacion",
       "membresia",
+      "rol",
+      "rol_permiso",
       "tenant",
       "usuario",
     ]);
@@ -43,6 +46,9 @@ describe("esquema: inventario", () => {
       "cliente",
       "invitacion",
       "membresia",
+      // Ajuste de 030 (T6, D1).
+      "rol",
+      "rol_permiso",
     ]);
     for (const nombre of ["tenant", "usuario"]) {
       expect(nombresColumnas(config(nombre).columns)).not.toContain(
@@ -53,13 +59,20 @@ describe("esquema: inventario", () => {
 
   it("toda tabla tiene PK uuid con default uuid_v7() y marcas de tiempo NOT NULL", () => {
     for (const c of configs) {
+      // Ajuste de 030 (T6, D1): rol_permiso no tiene id; su PK es (rol_id, permiso) (acceso.spec.ts) y no lleva marcas de tiempo.
+      if (c.name === "rol_permiso") {
+        expect(c.primaryKeys.map((k) => nombresColumnas(k.columns))).toEqual([["rol_id", "permiso"]]);
+        continue;
+      }
       const pk = c.columns.find((col) => col.name === "id");
       expect(pk?.primary, c.name).toBe(true);
       expect(pk?.getSQLType(), c.name).toBe("uuid");
       expect(pk?.hasDefault, c.name).toBe(true);
       // Ajuste de 005 (T2, plan "BD"): invitacion tiene sus propias marcas (creada_en, vence_en, ...), no created_at/updated_at.
       if (c.name === "invitacion") continue;
-      for (const marca of ["created_at", "updated_at"]) {
+      // Ajuste de 030 (T6, plan "BD"): rol usa creado_en / actualizado_en.
+      const marcas = c.name === "rol" ? ["creado_en", "actualizado_en"] : ["created_at", "updated_at"];
+      for (const marca of marcas) {
         const col = c.columns.find((x) => x.name === marca);
         expect(col?.notNull, `${c.name}.${marca}`).toBe(true);
         expect(col?.hasDefault, `${c.name}.${marca}`).toBe(true);
@@ -88,7 +101,10 @@ describe("esquema: tenant_id (CA-7)", () => {
       // Ajuste de 005 (T2, plan "BD"): invitacion.token_hash es UNIQUE por si solo (la funcion de aceptacion busca por
       // hash sin conocer el estudio; 256 bits aleatorios). Es la unica excepcion y se prueba en acceso.spec.ts.
       const UNICA_GLOBAL = c.name === "invitacion" ? ["token_hash"] : [];
-      expect(c.uniqueConstraints.length + c.indexes.filter((x) => x.config.unique).length).toBeGreaterThan(0);
+      // Ajuste de 030 (T6): rol_permiso no tiene UNIQUE de negocio; su unicidad es la PK (rol_id, permiso), con rol_id de un rol del
+      // mismo estudio por la FK compuesta (tenant_id, rol_id) (acceso.spec.ts).
+      const unicaPorPk = c.name === "rol_permiso" ? c.primaryKeys.length : 0;
+      expect(unicaPorPk + c.uniqueConstraints.length + c.indexes.filter((x) => x.config.unique).length).toBeGreaterThan(0);
       for (const u of c.uniqueConstraints) {
         if (u.columns.length === 1 && UNICA_GLOBAL.includes(u.columns[0]!.name)) continue;
         expect(nombresColumnas(u.columns), u.name).toContain("tenant_id");
@@ -152,9 +168,11 @@ describe("esquema: claves foráneas (fk.reference())", () => {
       expect.arrayContaining([
         { desde: ["tenant_id"], hacia: "tenant", columnasDestino: ["id"] },
         { desde: ["usuario_id"], hacia: "usuario", columnasDestino: ["id"] },
+        // Ajuste de 030 (T6, D2): rol propio por FK compuesta.
+        { desde: ["tenant_id", "rol_id"], hacia: "rol", columnasDestino: ["tenant_id", "id"] },
       ]),
     );
-    expect(destinos("membresia")).toHaveLength(2);
+    expect(destinos("membresia")).toHaveLength(3);
   });
 
   it("cliente referencia tenant(id)", () => {
@@ -172,7 +190,8 @@ describe("esquema: claves foráneas (fk.reference())", () => {
     // Ajuste de 005 (T2, CA-13): asignacion e invitacion se anclan al estudio por FK compuestas con tenant_id
     // (hacia cliente y membresia); basta con que alguna FK incluya tenant_id. cliente y membresia siguen exactas.
     for (const c of conTenant) {
-      if (c.name === "asignacion" || c.name === "invitacion") {
+      // Ajuste de 030 (T6): rol_permiso, por la FK compuesta (tenant_id, rol_id) hacia rol.
+      if (c.name === "asignacion" || c.name === "invitacion" || c.name === "rol_permiso") {
         expect(
           destinos(c.name).some((d) => d.desde.includes("tenant_id")),
           c.name,

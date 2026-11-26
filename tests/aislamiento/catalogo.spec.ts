@@ -218,6 +218,25 @@ describe("CA-3 catalogo de RLS", () => {
     expect(p?.with_check).toContain("app.tenant_id");
   });
 
+  // Spec 030 (T6, D1, CA-9): los roles propios y sus permisos entran al catalogo con tenant_id uuid NOT NULL, RLS ENABLE + FORCE y una sola
+  // politica, tenant_isolation FOR ALL (las pruebas anteriores las recorren solas); rol_permiso se ata al estudio por la FK compuesta.
+  for (const tabla of ["rol", "rol_permiso"]) {
+    it(`${tabla} (030) esta en el catalogo de tablas con tenant_id, con RLS ENABLE y FORCE y solo tenant_isolation FOR ALL`, async () => {
+      const fila = (await tablasConTenantId()).find((x) => x.tabla === tabla);
+      expect(fila, `${tabla} en el catalogo`).toBeDefined();
+      expect({ rls: fila!.rls, forzada: fila!.forzada, no_nula: fila!.no_nula, tipo: fila!.tipo }, tabla).toEqual({
+        rls: true,
+        forzada: true,
+        no_nula: true,
+        tipo: "uuid",
+      });
+      const ps = (await politicas()).filter((x) => x.tablename === tabla);
+      expect(ps.map((p) => [p.policyname, p.cmd])).toEqual([["tenant_isolation", "ALL"]]);
+      expect(ps[0]?.qual).toContain("app.tenant_id");
+      expect(ps[0]?.with_check).toContain("app.tenant_id");
+    });
+  }
+
   // Spec 025 (T3, D-4, CA-7, rojo hasta la migracion 0061): las importaciones y las candidatas del aprendizaje de arranque entran al
   // catalogo con tenant_id uuid NOT NULL, RLS ENABLE + FORCE y tenant_isolation FOR ALL (las pruebas anteriores las recorren solas).
   for (const tabla of ["regla_importacion", "regla_candidata"]) {
