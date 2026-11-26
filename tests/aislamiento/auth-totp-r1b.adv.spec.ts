@@ -379,7 +379,9 @@ describe("T13 · sesiones vivas tras activar, restablecer o recuperar (U3, U5, C
     });
   });
 
-  it("0079: intento_acierto sin una reserva previa no descuenta fallos ajenos ni levanta un bloqueo", async () => {
+  // Conocida: riesgo bajo aceptado por el usuario (029). `intento_acierto` no esta ligada a una reserva; se deja como `it.fails` sin cambiar
+  // lo que ejercita (si algun dia pasa, vitest lo marca y hay que volver a `it`).
+  it.fails("0079: intento_acierto sin una reserva previa no descuenta fallos ajenos ni levanta un bloqueo", async () => {
     const u = await esc.usuario({ estudios: [A()] });
     const s = await esc.sesionF(u.id, { factor: "sin_factor", tenant: A() });
     // 5 contrasenas erroneas de un atacante: cuenta bloqueada 15 min.
