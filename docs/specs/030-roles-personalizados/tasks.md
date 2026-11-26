@@ -22,7 +22,7 @@ Nivel A. Flujo 04 §1.3: pruebas (rojo, con cobertura y E2E planificadas) → im
 | T14 | Cobertura ≥ 90 % por archivo | devops (+tester) | sonnet | T13 | — | — | [x] |
 | T15 | E2E con Mailpit y `pnpm e2e` completo | tester | sonnet | T13 ∥ T14 | — | — | [x] |
 | T16 | Verificar CA-1 a CA-12 con evidencia | tester | sonnet | T14, T15 | — | — | [x] |
-| T17 | Revisión final contra la spec | arquitecto | opus | T16 | — | — | [ ] |
+| T17 | Revisión final contra la spec | arquitecto | opus | T16 | — | — | [x] |
 | T17a | Corregir T17-1: revalidar al encolador del worker con permisos efectivos y alcance (pruebas rojas del tester; luego migración 0087, `SQL_REVALIDAR`, `Revalidable`) | tester → backend | sonnet → opus | T17 | — | ✓ | [x] |
 | T17b | Corregir T17-2: `limpiarRolesPropios` de `revalidacion.int.spec.ts` borra `rol_permiso` antes de `rol` y verifica la limpieza | tester | sonnet | T17a | — | — | [x] |
 | T18 | Cierre: `tasks.md`, `spec.md`, `cierre.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T17b | — | — | [ ] |

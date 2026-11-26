@@ -98,3 +98,19 @@ Contrastado spec (U1–U10, CA-1..CA-12, D1–D6) y plan con 0082–0086, `packa
 **Veredicto: no aprobada (1 bloqueante nuevo, solo de pruebas).**
 - **T17-2 · BLOQUEANTE (regresión de suite, introducida por T17a).** `limpiarRolesPropios()` de `packages/queue/src/revalidacion.int.spec.ts:70-86` borra `rol` con `session_replication_role = replica` sin borrar antes `rol_permiso` (el `ON DELETE CASCADE` no corre en réplica): deja 6 filas huérfanas en `rol_permiso` (`sire.descargar`, `clientes.ver`) de estudios ya borrados. Con ellas, `tests/aislamiento/roles-r1b.adv.spec.ts` «0082, 0083 y 0084 se reaplican…» falla con 23503 (`rol_permiso_rol_fk` al recrear la FK); pasaba en T16 y falla en `t17a/ais.log` y aislado. Comprobado: borrando los huérfanos dentro de una transacción, 0082–0084 y 0087 se reaplican sin error. Corrección (T17b, tester · sonnet): en `limpiarRolesPropios` borrar `rol_permiso where tenant_id = any($1)` antes de `rol` (como `tests/aislamiento/acceso-soporte.ts:215`) y verificar después que no quedan `rol`/`rol_permiso` de los estudios (como `acceso-soporte.ts:243`), sin tragarse el error; recrear `contapp_029t17`, correr queue `--mode int` y luego `tests/aislamiento` (`roles-`, `escalada`): solo las 5 conocidas de `escalada.adv` (025–028 e inventario) pueden fallar.
 - Observación (no bloquea): el worker puede pedir `permisos_membresia` de cualquier estudio (SECURITY DEFINER con `p_tenant` arbitrario); `SQL_REVALIDAR` solo le pasa `c.tenant_id` de un cliente visible por RLS. Registrar en `cierre.md`.
+
+## Cierre T17 tras T17b (arquitecto · opus, modelo efectivo `claude-opus-5-5`; commit 598db0e; BD `contapp_029t17c`)
+**T17-2: resuelto.** `limpiarRolesPropios()` (`packages/queue/src/revalidacion.int.spec.ts`) borra, en réplica, `membresia` con `rol_id` → `invitacion` con `rol_id` → `rol_permiso` → `rol` (todo lo que referencia a `rol` antes que `rol`); quitó el `catch {}` de mejor esfuerzo (un error ahora falla el `afterAll`); destruye la conexión (`release(true)`) para no devolverla con `replica`; y luego exige 0 filas de `rol`/`rol_permiso` de los estudios y 0 huérfanos globales en `rol_permiso`, con error explícito. El diff solo toca la limpieza: ninguna aserción de los casos cambió. Corridas propias: queue `--mode int` 15 archivos, 123/123; huérfanos en `rol_permiso` = 0 antes y después de `tests/aislamiento` completo (4134 verdes, 2 `expected fail`, 9 fallas = las mismas 9 de T16: 5 de `escalada.adv` 025–028/inventario, `correo-funciones`, `credencial-r1a` `MERGE … RETURNING`, 2 de `reglas-lote`, todas del entorno). `roles-r1b.adv` «0082, 0083 y 0084 se reaplican…» vuelve a verde.
+
+**Veredicto: aprobada.**
+
+Aceptables para `cierre.md` (no bloquean):
+- El worker puede consultar `acceso.permisos_membresia` de cualquier estudio (SECURITY DEFINER con `p_tenant` arbitrario, EXECUTE por 0087); `SQL_REVALIDAR` solo le pasa `c.tenant_id` de un cliente visible por RLS. Solo devuelve permisos/alcance, no datos de negocio.
+- Disparador por sentencia de `invitacion` SECURITY INVOKER (orden D4 intacto).
+- U6 (responsable → colaborador).
+- Confusables Unicode en nombres de rol no se detectan (documentado con `it.fails`); ZWJ se rechaza.
+- 0084: eliminar un rol borra sus invitaciones no vigentes y pasa a `lectura` a sus miembros desactivados (decisión en la cabecera de 0084, pendiente de aval explícito del usuario).
+- El backend no repite U2 antes de la BD en `POST/PATCH /roles` (traduce 42501 → 403 `escalada`).
+- Migraciones 0082–0087 (no 0082–0083); siguiente libre: 0088.
+- Fallas del entorno de `contapp_pruebas` (superusuario; PG 16 sin `MERGE … RETURNING`): las 9 listadas arriba, idénticas desde T16.
+- T11–T13 siguen `[ ]` en la tabla de `tasks.md` aunque están hechas (T18 las marca).
