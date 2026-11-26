@@ -80,8 +80,7 @@ Frontend (medición ad hoc con `vitest --coverage` v8; no hay script):
 | `lib/acceso.ts` | 100 | 100 | 100 |
 | `lib/roles.ts` | 100 | 100 | 92.59 |
 | `lib/auditoria.ts` | 100 | 99.07 | 97.22 |
-| **`app/(publico)/invitacion/page.tsx`** | 92.62 | **88.37** | **80** |
+| `app/(publico)/invitacion/page.tsx` (con `errores.spec.tsx`) | 100 | 97.67 | 95.78 |
 
 ## Faltante
-- `apps/frontend/app/(publico)/invitacion/page.tsx` (tocado por T15a, nombre del rol propio) queda en 80 % de ramas y 88.37 % de sentencias, bajo el 90 % que pide T14 para «cada archivo nuevo o tocado». Requiere pruebas nuevas de la pantalla (p. ej. ampliar `rol-propio.spec.tsx`); no se editó producción ni pruebas de otros roles.
-- Por eso `T16` no se marca `[x]` en `tasks.md`.
+- Ninguno. `invitacion/page.tsx` (tocado por T15a) pasó de 80 % de ramas y 88.37 % de sentencias a 95.78 % y 97.67 % con `invitacion/errores.spec.tsx` (15 pruebas: carga, consulta 500 y red caída, desmontaje en vuelo, aceptar/login/aceptar-con-sesion/cambio de estudio en 401, 429 y 5xx). Quedan sin cubrir solo cuatro guardas inalcanzables desde la UI (`!token`, `!info`, `!estudioUnido`, `previa` nula). Frontend completo: 185 archivos, 1874 pruebas verdes.
