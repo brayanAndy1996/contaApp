@@ -52,6 +52,9 @@ export interface Asignables {
 
 export type RolRespuesta = RolLeido;
 
+/** Intentos de DELETE /roles/:id cuando el 23503 ya no se explica con los conteos (carrera; ver `eliminar`). */
+const ELIMINAR_INTENTOS = 3;
+
 /** Los permisos de un rol de sistema en el orden del catálogo. */
 const enOrdenDeCatalogo = (permisos: ReadonlySet<Permiso>): Permiso[] =>
   PERMISOS.filter((p) => permisos.has(p));
@@ -143,15 +146,20 @@ export class RolesService {
 
   async eliminar(l: Llamante, idRuta: string | undefined): Promise<void> {
     const id = idDeRuta(idRuta);
-    try {
-      await this.conTenant(l, (tx) => eliminarRol(tx, id));
-    } catch (e) {
-      // 23503: en uso. La transacción abortó, así que los conteos se leen en otra (miembros activos e invitaciones vigentes).
-      if (e instanceof AccesoRepoError && e.codigo === "23503") {
+    // 23503: en uso. `acceso.rol_eliminar` (0084) bloquea solo con miembros activos o invitaciones vigentes, los mismos predicados de
+    // `usoRol`. La transacción abortó, así que los conteos se leen en otra: si entre ambas lo que bloqueaba desapareció (revocada,
+    // vencida, cambio de rol), se reintenta en vez de responder un 409 en ceros.
+    for (let intento = 1; ; intento++) {
+      try {
+        await this.conTenant(l, (tx) => eliminarRol(tx, id));
+        return;
+      } catch (e) {
+        if (!(e instanceof AccesoRepoError && e.codigo === "23503")) throw traducir(e);
         const uso = await this.conTenant(l, (tx) => usoRol(tx, id));
-        throw new AccesoError("rol_en_uso", { miembros: uso.miembros, invitaciones: uso.invitaciones });
+        if (uso.miembros + uso.invitaciones > 0 || intento >= ELIMINAR_INTENTOS) {
+          throw new AccesoError("rol_en_uso", { miembros: uso.miembros, invitaciones: uso.invitaciones });
+        }
       }
-      throw traducir(e);
     }
   }
 

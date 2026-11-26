@@ -13,8 +13,8 @@ Nivel A. Flujo 04 §1.3: pruebas (rojo, con cobertura y E2E planificadas) → im
 | T5 | E2E `roles.e2e.ts` con login, invitación (Mailpit) y TOTP (rojo) | tester | sonnet | — ∥ T1, T2, T3, T4 | ✓ | — | [x] |
 | T6 | Migración 0082, drizzle, repositorio, soportes y catálogos | backend | opus | T1, T2 ∥ T7 | ✓ | — | [x] |
 | T7 | Núcleo en `shared`: resolvedor, combinación, `puedeGestionar`, esquemas, casos | backend | opus | T2 ∥ T6 | ✓ | — | [x] |
-| T8 | Núcleo del backend: guards, alcance, escalada al asignar, TOTP, `/yo` | backend | opus | T3, T6, T7 ∥ T9, T10 | ✓ | — | [ ] |
-| T9 | Módulo `/roles` (CRUD, asignables, impacto, errores, auditoría) | backend | sonnet | T3, T6, T7 ∥ T8, T10 | ✓ | — | [ ] |
+| T8 | Núcleo del backend: guards, alcance, escalada al asignar, TOTP, `/yo` | backend | opus | T3, T6, T7 ∥ T9, T10 | ✓ | — | [x] |
+| T9 | Módulo `/roles` (CRUD, asignables, impacto, errores, auditoría) | backend | sonnet | T3, T6, T7 ∥ T8, T10 | ✓ | — | [x] |
 | T10 | Pantallas «Equipo → Roles» y selector de rol | frontend | sonnet | T4, T7 ∥ T8, T9 | ✓ | — | [x] |
 | T11 | Ronda 1a (caja negra, HTTP y UI) | adversario | opus | T8, T9, T10 ∥ T12 | — | ✓ | [ ] |
 | T12 | Ronda 1b (caja blanca, SQL, RLS, bloqueos) | adversario | opus | T8, T9 ∥ T11 | — | ✓ | [ ] |
