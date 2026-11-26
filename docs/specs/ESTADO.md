@@ -39,7 +39,7 @@ Una línea por spec; el detalle de las cerradas está en `NNN-*/cierre.md` y los
 | 027-gastos-no-deducibles | A | hecha | — | Mergeada en `main` (28872de). Migraciones 0069–0072. Pendiente: un contador del equipo revisa palabras, excepciones, matriz, rubros y feriados. Detalle: `027-*/cierre.md` |
 | 028-correo-avisos | A | hecha | — | Mergeada en `main` (df50fd7). Migraciones 0073–0077 (siguiente libre: 0078). Deuda O-1–O-10 en la tarjeta T24. Detalle: `028-*/cierre.md` |
 | 029-cuenta-segura | A | hecha | — | Rama spec/029-cuenta-segura sin mergear (desde main). Migraciones 0078–0081 (siguiente libre: 0082). 2 riesgos bajos aceptados. Detalle: `029-*/cierre.md` |
-| 030-roles-personalizados | A | en curso | T13 (corregir ronda 1) | Ronda 1: 2 hallazgos altos, 3 medios y 5 bajos; corrigiendo (T13). Migraciones 0082–0084 (siguiente libre: 0085). |
+| 030-roles-personalizados | A | hecha | — | Rama sin mergear (sobre 029). Migraciones 0082–0087 (siguiente libre: 0088). Ronda 1: 2 altos, 3 medios, 4 bajos; ronda 2: 1 alto, 1 medio, 1 bajo; todos resueltos. Detalle: `030-*/cierre.md` |
 | 031-auditoria-consulta | B | pendiente | — | RF-151 · HU-39. |
 | 032-envio-sire-ticket | A | pendiente | — | RF-104 · HU-27. Con mock; apagado hasta formato oficial y `SireAuth` real. |
 | 033-catalogo-global-icb | A | pendiente | — | RF-084, 087. Curado por super-admin + conteos anónimos desde N estudios (D4 = a). |
@@ -58,15 +58,6 @@ Los cerrados están en [HALLAZGOS.md](HALLAZGOS.md).
 
 | Spec | Prueba | Hallazgo | Estado |
 |---|---|---|---|
-| 030 | apps/backend/src/modules/acceso/roles/roles-r1a.adv.int.spec.ts:80 | ALTA: miembro con rol propio de alcance asignado y `clientes.asignar` se asigna (o asigna a otro) a un cliente fuera de su alcance con POST /asignaciones/por-usuario y /por-cliente (U4/HU-08) | abierto |
-| 030 | roles-r1a.adv.int.spec.ts:109 | BAJA: POST /roles/:id/impacto responde 200 para un rol que el gestor no puede editar (debe 403) | abierto |
-| 030 | roles-r1a.adv.int.spec.ts:177 | BAJA: nombres de sistema con espacio duro (NBSP) al borde aceptados | abierto |
-| 030 | roles-r1a.adv.int.spec.ts:191 | BAJA: nombres invisibles o engañosos (NBSP, ZWSP, bidi, saltos de línea) aceptados | abierto |
-| 030 | tests/aislamiento/roles-r1b.adv.spec.ts (0082:448) | ALTA: el disparador de asignación se salta todo UPDATE que no cambia rol_id (traspasar membresía a otra persona, redirigir invitación) | abierto |
-| 030 | roles-r1b.adv.spec.ts (0082:544/596/514) | MEDIA: aceptar e invitacion_vigente no exigen que el invitador contenga el rol; editar el rol del invitador no revoca pendientes | abierto |
-| 030 | roles-r1b.adv.spec.ts (invitaciones.ts:97 / 0084:63) | MEDIA: orden de bloqueo entre crearInvitacion y rol_eliminar → interbloqueo 40P01 | abierto |
-| 030 | roles-r1b.adv.spec.ts (0045:30/57) | MEDIA: invitacion.creada no guarda rolId y cambiar rol_id no deja invitacion.modificada | abierto |
-| 030 | roles-r1b.adv.spec.ts (0082:23/31) | BAJA: nombre_clave no detecta caracteres invisibles (duplicados que se ven iguales) | abierto |
 
 ## Decisiones pendientes del usuario
 

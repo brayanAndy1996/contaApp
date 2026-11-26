@@ -16,16 +16,16 @@ Nivel A. Flujo 04 §1.3: pruebas (rojo, con cobertura y E2E planificadas) → im
 | T8 | Núcleo del backend: guards, alcance, escalada al asignar, TOTP, `/yo` | backend | opus | T3, T6, T7 ∥ T9, T10 | ✓ | — | [x] |
 | T9 | Módulo `/roles` (CRUD, asignables, impacto, errores, auditoría) | backend | sonnet | T3, T6, T7 ∥ T8, T10 | ✓ | — | [x] |
 | T10 | Pantallas «Equipo → Roles» y selector de rol | frontend | sonnet | T4, T7 ∥ T8, T9 | ✓ | — | [x] |
-| T11 | Ronda 1a (caja negra, HTTP y UI) | adversario | opus | T8, T9, T10 ∥ T12 | — | ✓ | [ ] |
-| T12 | Ronda 1b (caja blanca, SQL, RLS, bloqueos) | adversario | opus | T8, T9 ∥ T11 | — | ✓ | [ ] |
-| T13 | Corregir hallazgos de la ronda | backend (+frontend) | opus (sonnet) | T11, T12 | — | — | [ ] |
+| T11 | Ronda 1a (caja negra, HTTP y UI) | adversario | opus | T8, T9, T10 ∥ T12 | — | ✓ | [x] |
+| T12 | Ronda 1b (caja blanca, SQL, RLS, bloqueos) | adversario | opus | T8, T9 ∥ T11 | — | ✓ | [x] |
+| T13 | Corregir hallazgos de la ronda | backend (+frontend) | opus (sonnet) | T11, T12 | — | — | [x] |
 | T14 | Cobertura ≥ 90 % por archivo | devops (+tester) | sonnet | T13 | — | — | [x] |
 | T15 | E2E con Mailpit y `pnpm e2e` completo | tester | sonnet | T13 ∥ T14 | — | — | [x] |
 | T16 | Verificar CA-1 a CA-12 con evidencia | tester | sonnet | T14, T15 | — | — | [x] |
 | T17 | Revisión final contra la spec | arquitecto | opus | T16 | — | — | [x] |
 | T17a | Corregir T17-1: revalidar al encolador del worker con permisos efectivos y alcance (pruebas rojas del tester; luego migración 0087, `SQL_REVALIDAR`, `Revalidable`) | tester → backend | sonnet → opus | T17 | — | ✓ | [x] |
 | T17b | Corregir T17-2: `limpiarRolesPropios` de `revalidacion.int.spec.ts` borra `rol_permiso` antes de `rol` y verifica la limpieza | tester | sonnet | T17a | — | — | [x] |
-| T18 | Cierre: `tasks.md`, `spec.md`, `cierre.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T17b | — | — | [ ] |
+| T18 | Cierre: `tasks.md`, `spec.md`, `cierre.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T17b | — | — | [x] |
 
 Paralelismo: oleada 1 = T1 (`tests/aislamiento/roles-*.spec.ts`, `packages/db/src/**/*.spec.ts`) ∥ T2 (`packages/shared/**/*.spec.ts`, `factor-exigido.casos.ts`, `efectivos.casos.ts`) ∥ T3 (`apps/backend/src/modules/**/*.int.spec.ts`, `apps/backend/test/fakes-auth.ts`) ∥ T4 (`apps/frontend/**/*.spec.tsx`) ∥ T5 (`tests/e2e/flujos/roles.e2e.ts`, `tests/e2e/soporte/siembra-roles.ts`). Oleada 2 = T6 (`packages/db/**` sin specs nuevas, soportes y catálogos) ∥ T7 (`packages/shared/src` sin specs). Oleada 3 = T8 (`guards/`, `auth/totp/exigencia.ts`, `usuarios.service.ts`, `invitaciones.service.ts`, `yo.controller.ts`) ∥ T9 (`acceso/roles/`, `acceso.module.ts`, `errores.ts`, `mensajes.ts`) ∥ T10 (`apps/frontend`). T11 ∥ T12; T14 (`vitest.cobertura.config.mts`, specs de cobertura) ∥ T15 (`tests/e2e/`). El resto en serie.
 

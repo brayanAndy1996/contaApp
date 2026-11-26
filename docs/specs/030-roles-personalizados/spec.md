@@ -1,6 +1,6 @@
 # Spec 030 · Roles personalizados
 
-Estado: aprobada (2026-11-26; U1–U10 con la opción recomendada)
+Estado: hecha (2026-11-26; U1–U10 con la opción recomendada)
 Nivel de riesgo: A — (2) un permiso mal resuelto expone clientes o credenciales; (3) un permiso de más no se nota; (4) 2^23 combinaciones y concurrencia.
 Cubre: RF-022, RF-023 (roles propios) · HU-05 · mantiene RF-021, RF-026, RF-028, U2 de 029
 
