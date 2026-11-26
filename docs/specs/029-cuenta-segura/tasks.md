@@ -24,6 +24,7 @@ Nivel A. Flujo 04 §1.3: pruebas (rojo) → implementar (verde) → cobertura �
 | T15 | Ronda 2: regresión y ataques a las correcciones (solo con hallazgos media/alta) | adversario | opus | T14 | — | ✓ | [ ] |
 | T16 | Corregir hallazgos de la ronda 2 | backend (+frontend) | opus (sonnet) | T15 | — | — | [ ] |
 | T17 | Verificar CA-1 a CA-11 con evidencia y prueba manual | tester | sonnet | T11, T11b, T16 | — | — | [ ] |
+| T17a | Ajustar `equipo.e2e.ts:382` al enrolamiento forzado de 029 (defecto de T17) | tester | sonnet | T17 | — | — | [ ] |
 | T18 | Revisión final contra la spec | arquitecto | opus | T17 | — | — | [ ] |
 | T19 | Cierre: `tasks.md`, `spec.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T18 | — | — | [ ] |
 
@@ -133,6 +134,11 @@ Reglas comunes:
 - **Contexto**: spec completa; `resultados.md`.
 - **Hacer**: evidencia por CA (prueba o comando); `test:aislamiento`, backend, db, shared, correo y frontend completos; `db:migrate` ×2; coberturas; `pnpm e2e`; prueba manual con el sistema levantado y `mock`.
 - **Hecho cuando**: tabla CA → evidencia en `resultados.md` sin pendientes, o defectos listados como T17a/T17b.
+
+## T17a · E2E de la invitación a otro estudio (tester · sonnet)
+- **Contexto**: `resultados.md#defecto-abierto`; `tests/e2e/flujos/equipo.e2e.ts:382-410`; `tests/e2e/soporte/{siembra-cuenta,sesiones,totp}.ts`.
+- **Hacer**: la persona que acepta la invitación (`a.dueno`, Dueño sin TOTP) es redirigida a `/cuenta/seguridad` por U1/U3; sembrarla con factor verificado (o aceptar por el enrolamiento forzado) y conservar las aserciones. Sin tocar producción.
+- **Hecho cuando**: `pnpm e2e` completo en verde (109 de 109).
 
 ## T18 · Revisión final (arquitecto · opus)
 - **Contexto**: spec, plan, `resultados.md`, diff de la rama.
