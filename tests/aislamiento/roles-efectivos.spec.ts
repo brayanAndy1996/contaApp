@@ -284,6 +284,8 @@ describe("U10: los avisos siguen solo para Dueño y Administrador; un rol propio
     const propioG = await er.miembroPropio(x.id, rolG.id);
     const propioA = await er.miembroPropio(x.id, rolA.id);
     const cliente = await er.cliente(x.id);
+    // interno.uso_plan devuelve cero filas sin suscripcion: se suscribe al estudio al primer plan sembrado (la limpieza la borra).
+    await adm("insert into suscripcion (tenant_id, plan_id, estado) select $1::uuid, id, 'activa' from plan order by codigo limit 1", [x.id]);
     return { x, dueno, adminU, propioG, propioA, cliente };
   }
 

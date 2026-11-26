@@ -54,7 +54,7 @@ describe("rol y rol_permiso (030)", () => {
   it("`rol` y `rolPermiso` se exportan de schema/acceso.ts y del indice del esquema", async () => {
     expect(esquema.rol).toBeDefined();
     expect(esquema.rolPermiso).toBeDefined();
-    const indice = (await import("./index")) as Record<string, unknown>;
+    const indice = (await import("./index.js")) as Record<string, unknown>;
     expect(indice.rol).toBeDefined();
     expect(indice.rolPermiso).toBeDefined();
   });

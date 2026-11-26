@@ -214,7 +214,7 @@ describe("CA-8 / U7: nunca 0 Dueños activos con roles propios, tampoco en concu
 });
 
 describe("D4: orden fijo de bloqueo; mezcla de operaciones sin interbloqueos", () => {
-  it("20 operaciones mezcladas (crear, editar, eliminar, asignar, invitar, aceptar) sobre los mismos roles: ninguna da 40P01 ni 40001 y el estado queda consistente", async () => {
+  it("21 operaciones mezcladas (crear, editar, eliminar, asignar, invitar, aceptar) sobre los mismos roles: ninguna da 40P01 ni 40001 y el estado queda consistente", async () => {
     const x = await er.estudio();
     const d = await er.miembro(x.id, "dueno");
     const roles = await Promise.all(Array.from({ length: 5 }, () => er.rol(x.id, { permisos: ["clientes.ver"] })));
@@ -233,7 +233,7 @@ describe("D4: orden fijo de bloqueo; mezcla de operaciones sin interbloqueos", (
       ),
       guardar(db, c, { nombre: "Nuevo en la mezcla", alcance: "asignado", permisos: [] }),
     ];
-    expect(ops.length).toBe(20);
+    expect(ops.length).toBe(21);
     const rs = await Promise.all(ops);
     sinInterbloqueo(rs);
     const colgadas = await adm(
