@@ -3,6 +3,7 @@ import {
   REQUISITOS_PERMISO,
   ROLES,
   crearRolSchema,
+  nombreRolConCaracterProhibido,
   validarCombinacion,
   type Rol,
 } from "@contapp/shared";
@@ -65,6 +66,7 @@ export const MENSAJES_ROLES = {
   cancelar: "Cancelar",
   confirmar: "Confirmar",
   nombreObligatorio: "Escribe un nombre para el rol.",
+  nombreInvalido: "El nombre tiene espacios o caracteres no permitidos.",
   nombreDuplicado: "Ya existe un rol con ese nombre.",
   limiteRoles: "Alcanzaste el límite de 20 roles propios.",
   escalada: MENSAJES.escalada,
@@ -158,7 +160,14 @@ export function validarFormularioRol(
     ...(baseRolId ? { baseRolId } : {}),
   });
   if (!parseado.success)
-    return { ok: false, mensaje: MENSAJES_ROLES.nombreObligatorio };
+    return {
+      ok: false,
+      // T13: un nombre con algo escrito pero con caracteres prohibidos (invisibles, NBSP interior...) no es «vacío».
+      mensaje:
+        nombre.length > 0 && nombreRolConCaracterProhibido(nombre)
+          ? MENSAJES_ROLES.nombreInvalido
+          : MENSAJES_ROLES.nombreObligatorio,
+    };
   const combinacion = validarCombinacion(entrada.permisos, entrada.alcance);
   if (!combinacion.ok)
     return {

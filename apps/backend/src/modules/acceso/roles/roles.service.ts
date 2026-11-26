@@ -20,8 +20,10 @@ import {
   ROLES,
   crearRolSchema,
   editarRolSchema,
+  esNombreRolReservado,
   permisosEfectivos,
   puedeGestionar,
+  puedeGestionarRol,
   validarCombinacion,
   type AlcanceRol,
   type Efectivo,
@@ -106,6 +108,7 @@ export class RolesService {
 
   async crear(l: Llamante, cuerpo: unknown): Promise<RolRespuesta> {
     const datos = parsearCuerpo(crearRolSchema, cuerpo);
+    exigirNombreLibre(datos.nombre);
     exigirCombinacion(datos.permisos, datos.alcance);
     try {
       return await this.conTenant(l, async (tx) => {
@@ -125,6 +128,7 @@ export class RolesService {
     const id = idDeRuta(idRuta);
     const cambio = parsearCuerpo(editarRolSchema, cuerpo);
     if (Object.keys(cambio).length === 0) throw new AccesoError("solicitud_invalida");
+    if (cambio.nombre !== undefined) exigirNombreLibre(cambio.nombre);
     if (cambio.permisos !== undefined) exigirCombinacion(cambio.permisos, cambio.alcance ?? "asignado");
     try {
       return await this.conTenant(l, async (tx) => {
@@ -172,15 +176,25 @@ export class RolesService {
       return await this.conTenant(l, async (tx) => {
         const actual = await leerRol(tx, id);
         if (actual === null) throw new AccesoError("no_encontrado");
-        return impactoRol(tx, id, {
-          alcance: cambio.alcance ?? actual.alcance,
-          permisos: cambio.permisos ?? actual.permisos,
-        });
+        const despues = { alcance: cambio.alcance ?? actual.alcance, permisos: cambio.permisos ?? actual.permisos };
+        // T13 (ronda 1a): mismas reglas y códigos que `acceso.rol_guardar` en el PATCH (RL001 -> rol_propio, 42501 -> escalada),
+        // antes de contar nada: un rol que el actor no podría editar no revela su impacto (U2).
+        const m = await miembroActual(tx, l.usuarioId);
+        if (m === null) throw new AccesoError("estudio_requerido");
+        if (m.rolId !== null && m.rolId.toLowerCase() === id.toLowerCase()) throw new AccesoError("rol_propio");
+        const actor = m.rol === "propio" ? efectivoDe(m.propio ?? { permisos: [], alcance: "asignado" }) : permisosEfectivos(m.rol);
+        if (!puedeGestionarRol(actor, efectivoDe(actual), efectivoDe(despues), false)) throw new AccesoError("escalada");
+        return impactoRol(tx, id, despues);
       });
     } catch (e) {
       throw traducir(e);
     }
   }
+}
+
+/** CA-1 (T13): un nombre que, normalizado como `nombre_clave`, es el de un rol de sistema es 409, igual que el CHECK de la BD. */
+function exigirNombreLibre(nombre: string): void {
+  if (esNombreRolReservado(nombre)) throw new AccesoError("nombre_duplicado");
 }
 
 /** U3 y el catálogo (CA-2): 422 con código fijo; solo `combinacion_invalida` nombra el permiso (del catálogo, no es eco). */

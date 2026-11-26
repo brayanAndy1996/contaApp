@@ -7,6 +7,7 @@ import {
   bloquearMiembros,
   ClienteArchivadoError,
   listarAsignaciones,
+  listarClientes,
   retirar,
   type AsignacionListada,
   type ContappDb,
@@ -55,13 +56,34 @@ function noNulo<T>(valor: T | null): T {
 
 /**
  * H-005-1b-4 (D3, plan Riesgos): el actor, releído y bloqueado en la transacción de la acción, sigue activo y con
- * `clientes.asignar` (los roles que lo tienen son de alcance global, así que la visibilidad del guard sigue
- * valiendo). Un actor degradado o desactivado a mitad de la petición no completa la asignación.
+ * `clientes.asignar`. Un actor degradado o desactivado a mitad de la petición no completa la asignación. Desde 030 un rol
+ * propio de alcance asignado puede tenerlo: el alcance de las rutas masivas lo exige `exigirClientesVisibles`.
  */
 export function exigirAsignador(actor: MiembroEstado | null, efectivo: Efectivo | null = efectivoDe(actor)): void {
   if (actor === null || !actor.activo) throw new AccesoError("estudio_requerido");
   // 030 (D3): con los permisos efectivos (rol de sistema o propio, releído con su fila bloqueada).
   if (!tiene(efectivo, "clientes.asignar")) throw new AccesoError("permiso_denegado");
+}
+
+/**
+ * 030 (T13, hallazgo de la ronda 1a): con roles propios, `clientes.asignar` ya no implica alcance global. Las rutas masivas no
+ * tienen `:clienteId`, así que `ClienteScopeGuard` no las cubre: aquí se exige que TODOS los clientes del cuerpo sean visibles con el
+ * alcance EFECTIVO del actor releído y bloqueado (falla cerrado: lo que no es `global` cuenta como asignado). Fuera de alcance,
+ * inexistente o ajeno dan el mismo 404 `no_encontrado` que el `PUT` individual. Una sola consulta (los clientes del actor) y sin
+ * bloqueos de cliente, así se respeta el orden de bloqueo.
+ */
+async function exigirClientesVisibles(
+  tx: Tx,
+  actorId: string,
+  efectivo: Efectivo | null,
+  clienteIds: readonly string[],
+): Promise<void> {
+  if (efectivo === null) throw new AccesoError("permiso_denegado");
+  if (efectivo.alcance === "global") return;
+  const visibles = new Set(
+    (await listarClientes(tx, { tipo: "asignado", usuarioId: actorId })).map((c) => c.id.toLowerCase()),
+  );
+  if (!clienteIds.every((id) => visibles.has(id.toLowerCase()))) throw new AccesoError("no_encontrado");
 }
 
 /**
@@ -74,10 +96,12 @@ async function bloquearActorYMiembros(
   tx: Tx,
   actorId: string,
   usuarioIds: readonly string[],
+  clienteIds: readonly string[] | null = null,
 ): Promise<Map<string, MiembroEfectivo>> {
   const filas = await releerEfectivos(tx, await bloquearMiembros(tx, [actorId, ...usuarioIds]));
   const actor = filas.get(actorId.toLowerCase()) ?? null;
   exigirAsignador(actor?.estado ?? null, actor?.efectivo ?? null);
+  if (clienteIds !== null) await exigirClientesVisibles(tx, actorId, actor?.efectivo ?? null, clienteIds);
   return filas;
 }
 
@@ -126,7 +150,7 @@ export class AsignacionesService {
     const datos = parsear(asignarPorUsuarioSchema, cuerpo);
     return traducir(() =>
       this.db.withTenant(contextoDe(sesion), async (tx) => {
-        await this.comprobarMiembro(tx, sesion.usuarioId, datos.usuarioId, datos.tipo);
+        await this.comprobarMiembro(tx, sesion.usuarioId, datos.usuarioId, datos.tipo, datos.clienteIds);
         return noNulo(
           await asignarPorUsuario(tx, {
             usuarioId: datos.usuarioId,
@@ -144,7 +168,7 @@ export class AsignacionesService {
     return traducir(async () =>
       noNulo(
         await this.db.withTenant(contextoDe(sesion), async (tx) => {
-          await bloquearActorYMiembros(tx, sesion.usuarioId, datos.usuarioIds);
+          await bloquearActorYMiembros(tx, sesion.usuarioId, datos.usuarioIds, [datos.clienteId]);
           return asignarPorCliente(tx, { clienteId: datos.clienteId, usuarioIds: datos.usuarioIds });
         }),
       ),
@@ -161,9 +185,10 @@ export class AsignacionesService {
     actorId: string,
     usuarioId: string,
     tipo: "responsable" | "colaborador",
+    clienteIds: readonly string[] | null = null,
   ): Promise<void> {
     const id = usuarioId.toLowerCase();
-    const m = noNulo((await bloquearActorYMiembros(tx, actorId, [id])).get(id) ?? null);
+    const m = noNulo((await bloquearActorYMiembros(tx, actorId, [id], clienteIds)).get(id) ?? null);
     if (!m.estado.activo) throw new AccesoError("miembro_no_asignable");
     // D18 (030: también un rol propio): responsable solo con `sire.clasificar` efectivo.
     if (tipo === "responsable" && (m.efectivo === null || !puedeSerResponsable(m.efectivo)))
