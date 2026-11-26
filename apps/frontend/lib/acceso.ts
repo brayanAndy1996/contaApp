@@ -49,7 +49,7 @@ export interface Miembro {
 /** Texto del rol de un miembro o invitación: la etiqueta del rol de sistema o el nombre del rol propio. */
 export function etiquetaDeRol(
   rol: Rol | "propio",
-  rolPropio?: RolPropioRef | null,
+  rolPropio?: (Pick<RolPropioRef, "nombre"> & Partial<RolPropioRef>) | null,
 ): string {
   return rol === "propio" ? (rolPropio?.nombre ?? "Rol propio") : ETIQUETA_ROL[rol];
 }

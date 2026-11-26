@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ETIQUETA_ROL, type Rol } from "../../../lib/acceso";
+import { etiquetaDeRol, type Rol } from "../../../lib/acceso";
 import { api } from "../../../lib/api";
 import {
   AvisoFactorExigido,
@@ -49,7 +49,9 @@ const REABRIR_ENLACE =
 
 interface Consulta {
   estudio: { nombre: string };
-  rol: Rol;
+  rol: Rol | "propio";
+  /** Solo con `rol: "propio"`: el nombre actual del rol (sin id ni permisos). */
+  rolPropio?: { nombre: string } | null;
   correo: string;
   cuentaExiste: boolean;
 }
@@ -263,7 +265,7 @@ export default function Invitacion() {
   const resumen = info && (
     <p className="text-sm">
       Te invitaron a <strong>{info.estudio.nombre}</strong> como{" "}
-      <strong>{ETIQUETA_ROL[info.rol] ?? info.rol}</strong>. Correo:{" "}
+      <strong>{etiquetaDeRol(info.rol, info.rolPropio)}</strong>. Correo:{" "}
       <span>{info.correo}</span>
     </p>
   );
