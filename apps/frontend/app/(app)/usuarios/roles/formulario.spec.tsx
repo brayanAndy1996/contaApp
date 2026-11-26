@@ -284,7 +284,7 @@ describe("/usuarios/roles · formulario", () => {
     [409, { codigo: "nombre_duplicado" }, MENSAJES_ROLES.nombreDuplicado],
     [409, { codigo: "limite_roles" }, MENSAJES_ROLES.limiteRoles],
     [403, { codigo: "escalada" }, MENSAJES_ROLES.escalada],
-    [500, { codigo: "error" }, MENSAJES_ACCESO.errorGeneral],
+    [500, { codigo: "boom_interno" }, MENSAJES_ACCESO.errorGeneral],
   ])(
     "crear: %i %j → su mensaje, sin código, y el formulario sigue abierto",
     async (status, cuerpo, mensaje) => {

@@ -206,7 +206,7 @@ describe("/usuarios/roles · lista", () => {
     [403, "rol_propio", MENSAJES_ROLES.rolPropio],
     [403, "permiso_denegado", MENSAJES_ACCESO.sinPermiso],
     [404, "no_encontrado", MENSAJES_ACCESO.noEncontrado],
-    [500, "error", MENSAJES_ACCESO.errorGeneral],
+    [500, "boom_interno", MENSAJES_ACCESO.errorGeneral],
   ])(
     "eliminar: %i %s → su mensaje, sin mostrar el código",
     async (status, codigo, mensaje) => {
