@@ -137,7 +137,7 @@ describe("/login · paso de código (029)", () => {
   });
 
   it("el csrf es el de la respuesta del login (no uno fijo) y también viaja con el código de recuperación", async () => {
-    const otro = "b3Ryby1jc3JmLTEyMzQ1Njc4OTAtYWJjZGVmZ2hpamtsbQ";
+    const otro = "b3Ryby1jc3JmLTEyMzQ1Njc4OTAtYWJjZGVmZ2hpamt";
     const f = instalarFetchFalso({
       ...rutas(),
       "POST /api/auth/login": { status: 200, cuerpo: respuestaSegundoFactor(otro) },

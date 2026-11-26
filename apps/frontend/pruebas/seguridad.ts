@@ -38,7 +38,7 @@ export function errorSeg(codigo: CodigoErrorSeguridad) {
 }
 
 /** CSRF canario de la sesión `pendiente` (43 caracteres base64url, como `derivarCsrf`). */
-export const CSRF_PENDIENTE = "Y3NyZi1wZW5kaWVudGUtMTIzNDU2Nzg5MC1BQkNERUYwMTI";
+export const CSRF_PENDIENTE = "Y3NyZi1wZW5kaWVudGUtMTIzNDU2Nzg5MC1BQkNERUY";
 
 /** Respuesta 200 del login con TOTP activo (`{ segundoFactor, estudioActivo: null, csrf }`), validada con `loginSegundoFactorRespuestaSchema`. */
 export function respuestaSegundoFactor(csrf: string = CSRF_PENDIENTE) {
