@@ -20,7 +20,7 @@
 //   Funciones nuevas de @contapp/db: marcarOrigenImportacion(tx): Promise<void>; leerCambiosDeOperacion(tx, operacionId):
 //     Promise<{ compraId; antes: VersionCompra | null; despues: VersionCompra }[]> por compraId ascendente, con VersionCompra =
 //     { n: number; excluida: boolean; clasificada: boolean; biDg; igvDg; biDng; igvDng; total: string; ... } (montos como cadena);
-//     listarAuditoria(tx, { antes?: { en: Date; id: string }; limite }): Promise<FilaAuditoria[]> con FilaAuditoria =
+//     listarAuditoria(tx, { alcance; antes?: { en: Date; id: string }; limite; filtros? }): Promise<FilaAuditoria[]> con FilaAuditoria =
 //     { id; ocurridaEn: Date; accion; actorTipo; usuarioId | null; trabajoId | null; clienteId | null; entidad; entidadId;
 //     datos }. ContextoTenant.trabajoId?: string (uuid validado) fija `app.trabajo_id`.
 import { createHash, randomBytes, randomUUID } from "node:crypto";

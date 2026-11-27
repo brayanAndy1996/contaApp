@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { listarAuditoria, MAX_PAGINA_AUDITORIA } from "./lectura";
 
 const ID = "0190a000-0000-7000-8000-0000000000a1";
+const GLOBAL = { tipo: "global" } as const;
 
 function txCon(rows: Record<string, unknown>[] = []) {
   const consultas: { texto: string; valores: unknown[] }[] = [];
@@ -29,15 +30,15 @@ describe("listarAuditoria: límite", () => {
     ["mayor que el máximo", 5000, 50],
   ])("límite %s se recorta a %i", async (_n, limite, esperado) => {
     const tx = txCon();
-    await listarAuditoria(tx as never, limite === undefined ? {} : { limite });
+    await listarAuditoria(tx as never, limite === undefined ? { alcance: GLOBAL } : { alcance: GLOBAL, limite });
     expect(tx.consultas[0]!.valores[2]).toBe(esperado);
     expect(MAX_PAGINA_AUDITORIA).toBe(50);
   });
 
-  it("sin opciones pide la primera página de 50", async () => {
+  it("solo con alcance global pide la primera página de 50", async () => {
     const tx = txCon();
-    await listarAuditoria(tx as never);
-    expect(tx.consultas[0]!.valores).toEqual([null, null, 50]);
+    await listarAuditoria(tx as never, { alcance: GLOBAL });
+    expect(tx.consultas[0]!.valores.slice(0, 3)).toEqual([null, null, 50]);
   });
 });
 
@@ -45,8 +46,8 @@ describe("listarAuditoria: cursor y mapeo", () => {
   it("el cursor va como parámetros, no en el texto", async () => {
     const tx = txCon();
     const en = new Date("2026-10-05T12:00:00.123Z");
-    await listarAuditoria(tx as never, { antes: { en, id: ID }, limite: 10 });
-    expect(tx.consultas[0]!.valores).toEqual([en, ID, 10]);
+    await listarAuditoria(tx as never, { alcance: GLOBAL, antes: { en, id: ID }, limite: 10 });
+    expect(tx.consultas[0]!.valores.slice(0, 3)).toEqual([en, ID, 10]);
     expect(tx.consultas[0]!.texto).not.toContain(ID);
   });
 
@@ -66,7 +67,7 @@ describe("listarAuditoria: cursor y mapeo", () => {
         datos: { tipo: "sol" },
       },
     ]);
-    expect(await listarAuditoria(tx as never)).toEqual([
+    expect(await listarAuditoria(tx as never, { alcance: GLOBAL })).toEqual([
       {
         id: ID,
         ocurridaEn: ocurrida,

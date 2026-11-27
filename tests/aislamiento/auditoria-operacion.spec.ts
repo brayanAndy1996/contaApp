@@ -2,6 +2,7 @@
 // descifrados de 003 como `credencial.descifrada`), CA-7 en SQL con dos estudios y CA-6 (sin secretos) a nivel de BD.
 // Fallan por tabla `auditoria` o export (`listarAuditoria`, `leerCambiosDeOperacion`) ausentes.
 import { randomBytes } from "node:crypto";
+import type { Alcance } from "@contapp/db";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { EscenarioAuditoria, abrirAdmin, exportado } from "./auditoria-soporte";
@@ -39,7 +40,8 @@ interface FilaAuditoria {
 
 const leerCambiosDeOperacion = (tx: Tx, op: string) =>
   exportado<(tx: Tx, op: string) => Promise<Cambio[]>>("leerCambiosDeOperacion")(tx, op);
-const listarAuditoria = (tx: Tx, o: { antes?: { en: Date; id: string }; limite: number }) =>
+const GLOBAL = { tipo: "global" } as const;
+const listarAuditoria = (tx: Tx, o: { alcance: Alcance; antes?: { en: Date; id: string }; limite: number }) =>
   exportado<(tx: Tx, o: unknown) => Promise<FilaAuditoria[]>>("listarAuditoria")(tx, o);
 const aplicarMasiva = (tx: Tx, e: unknown, f: unknown) =>
   exportado<(tx: Tx, e: unknown, f: unknown) => Promise<{ operacionId: string | null; aplicadas: number }>>("aplicarMasiva")(tx, e, f);
@@ -216,9 +218,9 @@ describe("listarAuditoria · orden, cursor, tope de 50 y descifrados (D-6, P-2)"
   }, 60_000);
 
   it("devuelve a lo sumo 50 filas por pagina (aunque se pida mas), de la mas nueva a la mas vieja por (ocurridaEn, id)", async () => {
-    const p1 = await ec.comoBackend(X, ux, (tx) => listarAuditoria(tx, { limite: 50 }));
+    const p1 = await ec.comoBackend(X, ux, (tx) => listarAuditoria(tx, { alcance: GLOBAL, limite: 50 }));
     expect(p1).toHaveLength(50);
-    const grande = await ec.comoBackend(X, ux, (tx) => listarAuditoria(tx, { limite: 500 }));
+    const grande = await ec.comoBackend(X, ux, (tx) => listarAuditoria(tx, { alcance: GLOBAL, limite: 500 }));
     expect(grande.length).toBeLessThanOrEqual(50);
     for (let i = 1; i < p1.length; i++) {
       const a = p1[i - 1]!;
@@ -236,7 +238,7 @@ describe("listarAuditoria · orden, cursor, tope de 50 y descifrados (D-6, P-2)"
     const vistas: FilaAuditoria[] = [];
     let antes: { en: Date; id: string } | undefined;
     for (let i = 0; i < 20; i++) {
-      const pagina = await ec.comoBackend(X, ux, (tx) => listarAuditoria(tx, antes ? { antes, limite: 50 } : { limite: 50 }));
+      const pagina = await ec.comoBackend(X, ux, (tx) => listarAuditoria(tx, antes ? { alcance: GLOBAL, antes, limite: 50 } : { alcance: GLOBAL, limite: 50 }));
       if (pagina.length === 0) break;
       vistas.push(...pagina);
       const ult = pagina[pagina.length - 1]!;
@@ -251,7 +253,7 @@ describe("listarAuditoria · orden, cursor, tope de 50 y descifrados (D-6, P-2)"
     const todas: FilaAuditoria[] = [];
     let antes: { en: Date; id: string } | undefined;
     for (let i = 0; i < 20; i++) {
-      const pagina = await ec.comoBackend(X, ux, (tx) => listarAuditoria(tx, antes ? { antes, limite: 50 } : { limite: 50 }));
+      const pagina = await ec.comoBackend(X, ux, (tx) => listarAuditoria(tx, antes ? { alcance: GLOBAL, antes, limite: 50 } : { alcance: GLOBAL, limite: 50 }));
       if (pagina.length === 0) break;
       todas.push(...pagina);
       const ult = pagina[pagina.length - 1]!;
@@ -265,24 +267,24 @@ describe("listarAuditoria · orden, cursor, tope de 50 y descifrados (D-6, P-2)"
 
   it("CA-7: con la sesion de Y no aparece ninguna fila de X, tampoco el descifrado de X (por la funcion de lectura)", async () => {
     const idsX = new Set((await ec.filas(X)).map((f) => f.id));
-    const pagina = await ec.comoBackend(Y, uy, (tx) => listarAuditoria(tx, { limite: 50 }));
+    const pagina = await ec.comoBackend(Y, uy, (tx) => listarAuditoria(tx, { alcance: GLOBAL, limite: 50 }));
     expect(pagina.length).toBeGreaterThan(0);
     expect(pagina.every((f) => !idsX.has(f.id))).toBe(true);
     expect(pagina.some((f) => f.accion === "credencial.descifrada")).toBe(false);
     expect(JSON.stringify(pagina)).not.toContain(MOTIVO);
     const directo = await ec.comoBackend(Y, uy, async (tx) =>
-      (await tx.query("select * from auditoria_descifrado_listar(null, null, 50)")).rows,
+      (await tx.query("select * from auditoria_descifrado_listar(null, null, 50, null, null, null, true, null)")).rows,
     );
     expect(JSON.stringify(directo)).not.toContain(MOTIVO);
     const deX = await ec.comoBackend(X, ux, async (tx) =>
-      (await tx.query("select * from auditoria_descifrado_listar(null, null, 50)")).rows,
+      (await tx.query("select * from auditoria_descifrado_listar(null, null, 50, null, null, null, true, null)")).rows,
     );
     expect(deX.map((r: { motivo: string }) => r.motivo)).toContain(MOTIVO);
   });
 
   it("CA-7: sin contexto de estudio la funcion de descifrados no devuelve nada", async () => {
     const r = await ec.backend.withUsuario({ userId: ux }, async (tx) =>
-      (await tx.query("select * from auditoria_descifrado_listar(null, null, 50)")).rows,
+      (await tx.query("select * from auditoria_descifrado_listar(null, null, 50, null, null, null, true, null)")).rows,
     );
     expect(r).toEqual([]);
   });
@@ -374,7 +376,7 @@ describe("auditoria.ocurrida_en en milisegundos: el cursor Date no pierde filas 
       const vistas: string[] = [];
       let antes: { en: Date; id: string } | undefined;
       for (let i = 0; i < 100; i++) {
-        const pagina = await ec.comoBackend(Z, uz, (tx) => listarAuditoria(tx, antes ? { antes, limite } : { limite }));
+        const pagina = await ec.comoBackend(Z, uz, (tx) => listarAuditoria(tx, { alcance: GLOBAL, ...(antes ? { antes } : {}), limite }));
         if (pagina.length === 0) break;
         expect(pagina.length).toBeLessThanOrEqual(limite);
         vistas.push(...pagina.map((f) => f.id));
