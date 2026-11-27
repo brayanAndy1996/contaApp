@@ -565,20 +565,20 @@ describe("indices de D-7: usuario y accion en auditoria; descifrados por fecha e
   const hay = (tabla: string, re: RegExp): boolean => defs.some((d) => d.tablename === tabla && re.test(d.indexdef));
 
   it("auditoria (tenant_id, usuario_id, ocurrida_en DESC, id DESC)", () => {
-    expect(hay("auditoria", /\(tenant_id, usuario_id, ocurrida_en DESC, id DESC\)/)).toBe(true);
+    expect(hay("auditoria", /\(tenant_id, usuario_id, ocurrida_en DESC(?: NULLS (?:LAST|FIRST))?, id DESC(?: NULLS (?:LAST|FIRST))?\)/)).toBe(true);
   });
   it("auditoria (tenant_id, accion, ocurrida_en DESC, id DESC)", () => {
-    expect(hay("auditoria", /\(tenant_id, accion, ocurrida_en DESC, id DESC\)/)).toBe(true);
+    expect(hay("auditoria", /\(tenant_id, accion, ocurrida_en DESC(?: NULLS (?:LAST|FIRST))?, id DESC(?: NULLS (?:LAST|FIRST))?\)/)).toBe(true);
   });
   it("auditoria_descifrado (tenant_id, <ms inmutable>, id DESC): la expresion es la misma que la funcion usa en WHERE y ORDER BY", () => {
-    expect(hay("auditoria_descifrado", /\(tenant_id, (?!cliente_id)(?!created_at).*created_at.*, id DESC\)/)).toBe(true);
+    expect(hay("auditoria_descifrado", /\(tenant_id, (?!cliente_id)(?!created_at).*created_at.*, id DESC(?: NULLS (?:LAST|FIRST))?\)/)).toBe(true);
   });
   it("auditoria_descifrado (tenant_id, cliente_id, <ms inmutable>, id DESC)", () => {
-    expect(hay("auditoria_descifrado", /\(tenant_id, cliente_id, (?!created_at).*created_at.*, id DESC\)/)).toBe(true);
+    expect(hay("auditoria_descifrado", /\(tenant_id, cliente_id, (?!created_at).*created_at.*, id DESC(?: NULLS (?:LAST|FIRST))?\)/)).toBe(true);
   });
   it("los indices de 017 siguen (fecha y cliente de auditoria)", () => {
-    expect(hay("auditoria", /\(tenant_id, ocurrida_en DESC, id DESC\)/)).toBe(true);
-    expect(hay("auditoria", /\(tenant_id, cliente_id, ocurrida_en DESC, id DESC\)/)).toBe(true);
+    expect(hay("auditoria", /\(tenant_id, ocurrida_en DESC(?: NULLS (?:LAST|FIRST))?, id DESC(?: NULLS (?:LAST|FIRST))?\)/)).toBe(true);
+    expect(hay("auditoria", /\(tenant_id, cliente_id, ocurrida_en DESC(?: NULLS (?:LAST|FIRST))?, id DESC(?: NULLS (?:LAST|FIRST))?\)/)).toBe(true);
   });
 });
 

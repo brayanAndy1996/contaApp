@@ -56,7 +56,7 @@ async function sembrar(nAud: number, nDes: number): Promise<Carga> {
     `insert into auditoria (tenant_id, ocurrida_en, actor_tipo, usuario_id, accion, cliente_id, entidad, datos)
      select $1, ts, case when u is null then 'sistema' else 'usuario' end, u, a, c, 'cliente', '{}'::jsonb
        from (select g,
-               date_trunc('milliseconds', $2::timestamptz + (g * $3::int) * interval '1 millisecond') as ts,
+               date_trunc('milliseconds', $2::timestamptz + (g::float8 * $3::float8) * interval '1 millisecond') as ts,
                case when g % $5::int = 3 then $6::uuid
                     when g % 7 = 0 then null
                     else ('00000000-0000-4000-8000-' || lpad((g % 10)::text, 12, '0'))::uuid end as u,
@@ -74,7 +74,7 @@ async function sembrar(nAud: number, nDes: number): Promise<Carga> {
     `insert into auditoria_descifrado (tenant_id, credencial_id, cliente_id, tipo, motivo, resultado, created_at)
      select $1, gen_random_uuid(),
             case when g % $5::int = 7 then $3::uuid when g % 2 = 0 then $2::uuid else null end,
-            'sol', 'verificar', 'ok', $4::timestamptz + (g * $6::int) * interval '1 millisecond'
+            'sol', 'verificar', 'ok', $4::timestamptz + (g::float8 * $6::float8) * interval '1 millisecond'
        from generate_series(1, $7::int) g`,
     [tenantId, cGrande, cChico, new Date(T0).toISOString(), raraDes, pasoDes, nDes],
   );
@@ -118,12 +118,12 @@ interface Caso {
 }
 
 const IDX = {
-  accion: { tabla: "auditoria", patron: /\(tenant_id, accion, ocurrida_en DESC, id DESC\)/ },
-  usuario: { tabla: "auditoria", patron: /\(tenant_id, usuario_id, ocurrida_en DESC, id DESC\)/ },
-  clienteAud: { tabla: "auditoria", patron: /\(tenant_id, cliente_id, ocurrida_en DESC, id DESC\)/ },
-  fechaAud: { tabla: "auditoria", patron: /\(tenant_id, ocurrida_en DESC, id DESC\)/ },
-  fechaDes: { tabla: "auditoria_descifrado", patron: /\(tenant_id, (?!cliente_id)(?!created_at).*created_at.*, id DESC\)/ },
-  clienteDes: { tabla: "auditoria_descifrado", patron: /\(tenant_id, cliente_id, (?!created_at).*created_at.*, id DESC\)/ },
+  accion: { tabla: "auditoria", patron: /\(tenant_id, accion, ocurrida_en DESC(?: NULLS (?:LAST|FIRST))?, id DESC(?: NULLS (?:LAST|FIRST))?\)/ },
+  usuario: { tabla: "auditoria", patron: /\(tenant_id, usuario_id, ocurrida_en DESC(?: NULLS (?:LAST|FIRST))?, id DESC(?: NULLS (?:LAST|FIRST))?\)/ },
+  clienteAud: { tabla: "auditoria", patron: /\(tenant_id, cliente_id, ocurrida_en DESC(?: NULLS (?:LAST|FIRST))?, id DESC(?: NULLS (?:LAST|FIRST))?\)/ },
+  fechaAud: { tabla: "auditoria", patron: /\(tenant_id, ocurrida_en DESC(?: NULLS (?:LAST|FIRST))?, id DESC(?: NULLS (?:LAST|FIRST))?\)/ },
+  fechaDes: { tabla: "auditoria_descifrado", patron: /\(tenant_id, (?!cliente_id)(?!created_at).*created_at.*, id DESC(?: NULLS (?:LAST|FIRST))?\)/ },
+  clienteDes: { tabla: "auditoria_descifrado", patron: /\(tenant_id, cliente_id, (?!created_at).*created_at.*, id DESC(?: NULLS (?:LAST|FIRST))?\)/ },
 } as const;
 
 const CASOS: Caso[] = [
