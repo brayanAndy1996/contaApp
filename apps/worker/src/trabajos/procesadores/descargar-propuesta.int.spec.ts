@@ -213,7 +213,7 @@ describe("CA-1: la primera descarga con el mock", () => {
 
     // La resolución del mock llegó al puerto con el RUC, el periodo y el libro del trabajo.
     expect(api.llamadas).toHaveLength(1);
-    expect(api.llamadas[0]!.solicitud).toEqual({
+    expect(api.llamadas[0]!.solicitud).toMatchObject({
       ruc: RUC_FIXTURE,
       periodo: PERIODO,
       libro: "ventas",

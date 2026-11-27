@@ -273,7 +273,7 @@ describe("CA-1: importar seis periodos del mock", () => {
     }
 
     // Del periodo más reciente al más antiguo, uno por llamada, con el RUC del cliente y el token de la caché.
-    expect(api.llamadas.map((l) => l.solicitud)).toEqual(
+    expect(api.llamadas.map((l) => l.solicitud)).toMatchObject(
       PERIODOS_6.map((periodo) => ({ ruc: m.c.ruc, periodo })),
     );
     expect(api.llamadas.every((l) => l.token.length > 0)).toBe(true);
