@@ -19,7 +19,8 @@ import { mapearVentas } from "./mapeo-ventas.js";
 //    Otros Tributos, Total CP, y las de P-2: Valor Facturado Exportación, Dscto BI, Dscto IGV / IPM, BI Grav IVAP, IVAP, Nro Final (Rango).
 //  - `Ruc` ≠ esperado.ruc o `Periodo` ≠ esperado.periodo -> `ErrorDatosSire("respuesta_ajena")`; monto, fecha, moneda o tipo de cambio inválidos
 //    (mismas reglas que compras) -> `ErrorDatosSire("fila_invalida")`; se valida TODO antes de devolver filas.
-//  - P-2: exportación, descuentos, IVAP y rango final con valor distinto de vacío/cero -> `ErrorDatosSire("columna_no_soportada")`.
+//  - P-2: exportación, descuentos, IVAP, rango final, `Valor FOB Embarcado` y `Valor OP Gratuitas` (también requeridas en el encabezado) con valor
+//    distinto de vacío/cero -> `ErrorDatosSire("columna_no_soportada")`; con formato de monto inválido -> `fila_invalida`.
 //    CAR, vencimiento, documento modificado y `CLU` se ignoran.
 const ESPERADO = { ruc: "20700000002", periodo: "202610" } as const;
 const BASE = fixture("ventas-propuesta-202610.txt");
@@ -150,6 +151,8 @@ describe("mapearVentas · encabezado por nombre (CA-5)", () => {
     "BI Grav IVAP",
     "IVAP",
     "Nro Final (Rango)",
+    "Valor FOB Embarcado",
+    "Valor OP Gratuitas",
   ])("columna requerida ausente (%s) -> ErrorPortalSire encabezado", (nombre) => {
     esperarError(falla(sinColumna(BASE, nombre)), "ErrorPortalSire", "encabezado");
   });
@@ -246,13 +249,24 @@ describe("mapearVentas · columnas sin equivalente (CA-7, P-2)", () => {
     ["BI Grav IVAP", "100"],
     ["IVAP", "5"],
     ["Nro Final (Rango)", "300"],
+    ["Valor FOB Embarcado", "100"],
+    ["Valor OP Gratuitas", "25.50"],
   ])("%s = %s -> columna_no_soportada (no se pierde en silencio)", (col, valor) => {
     esperarError(falla(conCelda(BASE, 2, col, valor)), "ErrorDatosSire", "columna_no_soportada");
   });
 
+  it.each([
+    ["Valor FOB Embarcado", "1,5"],
+    ["Valor FOB Embarcado", "abc"],
+    ["Valor OP Gratuitas", "10.001"],
+    ["Valor OP Gratuitas", "5E2"],
+  ])("%s con formato inválido «%s» -> fila_invalida", (col, valor) => {
+    esperarError(falla(conCelda(BASE, 2, col, valor)), "ErrorDatosSire", "fila_invalida");
+  });
+
   it.each(["", "0", "0.00"])("las columnas de P-2 con «%s» (vacío o cero) no estorban", (valor) => {
     let b = BASE;
-    for (const col of ["Valor Facturado Exportación", "Dscto BI", "Dscto IGV / IPM", "BI Grav IVAP", "IVAP", "Nro Final (Rango)"]) {
+    for (const col of ["Valor Facturado Exportación", "Dscto BI", "Dscto IGV / IPM", "BI Grav IVAP", "IVAP", "Nro Final (Rango)", "Valor FOB Embarcado", "Valor OP Gratuitas"]) {
       b = conCelda(b, 1, col, valor);
     }
     expect(mapear(b)).toEqual(ESPERADAS);
