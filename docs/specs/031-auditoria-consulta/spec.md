@@ -1,7 +1,7 @@
 # Spec 031 · Consulta de auditoría con filtros e historial por cliente
 
-Estado: borrador (pendiente de resolver las preguntas abiertas)
-Nivel de riesgo: B. (1) no; (2) sí (alcance); (3) sí; (4) no. §2.1 literal da A; se fija B porque la RLS entre estudios no cambia, con ADV acotado (D-8). Confirmar al aprobar.
+Estado: aprobada (2026-11-27)
+Nivel de riesgo: B. (1) no; (2) sí (alcance); (3) sí; (4) no. §2.1 literal da A; se fija B porque la RLS entre estudios no cambia, con ADV acotado (D-8). Confirmado por el usuario.
 Cubre: RF-151 · HU-39. Rama `spec/031-auditoria-consulta`, sobre 030.
 
 ## Objetivo
@@ -43,23 +43,10 @@ Que quien tenga `auditoria.ver` filtre la auditoría por usuario, cliente, acci�
 - Specs: 017, 005 (`filtroAlcance`, `clienteVisible`), 030 (resolvedor; migraciones hasta 0087), 003.
 - Externas: ninguna.
 
-## Preguntas abiertas
-- P-1 ¿Dónde se ve el historial por cliente?
-  - (a) (Recom.) En el filtro de cliente, más un enlace «Ver historial» en la ficha que abre la pantalla filtrada.
-  - (b) Solo en el filtro de cliente.
-  - (c) En una pestaña «Historial» propia de la ficha.
-- P-2 ¿Con qué rango abre la pantalla?
-  - (a) (Recom.) Los últimos 30 días, editable, o «todo el historial».
-  - (b) Todo el historial.
-- P-3 ¿Cómo se ve el antes → después de las compras en `compra.operacion`?
-  - (a) (Recom.) Tipo y cantidad, con enlace al Historial del periodo (015).
-  - (b) La fila se expande con cada compra (más trabajo).
-- P-4 ¿Se exporta el resultado?
-  - (a) (Recom.) No; RF-151 pide consultar.
-  - (b) Un CSV del filtro, con tope y alcance.
-- P-5 Con alcance asignado, ¿qué pasa con las filas sin cliente (ingresos, miembros, roles)?
-  - (a) (Recom.) No se ven.
-  - (b) `auditoria.ver` solo con alcance global (`validarCombinacion` lo rechaza; migrar los roles que ya lo tienen).
-- P-6 ¿Qué cubre el filtro de usuario?
-  - (a) (Recom.) Lo que hizo él, con los trabajos que lanzó.
-  - (b) Además, lo hecho sobre él (`miembro.*`, `asignacion.*`), filtrando por `datos`.
+## Decisiones del usuario (2026-11-27)
+- P-1 a) Filtro de cliente más enlace «Ver historial» en la ficha, que abre la pantalla filtrada.
+- P-2 a) Abre con los últimos 30 días, editable, o «todo el historial».
+- P-3 a) `compra.operacion`: tipo y cantidad, con enlace al Historial del periodo (015).
+- P-4 a) Sin exportación.
+- P-5 a) Con alcance asignado, las filas sin cliente no se ven.
+- P-6 a) El filtro de usuario cubre lo que hizo él, con los trabajos que lanzó.
