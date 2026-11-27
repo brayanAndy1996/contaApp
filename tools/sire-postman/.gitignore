@@ -1,0 +1,5 @@
+# Respuestas reales de SUNAT (contienen datos de contribuyentes): nunca a git
+respuestas/
+*.zip
+# Entornos con valores reales exportados por error
+*.postman_environment.local.json

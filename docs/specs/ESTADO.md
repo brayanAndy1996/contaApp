@@ -41,7 +41,7 @@ Una línea por spec; el detalle de las cerradas está en `NNN-*/cierre.md` y los
 | 029-cuenta-segura | A | hecha | — | Rama spec/029-cuenta-segura sin mergear (desde main). Migraciones 0078–0081 (siguiente libre: 0082). 2 riesgos bajos aceptados. Detalle: `029-*/cierre.md` |
 | 030-roles-personalizados | A | hecha | — | Rama sin mergear (sobre 029). Migraciones 0082–0087 (siguiente libre: 0088). Ronda 1: 2 altos, 3 medios, 4 bajos; ronda 2: 1 alto, 1 medio, 1 bajo; todos resueltos. Detalle: `030-*/cierre.md` |
 | 031-auditoria-consulta | B | pendiente | — | RF-151 · HU-39. |
-| 032-envio-sire-ticket | A | pendiente | — | RF-104 · HU-27. Con mock; apagado hasta formato oficial y `SireAuth` real. |
+| 032-envio-sire-ticket | A | bloqueada | — | RF-104 · HU-27. Aprobada 2026-11-24 (P-1 a P-10 con la recomendación). Bloqueada hasta la spec del formato oficial de importación (P-1). Depende de 041. |
 | 033-catalogo-global-icb | A | pendiente | — | RF-084, 087. Curado por super-admin + conteos anónimos desde N estudios (D4 = a). |
 | 034-lupa-ventas | C | pendiente | — | Nota [lupa de ventas]. Antes de 035. |
 | 035-cruce-emitidos-sol | B | pendiente | — | RF-054 · HU-13. |
@@ -50,6 +50,7 @@ Una línea por spec; el detalle de las cerradas está en `NNN-*/cierre.md` y los
 | 038-diseno-visual | C | hecha | — | Mergeada en `main` (d1cc8fd). Modo oscuro fuera (P-1). Detalle: `038-*/cierre.md` |
 | 039-actualizar-next | D | hecha | — | Decisión del usuario 2026-11-17. `next` → 16.4.5 (GHSA-mfr8-8qww-v76h). CI verde con E2E. Detalle: `039-*/cierre.md` |
 | 040-avisos-dependencias | C | hecha | — | Decisión del usuario 2026-11-17. `pnpm audit --prod` de 6 avisos a 0. CI verde con E2E. Detalle: `040-*/cierre.md` |
+| 041-sire-real-lectura | A | aprobada | — | SIRE real de solo lectura (`SIRE_CLIENT=http`, mock por defecto). Aprobada 2026-11-24 (P-1 a P-8 con la recomendación). Prerrequisito de 032. |
 | 042-acelerar-desarrollo | D | hecha | — | Merge b3255e5 (PR #2). CI completo 2 h 46 min → 27–31 min; nivel 1 en spec/* 6–7 min; cobertura única por app; ESTADO liviano. Detalle: `042-acelerar-desarrollo/cierre.md` |
 
 ## Hallazgos adversariales abiertos
