@@ -538,35 +538,36 @@ export async function purgarTerminados(
 export interface Revalidable {
   clienteId: string;
   creadoPor: string | null;
-  rolesPermitidos: readonly string[] | null;
+  /** Permiso que exige el tipo (`definicionDe(tipo).permiso`), o null si no exige ninguno. */
+  permiso: string | null;
 }
 
-// D17 + 007a D5: el cliente sigue en el estudio, no está archivado (también el trabajo `programado`, sin creador) y, si hay creador, sigue activo, con un rol permitido y con alcance sobre el
-// cliente (dueno y admin: global; los demás, con asignación). Lecturas sin FOR UPDATE (orden de bloqueo de 005).
+// D17 + 007a D5 + 030 D3 (T17a): el cliente sigue en el estudio, no está archivado (también el trabajo `programado`, sin creador) y, si hay
+// creador, sus permisos EFECTIVOS (acceso.permisos_membresia: rol de sistema o propio, membresía activa) incluyen el permiso del tipo y su
+// alcance cubre al cliente (global, o asignado con asignación). Sin FOR UPDATE ni bloqueos (orden D4 de 005/030 intacto).
 const SQL_REVALIDAR = `select 1 as ok from cliente c
   where c.id = $1::uuid
     and c.archivado_at is null
     and ($2::uuid is null or exists (
-      select 1 from membresia m
-       where m.usuario_id = $2::uuid and m.desactivada_en is null
-         and ($3::text[] is null or m.rol = any ($3::text[]))
-         and (m.rol in ('dueno', 'admin')
+      select 1 from acceso.permisos_membresia(c.tenant_id, $2::uuid) e
+       where ($3::text is null or $3::text = any (e.permisos))
+         and (e.alcance = 'global'
               or exists (select 1 from asignacion a where a.cliente_id = c.id and a.usuario_id = $2::uuid))))`;
 
 /**
  * 'ok' si quien encoló conserva el acceso; si no (o sin filas), 'acceso_retirado' (falla cerrado). Rol: contapp_worker.
- * Acepta el resto del trabajo de despacho (p. ej. `id`) pero solo lee clienteId, creadoPor y rolesPermitidos.
+ * Acepta el resto del trabajo de despacho (p. ej. `id`) pero solo lee clienteId, creadoPor y permiso.
  */
 export async function revalidarEncolado<T extends Revalidable>(
   tx: TxConsulta,
   t: T,
 ): Promise<"ok" | "acceso_retirado"> {
+  // Falla cerrado: sin `permiso` explícito (p. ej. un llamador con el contrato viejo `rolesPermitidos`) no se asume «sin permiso».
+  if (t.permiso === undefined) return "acceso_retirado";
   const r = await consultar(tx, SQL_REVALIDAR, [
     t.clienteId,
     t.creadoPor ?? null,
-    t.rolesPermitidos === null || t.rolesPermitidos === undefined
-      ? null
-      : [...t.rolesPermitidos],
+    t.permiso,
   ]);
   return r.rows.length > 0 ? "ok" : "acceso_retirado";
 }

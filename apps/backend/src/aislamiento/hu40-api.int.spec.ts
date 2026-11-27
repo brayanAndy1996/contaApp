@@ -114,6 +114,9 @@ interface Recursos {
   tokenHash: Buffer;
   /** 021: una regla aprendida del primer cliente (sembrada por SQL), con la que se prueban las rutas de reglas. */
   reglaId: string;
+  /** 030: un rol propio del estudio con un permiso (sembrado por SQL); su id y su nombre son marcas de fuga. */
+  rolId: string;
+  rolNombre: string;
   /** 023: un mensaje del buzón del primer cliente, con un adjunto omitido (sembrados por SQL), para las rutas del buzón. */
   mensajeId: string;
   adjuntoId: string;
@@ -182,6 +185,8 @@ const sufijo = randomBytes(4).toString("hex");
 const clientesCreados: string[] = [];
 /** 021: reglas aprendidas sembradas por la prueba (se quitan antes que los clientes que referencian). */
 const reglasSembradas: string[] = [];
+/** 030: roles propios sembrados (sus permisos se quitan antes que ellos). */
+const rolesSembrados: string[] = [];
 /** 023: mensajes del buzón sembrados (sus adjuntos se quitan antes que ellos y ambos antes que los clientes). */
 const mensajesBuzonSembrados: string[] = [];
 /** Redis de las pruebas de `/trabajos`: base 15 y prefijo propio (la app recibe la misma URL y prefijo). */
@@ -308,6 +313,14 @@ async function prepararEstudio(
      values ($1, $2, $3, $4, $5, 'mime') returning id`,
     [tenantId, clientes[0], mensaje[0].id, `HU40-${hex()}`, nombreAdjunto],
   );
+  // 030: un rol propio del estudio (su id y su nombre no deben verse ni cambiar desde el otro estudio).
+  const rolNombre = `HU40 ${etiqueta} rol ${sufijo}`;
+  const rol = await h.sql(
+    "insert into rol (tenant_id, nombre, alcance) values ($1, $2, 'asignado') returning id",
+    [tenantId, rolNombre],
+  );
+  rolesSembrados.push(rol[0].id);
+  await h.sql("insert into rol_permiso (tenant_id, rol_id, permiso) values ($1, $2, 'clientes.ver')", [tenantId, rol[0].id]);
   return {
     tenantId,
     nombre,
@@ -323,6 +336,8 @@ async function prepararEstudio(
     invitacionCorreo,
     tokenHash,
     reglaId: regla[0].id,
+    rolId: rol[0].id,
+    rolNombre,
     mensajeId: mensaje[0].id,
     adjuntoId: adjunto[0].id,
     asuntoBuzon,
@@ -508,6 +523,7 @@ async function calcularMarcadores(
     de.asignacionId,
     ...de.trabajos.map((t) => t.id),
     de.reglaId,
+    de.rolId,
     de.mensajeId,
     de.adjuntoId,
     ...(de.importacionId ? [de.importacionId] : []),
@@ -515,7 +531,7 @@ async function calcularMarcadores(
     ...(de.prorrata ? [de.prorrata.obtencionId, de.prorrata.declaracionId, de.prorrata.manualId, de.prorrata.usadaId] : []),
   ]);
   const correos = new Set<string>([de.invitacionCorreo]);
-  const otros = new Set<string>([de.nombre, de.asuntoBuzon, de.nombreAdjunto]);
+  const otros = new Set<string>([de.nombre, de.asuntoBuzon, de.nombreAdjunto, de.rolNombre]);
   if (de.proveedorCandidata) {
     otros.add(de.proveedorCandidata.numero);
     otros.add(de.proveedorCandidata.razonSocial);
@@ -630,6 +646,9 @@ async function instantanea(
       "select to_jsonb(g) j from regla_aprendida g where tenant_id = $1 and cliente_id = any($2::uuid[]) order by id",
       [r.tenantId, r.clientes],
     ),
+    // 030: los roles propios del estudio y sus permisos (se escriben solo por `acceso.rol_guardar` y `acceso.rol_eliminar`).
+    rol: await q("select to_jsonb(g) j from rol g where tenant_id = $1 order by id", [r.tenantId]),
+    rol_permiso: await q("select to_jsonb(g) j from rol_permiso g where tenant_id = $1 order by rol_id, permiso", [r.tenantId]),
     buzon_mensaje: await q(
       "select to_jsonb(g) j from buzon_mensaje g where tenant_id = $1 and cliente_id = any($2::uuid[]) order by id",
       [r.tenantId, r.clientes],
@@ -2236,6 +2255,80 @@ function casosCorreo(): Caso[] {
   ];
 }
 
+/**
+ * 030 (T16): las 6 rutas de `/roles`. El estudio sale de la sesión (D13): un `rolId` de B desde A da 404 (PATCH, DELETE, impacto) y
+ * el `baseRolId` de B al crear también; las lecturas no devuelven nada de B (su rol propio es marca de fuga); un `tenantId` en la
+ * consulta o el cuerpo no cambia el estudio. Quien no tiene `roles.gestionar` (la asistente) o `usuarios.gestionar` recibe 403.
+ * Los cuerpos válidos propios no se envían (crearían o cambiarían un rol de A): solo los inválidos o los que apuntan a B.
+ */
+function casosRoles(): Caso[] {
+  const E403: Esperado = { dueno: [200], asistente: [403] };
+  const E404_403: Esperado = { dueno: [404], asistente: [403] };
+  return [
+    {
+      ruta: "GET /roles",
+      esperado: E403,
+      construir: (c) => [{ ruta: "/roles" }, { ruta: `/roles?tenantId=${c.ajeno.tenantId}&estudioId=${c.ajeno.tenantId}` }],
+      extra: async (c, respuestas) => {
+        if (c.yo.rol !== "dueno") return;
+        for (const r of respuestas) expect((r.body.propios as any[]).map((x) => x.id)).toEqual([c.mio.rolId]);
+      },
+    },
+    {
+      ruta: "GET /roles/asignables",
+      esperado: E403,
+      construir: (c) => [{ ruta: "/roles/asignables" }, { ruta: `/roles/asignables?tenantId=${c.ajeno.tenantId}` }],
+      extra: async (c, respuestas) => {
+        if (c.yo.rol !== "dueno") return;
+        for (const r of respuestas) expect((r.body.propios as any[]).map((x) => x.id)).not.toContain(c.ajeno.rolId);
+      },
+    },
+    {
+      ruta: "POST /roles",
+      esperado: { dueno: [400, 404, 422], asistente: [403] },
+      construir: (c) => [
+        // permiso fuera del catálogo: 422 y no crea nada aunque el cuerpo traiga el estudio de B
+        { metodo: "POST", ruta: "/roles", cuerpo: { nombre: `HU40 sonda ${sufijo}`, alcance: "global", permisos: ["no.existe"], tenantId: c.ajeno.tenantId } },
+        // el rol base de B no existe en el estudio de A: 404 y no crea nada
+        { metodo: "POST", ruta: "/roles", cuerpo: { nombre: `HU40 sonda ${sufijo}`, alcance: "asignado", permisos: ["clientes.ver"], baseRolId: c.ajeno.rolId, tenantId: c.ajeno.tenantId } },
+        // sin alcance: 400
+        { metodo: "POST", ruta: "/roles", cuerpo: { nombre: `HU40 sonda ${sufijo}`, permisos: [], estudioId: c.ajeno.tenantId } },
+      ],
+      extra: async (c, respuestas) => {
+        if (c.yo.rol !== "dueno") return;
+        expect(respuestas.map((r) => r.status)).toEqual([422, 404, 400]);
+      },
+    },
+    {
+      ruta: "PATCH /roles/:rolId",
+      esperado: E404_403,
+      construir: (c) => [
+        { metodo: "PATCH", ruta: `/roles/${c.ajeno.rolId}`, cuerpo: { nombre: `HU40 robado ${sufijo}`, tenantId: c.ajeno.tenantId } },
+        { metodo: "PATCH", ruta: `/roles/${c.ajeno.rolId}`, cuerpo: { permisos: ["clientes.ver", "clientes.crear"], alcance: "global" } },
+        { metodo: "PATCH", ruta: `/roles/${randomUUID()}`, cuerpo: { nombre: `HU40 robado ${sufijo}` } },
+      ],
+    },
+    {
+      ruta: "DELETE /roles/:rolId",
+      esperado: E404_403,
+      construir: (c) => [
+        { metodo: "DELETE", ruta: `/roles/${c.ajeno.rolId}` },
+        { metodo: "DELETE", ruta: `/roles/${c.ajeno.rolId}?tenantId=${c.ajeno.tenantId}` },
+        { metodo: "DELETE", ruta: `/roles/${randomUUID()}` },
+      ],
+    },
+    {
+      ruta: "POST /roles/:rolId/impacto",
+      esperado: E404_403,
+      construir: (c) => [
+        { metodo: "POST", ruta: `/roles/${c.ajeno.rolId}/impacto`, cuerpo: { permisos: ["clientes.ver"], tenantId: c.ajeno.tenantId } },
+        { metodo: "POST", ruta: `/roles/${c.ajeno.rolId}/impacto`, cuerpo: {} },
+        { metodo: "POST", ruta: `/roles/${randomUUID()}/impacto`, cuerpo: { alcance: "global" } },
+      ],
+    },
+  ];
+}
+
 /** 029 (T7): sesión del otro estudio con la que se intenta `POST /auth/sesiones/:id/revocar` (se fija en `antes`). */
 let sesionAjena029: { id: string; revocadaEn: Date | null } = { id: "", revocadaEn: null };
 
@@ -3339,6 +3432,8 @@ const CASOS: Caso[] = [
 
   /* ---------- 028: correo (preferencias y baja) ---------- */
   ...casosCorreo(),
+  /* ---------- 030: roles propios ---------- */
+  ...casosRoles(),
 ];
 
 const POR_RUTA = new Map(CASOS.map((c) => [c.ruta, c]));
@@ -3416,6 +3511,9 @@ async function limpiar(): Promise<void> {
   await h.sql("delete from regla_candidata where cliente_id = any($1::uuid[])", [clientesCreados]).catch(() => undefined);
   await h.sql("delete from regla_importacion where cliente_id = any($1::uuid[])", [clientesCreados]).catch(() => undefined);
   await h.sql("delete from regla_aprendida where id = any($1::uuid[])", [reglasSembradas]).catch(() => undefined);
+  // 030: los permisos del rol propio van antes que el rol (las membresías no lo usan: la prueba no asigna roles propios).
+  await h.sql("delete from rol_permiso where rol_id = any($1::uuid[])", [rolesSembrados]).catch(() => undefined);
+  await h.sql("delete from rol where id = any($1::uuid[])", [rolesSembrados]).catch(() => undefined);
   // 023: el adjunto referencia al mensaje y este al cliente: van antes que los clientes.
   await h.sql("delete from buzon_adjunto where mensaje_id = any($1::uuid[])", [mensajesBuzonSembrados]).catch(() => undefined);
   await h.sql("delete from buzon_mensaje where id = any($1::uuid[])", [mensajesBuzonSembrados]).catch(() => undefined);

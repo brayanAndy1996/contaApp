@@ -113,8 +113,15 @@ export const FUNCIONES_AUTH_CUENTA = [
   "totp_verificar_exito",
 ] as const;
 
-/** Spec 029 (U5): la funcion de auth que ejecuta solo contapp_migrator (el operador) y NO contapp_backend. */
-export const FUNCIONES_AUTH_SOLO_MIGRATOR = ["totp_restablecer"] as const;
+/**
+ * Spec 030 (T6, migracion 0082): `auth.totp_activo(uuid)` devuelve solo si el usuario tiene TOTP activo (booleano, nunca el secreto) para
+ * `acceso.rol_impacto` (U8). Dueño contapp_auth y EXECUTE solo contapp_migrator (dueño de las funciones de `acceso`), no contapp_backend.
+ * FUNCIONES_AUTH = 46 + 1 = 47.
+ */
+export const FUNCIONES_AUTH_ROLES = ["totp_activo"] as const;
+
+/** Spec 029 (U5): la funcion de auth que ejecuta solo contapp_migrator (el operador) y NO contapp_backend. Ajuste de 030: y totp_activo. */
+export const FUNCIONES_AUTH_SOLO_MIGRATOR = ["totp_restablecer", ...FUNCIONES_AUTH_ROLES] as const;
 
 export const FUNCIONES_AUTH = [
   ...FUNCIONES_AUTH_VIGENTES,
@@ -122,6 +129,7 @@ export const FUNCIONES_AUTH = [
   ...FUNCIONES_AUTH_GND,
   ...FUNCIONES_AUTH_CORREO,
   ...FUNCIONES_AUTH_CUENTA,
+  ...FUNCIONES_AUTH_ROLES,
 ] as const;
 
 /** Spec 008: funciones de `auth` que ejecuta contapp_worker (y no contapp_backend). */

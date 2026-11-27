@@ -72,21 +72,48 @@ export {
   bloquearMiembro,
   bloquearMiembros,
   cambiarRol,
+  definicionesDe,
   desactivar,
   listarMiembros,
   miembroActual,
   reactivar,
   ROLES_MIEMBRO,
 } from "./acceso/miembros";
-export type { MiembroActual, MiembroEstado, MiembroListado, RolMiembro } from "./acceso/miembros";
+export type {
+  DefinicionMiembro,
+  MiembroActual,
+  MiembroEstado,
+  MiembroListado,
+  RolMiembro,
+  RolSistemaMiembro,
+} from "./acceso/miembros";
+// Spec 030: roles propios (escritura solo por las funciones de 0082).
+export {
+  bloquearRoles,
+  eliminarRol,
+  guardarRol,
+  impactoRol,
+  leerRol,
+  listarRoles,
+  usoRol,
+} from "./acceso/roles";
+export type {
+  AlcanceRol,
+  DatosRol,
+  ImpactoRol,
+  RolLeido,
+  RolListado,
+  UsoRol,
+} from "./acceso/roles";
 export {
   crearInvitacion,
   listarInvitaciones,
+  nombreRolPropioDeInvitacion,
   reenviar,
   revocar,
   revocarPendientesDe,
 } from "./acceso/invitaciones";
-export type { InvitacionListada, NuevaInvitacion } from "./acceso/invitaciones";
+export type { InvitacionListada, NuevaInvitacion, RolQueConserva } from "./acceso/invitaciones";
 export {
   asignar,
   asignarPorCliente,

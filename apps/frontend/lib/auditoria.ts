@@ -109,6 +109,9 @@ const ACCIONES: Record<AccionAuditoria, string> = {
   "gnd.umbral_cambiado": "Cambió el umbral de gastos no deducibles",
   "gnd.categorias_cliente": "Cambió las categorías permitidas de un cliente en gastos no deducibles",
   "correo.preferencia_cambiada": "Cambió una preferencia de correo",
+  "rol.creado": "Creó un rol propio",
+  "rol.editado": "Editó un rol propio",
+  "rol.eliminado": "Eliminó un rol propio",
 };
 
 /** Spec 025 (D-5): una regla creada al activar una candidata del historial no se lee como «Recordó una regla». */

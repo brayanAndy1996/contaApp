@@ -74,6 +74,10 @@ export const ACCIONES_AUDITORIA = [
   "gnd.categorias_cliente",
   // Spec 028: preferencias de correo (la registran `correo_preferencias_fijar` y `auth.correo_baja_aplicar`; los envíos no se auditan uno por uno).
   "correo.preferencia_cambiada",
+  // Spec 030: roles propios (las registran `acceso.rol_guardar` y `acceso.rol_eliminar`; `datos` = permisos y alcance antes/después).
+  "rol.creado",
+  "rol.editado",
+  "rol.eliminado",
 ] as const;
 
 export type AccionAuditoria = (typeof ACCIONES_AUDITORIA)[number];

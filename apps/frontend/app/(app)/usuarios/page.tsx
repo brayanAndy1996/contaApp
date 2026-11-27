@@ -3,19 +3,28 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { CircleAlert, CircleCheck } from "lucide-react";
 import {
-  ETIQUETA_ROL,
   MENSAJES,
   ROLES,
   cargarYo,
+  etiquetaDeRol,
   fechaCorta,
   mensajeDeError,
   puedeOtorgar,
+  puedeOtorgarComoPropio,
   puedeTocar,
   tiene,
   type Miembro,
   type Rol,
+  type RolPropioRef,
   type Yo,
 } from "../../../lib/acceso";
+import {
+  cargarAsignables,
+  opcionesDeAsignables,
+  rolAsignadoDe,
+  type Asignables,
+  type OpcionRol,
+} from "../../../lib/roles";
 import { api, type RespuestaApi } from "../../../lib/api";
 import { UsoPlan } from "../../../components/uso-plan";
 import {
@@ -43,7 +52,8 @@ import { MENSAJES_PLAN } from "../../../lib/planes";
 interface Invitacion {
   id: string;
   correo: string;
-  rol: Rol;
+  rol: Rol | "propio";
+  rolPropio?: RolPropioRef | null;
   creadaEn: string;
   venceEn: string;
   vencida: boolean;
@@ -59,7 +69,9 @@ export default function Usuarios() {
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [correo, setCorreo] = useState("");
-  const [rolNuevo, setRolNuevo] = useState<Rol>("lectura");
+  const [rolNuevo, setRolNuevo] = useState<string>("lectura");
+  // Roles que el actor puede asignar (030, `puedeGestionar` en el servidor); `null` = no cargado o falló (vuelve a 005).
+  const [asignables, setAsignables] = useState<Asignables | null>(null);
   const [ocupado, setOcupado] = useState(false);
   // Un 409 cupo_usuarios añade el aviso de cómo subir de plan (D8), además del mensaje del servidor.
   const [cupoAgotado, setCupoAgotado] = useState(false);
@@ -88,7 +100,15 @@ export default function Usuarios() {
         return;
       }
       if (!tiene(actual, "usuarios.ver")) return;
-      await Promise.all([recargarMiembros(), recargarInvitaciones()]);
+      const asignablesPromesa = tiene(actual, "usuarios.gestionar")
+        ? cargarAsignables()
+        : Promise.resolve(null);
+      const [, , lista] = await Promise.all([
+        recargarMiembros(),
+        recargarInvitaciones(),
+        asignablesPromesa,
+      ]);
+      if (vigente) setAsignables(lista);
     })().catch(() => {
       if (vigente) {
         setCargado(true);
@@ -138,7 +158,7 @@ export default function Usuarios() {
       () =>
         api("/invitaciones", {
           method: "POST",
-          body: { correo, rol: rolNuevo },
+          body: { correo, rol: rolAsignadoDe(valorRolNuevo) },
         }),
       [recargarInvitaciones],
       INVITACION_ENVIADA,
@@ -151,7 +171,24 @@ export default function Usuarios() {
   const puedeVer = tiene(yo, "usuarios.ver");
   const gestiona = tiene(yo, "usuarios.gestionar");
   const rolActor = yo?.rol ?? "lectura";
-  const rolesOtorgables = ROLES.filter((r) => puedeOtorgar(rolActor, r));
+  const opciones: OpcionRol[] = asignables
+    ? opcionesDeAsignables(asignables)
+    : ROLES.filter((r) =>
+        rolActor === "propio" && yo
+          ? puedeOtorgarComoPropio(yo, r)
+          : rolActor !== "propio" && puedeOtorgar(rolActor, r),
+      ).map((r) => ({ valor: r, etiqueta: etiquetaDeRol(r) }));
+  // El valor elegido siempre es una opción vigente (si no, el primero): el select y el cuerpo enviado coinciden.
+  const valorRolNuevo = opciones.some((o) => o.valor === rolNuevo)
+    ? rolNuevo
+    : (opciones[0]?.valor ?? rolNuevo);
+  const valorRolDe = (rol: Rol | "propio", propio?: RolPropioRef | null) =>
+    rol === "propio" ? (propio?.id ?? "") : rol;
+  /** ¿Puede el actor tocar (cambiar, desactivar, revocar) a quien tiene este rol? Con asignables, lo dicen ellos. */
+  const puedeTocarRol = (rol: Rol | "propio", propio?: RolPropioRef | null) =>
+    asignables
+      ? opciones.some((o) => o.valor === valorRolDe(rol, propio))
+      : rol !== "propio" && rolActor !== "propio" && puedeTocar(rolActor, rol);
 
   return (
     <main className="flex min-w-0 flex-col gap-6 p-4 sm:p-6">
@@ -190,13 +227,13 @@ export default function Usuarios() {
               <TableBody>
                 {miembros.map((m) => {
                   const accionable =
-                    gestiona && !m.esYo && puedeTocar(rolActor, m.rol);
+                    gestiona && !m.esYo && puedeTocarRol(m.rol, m.rolPropio);
                   return (
                     <TableRow key={m.usuarioId}>
                       <TableCell>{m.nombre}</TableCell>
                       <TableCell>{m.correo}</TableCell>
                       <TableCell>
-                        <Badge tono="info">{ETIQUETA_ROL[m.rol]}</Badge>
+                        <Badge tono="info">{etiquetaDeRol(m.rol, m.rolPropio)}</Badge>
                       </TableCell>
                       <TableCell>
                         <Badge tono={m.activo ? "ok" : "neutro"}>
@@ -210,23 +247,25 @@ export default function Usuarios() {
                               <>
                                 <Select
                                   aria-label="Cambiar rol"
-                                  value={m.rol}
+                                  value={valorRolDe(m.rol, m.rolPropio)}
                                   disabled={ocupado}
                                   onChange={(e) =>
                                     void ejecutar(
                                       () =>
                                         api(`/usuarios/${m.usuarioId}/rol`, {
                                           method: "PATCH",
-                                          body: { rol: e.target.value },
+                                          body: {
+                                            rol: rolAsignadoDe(e.target.value),
+                                          },
                                         }),
                                       [recargarMiembros],
                                     )
                                   }
                                   className="h-8 w-auto max-lg:h-11"
                                 >
-                                  {rolesOtorgables.map((r) => (
-                                    <option key={r} value={r}>
-                                      {ETIQUETA_ROL[r]}
+                                  {opciones.map((o) => (
+                                    <option key={o.valor} value={o.valor}>
+                                      {o.etiqueta}
                                     </option>
                                   ))}
                                 </Select>
@@ -296,7 +335,7 @@ export default function Usuarios() {
                   <TableRow key={i.id}>
                     <TableCell>{i.correo}</TableCell>
                     <TableCell>
-                      <Badge tono="info">{ETIQUETA_ROL[i.rol]}</Badge>
+                      <Badge tono="info">{etiquetaDeRol(i.rol, i.rolPropio)}</Badge>
                     </TableCell>
                     <TableCell>
                       <Badge tono={i.vencida ? "aviso" : "neutro"}>
@@ -307,7 +346,7 @@ export default function Usuarios() {
                     {gestiona && (
                       <TableCell>
                         <div className="flex flex-wrap items-center gap-2">
-                          {puedeTocar(rolActor, i.rol) && (
+                          {puedeTocarRol(i.rol, i.rolPropio) && (
                             <>
                               <Button
                                 variant="secundario"
@@ -372,13 +411,13 @@ export default function Usuarios() {
                 <Label>
                   Rol
                   <Select
-                    value={rolNuevo}
-                    onChange={(e) => setRolNuevo(e.target.value as Rol)}
+                    value={valorRolNuevo}
+                    onChange={(e) => setRolNuevo(e.target.value)}
                     className="max-lg:h-11"
                   >
-                    {rolesOtorgables.map((r) => (
-                      <option key={r} value={r}>
-                        {ETIQUETA_ROL[r]}
+                    {opciones.map((o) => (
+                      <option key={o.valor} value={o.valor}>
+                        {o.etiqueta}
                       </option>
                     ))}
                   </Select>

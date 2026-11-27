@@ -575,6 +575,48 @@
       "when": 1795656003877,
       "tag": "0081_cuenta_segura_r2",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1795665421132,
+      "tag": "0082_roles_propios",
+      "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1795666848718,
+      "tag": "0083_roles_propios_auditoria",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1795668272725,
+      "tag": "0084_roles_eliminar_no_vigentes",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1795669767575,
+      "tag": "0085_roles_propios_r1b",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1795671433388,
+      "tag": "0086_roles_propios_r2",
+      "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1795708824851,
+      "tag": "0087_roles_worker_revalidar",
+      "breakpoints": true
     }
   ]
 }

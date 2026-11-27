@@ -21,7 +21,10 @@ export const SoloPlataforma = () => SetMetadata(META_SOLO_PLATAFORMA, true);
 /** Lo que `PermisoGuard` deja en la petición (no enumerable: no se serializa). */
 export interface Acceso {
   usuarioId: string;
-  rol: Rol;
+  /** Rol de sistema o `'propio'` (030); los permisos y el alcance ya son los efectivos. */
+  rol: Rol | "propio";
+  /** Rol propio asignado (030); null o ausente en los de sistema. */
+  rolId?: string | null;
   permisos: ReadonlySet<TipoPermiso>;
   alcance: "global" | "asignado";
 }

@@ -25,7 +25,7 @@ import {
   soltarLockRuc,
   tomarLockRuc,
 } from "./arriendos.js";
-import { definicionDe, rolesPermitidos } from "./catalogo.js";
+import { definicionDe } from "./catalogo.js";
 import { crearClaves, type ClavesCola } from "./claves.js";
 import { CacheConfig } from "./config.js";
 import { payloadBullmq, publicar } from "./encolado.js";
@@ -248,7 +248,7 @@ export class Despachador {
                   id: fila.id,
                   clienteId: fila.clienteId,
                   creadoPor: fila.creadoPor,
-                  rolesPermitidos: rolesPermitidos(def.permiso),
+                  permiso: def.permiso,
                 });
           if (acceso !== "ok") {
             await descartar(fila, "cancelado", "acceso_retirado");

@@ -7,11 +7,10 @@ import {
 import { Reflector } from "@nestjs/core";
 import { miembroActual, type ContappDb, type SesionValida } from "@contapp/db";
 import {
-  alcanceDe,
+  alcanceEfectivo,
   PERMISOS,
-  PERMISOS_POR_ROL,
+  type Efectivo,
   type Permiso as TipoPermiso,
-  type Rol,
 } from "@contapp/shared";
 import type { AuthService } from "../../auth/auth.service.js";
 import { AuthError } from "../../auth/errores.js";
@@ -25,10 +24,12 @@ import {
   type PeticionAuth,
 } from "../../auth/guards/decoradores.js";
 import { DB } from "../../auth/inyeccion.js";
-import { rolExigeFactor } from "../../auth/totp/exigencia.js";
+import { efectivoExigeFactor } from "../../auth/totp/exigencia.js";
+import { efectivoDe } from "../efectivo.js";
 import { AccesoError } from "../errores.js";
 import {
   fijarAcceso,
+  type Acceso,
   META_PERMISO,
   META_SOLO_ESTUDIO,
   META_SOLO_PLATAFORMA,
@@ -50,6 +51,9 @@ const esPermiso = (v: unknown): v is TipoPermiso =>
  * en una ruta `@SoloEstudio` lee su rol. En las rutas `@SinEstudio`/`@SesionOpcional` con sesión sin factor verificado, si la cuenta lo
  * exige (`AuthService.factorExigido`, la regla de `GET /auth/sesion`) solo pasan las de la lista cerrada (`@PermitirSinFactor`); sin el
  * servicio, falla cerrado.
+ *
+ * 030 (D3, CA-4, CA-7): permisos, alcance y exigencia salen del `Efectivo` de la membresía (rol de sistema o rol propio), leído en la
+ * MISMA consulta de `miembroActual` (join + `array_agg`), sin caché: editar el rol aplica en la siguiente petición.
  */
 @Injectable()
 export class PermisoGuard implements CanActivate {
@@ -99,17 +103,18 @@ export class PermisoGuard implements CanActivate {
     if (!esPermiso(declarado)) throw new AccesoError("permiso_denegado");
 
     const req = ctx.switchToHttp().getRequest<PeticionAuth & PeticionAcceso>();
-    const { sesion, rol, permisos } = await this.rolActivo(req);
+    const { sesion, rol, rolId, efectivo } = await this.rolActivo(req);
     // 029: la exigencia va antes que el permiso (un rol que lo exige no sondea permisos sin el factor).
-    exigirFactor(sesion, rol);
-    if (permisos === undefined || !permisos.has(declarado)) {
+    exigirFactor(sesion, efectivo);
+    if (efectivo === null || !efectivo.permisos.has(declarado)) {
       throw new AccesoError("permiso_denegado");
     }
     fijarAcceso(req, {
       usuarioId: sesion.usuarioId,
       rol,
-      permisos,
-      alcance: alcanceDe(rol),
+      rolId,
+      permisos: efectivo.permisos,
+      alcance: alcanceEfectivo(efectivo),
     });
     return true;
   }
@@ -123,8 +128,8 @@ export class PermisoGuard implements CanActivate {
     const sesion = sesionDe(req);
     if (sesion === null) throw new AuthError("sesion_invalida");
     if (verificada(sesion)) return true;
-    const { rol } = await this.rolActivo(req);
-    exigirFactor(sesion, rol);
+    const { efectivo } = await this.rolActivo(req);
+    exigirFactor(sesion, efectivo);
     return true;
   }
 
@@ -142,11 +147,12 @@ export class PermisoGuard implements CanActivate {
     return true;
   }
 
-  /** Rol de la membresía ACTIVA en un `withTenant` propio (nunca anidado; sin caché: CA-6). */
+  /** Rol y `Efectivo` de la membresía ACTIVA en un `withTenant` propio y una consulta (nunca anidado; sin caché: CA-6). */
   private async rolActivo(req: PeticionAuth): Promise<{
     sesion: SesionValida;
-    rol: Rol;
-    permisos: ReadonlySet<TipoPermiso> | undefined;
+    rol: Acceso["rol"];
+    rolId: string | null;
+    efectivo: Efectivo | null;
   }> {
     const sesion = sesionDe(req);
     if (sesion === null) throw new AuthError("sesion_invalida");
@@ -161,10 +167,12 @@ export class PermisoGuard implements CanActivate {
     if (miembro === null || miembro.usuarioId !== sesion.usuarioId) {
       throw new AccesoError("estudio_requerido");
     }
-    const rol = miembro.rol as Rol;
-    const permisos = PERMISOS_POR_ROL[rol] as
-      ReadonlySet<TipoPermiso> | undefined;
-    return { sesion, rol, permisos };
+    return {
+      sesion,
+      rol: miembro.rol as Acceso["rol"],
+      rolId: miembro.rolId ?? null,
+      efectivo: efectivoDe(miembro),
+    };
   }
 }
 
@@ -173,7 +181,7 @@ function verificada(sesion: Pick<SesionValida, "factor">): boolean {
   return sesion.factor === "verificado";
 }
 
-/** 403 `segundo_factor_requerido` si el rol de la membresía activa lo exige y la sesión no lo verificó (U1–U2). */
-function exigirFactor(sesion: Pick<SesionValida, "factor">, rol: Rol): void {
-  if (!verificada(sesion) && rolExigeFactor(rol)) throw new AuthError("segundo_factor_requerido");
+/** 403 `segundo_factor_requerido` si los permisos efectivos de la membresía activa lo exigen y la sesión no lo verificó (U1–U2, CA-7). */
+function exigirFactor(sesion: Pick<SesionValida, "factor">, efectivo: Efectivo | null): void {
+  if (!verificada(sesion) && efectivoExigeFactor(efectivo)) throw new AuthError("segundo_factor_requerido");
 }

@@ -23,7 +23,13 @@ for (const archivo of [ruta("../../.env"), ruta("./.env")]) {
 process.env.TOTP_CLAVE ??= `1:${randomBytes(32).toString("base64")}`;
 
 // Los paquetes se importan desde la fuente para que cuenten en cobertura.
+// Los subpaths `@contapp/shared/dist/<x>.js` (casos de prueba no exportados por el índice, p. ej. 030
+// `roles.totp.int.spec.ts`) se resuelven a `src/<x>.ts`; va antes del alias del paquete.
 const alias = [
+  {
+    find: /^@contapp\/shared\/dist\/(.*)\.js$/,
+    replacement: `${ruta("../../packages/shared/src")}/$1.ts`,
+  },
   { find: "@contapp/db", replacement: ruta("../../packages/db/src/index.ts") },
   {
     find: "@contapp/shared",
@@ -85,21 +91,41 @@ export default defineConfig({
         ["apps/backend/src/**/*.spec.ts"],
         ["**/node_modules/**", "**/*.int.spec.ts"],
       ),
-      proyecto("backend-int", ["apps/backend/src/**/*.int.spec.ts"]),
-      proyecto("aislamiento", [
-        "tests/aislamiento/auth*.spec.ts",
-        "tests/aislamiento/acceso*.spec.ts",
-      ]),
+      // 030: las pruebas de rendimiento (CA-11) miden tiempos y van fuera de cobertura.
+      proyecto(
+        "backend-int",
+        ["apps/backend/src/**/*.int.spec.ts"],
+        ["**/node_modules/**", "**/*.rendimiento.int.spec.ts"],
+      ),
+      proyecto(
+        "aislamiento",
+        [
+          "tests/aislamiento/auth*.spec.ts",
+          "tests/aislamiento/acceso*.spec.ts",
+          // 030: roles propios (tablas, funciones, concurrencia); el rendimiento (CA-11) va fuera.
+          "tests/aislamiento/roles*.spec.ts",
+        ],
+        ["**/node_modules/**", "**/*.rendimiento.spec.ts"],
+      ),
       proyecto("shared", ["packages/shared/src/**/*.spec.ts"]),
-      proyecto("db", [
-        "packages/db/src/auth/**/*.spec.ts",
-        "packages/db/src/acceso/**/*.spec.ts",
-      ]),
+      proyecto(
+        "db",
+        [
+          "packages/db/src/auth/**/*.spec.ts",
+          "packages/db/src/acceso/**/*.spec.ts",
+        ],
+        ["**/node_modules/**", "**/*.rendimiento.spec.ts"],
+      ),
     ],
     coverage: {
       provider: "v8",
       include: medidos,
-      exclude: ["**/*.spec.ts", "**/*.adv.spec.ts", "**/*.int.spec.ts"],
+      exclude: [
+        "**/*.spec.ts",
+        "**/*.adv.spec.ts",
+        "**/*.int.spec.ts",
+        "**/*.cobertura.spec.ts",
+      ],
       reporter: ["text", "json-summary"],
       // Un bloque por glob medido.
       thresholds: Object.fromEntries(medidos.map((g) => [g, porArchivo])),

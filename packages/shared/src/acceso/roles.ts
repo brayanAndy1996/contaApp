@@ -1,4 +1,5 @@
 import { PERMISOS, type Permiso } from "./permisos.js";
+import type { Efectivo } from "./efectivos.js";
 
 /** Roles de sistema, de mayor a menor privilegio (D2). */
 export const ROLES = [
@@ -58,26 +59,69 @@ export function alcanceDe(rol: Rol): "global" | "asignado" {
   return rol === "dueno" || rol === "admin" ? "global" : "asignado";
 }
 
-/** D18: puede ser responsable de un cliente quien clasifica SIRE. */
-export function puedeSerResponsable(rol: Rol): boolean {
-  return tienePermiso(rol, "sire.clasificar");
+/** Permisos y alcance de un rol de sistema o de un `Efectivo` ya resuelto (sin importar `efectivos.ts` en tiempo de ejecución). */
+function comoConjunto(x: Rol | Efectivo): {
+  permisos: ReadonlySet<Permiso>;
+  alcance: "global" | "asignado";
+} {
+  return typeof x === "string"
+    ? { permisos: PERMISOS_POR_ROL[x], alcance: alcanceDe(x) }
+    : x;
 }
 
-function incluido(rol: Rol | null, actor: Rol): boolean {
-  if (rol === null) return true;
-  const propios = PERMISOS_POR_ROL[actor];
-  for (const p of PERMISOS_POR_ROL[rol]) if (!propios.has(p)) return false;
+/**
+ * D18: puede ser responsable de un cliente quien clasifica SIRE. Acepta la clave de un rol de sistema (llamadas de 005)
+ * o un `Efectivo` (030: también roles propios).
+ */
+export function puedeSerResponsable(x: Rol | Efectivo): boolean {
+  return comoConjunto(x).permisos.has("sire.clasificar");
+}
+
+/** ¿Los permisos y el alcance de `objetivo` están contenidos en los del actor? (global ⊇ asignado; null = nada que tocar). */
+function contenido(
+  actor: Rol | Efectivo,
+  objetivo: Rol | Efectivo | null,
+): boolean {
+  if (objetivo === null) return true;
+  const a = comoConjunto(actor);
+  const o = comoConjunto(objetivo);
+  if (o.alcance === "global" && a.alcance !== "global") return false;
+  for (const p of o.permisos) if (!a.permisos.has(p)) return false;
   return true;
 }
 
 /**
- * D8: el actor gestiona (invita, cambia de rol, desactiva) si los permisos del rol actual del
- * objetivo y del rol nuevo están contenidos en los suyos. Solo un Dueño toca o crea un Dueño.
+ * D8 + U2/U4 (030): el actor gestiona (invita, cambia de rol, desactiva) si los permisos y el alcance del rol actual del
+ * objetivo y del rol nuevo están contenidos en los suyos. Solo un Dueño toca o crea un Dueño (`plan.gestionar`). Acepta
+ * claves de rol de sistema (005) o `Efectivo` (030), todos de la misma clase.
  */
 export function puedeGestionar(
   actor: Rol,
   objetivoActual: Rol | null,
   rolNuevo: Rol | null,
+): boolean;
+export function puedeGestionar(
+  actor: Efectivo,
+  objetivoActual: Efectivo | null,
+  rolNuevo: Efectivo | null,
+): boolean;
+export function puedeGestionar(
+  actor: Rol | Efectivo,
+  objetivoActual: Rol | Efectivo | null,
+  rolNuevo: Rol | Efectivo | null,
 ): boolean {
-  return incluido(objetivoActual, actor) && incluido(rolNuevo, actor);
+  return contenido(actor, objetivoActual) && contenido(actor, rolNuevo);
+}
+
+/**
+ * U2/U4 (030): crear (`antes` null), editar o eliminar (`despues` null) un rol propio. Nadie toca el rol que tiene asignado;
+ * si no, el rol antes y después debe estar contenido (permisos y alcance) en el actor. `roles.gestionar` lo decide el guard.
+ */
+export function puedeGestionarRol(
+  actor: Efectivo,
+  antes: Efectivo | null,
+  despues: Efectivo | null,
+  esPropioDelActor: boolean,
+): boolean {
+  return !esPropioDelActor && contenido(actor, antes) && contenido(actor, despues);
 }

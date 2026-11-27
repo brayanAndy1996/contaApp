@@ -161,6 +161,23 @@ const FUNCIONES_017: { firma: string; dueno: string }[] = [
   // contapp_registrador; 0074 la reemplaza con CREATE OR REPLACE) y `auth.correo_baja_aplicar` entra por FUNCIONES_AUTH (dueño contapp_auth).
   ...FUNCIONES_CORREO.map((f) => ({ firma: f.firma, dueno: MIGRATOR })),
 ];
+// Spec 030 (T6, migracion 0082): las funciones del esquema `acceso` (todas SECURITY DEFINER de contapp_migrator con search_path fijo) y el rol
+// de la app que ejecuta cada una (ninguno: solo las usan otras funciones definer). permisos_membresia la ejecuta ademas contapp_worker (T17a: revalida
+// con permisos efectivos y alcance al despachar; rojo hasta la migracion 0087) y contapp_auth (dueño de
+// las funciones de invitacion y de totp_desactivar, que la llaman); `auth.totp_activo` entra por FUNCIONES_AUTH (dueño contapp_auth).
+// El disparador `public.rol_propio_asignar()` es SECURITY INVOKER (como membresia_ultimo_dueno) y no entra en la lista de definer.
+const FUNCIONES_030: { firma: string; ejecutan: string[] }[] = [
+  { firma: "acceso.actor_gestor(uuid,uuid)", ejecutan: [] },
+  { firma: "acceso.combinacion_valida(text[])", ejecutan: [] },
+  { firma: "acceso.contiene(text[],text,text[],text)", ejecutan: [] },
+  { firma: "acceso.permisos_asignables()", ejecutan: [] },
+  { firma: "acceso.permisos_membresia(uuid,uuid)", ejecutan: ["contapp_auth", "contapp_worker"] },
+  { firma: "acceso.permisos_sistema(text)", ejecutan: [] },
+  { firma: "acceso.rol_asignable(uuid,uuid)", ejecutan: ["contapp_backend"] },
+  { firma: "acceso.rol_eliminar(uuid)", ejecutan: ["contapp_backend"] },
+  { firma: "acceso.rol_guardar(uuid,text,text,text[])", ejecutan: ["contapp_backend"] },
+  { firma: "acceso.rol_impacto(uuid,text,text[])", ejecutan: ["contapp_backend"] },
+];
 const nombre017 = (f: string) => (f.includes(".") && f.indexOf(".") < f.indexOf("(") ? f : `public.${f}`).replace(/\(.*$/, "");
 
 describe("ADV escalada desde DATABASE_URL", () => {
@@ -428,6 +445,8 @@ describe("ADV escalada desde DATABASE_URL", () => {
         "public.bloquear_compras_reevaluar",
         "public.encolar_xml_obtener",
         ...FUNCIONES_017.map((f) => nombre017(f.firma)),
+        // Ajuste de 030 (T6): las del esquema `acceso` (se verifican una por una abajo).
+        ...FUNCIONES_030.map((f) => f.firma.replace(/\(.*$/, "")),
       ].sort(),
     );
     expect([...defsPublic].sort()).toEqual(
@@ -462,6 +481,48 @@ describe("ADV escalada desde DATABASE_URL", () => {
     ]);
     expect(vistas).toEqual([]);
     expect(uuid).toEqual([{ prosecdef: false, dueno: "contapp_migrator" }]);
+  });
+
+  // Spec 030 (T6, CA-9): las funciones del esquema `acceso` son SECURITY DEFINER de contapp_migrator con search_path fijo, sin EXECUTE para
+  // PUBLIC y solo para el rol del plan (roles de la app no superusuarios; el dueño aparte). El esquema no admite CREATE de la app.
+  it("las funciones de roles propios (030): dueno contapp_migrator, search_path fijo, sin EXECUTE para PUBLIC y solo el rol del plan", async () => {
+    const r = await filasRaw(
+      pool,
+      null,
+      `select f.firma, pg_get_userbyid(p.proowner) as dueno, p.prosecdef, p.proconfig as config,
+              has_function_privilege('public', p.oid, 'EXECUTE') as publico,
+              coalesce((select array_agg(x.rolname::text order by x.rolname) from pg_roles x
+                         where x.oid <> p.proowner and not x.rolsuper and x.rolname like 'contapp\\_%'
+                           and has_function_privilege(x.oid, p.oid, 'EXECUTE')), '{}'::text[]) as ejecutan
+         from unnest(array[${FUNCIONES_030.map((f) => `'${f.firma}'`).join(", ")}]::text[]) as f(firma)
+         left join pg_proc p on p.oid::regprocedure::text = f.firma
+        order by f.firma`,
+    );
+    expect([...r].sort((a, b) => (a.firma < b.firma ? -1 : 1))).toEqual(
+      [...FUNCIONES_030]
+        .sort((a, b) => (a.firma < b.firma ? -1 : 1))
+        .map((f) => ({
+          firma: f.firma,
+          dueno: "contapp_migrator",
+          prosecdef: true,
+          config: ["search_path=pg_catalog, pg_temp"],
+          publico: false,
+          ejecutan: f.ejecutan,
+        })),
+    );
+    const todas = await filasRaw(
+      pool,
+      null,
+      "select p.oid::regprocedure::text as f from pg_proc p where p.pronamespace = to_regnamespace('acceso') order by 1",
+    );
+    expect(todas.map((x) => x.f).sort()).toEqual(FUNCIONES_030.map((f) => f.firma).sort());
+    const crea = await filasRaw(
+      pool,
+      null,
+      `select r from unnest(array['contapp_backend', 'contapp_worker', 'contapp_platform', 'contapp_app', 'contapp_auth']) r
+        where has_schema_privilege(r, 'acceso', 'CREATE')`,
+    );
+    expect(crea).toEqual([]);
   });
 
   // Spec 025 (T3, CA-7, rojo hasta 0062): cada funcion de importaciones y candidatas la ejecuta solo el rol del plan (ni PUBLIC ni otro

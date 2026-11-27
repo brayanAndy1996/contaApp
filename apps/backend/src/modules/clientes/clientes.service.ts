@@ -14,20 +14,17 @@ import {
   RucDuplicadoError,
   type Alcance,
   type ContappDb,
-  type MiembroEstado,
 } from "@contapp/db";
 import {
   clienteCrearSchema,
   clienteEditarSchema,
   filtrosClientesSchema,
-  puedeSerResponsable,
-  tienePermiso,
   type ClienteDto,
   type Permiso,
-  type Rol,
 } from "@contapp/shared";
 import type { SesionResuelta } from "../auth/auth.service.js";
 import { DB } from "../auth/inyeccion.js";
+import { releerEfectivos, tiene, type MiembroEfectivo } from "../acceso/efectivo.js";
 import { AccesoError } from "../acceso/errores.js";
 import { CUPO_RUCS, type CupoRucs } from "../planes/cupo/cupo-rucs.js";
 import { destinatariosPendientes, NOTIFICADOR, type Notificador } from "../notificaciones/notificador.js";
@@ -67,9 +64,10 @@ async function traducir<T>(accion: () => Promise<T>): Promise<T> {
  * El actor, releído y bloqueado en la transacción, sigue activo y con el permiso de la acción (como
  * H-005-1b-4): un actor degradado o desactivado a mitad de la petición no completa el alta ni la reactivación.
  */
-function exigirActor(actor: MiembroEstado | null, permiso: Permiso): void {
-  if (actor === null || !actor.activo) throw new AccesoError("estudio_requerido");
-  if (!tienePermiso(actor.rol as Rol, permiso)) throw new AccesoError("permiso_denegado");
+function exigirActor(actor: MiembroEfectivo | null, permiso: Permiso): void {
+  if (actor === null || !actor.estado.activo) throw new AccesoError("estudio_requerido");
+  // 030 (D3): con los permisos efectivos (rol de sistema o propio).
+  if (!tiene(actor.efectivo, permiso)) throw new AccesoError("permiso_denegado");
 }
 
 /**
@@ -121,14 +119,17 @@ export class ClientesService {
     let avisar: string[] = [];
     const dto = await traducir(() =>
       this.db.withTenant(ctx, async (tx) => {
-        const bloqueados = await bloquearMiembros(tx, [
-          sesion.usuarioId,
-          ...(datos.responsableId === undefined ? [] : [datos.responsableId]),
-        ]);
+        const bloqueados = await releerEfectivos(
+          tx,
+          await bloquearMiembros(tx, [
+            sesion.usuarioId,
+            ...(datos.responsableId === undefined ? [] : [datos.responsableId]),
+          ]),
+        );
         exigirActor(bloqueados.get(sesion.usuarioId.toLowerCase()) ?? null, "clientes.crear");
         if (datos.responsableId !== undefined) {
           const m = noNulo(bloqueados.get(datos.responsableId.toLowerCase()) ?? null);
-          if (!m.activo || !puedeSerResponsable(m.rol as Rol)) throw new AccesoError("miembro_no_asignable");
+          if (!m.estado.activo || !tiene(m.efectivo, "sire.clasificar")) throw new AccesoError("miembro_no_asignable");
         }
         await this.cupo.reservar(tx, ctx.tenantId, 1);
         const id = await crearCliente(tx, ctx.tenantId, {
@@ -186,7 +187,7 @@ export class ClientesService {
     let avisar: string[] = [];
     const dto = await traducir(() =>
       this.db.withTenant(ctx, async (tx) => {
-        const bloqueados = await bloquearMiembros(tx, [sesion.usuarioId]);
+        const bloqueados = await releerEfectivos(tx, await bloquearMiembros(tx, [sesion.usuarioId]));
         exigirActor(bloqueados.get(sesion.usuarioId.toLowerCase()) ?? null, "clientes.archivar");
         const actual = noNulo(await leerClienteDto(tx, clienteId));
         if (!actual.archivado) return actual;

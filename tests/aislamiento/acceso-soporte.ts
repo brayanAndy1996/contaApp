@@ -211,6 +211,10 @@ export class EscenarioAcceso {
         ["delete from auth.token_recuperacion where usuario_id = any($1::uuid[])", [usuarios]],
         ["delete from auth.usuario_contrasena where usuario_id = any($1::uuid[])", [usuarios]],
         ["delete from membresia where tenant_id = any($1::uuid[]) or usuario_id = any($2::uuid[])", [t, usuarios]],
+        // Spec 030 (T6): roles propios (FK a tenant; las membresias e invitaciones que los usan ya se borraron). Con `replica` no corre el
+        // ON DELETE CASCADE de rol_permiso: se borra antes que rol.
+        ["delete from rol_permiso where tenant_id = any($1::uuid[])", [t]],
+        ["delete from rol where tenant_id = any($1::uuid[])", [t]],
         ["delete from cliente where tenant_id = any($1::uuid[])", [t]],
         // Spec 006 (T1): suscripcion referencia a tenant; sin este paso el estudio no se podria borrar (el catch lo ocultaria).
         ["delete from suscripcion where tenant_id = any($1::uuid[])", [t]],
@@ -232,6 +236,15 @@ export class EscenarioAcceso {
     if (this.estudios.length > 0) {
       const quedan = await this.admin.query("select count(*)::int as n from tenant where id = any($1::uuid[])", [this.estudios]).catch(() => undefined);
       if (quedan && (quedan.rows[0].n as number) > 0) throw new Error("la limpieza de acceso-soporte no pudo borrar todos los estudios de la prueba");
+      // Spec 030 (T6): con `replica` las FK no corren; un rol o un permiso de rol de los estudios borrados quedaria huerfano (antes de 0082
+      // las tablas no existen: se ignora).
+      for (const texto of [
+        "select count(*)::int as n from rol where tenant_id = any($1::uuid[])",
+        "select count(*)::int as n from rol_permiso where tenant_id = any($1::uuid[])",
+      ]) {
+        const r = await this.admin.query(texto, [this.estudios]).catch(() => undefined);
+        if (r && (r.rows[0].n as number) > 0) throw new Error("la limpieza de acceso-soporte dejo roles propios (rol, rol_permiso) de los estudios de la prueba");
+      }
     }
     // Spec 029 (T1): lo de la cuenta segura no puede quedar tras borrar a los usuarios (antes de 0078 las tablas no existen: se ignora).
     for (const texto of [

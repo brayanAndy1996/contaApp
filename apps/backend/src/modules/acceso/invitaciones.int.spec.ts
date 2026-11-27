@@ -163,7 +163,9 @@ describe("CA-2 · invitar (RF-020, HU-03)", () => {
     expect(r.status).toBe(200);
     const x = r.body.find((i: any) => i.id === id);
     expect(x).toMatchObject({ correo, rol: "lectura", vencida: false, invitadoPor: { usuarioId: E.titular.id } });
-    expect(Object.keys(x).sort()).toEqual(["correo", "creadaEn", "id", "invitadoPor", "rol", "venceEn", "vencida"]);
+    // 030: + rolPropio (null con un rol de sistema).
+    expect(Object.keys(x).sort()).toEqual(["correo", "creadaEn", "id", "invitadoPor", "rol", "rolPropio", "venceEn", "vencida"]);
+    expect(x.rolPropio).toBeNull();
     expect(Object.keys(x.invitadoPor).sort()).toEqual(["nombre", "usuarioId"]);
     expect(r.text).not.toContain(token);
     expect(r.text).not.toContain(f.token_hash.toString("hex"));

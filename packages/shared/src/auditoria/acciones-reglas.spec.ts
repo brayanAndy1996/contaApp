@@ -18,7 +18,7 @@ describe("acciones de auditoría de 021", () => {
   });
   it("son 8 nuevas y el catálogo queda en 61 (con las 5 de 023, las 2 de 024, las 2 de 025, las 4 de 026, las 8 de 027 y la de 028) sin repetidos", () => {
     expect(NUEVAS).toHaveLength(8);
-    expect(ACCIONES_AUDITORIA).toHaveLength(61);
+    expect(ACCIONES_AUDITORIA).toHaveLength(64); // 030: + 3 acciones rol.*
     expect(new Set(ACCIONES_AUDITORIA).size).toBe(ACCIONES_AUDITORIA.length);
   });
   it("todas son minúsculas con forma entidad.hecho", () => {

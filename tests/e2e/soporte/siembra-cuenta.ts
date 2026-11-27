@@ -10,7 +10,7 @@ import { randomUUID } from "node:crypto";
 import { SEED } from "@contapp/db";
 import { Pool, type PoolClient } from "pg";
 import { BD_E2E } from "./pila/entorno.js";
-import { correoUnico, type Estudio, type Usuario } from "./siembra.js";
+import { correoUnico, type Estudio } from "./siembra.js";
 
 export interface Cuenta {
   readonly id: string;
@@ -72,7 +72,7 @@ export class SiembraCuenta {
   }
 
   /** Anota lo que la prueba creó con `Siembra` para borrarlo en `limpiar()`. */
-  registrar(estudio: Estudio, ...miembros: Usuario[]): void {
+  registrar(estudio: Estudio, ...miembros: { readonly id: string }[]): void {
     this.estudios.add(estudio.tenantId);
     this.usuarios.add(estudio.dueno.id);
     for (const m of miembros) this.usuarios.add(m.id);

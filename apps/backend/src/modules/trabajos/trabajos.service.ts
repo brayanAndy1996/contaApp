@@ -20,15 +20,16 @@ import {
   vistaDeFila,
 } from "@contapp/queue";
 import {
-  alcanceDe,
+  alcanceEfectivo,
   listarTrabajosQuery,
-  tienePermiso,
+  type Efectivo,
   type ResumenTrabajos,
   type Rol,
   type TrabajoVista,
 } from "@contapp/shared";
 import type { SesionResuelta } from "../auth/auth.service.js";
 import { DB } from "../auth/inyeccion.js";
+import { efectivoDe } from "../acceso/efectivo.js";
 import { AccesoError } from "../acceso/errores.js";
 import { esUuid } from "../clientes/contexto.js";
 import { TrabajosError } from "./errores.js";
@@ -37,8 +38,11 @@ import { RedisTrabajos } from "./redis.js";
 /** Rol y alcance del usuario en el estudio de la sesión, leídos en cada petición (D3 de 005, sin caché). */
 export interface Actor {
   usuarioId: string;
-  rol: Rol;
+  /** Rol de sistema o `'propio'` (030). */
+  rol: Rol | "propio";
   alcance: Alcance;
+  /** Permisos y alcance efectivos (030: rol de sistema o propio). */
+  efectivo: Efectivo;
 }
 
 /** Contexto de `withTenant` de una sesión con estudio (los guards ya lo exigieron; falla cerrado si no). */
@@ -61,14 +65,17 @@ export async function actorDe(
 ): Promise<Actor | null> {
   const m = await miembroActual(tx, usuarioId);
   if (m === null || m.usuarioId !== usuarioId) return null;
-  const rol = m.rol as Rol;
+  // 030 (D3): permisos y alcance efectivos; un rol que no se resuelve cuenta como sin membresía (falla cerrado).
+  const efectivo = efectivoDe(m);
+  if (efectivo === null) return null;
   return {
     usuarioId,
-    rol,
+    rol: m.rol as Rol | "propio",
     alcance:
-      alcanceDe(rol) === "global"
+      alcanceEfectivo(efectivo) === "global"
         ? { tipo: "global" }
         : { tipo: "asignado", usuarioId },
+    efectivo,
   };
 }
 
@@ -81,11 +88,11 @@ function puedeCancelar(
   a: Actor,
   f: Pick<TrabajoFila, "creadoPor" | "tipo">,
 ): boolean {
-  if (a.rol === "dueno" || a.rol === "admin") return true;
+  if (a.efectivo.rolSistema === "dueno" || a.efectivo.rolSistema === "admin") return true;
   if (f.creadoPor !== a.usuarioId) return false;
   try {
     const permiso = definicionDe(f.tipo).permiso;
-    return permiso === null || tienePermiso(a.rol, permiso);
+    return permiso === null || a.efectivo.permisos.has(permiso);
   } catch (e) {
     if (e instanceof TipoDesconocidoError) return false;
     throw e;

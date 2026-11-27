@@ -174,7 +174,9 @@ describe("CA-1 · tabla 5 roles x endpoints de 005 (D2)", () => {
       expect(r.body.rol).toBe(rol);
       expect(r.body.alcance).toBe(esperados[rol].alcance);
       expect(r.body.permisos).toHaveLength(esperados[rol].n);
-      expect(Object.keys(r.body).sort()).toEqual(["alcance", "permisos", "rol"]);
+      // 030: + rolPropio (null con un rol de sistema).
+      expect(Object.keys(r.body).sort()).toEqual(["alcance", "permisos", "rol", "rolPropio"]);
+      expect(r.body.rolPropio).toBeNull();
     }
     const admin = await b.llamar(actores.admin, "GET", "/acceso/yo");
     expect(admin.body.permisos).not.toContain("plan.gestionar");
@@ -194,7 +196,8 @@ describe("CA-1 · tabla 5 roles x endpoints de 005 (D2)", () => {
     ];
     for (const [m, ruta] of intentos) {
       const r = await b.llamar(actores.dueno, m, ruta, { permisos: ["plan.gestionar"] });
-      expect([404, 403]).toContain(r.status);
+      // 030: `POST /roles` ya existe (T9): cuerpo inválido da 400 y `plan.gestionar` da 422; el resto sigue sin ruta (404/403).
+      expect(m === "POST" && ruta === "/roles" ? [400, 422] : [404, 403]).toContain(r.status);
       expect(r.status).not.toBeLessThan(400);
     }
     // Y los permisos del asistente no cambiaron.

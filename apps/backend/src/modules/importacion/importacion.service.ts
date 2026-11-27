@@ -4,24 +4,27 @@ import {
   asignar,
   bloquearMiembros,
   crearCliente,
+  definicionesDe,
   guardarSobre,
   listarMiembros,
   marcarOrigenImportacion,
   rucsExistentes,
   type ContappDb,
-  type MiembroEstado,
+  type DefinicionMiembro,
   type MiembroListado,
   type Tx,
 } from "@contapp/db";
 import {
   tienePermiso,
   validarRuc,
+  type Efectivo,
+  type Permiso,
   type InformeImportacion,
   type MotivoFilaImportacion,
-  type Rol,
   type VistaPrevia as VistaPreviaDto,
 } from "@contapp/shared";
 import { randomUUID } from "node:crypto";
+import { efectivoDe, releerEfectivos } from "../acceso/efectivo.js";
 import { AccesoError } from "../acceso/errores.js";
 import type { SesionResuelta } from "../auth/auth.service.js";
 import { DB } from "../auth/inyeccion.js";
@@ -81,11 +84,16 @@ const traeClaves = (f: FilaLeida): boolean =>
  * El actor, releído en la transacción (o en la lectura de la vista previa), sigue activo y puede crear clientes; si el
  * archivo trae claves, además puede editar credenciales (D3).
  */
-function exigirActor(actor: Pick<MiembroEstado, "rol" | "activo"> | null, conClaves: boolean): void {
+function exigirActor(actor: { activo: boolean; efectivo: Efectivo | null } | null, conClaves: boolean): void {
   if (actor === null || !actor.activo) throw new AccesoError("estudio_requerido");
-  const rol = actor.rol as Rol;
-  if (!tienePermiso(rol, "clientes.crear")) throw new AccesoError("permiso_denegado");
-  if (conClaves && !tienePermiso(rol, "credenciales.editar")) throw new AccesoError("permiso_denegado");
+  // 030 (D3): con los permisos efectivos (un rol de sistema por su matriz; uno propio por su definición).
+  if (!puede(actor.efectivo, "clientes.crear")) throw new AccesoError("permiso_denegado");
+  if (conClaves && !puede(actor.efectivo, "credenciales.editar")) throw new AccesoError("permiso_denegado");
+}
+
+function puede(e: Efectivo | null, p: Permiso): boolean {
+  if (e === null) return false;
+  return e.rolSistema !== null ? tienePermiso(e.rolSistema, p) : e.permisos.has(p);
 }
 
 /** `motivos` del lector son objetos; HTTP lleva `string[]` y `archivado` en la fila (plan 007b: Contratos). */
@@ -174,8 +182,9 @@ export class ImportacionService {
     let avisar: string[] = [];
     const { creados, noImportadas } = await this.db.withTenant(ctx, async (tx) => {
       const ids = [sesion.usuarioId, ...candidatas.flatMap((c) => (c.responsableId === null ? [] : [c.responsableId]))];
-      const bloqueados = await bloquearMiembros(tx, ids);
-      exigirActor(bloqueados.get(sesion.usuarioId.toLowerCase()) ?? null, conClaves);
+      const bloqueados = await releerEfectivos(tx, await bloquearMiembros(tx, ids));
+      const yo = bloqueados.get(sesion.usuarioId.toLowerCase()) ?? null;
+      exigirActor(yo === null ? null : { activo: yo.estado.activo, efectivo: yo.efectivo }, conClaves);
       // Spec 017 (D-3): la auditoría de `cliente.creado` de esta transacción lleva `origen: importacion`.
       await marcarOrigenImportacion(tx);
       const libres = await this.cupo.libres(tx, ctx.tenantId);
@@ -185,10 +194,10 @@ export class ImportacionService {
         tx,
         candidatas.map((c) => c.ruc),
       );
-      const miembros = new Map<string, { usuarioId: string; rol: Rol }>();
+      const miembros = new Map<string, { usuarioId: string; rol: Efectivo | null }>();
       for (const [correo, m] of lectura.contexto.miembros) {
         const b = bloqueados.get(m.usuarioId.toLowerCase());
-        if (b?.activo === true) miembros.set(correo, { usuarioId: m.usuarioId, rol: b.rol as Rol });
+        if (b?.estado.activo === true) miembros.set(correo, { usuarioId: m.usuarioId, rol: b.efectivo });
       }
       const revalidadas = validarFilas(
         candidatas.map((c) => c.fila),
@@ -253,15 +262,20 @@ export class ImportacionService {
   private async leerEstudio(
     tx: Tx,
     filas: readonly FilaLeida[],
-  ): Promise<{ miembros: Map<string, MiembroListado>; contexto: ContextoValidacion }> {
+  ): Promise<{ miembros: Map<string, { activo: boolean; efectivo: Efectivo | null }>; contexto: ContextoValidacion }> {
     const todos = await listarMiembros(tx);
     const rucs = [...new Set(filas.map((f) => f.ruc).filter((r) => validarRuc(r)))];
     const existentes = await rucsExistentes(tx, rucs);
+    // 030 (D3): los de rol propio con su definición (una consulta, solo si hay alguno).
+    const propios = todos.filter((m) => m.rol === "propio").map((m) => m.usuarioId);
+    const definiciones = propios.length === 0 ? new Map<string, DefinicionMiembro>() : await definicionesDe(tx, propios);
+    const efectivo = (m: MiembroListado): Efectivo | null =>
+      m.rol === "propio" ? efectivoDe(definiciones.get(m.usuarioId.toLowerCase()) ?? null) : efectivoDe(m);
     const activos: MiembrosPorCorreo = new Map(
-      todos.filter((m) => m.activo).map((m) => [m.correo.toLowerCase(), { usuarioId: m.usuarioId, rol: m.rol as Rol }]),
+      todos.filter((m) => m.activo).map((m) => [m.correo.toLowerCase(), { usuarioId: m.usuarioId, rol: efectivo(m) }]),
     );
     return {
-      miembros: new Map(todos.map((m) => [m.usuarioId.toLowerCase(), m])),
+      miembros: new Map(todos.map((m) => [m.usuarioId.toLowerCase(), { activo: m.activo, efectivo: efectivo(m) }])),
       contexto: {
         existentes: new Map(existentes.map((e) => [e.ruc, { archivado: e.archivado }])),
         miembros: activos,

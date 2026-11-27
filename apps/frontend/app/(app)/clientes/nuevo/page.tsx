@@ -212,7 +212,12 @@ export default function NuevoCliente() {
               >
                 <option value="">{MENSAJES.sinResponsable}</option>
                 {miembros
-                  .filter((m) => m.activo && puedeSerResponsable(m.rol))
+                  // Un rol propio no trae sus permisos en la lista: lo decide el servidor (409 miembro_no_asignable).
+                  .filter(
+                    (m) =>
+                      m.activo &&
+                      (m.rol === "propio" || puedeSerResponsable(m.rol)),
+                  )
                   .map((m) => (
                     <option key={m.usuarioId} value={m.usuarioId}>
                       {m.nombre}

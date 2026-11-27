@@ -216,6 +216,9 @@ export async function abrirBanco(cupo?: object, extra: Record<string, unknown> =
         // 0045: el DELETE de `cliente` y de `membresia` audita y recalcula `plan_aviso` (filas con FK al estudio): también van con
         // `replica`, que salta esos triggers; fuera de ese modo el estudio ya no se podría borrar.
         for (const tabla of ["membresia", "cliente"]) await intentar(`delete from ${tabla} where tenant_id = $1`, [t]);
+        // 030: roles propios (FK a `tenant`; membresia e invitacion los referencian con RESTRICT). Con `replica` no corre el CASCADE de
+        // rol_permiso: va antes que rol, y las invitaciones antes que ambos.
+        for (const tabla of ["invitacion", "rol_permiso", "rol"]) await intentar(`delete from ${tabla} where tenant_id = $1`, [t]);
         await intentar("set local session_replication_role = origin");
         for (const tabla of [
           "compra_hallazgo",
@@ -257,6 +260,14 @@ export async function abrirBanco(cupo?: object, extra: Record<string, unknown> =
       const quedan = (await c.query("select id from tenant where id = any($1::uuid[])", [tenants])).rows;
       if (quedan.length > 0) {
         throw new Error(`limpieza del soporte de acceso: ${quedan.length} estudio(s) de prueba siguen existiendo (¿tabla nueva con FK a tenant sin limpiar?)`);
+      }
+      // 030: con `replica` las FK no corren; un rol propio o sus permisos de un estudio borrado quedarían huérfanos (antes de 0082 no existen).
+      for (const texto of [
+        "select count(*)::int as n from rol where tenant_id = any($1::uuid[])",
+        "select count(*)::int as n from rol_permiso where tenant_id = any($1::uuid[])",
+      ]) {
+        const r = await c.query(texto, [tenants]).catch(() => null);
+        if (r && (r.rows[0].n as number) > 0) throw new Error("limpieza del soporte de acceso: quedan roles propios (rol, rol_permiso) de los estudios de prueba");
       }
       // Spec 029 (T1): lo de la cuenta segura de los usuarios de la prueba tampoco puede quedar (antes de 0078 las tablas no existen: se ignora).
       for (const texto of [

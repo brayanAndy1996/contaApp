@@ -18,7 +18,7 @@ describe("acciones de auditoría de 028", () => {
     expect(ACCIONES_AUDITORIA.filter((a) => a.startsWith("correo."))).toEqual([NUEVA]);
   });
   it("el catálogo queda en 61 sin repetidos y todas con forma entidad.hecho", () => {
-    expect(ACCIONES_AUDITORIA).toHaveLength(61);
+    expect(ACCIONES_AUDITORIA).toHaveLength(64); // 030: + 3 acciones rol.*
     expect(new Set(ACCIONES_AUDITORIA).size).toBe(ACCIONES_AUDITORIA.length);
     for (const a of ACCIONES_AUDITORIA) expect(a).toMatch(/^[a-z]+\.[a-z_]+$/);
   });

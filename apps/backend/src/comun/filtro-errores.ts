@@ -5,6 +5,7 @@ import {
   type ArgumentsHost,
   type ExceptionFilter,
 } from "@nestjs/common";
+import { AccesoError } from "../modules/acceso/errores.js";
 import { ArchivosError } from "../modules/archivos/errores.js";
 import { ContrasenaInvalidaError } from "../modules/auth/errores.js";
 import { ComprasError } from "../modules/compras/errores.js";
@@ -86,6 +87,10 @@ export class FiltroErrores implements ExceptionFilter {
     }
     // XML (016): `xml_ajeno` lleva además los nombres de los campos que difieren; nunca el contenido del XML.
     if (excepcion instanceof XmlError) {
+      return { estado: excepcion.getStatus(), cuerpo: { ...excepcion.cuerpo } };
+    }
+    // Acceso (030): `rol_en_uso` lleva los conteos y `combinacion_invalida` el permiso del catálogo que falta; nunca eco de la entrada.
+    if (excepcion instanceof AccesoError) {
       return { estado: excepcion.getStatus(), cuerpo: { ...excepcion.cuerpo } };
     }
     if (excepcion instanceof HttpException) {

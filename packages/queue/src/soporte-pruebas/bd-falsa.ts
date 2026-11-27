@@ -13,14 +13,17 @@
 //   transicionar(tx, id, desde, hacia, campos?: { motivo?, intentos?, resultado?, disponibleDesde?: Date })
 //        -> boolean  (UPDATE ... WHERE estado = desde; ella fija `iniciadoEn` al pasar a `ejecutando` y
 //        `terminadoEn` en estados terminales; quien llama NO pasa fechas de inicio/fin: se ignoran)
-//   revalidarEncolado(tx, { clienteId, creadoPor, rolesPermitidos: readonly string[] | null, ...resto })
-//        -> "ok" | "acceso_retirado"   (D17; rolesPermitidos null = sin permiso requerido)
+//   revalidarEncolado(tx, { clienteId, creadoPor, permiso: string | null, ...resto })
+//        -> "ok" | "acceso_retirado"   (D17 + 030 T17a; permiso null = sin permiso requerido; la BD real usa los permisos
+//        efectivos de acceso.permisos_membresia, aqui los del rol de sistema de `bd.roles`)
 //   estadoCredencial(tx, clienteId, tipo)       -> "configurada" | "verificada" | "invalida" | null
 //   insertarTrabajo(tx, datos)                  -> TrabajoVista (posicion null)
 //   trabajoVivoPorClave(tx, claveDedupe)        -> TrabajoVista | null (solo en_cola / ejecutando)
 //   contarPendientes(tx, cola)                  -> number (en_cola del tenant de `tx` en esa cola)
 //   leerTrabajo(tx, id)                         -> TrabajoFila | null (T16: relectura tras una transición perdida)
 // `db.withTenant` / `db.withSistema` abren una "transaccion" que NO se puede anidar (como la real).
+import { PERMISOS_POR_ROL, type Permiso, type Rol } from "@contapp/shared";
+
 export const uuidDe = (n: number): string =>
   `0190a000-0000-7000-8000-${n.toString(16).padStart(12, "0")}`;
 
@@ -313,16 +316,18 @@ export const moduloDbFalso = {
       id?: string;
       clienteId: string;
       creadoPor: string | null;
-      rolesPermitidos: readonly string[] | null;
+      permiso: string | null;
     },
   ): Promise<"ok" | "acceso_retirado"> {
     bd.revalidaciones.push({ tenantId: tx.tenantId, args: { ...t } });
     if (t.id !== undefined && bd.retirados.has(t.id)) return "acceso_retirado";
     // creadoPor null (programado) solo exige que exista el cliente; sin permiso requerido (null)
     // basta la membresia activa. El rol del creador lo asigna la prueba en `bd.roles`.
-    if (t.creadoPor === null || t.rolesPermitidos === null) return "ok";
-    const rol = bd.roles.get(t.creadoPor) ?? "dueno";
-    return t.rolesPermitidos.includes(rol) ? "ok" : "acceso_retirado";
+    if (t.creadoPor === null || t.permiso === null) return "ok";
+    const rol = (bd.roles.get(t.creadoPor) ?? "dueno") as Rol;
+    return PERMISOS_POR_ROL[rol]?.has(t.permiso as Permiso) === true
+      ? "ok"
+      : "acceso_retirado";
   },
 
   async estadoCredencial(

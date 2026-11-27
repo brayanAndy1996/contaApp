@@ -35,7 +35,9 @@ describe("GET /usuarios", () => {
     expect(porId.get(off.id)).toMatchObject({ rol: "lectura", activo: false });
     expect(porId.get(E.titular.id)).toMatchObject({ rol: "dueno", activo: true, esYo: true });
     for (const x of r.body) {
-      expect(Object.keys(x).sort()).toEqual(["activo", "correo", "esYo", "nombre", "rol", "usuarioId"]);
+      // 030: + rolPropio (null con un rol de sistema).
+      expect(Object.keys(x).sort()).toEqual(["activo", "correo", "esYo", "nombre", "rol", "rolPropio", "usuarioId"]);
+      expect(x.rolPropio).toBeNull();
     }
     expect(r.text).not.toMatch(/argon2|hash|contrasena/i);
   });
