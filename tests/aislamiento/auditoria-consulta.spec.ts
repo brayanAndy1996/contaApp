@@ -373,7 +373,7 @@ describe("auditoria_descifrado_listar (0088): firma, grants y salida", () => {
   it("existe UNA sola firma, de 8 argumentos; la de 017 (3 argumentos) ya no existe (CA-8)", async () => {
     const f = await funcion();
     expect(f.map((x) => x.pronargs)).toEqual([8]);
-    expect(f[0].firma).toContain("auditoria_descifrado_listar(timestamp with time zone, uuid, integer, uuid, timestamp with time zone, timestamp with time zone, boolean, uuid)");
+    expect(f[0].firma).toContain("auditoria_descifrado_listar(timestamp with time zone,uuid,integer,uuid,timestamp with time zone,timestamp with time zone,boolean,uuid)");
     const r = await intentar(ec.backend, { tenantId: X, userId: u1 }, "select * from auditoria_descifrado_listar(null, null, 50)");
     expect(r.ok ? "ok" : r.code).toBe("42883");
   });

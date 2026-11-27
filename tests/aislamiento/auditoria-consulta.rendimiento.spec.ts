@@ -243,14 +243,16 @@ describe("CA-9 · cada filtro usa el indice esperado y no recorre las tablas (pg
       expect(d, `falta el indice ${String(i.patron)} en ${i.tabla}`).toBeDefined();
       return d!.indexname;
     });
-    await pausa(1500); // deja que se vuelquen las estadisticas pendientes de las pruebas anteriores antes de tomar la base
     const antes = await Promise.all(buscados.map(idxScan));
     const seqAntes = await seqScan();
-    const filas = await db.withTenant({ tenantId: completa.tenantId, userId: completa.userId }, (tx) =>
-      listar()(tx, { limite: 50, alcance: caso.alcance(completa), filtros: caso.f(completa) }),
-    );
+    const filas = await db.withTenant({ tenantId: completa.tenantId, userId: completa.userId }, async (tx) => {
+      const r = await listar()(tx, { limite: 50, alcance: caso.alcance(completa), filtros: caso.f(completa) });
+      // Sin esto PG difiere el volcado de pg_stat hasta ~10 s (PGSTAT_IDLE_INTERVAL): fuerza que el COMMIT lo publique.
+      await tx.query("select pg_stat_force_next_flush()");
+      return r;
+    });
     expect(filas.length).toBeGreaterThan(0);
-    // Las estadisticas se vuelcan cuando la conexion queda ociosa (<= ~1 s): se espera a verlas.
+    // Tras el COMMIT las estadisticas ya estan publicadas; el bucle solo absorbe la latencia de lectura.
     let usados: boolean[] = [];
     for (let i = 0; i < 20; i++) {
       usados = (await Promise.all(buscados.map(idxScan))).map((n, k) => n > antes[k]!);
