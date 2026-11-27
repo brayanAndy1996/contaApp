@@ -43,6 +43,14 @@ export function conCelda(bytes: Uint8Array, fila: number, columna: string, valor
   return aBytes(t);
 }
 
+/** Copia el TXT poniendo `periodo` en la columna `Periodo` de TODAS las filas de datos. */
+export function conPeriodo(bytes: Uint8Array, periodo: string): Uint8Array {
+  const t = leerTabla(bytes);
+  const i = indiceColumna(t, "Periodo");
+  for (const l of t.lineas.slice(1)) l[i] = periodo;
+  return aBytes(t);
+}
+
 /** Copia el TXT sin una columna (en el encabezado y en todas las filas). */
 export function sinColumna(bytes: Uint8Array, columna: string): Uint8Array {
   const t = leerTabla(bytes);

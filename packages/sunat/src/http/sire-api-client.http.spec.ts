@@ -25,6 +25,7 @@ import {
   type EntornoFalso,
   type RelojVirtual,
 } from "./pruebas/ayudas-http.js";
+import { conPeriodo } from "./pruebas/ayudas-txt.js";
 import type { RespuestaFalsa } from "./pruebas/servidor-sire-falso.js";
 import { HttpSireApiClient } from "./sire-api-client.http.js";
 import type { OpcionesHttpSire } from "./sire-auth.http.js";
@@ -177,7 +178,8 @@ describe("HttpSireApiClient · ventas (RVIE)", () => {
     ent.sire.guionar("GET", RUTAS.ticket, {
       json: cuerpoTicket([registroTicket(T, "04", [archivo("v.zip")], { perTributario: "202601" })]),
     });
-    ent.sire.guionar("GET", RUTAS.archivo, { bytes: parteVentas().zip });
+    const txtEnero = conPeriodo(fixture("ventas-propuesta-202610.txt"), "202601");
+    ent.sire.guionar("GET", RUTAS.archivo, { bytes: zip("LE20700000002202601001404001EXP2.txt", txtEnero) });
     await cliente().descargarPropuesta(TOKEN, { ...VENTAS, periodo: "202601" });
     expect(ent.sire.peticiones[0]!.ruta).toBe(RUTAS.exportarRvie("202601"));
     expect(ent.sire.peticiones[1]!.query["perIni"]).toBe("202601");
