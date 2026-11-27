@@ -41,13 +41,11 @@ export class AlmacenTicketsRedis implements AlmacenTicketsSire {
   }
 
   /**
-   * `{tenant}:{cliente}:{libro}:{periodo}:{operacion}` → clave de Redis. `HttpSireApiClient` (T6) hoy entrega la clave SIN
-   * operación (solo implementa la propuesta: el registro presentado falla antes de tocar la red); sin operación vale `propuesta`.
-   * Una clave mal formada es un error de programación.
+   * `{tenant}:{cliente}:{libro}:{periodo}:{operacion}` → clave de Redis (exactamente 5 partes; H-041-2-4). Una clave mal
+   * formada es un error de programación.
    */
   private claveRedis(clave: string): string {
     const partes = clave.split(":");
-    if (partes.length === 4) partes.push("propuesta");
     const [tenantId, clienteId, libro, periodo, operacion, ...resto] = partes;
     if (
       resto.length > 0 ||

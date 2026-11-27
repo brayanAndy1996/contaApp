@@ -75,7 +75,7 @@ Mapeo (encabezado normalizado → campo). Compras: `Tipo CP/Doc.`→`tipo`, `Ser
 - **Presupuesto (H-5)**: cada petición usa `min(timeout del paso, restante de los 90 s)`. Con `restante ≤ 0`, el adaptador lanza `ErrorTransitorioSire("timeout")` sin pedir nada. El `dormir` del sondeo también se recorta a lo que quede.
 - **Partes (H-6)**: se procesan en orden y de una en una. Cada parte se baja, se valida (ZIP, UTF-8, encabezado igual al de la 1.ª, filas) y se suelta antes de pedir la siguiente. Al primer error se corta y no se piden más partes. En memoria solo quedan las filas ya validadas; no se devuelven filas mientras falte alguna parte.
 - **Token (H-8)**: `conToken` borra la caché solo si el token guardado es el que fue rechazado (comparar y borrar de forma atómica). Si ya hay uno más nuevo, lo usa sin pedir otro.
-- **CA-10 «en total» (H-7)**: pendiente de decisión del usuario.
+- **CA-10 «en total» (H-7)**: Decidido por el usuario (2026-11-27): 64 MiB por parte + 256 MiB acumulado entre partes; superado el acumulado → zip_invalido.
 
 ## Riesgos
 - SUNAT cambia el layout o los nombres de columna → `ErrorPortalSire("encabezado")` + alerta (RNF-044); la prueba de contrato lo detecta antes.

@@ -19,8 +19,8 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → atac
 | T11 | Pruebas de las correcciones de la ronda 1 (rojo) — omitida: las pruebas del adversario cubren los 3 hallazgos | tester | sonnet | T10 | ✓ | — | [x] |
 | T12 | Corregir hallazgos de la ronda 1 | backend | opus | T11 | — | — | [x] |
 | T13 | Ronda adversarial 2 (caja blanca): timeouts, presupuesto, reanudación entre estudios, memoria, codificación, concurrencia | adversario | opus | T12 | — | ✓ | [x] |
-| T14 | Pruebas de las correcciones de la ronda 2 (rojo) | tester | sonnet | T13 | ✓ | — | [ ] |
-| T15 | Corregir hallazgos de la ronda 2 | backend | opus | T14 | — | — | [ ] |
+| T14 | Pruebas de las correcciones de la ronda 2 (rojo) — omitida: las pruebas del adversario cubren los hallazgos | tester | sonnet | T13 | ✓ | — | [x] |
+| T15 | Corregir hallazgos de la ronda 2 | backend | opus | T14 | — | — | [x] |
 | T16 | Corrida de la prueba de contrato contra SUNAT (la ejecuta el **usuario**) y ajustes de P-5/P-6 | tester | sonnet | T9, T15 | — | — | [ ] |
 | T17 | Verificar CA-1 a CA-15 con evidencia y suites de `sunat`, `queue` y `worker` | tester | sonnet | T16 | — | — | [ ] |
 | T18 | Revisión final contra la spec | arquitecto | opus | T17 | — | — | [ ] |

@@ -16,8 +16,10 @@ import { ErrorPortalSire } from "../errores.js";
 const MIB = 1024 * 1024;
 /** Tope de bytes del ZIP recibido (CA-10). */
 export const TOPE_ZIP_COMPRIMIDO = 32 * MIB;
-/** Tope de bytes descomprimidos (CA-10); se cuenta al descomprimir. */
+/** Tope de bytes descomprimidos POR PARTE (CA-10); se cuenta al descomprimir. */
 export const TOPE_ZIP_DESCOMPRIMIDO = 64 * MIB;
+/** Tope de bytes descomprimidos ACUMULADOS entre todas las partes de un periodo (CA-10, decisión del usuario). */
+export const TOPE_ZIP_DESCOMPRIMIDO_TOTAL = 256 * MIB;
 /** Razón máxima descomprimido / comprimido (CA-10). */
 export const RAZON_MAX_ZIP = 200;
 
@@ -53,14 +55,20 @@ interface EntradaCentral {
   comprimido: number;
   descomprimido: number;
   inicioLocal: number;
+  /** Tope efectivo de bytes descomprimidos para esta entrada. */
+  tope: number;
 }
 
-/** Devuelve los bytes del único TXT del ZIP o lanza `ErrorPortalSire("zip_invalido")`. */
-export function extraerTxtDeZip(zip: Uint8Array): Uint8Array {
+/**
+ * Devuelve los bytes del único TXT del ZIP o lanza `ErrorPortalSire("zip_invalido")`. `topeDescomprimido` acota aún más
+ * lo que se acepta producir (el cliente pasa lo que queda del tope acumulado del periodo); nunca pasa de 64 MiB.
+ */
+export function extraerTxtDeZip(zip: Uint8Array, topeDescomprimido: number = TOPE_ZIP_DESCOMPRIMIDO): Uint8Array {
   if (!(zip instanceof Uint8Array) || zip.length < LARGO_FIN || zip.length > TOPE_ZIP_COMPRIMIDO) throw invalido();
+  const tope = Number.isFinite(topeDescomprimido) ? Math.max(0, Math.min(topeDescomprimido, TOPE_ZIP_DESCOMPRIMIDO)) : 0;
   const dv = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
   const finCentral = buscarFinDirectorio(zip, dv);
-  const entrada = leerEntradaCentral(zip, dv, finCentral);
+  const entrada = leerEntradaCentral(zip, dv, finCentral, tope);
   validarNombre(entrada.nombre);
   const datos = ubicarDatos(zip, dv, entrada, finCentral.inicioCentral);
   const salida =
@@ -94,7 +102,7 @@ function buscarFinDirectorio(zip: Uint8Array, dv: DataView): FinDirectorio {
   throw invalido();
 }
 
-function leerEntradaCentral(zip: Uint8Array, dv: DataView, fin: FinDirectorio): EntradaCentral {
+function leerEntradaCentral(zip: Uint8Array, dv: DataView, fin: FinDirectorio, tope: number): EntradaCentral {
   const o = fin.inicioCentral;
   if (fin.largoCentral < LARGO_CENTRAL || dv.getUint32(o, true) !== FIRMA_CENTRAL) throw invalido();
   const banderas = dv.getUint16(o + 8, true);
@@ -112,10 +120,10 @@ function leerEntradaCentral(zip: Uint8Array, dv: DataView, fin: FinDirectorio): 
   if ((banderas & BANDERAS_CIFRADO) !== 0 || discoInicio !== 0) throw invalido();
   if (metodo !== METODO_STORED && metodo !== METODO_DEFLATE) throw invalido();
   // ZIP64 (0xFFFFFFFF) no cabe en los topes; el declarado se acota antes de reservar nada.
-  if (descomprimido > TOPE_ZIP_DESCOMPRIMIDO || comprimido >= zip.length) throw invalido();
+  if (descomprimido > tope || comprimido >= zip.length) throw invalido();
   if (descomprimido > RAZON_MAX_ZIP * Math.max(comprimido, 1)) throw invalido();
   const nombre = zip.subarray(o + LARGO_CENTRAL, o + LARGO_CENTRAL + largoNombre);
-  return { nombre, metodo, crc, comprimido, descomprimido, inicioLocal };
+  return { nombre, metodo, crc, comprimido, descomprimido, inicioLocal, tope };
 }
 
 /** Nombre plano `*.txt`: UTF-8 válido, sin rutas, unidades, «..» ni caracteres de control. */
@@ -159,7 +167,7 @@ function copiarStored(datos: Uint8Array, e: EntradaCentral): Uint8Array {
  */
 function inflar(datos: Uint8Array, e: EntradaCentral): Uint8Array {
   if (datos.length === 0) throw invalido();
-  const limite = Math.min(e.descomprimido, TOPE_ZIP_DESCOMPRIMIDO, RAZON_MAX_ZIP * datos.length);
+  const limite = Math.min(e.descomprimido, e.tope, RAZON_MAX_ZIP * datos.length);
   const salida = new Uint8Array(e.descomprimido);
   let escritos = 0;
   let terminado = false;

@@ -6,14 +6,13 @@
 import { z } from "zod";
 import {
   ErrorDatos,
+  ErrorDatosSire,
   ErrorPortalSire,
   ErrorTransitorio,
   ErrorTransitorioSire,
   TokenRechazadoError,
 } from "../errores.js";
 import type {
-  FilaPropuestaSire,
-  FilaVentaSire,
   LibroSire,
   PropuestaSire,
   RegistroPresentadoSire,
@@ -47,7 +46,7 @@ import { leerTxt, type TxtLeido } from "./txt/leer-txt.js";
 import { mapearCompras } from "./txt/mapeo-compras.js";
 import { mapearVentas } from "./txt/mapeo-ventas.js";
 import type { EsperadoTxt } from "./txt/valores.js";
-import { extraerTxtDeZip } from "./zip-seguro.js";
+import { TOPE_ZIP_DESCOMPRIMIDO_TOTAL, extraerTxtDeZip } from "./zip-seguro.js";
 
 /** Número de ticket que devuelve la exportación (va solo como parámetro de query). */
 const GRAMATICA_TICKET = /^[A-Za-z0-9_-]{1,64}$/;
@@ -59,29 +58,8 @@ const esquemaExportar = z.object({ numTicket: z.string().regex(GRAMATICA_TICKET)
 /** Lo que el TXT de una propuesta necesita para validarse contra la solicitud. */
 export type ContextoLectura = EsperadoTxt;
 
-/**
- * Cada parte (en el orden del ticket): ZIP seguro → TXT → celdas, con el MISMO encabezado en todas (CA-9). Las partes se
- * leen una a una y sus bytes se sueltan al mapearlas.
- */
-function leerPartes<F>(partes: readonly Uint8Array[], mapear: (txt: TxtLeido) => F[]): F[] {
-  const filas: F[] = [];
-  let primero: readonly string[] | undefined;
-  for (const parte of partes) {
-    const txt = leerTxt(extraerTxtDeZip(parte));
-    if (primero === undefined) primero = txt.encabezado;
-    else if (!mismoEncabezado(primero, txt.encabezado)) throw new ErrorPortalSire("encabezado");
-    for (const f of mapear(txt)) filas.push(f);
-  }
-  return filas;
-}
-
-/** ZIP → TXT → filas de compras; valida todo antes de devolver (sin filas a medias). */
-function leerPartesCompras(partes: readonly Uint8Array[], c: ContextoLectura): FilaPropuestaSire[] {
-  return leerPartes(partes, (txt) => mapearCompras(txt, c));
-}
-function leerPartesVentas(partes: readonly Uint8Array[], c: ContextoLectura): FilaVentaSire[] {
-  return leerPartes(partes, (txt) => mapearVentas(txt, c));
-}
+/** Operación que nombra la clave del almacén (H-041-2-4): la propuesta y el registro presentado no comparten ticket. */
+type OperacionTicket = "propuesta" | "registro";
 
 /** Ticket listo para descargar. */
 interface TicketListo {
@@ -106,22 +84,33 @@ export class HttpSireApiClient implements SireApiClient {
     this.origen = origenes(o).sire;
   }
 
+  /**
+   * Gestión del ticket guardado (decisiones de la ronda 2): se guarda UNA vez justo tras exportar y se borra solo al
+   * validar todas las partes o ante un error permanente. Un `ErrorTransitorio` o un `TokenRechazadoError`, en la consulta
+   * o en la descarga, lo conservan para el siguiente intento.
+   */
   async descargarPropuesta(token: TokenSire, solicitud: SolicitudPropuesta): Promise<PropuestaSire> {
     const { ruc, periodo, libro } = solicitud;
     if (!GRAMATICA_RUC.test(ruc) || !GRAMATICA_PERIODO.test(periodo) || (libro !== "compras" && libro !== "ventas")) {
       throw new ErrorDatos();
     }
     const inicio = this.ahora().getTime();
-    const ticket = await this.obtenerTicketListo(token, libro, periodo, solicitud.claveReanudacion, inicio);
-    const partes: Uint8Array[] = [];
-    for (const parte of ticket.partes) {
-      this.verificarPresupuesto(inicio);
-      partes.push(await this.descargarParte(token, libro, ticket, parte));
-    }
+    const clave = this.claveAlmacen(solicitud.claveReanudacion, libro, periodo, "propuesta");
     const contexto: ContextoLectura = { ruc, periodo };
-    return libro === "compras"
-      ? { libro, periodo, filas: leerPartesCompras(partes, contexto) }
-      : { libro, periodo, filas: leerPartesVentas(partes, contexto) };
+    let propuesta: PropuestaSire;
+    try {
+      const ticket = await this.obtenerTicketListo(token, libro, periodo, clave, inicio);
+      propuesta =
+        libro === "compras"
+          ? { libro, periodo, filas: await this.leerPartes(token, libro, ticket, inicio, (txt) => mapearCompras(txt, contexto)) }
+          : { libro, periodo, filas: await this.leerPartes(token, libro, ticket, inicio, (txt) => mapearVentas(txt, contexto)) };
+    } catch (e) {
+      const conservar = e instanceof ErrorTransitorio || e instanceof TokenRechazadoError;
+      if (!conservar && clave !== null) await this.almacen!.borrar(clave);
+      throw e;
+    }
+    if (clave !== null) await this.almacen!.borrar(clave);
+    return propuesta;
   }
 
   /**
@@ -136,61 +125,52 @@ export class HttpSireApiClient implements SireApiClient {
 
   // ── Pasos ────────────────────────────────────────────────────────────────────────────────────────────────
 
+  /** `{claveReanudacion}:{libro}:{periodo}:{operacion}` (5 partes con `claveReanudacion` = `{tenant}:{cliente}`). */
+  private claveAlmacen(
+    claveReanudacion: string | undefined,
+    libro: LibroSire,
+    periodo: string,
+    operacion: OperacionTicket,
+  ): string | null {
+    if (this.almacen === undefined || claveReanudacion === undefined || claveReanudacion === "") return null;
+    return `${claveReanudacion}:${libro}:${periodo}:${operacion}`;
+  }
+
   /**
-   * Exporta (o retoma el ticket guardado) y espera a que esté listo. Gestiona el almacén: guarda el ticket si no termina
-   * en el presupuesto y lo borra cuando el ticket termina, bien o mal. Un error transitorio o un token rechazado
-   * conservan lo guardado para el siguiente intento.
+   * Retoma el ticket guardado o exporta y lo guarda (una vez, justo tras exportar); luego espera a que esté listo. Si SUNAT
+   * ya no lista el ticket guardado, lo borra y exporta UNA vez más en este intento; el ticket nuevo sigue la regla normal
+   * (si tampoco aparece: `respuesta_ajena`).
    */
   private async obtenerTicketListo(
     token: TokenSire,
     libro: LibroSire,
     periodo: string,
-    claveReanudacion: string | undefined,
+    clave: string | null,
     inicio: number,
   ): Promise<TicketListo> {
-    const clave =
-      this.almacen !== undefined && claveReanudacion !== undefined && claveReanudacion !== ""
-        ? `${claveReanudacion}:${libro}:${periodo}`
-        : null;
     const guardado = clave === null ? null : await this.almacen!.leer(clave);
-    const numTicket = guardado !== null && GRAMATICA_TICKET.test(guardado) ? guardado : await this.exportar(token, libro, periodo);
-
-    try {
-      const listo = await this.esperarTicket(token, periodo, numTicket, inicio);
-      if (listo === null) {
-        if (clave !== null) await this.almacen!.guardar(clave, numTicket, TTL_TICKET_MS);
-        throw new ErrorTransitorioSire("ticket_pendiente");
+    if (guardado !== null && GRAMATICA_TICKET.test(guardado)) {
+      try {
+        return await this.esperarTicketListo(token, periodo, guardado, inicio);
+      } catch (e) {
+        if (!(e instanceof ErrorDatosSire && e.detalle === "respuesta_ajena")) throw e;
+        await this.almacen!.borrar(clave!);
       }
-      if (listo === "presupuesto") {
-        if (clave !== null) await this.almacen!.guardar(clave, numTicket, TTL_TICKET_MS);
-        throw new ErrorTransitorioSire("timeout");
-      }
-      // Un ticket listo sin archivos no es una propuesta vacía (el TXT trae al menos el encabezado): el portal cambió.
-      if (listo.partes.length === 0) throw new ErrorPortalSire("respuesta_inesperada");
-      validarNombresPartes(listo.partes);
-      if (clave !== null) await this.almacen!.borrar(clave);
-      return listo;
-    } catch (e) {
-      const conservar = e instanceof ErrorTransitorio || e instanceof TokenRechazadoError;
-      if (!conservar && clave !== null) await this.almacen!.borrar(clave);
-      throw e;
     }
+    const numTicket = await this.exportar(token, libro, periodo, inicio);
+    if (clave !== null) await this.almacen!.guardar(clave, numTicket, TTL_TICKET_MS);
+    return this.esperarTicketListo(token, periodo, numTicket, inicio);
   }
 
-  private async exportar(token: TokenSire, libro: LibroSire, periodo: string): Promise<string> {
-    const cuerpo = await this.pedirJson(token, armarUrl(this.origen, rutaExportar(libro, periodo), PARAMETROS_EXPORTAR[libro]));
-    const r = esquemaExportar.safeParse(cuerpo);
+  private async exportar(token: TokenSire, libro: LibroSire, periodo: string, inicio: number): Promise<string> {
+    const url = armarUrl(this.origen, rutaExportar(libro, periodo), PARAMETROS_EXPORTAR[libro]);
+    const r = esquemaExportar.safeParse(await this.pedirJson(token, url, inicio));
     if (!r.success) throw new ErrorPortalSire("respuesta_inesperada");
     return r.data.numTicket;
   }
 
-  /** `null` si sigue pendiente al agotar el plan de espera; "presupuesto" si se agotó el presupuesto de la operación. */
-  private async esperarTicket(
-    token: TokenSire,
-    periodo: string,
-    numTicket: string,
-    inicio: number,
-  ): Promise<TicketListo | null | "presupuesto"> {
+  /** Consulta el ticket con el plan de espera; lanza `ticket_pendiente` si no termina y `timeout` si se agota el presupuesto. */
+  private async esperarTicketListo(token: TokenSire, periodo: string, numTicket: string, inicio: number): Promise<TicketListo> {
     const url = armarUrl(this.origen, RUTA_TICKET, {
       perIni: periodo,
       perFin: periodo,
@@ -200,18 +180,58 @@ export class HttpSireApiClient implements SireApiClient {
     });
     const esperas = planEsperaTicket();
     for (let i = 0; ; i++) {
-      if (this.presupuestoAgotado(inicio)) return "presupuesto";
-      const estado = interpretarConsultaTicket(await this.pedirJson(token, url), numTicket);
+      const estado = interpretarConsultaTicket(await this.pedirJson(token, url, inicio), numTicket);
       if (estado.listo) {
+        // Un ticket listo sin archivos no es una propuesta vacía (el TXT trae al menos el encabezado): el portal cambió.
+        if (estado.partes.length === 0) throw new ErrorPortalSire("respuesta_inesperada");
+        validarNombresPartes(estado.partes);
         return { numTicket, codProceso: estado.codProceso, perTributario: estado.perTributario, partes: estado.partes };
       }
       const ms = esperas[i];
-      if (ms === undefined) return null;
-      await this.dormir(ms);
+      if (ms === undefined) throw new ErrorTransitorioSire("ticket_pendiente");
+      // El sueño también se recorta a lo que quede del presupuesto (H-041-2-5).
+      const restante = this.restante(inicio);
+      if (restante <= 0) throw new ErrorTransitorioSire("timeout");
+      await this.dormir(Math.min(ms, restante));
     }
   }
 
-  private async descargarParte(token: TokenSire, libro: LibroSire, ticket: TicketListo, parte: ParteTicket): Promise<Uint8Array> {
+  /**
+   * Partes en el orden del ticket y de una en una (H-041-2-6): cada una se baja, se valida (ZIP, UTF-8, encabezado igual al
+   * de la 1.ª, filas) y se suelta antes de pedir la siguiente; al primer error se corta. Tope de 64 MiB descomprimidos por
+   * parte y 256 MiB acumulados en el periodo (CA-10): pasado el acumulado, `zip_invalido`.
+   */
+  private async leerPartes<F>(
+    token: TokenSire,
+    libro: LibroSire,
+    ticket: TicketListo,
+    inicio: number,
+    mapear: (txt: TxtLeido) => F[],
+  ): Promise<F[]> {
+    const filas: F[] = [];
+    let primero: readonly string[] | undefined;
+    let acumulado = 0;
+    for (const parte of ticket.partes) {
+      const bytes = extraerTxtDeZip(
+        await this.descargarParte(token, libro, ticket, parte, inicio),
+        TOPE_ZIP_DESCOMPRIMIDO_TOTAL - acumulado,
+      );
+      acumulado += bytes.length;
+      const txt = leerTxt(bytes);
+      if (primero === undefined) primero = txt.encabezado;
+      else if (!mismoEncabezado(primero, txt.encabezado)) throw new ErrorPortalSire("encabezado");
+      for (const f of mapear(txt)) filas.push(f);
+    }
+    return filas;
+  }
+
+  private async descargarParte(
+    token: TokenSire,
+    libro: LibroSire,
+    ticket: TicketListo,
+    parte: ParteTicket,
+    inicio: number,
+  ): Promise<Uint8Array> {
     const url = armarUrl(this.origen, RUTA_ARCHIVO, {
       nomArchivoReporte: parte.nombre,
       // El portal espera el texto «null» cuando el ticket no trae tipo (Postman).
@@ -226,7 +246,7 @@ export class HttpSireApiClient implements SireApiClient {
       metodo: "GET",
       cabeceras: { authorization: `Bearer ${token.token}` },
       contexto: "api",
-      timeoutMs: TIMEOUT_DESCARGA_MS,
+      timeoutMs: this.timeoutPaso(inicio, TIMEOUT_DESCARGA_MS),
       maxBytes: MAX_BYTES_ZIP,
       ...(this.fetch === undefined ? {} : { fetch: this.fetch }),
     });
@@ -235,25 +255,32 @@ export class HttpSireApiClient implements SireApiClient {
 
   // ── Apoyo ───────────────────────────────────────────────────────────────────────────────────────────────
 
-  private async pedirJson(token: TokenSire, url: string): Promise<unknown> {
+  private async pedirJson(token: TokenSire, url: string, inicio: number): Promise<unknown> {
     const r = await pedir({
       url,
       metodo: "GET",
       cabeceras: { authorization: `Bearer ${token.token}`, accept: "application/json" },
       contexto: "api",
-      timeoutMs: TIMEOUT_API_MS,
+      timeoutMs: this.timeoutPaso(inicio, TIMEOUT_API_MS),
       maxBytes: MAX_BYTES_JSON,
       ...(this.fetch === undefined ? {} : { fetch: this.fetch }),
     });
     return parsearJson(r.cuerpo);
   }
 
-  private presupuestoAgotado(inicio: number): boolean {
-    return this.ahora().getTime() - inicio >= PRESUPUESTO_OPERACION_MS;
+  /** Lo que queda del presupuesto de 90 s de la operación (puede ser ≤ 0). */
+  private restante(inicio: number): number {
+    return PRESUPUESTO_OPERACION_MS - (this.ahora().getTime() - inicio);
   }
 
-  private verificarPresupuesto(inicio: number): void {
-    if (this.presupuestoAgotado(inicio)) throw new ErrorTransitorioSire("timeout");
+  /**
+   * Timeout de una petición: `min(timeout del paso, restante)` (H-041-2-5). Sin presupuesto, `ErrorTransitorioSire("timeout")`
+   * sin hacer la petición.
+   */
+  private timeoutPaso(inicio: number, timeoutMs: number): number {
+    const restante = this.restante(inicio);
+    if (restante <= 0) throw new ErrorTransitorioSire("timeout");
+    return Math.min(timeoutMs, restante);
   }
 }
 
