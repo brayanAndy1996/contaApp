@@ -1,6 +1,6 @@
 # Spec 031 · Consulta de auditoría con filtros e historial por cliente
 
-Estado: aprobada (2026-11-27)
+Estado: verificada (2026-11-27)
 Nivel de riesgo: B. (1) no; (2) sí (alcance); (3) sí; (4) no. §2.1 literal da A; se fija B porque la RLS entre estudios no cambia, con ADV acotado (D-8). Confirmado por el usuario.
 Cubre: RF-151 · HU-39. Rama `spec/031-auditoria-consulta`, sobre 030.
 

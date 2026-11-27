@@ -40,7 +40,7 @@ Una línea por spec; el detalle de las cerradas está en `NNN-*/cierre.md` y los
 | 028-correo-avisos | A | hecha | — | Mergeada en `main` (df50fd7). Migraciones 0073–0077 (siguiente libre: 0078). Deuda O-1–O-10 en la tarjeta T24. Detalle: `028-*/cierre.md` |
 | 029-cuenta-segura | A | hecha | — | Rama spec/029-cuenta-segura sin mergear (desde main). Migraciones 0078–0081 (siguiente libre: 0082). 2 riesgos bajos aceptados. Detalle: `029-*/cierre.md` |
 | 030-roles-personalizados | A | hecha | — | Rama sin mergear (sobre 029). Migraciones 0082–0087 (siguiente libre: 0088). Ronda 1: 2 altos, 3 medios, 4 bajos; ronda 2: 1 alto, 1 medio, 1 bajo; todos resueltos. Detalle: `030-*/cierre.md` |
-| 031-auditoria-consulta | B | en curso | T10 (corregir hallazgos) | RF-151 · HU-39. |
+| 031-auditoria-consulta | B | verificada | — | Rama claude/bold-gauss-nzljd6 sin mergear (sobre 030); migración 0088 (siguiente libre: 0089); CI sin ejecutar. Detalle: `031-*/cierre.md`. |
 | 032-envio-sire-ticket | A | pendiente | — | RF-104 · HU-27. Con mock; apagado hasta formato oficial y `SireAuth` real. |
 | 033-catalogo-global-icb | A | pendiente | — | RF-084, 087. Curado por super-admin + conteos anónimos desde N estudios (D4 = a). |
 | 034-lupa-ventas | C | pendiente | — | Nota [lupa de ventas]. Antes de 035. |
@@ -56,10 +56,7 @@ Una línea por spec; el detalle de las cerradas está en `NNN-*/cierre.md` y los
 
 Los cerrados están en [HALLAZGOS.md](HALLAZGOS.md).
 
-| Spec | Prueba | Hallazgo | Estado |
-|---|---|---|---|
-| 031 | `apps/backend/src/modules/auditoria/auditoria-consulta.adv.int.spec.ts:66` | baja: `/auditoria/opciones?q=%00` responde 500 en vez de 400; el esquema de `q` (`packages/shared/src/auditoria/consulta.ts:41`) no rechaza NUL. | abierto |
-| 031 | `apps/backend/src/modules/auditoria/auditoria-consulta.adv.int.spec.ts:170` | baja: cursor con fecha imposible (2026-02-30…) da 200 en vez de 400; `apps/backend/src/modules/notificaciones/cursor.ts:36-38` (código de 017, compartido). | abierto |
+Ninguno.
 
 ## Decisiones pendientes del usuario
 
@@ -82,7 +79,7 @@ No son decisiones tomadas ni pendientes del usuario: cada spec las resuelve al p
 - [despliegue] Riesgo bajo aceptado: Node 24 (Unicode 16) vs ICU de PostgreSQL: la BD puede rechazar letras muy nuevas. → `HALLAZGOS.md#notas-movidas`
 - [005] Riesgo bajo aceptado: se rechazan ZWJ/ZWNJ en nombres de invitación (persa, índicos, emojis); no afecta al español. → `005-*/cierre.md`
 - [005] Riesgo bajo aceptado: `invitacion_vigente` lee la membresía del invitador sin bloqueo. → `005-*/cierre.md`
-- [siguientes] Próxima migración libre: 0082 (ver fila de 029); rangos usados por cada spec hasta 021. → `HALLAZGOS.md#notas-movidas`
+- [siguientes] Próxima migración libre: 0089 (ver fila de 031); rangos usados por cada spec hasta 021. → `HALLAZGOS.md#notas-movidas`
 - [permisos] Si se separan `clientes.crear` y `clientes.asignar`, revisar `POST /clientes` con `responsableId` y el select de responsable. → `HALLAZGOS.md#notas-movidas`
 - [RF-005/006] Un plan asignado a un estudio en Prueba lo deja en `prueba` (decisión 2026-11-03): resolver antes de aplicar vencimientos. → `HALLAZGOS.md#notas-movidas`
 - [R3] El Dueño aún no cambia de plan por su cuenta (RF-005); lo hace el super-admin.
@@ -127,7 +124,7 @@ No son decisiones tomadas ni pendientes del usuario: cada spec las resuelve al p
 - [frontend] Abierto (012b): desborde de 27 px a 390 px por «Usuarios» en el menú superior. → `012b-*/cierre.md`
 - [pruebas] Pruebas del worker que encolan con `encolarGenerar` dejan `job_registro` en `en_cola` (el reconciliador los adopta): cancelarlos en `afterEach`. → `HALLAZGOS.md#notas-movidas`
 - [mantenimiento] Purga de auditoría > 5 años (017 D-7, RNF-021): R1 no purga; spec de retención antes de 2031. → `017-*/cierre.md`
-- [R2] De 017: filtros de auditoría (RF-151) e historial por cliente de HU-39; correo configurable y de avisos (RF-161/162, cola `notificaciones`); aviso de buzón crítico.
+- [R2] De 017: filtros e historial por cliente (HU-39) quedaron cubiertos por 031; la exportación de auditoría sigue fuera. Pendientes: correo configurable y de avisos (RF-161/162, cola `notificaciones`); aviso de buzón crítico. → `031-*/cierre.md`
 - [mantenimiento] Un trabajo encolado con Redis caído solo lo repone el reconciliador (≤ 30 s); límite aceptado por el usuario (018 T11c). → `018-*/cierre.md`
 - [pruebas] `tests/e2e/flujos/lupa.e2e.ts:305` («XML no disponible») falló una vez sin traza antes de T11e; si reaparece en CI, abrir defecto con traza.
 - [usuario] Configurar en la protección de `main` el check requerido «E2E de R1 (Playwright, Chromium y Mailpit)» (018 P-1).
@@ -145,3 +142,5 @@ No son decisiones tomadas ni pendientes del usuario: cada spec las resuelve al p
 - [dependencias] Overrides de 040 en `pnpm-workspace.yaml` (fast-xml-builder, @nestjs/platform-express): revisarlos en la próxima actualización de dependencias. → `040-*/cierre.md`
 - [029] Aceptado: las funciones previas a 029 (plan, gnd, estudios_listar, suscripcion_asignar, invitación y registro) aceptan una sesión pendiente; el guard HTTP las cubre.
 - [029] El token de invitación/registro vive solo en memoria (005 D15): quien debe enrolar TOTP reabre el enlace después. → `029-*/cierre.md`
+- [031] `compras.ver` no existe en el catálogo de permisos (la prueba de 403 usa `buzon.ver`): el enlace de `compra.operacion` (P-3) no aparece con permisos reales. → `031-*/cierre.md`
+- [031] `public.auditoria_ms` es LEAKPROOF: revisar si se redefine o se extiende. → `031-*/cierre.md`

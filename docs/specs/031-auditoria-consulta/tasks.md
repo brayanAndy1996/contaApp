@@ -14,10 +14,10 @@ Nivel B con ADV acotado (D-8). Flujo 04 §1.3: pruebas (rojo) → implementar (v
 | T6 | `shared`: `consulta.ts` (zod, `rangoLima`) | backend | sonnet | T2 ∥ T5 | ✓ | — | [x] |
 | T7 | Backend: lector de consulta, servicio, `/auditoria/opciones` | backend | sonnet | T3, T5, T6 ∥ T8 | ✓ | — | [x] |
 | T8 | Pantalla de auditoría con filtros y enlace de la ficha | frontend | sonnet | T4, T6 ∥ T7 | ✓ | — | [x] |
-| T9 | Ronda adversarial acotada: alcance en ambas ramas y SQL inalterable (~15 pruebas) | adversario | opus | T7 | — | ✓ | [ ] |
+| T9 | Ronda adversarial acotada: alcance en ambas ramas y SQL inalterable (~15 pruebas) | adversario | opus | T7 | — | ✓ | [x] |
 | T10 | Corregir hallazgos de T9 | backend | opus (SQL) / sonnet (servicio) | T9 | — | — | [x] |
 | T11 | Verificar CA-1 a CA-10 con evidencia y revisión contra la spec | tester | sonnet | T10, T8 | — | — | [x] |
-| T12 | Cierre: `tasks.md`, `spec.md`, `cierre.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T11 | — | — | [ ] |
+| T12 | Cierre: `tasks.md`, `spec.md`, `cierre.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T11 | — | — | [x] |
 
 Paralelismo: oleada 1 = T1 (`tests/aislamiento/auditoria-consulta*.spec.ts`, `packages/db/src/auditoria/{consulta,opciones}.spec.ts`) ∥ T2 (`packages/shared/src/auditoria/consulta.spec.ts`) ∥ T3 (`apps/backend/src/modules/auditoria/auditoria-consulta.int.spec.ts`, `auditoria.int.spec.ts`, `apps/backend/test/soporte-auditoria.ts`) ∥ T4 (`apps/frontend/**/*.filtros.spec.tsx`, `*.historial.spec.tsx`, `tests/e2e/flujos/auditoria.e2e.ts`). Oleada 2 = T5 (`packages/db/**` sin specs de T1, `escalada.adv.spec.ts`, `catalogo.spec.ts`) ∥ T6 (`packages/shared/src` sin specs). Oleada 3 = T7 (`apps/backend/src/modules/auditoria/` sin specs) ∥ T8 (`apps/frontend` sin specs). El resto en serie.
 
