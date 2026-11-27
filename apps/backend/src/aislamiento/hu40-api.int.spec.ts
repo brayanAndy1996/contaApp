@@ -1037,7 +1037,7 @@ function casosNotificaciones(): Caso[] {
     },
     {
       ruta: "GET /auditoria",
-      esperado: { dueno: [200, 400], asistente: [403] },
+      esperado: { dueno: [200, 400, 404], asistente: [403] },
       construir: (c) => [
         { ruta: "/auditoria" },
         { ruta: `/auditoria?tenantId=${c.ajeno.tenantId}` },
@@ -1052,9 +1052,28 @@ function casosNotificaciones(): Caso[] {
           expect(estados(respuestas)).toEqual([403, 403, 403, 403]);
           for (const r of respuestas) expect(r.body).toEqual({ codigo: "permiso_denegado" });
         } else {
-          expect(estados(respuestas)).toEqual([200, 400, 400, 400]);
+          // 031 D-3: un clienteId de otro estudio da el mismo 404 `no_encontrado` que uno inexistente.
+          expect(estados(respuestas)).toEqual([200, 400, 404, 400]);
+          expect(respuestas[2]!.body).toEqual({ codigo: "no_encontrado" });
           const ids = (respuestas[0]!.body.items as any[]).map((x) => x.id);
           expect(ids.filter((id) => ajenos(c).auditoria.includes(id) || ajenos(c).descifrado.includes(id))).toEqual([]);
+        }
+        await intactas(c);
+      },
+    },
+    {
+      // 031: opciones de los filtros (usuarios y clientes del propio estudio); exige `auditoria.ver`.
+      ruta: "GET /auditoria/opciones",
+      esperado: { dueno: [200], asistente: [403] },
+      construir: () => [{ ruta: "/auditoria/opciones" }],
+      antes: registrarAntes,
+      extra: async (c, respuestas) => {
+        if (c.yo.rol === "asistente") {
+          expect(estados(respuestas)).toEqual([403]);
+          expect(respuestas[0]!.body).toEqual({ codigo: "permiso_denegado" });
+        } else {
+          expect(estados(respuestas)).toEqual([200]);
+          expect(JSON.stringify(respuestas[0]!.body)).not.toContain(c.ajeno.tenantId);
         }
         await intactas(c);
       },
