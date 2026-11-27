@@ -8,7 +8,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → atac
 |---|---|---|---|---|---|---|---|
 | T1 | Fixtures TXT sintéticos con el encabezado real + `LEEME.md` | tester | sonnet | — ∥ T2, T3 | ✓ | — | [x] (encabezado pendiente de verificar; requiere usuario) |
 | T2 | Pruebas de `zip-seguro` y `txt/*` (lectura, encabezado, mapeo, límites) en rojo | tester | sonnet | T1 | ✓ | — | [ ] |
-| T3 | Pruebas de `HttpSireAuth` y `HttpSireApiClient` con el servidor falso (rojo) | tester | sonnet | — ∥ T1 | ✓ | — | [ ] |
+| T3 | Pruebas de `HttpSireAuth` y `HttpSireApiClient` con el servidor falso (rojo) | tester | sonnet | — ∥ T1 | ✓ | — | [x] |
 | T4 | Pruebas del worker: `SIRE_CLIENT=http`, almacén Redis, `claveReanudacion`, 401 → renovación (rojo) | tester | sonnet | — ∥ T1–T3 | ✓ | — | [ ] |
 | T5 | `zip-seguro.ts` y `txt/*` (lectura y mapeo) | backend | opus | T2 ∥ T6 | ✓ | — | [ ] |
 | T6 | `endpoints`, `transporte`, `HttpSireAuth`, `HttpSireApiClient`, `ticket`, errores con `detalle` | backend | opus | T3 ∥ T5 | ✓ | — | [ ] |
