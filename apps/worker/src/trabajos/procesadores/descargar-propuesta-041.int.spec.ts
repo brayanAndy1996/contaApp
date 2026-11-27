@@ -374,10 +374,13 @@ describe("CA-8: ticket que no termina (P-4 c)", () => {
     const clave = claveTicket(m);
     const r = await conWorkerHttp(async () => {
       const id = await encolarDescarga(backend, redis, prefijo, m, { periodo: PERIODO, libro: "ventas" });
-      // Termina el primer intento sin ticket listo: el número de ticket queda guardado, solo y con TTL de a lo sumo 1 h.
-      await esperarHasta(async () => (await redis.get(clave)) !== null, "el ticket pendiente queda en Redis", {
-        timeoutMs: 30_000,
-      });
+      // El ticket se guarda justo tras exportar (ronda 2), antes de que el primer intento termine: se espera además a que
+      // el sondeo haya agotado su presupuesto (suma de sueños del reloj falso >= 7 500 ms).
+      await esperarHasta(
+        async () => (await redis.get(clave)) !== null && reloj.dormidos.reduce((a, b) => a + b, 0) >= 7_500,
+        "el ticket pendiente queda en Redis y el primer intento agotó su presupuesto de sondeo",
+        { timeoutMs: 30_000 },
+      );
       const numTicket = (await redis.get(clave))!;
       expect(numTicket).toMatch(/^\d+$/);
       const ttl = await redis.pttl(clave);
