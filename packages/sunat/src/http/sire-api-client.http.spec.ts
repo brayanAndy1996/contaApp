@@ -506,7 +506,8 @@ describe("HttpSireApiClient · secretos (CA-12)", () => {
 describe("HttpSireApiClient · ticket que no termina (P-4 c)", () => {
   function pendienteSiempre(): void {
     ent.sire.guionar("GET", RUTAS.exportarRce(), { json: { numTicket: T } });
-    ent.sire.guionar("GET", RUTAS.ticket, { json: cuerpoTicket([registroTicket(T, "01")]) });
+    // Responde «pendiente» (01) para el numTicket que se pida, no solo para T.
+    ent.sire.guionar("GET", RUTAS.ticket, (p) => ({ json: cuerpoTicket([registroTicket(p.query["numTicket"] ?? T, "01")]) }));
   }
 
   it("sondea 0,5/1/2/4 s, no pasa de 20 s dormidos y termina en ErrorTransitorioSire ticket_pendiente", async () => {
