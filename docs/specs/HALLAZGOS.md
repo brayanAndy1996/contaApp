@@ -202,6 +202,9 @@ Hallazgos de las rondas adversariales ya cerrados (corregidos, aceptados por el 
 | 030-roles-personalizados | T13a · `apps/backend/src/modules/acceso/roles/roles-r2.adv.int.spec.ts:133`; `tests/aislamiento/roles-r2.adv.spec.ts:400` | H-030-2-4: confusables Unicode en nombres de rol (p. ej. «Dueño» con cirílica) no se detectan; documentado con `it.fails` | aceptado por el usuario (82cd744) |
 | 031-auditoria-consulta | `apps/backend/src/modules/auditoria/auditoria-consulta.adv.int.spec.ts:66` | H-1 (baja): `/auditoria/opciones?q=%00` responde 500 en vez de 400; el esquema de `q` (`packages/shared/src/auditoria/consulta.ts:41`) no rechaza NUL | corregido (9c49632; `q` rechaza NUL con 400) |
 | 031-auditoria-consulta | `apps/backend/src/modules/auditoria/auditoria-consulta.adv.int.spec.ts:170` | H-2 (baja): cursor con fecha imposible (2026-02-30…) da 200 en vez de 400; `apps/backend/src/modules/notificaciones/cursor.ts:36-38` (código de 017, compartido) | corregido (9c49632; el cursor rechaza fechas imposibles con 400) |
+| 041-sire-real-lectura | packages/sunat/src/http/ronda1.adv.spec.ts:322 | H-041-1-1 (media): la misma parte listada dos veces en `archivoReporte` se descarga dos veces y duplica filas (montos e IGV duplicados sin error). | cerrado (c49186c) |
+| 041-sire-real-lectura | packages/sunat/src/http/ronda1.adv.spec.ts:402 | H-041-1-2 (media): `expires_in` inválido (1e13) deja `expiraEn` = Invalid Date en vez de ErrorPortal (CA-2). | cerrado (c49186c) |
+| 041-sire-real-lectura | packages/sunat/src/http/ronda1.adv.spec.ts:212 | H-041-1-3 (baja): «500» con espacio duro final (U+00A0) se acepta como monto en ventas; el plan exige formato estricto. | cerrado (c49186c) |
 
 ## Notas movidas
 
