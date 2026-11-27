@@ -12,7 +12,7 @@ Nivel B con ADV acotado (D-8). Flujo 04 §1.3: pruebas (rojo) → implementar (v
 | T4 | Pruebas del frontend y E2E `auditoria.e2e.ts` (rojo) | tester | sonnet | — ∥ T1, T2, T3 | ✓ | — | [ ] |
 | T5 | Migración 0088, drizzle, `lectura.ts`, `opciones.ts`, inventarios | backend | opus | T1 ∥ T6 | ✓ | — | [x] |
 | T6 | `shared`: `consulta.ts` (zod, `rangoLima`) | backend | sonnet | T2 ∥ T5 | ✓ | — | [x] |
-| T7 | Backend: lector de consulta, servicio, `/auditoria/opciones` | backend | sonnet | T3, T5, T6 ∥ T8 | ✓ | — | [ ] |
+| T7 | Backend: lector de consulta, servicio, `/auditoria/opciones` | backend | sonnet | T3, T5, T6 ∥ T8 | ✓ | — | [x] |
 | T8 | Pantalla de auditoría con filtros y enlace de la ficha | frontend | sonnet | T4, T6 ∥ T7 | ✓ | — | [ ] |
 | T9 | Ronda adversarial acotada: alcance en ambas ramas y SQL inalterable (~15 pruebas) | adversario | opus | T7 | — | ✓ | [ ] |
 | T10 | Corregir hallazgos de T9 | backend | opus (SQL) / sonnet (servicio) | T9 | — | — | [ ] |
