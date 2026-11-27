@@ -367,13 +367,13 @@ describe("configuracion/auditoria · filtros (spec 031)", () => {
     expect(params(segunda).getAll("accion")).toEqual(["cliente.editado"]);
   });
 
-  it("P-3: «compra.operacion» enlaza al Historial del periodo solo con `compras.ver`", async () => {
+  it("P-3: «compra.operacion» enlaza al Historial del periodo solo con `clientes.ver`", async () => {
     const compra = fila(1, {
       accion: "compra.operacion",
       entidad: "compra",
       datos: { tipo: "excluir", filas: 3, periodo: "202610" },
     });
-    const f = instalarFetchFalso(rutas(ok([compra]), {}, [...PERMISOS_AUDITOR, "compras.ver"]));
+    const f = instalarFetchFalso(rutas(ok([compra]), {}, PERMISOS_AUDITOR));
     render(<PaginaAuditoria />);
     const tabla = await screen.findByRole("table", { name: "Registros de auditoría" });
     expect(within(tabla).getByText("Operación: Exclusión")).toBeTruthy();
@@ -383,7 +383,8 @@ describe("configuracion/auditoria · filtros (spec 031)", () => {
     expect(f.de("GET /api/acceso/yo").length).toBeGreaterThan(0);
     cleanup();
 
-    instalarFetchFalso(rutas(ok([compra]), {}, PERMISOS_AUDITOR));
+    // Sin `clientes.ver` (solo `auditoria.ver`) no hay enlace: el destino exige ese permiso.
+    instalarFetchFalso(rutas(ok([compra]), {}, ["auditoria.ver"]));
     render(<PaginaAuditoria />);
     const tabla2 = await screen.findByRole("table", { name: "Registros de auditoría" });
     expect(within(tabla2).getByText("Operación: Exclusión")).toBeTruthy();
@@ -394,7 +395,7 @@ describe("configuracion/auditoria · filtros (spec 031)", () => {
   it("P-3: sin cliente o sin periodo en los datos, la fila de compras no lleva enlace", async () => {
     const sinPeriodo = fila(1, { accion: "compra.operacion", entidad: "compra", datos: { tipo: "excluir", filas: 3 } });
     const sinCliente = fila(2, { accion: "compra.operacion", entidad: "compra", cliente: null, datos: { tipo: "excluir", periodo: "202610" } });
-    instalarFetchFalso(rutas(ok([sinPeriodo, sinCliente]), {}, [...PERMISOS_AUDITOR, "compras.ver"]));
+    instalarFetchFalso(rutas(ok([sinPeriodo, sinCliente]), {}, PERMISOS_AUDITOR));
     render(<PaginaAuditoria />);
     const tabla = await screen.findByRole("table", { name: "Registros de auditoría" });
     await asentar(60);
