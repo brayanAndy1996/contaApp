@@ -50,14 +50,18 @@ Una línea por spec; el detalle de las cerradas está en `NNN-*/cierre.md` y los
 | 038-diseno-visual | C | hecha | — | Mergeada en `main` (d1cc8fd). Modo oscuro fuera (P-1). Detalle: `038-*/cierre.md` |
 | 039-actualizar-next | D | hecha | — | Decisión del usuario 2026-11-17. `next` → 16.4.5 (GHSA-mfr8-8qww-v76h). CI verde con E2E. Detalle: `039-*/cierre.md` |
 | 040-avisos-dependencias | C | hecha | — | Decisión del usuario 2026-11-17. `pnpm audit --prod` de 6 avisos a 0. CI verde con E2E. Detalle: `040-*/cierre.md` |
-| 041-sire-real-lectura | A | aprobada | — | SIRE real de solo lectura (`SIRE_CLIENT=http`, mock por defecto). Aprobada 2026-11-24 (P-1 a P-8 con la recomendación). Prerrequisito de 032. |
+| 041-sire-real-lectura | A | en curso | T12 (corregir ronda 1); T13 ronda 2 abierta por 2 hallazgos medios | SIRE real de solo lectura (`SIRE_CLIENT=http`, mock por defecto). Aprobada 2026-11-24 (P-1 a P-8 con la recomendación). Prerrequisito de 032. |
 | 042-acelerar-desarrollo | D | hecha | — | Merge b3255e5 (PR #2). CI completo 2 h 46 min → 27–31 min; nivel 1 en spec/* 6–7 min; cobertura única por app; ESTADO liviano. Detalle: `042-acelerar-desarrollo/cierre.md` |
 
 ## Hallazgos adversariales abiertos
 
 Los cerrados están en [HALLAZGOS.md](HALLAZGOS.md).
 
-Ninguno.
+| Spec | Prueba | Hallazgo | Estado |
+|---|---|---|---|
+| 041 | packages/sunat/src/http/ronda1.adv.spec.ts:322 | H-041-1-1 (media): la misma parte listada dos veces en `archivoReporte` se descarga dos veces y duplica filas (montos e IGV duplicados sin error). | abierto (en corrección, T12) |
+| 041 | packages/sunat/src/http/ronda1.adv.spec.ts:402 | H-041-1-2 (media): `expires_in` inválido (1e13) deja `expiraEn` = Invalid Date en vez de ErrorPortal (CA-2). | abierto (en corrección, T12) |
+| 041 | packages/sunat/src/http/ronda1.adv.spec.ts:212 | H-041-1-3 (baja): «500» con espacio duro final (U+00A0) se acepta como monto en ventas; el plan exige formato estricto. | abierto (en corrección, T12) |
 
 ## Decisiones pendientes del usuario
 
