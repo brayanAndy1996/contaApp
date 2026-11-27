@@ -207,10 +207,19 @@ describe("adv2 · el reintento retoma el ticket sin exportar de nuevo", () => {
     );
     ent.sire.guionar("GET", RUTAS.archivo, { bytes: zipCompras() });
     const almacen = new AlmacenEspia(reloj.ahora);
-    await almacen.interno.guardar(`${CLAVE}:compras:${PERIODO}`, "VIEJO1", 3_600_000);
+    // Clave de 5 partes del plan (H-4): {tenant}:{cliente}:{libro}:{periodo}:{operacion}.
+    const claveAlmacen = `${CLAVE}:compras:${PERIODO}:propuesta`;
+    await almacen.interno.guardar(claveAlmacen, "VIEJO1", 3_600_000);
 
     const x = await intentar(pedir(cliente(almacen)));
     expect(x.e, `resultado ${forma(x)}; exportaciones ${exportes()}`).not.toBeInstanceOf(ErrorDatos);
+    // Decisión de la ronda 2: el ticket guardado SÍ se consulta; como SUNAT no lo lista, se borra y se exporta
+    // una vez más en el mismo intento, y el flujo sigue con el ticket nuevo.
+    const consultados = ent.sire.peticionesDe("GET", RUTAS.ticket).map((p) => p.query["numTicket"]);
+    expect(consultados[0], `tickets consultados: ${consultados.join(", ")}`).toBe("VIEJO1");
+    expect(almacen.llamadas, almacen.llamadas.join(" · ")).toContain(`borrar ${claveAlmacen}`);
+    expect(exportes()).toBe(1);
+    expect(forma(x)).toMatch(/^ok\(/);
   });
 });
 
@@ -295,19 +304,47 @@ describe("adv2 · varias partes y memoria", () => {
     expect(ent.sire.peticionesDe("GET", RUTAS.archivo).map((p) => p.query["nomArchivoReporte"])).toEqual(["p1.zip"]);
   });
 
-  it("dos partes de 33 MiB descomprimidos cada una (66 MiB en total) -> zip_invalido (tope de 64 MiB en total)", async () => {
-    // Relleno de alta entropía (hex) en una columna que no se mapea: cada ZIP queda ~17 MiB y la razón ~2:1.
-    const relleno = () => randomBytes(33 * 512 * 1024).toString("hex");
-    const parteN = (fila: number) =>
-      zipSync({ [TXT_C]: [conCelda(soloFilas(COMPRAS(), [fila]), 1, "CAR SUNAT", relleno()), { level: 1 }] });
-    const p1 = parteN(1);
-    const p2 = parteN(2);
+  // CA-10 (decisión del usuario): tope de 64 MiB descomprimidos POR PARTE y 256 MiB ACUMULADOS en el periodo.
+  // Relleno ASCII en una columna que no se mapea: en cada bloque de 16 KiB, 1 KiB hex aleatorio y el resto «A»
+  // (razón ≈ 30:1, lejos de 200:1; cada ZIP de 60 MiB queda en ~2 MiB). Se arma una vez y se comparte entre partes.
+  const relleno = (bytes: number): string => {
+    const b = Buffer.alloc(bytes, 0x41);
+    for (let o = 0; o < bytes; o += 16 * 1024) b.write(randomBytes(512).toString("hex"), o, "latin1");
+    return b.toString("latin1");
+  };
+  const parteCon = (fila: number, r: string) =>
+    zipSync({ [TXT_C]: [conCelda(soloFilas(COMPRAS(), [fila]), 1, "CAR SUNAT", r), { level: 1 }] });
+  const servirPartes = (partes: Uint8Array[]) => {
+    const nombres = partes.map((_, i) => `p${i + 1}.zip`);
     guionarExportar();
-    ent.sire.guionar("GET", RUTAS.ticket, ticketListo(["p1.zip", "p2.zip"]));
-    ent.sire.guionar("GET", RUTAS.archivo, (p) => ({ bytes: p.query["nomArchivoReporte"] === "p1.zip" ? p1 : p2 }));
+    ent.sire.guionar("GET", RUTAS.ticket, ticketListo(nombres));
+    ent.sire.guionar("GET", RUTAS.archivo, (p) => ({ bytes: partes[nombres.indexOf(p.query["nomArchivoReporte"] ?? "")]! }));
+    return nombres;
+  };
+
+  it("dos partes de 33 MiB descomprimidos (66 MiB acumulados) se aceptan: el tope de 64 MiB es por parte", async () => {
+    const r = relleno(33 * 1024 * 1024);
+    servirPartes([parteCon(1, r), parteCon(2, r)]);
+    const x = await intentar(pedir(cliente()));
+    expect(forma(x)).toBe("ok(2 filas)");
+  }, 60_000);
+
+  it("partes de 60 MiB (cada una bajo 64 MiB) que acumulan > 256 MiB -> zip_invalido al cruzar el tope, sin pedir más", async () => {
+    const r = relleno(60 * 1024 * 1024);
+    const partes = [1, 2, 3, 4, 5, 6].map((f) => parteCon(f, r));
+    for (const p of partes) expect(p.length).toBeLessThan(8 * 1024 * 1024);
+    servirPartes(partes);
     const x = await intentar(pedir(cliente()));
     expect(forma(x)).toBe("ErrorPortalSire:zip_invalido");
-  }, 60_000);
+    // 4 × 60 = 240 MiB caben; la 5.ª (300 MiB acumulados) cruza los 256 MiB: se corta ahí y la 6.ª no se pide (H-6).
+    expect(ent.sire.peticionesDe("GET", RUTAS.archivo).map((p) => p.query["nomArchivoReporte"])).toEqual([
+      "p1.zip",
+      "p2.zip",
+      "p3.zip",
+      "p4.zip",
+      "p5.zip",
+    ]);
+  }, 120_000);
 });
 
 // ── Codificación entre partes (CA-4, CA-5, P-6) ─────────────────────────────────────────────────────────────
