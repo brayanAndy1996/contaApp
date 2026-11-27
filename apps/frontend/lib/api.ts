@@ -1,4 +1,9 @@
-import { obtenerSesion, reiniciarSesion, type Sesion } from "./sesion";
+import {
+  RUTA_SEGURIDAD,
+  obtenerSesion,
+  reiniciarSesion,
+  type Sesion,
+} from "./sesion";
 
 // Cliente HTTP del frontend (spec 004, CA-12). Todas las llamadas van a `/api/*` (Next las reescribe
 // al backend), con la cookie de sesión del mismo origen. Añade `X-CSRF-Token` en los no-GET y
@@ -20,6 +25,11 @@ export interface OpcionesApi {
   cuerpoCrudo?: Blob | ArrayBuffer | Uint8Array;
   /** Login y recuperación: sin consultar la sesión ni añadir cabeceras de sesión. */
   sinSesion?: boolean;
+  /**
+   * Solo con `sinSesion`: token CSRF que ya trae la respuesta del login (sesión `pendiente`, que no puede
+   * leer `GET /auth/sesion`). Se envía como `X-CSRF-Token` en los no-GET; sin `X-Estudio`.
+   */
+  csrf?: string;
   /**
    * Por defecto (`true`) todo 401 es sesión caducada: se comprueba la sesión real (una vez, por si fue
    * la rotación del cambio de estudio y se reintenta la petición una vez); si no hay sesión, se vacía
@@ -45,6 +55,12 @@ async function leerCuerpo(respuesta: Response): Promise<unknown> {
 
 function irALogin(): void {
   if (window.location.pathname !== "/login") window.location.assign("/login");
+}
+
+// Spec 029: el rol exige el segundo factor y la sesión no lo tiene verificado → solo se puede enrolar.
+function irASeguridad(): void {
+  if (window.location.pathname !== RUTA_SEGURIDAD)
+    window.location.assign(RUTA_SEGURIDAD);
 }
 
 // Comprobación de sesión tras un 401, compartida por todas las peticiones que lo reciben a la vez.
@@ -80,7 +96,10 @@ async function ejecutar<T>(
   else if (opciones.body !== undefined)
     headers["Content-Type"] = "application/json";
 
-  if (!opciones.sinSesion) {
+  if (opciones.sinSesion) {
+    if (opciones.csrf && metodo !== "GET")
+      headers["X-CSRF-Token"] = opciones.csrf;
+  } else {
     const sesion = await obtenerSesion();
     if (!sesion) {
       irALogin();
@@ -123,6 +142,12 @@ async function ejecutar<T>(
       // (`ultimo_dueno`, `cupo_usuarios`…) llegan tal cual a la pantalla.
       await obtenerSesion(true);
       window.dispatchEvent(new Event(EVENTO_ESTUDIO_DESFASADO));
+    } else if (
+      respuesta.status === 403 &&
+      (datos as { codigo?: string } | null)?.codigo ===
+        "segundo_factor_requerido"
+    ) {
+      irASeguridad();
     } else if (
       respuesta.status === 403 &&
       !reintento &&

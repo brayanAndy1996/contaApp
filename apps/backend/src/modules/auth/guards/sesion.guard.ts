@@ -5,6 +5,7 @@ import { AuthError } from "../errores.js";
 import {
   fijarSesion,
   marcada,
+  META_PERMITIR_PENDIENTE,
   META_PUBLICO,
   META_SESION_OPCIONAL,
   META_SIN_RENOVAR,
@@ -15,7 +16,8 @@ import {
  * Resuelve `{ userId, tenantId, sesionId }` desde la cookie con `withAuth`, ANTES de que el
  * controlador abra `withTenant` y nunca dentro (CA-11). Sin sesión válida: 401 `sesion_invalida`,
  * salvo en `@Publico()` (no se resuelve) y `@SesionOpcional()` (sigue sin sesión). En `@SinRenovarSesion()`
- * (008 D22) valida sin renovar `ultimo_uso`.
+ * (008 D22) valida sin renovar `ultimo_uso`. 029 (CA-2): una sesión `pendiente` solo vale en `@PermitirPendiente()`; en
+ * cualquier otra ruta es como no tener sesión (401, también en `@SesionOpcional()`: no se fija).
  */
 @Injectable()
 export class SesionGuard implements CanActivate {
@@ -32,7 +34,8 @@ export class SesionGuard implements CanActivate {
     const sesion = marcada(this.reflector, ctx, META_SIN_RENOVAR)
       ? await this.auth.resolverSesion(valor, { renovar: false })
       : await this.auth.resolverSesion(valor);
-    if (sesion !== null) {
+    const admitida = sesion !== null && (sesion.factor !== "pendiente" || marcada(this.reflector, ctx, META_PERMITIR_PENDIENTE));
+    if (admitida) {
       fijarSesion(req, sesion);
       return true;
     }

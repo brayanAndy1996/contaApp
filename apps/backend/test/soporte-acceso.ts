@@ -241,6 +241,10 @@ export async function abrirBanco(cupo?: object, extra: Record<string, unknown> =
       await c.query("commit").catch(() => c.query("rollback"));
       enTx = false;
       for (const id of todos) {
+        // Spec 029 (T1): lo de la cuenta segura va antes que las sesiones y el usuario (FK a usuario).
+        await intentar("delete from auth.cuenta_evento where usuario_id = $1", [id]);
+        await intentar("delete from auth.totp_recuperacion where usuario_id = $1", [id]);
+        await intentar("delete from auth.totp where usuario_id = $1", [id]);
         await intentar("delete from auth.sesion where usuario_id = $1", [id]);
         await intentar("delete from auth.token_recuperacion where usuario_id = $1", [id]);
         await intentar("delete from auth.usuario_contrasena where usuario_id = $1", [id]);
@@ -253,6 +257,15 @@ export async function abrirBanco(cupo?: object, extra: Record<string, unknown> =
       const quedan = (await c.query("select id from tenant where id = any($1::uuid[])", [tenants])).rows;
       if (quedan.length > 0) {
         throw new Error(`limpieza del soporte de acceso: ${quedan.length} estudio(s) de prueba siguen existiendo (¿tabla nueva con FK a tenant sin limpiar?)`);
+      }
+      // Spec 029 (T1): lo de la cuenta segura de los usuarios de la prueba tampoco puede quedar (antes de 0078 las tablas no existen: se ignora).
+      for (const texto of [
+        "select count(*)::int as n from auth.totp where usuario_id = any($1::uuid[])",
+        "select count(*)::int as n from auth.totp_recuperacion where usuario_id = any($1::uuid[])",
+        "select count(*)::int as n from auth.cuenta_evento where usuario_id = any($1::uuid[])",
+      ]) {
+        const r = await c.query(texto, [todos]).catch(() => null);
+        if (r && (r.rows[0].n as number) > 0) throw new Error("limpieza del soporte de acceso: quedan filas de la cuenta segura (auth.totp*, auth.cuenta_evento)");
       }
     } finally {
       c.release();

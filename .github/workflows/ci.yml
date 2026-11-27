@@ -78,6 +78,8 @@ jobs:
       MIGRATIONS_DATABASE_URL: postgresql://postgres@localhost:5432/contapp
       KEY_PROVIDER: mock
       REDIS_URL: redis://localhost:6379
+      # 029 (D1): clave de desarrollo del cifrado TOTP; el backend no arranca sin ella (no es un secreto).
+      TOTP_CLAVE: 1:ZsPxN5o4uaKslN8Glw1ddWkM0cYXVHPeYdPHJnl3DLc=
     services:
       postgres:
         image: postgres:17
@@ -123,10 +125,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build de @contapp/shared y @contapp/db
-        run: pnpm --filter @contapp/shared build && pnpm --filter @contapp/db build
+        run: pnpm --filter "@contapp/db..." build
 
       - name: Build de @contapp/crypto
-        run: pnpm --filter @contapp/crypto build
+        run: pnpm --filter "@contapp/crypto..." build
 
       - name: Migraciones, seed y suite de aislamiento
         run: pnpm ci:db
@@ -141,6 +143,8 @@ jobs:
       MIGRATIONS_DATABASE_URL: postgresql://postgres@localhost:5432/contapp
       KEY_PROVIDER: mock
       REDIS_URL: redis://localhost:6379
+      # 029 (D1): clave de desarrollo del cifrado TOTP; el backend no arranca sin ella (no es un secreto).
+      TOTP_CLAVE: 1:ZsPxN5o4uaKslN8Glw1ddWkM0cYXVHPeYdPHJnl3DLc=
     services:
       postgres:
         image: postgres:17
@@ -186,7 +190,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build de @contapp/shared y @contapp/db
-        run: pnpm --filter @contapp/shared build && pnpm --filter @contapp/db build
+        run: pnpm --filter "@contapp/db..." build
 
       - name: Migraciones y seed (la BD de este job empieza vacía)
         run: pnpm db:migrate && pnpm db:seed
@@ -207,6 +211,8 @@ jobs:
       MIGRATIONS_DATABASE_URL: postgresql://postgres@localhost:5432/contapp
       KEY_PROVIDER: mock
       REDIS_URL: redis://localhost:6379
+      # 029 (D1): las suites backend-int del worker arrancan la app del backend, que exige TOTP_CLAVE (clave de desarrollo, no es un secreto).
+      TOTP_CLAVE: 1:ZsPxN5o4uaKslN8Glw1ddWkM0cYXVHPeYdPHJnl3DLc=
     services:
       postgres:
         image: postgres:17
@@ -252,7 +258,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build de @contapp/shared y @contapp/db
-        run: pnpm --filter @contapp/shared build && pnpm --filter @contapp/db build
+        run: pnpm --filter "@contapp/db..." build
 
       - name: Migraciones y seed (la BD de este job empieza vacía)
         run: pnpm db:migrate && pnpm db:seed
@@ -319,7 +325,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build de @contapp/shared y @contapp/db
-        run: pnpm --filter @contapp/shared build && pnpm --filter @contapp/db build
+        run: pnpm --filter "@contapp/db..." build
 
       - name: Migraciones y seed (la BD de este job empieza vacía)
         run: pnpm db:migrate && pnpm db:seed
@@ -429,11 +435,8 @@ jobs:
       # ci:cierre construye storage, correo, queue y worker; el worker compilado necesita además estos cinco.
       - name: Build de @contapp/shared, db, crypto, domain y sunat
         run: >-
-          pnpm --filter @contapp/shared build &&
-          pnpm --filter @contapp/db build &&
-          pnpm --filter @contapp/crypto build &&
-          pnpm --filter @contapp/domain build &&
-          pnpm --filter @contapp/sunat build
+          pnpm --filter "@contapp/db..." --filter "@contapp/crypto..."
+          --filter "@contapp/domain..." --filter "@contapp/sunat..." build
 
       - name: Migraciones y seed (la BD de este job empieza vacía)
         run: pnpm db:migrate && pnpm db:seed
@@ -462,6 +465,8 @@ jobs:
       MIGRATIONS_DATABASE_URL: postgresql://postgres@localhost:5432/contapp
       REDIS_URL: redis://localhost:6379
       E2E_CORREO: mailpit
+      # 029 (D1): la pila E2E fija su propia TOTP_CLAVE; esta cubre cualquier arranque del backend fuera de ella.
+      TOTP_CLAVE: 1:ZsPxN5o4uaKslN8Glw1ddWkM0cYXVHPeYdPHJnl3DLc=
     services:
       postgres:
         image: postgres:17

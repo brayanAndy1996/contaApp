@@ -82,11 +82,46 @@ export const FUNCIONES_AUTH_GND = [
  */
 export const FUNCIONES_AUTH_CORREO = ["correo_baja_aplicar"] as const;
 
+/**
+ * Spec 029 (T1, plan Contratos: BD; migracion 0078): las tres tablas nuevas del esquema `auth` (dueño contapp_migrator, RLS ENABLE+FORCE, una
+ * politica `auth_definer`, grants solo a contapp_auth). Van aparte de TABLAS_AUTH porque `cuenta_evento` es de solo agregar (sin UPDATE) y las
+ * pruebas genericas de TABLAS_AUTH exigen UPDATE; su detalle lo prueba `auth-totp-tablas.spec.ts`. Hasta 0078 `auth.spec.ts` falla por ellas.
+ */
+export const TABLAS_AUTH_CUENTA = ["totp", "totp_recuperacion", "cuenta_evento"] as const;
+
+/**
+ * Spec 029 (T1, plan Contratos: BD; migracion 0078): las 12 funciones nuevas de `auth` (dueño contapp_auth, EXECUTE solo contapp_backend; la
+ * excepcion es `totp_restablecer`, solo contapp_migrator). Una sola firma por nombre (sin sobrecargas): el plan llama `sesion_revocar` a la que
+ * revoca por id, pero ese nombre ya es el del cierre de sesion de 004 (`sesion_revocar(bytea)`); aqui se llama `sesion_revocar_id`.
+ * FUNCIONES_AUTH = 33 + 12 = 45. Hasta 0078 `auth.spec.ts`, `auth-r2a.adv.spec.ts` y `escalada.adv.spec.ts` fallan por ellas.
+ */
+export const FUNCIONES_AUTH_CUENTA = [
+  // Ajuste de 029 (T7, migracion 0079): `intento_acierto` descuenta del contador de 004 D7 un intento reservado que acerto (contrasena o
+  // codigo dentro de una sesion). Mismo patron: dueño contapp_auth, EXECUTE solo contapp_backend. FUNCIONES_AUTH = 45 + 1 = 46.
+  "intento_acierto",
+  "sesion_revocar_id",
+  "sesiones_listar",
+  "sesiones_revocar_otras",
+  "totp_confirmar",
+  "totp_desactivar",
+  "totp_enrolar_iniciar",
+  "totp_intento_reservar",
+  "totp_leer",
+  "totp_recuperacion_regenerar",
+  "totp_recuperacion_usar",
+  "totp_restablecer",
+  "totp_verificar_exito",
+] as const;
+
+/** Spec 029 (U5): la funcion de auth que ejecuta solo contapp_migrator (el operador) y NO contapp_backend. */
+export const FUNCIONES_AUTH_SOLO_MIGRATOR = ["totp_restablecer"] as const;
+
 export const FUNCIONES_AUTH = [
   ...FUNCIONES_AUTH_VIGENTES,
   ...FUNCIONES_AUTH_PLANES,
   ...FUNCIONES_AUTH_GND,
   ...FUNCIONES_AUTH_CORREO,
+  ...FUNCIONES_AUTH_CUENTA,
 ] as const;
 
 /** Spec 008: funciones de `auth` que ejecuta contapp_worker (y no contapp_backend). */
@@ -230,6 +265,10 @@ export class Escenario {
 
   async limpiar(): Promise<void> {
     const pasos: Array<[string, unknown[]]> = [
+      // Spec 029 (T1): con `replica` o sin ella, lo de la cuenta segura se borra antes que las sesiones y el usuario (FK a usuario).
+      ["delete from auth.cuenta_evento where usuario_id = any($1::uuid[])", [this.usuarios]],
+      ["delete from auth.totp_recuperacion where usuario_id = any($1::uuid[])", [this.usuarios]],
+      ["delete from auth.totp where usuario_id = any($1::uuid[])", [this.usuarios]],
       ["delete from auth.limite_tasa where sujeto = any($1::text[])", [this.sujetos]],
       ["delete from auth.intento_login where clave = any($1::bytea[])", [this.claves]],
       ["delete from auth.token_recuperacion where usuario_id = any($1::uuid[])", [this.usuarios]],

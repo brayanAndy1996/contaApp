@@ -21,6 +21,7 @@ const sesion = (o: Partial<SesionResuelta> = {}): SesionResuelta => ({
   usuarioId: USUARIO,
   tenantActivo: TENANT,
   estudioRevocado: false,
+    factor: "verificado", // 029 (D2): la validación de sesión trae el factor
   expiraAbsoluta: new Date(Date.now() + 3_600_000),
   token: "t",
   ...o,

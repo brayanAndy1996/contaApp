@@ -29,7 +29,12 @@ export type CodigoAuth =
   | "estudio_requerido"
   | "estudio_desfasado"
   | "estudio_no_disponible"
-  | "token_invalido";
+  | "token_invalido"
+  // 029 (plan: Contratos HTTP)
+  | "codigo_invalido"
+  | "segundo_factor_requerido"
+  | "totp_exigido"
+  | "totp_activo";
 
 const ESTADO: Record<CodigoAuth, number> = {
   credenciales_invalidas: HttpStatus.UNAUTHORIZED,
@@ -43,6 +48,11 @@ const ESTADO: Record<CodigoAuth, number> = {
   estudio_desfasado: HttpStatus.CONFLICT,
   estudio_no_disponible: HttpStatus.FORBIDDEN,
   token_invalido: HttpStatus.BAD_REQUEST,
+  codigo_invalido: HttpStatus.UNAUTHORIZED,
+  segundo_factor_requerido: HttpStatus.FORBIDDEN,
+  totp_exigido: HttpStatus.CONFLICT,
+  // Enrolar con el TOTP ya activo: primero hay que desactivarlo (con contraseña y código).
+  totp_activo: HttpStatus.CONFLICT,
 };
 
 /**

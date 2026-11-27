@@ -16,12 +16,14 @@ import {
   type CupoRucs,
 } from "../modules/planes/cupo/cupo-rucs.js";
 import type { Hasher } from "../modules/auth/contrasena/hasher.js";
+import type { ClaveTotp } from "../modules/auth/totp/cifrado.js";
 import {
   APP_ORIGIN,
   COLA_CORREO,
   COMUNES,
   DB,
   HASHER,
+  TOTP_CLAVES,
 } from "../modules/auth/inyeccion.js";
 import type { ColaCorreo } from "./correo/cola.js";
 
@@ -36,6 +38,8 @@ export interface DependenciasNucleo {
   cupo: CupoUsuarios;
   /** Límite de RUCs del plan (D4): `CupoRucsPlanes` por defecto (006). */
   cupoRucs: CupoRucs;
+  /** 029 (D1): clave de cifrado del secreto TOTP y, si hay rotación, la anterior. Nunca se registra. */
+  totp: { actual: ClaveTotp; anterior?: ClaveTotp };
 }
 
 /** Cierra el pool de la BD al cerrar la app (`app.close()`). */
@@ -61,6 +65,7 @@ export class NucleoModule {
       { provide: APP_ORIGIN, useValue: d.appOrigin },
       { provide: CUPO_USUARIOS, useValue: d.cupo },
       { provide: CUPO_RUCS, useValue: d.cupoRucs },
+      { provide: TOTP_CLAVES, useValue: d.totp },
     ];
     return {
       module: NucleoModule,

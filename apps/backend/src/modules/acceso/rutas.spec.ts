@@ -22,6 +22,8 @@ const ENV = {
   APP_ORIGIN: "http://localhost:3000",
   DATABASE_URL: "postgres://usuario@127.0.0.1:1/inexistente",
   CORREO_PROVIDER: "consola",
+  // Spec 029: `TOTP_CLAVE` es obligatoria para arrancar.
+  TOTP_CLAVE: `1:${Buffer.alloc(32, 7).toString("base64")}`,
 };
 
 describe("rutas registradas en la app (CA-11)", () => {

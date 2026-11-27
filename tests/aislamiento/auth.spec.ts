@@ -9,7 +9,15 @@
 // vigentes + 11 (FUNCIONES_AUTH_PLANES). Las pruebas leen esas listas, no cifras fijas.
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { FUNCIONES_AUTH, FUNCIONES_AUTH_SOLO_WORKER, ROLES_SIN_ACCESO, TABLAS_AUTH, abrirAdmin } from "./auth-soporte";
+import {
+  FUNCIONES_AUTH,
+  FUNCIONES_AUTH_SOLO_MIGRATOR,
+  FUNCIONES_AUTH_SOLO_WORKER,
+  ROLES_SIN_ACCESO,
+  TABLAS_AUTH,
+  TABLAS_AUTH_CUENTA,
+  abrirAdmin,
+} from "./auth-soporte";
 import { abrirPool, intentarRaw, semilla } from "./soporte";
 
 let pool: Pool; // contapp_app (DATABASE_URL)
@@ -36,7 +44,8 @@ describe("esquema auth: tablas, dueno y RLS", () => {
     const r = await consulta(
       `select c.relname from pg_class c where c.relnamespace = to_regnamespace('auth') and c.relkind = 'r' order by 1`,
     );
-    expect(r.map((x) => x.relname)).toEqual([...TABLAS_AUTH].sort());
+    // Ajuste de 029 (T1, 0078): suma las tres de la cuenta segura (TABLAS_AUTH_CUENTA); su detalle esta en auth-totp-tablas.spec.ts.
+    expect(r.map((x) => x.relname)).toEqual([...TABLAS_AUTH, ...TABLAS_AUTH_CUENTA].sort());
   });
 
   it.each(TABLAS_AUTH)("%s: dueno contapp_migrator, RLS ENABLE+FORCE", async (t) => {
@@ -283,7 +292,9 @@ describe("CA-11 funciones auth.*: solo contapp_backend ejecuta", () => {
     expect(r).toHaveLength(FUNCIONES_AUTH.length);
     for (const f of r) {
       const soloWorker = (FUNCIONES_AUTH_SOLO_WORKER as readonly string[]).includes(f.proname);
-      expect(f.backend, `${f.proname} backend`).toBe(!soloWorker);
+      // Ajuste de 029 (T1, U5): auth.totp_restablecer la ejecuta solo contapp_migrator (el operador); ni el backend ni el worker.
+      const soloMigrator = (FUNCIONES_AUTH_SOLO_MIGRATOR as readonly string[]).includes(f.proname);
+      expect(f.backend, `${f.proname} backend`).toBe(!soloWorker && !soloMigrator);
       expect(f.worker, `${f.proname} worker`).toBe(soloWorker);
       expect(f.platform, `${f.proname} platform`).toBe(false);
       expect(f.app, `${f.proname} contapp_app`).toBe(false);

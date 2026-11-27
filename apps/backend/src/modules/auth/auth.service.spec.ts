@@ -49,6 +49,7 @@ function sesion(o: Partial<SesionResuelta> = {}): SesionResuelta {
     usuarioId: U,
     tenantActivo: null,
     estudioRevocado: false,
+    factor: "verificado", // 029 (D2): la validación de sesión trae el factor
     expiraAbsoluta: new Date(Date.now() + 2 * HORA),
     ...o,
   };
@@ -208,7 +209,7 @@ describe("resolverSesion", () => {
   it("valida por el hash del token y devuelve la sesión con su token", async () => {
     const token = generarToken();
     expect(await svc.resolverSesion(`${COOKIE_NOMBRE}=${token}`)).toBeNull();
-    const valida = { sesionId: "s1", usuarioId: U, tenantActivo: T_A, estudioRevocado: false, expiraAbsoluta: new Date() };
+    const valida = { sesionId: "s1", usuarioId: U, tenantActivo: T_A, estudioRevocado: false, expiraAbsoluta: new Date(), factor: "sin_factor" as const };
     e.repo.sesionValidar.mockResolvedValueOnce(valida);
     expect(await svc.resolverSesion(`a=1; ${COOKIE_NOMBRE}=${token}`)).toEqual({ ...valida, token });
     expect(e.repo.sesionValidar.mock.calls[1]![0].equals(hashToken(token))).toBe(true);
@@ -222,6 +223,10 @@ describe("estadoSesion", () => {
       usuario: { id: U, nombre: "Ana", correo: CORREO },
       estudioActivo: { id: T_A, nombre: "Estudio A" },
       csrf: derivarCsrf(s.token),
+      // 029 (plan: Contratos HTTP): GET /auth/sesion suma el factor de la sesión, si hay TOTP activo y si algún rol lo exige.
+      factor: "verificado",
+      totpActivo: false,
+      factorExigido: false,
     });
     expect(e.db.withUsuario).toHaveBeenCalledWith({ userId: U }, expect.any(Function));
   });

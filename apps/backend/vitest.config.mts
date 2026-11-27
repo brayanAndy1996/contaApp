@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { defineConfig } from "vitest/config";
 
@@ -9,6 +10,8 @@ export default defineConfig(({ mode }) => {
     for (const archivo of ["../../.env", "./.env"]) {
       if (existsSync(archivo)) process.loadEnvFile(archivo);
     }
+    // 029 (D1): `TOTP_CLAVE` es obligatoria para arrancar; sin una en el entorno, las pruebas usan una efímera.
+    process.env.TOTP_CLAVE ??= `1:${randomBytes(32).toString("base64")}`;
   }
   return {
     test: {

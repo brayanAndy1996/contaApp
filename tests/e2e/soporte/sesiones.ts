@@ -3,8 +3,9 @@
 // `apps/backend/test/soporte.ts`: `login_ip` admite 20 intentos cada 10 min por IP y `registro_ip` 5 por hora,
 // así que con `--repeat-each=3` y 4 workers una IP compartida se agotaría. Sin proyecto `setup`.
 // Nunca registra ni devuelve la contraseña ni el valor de la cookie en un mensaje de error.
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type { Browser, BrowserContext, Page } from "@playwright/test";
+import { Client } from "pg";
 import { URL_BACKEND, URL_FRONTEND } from "./pila/entorno.js";
 import type { Usuario } from "./siembra.js";
 import type { Vigilancia } from "./vigilancia.js";
@@ -99,6 +100,32 @@ async function csrfDe(cookie: string, ip: string): Promise<string> {
 }
 
 /**
+ * Spec 029 (U1, U3): quien tiene un rol que exige el segundo factor (super-admin, Dueño, Administrador…) entra `sin_factor` y solo puede
+ * enrolar. Los flujos que no prueban el TOTP necesitan la sesión de trabajo normal, así que la siembra la deja `verificado` (como si ya
+ * hubiera pasado el segundo paso), igual que el resto de la siembra, por SQL con la conexión de migraciones. El segundo paso real lo
+ * recorre `flujos/cuenta-segura.e2e.ts`, que no usa esto con los usuarios que enrola.
+ */
+async function marcarVerificada(cookie: string): Promise<void> {
+  const url = process.env.MIGRATIONS_DATABASE_URL;
+  if (url === undefined)
+    throw new Error("Falta MIGRATIONS_DATABASE_URL (la fija el globalSetup).");
+  const token = cookie.slice(NOMBRE_COOKIE.length + 1);
+  const hash = createHash("sha256").update(token, "utf8").digest();
+  const cliente = new Client({ connectionString: url });
+  await cliente.connect();
+  try {
+    const r = await cliente.query(
+      "update auth.sesion set factor = 'verificado' where token_hash = $1 and revocada_en is null",
+      [hash],
+    );
+    if (r.rowCount !== 1)
+      throw new Error("No se pudo marcar la sesión de prueba como verificada.");
+  } finally {
+    await cliente.end();
+  }
+}
+
+/**
  * Inicia sesión por API y la deja en el estudio `tenantId` (por defecto, el del usuario). Con un solo
  * estudio el login ya lo activa; con varios, o si se pide otro, se cambia con `/auth/estudio`.
  */
@@ -140,6 +167,7 @@ export async function entrar(
     galleta = leerCookie(cambio);
   }
   const cookie = `${NOMBRE_COOKIE}=${galleta.value}`;
+  await marcarVerificada(cookie);
   const csrf = await csrfDe(cookie, ip);
   return {
     usuario,

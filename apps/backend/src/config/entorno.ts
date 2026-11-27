@@ -1,5 +1,7 @@
 // Lectura y validación del entorno de 004. Todo fallo es síncrono e impide arrancar; los mensajes
-// nombran la variable, nunca su valor (SMTP_URL es un secreto, CA-10).
+// nombran la variable, nunca su valor (SMTP_URL y TOTP_CLAVE son secretos, CA-10, 029 CA-6).
+
+import { ClaveTotpInvalidaError, parsearClaveTotp, type ClaveTotp } from "../modules/auth/totp/cifrado.js";
 
 export type EnvCrudo = Record<string, string | undefined>;
 
@@ -13,6 +15,8 @@ export interface Entorno {
     remitente?: string;
     smtpUrl?: string;
   };
+  /** Spec 029 (D1): clave de cifrado del secreto TOTP; `anterior` solo descifra (rotación). */
+  totp: { actual: ClaveTotp; anterior?: ClaveTotp };
 }
 
 /** Piso de Argon2id (D1, OWASP): por debajo no se arranca. */
@@ -94,6 +98,36 @@ function correo(env: EnvCrudo, produccion: boolean): Entorno["correo"] {
   throw new EntornoInvalidoError("CORREO_PROVIDER");
 }
 
+/** Clave de `.env.example` (pública en el repo, solo desarrollo local): en producción no se acepta (029 T18b). */
+const CLAVE_TOTP_DE_EJEMPLO = "1:ZsPxN5o4uaKslN8Glw1ddWkM0cYXVHPeYdPHJnl3DLc=";
+
+function claveTotp(
+  env: EnvCrudo,
+  variable: "TOTP_CLAVE" | "TOTP_CLAVE_ANTERIOR",
+  produccion: boolean,
+): ClaveTotp {
+  try {
+    const clave = parsearClaveTotp((env[variable] ?? "").trim());
+    // Se compara el material de la clave, no el texto: cambiar solo la versión no la hace propia.
+    if (produccion && clave.clave.equals(parsearClaveTotp(CLAVE_TOTP_DE_EJEMPLO).clave)) {
+      throw new EntornoInvalidoError(variable);
+    }
+    return clave;
+  } catch (e) {
+    if (e instanceof ClaveTotpInvalidaError) throw new EntornoInvalidoError(variable);
+    throw e;
+  }
+}
+
+/** `TOTP_CLAVE` es obligatoria en cualquier entorno; `TOTP_CLAVE_ANTERIOR` es opcional y de otra versión. */
+function totp(env: EnvCrudo, produccion: boolean): Entorno["totp"] {
+  const actual = claveTotp(env, "TOTP_CLAVE", produccion);
+  if (vacio(env.TOTP_CLAVE_ANTERIOR)) return { actual };
+  const anterior = claveTotp(env, "TOTP_CLAVE_ANTERIOR", produccion);
+  if (anterior.version === actual.version) throw new EntornoInvalidoError("TOTP_CLAVE_ANTERIOR");
+  return { actual, anterior };
+}
+
 export function leerEntorno(env: EnvCrudo): Entorno {
   const produccion = esProduccion(env.NODE_ENV);
   return {
@@ -106,5 +140,6 @@ export function leerEntorno(env: EnvCrudo): Entorno {
       paralelismo: entero(env, "ARGON2_PARALELISMO", PISO_ARGON2.paralelismo),
     },
     correo: correo(env, produccion),
+    totp: totp(env, produccion),
   };
 }

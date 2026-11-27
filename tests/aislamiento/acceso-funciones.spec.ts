@@ -311,7 +311,9 @@ describe("funciones auth.* con membresia activa (CA-9, D9)", () => {
           and p.proname in ('login_exito','sesion_validar','sesion_rotar','ultimo_estudio') order by 1`,
     );
     expect(r.map((f) => f.firma)).toEqual([
-      "auth.login_exito(bytea,uuid,text,bytea,uuid,text,bytea)",
+      // Ajuste de 029 (T5, 0078): login_exito suma al final factor, dispositivo y red con valor por omisión (una sola firma; las
+      // llamadas de 7 argumentos siguen valiendo, lo fija auth-totp-verificar.spec.ts).
+      "auth.login_exito(bytea,uuid,text,bytea,uuid,text,bytea,text,text,cidr)",
       "auth.sesion_rotar(bytea,bytea,uuid)",
       "auth.sesion_validar(bytea)",
       "auth.ultimo_estudio(bytea)",

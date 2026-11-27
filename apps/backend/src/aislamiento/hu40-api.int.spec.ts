@@ -2236,6 +2236,9 @@ function casosCorreo(): Caso[] {
   ];
 }
 
+/** 029 (T7): sesión del otro estudio con la que se intenta `POST /auth/sesiones/:id/revocar` (se fija en `antes`). */
+let sesionAjena029: { id: string; revocadaEn: Date | null } = { id: "", revocadaEn: null };
+
 const CASOS: Caso[] = [
   /* ---------- 004 ---------- */
   {
@@ -2336,6 +2339,71 @@ const CASOS: Caso[] = [
         },
       },
     ],
+    despues: async (c) => h.reiniciarIntentos(c.yo.correo),
+  },
+  /* ---------- 029 (T7): cuenta segura. Todo es de la cuenta propia; nada alcanza al otro estudio ni a sus sesiones. ---------- */
+  {
+    ruta: "GET /auth/sesiones",
+    esperado: todos(200),
+    construir: () => [{ ruta: "/auth/sesiones" }],
+    extra: async (c, [r]) => {
+      const ajenas = await h.sql("select id from auth.sesion where usuario_id = any($1::uuid[])", [[c.ajeno.dueno.id, c.ajeno.asistente.id]]);
+      const ids = new Set(lista(r!).map((x) => x.id));
+      expect(ajenas.filter((f) => ids.has(f.id))).toEqual([]);
+    },
+  },
+  {
+    ruta: "POST /auth/sesiones/:id/revocar",
+    esperado: todos(204),
+    antes: async (c) => {
+      const [f] = await h.sql(
+        "select id, revocada_en from auth.sesion where usuario_id = $1 order by creada_en desc limit 1",
+        [c.ajeno.dueno.id],
+      );
+      sesionAjena029 = f === undefined ? { id: randomUUID(), revocadaEn: null } : { id: f.id, revocadaEn: f.revocada_en };
+    },
+    construir: () => [{ metodo: "POST", ruta: `/auth/sesiones/${sesionAjena029.id}/revocar` }],
+    extra: async () => {
+      const [f] = await h.sql("select revocada_en from auth.sesion where id = $1", [sesionAjena029.id]);
+      expect(f?.revocada_en ?? null).toEqual(sesionAjena029.revocadaEn);
+    },
+  },
+  {
+    ruta: "POST /auth/sesiones/revocar-otras",
+    esperado: todos(204),
+    construir: () => [{ metodo: "POST", ruta: "/auth/sesiones/revocar-otras" }],
+  },
+  {
+    ruta: "POST /auth/2fa/verificar",
+    // La sesión del atacante no es `pendiente`: no hay segundo paso que hacer (ni ajeno).
+    esperado: todos(401),
+    construir: () => [
+      { ruta: "/auth/2fa/verificar", cuerpo: { codigo: "123456" } },
+      { ruta: "/auth/2fa/verificar", cuerpo: { codigoRecuperacion: "AAAA-AAAA-AAAA" } },
+    ],
+  },
+  {
+    ruta: "POST /auth/totp/enrolar",
+    esperado: todos(401),
+    construir: (c) => [{ ruta: "/auth/totp/enrolar", cuerpo: { contrasena: c.ajeno.dueno.contrasena + "-mala", usuarioId: c.ajeno.dueno.id } }],
+    despues: async (c) => h.reiniciarIntentos(c.yo.correo),
+  },
+  {
+    ruta: "POST /auth/totp/confirmar",
+    esperado: todos(401),
+    construir: () => [{ ruta: "/auth/totp/confirmar", cuerpo: { codigo: "123456" } }],
+    despues: async (c) => h.reiniciarIntentos(c.yo.correo),
+  },
+  {
+    ruta: "POST /auth/totp/desactivar",
+    esperado: todos(401),
+    construir: () => [{ ruta: "/auth/totp/desactivar", cuerpo: { contrasena: contrasenaMala, codigo: "123456" } }],
+    despues: async (c) => h.reiniciarIntentos(c.yo.correo),
+  },
+  {
+    ruta: "POST /auth/totp/recuperacion",
+    esperado: todos(401),
+    construir: () => [{ ruta: "/auth/totp/recuperacion", cuerpo: { contrasena: contrasenaMala, codigo: "123456" } }],
     despues: async (c) => h.reiniciarIntentos(c.yo.correo),
   },
   {

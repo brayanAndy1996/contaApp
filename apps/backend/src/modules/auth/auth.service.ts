@@ -7,6 +7,7 @@ import {
   cambiarEstudioSchema,
   loginSchema,
   normalizarCorreo,
+  type FactorSesion,
 } from "@contapp/shared";
 import type { MensajeCorreo } from "../../infra/correo/correo.js";
 import type { Hasher } from "./contrasena/hasher.js";
@@ -18,6 +19,8 @@ import { mensajeBloqueo, mensajeContrasenaCambiada } from "./mensajes.js";
 import { construirCookie, cookieBorrada, leerTokenDeCookie } from "./sesion/cookie.js";
 import { derivarCsrf } from "./sesion/csrf.js";
 import { generarToken, hashToken } from "./sesion/token.js";
+import { resumirDispositivo, truncarIp } from "./totp/dispositivo.js";
+import { rolExigeFactor } from "./totp/exigencia.js";
 
 /** Lo que `auth` usa de `ContappDb`: `withAuth` (funciones `auth.*`) y `withUsuario` (RLS, P7). */
 export type DbAuth = Pick<ContappDb, "withAuth" | "withUsuario">;
@@ -38,10 +41,33 @@ export interface RespuestaLogin {
   estudioActivo: Estudio | null;
   requiereEstudio: boolean;
 }
+/** 029 (CA-2): con TOTP activo, el login solo crea la sesión `pendiente`. */
+export interface RespuestaSegundoFactor {
+  segundoFactor: true;
+  estudioActivo: null;
+  csrf: string;
+}
 export interface EstadoSesion {
   usuario: { id: string; nombre: string; correo: string };
   estudioActivo: Estudio | null;
   csrf: string;
+  /** 029: factor de la sesión, si la cuenta tiene TOTP activo y si alguno de sus roles vigentes lo exige (U1–U2). */
+  factor: FactorSesion;
+  totpActivo: boolean;
+  factorExigido: boolean;
+}
+/** 029 (U6): de dónde viene la petición, ya resumido (lista cerrada) y truncado (/24 o /48). Nunca el User-Agent ni la IP completa. */
+export interface Origen {
+  dispositivo: string;
+  ipRed: string | null;
+}
+/** 029 (U6): resume el User-Agent y trunca la IP antes de que lleguen a la BD o a un correo. */
+export function origenDe(userAgent: unknown, ip: unknown): Origen {
+  return { dispositivo: resumirDispositivo(userAgent), ipRed: truncarIp(ip) };
+}
+/** 029 (U1–U2): alguna membresía VIGENTE del usuario tiene un rol que exige el segundo factor. */
+function algunaExige(membresias: { usuarioId: string; rol: string; desactivadaEn: Date | null }[], usuarioId: string): boolean {
+  return membresias.some((m) => m.usuarioId === usuarioId && m.desactivadaEn === null && rolExigeFactor(m.rol));
 }
 /** Respuesta más el valor de `Set-Cookie` que el controlador debe emitir. */
 export interface ConCookie<T> {
@@ -87,6 +113,18 @@ export function segundosRestantes(expira: Date, ahora = Date.now()): number {
   return Math.max(0, Math.floor((expira.getTime() - ahora) / 1000));
 }
 
+/** Vida máxima de una sesión `pendiente` (029, CA-2) y de una sesión plena (004 D5), en segundos. */
+export const VIDA_PENDIENTE_S = 5 * 60;
+export const VIDA_SESION_S = 12 * 60 * 60;
+
+/**
+ * 029: Max-Age de la cookie acotado a la vida de la sesión. La caducidad la fija el reloj de la BD; con un reloj del servidor algo
+ * atrasado, `segundosRestantes` pasaría de la vida real (p. ej. 307 s para una `pendiente` de 5 min).
+ */
+export function maxAgeSesion(expira: Date, tope: number): number {
+  return Math.min(tope, segundosRestantes(expira));
+}
+
 interface Credencial {
   clave: Buffer;
   usuarioId: string;
@@ -107,8 +145,16 @@ export class AuthService {
     @Inject(COMUNES) private readonly comunes: ReadonlySet<string>,
   ) {}
 
-  /** POST /auth/login. Límite por IP -> zod -> verificación única -> sesión nueva (CA-1, CA-2, CA-5). */
-  async login(cuerpo: unknown, ip: string | undefined, cabeceraCookie?: string): Promise<ConCookie<RespuestaLogin>> {
+  /**
+   * POST /auth/login. Límite por IP -> zod -> verificación única -> sesión nueva (CA-1, CA-2, CA-5). 029: guarda el dispositivo y la red
+   * (U6); con TOTP activo la BD crea la sesión `pendiente` (5 min, sin estudio) y aquí se responde `{ segundoFactor: true }`.
+   */
+  async login(
+    cuerpo: unknown,
+    ip: string | undefined,
+    cabeceraCookie?: string,
+    userAgent?: unknown,
+  ): Promise<ConCookie<RespuestaLogin | RespuestaSegundoFactor>> {
     const permitido = await this.db.withAuth((a) => a.limiteConsumir("login_ip", sujetoIp(ip ?? "")));
     if (!permitido) throw new AuthError("demasiados_intentos");
     const entrada = parsear(loginSchema, cuerpo);
@@ -123,6 +169,7 @@ export class AuthService {
     const hashNuevo = this.hasher.necesitaRehash(cred.hash) ? await this.hasher.calcular(entrada.contrasena) : null;
     const anterior = leerTokenDeCookie(cabeceraCookie);
     const token = generarToken();
+    const origen = origenDe(userAgent, ip);
     const args = {
       clave: cred.clave,
       usuarioId: cred.usuarioId,
@@ -132,18 +179,30 @@ export class AuthService {
       tenantActivo: activo?.id ?? null,
       hashNuevo,
       tokenAnteriorHash: anterior === null ? null : hashToken(anterior),
+      dispositivo: origen.dispositivo,
+      ipRed: origen.ipRed,
     };
-    let emitida = await this.db.withAuth((a) => a.loginExito(args));
+    // El factor lo decide la BD (TOTP activo -> `pendiente`); se lee en la misma transacción, sin renovar la sesión.
+    const crear = (tenantActivo: string | null) =>
+      this.db.withAuth(async (a) => {
+        const e = await a.loginExito({ ...args, tenantActivo });
+        if (e === null) return null;
+        const v = await a.sesionConsultar(args.tokenHash);
+        return { ...e, pendiente: v === null || v.factor === "pendiente" };
+      });
+    let emitida = await crear(args.tenantActivo);
     if (emitida === null && activo !== null) {
       // La membresía desapareció entre la lista y la sesión: se entra sin estudio.
       activo = null;
-      emitida = await this.db.withAuth((a) => a.loginExito({ ...args, tenantActivo: null }));
+      emitida = await crear(null);
     }
     if (emitida === null) throw new AuthError("credenciales_invalidas");
-    return {
-      respuesta: { estudioActivo: activo, requiereEstudio: estudios.length > 1 },
-      cookie: construirCookie(token, segundosRestantes(emitida.expiraAbsoluta)),
-    };
+    const cookie = construirCookie(
+      token,
+      maxAgeSesion(emitida.expiraAbsoluta, emitida.pendiente ? VIDA_PENDIENTE_S : VIDA_SESION_S),
+    );
+    if (emitida.pendiente) return { respuesta: { segundoFactor: true, estudioActivo: null, csrf: derivarCsrf(token) }, cookie };
+    return { respuesta: { estudioActivo: activo, requiereEstudio: estudios.length > 1 }, cookie };
   }
 
   /**
@@ -163,22 +222,89 @@ export class AuthService {
     return valida === null ? null : { ...valida, token };
   }
 
-  /** GET /auth/sesion: usuario, estudio activo y el token CSRF derivado (D6). */
+  /**
+   * GET /auth/sesion: usuario, estudio activo y el token CSRF derivado (D6). 029: `factor` de la sesión, `totpActivo` y `factorExigido`
+   * (super-admin o alguna membresía VIGENTE cuyo rol lo exige, U1–U2; la misma regla que `totp_desactivar` en SQL).
+   */
   async estadoSesion(s: SesionResuelta): Promise<EstadoSesion> {
-    const { usuarios, estudios } = await this.db.withUsuario({ userId: s.usuarioId }, async (tx) => ({
+    const { usuarios, estudios, membresias } = await this.db.withUsuario({ userId: s.usuarioId }, async (tx) => ({
       usuarios: await tx.orm
         .select({ id: schema.usuario.id, nombre: schema.usuario.nombre, correo: schema.usuario.email })
         .from(schema.usuario),
       estudios: await tx.orm.select({ id: schema.tenant.id, nombre: schema.tenant.nombre }).from(schema.tenant),
+      membresias: await tx.orm
+        .select({
+          usuarioId: schema.membresia.usuarioId,
+          rol: schema.membresia.rol,
+          desactivadaEn: schema.membresia.desactivadaEn,
+        })
+        .from(schema.membresia),
     }));
     const u = usuarios.find((x) => x.id === s.usuarioId);
     if (u === undefined) throw new AuthError("sesion_invalida");
     const activo = estudios.find((e) => e.id === s.tenantActivo);
+    const { plataforma, totpActivo } = await this.db.withAuth(async (a, c) => ({
+      plataforma: (await a.plataformaYo(hashToken(s.token))) !== null,
+      totpActivo: ((await c.totp.leer(s.usuarioId))?.activoCifrado ?? null) !== null,
+    }));
+    const exigido = plataforma || algunaExige(membresias, s.usuarioId);
     return {
       usuario: { id: u.id, nombre: u.nombre, correo: u.correo },
       estudioActivo: activo === undefined ? null : { id: activo.id, nombre: activo.nombre },
       csrf: derivarCsrf(s.token),
+      factor: s.factor,
+      totpActivo,
+      factorExigido: exigido,
     };
+  }
+
+  /**
+   * 029 (U1–U3): ¿la cuenta de la sesión exige el segundo factor? La misma regla que `factorExigido` de `GET /auth/sesion`: super-admin o
+   * alguna membresía VIGENTE cuyo rol lo exige. Para la lista cerrada de las rutas sin estudio (`PermisoGuard`); solo se consulta con una
+   * sesión sin factor verificado.
+   */
+  async factorExigido(s: SesionResuelta): Promise<boolean> {
+    const plataforma = await this.db.withAuth((a) => a.plataformaYo(hashToken(s.token)));
+    if (plataforma !== null) return true;
+    const membresias = await this.db.withUsuario({ userId: s.usuarioId }, (tx) =>
+      tx.orm
+        .select({
+          usuarioId: schema.membresia.usuarioId,
+          rol: schema.membresia.rol,
+          desactivadaEn: schema.membresia.desactivadaEn,
+        })
+        .from(schema.membresia),
+    );
+    return algunaExige(membresias, s.usuarioId);
+  }
+
+  /** 029: estudios con membresía activa (para el estudio de la sesión verificada, como en el login). */
+  estudiosDisponibles(userId: string): Promise<Estudio[]> {
+    return this.estudiosDe(userId);
+  }
+
+  /** 029 (U8): correo y nombre del titular de la sesión para los avisos de seguridad. */
+  async titular(userId: string): Promise<{ correo: string; nombre: string }> {
+    const filas = await this.db.withUsuario({ userId }, (tx) =>
+      tx.orm
+        .select({ id: schema.usuario.id, correo: schema.usuario.email, nombre: schema.usuario.nombre })
+        .from(schema.usuario),
+    );
+    const fila = filas.find((f) => f.id === userId);
+    if (fila === undefined) throw new AuthError("sesion_invalida");
+    return { correo: fila.correo, nombre: fila.nombre };
+  }
+
+  /**
+   * 029: la contraseña actual del titular de la sesión, con el mismo contador de 004 D7 que el login (una verificación Argon2id). Si
+   * acierta, la reserva se descuenta (`intento_acierto`): solo los fallos cuentan.
+   */
+  async contrasenaCorrecta(s: SesionResuelta, plano: string): Promise<boolean> {
+    const correo = await this.correoDe(s.usuarioId);
+    const cred = await this.verificarCredencial(correo, plano);
+    if (cred === null || cred.usuarioId !== s.usuarioId) return false;
+    await this.db.withAuth((_a, c) => c.totp.intentoAcierto(hashToken(s.token)));
+    return true;
   }
 
   /** GET /auth/estudios: membresías propias (withUsuario) con el último usado marcado. */

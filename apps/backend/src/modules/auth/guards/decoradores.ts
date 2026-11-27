@@ -9,6 +9,8 @@ export const META_SIN_ESTUDIO = "auth:sin-estudio";
 export const META_SESION_OPCIONAL = "auth:sesion-opcional";
 export const META_SIN_RENOVAR = "auth:sin-renovar-sesion";
 export const META_SIN_ORIGEN = "auth:sin-origen";
+/** 029: la ruta admite una sesión `pendiente` (login a medias). */
+export const META_PERMITIR_PENDIENTE = "auth:permitir-pendiente";
 
 /** Sin sesión ni CSRF (login, recuperación). `OrigenGuard` sigue aplicando. */
 export const Publico = () => SetMetadata(META_PUBLICO, true);
@@ -18,6 +20,22 @@ export const SinEstudio = () => SetMetadata(META_SIN_ESTUDIO, true);
 export const SesionOpcional = () => SetMetadata(META_SESION_OPCIONAL, true);
 /** 008 D22: valida la sesión sin renovarla (no cuenta como actividad). Solo `GET /trabajos/stream`. */
 export const SinRenovarSesion = () => SetMetadata(META_SIN_RENOVAR, true);
+
+/**
+ * 029 (CA-2): la sesión `pendiente` (contraseña correcta, falta el segundo factor) solo llega a las rutas con esta marca: verificar y
+ * logout. En cualquier otra, `SesionGuard` responde 401 `sesion_invalida` como sin sesión. No es una familia de acceso (005 CA-11).
+ */
+export const PermitirPendiente = () => SetMetadata(META_PERMITIR_PENDIENTE, true);
+
+/** 029: la ruta sin estudio está en la lista cerrada de la exigencia (U1–U3). */
+export const META_PERMITIR_SIN_FACTOR = "auth:permitir-sin-factor";
+
+/**
+ * 029 (CA-4, U1–U3, plan: «Lista cerrada sin factor exigido»): si la cuenta exige el segundo factor y la sesión no lo verificó, una ruta
+ * `@SinEstudio`/`@SesionOpcional` solo se atiende con esta marca: ver la sesión, listar y elegir estudio, enrolar, confirmar, verificar y
+ * salir. Cualquier otra (también una nueva) responde 403 `segundo_factor_requerido` (`PermisoGuard`, falla cerrado).
+ */
+export const PermitirSinFactor = () => SetMetadata(META_PERMITIR_SIN_FACTOR, true);
 
 /**
  * 028, D-4: la ruta queda fuera de `OrigenGuard`. Solo `POST /correo/baja`: el POST de un clic de RFC 8058 lo hace el servidor del

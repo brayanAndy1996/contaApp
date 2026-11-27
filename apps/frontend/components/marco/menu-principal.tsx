@@ -7,6 +7,7 @@ import {
   ListChecks,
   LogOut,
   Mail,
+  ShieldCheck,
   ScrollText,
   SlidersHorizontal,
   UserCog,
@@ -235,10 +236,21 @@ export function MenuPrincipal({
         <Link
           href="/cuenta/contrasena"
           aria-current={actual("/cuenta/contrasena")}
-          className={clase("/cuenta/contrasena", cn(entradaGrupo, "lg:order-9"))}
+          className={clase(
+            "/cuenta/contrasena",
+            cn(entradaGrupo, "lg:order-9"),
+          )}
         >
           <KeyRound aria-hidden="true" className="size-5 shrink-0" />
           Cambiar contraseña
+        </Link>
+        <Link
+          href="/cuenta/seguridad"
+          aria-current={actual("/cuenta/seguridad")}
+          className={clase("/cuenta/seguridad", cn(entradaGrupo, "lg:order-9"))}
+        >
+          <ShieldCheck aria-hidden="true" className="size-5 shrink-0" />
+          Seguridad
         </Link>
         <button
           type="button"

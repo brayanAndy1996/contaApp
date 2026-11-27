@@ -2,6 +2,8 @@
 // withTenant / withUsuario / withAuth. Nunca registra ni expone la URL de conexión.
 import { Pool } from "pg";
 import { crearAuthRepo, type AuthRepo } from "./auth/repositorio";
+import { crearSesionesRepo, type SesionesRepo } from "./auth/sesiones";
+import { crearTotpRepo, type TotpRepo } from "./auth/totp";
 import { ConfiguracionDbError } from "./errores";
 import {
   ajusteAuth,
@@ -23,15 +25,22 @@ export interface OpcionesDb {
   poolMax?: number;
 }
 
+/** Spec 029: repositorios de la cuenta (TOTP y sesiones) sobre la MISMA transacción de `withAuth`. */
+export interface ReposCuenta {
+  totp: TotpRepo;
+  sesiones: SesionesRepo;
+}
+
 export interface ContappDb {
   withTenant<T>(ctx: ContextoTenant, fn: (tx: Tx) => Promise<T>): Promise<T>;
   /** P7: solo fija app.user_id (app.tenant_id sin fijar). */
   withUsuario<T>(ctx: { userId: string }, fn: (tx: Tx) => Promise<T>): Promise<T>;
   /**
    * Spec 004: una transacción como contapp_backend con contexto vacío para llamar a las funciones
-   * `auth.*`. Solo con rolApp = contapp_backend; no se anida con withTenant/withUsuario/withAuth.
+   * `auth.*`. Solo con rolApp = contapp_backend; no se anida con withTenant/withUsuario/withAuth. El segundo argumento
+   * (spec 029) da las funciones `auth.totp_*` y de sesiones en la misma transacción.
    */
-  withAuth<T>(fn: (a: AuthRepo) => Promise<T>): Promise<T>;
+  withAuth<T>(fn: (a: AuthRepo, cuenta: ReposCuenta) => Promise<T>): Promise<T>;
   /**
    * Spec 008 (D18): una transacción como contapp_worker sin estudio (app.tenant_id vacío) para `sistema.*`,
    * `auth.purgar` y config_sistema; la RLS deja vacías las tablas de negocio. Solo con rolApp = contapp_worker
@@ -69,7 +78,9 @@ export function createDb(o: OpcionesDb): ContappDb {
     withAuth: async (fn) => {
       // Solo el backend ejecuta auth.*: con otro rol se rechaza sin abrir conexión.
       if (rolApp !== "contapp_backend") throw new ConfiguracionDbError("rol");
-      return ejecutarEnContexto(pool, rolApp, ajusteAuth, (tx) => fn(crearAuthRepo(tx)));
+      return ejecutarEnContexto(pool, rolApp, ajusteAuth, (tx) =>
+        fn(crearAuthRepo(tx), { totp: crearTotpRepo(tx), sesiones: crearSesionesRepo(tx) }),
+      );
     },
     withSistema: async (fn) => {
       // Solo el worker enumera estudios y purga: el backend nunca obtiene este contexto.

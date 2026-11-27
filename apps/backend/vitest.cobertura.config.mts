@@ -1,10 +1,12 @@
+import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 // Cobertura única del backend (spec 042, A1): una sola corrida, con todas las suites, mide lo que antes medían
 // las 12 configuraciones por spec (004 auth, 005 acceso, 012b archivos, 016 XML, 017 auditoría, 021 reglas,
-// 023 buzones, 024 bandeja, 025 aprendizaje, 026 prorrata, 027 gastos y 028 correo).
+// 023 buzones, 024 bandeja, 025 aprendizaje, 026 prorrata, 027 gastos y 028 correo). 029 (cuenta segura) cae en
+// `modules/**` (auth/totp), `packages/db/src/auth/**` (totp, sesiones) y `packages/shared/src/auth/**` (seguridad).
 // Umbral de 90 % por archivo en cada glob de `medidos` (D1: no se baja). Una spec nueva agrega sus globs a
 // `medidos` y, si sus suites no entran en un proyecto, el proyecto; no agrega una config ni un paso de CI (A6).
 const raiz = fileURLToPath(new URL("../..", import.meta.url));
@@ -17,6 +19,8 @@ for (const archivo of [ruta("../../.env"), ruta("./.env")]) {
     process.loadEnvFile(archivo);
   }
 }
+// 029 (D1): `TOTP_CLAVE` es obligatoria para arrancar; sin una en el entorno, las pruebas usan una efímera.
+process.env.TOTP_CLAVE ??= `1:${randomBytes(32).toString("base64")}`;
 
 // Los paquetes se importan desde la fuente para que cuenten en cobertura.
 const alias = [

@@ -43,6 +43,7 @@ const COLUMNAS = [
   "tenant_activo",
   "estudio_revocado",
   "expira_absoluta",
+  "factor", // 029 (0078, D2): la validación de sesión devuelve el factor al final
 ];
 
 const adm = async (sql: string, v: unknown[] = []) =>

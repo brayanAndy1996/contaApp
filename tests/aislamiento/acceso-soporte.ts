@@ -203,6 +203,10 @@ export class EscenarioAcceso {
         ["delete from gnd_ciiu where tenant_id = any($1::uuid[])", [t]],
         ["delete from asignacion where tenant_id = any($1::uuid[])", [t]],
         ["delete from invitacion where tenant_id = any($1::uuid[])", [t]],
+        // Spec 029 (T1): con `replica` no corren los ON DELETE CASCADE; lo de la cuenta segura se borra antes que las sesiones y el usuario.
+        ["delete from auth.cuenta_evento where usuario_id = any($1::uuid[])", [usuarios]],
+        ["delete from auth.totp_recuperacion where usuario_id = any($1::uuid[])", [usuarios]],
+        ["delete from auth.totp where usuario_id = any($1::uuid[])", [usuarios]],
         ["delete from auth.sesion where usuario_id = any($1::uuid[])", [usuarios]],
         ["delete from auth.token_recuperacion where usuario_id = any($1::uuid[])", [usuarios]],
         ["delete from auth.usuario_contrasena where usuario_id = any($1::uuid[])", [usuarios]],
@@ -228,6 +232,15 @@ export class EscenarioAcceso {
     if (this.estudios.length > 0) {
       const quedan = await this.admin.query("select count(*)::int as n from tenant where id = any($1::uuid[])", [this.estudios]).catch(() => undefined);
       if (quedan && (quedan.rows[0].n as number) > 0) throw new Error("la limpieza de acceso-soporte no pudo borrar todos los estudios de la prueba");
+    }
+    // Spec 029 (T1): lo de la cuenta segura no puede quedar tras borrar a los usuarios (antes de 0078 las tablas no existen: se ignora).
+    for (const texto of [
+      "select count(*)::int as n from auth.totp where usuario_id in (select id from usuario where email = any($1::text[]))",
+      "select count(*)::int as n from auth.totp_recuperacion where usuario_id in (select id from usuario where email = any($1::text[]))",
+      "select count(*)::int as n from auth.cuenta_evento where usuario_id in (select id from usuario where email = any($1::text[]))",
+    ]) {
+      const r = await this.admin.query(texto, [this.correos]).catch(() => undefined);
+      if (r && (r.rows[0].n as number) > 0) throw new Error("la limpieza de acceso-soporte dejo filas de la cuenta segura (auth.totp*, auth.cuenta_evento)");
     }
   }
 }
