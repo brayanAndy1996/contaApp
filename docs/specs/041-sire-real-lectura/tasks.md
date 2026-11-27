@@ -6,8 +6,8 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → atac
 
 | # | Tarea | Rol | Modelo | Depende de | TDD | ADV | Estado |
 |---|---|---|---|---|---|---|---|
-| T1 | Fixtures TXT sintéticos con el encabezado real + `LEEME.md` | tester | sonnet | — ∥ T2, T3 | ✓ | — | [x] (encabezado pendiente de verificar; requiere usuario) |
-| T2 | Pruebas de `zip-seguro` y `txt/*` (lectura, encabezado, mapeo, límites) en rojo | tester | sonnet | T1 | ✓ | — | [ ] |
+| T1 | Fixtures TXT sintéticos con el encabezado real + `LEEME.md` | tester | sonnet | — ∥ T2, T3 | ✓ | — | [x] (encabezado verificado byte a byte contra descargas reales: compras sin BOM, ventas con BOM) |
+| T2 | Pruebas de `zip-seguro` y `txt/*` (lectura, encabezado, mapeo, límites) en rojo | tester | sonnet | T1 | ✓ | — | [x] |
 | T3 | Pruebas de `HttpSireAuth` y `HttpSireApiClient` con el servidor falso (rojo) | tester | sonnet | — ∥ T1 | ✓ | — | [x] |
 | T4 | Pruebas del worker: `SIRE_CLIENT=http`, almacén Redis, `claveReanudacion`, 401 → renovación (rojo) | tester | sonnet | — ∥ T1–T3 | ✓ | — | [x] |
 | T5 | `zip-seguro.ts` y `txt/*` (lectura y mapeo) | backend | opus | T2 ∥ T6 | ✓ | — | [ ] |
