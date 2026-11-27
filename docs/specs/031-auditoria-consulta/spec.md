@@ -1,59 +1,65 @@
 # Spec 031 · Consulta de auditoría con filtros e historial por cliente
 
 Estado: borrador (pendiente de resolver las preguntas abiertas)
-Nivel de riesgo: B (§2.1): (1) no, sin montos ni archivos; (2) sí, un filtro o alcance mal aplicado muestra auditoría de clientes no visibles o de otro estudio; (3) parcial, un filtro que omite filas pasa inadvertido; (4) no, lectura más migración aditiva. TDD en todas las tareas; una ronda adversarial acotada (D-8).
-Cubre: RF-151 · HU-39 (apoya RF-150/152 de 017). Rama `spec/031-auditoria-consulta`, sobre 030.
+Nivel de riesgo: B. (1) no; (2) sí (alcance); (3) sí; (4) no. §2.1 literal da A; se fija B porque la RLS entre estudios no cambia, con ADV acotado (D-8). Confirmar al aprobar.
+Cubre: RF-151 · HU-39. Rama `spec/031-auditoria-consulta`, sobre 030.
 
 ## Objetivo
-Que Dueño, Administrador o un rol propio con `auditoria.ver` filtre la auditoría por usuario, cliente, acción y fechas, y vea el historial de un cliente (quién cambió qué, antes → después, cada uso de sus credenciales por el sistema). Hoy (017 P-2) solo hay lista paginada por fecha.
+Que quien tenga `auditoria.ver` filtre la auditoría por usuario, cliente, acción y fechas, y vea el historial de un cliente (quién cambió qué, de → a, cada descifrado). Hoy (017 P-2) solo hay lista por fecha.
 
 ## Alcance
-- `GET /auditoria` con filtros combinables (AND): `usuarioId`, `clienteId`, `accion` (una o varias), `desde`, `hasta`, `cursor`. Esquemas Zod en `packages/shared`.
-- `GET /auditoria/filtros` (`auditoria.ver`): miembros `{id, nombre, activo}`, búsqueda de clientes visibles por RUC o razón social (máx. 20) y catálogo de acciones; sin exigir `usuarios.ver` ni `clientes.ver`.
-- Migración **0088** (primera libre tras 030) y pantalla `configuracion/auditoria` con filtros en la URL; historial por cliente según P-1.
+- `GET /auditoria` con `usuarioId`, `clienteId`, `accion` (varias), `desde` y `hasta`, combinados con AND, más el cursor de 017.
+- `GET /auditoria/opciones` (D-6).
+- Migración 0088 y filtros de `configuracion/auditoria` en la URL; historial por cliente según P-1.
 
 ## Fuera de alcance
-- Exportar (P-4), purga de más de 5 años (037, RNF-021), auditar la propia consulta, texto libre sobre `datos`.
-- Cambios al catálogo, los triggers, la inmutabilidad o `auditoria_descifrado` (017).
+- Exportar (P-4), la purga a 5 años (RNF-021), auditar la consulta y el texto libre sobre `datos`.
+- Catálogo, triggers e inmutabilidad de 017; columnas, datos y grants de `auditoria_descifrado` (003).
 
 ## Decisiones
-- D-1 **Filtros en SQL, antes del LIMIT y en las dos ramas** de la unión (`auditoria` y descifrados de 003); filtrar después de paginar rompe páginas y cursor. Todo parametrizado.
-- D-2 **Validación:** UUID en `usuarioId` y `clienteId`; `accion` del catálogo de 017 más `credencial.descifrada` (máx. 10); `desde`/`hasta` como `YYYY-MM-DD` en America/Lima, `hasta` inclusive, `desde` ≤ `hasta`. Lo inválido da 400 sin tocar la BD.
-- D-3 **Cursor sin estado** (ocurridaEn, id) como en 017; el cliente reenvía los filtros y reinicia el cursor al cambiarlos.
-- D-4 **Alcance (005 D5, 030):** permisos efectivos del resolvedor de 030 y `filtroAlcance`, nunca `rol IN (...)`. Alcance asignado ve solo filas de sus clientes asignados; las filas sin cliente (ingresos, miembros, roles) no. Un `clienteId` fuera de alcance da el mismo 404 que uno inexistente o de otro estudio.
-- D-5 **Filtro por usuario** = `usuario_id` de la fila (en el worker, quien lanzó el trabajo). Los descifrados de 003 son actor `sistema`: no salen al filtrar por usuario y sí por cliente, acción o fechas (HU-39). Un miembro desactivado sigue filtrable, «(inactivo)».
-- D-6 **Migración 0088:** índices (tenant, `usuario_id`, `ocurrida_en` desc) y (tenant, `accion`, `ocurrida_en` desc); `auditoria_descifrado_listar` con cliente, fechas y clientes permitidos. No concede INSERT, UPDATE, DELETE ni TRUNCATE.
-- D-7 **Salida sin cambios** (`filaAuditoriaSchema` de 017); `datos` ya sale de lista blanca (017 D-5). El frontend solo depende de `packages/shared`.
-- D-8 **Adversarial acotado, un punto:** la nueva función SQL de descifrados y el alcance asignado (aislamiento entre estudios y entre clientes asignados y no; ningún parámetro altera el SQL). El resto sin ADV.
+- D-1 Los filtros van en SQL fijo y parametrizado (ausente = `null`) en las dos ramas de la unión, antes de cada LIMIT. «¿Hay siguiente?» usa los mismos filtros. Cursor (ocurridaEn, id) sin estado; se reinicia al cambiar filtros.
+- D-2 Zod en `shared`: ids UUID; hasta 10 acciones de `accionAuditoriaSchema` (catálogo vigente, 017 a 030). Las fechas `YYYY-MM-DD` son de Lima: de las 00:00 de `desde` a las 00:00 del día siguiente a `hasta`, con `desde` ≤ `hasta`. Lo desconocido o inválido da 400 sin tocar la BD.
+- D-3 El alcance sale de `alcanceEfectivo` (030) y pasa a `filtroAlcance` (005 D5) sobre `cliente_id`. El mismo predicado va dentro de la función de descifrados, antes de su LIMIT. Rige aun sin filtros: cierra la brecha de 030 por la que un rol propio asignado con `auditoria.ver` ve todo el estudio. Sin asignaciones, nada. Las filas sin cliente siguen P-5. Un `clienteId` no visible da el 404 de uno inexistente (`clienteVisible`).
+- D-4 El filtro de usuario compara con `usuario_id`; en el worker, es el `creado_por` del trabajo (P-6). No se valida pertenencia (la RLS acota). Los descifrados no guardan actor: nunca salen con `usuarioId`; la pantalla lo avisa.
+- D-5 La salida no cambia (`paginaAuditoriaSchema`, lista blanca de 017 D-5).
+- D-6 `/auditoria/opciones` pide `auditoria.ver` y devuelve miembros activos e inactivos `{id, nombre, activo}` y clientes visibles buscados por RUC o razón social (máx. 20, con archivados). Hace falta porque 030 U3 no exige `usuarios.ver` ni `clientes.ver`; el catálogo ya está en `shared`; los eliminados no salen.
+- D-7 La migración 0088 reemplaza `auditoria_descifrado_listar`: quita la firma de 017 y agrega cliente, fechas y alcance, con el mismo dueño y `search_path` y EXECUTE solo para `contapp_backend`. Suma los índices que el plan justifique con EXPLAIN en `auditoria` (usuario, acción) y en `auditoria_descifrado` (hoy solo PK): solo índices, ampliando 017 D-6; el `date_trunc` no debe anularlos.
+- D-8 ADV acotado al alcance en ambas ramas (asignado o no, sin asignaciones, dos estudios) y a que ningún filtro altere el SQL.
 
 ## Criterios de aceptación
-- [ ] CA-1 (RF-151): usuario, cliente, acción y fechas filtran por separado y combinados; el resultado iguala a una consulta de referencia sobre datos sembrados, descifrados incluidos.
-- [ ] CA-2 (paginación y fechas): recorrer con cursor no repite ni salta filas aun mezclando ambas ramas; `hasta` incluye todo el día en hora de Lima (23:59 entra, 00:00 siguiente no).
-- [ ] CA-3 (HU-39): con `clienteId` se ve cada acción con usuario (o «Sistema»), fecha y de → a donde 017 lo guarda (`cliente.editado`, `periodo.estado_cambiado`, `miembro.rol_cambiado`), más cada `credencial.descifrada` y las operaciones de compra.
-- [ ] CA-4 (alcance): rol propio con `auditoria.ver` y alcance asignado ve solo filas de sus clientes y ninguna sin cliente; un cliente no asignado da 404 idéntico al inexistente. Dueño y Administrador ven todo.
-- [ ] CA-5 (aislamiento, RNF-001): con dos estudios, ningún filtro (ids ajenos, SQL directo con la sesión de A) devuelve filas del otro.
-- [ ] CA-6 (permiso): sin `auditoria.ver`, ambos endpoints dan 403 sin datos; prueba de tabla con rol propio con y sin el permiso.
-- [ ] CA-7 (validación): UUID mal formado, acción fuera de catálogo, más de 10 acciones y fecha inválida dan 400; comillas o `;` en un filtro no alteran la consulta.
-- [ ] CA-8 (secretos y solo agregado): con centinelas en credenciales, ninguno aparece en respuestas ni logs; las pruebas de 017 CA-3 siguen verdes tras 0088.
-- [ ] CA-9 (RNF-034): con 200 000 filas en un estudio, p95 < 300 ms filtrando por cliente, usuario y acción, con los índices en el plan.
-- [ ] CA-10 (frontend): filtros en la URL (recargar los conserva), inactivos marcados, vacío y error visibles, español sin códigos crudos; HU-39 cumplible según P-1.
+- [ ] CA-1 (RF-151): cada filtro, solo y combinado, iguala a una consulta de referencia con descifrados.
+- [ ] CA-2: con filtros, el cursor no repite ni salta filas entre ramas; «siguiente» es `null` solo al final. 23:59:59.999 de `hasta` (Lima) entra; 00:00 siguiente no.
+- [ ] CA-3 (HU-39): con `clienteId` salen `cliente.editado` (antes → después), `periodo.estado_cambiado` y `asignacion.tipo_cambiado` (de → a), `credencial.*` con autor, `credencial.descifrada` como «Sistema» y `compra.operacion` (P-3). Sin cliente (p. ej. `miembro.rol_cambiado`) no salen.
+- [ ] CA-4 (alcance): un rol propio asignado ve solo sus clientes en ambas ramas, con y sin filtros. Sin asignaciones, vacío; cliente no asignado, 404 de inexistente. Dueño y Administrador ven todo.
+- [ ] CA-5 (RNF-001): con dos estudios, ni ids ajenos ni la función con la sesión de A devuelven filas del otro.
+- [ ] CA-6: sin `auditoria.ver`, los dos endpoints dan 403. Prueba de tabla con rol propio con y sin el permiso.
+- [ ] CA-7: un UUID mal formado, una acción fuera del catálogo, más de 10 acciones, una fecha inválida, `desde` > `hasta` o un parámetro desconocido dan 400. Comillas o `;` no alteran la consulta.
+- [ ] CA-8: ninguna credencial centinela aparece en respuestas ni logs. La firma de 017 ya no existe y 017 CA-3 sigue verde.
+- [ ] CA-9 (RNF-034): con 200 000 filas y 50 000 descifrados, el p95 es < 300 ms por filtro, con una acción rara y con un asignado a un cliente de pocas filas, y el plan usa los índices.
+- [ ] CA-10 (frontend): los filtros sobreviven al recargar; inactivos marcados; vacío, error y 404 visibles en español; HU-39 según P-1.
 - [ ] Casos reales aplicables: ninguno.
 
 ## Dependencias
-- Specs: 017 (tabla, catálogo, consulta mínima), 005 (`filtroAlcance`), 030 (permisos efectivos; migraciones hasta 0087), 003 (descifrados).
+- Specs: 017, 005 (`filtroAlcance`, `clienteVisible`), 030 (resolvedor; migraciones hasta 0087), 003.
 - Externas: ninguna.
 
 ## Preguntas abiertas
-- P-1 ¿Dónde se ve el historial por cliente (HU-39)?
-  - (a) (Recom.) Filtro de cliente en la pantalla de auditoría y enlace «Ver historial» en la ficha del cliente que la abre ya filtrada.
-  - (b) Solo el filtro de cliente en la pantalla de auditoría.
-  - (c) Pestaña «Historial» en la ficha del cliente, con vista propia.
-- P-2 ¿Qué rango de fechas muestra la pantalla al abrirla?
-  - (a) (Recom.) Últimos 30 días, editable, con opción «todo el historial».
-  - (b) Todo el historial, sin rango inicial.
-- P-3 ¿Cómo se ve el antes → después de cada compra en `compra.operacion`?
-  - (a) (Recom.) Tipo y cantidad en la fila, con enlace al Historial del periodo de 015, que ya lo trae desde `compra_version`.
-  - (b) Expandir la fila aquí con el antes → después de cada compra (más trabajo).
-- P-4 ¿Se exporta el resultado filtrado?
-  - (a) (Recom.) No en esta spec; RF-151 pide consultar.
-  - (b) CSV del filtro actual, con tope de filas y el mismo alcance.
+- P-1 ¿Dónde se ve el historial por cliente?
+  - (a) (Recom.) En el filtro de cliente, más un enlace «Ver historial» en la ficha que abre la pantalla filtrada.
+  - (b) Solo en el filtro de cliente.
+  - (c) En una pestaña «Historial» propia de la ficha.
+- P-2 ¿Con qué rango abre la pantalla?
+  - (a) (Recom.) Los últimos 30 días, editable, o «todo el historial».
+  - (b) Todo el historial.
+- P-3 ¿Cómo se ve el antes → después de las compras en `compra.operacion`?
+  - (a) (Recom.) Tipo y cantidad, con enlace al Historial del periodo (015).
+  - (b) La fila se expande con cada compra (más trabajo).
+- P-4 ¿Se exporta el resultado?
+  - (a) (Recom.) No; RF-151 pide consultar.
+  - (b) Un CSV del filtro, con tope y alcance.
+- P-5 Con alcance asignado, ¿qué pasa con las filas sin cliente (ingresos, miembros, roles)?
+  - (a) (Recom.) No se ven.
+  - (b) `auditoria.ver` solo con alcance global (`validarCombinacion` lo rechaza; migrar los roles que ya lo tienen).
+- P-6 ¿Qué cubre el filtro de usuario?
+  - (a) (Recom.) Lo que hizo él, con los trabajos que lanzó.
+  - (b) Además, lo hecho sobre él (`miembro.*`, `asignacion.*`), filtrando por `datos`.
