@@ -22,7 +22,7 @@ test.describe("historial por cliente", () => {
     });
     const { page } = await sesiones.paginaDe(estudio.dueno);
 
-    // Antes: el historial del cliente, abierto desde la ficha, no tiene registros.
+    // Antes: el historial del cliente, abierto desde la ficha, solo tiene su alta (la siembra la registra como «Sistema»), sin ediciones.
     await page.goto(`/clientes/${cliente.id}`);
     await page.getByRole("link", { name: "Ver historial" }).click();
     await page.waitForURL(
@@ -31,13 +31,11 @@ test.describe("historial por cliente", () => {
         url.searchParams.get("clienteId") === cliente.id &&
         url.searchParams.get("todo") === "1",
     );
-    await expect(page.getByLabel("Cliente")).toHaveValue(
+    await expect(page.getByLabel("Cliente", { exact: true })).toHaveValue(
       /CLIENTE HISTORIAL S\.A\.C\./,
     );
-    await expect(
-      page.getByText(/No hay registros para los filtros elegidos/),
-    ).toBeVisible();
-    await expect(tablaAuditoria(page)).toHaveCount(0);
+    await expect(filaAuditoria(page, "Creó un cliente")).toHaveCount(1);
+    await expect(filaAuditoria(page, "Editó un cliente")).toHaveCount(0);
 
     // Se edita el cliente por la UI (y el otro cliente, que no debe aparecer en este historial).
     await page.goto(`/clientes/${otro.id}`);
@@ -68,7 +66,7 @@ test.describe("historial por cliente", () => {
 
     // Los filtros viven en la URL: al recargar siguen puestos y el resultado es el mismo.
     await page.reload();
-    await expect(page.getByLabel("Cliente")).toHaveValue(
+    await expect(page.getByLabel("Cliente", { exact: true })).toHaveValue(
       /CLIENTE CORREGIDO S\.A\.C\./,
     );
     await expect(filaAuditoria(page, "Editó un cliente")).toHaveCount(1);

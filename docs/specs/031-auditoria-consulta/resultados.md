@@ -53,3 +53,63 @@ Commit probado: `474318b`. `auditoria-consulta.adv.int.spec.ts`: 54 casos (35 BD
 
 - Cubierto: inyección por filtros, RLS entre estudios, `auditoria_ms` y 017 CA-3.
 - Hallazgos bajos: `/auditoria/opciones?q=%00` responde 500 en vez de 400; cursor con fecha imposible (2026-02-30) responde 200 en vez de 400 (código de 017, compartido).
+
+## T11 · Verificación contra la spec (tester · BD `contapp_031t1`, 0088 aplicada)
+
+Commit de partida: `07657a2` (pruebas de 017 adaptadas al contrato de alcance, aprobado por el usuario, 12 cambios: `auditoria-operacion.spec.ts` 10 casos
+y `lectura.spec.ts` 2). Una línea de comentario del contrato en `tests/aislamiento/auditoria-soporte.ts:23` (opcional) actualizada.
+
+### Suites corridas (completas)
+| Suite | Resultado |
+|---|---|
+| `packages/shared` `src/auditoria` | 8 archivos, 223 pruebas, verde |
+| `packages/db` `src/auditoria` | 5 archivos, 40 pruebas, verde |
+| `tests/aislamiento` `auditoria*`, `escalada.adv`, `catalogo` | 11 archivos, 367 pruebas: 362 verde y 5 rojas (todas de `escalada.adv`, del entorno; ver abajo) |
+| `apps/backend` `auditoria` + `notificaciones`, unitarias | 4 archivos, 81 pruebas, verde |
+| `apps/backend` `auditoria` + `notificaciones`, `--mode int` | 7 archivos, 184 pruebas, verde (sin Redis arriba en esa corrida: la cola degrada y el reconciliador repone) |
+| `apps/frontend` `auditoria` + `clientes` | 31 archivos, 356 pruebas, verde |
+| E2E `auditoria.e2e.ts` (`E2E_CONSERVAR_BD=1`, `E2E_CORREO=consola`, `--trace off`) | 2 de 2 verde, tras corregir 2 defectos de la propia prueba (ver «Hallazgos») |
+
+### Fallos del entorno (aparte, comparados con la base)
+- `escalada.adv.spec.ts`, 5 pruebas (SECURITY DEFINER fuera de esquemas del sistema; funciones de 025, 026, 027 y 028): la única diferencia es el rol
+  `contapp_pruebas` (superusuario del entorno) en la lista de roles con EXECUTE. Corrida de **la versión de la base** (`f907478`) de esa suite contra
+  `contapp_031t3` (sin 0088: función de 3 argumentos, sin `auditoria_ms`): **los mismos 5 fallan**. No los causa 031; 0088 no toca esas funciones.
+- No entraron en las suites de T11 y no se corrieron: `correo-funciones` (1), `reglas-lote` (2), `credencial-r1a` MERGE…RETURNING (1).
+
+### Criterios (evidencia)
+- **CA-1 cumplido.** `auditoria-consulta.spec.ts` «CA-1 · cada filtro, solo y combinado, iguala a la consulta de referencia» (alcance global, páginas de 7, incluye usuario
+  inexistente, cliente de otro estudio, acción sin filas, rango vacío, usuario + `credencial.descifrada`), P-6 y filtro de `credencial.descifrada`; HTTP: `auditoria-consulta.int.spec.ts` «CA-1»;
+  `consulta.spec.ts` de `db` y `consulta.spec.ts` de `shared`.
+- **CA-2 cumplido.** `auditoria-consulta.spec.ts` «CA-2» (unión de páginas igual a la referencia, empates de ms entre ramas, 23:59:59.999 entra y 00:00 siguiente no, `desde` inclusivo, 50 máx.);
+  `auditoria-consulta.int.spec.ts` «CA-2» (50 exactas → `siguiente` null; 51 → otra página; bordes de ms); ADV-H4 (cursores forjados).
+- **CA-3 cumplido.** `auditoria-consulta.int.spec.ts` «CA-3 (HU-39)» (cliente.editado antes → después, periodo.estado_cambiado, asignacion.tipo_cambiado, credencial.* con autor, descifrado como Sistema,
+  compra.operacion; sin cliente no salen) y «editar un cliente por la API aparece primero en su historial»; E2E «ficha → Ver historial → editar el cliente → el cambio aparece con antes y después».
+- **CA-4 cumplido.** `auditoria-consulta.spec.ts` «CA-4» y `auditoria_descifrado_listar: filtros, alcance en la función y falla cerrado`; HTTP «CA-4 · alcance» (rol propio asignado, 404 idéntico para
+  no asignado/otro estudio/inexistente, sin asignaciones, quitar la asignación en sesión, Dueño/Administrador/rol global ven todo); ADV-1 a ADV-3 y ADV-H3; E2E segundo caso (404 en español).
+- **CA-5 cumplido.** `auditoria-consulta.spec.ts` «CA-5 · dos estudios» (5 pruebas, incluye usuario miembro de ambos y motivo del descifrado) y «con la sesión de Y no sale ningún descifrado de X»; HTTP «CA-5»;
+  `auditoria-operacion.spec.ts` «CA-7» (017) con la firma nueva.
+- **CA-6 cumplido.** `auditoria-consulta.int.spec.ts` «CA-6» (tabla con y sin `auditoria.ver`: 200/403 en los dos endpoints, el permiso se evalúa antes que los filtros, 401 sin sesión).
+- **CA-7 cumplido.** `auditoria-consulta.int.spec.ts` «CA-7» (UUID mal formado, acción fuera del catálogo, más de 10, fecha inválida, `desde` > `hasta`, parámetro desconocido: 400 sin tocar la BD;
+  comillas y `;` no alteran la consulta), `consulta.spec.ts` de `shared`, ADV-2 y ADV-H1, H2, H5 (el 500 por `q` con NUL y el cursor con fecha imposible de T9 quedaron corregidos en `9c49632`).
+- **CA-8 cumplido.** `auditoria-consulta.spec.ts` «existe UNA sola firma, de 8 argumentos; la de 017 ya no existe», grants y salida sin datos de la credencial; HTTP «CA-8» (centinelas en respuestas y logs, también con
+  filtros y datos inválidos); 017 CA-3 y 003 en ADV-5 y `auditoria-tablas.spec.ts`; `escalada.adv` de la función de 0088 en verde.
+- **CA-9 cumplido por la medida del plan** (escala, sin tope de reloj): `auditoria-consulta.rendimiento.spec.ts`, 22 pruebas verdes con 200 000 filas y 50 000 descifrados: «escala como índice» (razón ≤ 2) en los 7 filtros,
+  «cada filtro usa el índice esperado» (`pg_stat_user_indexes`/`pg_stat_user_tables`, 7 de 7) y EXPLAIN por filtro de T5 (arriba). p95 informativo, esta corrida (ms): acción rara 0,8 · usuario raro 0,9 · cliente chico 1,3 ·
+  asignado 1,9 · solo descifrados 1,4 · ventana 1,6 · sin filtros 1,4 (todos < 300). Nota: el p95 es del motor con la BD local, no de HTTP.
+- **CA-10 cumplido.** `page.filtros.spec.tsx` (P-2 30 días y `todo=1`; filtros de la URL sobreviven al recargar y se repintan; cambiar un filtro descarta el cursor; inactivo marcado; aviso de descifrados sin autor; vacío, 404, 400 y 500
+  en español; enlace de compras solo con `compras.ver`), `page.historial.spec.tsx` (P-1: «Ver historial» solo con `auditoria.ver`) y la E2E (recarga con el filtro puesto, 404 sin código crudo).
+- Casos reales aplicables: ninguno (spec).
+
+### Revisión de `auditoria.service.spec.ts` (editada por T7)
+Comparada contra la base: (1) todas las llamadas a `listar` pasan ahora `GLOBAL` y los `toEqual` de `listarAuditoria` suman `alcance` y `filtros` (`SIN_FILTROS`), es decir comprueban **más**, no menos; (2) «una clave ajena» pasó de
+`usuarioId` a `tenantId` porque `usuarioId` es ahora un filtro legítimo, y se **agregó** «un usuarioId que no es UUID» que da 400; `limite`, cursor mal formado, cursor no texto y consulta no objeto siguen dando 400 sin abrir la BD; (3) ninguna aserción se
+eliminó ni se relajó. Limitación señalada: el unitario solo usa alcance global; el alcance asignado y los filtros reales los cubren las pruebas de BD y HTTP de CA-4. No se debilita ninguna verificación.
+
+### Hallazgos
+1. **Defectos de la E2E `auditoria.e2e.ts` (de T4, corregidos aquí; no hay defecto de producción):** (a) `getByLabel("Cliente")` por subcadena resolvía a 12 elementos (el combobox y 11 casillas «… un cliente»): ahora `{ exact: true }`; (b) esperaba un historial
+   vacío antes de editar, pero la siembra del cliente deja la fila «Creó un cliente» (actor Sistema), así que la pantalla correctamente no estaba vacía: ahora comprueba esa fila y que aún no hay «Editó un cliente». El vacío con filtros sigue cubierto en `page.filtros.spec.tsx`.
+2. Aviso `PG_INVALID_DATE` de `pg` en `auditoria-consulta.adv.spec.ts` (entrada hostil deliberada de la prueba, no un camino de producción); informativo.
+3. Entorno E2E: Node 22 (el repo pide ≥ 24.1) y sin Mailpit: se usó `E2E_CORREO=consola` (modo documentado en `tests/e2e/README.md`); Chromium de `/opt/pw-browsers`.
+
+### Pendiente
+Ninguno de los CA. Fuera de T11: la corrida de CI en PR la gestiona el orquestador; los 4 fallos conocidos de otras suites quedan sin correr aquí.
