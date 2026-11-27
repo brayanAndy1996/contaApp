@@ -46,3 +46,10 @@ ventana 1,0 · sin filtros 0,7.
 - Suites de 017 con el contrato anterior: `auditoria-operacion.spec.ts` (10: `listarAuditoria` sin `alcance`, que ahora falla cerrado, y
   la firma de 3 argumentos) y `packages/db/src/auditoria/lectura.spec.ts` (2: `valores` exactamente `[antes, id, límite]`; además no
   tipa sin `alcance`). Basta pasar `alcance: { tipo: "global" }`, la firma de 8 argumentos y comparar `valores.slice(0, 3)`.
+
+## T9 — ronda adversarial 1
+
+Commit probado: `474318b`. `auditoria-consulta.adv.int.spec.ts`: 54 casos (35 BD, 19 HTTP), 2 hallazgos bajos (abiertos en `docs/specs/ESTADO.md` para T10). Sin fallos en alcance.
+
+- Cubierto: inyección por filtros, RLS entre estudios, `auditoria_ms` y 017 CA-3.
+- Hallazgos bajos: `/auditoria/opciones?q=%00` responde 500 en vez de 400; cursor con fecha imposible (2026-02-30) responde 200 en vez de 400 (código de 017, compartido).

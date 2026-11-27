@@ -40,7 +40,7 @@ Una línea por spec; el detalle de las cerradas está en `NNN-*/cierre.md` y los
 | 028-correo-avisos | A | hecha | — | Mergeada en `main` (df50fd7). Migraciones 0073–0077 (siguiente libre: 0078). Deuda O-1–O-10 en la tarjeta T24. Detalle: `028-*/cierre.md` |
 | 029-cuenta-segura | A | hecha | — | Rama spec/029-cuenta-segura sin mergear (desde main). Migraciones 0078–0081 (siguiente libre: 0082). 2 riesgos bajos aceptados. Detalle: `029-*/cierre.md` |
 | 030-roles-personalizados | A | hecha | — | Rama sin mergear (sobre 029). Migraciones 0082–0087 (siguiente libre: 0088). Ronda 1: 2 altos, 3 medios, 4 bajos; ronda 2: 1 alto, 1 medio, 1 bajo; todos resueltos. Detalle: `030-*/cierre.md` |
-| 031-auditoria-consulta | B | pendiente | — | RF-151 · HU-39. |
+| 031-auditoria-consulta | B | en curso | T10 (corregir hallazgos) | RF-151 · HU-39. |
 | 032-envio-sire-ticket | A | pendiente | — | RF-104 · HU-27. Con mock; apagado hasta formato oficial y `SireAuth` real. |
 | 033-catalogo-global-icb | A | pendiente | — | RF-084, 087. Curado por super-admin + conteos anónimos desde N estudios (D4 = a). |
 | 034-lupa-ventas | C | pendiente | — | Nota [lupa de ventas]. Antes de 035. |
@@ -58,6 +58,8 @@ Los cerrados están en [HALLAZGOS.md](HALLAZGOS.md).
 
 | Spec | Prueba | Hallazgo | Estado |
 |---|---|---|---|
+| 031 | `apps/backend/src/modules/auditoria/auditoria-consulta.adv.int.spec.ts:66` | baja: `/auditoria/opciones?q=%00` responde 500 en vez de 400; el esquema de `q` (`packages/shared/src/auditoria/consulta.ts:41`) no rechaza NUL. | abierto |
+| 031 | `apps/backend/src/modules/auditoria/auditoria-consulta.adv.int.spec.ts:170` | baja: cursor con fecha imposible (2026-02-30…) da 200 en vez de 400; `apps/backend/src/modules/notificaciones/cursor.ts:36-38` (código de 017, compartido). | abierto |
 
 ## Decisiones pendientes del usuario
 
