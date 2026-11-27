@@ -14,7 +14,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → atac
 | T6 | `endpoints`, `transporte`, `HttpSireAuth`, `HttpSireApiClient`, `ticket`, errores con `detalle` | backend | opus | T3 ∥ T5 | ✓ | — | [x] (21 pruebas del cliente esperan la lectura de T5; «otro periodo o libro…» devuelta al tester) |
 | T7 | Worker: adaptadores, `almacen-tickets-redis`, `claves.ticketSire`, `TokenRechazadoError` desde sunat | backend | sonnet | T4, T6 | ✓ | — | [x] (las pruebas de `descargar-propuesta-041.int` que pasan por el lector TXT esperan a T5) |
 | T8 | `vitest` modo `contrato`, script `test:contrato`, exclusión verificada, `.env.example`, `03-arquitectura` §4 | devops | haiku | T6 ∥ T7 | — | — | [x] (la tabla de adaptadores está en 03 §3; §4 es multitenancy) |
-| T9 | Prueba de contrato manual `sire.contrato.spec.ts` + Postman 5.51/5.40 | tester | sonnet | T6, T8 | — | — | [ ] |
+| T9 | Prueba de contrato manual `sire.contrato.spec.ts` + Postman 5.51/5.40 | tester | sonnet | T6, T8 | — | — | [x] (apagada sin `SIRE_CONTRATO=1`; verde contra el servidor falso; la ruta del 5.40 no está en el repo: va en `ruta_5_40`) |
 | T10 | Ronda adversarial 1 (caja negra): ZIP, TXT, encabezados, filas ajenas, nombres hostiles, ticket ajeno, redirecciones, secretos | adversario | opus | T5, T6, T7 ∥ T9 | — | ✓ | [ ] |
 | T11 | Pruebas de las correcciones de la ronda 1 (rojo) | tester | sonnet | T10 | ✓ | — | [ ] |
 | T12 | Corregir hallazgos de la ronda 1 | backend | opus | T11 | — | — | [ ] |

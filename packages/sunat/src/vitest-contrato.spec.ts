@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join, matchesGlob } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -68,6 +68,18 @@ describe("exclusión de la prueba de contrato del SIRE", () => {
     const { test: opciones } = configuracion({ command: "serve", mode: "test" });
     expect(corre(opciones, contrato)).toBe(false);
     expect(corre(opciones, normal)).toBe(true);
+  });
+
+  it("todas las configuraciones de cobertura que pueden alcanzar src/http excluyen *.contrato.spec.ts", async () => {
+    // La cobertura corre en CI: si un config con `src/**/*.spec.ts` no la excluyera, correría contra SUNAT real.
+    const dirPaquete = join(__dirname, "..");
+    const configs = readdirSync(dirPaquete).filter((n) => /^vitest\.cobertura.*\.config\.mts$/.test(n));
+    expect(configs.length).toBeGreaterThan(0);
+    for (const nombre of configs) {
+      const ruta: string = `../${nombre}`;
+      const modulo = (await import(ruta)) as { default: { test: Filtros } };
+      expect(corre(modulo.default.test, contrato), `${nombre} correría la prueba de contrato`).toBe(false);
+    }
   });
 
   it("los scripts test y test:int no mencionan contrato; test:contrato usa --mode contrato", () => {
