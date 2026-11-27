@@ -396,14 +396,21 @@ export { notificacion, planAviso } from "./schema/notificaciones";
 export {
   leerCambiosDeOperacion,
   listarAuditoria,
+  MAX_CLIENTES_OPCIONES,
   MAX_PAGINA_AUDITORIA,
+  opcionesAuditoria,
   resolverUsuariosDeEntidades,
 } from "./auditoria";
 export type {
   ActorTipoAuditoria,
   CambioDeCompra,
+  ClienteOpcion,
+  ConsultaSelectorAuditoria,
   FilaAuditoria,
+  FiltrosAuditoria,
+  MiembroOpcion,
   OpcionesAuditoria,
+  SelectorAuditoria,
   UsuariosDeEntidades,
   VersionCompraAuditada,
 } from "./auditoria";

@@ -10,7 +10,7 @@ Nivel B con ADV acotado (D-8). Flujo 04 §1.3: pruebas (rojo) → implementar (v
 | T2 | Pruebas puras de `shared`: zod de consulta y opciones, `rangoLima` (rojo) | tester | sonnet | — ∥ T1, T3, T4 | ✓ | — | [ ] |
 | T3 | Pruebas HTTP: `/auditoria` con filtros, `/opciones`, 400/403/404, centinelas (rojo) | tester | sonnet | — ∥ T1, T2, T4 | ✓ | — | [ ] |
 | T4 | Pruebas del frontend y E2E `auditoria.e2e.ts` (rojo) | tester | sonnet | — ∥ T1, T2, T3 | ✓ | — | [ ] |
-| T5 | Migración 0088, drizzle, `lectura.ts`, `opciones.ts`, inventarios | backend | opus | T1 ∥ T6 | ✓ | — | [ ] |
+| T5 | Migración 0088, drizzle, `lectura.ts`, `opciones.ts`, inventarios | backend | opus | T1 ∥ T6 | ✓ | — | [x] |
 | T6 | `shared`: `consulta.ts` (zod, `rangoLima`) | backend | sonnet | T2 ∥ T5 | ✓ | — | [x] |
 | T7 | Backend: lector de consulta, servicio, `/auditoria/opciones` | backend | sonnet | T3, T5, T6 ∥ T8 | ✓ | — | [ ] |
 | T8 | Pantalla de auditoría con filtros y enlace de la ficha | frontend | sonnet | T4, T6 ∥ T7 | ✓ | — | [ ] |
