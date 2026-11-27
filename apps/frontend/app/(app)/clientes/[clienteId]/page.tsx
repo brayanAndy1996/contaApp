@@ -52,6 +52,7 @@ import {
   reactivarCliente,
   type ClienteDto,
 } from "../../../../lib/clientes";
+import { MENSAJES_AUDITORIA } from "../../../../lib/auditoria";
 import { MENSAJES_BUZON } from "../../../../lib/buzon";
 import { MENSAJES_PRORRATA, PERMISO_PRORRATA_VER } from "../../../../lib/prorrata";
 import { MENSAJES_COMPRAS } from "../../../../lib/compras";
@@ -202,6 +203,7 @@ function DetalleCliente() {
   const puedeVerReglas = usePuede("reglas.ver");
   const puedeVerBuzon = usePuede("buzon.ver");
   const puedeVerProrrata = usePuede(PERMISO_PRORRATA_VER);
+  const puedeVerAuditoria = usePuede("auditoria.ver");
   const [cliente, setCliente] = useState<ClienteDto | null>(null);
   const [cargado, setCargado] = useState(false);
   const [asigna, setAsigna] = useState(false);
@@ -371,7 +373,7 @@ function DetalleCliente() {
             </>
           }
           acciones={
-            // Registros del cliente: Compras (spec 015, D-1), Ventas (spec 038, P-4), Reglas aprendidas, Buzón SOL (023) y Prorrata (026).
+            // Registros del cliente: Compras (spec 015, D-1), Ventas (spec 038, P-4), Reglas aprendidas, Buzón SOL (023) y Prorrata (026) e Historial de auditoría (031).
             <nav
               aria-label="Registros del cliente"
               className="flex flex-wrap items-center gap-x-2 text-sm"
@@ -404,6 +406,18 @@ function DetalleCliente() {
                   {" · "}
                   <Link href={`/clientes/${hrefCliente}/prorrata`} className={enlaceNav}>
                     {MENSAJES_PRORRATA.enlaceProrrata}
+                  </Link>
+                </>
+              )}
+              {puedeVerAuditoria === true && (
+                <>
+                  {" · "}
+                  {/* Spec 031 (P-1): la auditoría de este cliente, sin límite de fechas. */}
+                  <Link
+                    href={`/configuracion/auditoria?clienteId=${hrefCliente}&todo=1`}
+                    className={enlaceNav}
+                  >
+                    {MENSAJES_AUDITORIA.enlaceHistorial}
                   </Link>
                 </>
               )}
