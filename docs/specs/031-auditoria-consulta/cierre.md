@@ -23,7 +23,7 @@ Verificada el 2026-11-27 (T11). Nivel B con ronda adversarial acotada (D-8). Ram
 - CA-1 a CA-10 cumplidos, con prueba o comando por criterio. CA-9 por la medida del plan (escala de CPU y EXPLAIN por filtro); p95 informativo, todo < 300 ms con BD local.
 
 ## Riesgos y avisos
-- `compras.ver` no está en el catálogo (`packages/shared/src/acceso/permisos.ts`). Con permisos reales no aparece el enlace de `compra.operacion` (P-3); las pruebas lo pasan con el permiso simulado. Decide el orquestador si reabre.
+- Resuelto (7258f29): el enlace de `compra.operacion` usa `clientes.ver`, que ya existe en el catálogo y exige el destino.
 - T7 editó `auditoria.service.spec.ts`, fuera de la regla de backend. Revisado: no se quitó ni relajó ninguna aserción; el unitario solo cubre alcance global (lo cubren BD y HTTP).
 - `auditoria.e2e.ts` tenía 2 defectos de la propia prueba, corregidos en T11. No hay defecto de producción.
 - Entorno: Node 22 (el repo pide ≥ 24.1) y sin Mailpit; se usó `E2E_CORREO=consola`.
@@ -32,6 +32,6 @@ Verificada el 2026-11-27 (T11). Nivel B con ronda adversarial acotada (D-8). Ram
 - Corrección posterior al cierre (7258f29): el enlace de `compra.operacion` usaba el permiso inexistente `compras.ver`; ahora `clientes.ver`. La verificación de T11 no lo detectó porque la prueba simulaba el permiso.
 
 ## Notas (van a `ESTADO.md`)
-- [031] `compras.ver` no existe en el catálogo: ver «Riesgos».
+- [031] El enlace «Historial» usa `clientes.ver`; un permiso de compras separado exigiría otra spec.
 - [031] `public.auditoria_ms` es LEAKPROOF: redefinirla o extenderla obliga a revisar los índices de `auditoria_descifrado`.
 - [R2] De 017: filtros e historial por cliente quedaron en 031; la exportación sigue fuera (P-4).
