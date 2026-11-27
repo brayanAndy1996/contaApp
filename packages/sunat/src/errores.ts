@@ -69,3 +69,48 @@ export function clasificarError(e: unknown): Clasificacion {
   if (e instanceof ErrorSunat) return { clase: e.clase, motivo: e.codigo };
   return { clase: "transitorio", motivo: "sunat_no_responde" };
 }
+
+// ── Spec 041 · adaptador HTTP del SIRE ──────────────────────────────────────────────────────────────────────
+
+/**
+ * 401 de la API del SIRE con el token entregado: la caché de 008 (`conToken`) lo renueva una sola vez. Vive aquí porque
+ * lo lanza el adaptador y el worker lo reexporta (plan 041). Mensaje fijo: nunca lleva el token.
+ */
+export class TokenRechazadoError extends Error {
+  readonly codigo = "token_rechazado";
+  constructor() {
+    super("El servicio SIRE rechazó el token");
+    this.name = "TokenRechazadoError";
+  }
+}
+
+export type DetalleDatosSire = "respuesta_ajena" | "fila_invalida" | "columna_no_soportada" | "ticket_con_errores" | "sin_datos";
+export type DetallePortalSire =
+  | "encabezado"
+  | "zip_invalido"
+  | "codificacion"
+  | "respuesta_inesperada"
+  | "estado_desconocido"
+  | "nombre_archivo";
+export type DetalleTransitorioSire = "ticket_pendiente" | "red" | "timeout" | "servidor";
+
+/** `ErrorDatos` del SIRE con un `detalle` literal (nunca datos de la respuesta). */
+export class ErrorDatosSire extends ErrorDatos {
+  constructor(readonly detalle: DetalleDatosSire) {
+    super();
+  }
+}
+
+/** `ErrorPortal` del SIRE con un `detalle` literal (nunca datos de la respuesta). */
+export class ErrorPortalSire extends ErrorPortal {
+  constructor(readonly detalle: DetallePortalSire) {
+    super();
+  }
+}
+
+/** `ErrorTransitorio` del SIRE con un `detalle` literal (nunca la causa original). */
+export class ErrorTransitorioSire extends ErrorTransitorio {
+  constructor(readonly detalle: DetalleTransitorioSire) {
+    super();
+  }
+}

@@ -8,3 +8,6 @@ export * from "./mock/sire-api-client.mock.js";
 export * from "./mock/xml-provider.mock.js";
 export * from "./formatos/index.js";
 export * from "./mock/sol-portal.mock.js";
+export { HttpSireAuth, type OpcionesHttpSire } from "./http/sire-auth.http.js";
+export { HttpSireApiClient } from "./http/sire-api-client.http.js";
+export { AlmacenTicketsMemoria, type AlmacenTicketsSire } from "./http/almacen-tickets.js";

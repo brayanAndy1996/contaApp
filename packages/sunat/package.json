@@ -15,7 +15,8 @@
   "dependencies": {
     "@contapp/domain": "workspace:*",
     "@contapp/shared": "workspace:*",
-    "fflate": "0.8.3"
+    "fflate": "0.8.3",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
