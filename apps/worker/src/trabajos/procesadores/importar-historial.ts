@@ -158,7 +158,11 @@ export function importarHistorial(
           registro = await conToken((token) =>
             d.sireApi.descargarRegistroPresentado(
               { token, expiraEn: new Date(0) },
-              { ruc: imp.ruc, periodo },
+              {
+                ruc: imp.ruc,
+                periodo,
+                claveReanudacion: `${t.tenantId}:${t.clienteId}`,
+              },
             ),
           );
         } catch (e) {

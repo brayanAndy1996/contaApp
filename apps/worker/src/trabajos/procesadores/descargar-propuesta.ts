@@ -72,7 +72,12 @@ export function descargarPropuesta(
     const propuesta = await conToken((token) =>
       d.sireApi.descargarPropuesta(
         { token, expiraEn: new Date(0) },
-        { ruc: t.ruc, periodo, libro },
+        {
+          ruc: t.ruc,
+          periodo,
+          libro,
+          claveReanudacion: `${t.tenantId}:${t.clienteId}`,
+        },
       ),
     );
     if (propuesta.libro !== libro || !Array.isArray(propuesta.filas))

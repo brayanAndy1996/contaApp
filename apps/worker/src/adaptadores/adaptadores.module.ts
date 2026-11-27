@@ -1,14 +1,24 @@
 // Selección de adaptadores por entorno (spec 009, D8/D15). Cada puerto de `@contapp/sunat` se crea según su variable
 // (`SIRE_CLIENT`, `SOL_PORTAL`, `RUC_CLIENT`, `XML_PROVIDER`; ausente = `mock`). Hoy solo existe `mock`: cualquier otro
-// valor es un error de arranque que nombra la variable y nunca imprime valores. Con `NODE_ENV=production` y algún
+// valor es un error de arranque que nombra la variable y nunca imprime valores. 041: `SIRE_CLIENT=http` crea los adaptadores reales
+// del SIRE (`HttpSireAuth` + `HttpSireApiClient`, URL fijas de SUNAT; ninguna variable las cambia); los otros tres siguen solo en `mock`. Con `NODE_ENV=production` y algún
 // adaptador en `mock`, el arranque falla salvo `PERMITIR_ADAPTADORES_MOCK=1` (entonces avisa con un `warn`).
-import { Global, Logger, Module } from "@nestjs/common";
+import {
+  Global,
+  Inject,
+  Logger,
+  Module,
+  type OnApplicationShutdown,
+} from "@nestjs/common";
+import { Redis } from "ioredis";
 import {
   CorreoConfigInvalidaError,
   crearCorreo,
   type Correo,
 } from "@contapp/correo";
 import {
+  HttpSireApiClient,
+  HttpSireAuth,
   MockConsultaRuc,
   MockSireApiClient,
   MockSireAuth,
@@ -22,6 +32,7 @@ import {
   type SolPortal,
   type XmlProvider,
 } from "@contapp/sunat";
+import { AlmacenTicketsRedis } from "../trabajos/token-sire/almacen-tickets-redis.js";
 
 type Entorno = Record<string, string | undefined>;
 
@@ -38,6 +49,12 @@ export class ConfiguracionAdaptadoresError extends ConfiguracionTrabajosError {
     this.name = "ConfiguracionAdaptadoresError";
     this.variable = variable;
   }
+}
+
+/** Redis y prefijo con que el cliente HTTP del SIRE guarda los tickets pendientes (041); solo se usan con `SIRE_CLIENT=http`. */
+export interface OpcionesSireHttp {
+  redis: ConstructorParameters<typeof AlmacenTicketsRedis>[0]["redis"];
+  prefijo?: string;
 }
 
 /** Variables que eligen adaptador, en el orden en que se informan. */
@@ -76,15 +93,22 @@ export interface LoggerAdaptadores {
   warn(mensaje: string): void;
 }
 
+/** `SIRE_CLIENT`: `mock` (por defecto) o `http`; cualquier otro valor falla nombrando la variable, nunca el valor. */
+function modoSire(env: Entorno): "mock" | "http" {
+  const valor = env.SIRE_CLIENT ?? "mock";
+  if (valor !== "mock" && valor !== "http")
+    throw new ConfiguracionAdaptadoresError("SIRE_CLIENT no soportado", "SIRE_CLIENT");
+  return valor;
+}
+
 function soloMock(env: Entorno, variable: VariableAdaptador): void {
   if ((env[variable] ?? "mock") !== "mock")
     throw new ConfiguracionAdaptadoresError(`${variable} no soportado`, variable);
 }
 
-/** Solo existe el adaptador `mock` hasta 009 (SIRE_CLIENT=mock, 001 CA-8). */
+/** `SIRE_CLIENT=mock` (por defecto, 001 CA-8) o `http` (041: `HttpSireAuth`, host de seguridad fijo de SUNAT). */
 export function sireAuthDesdeEntorno(env: Entorno): SireAuth {
-  soloMock(env, "SIRE_CLIENT");
-  return new MockSireAuth();
+  return modoSire(env) === "http" ? new HttpSireAuth() : new MockSireAuth();
 }
 
 /** Solo existe el adaptador `mock` (RUC_CLIENT=mock, 007b). */
@@ -118,10 +142,20 @@ export function solPortalDesdeEntorno(env: Entorno): SolPortal {
   return new MockSolPortal(latenciaMs !== undefined ? { latenciaMs } : {});
 }
 
-/** Cliente de la API del SIRE; comparte `SIRE_CLIENT` con `SireAuth`. Solo `mock`. */
-export function sireApiClientDesdeEntorno(env: Entorno): SireApiClient {
-  soloMock(env, "SIRE_CLIENT");
-  return new MockSireApiClient();
+/**
+ * Cliente de la API del SIRE; comparte `SIRE_CLIENT` con `SireAuth`. Con `http` guarda los tickets pendientes en Redis
+ * (`AlmacenTicketsRedis`); sin `opciones` no los guarda y el siguiente intento exporta de nuevo.
+ */
+export function sireApiClientDesdeEntorno(
+  env: Entorno,
+  opciones?: OpcionesSireHttp,
+): SireApiClient {
+  if (modoSire(env) !== "http") return new MockSireApiClient();
+  return new HttpSireApiClient(
+    opciones === undefined
+      ? {}
+      : { almacenTickets: new AlmacenTicketsRedis(opciones) },
+  );
 }
 
 /** `XML_PROVIDER=mock` con `XML_FIXTURES_DIR` y `XML_MOCK_LATENCIA_MS` opcionales (D5, D6). Solo `mock`. */
@@ -234,10 +268,11 @@ export function verificarGuardaProduccion(
 export function crearAdaptadores(
   env: Entorno,
   logger: LoggerAdaptadores = new Logger("Adaptadores"),
+  opciones?: OpcionesSireHttp,
 ): Adaptadores {
   const adaptadores: Adaptadores = {
     sireAuth: sireAuthDesdeEntorno(env),
-    sireApiClient: sireApiClientDesdeEntorno(env),
+    sireApiClient: sireApiClientDesdeEntorno(env, opciones),
     solAuth: solAuthDesdeEntorno(env),
     solPortal: solPortalDesdeEntorno(env),
     consultaRuc: consultaRucDesdeEntorno(env),
@@ -247,11 +282,31 @@ export function crearAdaptadores(
   return adaptadores;
 }
 
+/** Token de la conexión Redis propia del módulo (solo existe con `SIRE_CLIENT=http`: guarda los tickets pendientes). */
+export const REDIS_ADAPTADORES = "REDIS_ADAPTADORES";
+
 /** Exporta los 6 puertos por token (D9: hoy solo los consume `TrabajosService`). Falla el arranque si el entorno es inválido. */
 @Global()
 @Module({
   providers: [
-    { provide: ADAPTADORES, useFactory: () => crearAdaptadores(process.env) },
+    {
+      provide: REDIS_ADAPTADORES,
+      // Valida antes el valor de SIRE_CLIENT; la conexión (lazy: no habla con Redis hasta el primer comando) solo se abre con `http`.
+      useFactory: (): Redis | undefined =>
+        modoSire(process.env) === "http"
+          ? new Redis(String(process.env.REDIS_URL), { lazyConnect: true })
+          : undefined,
+    },
+    {
+      provide: ADAPTADORES,
+      useFactory: (redis: Redis | undefined) =>
+        crearAdaptadores(
+          process.env,
+          undefined,
+          redis === undefined ? undefined : { redis },
+        ),
+      inject: [REDIS_ADAPTADORES],
+    },
     {
       provide: SIRE_AUTH,
       useFactory: (a: Adaptadores) => a.sireAuth,
@@ -297,4 +352,12 @@ export function crearAdaptadores(
     APP_ORIGIN,
   ],
 })
-export class AdaptadoresModule {}
+export class AdaptadoresModule implements OnApplicationShutdown {
+  constructor(
+    @Inject(REDIS_ADAPTADORES) private readonly redis: Redis | undefined,
+  ) {}
+
+  onApplicationShutdown(): void {
+    this.redis?.disconnect();
+  }
+}

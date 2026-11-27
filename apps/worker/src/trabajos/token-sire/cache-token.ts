@@ -12,19 +12,14 @@ import {
 import { crearClaves, type ClavesCola, type Reloj } from "@contapp/queue";
 import {
   ErrorCredencial,
+  TokenRechazadoError,
   type CredencialSire,
   type SireAuth,
 } from "@contapp/sunat";
 import type { Redis } from "ioredis";
 
-/** El servicio respondió 401 con el token entregado: `conToken` lo renueva una sola vez. */
-export class TokenRechazadoError extends Error {
-  readonly codigo = "token_rechazado";
-  constructor() {
-    super("El servicio SIRE rechazó el token");
-    this.name = "TokenRechazadoError";
-  }
-}
+/** El servicio respondió 401 con el token entregado: `conToken` lo renueva una sola vez. Es la clase de `@contapp/sunat` (041). */
+export { TokenRechazadoError };
 
 export interface ContextoToken {
   tenantId: string;

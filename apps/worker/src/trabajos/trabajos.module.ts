@@ -84,7 +84,8 @@ export class TrabajosService
     const conexionBull = conexionDesdeUrl(env.REDIS_URL);
     this.db = createDb({ rolApp: "contapp_worker" });
     this.redis = new Redis(String(env.REDIS_URL));
-    const adaptadores = this.adaptadores ?? crearAdaptadores(env);
+    const adaptadores = this.adaptadores ??
+      crearAdaptadores(env, undefined, { redis: this.redis });
     this.enMarcha = await iniciarTrabajos({
       db: this.db,
       redis: this.redis,
