@@ -119,3 +119,7 @@ Ninguno de los CA. Fuera de T11: la corrida de CI en PR la gestiona el orquestad
 Corrección posterior al cierre (7258f29): el enlace de `compra.operacion` usaba el permiso inexistente `compras.ver`; ahora `clientes.ver`. La verificación de T11 no lo detectó porque la prueba simulaba el permiso.
 
 Commits: `be13de3` (prueba) y `7258f29` (corrección).
+
+## Corrección post-CI
+
+La métrica de CA-9 pasó de tiempo de CPU del backend de PG leído por `/proc/<pid>/stat` a buffers (shared hit + read) de `EXPLAIN (ANALYZE, BUFFERS)` sobre la misma consulta y parámetros de `listarAuditoria`. Motivo: en CI Postgres 17 es un contenedor de servicio y su pid no existe en el `/proc` del runner (`ENOENT`, 7 casos «escala»); además `medirEscala` mide CPU del proceso de Node y no de PG, así que no sirve para esta consulta. Los buffers son deterministas (no dependen de la carga ni de la caché) y miden «escala como índice» sin tope de reloj. Se conserva el criterio: razón carga completa / un cuarto ≤ 2 (piso de 10 buffers), los asserts de índice esperado y sin recorrido secuencial, y el p95 solo informativo. Razones obtenidas (cuarto → completa): acción rara 43 → 43 · usuario raro 43 → 43 · cliente chico 88 → 87 · asignado 91 → 90 · solo descifrados 8 → 7 · ventana 10 → 11 · sin filtros 11 → 9 (todas ≈ 1,0). Sin lectura de `/proc` en ninguna ruta de la prueba.

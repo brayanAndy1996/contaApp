@@ -1,11 +1,10 @@
 // Spec 031 (T1, rojo) · CA-9 (RNF-034): la consulta de auditoria con filtros escala como indice, no como recorrido, con 200 000 filas de
 // auditoria y 50 000 descifrados. Se mide COMPLEJIDAD, no milisegundos (regla del proyecto, plan §Decisiones): razon entre un cuarto de la carga
-// y la carga completa, con tiempo de CPU del proceso de PG de la conexion (`pg_backend_pid()` + `/proc/<pid>/stat`), rondas intercaladas con
-// el orden invertido en las impares (como `medirEscala`), tope <= 2 (indice ~ 1; lineal ~ 4). No se sube un tope para que pase.
+// y la carga completa, con los buffers (shared hit + read) de `EXPLAIN (ANALYZE, BUFFERS)` de la propia consulta (no se lee el pseudo-FS de procesos: en CI
+// Postgres es un contenedor de servicio; `medirEscala` mide CPU del proceso de Node, no de PG), rondas intercaladas con el orden invertido
+// en las impares, tope <= 2 (indice ~ 1; lineal ~ 4). No se sube un tope para que pase.
 // Ademas: cada filtro usa el indice esperado y no hace recorrido secuencial (contadores de pg_stat_user_*). El p95 en ms es informativo.
 // Va en `*.rendimiento.spec.ts` y queda fuera de la cobertura. Rojo por: 0088 ausente (filtros e indices) o filtros que se ignoran.
-import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { abrirAdmin, exportado } from "./auditoria-soporte";
@@ -16,10 +15,9 @@ const N_AUD = 200_000;
 const N_DES = 50_000;
 const FACTOR = 4; // el lado chico lleva un cuarto de la carga
 const SPAN_MS = 39 * 86_400_000; // las dos cargas cubren los mismos 39 dias: una ventana de fechas toca mas filas en la completa
-const RONDAS = 7;
+const RONDAS = 3; // los buffers son deterministas: unas pocas rondas intercaladas bastan (se toma el minimo de cada lado)
 const TOPE_RAZON = 2;
-const PISO_CPU_MS = 30; // el reloj de CPU de /proc avanza de 10 en 10 ms: por debajo, el ruido domina la razon
-const OBJETIVO_MS = 150; // cada lado de una medicion cuesta al menos esto (se calibra el numero de repeticiones)
+const PISO_BUFFERS = 10; // una pagina de 50 filas ya cuesta mas: el piso solo evita dividir por casi cero
 const T0 = Date.UTC(2026, 0, 1, 0, 0, 0);
 
 interface Carga {
@@ -147,39 +145,28 @@ const CASOS: Caso[] = [
 ];
 
 // ---- medicion --------------------------------------------------------------------------------------------------------------------------
-const TICKS = (() => {
-  try {
-    return Number(execSync("getconf CLK_TCK", { encoding: "utf8" }).trim()) || 100;
-  } catch {
-    return 100;
-  }
-})();
-
-/** Tiempo de CPU (usuario + sistema) acumulado del proceso de PG, en ms. Si /proc no es legible (BD no local) la prueba falla, no se omite. */
-function cpuMs(pid: number): number {
-  const s = readFileSync(`/proc/${pid}/stat`, "utf8");
-  const campos = s.slice(s.lastIndexOf(")") + 2).split(" "); // desde el campo 3 (estado)
-  return ((Number(campos[11]) + Number(campos[12])) / TICKS) * 1000;
-}
-
-async function rafaga(c: Carga, caso: Caso, repeticiones: number): Promise<number> {
+/**
+ * Buffers (shared hit + read) que toca el plan de la consulta, medidos con `EXPLAIN (ANALYZE, BUFFERS)` sobre el MISMO texto y parametros que
+ * `listarAuditoria` (se intercepta su unica llamada a `tx.query`). Es la metrica de la prueba y no el tiempo de CPU del backend de PG: leer
+ * el sistema de archivos de procesos del SO exige que PG corra en el mismo kernel/espacio de pids que el runner, y en CI Postgres es un contenedor de servicio.
+ * Los buffers son deterministas (no dependen de la carga de la maquina ni de la cache) y miden exactamente "escala como indice": un indice
+ * toca ~log(n) paginas mas las de las filas devueltas; un recorrido, ~n. Es el nodo raiz del plan (acumulado, incluye la funcion de descifrados).
+ */
+async function buffers(c: Carga, caso: Caso): Promise<number> {
   return db.withTenant({ tenantId: c.tenantId, userId: c.userId }, async (tx) => {
-    const pid = Number((await tx.query("select pg_backend_pid() as pid")).rows[0].pid);
-    const f = listar();
-    const antes = cpuMs(pid);
-    for (let i = 0; i < repeticiones; i++) await f(tx, { limite: 50, alcance: caso.alcance(c), filtros: caso.f(c) });
-    return cpuMs(pid) - antes;
+    let total = -1;
+    const espia = {
+      query: async (texto: string, valores?: unknown[]) => {
+        const r = await tx.query(`explain (analyze, buffers, format json) ${texto}`, valores);
+        const plan = (r.rows[0] as { "QUERY PLAN": { Plan: Record<string, number> }[] })["QUERY PLAN"][0]!.Plan;
+        total = (plan["Shared Hit Blocks"] ?? 0) + (plan["Shared Read Blocks"] ?? 0);
+        return { rows: [], rowCount: 0 };
+      },
+    } as unknown as Tx;
+    await listar()(espia, { limite: 50, alcance: caso.alcance(c), filtros: caso.f(c) });
+    expect(total, `${caso.nombre}: no se obtuvo el plan`).toBeGreaterThan(0);
+    return total;
   });
-}
-
-async function calibrar(c: Carga, caso: Caso): Promise<number> {
-  let rep = 20;
-  for (let i = 0; i < 6; i++) {
-    const ms = await rafaga(c, caso, rep);
-    if (ms >= OBJETIVO_MS || rep >= 3000) break;
-    rep = Math.min(3000, Math.ceil((rep * OBJETIVO_MS * 1.2) / Math.max(ms, 10)));
-  }
-  return rep;
 }
 
 describe("CA-9 · la consulta con filtros escala como indice (carga completa / un cuarto <= 2)", () => {
@@ -199,24 +186,24 @@ describe("CA-9 · la consulta con filtros escala como indice (carga completa / u
   }, 120_000);
 
   it.each(CASOS)("escala: $nombre", async (caso) => {
-    const rep = await calibrar(cuarto, caso);
     let minCuarto = Infinity;
     let minCompleta = Infinity;
-    await rafaga(completa, caso, rep); // calentamiento de ambos lados (cache de paginas)
-    await rafaga(cuarto, caso, rep);
+    await buffers(completa, caso); // calentamiento de ambos lados (como medirEscala; con buffers no cambia el valor, solo estabiliza el plan)
+    await buffers(cuarto, caso);
     for (let r = 0; r < RONDAS; r++) {
       if (r % 2 === 0) {
-        minCuarto = Math.min(minCuarto, await rafaga(cuarto, caso, rep));
-        minCompleta = Math.min(minCompleta, await rafaga(completa, caso, rep));
+        minCuarto = Math.min(minCuarto, await buffers(cuarto, caso));
+        minCompleta = Math.min(minCompleta, await buffers(completa, caso));
       } else {
-        minCompleta = Math.min(minCompleta, await rafaga(completa, caso, rep));
-        minCuarto = Math.min(minCuarto, await rafaga(cuarto, caso, rep));
+        minCompleta = Math.min(minCompleta, await buffers(completa, caso));
+        minCuarto = Math.min(minCuarto, await buffers(cuarto, caso));
       }
     }
-    const razon = minCompleta / Math.max(minCuarto, PISO_CPU_MS);
+    const razon = minCompleta / Math.max(minCuarto, PISO_BUFFERS);
+    console.info(`[CA-9 razon] ${caso.nombre}: ${minCuarto} (1/4) -> ${minCompleta} (completa) buffers = ${razon.toFixed(2)}`);
     expect(
       razon,
-      `${caso.nombre}: ${minCuarto.toFixed(0)} ms (1/4) -> ${minCompleta.toFixed(0)} ms (completa) por ${rep} consultas de CPU de PG`,
+      `${caso.nombre}: ${minCuarto} buffers (1/4) -> ${minCompleta} buffers (completa) por consulta (shared hit + read de EXPLAIN ANALYZE)`,
     ).toBeLessThanOrEqual(TOPE_RAZON);
   }, 300_000);
 });
