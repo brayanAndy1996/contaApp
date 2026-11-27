@@ -42,6 +42,12 @@ import {
 import { origenes, parsearJson, type OpcionesHttpSire } from "./sire-auth.http.js";
 import { interpretarConsultaTicket, planEsperaTicket, type ParteTicket } from "./ticket.js";
 import { pedir } from "./transporte.js";
+import { mismoEncabezado } from "./txt/encabezados.js";
+import { leerTxt, type TxtLeido } from "./txt/leer-txt.js";
+import { mapearCompras } from "./txt/mapeo-compras.js";
+import { mapearVentas } from "./txt/mapeo-ventas.js";
+import type { EsperadoTxt } from "./txt/valores.js";
+import { extraerTxtDeZip } from "./zip-seguro.js";
 
 /** Número de ticket que devuelve la exportación (va solo como parámetro de query). */
 const GRAMATICA_TICKET = /^[A-Za-z0-9_-]{1,64}$/;
@@ -51,24 +57,30 @@ const GRAMATICA_NOMBRE_ARCHIVO = /^[A-Za-z0-9._-]{1,200}$/;
 const esquemaExportar = z.object({ numTicket: z.string().regex(GRAMATICA_TICKET) });
 
 /** Lo que el TXT de una propuesta necesita para validarse contra la solicitud. */
-export interface ContextoLectura {
-  ruc: string;
-  periodo: string;
-}
+export type ContextoLectura = EsperadoTxt;
 
 /**
- * ZIP → TXT → filas (lo implementa 041 · T5 en `zip-seguro.ts` y `txt/*`). Recibe TODAS las partes en el orden del
- * ticket, valida todo antes de devolver (sin filas a medias) y lanza `ErrorPortalSire`/`ErrorDatosSire`.
+ * Cada parte (en el orden del ticket): ZIP seguro → TXT → celdas, con el MISMO encabezado en todas (CA-9). Las partes se
+ * leen una a una y sus bytes se sueltan al mapearlas.
  */
+function leerPartes<F>(partes: readonly Uint8Array[], mapear: (txt: TxtLeido) => F[]): F[] {
+  const filas: F[] = [];
+  let primero: readonly string[] | undefined;
+  for (const parte of partes) {
+    const txt = leerTxt(extraerTxtDeZip(parte));
+    if (primero === undefined) primero = txt.encabezado;
+    else if (!mismoEncabezado(primero, txt.encabezado)) throw new ErrorPortalSire("encabezado");
+    for (const f of mapear(txt)) filas.push(f);
+  }
+  return filas;
+}
+
+/** ZIP → TXT → filas de compras; valida todo antes de devolver (sin filas a medias). */
 function leerPartesCompras(partes: readonly Uint8Array[], c: ContextoLectura): FilaPropuestaSire[] {
-  void partes;
-  void c;
-  throw new Error("no implementado: lectura de ZIP/TXT de compras (041 · T5)");
+  return leerPartes(partes, (txt) => mapearCompras(txt, c));
 }
 function leerPartesVentas(partes: readonly Uint8Array[], c: ContextoLectura): FilaVentaSire[] {
-  void partes;
-  void c;
-  throw new Error("no implementado: lectura de ZIP/TXT de ventas (041 · T5)");
+  return leerPartes(partes, (txt) => mapearVentas(txt, c));
 }
 
 /** Ticket listo para descargar. */

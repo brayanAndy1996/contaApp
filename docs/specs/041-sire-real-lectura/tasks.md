@@ -10,7 +10,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → atac
 | T2 | Pruebas de `zip-seguro` y `txt/*` (lectura, encabezado, mapeo, límites) en rojo | tester | sonnet | T1 | ✓ | — | [x] |
 | T3 | Pruebas de `HttpSireAuth` y `HttpSireApiClient` con el servidor falso (rojo) | tester | sonnet | — ∥ T1 | ✓ | — | [x] |
 | T4 | Pruebas del worker: `SIRE_CLIENT=http`, almacén Redis, `claveReanudacion`, 401 → renovación (rojo) | tester | sonnet | — ∥ T1–T3 | ✓ | — | [x] |
-| T5 | `zip-seguro.ts` y `txt/*` (lectura y mapeo) | backend | opus | T2 ∥ T6 | ✓ | — | [ ] |
+| T5 | `zip-seguro.ts` y `txt/*` (lectura y mapeo) | backend | opus | T2 ∥ T6 | ✓ | — | [x] («el periodo de la ruta es el pedido» devuelta al tester: su TXT es de 202610 y pide 202601 → `respuesta_ajena`) |
 | T6 | `endpoints`, `transporte`, `HttpSireAuth`, `HttpSireApiClient`, `ticket`, errores con `detalle` | backend | opus | T3 ∥ T5 | ✓ | — | [x] (21 pruebas del cliente esperan la lectura de T5; «otro periodo o libro…» devuelta al tester) |
 | T7 | Worker: adaptadores, `almacen-tickets-redis`, `claves.ticketSire`, `TokenRechazadoError` desde sunat | backend | sonnet | T4, T6 | ✓ | — | [ ] |
 | T8 | `vitest` modo `contrato`, script `test:contrato`, exclusión verificada, `.env.example`, `03-arquitectura` §4 | devops | haiku | T6 ∥ T7 | — | — | [ ] |
