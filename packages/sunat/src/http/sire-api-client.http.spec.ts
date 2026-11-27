@@ -611,22 +611,30 @@ describe("HttpSireApiClient · ticket que no termina (P-4 c)", () => {
     expect(almacen.guardados).toHaveLength(0);
   });
 
-  it("un ticket guardado que SUNAT ya no lista -> ErrorDatosSire respuesta_ajena y se borra (no se queda atascado)", async () => {
+  it("un ticket guardado que SUNAT ya no lista: borra, re-exporta UNA vez en ese intento y, si el ticket nuevo tampoco aparece -> ErrorDatosSire respuesta_ajena y se borra", async () => {
     pendienteSiempre();
     const almacen = new AlmacenEspia(reloj.ahora);
     const c = cliente({ almacenTickets: almacen });
     await capturar(c.descargarPropuesta(TOKEN, conClave(COMPRAS)));
     const clave = almacen.guardados[0]!.clave;
+    const exportacionesPrevias = ent.sire.peticionesDe("GET", RUTAS.exportarRce()).length;
+    const T2 = "202610000002";
+    ent.sire.guionar("GET", RUTAS.exportarRce(), { json: { numTicket: T2 } });
     ent.sire.guionar("GET", RUTAS.ticket, { json: cuerpoTicket([]) });
     esperarError(await capturar(c.descargarPropuesta(TOKEN, conClave(COMPRAS))), "ErrorDatosSire", "respuesta_ajena");
+    expect(ent.sire.peticionesDe("GET", RUTAS.exportarRce()).length - exportacionesPrevias, "re-exporta una sola vez").toBe(1);
+    expect(almacen.guardados.at(-1)!.numTicket, "guarda el ticket nuevo").toBe(T2);
     expect(await almacen.leer(clave)).toBeNull();
   });
 
-  it("éxito sin pendiente: no deja nada guardado", async () => {
+  it("éxito sin pendiente: guarda el ticket al exportar y deja la clave BORRADA al final", async () => {
     guionarFlujo(ent.sire, { libro: "compras", numTicket: T, partes: [parteCompras()] });
     const almacen = new AlmacenEspia(reloj.ahora);
     await cliente({ almacenTickets: almacen }).descargarPropuesta(TOKEN, conClave(COMPRAS));
-    expect(almacen.guardados).toHaveLength(0);
+    expect(almacen.guardados).toHaveLength(1);
+    const clave = almacen.guardados[0]!.clave;
+    expect(almacen.borrados).toContain(clave);
+    expect(await almacen.leer(clave)).toBeNull();
   });
 
   it("presupuesto total de 90 s por operación: si la exportación ya lo agotó, no sigue", async () => {

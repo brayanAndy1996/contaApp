@@ -69,6 +69,14 @@ Mapeo (encabezado normalizado → campo). Compras: `Tipo CP/Doc.`→`tipo`, `Ser
 - `TokenRechazadoError` pasa a `@contapp/sunat` porque el adaptador lo lanza y no puede importar del worker; `cache-token.ts` lo reexporta (sin cambio de comportamiento).
 - La prueba de contrato lee `SIRE_CONTRATO_{CLIENT_ID,CLIENT_SECRET,RUC,USUARIO,CLAVE,PERIODO}` en tiempo de ejecución, solo hace POST de token y GET, y solo imprime formas; `vitest.config.mts` la excluye salvo `--mode contrato` y una prueba normal verifica esa exclusión.
 
+## Decisiones de la ronda 2 (T13 → T15)
+- **Ticket (H-1, H-2, H-3)**: `guardar(clave, ticket, 1 h)` una sola vez, justo tras exportar. `borrar` solo al validar todas las partes, o ante un error permanente (estado 03 → `ticket_con_errores`, estado desconocido, cualquier `ErrorPortalSire`/`ErrorDatosSire` de las partes). Lo conservan `ErrorTransitorioSire` (`ticket_pendiente`, `red`, `timeout`, `servidor`) y `TokenRechazadoError`, en la consulta o en la descarga. Si SUNAT no lista un ticket guardado: `borrar`, exportar una vez más en ese mismo intento y seguir el flujo normal con el ticket nuevo. Ese ticket ya no se re-exporta en el intento: si tampoco aparece, rige la regla del ticket recién exportado (`respuesta_ajena`).
+- **Clave (H-4)**: el cliente arma `{claveReanudacion}:{libro}:{periodo}:{operacion}`, con `operacion` = `propuesta` | `registro`, que da 5 partes. `claveReanudacion` sigue siendo `{tenant}:{cliente}`, así que T4 no cambia. `AlmacenTicketsRedis` deja de aceptar 4 partes (sin el valor por defecto `propuesta`).
+- **Presupuesto (H-5)**: cada petición usa `min(timeout del paso, restante de los 90 s)`. Con `restante ≤ 0`, el adaptador lanza `ErrorTransitorioSire("timeout")` sin pedir nada. El `dormir` del sondeo también se recorta a lo que quede.
+- **Partes (H-6)**: se procesan en orden y de una en una. Cada parte se baja, se valida (ZIP, UTF-8, encabezado igual al de la 1.ª, filas) y se suelta antes de pedir la siguiente. Al primer error se corta y no se piden más partes. En memoria solo quedan las filas ya validadas; no se devuelven filas mientras falte alguna parte.
+- **Token (H-8)**: `conToken` borra la caché solo si el token guardado es el que fue rechazado (comparar y borrar de forma atómica). Si ya hay uno más nuevo, lo usa sin pedir otro.
+- **CA-10 «en total» (H-7)**: pendiente de decisión del usuario.
+
 ## Riesgos
 - SUNAT cambia el layout o los nombres de columna → `ErrorPortalSire("encabezado")` + alerta (RNF-044); la prueba de contrato lo detecta antes.
 - Formas no vistas (NC, USD, boletas, anulados) → P-5; la spec no se cierra sin una corrida de contrato que las incluya o sin decisión del usuario.
