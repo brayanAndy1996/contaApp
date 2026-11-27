@@ -18,7 +18,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → atac
 | T10 | Ronda adversarial 1 (caja negra): ZIP, TXT, encabezados, filas ajenas, nombres hostiles, ticket ajeno, redirecciones, secretos | adversario | opus | T5, T6, T7 ∥ T9 | — | ✓ | [x] |
 | T11 | Pruebas de las correcciones de la ronda 1 (rojo) — omitida: las pruebas del adversario cubren los 3 hallazgos | tester | sonnet | T10 | ✓ | — | [x] |
 | T12 | Corregir hallazgos de la ronda 1 | backend | opus | T11 | — | — | [x] |
-| T13 | Ronda adversarial 2 (caja blanca): timeouts, presupuesto, reanudación entre estudios, memoria, codificación, concurrencia | adversario | opus | T12 | — | ✓ | [ ] |
+| T13 | Ronda adversarial 2 (caja blanca): timeouts, presupuesto, reanudación entre estudios, memoria, codificación, concurrencia | adversario | opus | T12 | — | ✓ | [x] |
 | T14 | Pruebas de las correcciones de la ronda 2 (rojo) | tester | sonnet | T13 | ✓ | — | [ ] |
 | T15 | Corregir hallazgos de la ronda 2 | backend | opus | T14 | — | — | [ ] |
 | T16 | Corrida de la prueba de contrato contra SUNAT (la ejecuta el **usuario**) y ajustes de P-5/P-6 | tester | sonnet | T9, T15 | — | — | [ ] |
