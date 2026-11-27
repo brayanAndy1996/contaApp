@@ -257,9 +257,18 @@ export class HttpSireApiClient implements SireApiClient {
   }
 }
 
-/** Valida los nombres de TODAS las partes antes de descargar ninguna (CA-9). */
+/**
+ * Valida los nombres de TODAS las partes antes de descargar ninguna (CA-9). Una parte repetida en `archivoReporte`
+ * (H-041-1-1) es `ErrorPortalSire("respuesta_inesperada")`, no se descarta: CA-9 manda descargar todas las partes y una
+ * lista con duplicados es un cambio del portal que no debe pasar en silencio (descartarla podría ocultar una parte que
+ * falta). Se compara sin distinguir mayúsculas (`P1.zip` = `p1.zip`); los espacios ya los rechaza la gramática.
+ */
 function validarNombresPartes(partes: readonly ParteTicket[]): void {
+  const vistos = new Set<string>();
   for (const p of partes) {
     if (!GRAMATICA_NOMBRE_ARCHIVO.test(p.nombre) || p.nombre.includes("..")) throw new ErrorPortalSire("nombre_archivo");
+    const clave = p.nombre.toLowerCase();
+    if (vistos.has(clave)) throw new ErrorPortalSire("respuesta_inesperada");
+    vistos.add(clave);
   }
 }

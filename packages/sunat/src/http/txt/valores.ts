@@ -36,8 +36,13 @@ export function columnas(encabezado: readonly string[], requeridas: readonly str
   };
 }
 
+/**
+ * Recorta solo espacios y tabuladores ASCII (como el encabezado). `String#trim` también quitaría NBSP, U+3000 y demás
+ * espacios Unicode, y `"500\u00a0"` pasaría por monto (H-041-1-3): esos caracteres quedan en la celda y la gramática
+ * estricta (solo ASCII) de montos, tipo de cambio, fecha, RUC y periodo la rechaza.
+ */
 export function celda(fila: readonly string[], i: number): string {
-  return (fila[i] ?? "").trim();
+  return (fila[i] ?? "").replace(/^[ \t]+|[ \t]+$/g, "");
 }
 
 /** Toda fila debe ser del RUC y periodo pedidos; si una no lo es, no se devuelve ninguna (CA-6). */

@@ -44,10 +44,17 @@ export function parsearJson(bytes: Uint8Array): unknown {
   }
 }
 
+/**
+ * Tope de `expires_in` (H-041-1-2): SUNAT emite tokens de 1 h; más de 24 h no es un token del SIRE y un valor enorme
+ * (`1e13`) daría `Invalid Date`. Fuera de 1..86400 segundos enteros → `ErrorPortalSire` (CA-2 «expires_in inválido»).
+ */
+const MAX_EXPIRES_IN_S = 86_400;
+
 const esquemaToken = z.object({
   // Va luego en la cabecera Authorization: solo ASCII visible.
   access_token: z.string().regex(/^[\x21-\x7E]+$/),
-  expires_in: z.number().int().positive(),
+  // `z.number()` ya rechaza NaN; `.int()` rechaza Infinity y no enteros; cadenas y null no son número.
+  expires_in: z.number().int().min(1).max(MAX_EXPIRES_IN_S),
 });
 
 export class HttpSireAuth implements SireAuth {
@@ -83,6 +90,8 @@ export class HttpSireAuth implements SireAuth {
     });
     const t = esquemaToken.safeParse(parsearJson(r.cuerpo));
     if (!t.success) throw new ErrorPortalSire("respuesta_inesperada");
-    return { token: t.data.access_token, expiraEn: new Date(this.ahora().getTime() + t.data.expires_in * 1000) };
+    const expiraEn = new Date(this.ahora().getTime() + t.data.expires_in * 1000);
+    if (Number.isNaN(expiraEn.getTime())) throw new ErrorPortalSire("respuesta_inesperada");
+    return { token: t.data.access_token, expiraEn };
   }
 }
