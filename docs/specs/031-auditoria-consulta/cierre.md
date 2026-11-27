@@ -29,6 +29,7 @@ Verificada el 2026-11-27 (T11). Nivel B con ronda adversarial acotada (D-8). Ram
 - Entorno: Node 22 (el repo pide ≥ 24.1) y sin Mailpit; se usó `E2E_CORREO=consola`.
 - 5 fallos de `escalada.adv.spec.ts` (funciones de 025 a 028): el rol `contapp_pruebas` es superusuario del entorno. La suite de la base (`f907478`) falla igual contra `contapp_031t3`; no los causa 031.
 - Rama distinta de la prevista (`spec/031-auditoria-consulta`) por restricción del entorno.
+- Corrección posterior al cierre (7258f29): el enlace de `compra.operacion` usaba el permiso inexistente `compras.ver`; ahora `clientes.ver`. La verificación de T11 no lo detectó porque la prueba simulaba el permiso.
 
 ## Notas (van a `ESTADO.md`)
 - [031] `compras.ver` no existe en el catálogo: ver «Riesgos».

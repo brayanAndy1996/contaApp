@@ -113,3 +113,9 @@ eliminó ni se relajó. Limitación señalada: el unitario solo usa alcance glob
 
 ### Pendiente
 Ninguno de los CA. Fuera de T11: la corrida de CI en PR la gestiona el orquestador; los 4 fallos conocidos de otras suites quedan sin correr aquí.
+
+## Corrección post-T11
+
+Corrección posterior al cierre (7258f29): el enlace de `compra.operacion` usaba el permiso inexistente `compras.ver`; ahora `clientes.ver`. La verificación de T11 no lo detectó porque la prueba simulaba el permiso.
+
+Commits: `be13de3` (prueba) y `7258f29` (corrección).

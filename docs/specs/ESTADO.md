@@ -142,5 +142,5 @@ No son decisiones tomadas ni pendientes del usuario: cada spec las resuelve al p
 - [dependencias] Overrides de 040 en `pnpm-workspace.yaml` (fast-xml-builder, @nestjs/platform-express): revisarlos en la próxima actualización de dependencias. → `040-*/cierre.md`
 - [029] Aceptado: las funciones previas a 029 (plan, gnd, estudios_listar, suscripcion_asignar, invitación y registro) aceptan una sesión pendiente; el guard HTTP las cubre.
 - [029] El token de invitación/registro vive solo en memoria (005 D15): quien debe enrolar TOTP reabre el enlace después. → `029-*/cierre.md`
-- [031] `compras.ver` no existe en el catálogo de permisos (la prueba de 403 usa `buzon.ver`): el enlace de `compra.operacion` (P-3) no aparece con permisos reales. → `031-*/cierre.md`
+- [031] El enlace «Historial» de la auditoría usa `clientes.ver` (no hay permiso de compras separado; si se quisiera, spec aparte que cambie el catálogo de 005/030). → `031-*/cierre.md`
 - [031] `public.auditoria_ms` es LEAKPROOF: revisar si se redefine o se extiende. → `031-*/cierre.md`
