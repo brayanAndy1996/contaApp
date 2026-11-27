@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any -- cuerpos JSON dinámicos en pruebas */
 // T15a (030) · defecto menor hallado por la E2E: la pantalla de aceptar invitación mostraba «como propio» porque
 // `POST /invitaciones/consultar` no devolvía el nombre del rol propio.
 // Contrato (público, sin sesión, sin efectos):

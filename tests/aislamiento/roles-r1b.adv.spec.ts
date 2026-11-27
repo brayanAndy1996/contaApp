@@ -109,7 +109,7 @@ describe("T12 · privilegios, RLS FORCE y EXECUTE de lo nuevo de 030", () => {
               unnest(array['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']) p
         where has_table_privilege(r, t, p)
            or (p in ('SELECT', 'INSERT', 'UPDATE', 'REFERENCES') and has_any_column_privilege(r, t, p))
-        order by 1`,
+        order by (r || ':' || t || ':' || p) collate "C"`, // orden bytewise: con la collation del servidor (en_US) «_» y «:» se ignoran y el orden cambia entre CI y local
       [ROLES_BD],
     );
     expect(privs.map((x) => x.k)).toEqual(["contapp_backend:public.rol:SELECT", "contapp_backend:public.rol_permiso:SELECT"]);
