@@ -20,6 +20,7 @@ import {
   textoActor,
   type FilaAuditoria,
 } from "../../../../lib/auditoria";
+import { PERMISO_VER as PERMISO_VER_HISTORIAL } from "../../../../lib/compras";
 import { fechaHoraLima } from "../../../../lib/fechas";
 import {
   Alert,
@@ -82,7 +83,7 @@ function Auditoria() {
   const router = useRouter();
   const pathname = usePathname();
   const parametros = useSearchParams();
-  const puedeVerCompras = usePuede("compras.ver") === true;
+  const puedeVerCompras = usePuede(PERMISO_VER_HISTORIAL) === true;
 
   // La URL es la fuente de los filtros. `consulta` (texto) es la clave estable que dispara cada nueva consulta.
   const filtros = useMemo(() => filtrosDeUrl(parametros), [parametros]);
