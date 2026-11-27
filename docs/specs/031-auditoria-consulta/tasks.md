@@ -15,7 +15,7 @@ Nivel B con ADV acotado (D-8). Flujo 04 §1.3: pruebas (rojo) → implementar (v
 | T7 | Backend: lector de consulta, servicio, `/auditoria/opciones` | backend | sonnet | T3, T5, T6 ∥ T8 | ✓ | — | [x] |
 | T8 | Pantalla de auditoría con filtros y enlace de la ficha | frontend | sonnet | T4, T6 ∥ T7 | ✓ | — | [x] |
 | T9 | Ronda adversarial acotada: alcance en ambas ramas y SQL inalterable (~15 pruebas) | adversario | opus | T7 | — | ✓ | [ ] |
-| T10 | Corregir hallazgos de T9 | backend | opus (SQL) / sonnet (servicio) | T9 | — | — | [ ] |
+| T10 | Corregir hallazgos de T9 | backend | opus (SQL) / sonnet (servicio) | T9 | — | — | [x] |
 | T11 | Verificar CA-1 a CA-10 con evidencia y revisión contra la spec | tester | sonnet | T10, T8 | — | — | [ ] |
 | T12 | Cierre: `tasks.md`, `spec.md`, `cierre.md` y commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T11 | — | — | [ ] |
 

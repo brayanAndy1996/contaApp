@@ -36,7 +36,8 @@ export function decodificarCursor(cursor: string | undefined): PosicionCursor | 
   if (claves.length !== 2 || claves[0] !== "e" || claves[1] !== "i") return invalido();
   if (typeof e !== "string" || !ISO.test(e) || typeof i !== "string" || !UUID.test(i)) return invalido();
   const en = new Date(e);
-  if (Number.isNaN(en.getTime())) return invalido();
+  // `new Date` corrige fechas imposibles (30 de febrero → 2 de marzo): la ida y vuelta debe devolver el mismo texto.
+  if (Number.isNaN(en.getTime()) || en.toISOString() !== e) return invalido();
   return { en, id: i.toLowerCase() };
 }
 

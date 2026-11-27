@@ -37,7 +37,13 @@ export type ConsultaAuditoria = z.infer<typeof consultaAuditoriaSchema>;
 
 /** `GET /auditoria/opciones` (D-6): búsqueda por texto y, opcionalmente, un cliente. */
 export const consultaOpcionesAuditoriaSchema = z.strictObject({
-  q: z.string().min(1).max(60).optional(),
+  // PG no admite 0x00 en `text`: se rechaza aquí (400) en vez de dejar que falle en la consulta (500).
+  q: z
+    .string()
+    .min(1)
+    .max(60)
+    .refine((v) => !v.includes("\u0000"), { message: "q no admite caracteres NUL" })
+    .optional(),
   clienteId: z.uuid().optional(),
 });
 export type ConsultaOpcionesAuditoria = z.infer<typeof consultaOpcionesAuditoriaSchema>;
