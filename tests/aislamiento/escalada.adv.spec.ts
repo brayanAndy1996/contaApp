@@ -103,7 +103,8 @@ const FUNCIONES_017: { firma: string; dueno: string }[] = [
     "periodo", "archivo",
   ].map((n) => ({ firma: `auditoria_capturar_${n}()`, dueno: MIGRATOR })),
   { firma: "auditoria_registrar(uuid,text,uuid,text,uuid,jsonb,uuid)", dueno: MIGRATOR },
-  { firma: "auditoria_descifrado_listar(timestamp with time zone,uuid,integer)", dueno: MIGRATOR },
+  // Spec 031 (T5, migracion 0088): reemplaza la firma de 017 (cliente, fechas y alcance; mismo dueño, search_path y grants).
+  { firma: "auditoria_descifrado_listar(timestamp with time zone,uuid,integer,uuid,timestamp with time zone,timestamp with time zone,boolean,uuid)", dueno: MIGRATOR },
   { firma: "interno.auditoria_insertar(uuid,text,uuid,uuid,text,uuid,text,uuid,jsonb)", dueno: REGISTRADOR },
   { firma: "interno.membresia_via(uuid,uuid,text)", dueno: MIGRATOR },
   { firma: "interno.notificar(uuid,uuid[],text,uuid,uuid,jsonb,text)", dueno: REGISTRADOR },

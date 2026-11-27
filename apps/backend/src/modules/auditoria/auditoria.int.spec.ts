@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- cuerpos JSON y filas de BD dinámicos en pruebas */
+// Spec 031 (T3): la prueba de consulta estricta se ajusta al contrato nuevo (ver «la consulta es estricta»); no se quitó ninguna otra aserción.
 // Spec 017 (T5, rojo): consulta de auditoría `GET /auditoria?cursor=` (P-2, D-1, D-2, D-6, D-12; CA-4, CA-6, CA-7, CA-13, CA-14). PG real.
 // Contrato (plan 017, «Contratos: HTTP» y shared; lo implementa T10 sobre las tablas de T7 y `listarAuditoria` de T8):
 //  - `@Permiso("auditoria.ver")` (Dueño y Administrador). Contador, Asistente y Lectura: 403 `{ codigo: "permiso_denegado" }` sin datos;
@@ -248,12 +249,29 @@ describe("P-2 · cursor y página de 50", () => {
     expect(r.body).toEqual({ codigo: "solicitud_invalida" });
   });
 
-  it.each(["usuarioId", "tenantId", "clienteId", "limite"])("la consulta es estricta: «%s» es 400 (CA-4)", async (clave) => {
+  // Spec 031 (contrato nuevo, plan «Decisiones»): `usuarioId` y `clienteId` pasan a ser filtros; siguen dando 400 con un valor que no es
+  // UUID. `tenantId` y `limite` siguen siendo claves desconocidas (400). Los filtros válidos están en `auditoria-consulta.int.spec.ts`.
+  it.each([
+    ["usuarioId", "no-es-uuid"],
+    ["clienteId", "no-es-uuid"],
+    ["tenantId", "00000000-0000-4000-8000-000000000000"],
+    ["limite", "1000"],
+  ])("la consulta es estricta: «%s» con un valor inválido es 400 (CA-4; 031 D-2)", async (clave, valor) => {
     const e = await escenario();
     await exigirRuta(e.dueno);
-    const r = await get(e.dueno, `/auditoria?${clave}=${clave === "limite" ? "1000" : e.dueno.id}`);
+    const r = await get(e.dueno, `/auditoria?${clave}=${valor}`);
     expect(r.status, r.text).toBe(400);
     expect(r.body).toEqual({ codigo: "solicitud_invalida" });
+  });
+
+  it.each(["usuarioId", "clienteId"])("031: «%s» con un UUID válido ya no es 400: es un filtro (200) o, si el cliente no es visible, 404", async (clave) => {
+    const e = await escenario();
+    await exigirRuta(e.dueno);
+    const r = await get(e.dueno, `/auditoria?${clave}=${clave === "usuarioId" ? e.dueno.id : e.cliente.id}`);
+    expect(r.status, r.text).toBe(200);
+    expect(Object.keys(r.body).sort()).toEqual(["items", "siguiente"]);
+    const ajeno = await get(e.dueno, `/auditoria?${clave}=${randomUUID()}`);
+    expect(ajeno.status, ajeno.text).toBe(clave === "clienteId" ? 404 : 200);
   });
 });
 

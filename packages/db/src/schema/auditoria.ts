@@ -111,6 +111,9 @@ export const auditoria = pgTable(
   (t) => [
     index("auditoria_fecha_idx").on(t.tenantId, t.ocurridaEn.desc(), t.id.desc()),
     index("auditoria_cliente_idx").on(t.tenantId, t.clienteId, t.ocurridaEn.desc(), t.id.desc()),
+    // Spec 031 (D-7, 0088): filtros de usuario y de acción de la consulta.
+    index("auditoria_usuario_idx").on(t.tenantId, t.usuarioId, t.ocurridaEn.desc(), t.id.desc()),
+    index("auditoria_accion_idx").on(t.tenantId, t.accion, t.ocurridaEn.desc(), t.id.desc()),
     check(
       "auditoria_actor_coherente",
       sql`(${t.actorTipo} = 'usuario' AND ${t.usuarioId} IS NOT NULL AND ${t.trabajoId} IS NULL) OR (${t.actorTipo} = 'trabajo' AND ${t.trabajoId} IS NOT NULL) OR (${t.actorTipo} = 'sistema' AND ${t.usuarioId} IS NULL AND ${t.trabajoId} IS NULL)`,

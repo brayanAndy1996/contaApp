@@ -27,6 +27,8 @@ const TENANT = "0190a000-0000-7000-8000-0000000000a1";
 const USUARIO = "0190a000-0000-7000-8000-0000000000b1";
 const CLIENTE = "0190a000-0000-7000-8000-0000000000c1";
 const SESION = { tenantActivo: TENANT, usuarioId: USUARIO } as never;
+const GLOBAL = { tipo: "global" } as const;
+const SIN_FILTROS = { usuarioId: null, clienteId: null, acciones: null, desde: null, hastaExclusivo: null };
 const tx = { tx: 1 } as never;
 const withTenant = vi.fn((_ctx: unknown, f: (t: unknown) => Promise<unknown>) => f(tx));
 const db = { withTenant } as never;
@@ -65,7 +67,7 @@ describe("AuditoriaService.listar", () => {
 
   it("una página con filas devuelve el DTO sin tenantId ni usuarioId crudo y sin cursor", async () => {
     vi.mocked(listarAuditoria).mockResolvedValue([fila(1)]);
-    const r = await servicio().listar(SESION, undefined);
+    const r = await servicio().listar(SESION, GLOBAL, undefined);
     expect(r.siguiente).toBeNull();
     expect(r.items).toHaveLength(1);
     expect(r.items[0]).toEqual({
@@ -81,7 +83,7 @@ describe("AuditoriaService.listar", () => {
     });
     expect(JSON.stringify(r)).not.toContain("usuarioId");
     expect(withTenant).toHaveBeenCalledWith({ tenantId: TENANT, userId: USUARIO }, expect.any(Function));
-    expect(vi.mocked(listarAuditoria).mock.calls[0]![1]).toEqual({ limite: MAX_PAGINA_AUDITORIA });
+    expect(vi.mocked(listarAuditoria).mock.calls[0]![1]).toEqual({ limite: MAX_PAGINA_AUDITORIA, alcance: GLOBAL, filtros: SIN_FILTROS });
   });
 
   it("resuelve autores y clientes de una vez, solo con ids no nulos", async () => {
@@ -89,7 +91,7 @@ describe("AuditoriaService.listar", () => {
       fila(1),
       fila(2, { usuarioId: null, clienteId: null, actorTipo: "sistema", entidadId: null }),
     ]);
-    await servicio().listar(SESION, undefined);
+    await servicio().listar(SESION, GLOBAL, undefined);
     expect(resolverAutores).toHaveBeenCalledTimes(1);
     expect(resolverAutores).toHaveBeenCalledWith(tx, [USUARIO]);
     expect(leerClientesPorIds).toHaveBeenCalledTimes(1);
@@ -99,17 +101,17 @@ describe("AuditoriaService.listar", () => {
   it("una página llena con una fila más da cursor de la última fila entregada", async () => {
     const llena = Array.from({ length: MAX_PAGINA_AUDITORIA }, (_, i) => fila(i + 1));
     vi.mocked(listarAuditoria).mockResolvedValueOnce(llena).mockResolvedValueOnce([fila(99)]);
-    const r = await servicio().listar(SESION, undefined);
+    const r = await servicio().listar(SESION, GLOBAL, undefined);
     expect(r.items).toHaveLength(MAX_PAGINA_AUDITORIA);
     const ultima = llena[llena.length - 1]!;
     expect(r.siguiente).toBe(codificarCursor({ en: ultima.ocurridaEn, id: ultima.id }));
-    expect(vi.mocked(listarAuditoria).mock.calls[1]![1]).toEqual({ antes: { en: ultima.ocurridaEn, id: ultima.id }, limite: 1 });
+    expect(vi.mocked(listarAuditoria).mock.calls[1]![1]).toEqual({ antes: { en: ultima.ocurridaEn, id: ultima.id }, limite: 1, alcance: GLOBAL, filtros: SIN_FILTROS });
   });
 
   it("una página llena sin ninguna fila más no inventa una página vacía (cursor null)", async () => {
     const llena = Array.from({ length: MAX_PAGINA_AUDITORIA }, (_, i) => fila(i + 1));
     vi.mocked(listarAuditoria).mockResolvedValueOnce(llena).mockResolvedValueOnce([]);
-    const r = await servicio().listar(SESION, undefined);
+    const r = await servicio().listar(SESION, GLOBAL, undefined);
     expect(r.items).toHaveLength(MAX_PAGINA_AUDITORIA);
     expect(r.siguiente).toBeNull();
     expect(listarAuditoria).toHaveBeenCalledTimes(2);
@@ -117,28 +119,28 @@ describe("AuditoriaService.listar", () => {
 
   it("una página incompleta no consulta más filas", async () => {
     vi.mocked(listarAuditoria).mockResolvedValue([fila(1), fila(2)]);
-    const r = await servicio().listar(SESION, undefined);
+    const r = await servicio().listar(SESION, GLOBAL, undefined);
     expect(r.siguiente).toBeNull();
     expect(listarAuditoria).toHaveBeenCalledTimes(1);
   });
 
   it("una página vacía devuelve items vacíos sin cursor", async () => {
     vi.mocked(listarAuditoria).mockResolvedValue([]);
-    expect(await servicio().listar(SESION, {})).toEqual({ items: [], siguiente: null });
+    expect(await servicio().listar(SESION, GLOBAL, {})).toEqual({ items: [], siguiente: null });
   });
 
   it("con cursor pasa la posición como `antes`", async () => {
     vi.mocked(listarAuditoria).mockResolvedValue([]);
     const en = new Date("2026-10-05T12:00:00.123Z");
     const id = "0190a000-0000-7000-8000-0000000000d1";
-    await servicio().listar(SESION, { cursor: codificarCursor({ en, id }) });
-    expect(vi.mocked(listarAuditoria).mock.calls[0]![1]).toEqual({ antes: { en, id }, limite: MAX_PAGINA_AUDITORIA });
+    await servicio().listar(SESION, GLOBAL, { cursor: codificarCursor({ en, id }) });
+    expect(vi.mocked(listarAuditoria).mock.calls[0]![1]).toEqual({ antes: { en, id }, limite: MAX_PAGINA_AUDITORIA, alcance: GLOBAL, filtros: SIN_FILTROS });
   });
 
   it("un autor que no se resolvió sale como autor null, no como el id crudo", async () => {
     vi.mocked(resolverAutores).mockResolvedValue(new Map());
     vi.mocked(listarAuditoria).mockResolvedValue([fila(1)]);
-    const r = await servicio().listar(SESION, undefined);
+    const r = await servicio().listar(SESION, GLOBAL, undefined);
     expect(r.items[0]!.actor).toEqual({ tipo: "usuario", autor: null, trabajoId: null });
     expect(JSON.stringify(r)).not.toContain(USUARIO);
   });
@@ -146,7 +148,7 @@ describe("AuditoriaService.listar", () => {
   it("un cliente que ya no se lee (borrado o fuera de alcance) sale como cliente null", async () => {
     vi.mocked(leerClientesPorIds).mockResolvedValue(new Map());
     vi.mocked(listarAuditoria).mockResolvedValue([fila(1)]);
-    const r = await servicio().listar(SESION, undefined);
+    const r = await servicio().listar(SESION, GLOBAL, undefined);
     expect(r.items).toHaveLength(1);
     expect(r.items[0]!.cliente).toBeNull();
     expect(r.items[0]!.entidadId).toBe(CLIENTE);
@@ -158,7 +160,7 @@ describe("AuditoriaService.listar", () => {
       fila(2),
       fila(3, { entidadId: "no-es-uuid" }),
     ]);
-    const r = await servicio().listar(SESION, undefined);
+    const r = await servicio().listar(SESION, GLOBAL, undefined);
     expect(r.items.map((i) => i.id)).toEqual([fila(2).id]);
   });
 
@@ -188,7 +190,7 @@ describe("AuditoriaService.listar", () => {
       "%s: el usuario de la membresía, con la forma del autor",
       async (accion) => {
         vi.mocked(listarAuditoria).mockResolvedValue([sujeto(accion)]);
-        const r = await servicio().listar(SESION, undefined);
+        const r = await servicio().listar(SESION, GLOBAL, undefined);
         expect(r.items[0]!.objetivo).toEqual(baja);
         expect(resolverUsuariosDeEntidades).toHaveBeenCalledWith(tx, { membresias: [MEMBRESIA], invitaciones: [] });
       },
@@ -196,13 +198,13 @@ describe("AuditoriaService.listar", () => {
 
     it.each(["asignacion.agregada", "asignacion.quitada", "asignacion.tipo_cambiado"])("%s: el usuarioId de los datos", async (accion) => {
       vi.mocked(listarAuditoria).mockResolvedValue([sujeto(accion, { entidad: "asignacion", clienteId: CLIENTE, datos: { usuarioId: OBJ, tipo: "responsable" } })]);
-      const r = await servicio().listar(SESION, undefined);
+      const r = await servicio().listar(SESION, GLOBAL, undefined);
       expect(r.items[0]!.objetivo).toEqual(baja);
     });
 
     it.each(["invitacion.creada", "invitacion.revocada", "invitacion.modificada"])("%s: quien aceptó la invitación", async (accion) => {
       vi.mocked(listarAuditoria).mockResolvedValue([sujeto(accion, { entidad: "invitacion", entidadId: INVITACION })]);
-      const r = await servicio().listar(SESION, undefined);
+      const r = await servicio().listar(SESION, GLOBAL, undefined);
       expect(r.items[0]!.objetivo).toEqual(baja);
       expect(resolverUsuariosDeEntidades).toHaveBeenCalledWith(tx, { membresias: [], invitaciones: [INVITACION] });
     });
@@ -215,21 +217,21 @@ describe("AuditoriaService.listar", () => {
         sujeto("asignacion.quitada", { entidad: "asignacion", datos: { usuarioId: "no-es-uuid" } }),
         sujeto("asignacion.agregada", { entidad: "asignacion", datos: {} }),
       ]);
-      const r = await servicio().listar(SESION, undefined);
+      const r = await servicio().listar(SESION, GLOBAL, undefined);
       expect(r.items.map((i) => i.objetivo)).toEqual([null, null, null, null]);
     });
 
     it("un usuario que ya no se resuelve como autor da objetivo null, no el id crudo", async () => {
       vi.mocked(resolverAutores).mockResolvedValue(new Map());
       vi.mocked(listarAuditoria).mockResolvedValue([sujeto("miembro.alta")]);
-      const r = await servicio().listar(SESION, undefined);
+      const r = await servicio().listar(SESION, GLOBAL, undefined);
       expect(r.items[0]!.objetivo).toBeNull();
       expect(JSON.stringify(r)).not.toContain(OBJ);
     });
 
     it("las demás acciones tienen objetivo null y no consultan membresías ni invitaciones", async () => {
       vi.mocked(listarAuditoria).mockResolvedValue([fila(1), fila(2, { accion: "cliente.editado", datos: { cambios: { zona: ["A", "B"] } } })]);
-      const r = await servicio().listar(SESION, undefined);
+      const r = await servicio().listar(SESION, GLOBAL, undefined);
       expect(r.items.map((i) => i.objetivo)).toEqual([null, null]);
       expect(resolverUsuariosDeEntidades).not.toHaveBeenCalled();
       expect(r.items[1]!.datos).toEqual({ cambios: { zona: ["A", "B"] } });
@@ -237,7 +239,7 @@ describe("AuditoriaService.listar", () => {
 
     it("resuelve los autores del actor y los objetivos en UNA consulta, sin repetir ids", async () => {
       vi.mocked(listarAuditoria).mockResolvedValue([sujeto("miembro.alta"), sujeto("miembro.reactivado"), fila(1)]);
-      await servicio().listar(SESION, undefined);
+      await servicio().listar(SESION, GLOBAL, undefined);
       expect(resolverAutores).toHaveBeenCalledTimes(1);
       const ids = vi.mocked(resolverAutores).mock.calls[0]![1];
       expect([...new Set(ids)].sort()).toEqual([OBJ, USUARIO].sort());
@@ -245,13 +247,14 @@ describe("AuditoriaService.listar", () => {
   });
 
   it.each([
-    ["una clave ajena", { usuarioId: USUARIO }],
+    ["una clave ajena", { tenantId: TENANT }],
+    ["un usuarioId que no es UUID (031: ahora es filtro)", { usuarioId: "no-es-uuid" }],
     ["un límite", { limite: "500" }],
     ["un cursor mal formado", { cursor: "no-es-un-cursor" }],
     ["un cursor que no es texto", { cursor: 3 }],
     ["una consulta que no es objeto", "x"],
   ])("rechaza con 400 %s sin abrir la BD", async (_n, query) => {
-    const e = await servicio().listar(SESION, query).catch((x: unknown) => x);
+    const e = await servicio().listar(SESION, GLOBAL, query).catch((x: unknown) => x);
     expect(e).toBeInstanceOf(AccesoError);
     expect((e as AccesoError).codigo).toBe("solicitud_invalida");
     expect(withTenant).not.toHaveBeenCalled();
@@ -259,7 +262,7 @@ describe("AuditoriaService.listar", () => {
 
   it("sin estudio activo es estudio_requerido", async () => {
     const e = await servicio()
-      .listar({ tenantActivo: null, usuarioId: USUARIO } as never, undefined)
+      .listar({ tenantActivo: null, usuarioId: USUARIO } as never, GLOBAL, undefined)
       .catch((x: unknown) => x);
     expect((e as AccesoError).codigo).toBe("estudio_requerido");
     expect(withTenant).not.toHaveBeenCalled();

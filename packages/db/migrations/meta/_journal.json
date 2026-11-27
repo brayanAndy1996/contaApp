@@ -617,6 +617,13 @@
       "when": 1795708824851,
       "tag": "0087_roles_worker_revalidar",
       "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1795755374490,
+      "tag": "0088_auditoria_consulta",
+      "breakpoints": true
     }
   ]
 }

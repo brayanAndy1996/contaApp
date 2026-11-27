@@ -3,6 +3,7 @@ import {
   check,
   customType,
   foreignKey,
+  index,
   pgTable,
   smallint,
   text,
@@ -93,6 +94,16 @@ export const auditoriaDescifrado = pgTable(
       .defaultNow(),
   },
   (t) => [
+    // Spec 031 (D-7, 0088): la consulta de auditoría pagina por milisegundos truncados. `auditoria_ms` es inmutable y
+    // LEAKPROOF (si no, con la RLS, sus comparaciones no serían condiciones del índice); la función de descifrados la usa igual en
+    // WHERE y ORDER BY.
+    index("auditoria_descifrado_fecha_idx").on(t.tenantId, sql`auditoria_ms(${t.createdAt}) DESC NULLS LAST`, t.id.desc()),
+    index("auditoria_descifrado_cliente_idx").on(
+      t.tenantId,
+      t.clienteId,
+      sql`auditoria_ms(${t.createdAt}) DESC NULLS LAST`,
+      t.id.desc(),
+    ),
     check(
       "auditoria_descifrado_tipo_valido",
       sql`${t.tipo} IS NULL OR ${t.tipo} IN ('sol', 'sire_api')`,

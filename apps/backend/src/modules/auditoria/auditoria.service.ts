@@ -1,18 +1,30 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
+  clienteVisible,
   leerClientesPorIds,
   listarAuditoria,
+  opcionesAuditoria,
   MAX_PAGINA_AUDITORIA,
   resolverAutores,
   resolverUsuariosDeEntidades,
+  type Alcance,
   type ContappDb,
   type FilaAuditoria as FilaBd,
 } from "@contapp/db";
-import { filaAuditoriaSchema, type Autor, type FilaAuditoria, type PaginaAuditoria } from "@contapp/shared";
+import {
+  filaAuditoriaSchema,
+  opcionesAuditoriaSchema,
+  type Autor,
+  type FilaAuditoria,
+  type OpcionesAuditoria,
+  type PaginaAuditoria,
+} from "@contapp/shared";
 import { DB } from "../auth/inyeccion.js";
 import type { SesionResuelta } from "../auth/auth.service.js";
 import { contextoDe } from "../clientes/contexto.js";
-import { codificarCursor, leerConsulta } from "../notificaciones/cursor.js";
+import { AccesoError } from "../acceso/errores.js";
+import { codificarCursor } from "../notificaciones/cursor.js";
+import { leerConsultaAuditoria, leerConsultaOpciones } from "./consulta.js";
 
 const ES_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -25,17 +37,29 @@ const ES_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export class AuditoriaService {
   constructor(@Inject(DB) private readonly db: Pick<ContappDb, "withTenant">) {}
 
-  async listar(sesion: SesionResuelta, query: unknown): Promise<PaginaAuditoria> {
-    const antes = leerConsulta(query);
+  async listar(sesion: SesionResuelta, alcance: Alcance, query: unknown): Promise<PaginaAuditoria> {
+    // 400 antes de abrir la transacción (CA-7).
+    const { filtros, antes } = leerConsultaAuditoria(query);
     return this.db.withTenant(contextoDe(sesion), async (tx) => {
+      // Un cliente fuera del alcance (o inexistente, o de otro estudio) da el mismo 404 (D-3).
+      if (filtros.clienteId !== null && (await clienteVisible(tx, filtros.clienteId, alcance)) !== true) {
+        throw new AccesoError("no_encontrado");
+      }
       const filas = await listarAuditoria(tx, {
         ...(antes === undefined ? {} : { antes }),
         limite: MAX_PAGINA_AUDITORIA,
+        alcance,
+        filtros,
       });
       const ultima = filas[filas.length - 1];
       let siguiente: string | null = null;
       if (ultima !== undefined && filas.length === MAX_PAGINA_AUDITORIA) {
-        const mas = await listarAuditoria(tx, { antes: { en: ultima.ocurridaEn, id: ultima.id }, limite: 1 });
+        const mas = await listarAuditoria(tx, {
+          antes: { en: ultima.ocurridaEn, id: ultima.id },
+          limite: 1,
+          alcance,
+          filtros,
+        });
         if (mas.length > 0) siguiente = codificarCursor({ en: ultima.ocurridaEn, id: ultima.id });
       }
       // P-4: el usuario afectado (miembro, asignación, invitación) se resuelve junto con los autores: UN lote por página.
@@ -52,6 +76,16 @@ export class AuditoriaService {
       for (const f of filas) items.push(...this.aDto(f, autores, clientes, objetivos));
       return { items, siguiente };
     });
+  }
+
+  /** Opciones de los selectores (D-6): miembros del estudio y clientes visibles con el alcance de quien consulta. */
+  async opciones(sesion: SesionResuelta, alcance: Alcance, query: unknown): Promise<OpcionesAuditoria> {
+    const { q, clienteId } = leerConsultaOpciones(query);
+    const r = await this.db.withTenant(contextoDe(sesion), (tx) =>
+      opcionesAuditoria(tx, { q: q ?? null, clienteId: clienteId?.toLowerCase() ?? null, alcance }),
+    );
+    // `z.object` descarta cualquier campo que no sea del contrato (correo, tenantId).
+    return opcionesAuditoriaSchema.parse(r);
   }
 
   /**

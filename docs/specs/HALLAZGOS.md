@@ -200,6 +200,8 @@ Hallazgos de las rondas adversariales ya cerrados (corregidos, aceptados por el 
 | 030-roles-personalizados | T13a · `tests/aislamiento/roles-r2.adv.spec.ts:121` | H-030-2-2 (media, D2): reactivar una membresía desactivada con rol propio (UPDATE o `INSERT … ON CONFLICT DO UPDATE`) no pasaba por la regla de contención | corregido (e9b4320; 0086) |
 | 030-roles-personalizados | T13a · `tests/aislamiento/roles-r2.adv.spec.ts:377` | H-030-2-3 (baja, U2): `acceso.rol_impacto` no aplicaba en la BD la regla de contención de `rol_guardar` | corregido (e9b4320; 0086) |
 | 030-roles-personalizados | T13a · `apps/backend/src/modules/acceso/roles/roles-r2.adv.int.spec.ts:133`; `tests/aislamiento/roles-r2.adv.spec.ts:400` | H-030-2-4: confusables Unicode en nombres de rol (p. ej. «Dueño» con cirílica) no se detectan; documentado con `it.fails` | aceptado por el usuario (82cd744) |
+| 031-auditoria-consulta | `apps/backend/src/modules/auditoria/auditoria-consulta.adv.int.spec.ts:66` | H-1 (baja): `/auditoria/opciones?q=%00` responde 500 en vez de 400; el esquema de `q` (`packages/shared/src/auditoria/consulta.ts:41`) no rechaza NUL | corregido (9c49632; `q` rechaza NUL con 400) |
+| 031-auditoria-consulta | `apps/backend/src/modules/auditoria/auditoria-consulta.adv.int.spec.ts:170` | H-2 (baja): cursor con fecha imposible (2026-02-30…) da 200 en vez de 400; `apps/backend/src/modules/notificaciones/cursor.ts:36-38` (código de 017, compartido) | corregido (9c49632; el cursor rechaza fechas imposibles con 400) |
 
 ## Notas movidas
 

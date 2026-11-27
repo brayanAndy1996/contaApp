@@ -1,8 +1,12 @@
 import {
+  ACCIONES_AUDITORIA,
+  MAX_ACCIONES_CONSULTA_AUDITORIA,
   cambiosClienteAuditoriaSchema,
+  opcionesAuditoriaSchema,
   paginaAuditoriaSchema,
   type AccionAuditoria,
   type FilaAuditoria,
+  type OpcionesAuditoria,
 } from "@contapp/shared";
 import { api, type RespuestaApi } from "./api";
 import { ETIQUETA_ROL } from "./acceso";
@@ -13,7 +17,7 @@ import { etiquetaAutor } from "./autor";
 // valida con `shared`; aquí solo se arma el texto en español. La acción desconocida no llega (el esquema es un enum
 // cerrado): una respuesta con otra forma se trata como error de carga.
 
-export type { FilaAuditoria };
+export type { FilaAuditoria, OpcionesAuditoria };
 
 export interface PaginaAuditoriaVista {
   items: FilaAuditoria[];
@@ -45,6 +49,34 @@ export const MENSAJES_AUDITORIA = {
   otroCampo: "Otro dato",
   actorSistema: "Sistema",
   sinCliente: "—",
+  // Spec 031 (CA-10; P-1 a P-3): filtros, estados y enlaces.
+  enlaceHistorial: "Ver historial",
+  enlaceHistorialPeriodo: "Ver historial del periodo",
+  vacioFiltrado: "No hay registros para los filtros elegidos.",
+  clienteNoEncontrado: "No se encontró el cliente. Puede que no exista o que no tengas acceso a él.",
+  filtrosInvalidos: "Los filtros no son válidos. Revísalos e inténtalo de nuevo.",
+  avisoDescifrados:
+    "Los descifrados de credenciales no registran autor: al filtrar por usuario no aparecen en la lista.",
+  filtros: {
+    titulo: "Filtros de auditoría",
+    usuario: "Usuario",
+    todosUsuarios: "Todos los usuarios",
+    inactivo: "(inactivo)",
+    cliente: "Cliente",
+    clientePlaceholder: "Busca por RUC o razón social",
+    clienteSinResultados: "Ningún cliente coincide con la búsqueda.",
+    clienteBuscando: "Buscando…",
+    archivado: "archivado",
+    listaClientes: "Clientes encontrados",
+    errorOpciones: "No se pudieron cargar las opciones de los filtros.",
+    acciones: "Acciones",
+    limiteAcciones: `Puedes elegir hasta ${MAX_ACCIONES_CONSULTA_AUDITORIA} acciones.`,
+    desde: "Desde",
+    hasta: "Hasta",
+    todo: "Todo el historial",
+    ayudaFechas: "Fechas en hora de Lima. Sin fechas se muestran los últimos 30 días.",
+    limpiar: "Quitar usuario, cliente y acciones",
+  },
 } as const;
 
 const ACCIONES: Record<AccionAuditoria, string> = {
@@ -353,11 +385,114 @@ export function textoDetalle(fila: FilaDetalle): string {
   return lineasDetalle(fila).join(" · ");
 }
 
+// ---------------------------------------------------------------------------------------------
+// Filtros (spec 031, D-2, P-2): viven en la URL con los mismos nombres de la API más `todo=1`. Aquí solo se leen,
+// se normalizan y se arma la consulta; la validación real es del backend (400) y los cálculos de rango también.
+// ---------------------------------------------------------------------------------------------
+
+/** Acciones del catálogo con su texto en español, en el orden del catálogo de `shared`. */
+export const ACCIONES_FILTRABLES: { valor: AccionAuditoria; texto: string }[] = ACCIONES_AUDITORIA.map((valor) => ({
+  valor,
+  texto: ACCIONES[valor],
+}));
+
+export const MAX_ACCIONES_FILTRO = MAX_ACCIONES_CONSULTA_AUDITORIA;
+
+/** Filtros vigentes; «» = sin filtro. `desde`/`hasta` ya traen los últimos 30 días cuando la URL no dice nada. */
+export interface FiltrosAuditoria {
+  usuarioId: string;
+  clienteId: string;
+  acciones: string[];
+  desde: string;
+  hasta: string;
+  todo: boolean;
+}
+
+const MS_HORA = 3_600_000;
+const MS_DIA = 24 * MS_HORA;
+/** Perú: UTC−05:00 fijo, sin horario de verano. */
+const HORAS_LIMA = 5;
+/** Días que abarca la ventana por defecto: hoy y los 29 anteriores. */
+const DIAS_VENTANA = 29;
+
+const aFechaPura = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
+
+/** «Hoy» en Lima como `AAAA-MM-DD`. */
+export function hoyLima(ahora: Date = new Date()): string {
+  return aFechaPura(ahora.getTime() - HORAS_LIMA * MS_HORA);
+}
+
+/** Ventana por defecto (P-2): hoy Lima − 29 → hoy Lima. */
+export function ventanaPorDefecto(ahora: Date = new Date()): { desde: string; hasta: string } {
+  const hoy = hoyLima(ahora);
+  return { desde: aFechaPura(Date.parse(`${hoy}T00:00:00.000Z`) - DIAS_VENTANA * MS_DIA), hasta: hoy };
+}
+
+/** Filtros de la URL. Sin `desde`/`hasta` ni `todo=1` aplica la ventana por defecto; `todo=1` quita ambas fechas. */
+export function filtrosDeUrl(p: URLSearchParams, ahora: Date = new Date()): FiltrosAuditoria {
+  const todo = p.get("todo") === "1";
+  let desde = todo ? "" : (p.get("desde") ?? "");
+  let hasta = todo ? "" : (p.get("hasta") ?? "");
+  if (!todo && !desde && !hasta) ({ desde, hasta } = ventanaPorDefecto(ahora));
+  return {
+    usuarioId: p.get("usuarioId") ?? "",
+    clienteId: p.get("clienteId") ?? "",
+    acciones: p.getAll("accion"),
+    desde,
+    hasta,
+    todo,
+  };
+}
+
+/**
+ * Cambia filtros y devuelve la URL nueva. Tocar una fecha materializa la otra (la que se veía) y apaga `todo`;
+ * marcar `todo` quita las fechas; desmarcarlo las deja en blanco para que vuelva la ventana por defecto.
+ */
+export function urlDeFiltros(actual: FiltrosAuditoria, cambio: Partial<FiltrosAuditoria>): URLSearchParams {
+  const n: FiltrosAuditoria = { ...actual, ...cambio };
+  if ("todo" in cambio) {
+    n.desde = "";
+    n.hasta = "";
+  } else if ("desde" in cambio || "hasta" in cambio) {
+    n.todo = false;
+  }
+  const p = new URLSearchParams();
+  if (n.usuarioId) p.set("usuarioId", n.usuarioId);
+  if (n.clienteId) p.set("clienteId", n.clienteId);
+  for (const a of n.acciones) p.append("accion", a);
+  if (n.todo) p.set("todo", "1");
+  else {
+    if (n.desde) p.set("desde", n.desde);
+    if (n.hasta) p.set("hasta", n.hasta);
+  }
+  return p;
+}
+
+/** Consulta a `GET /auditoria` (sin cursor): los mismos nombres que la API. */
+export function consultaDeFiltros(f: FiltrosAuditoria): URLSearchParams {
+  const q = new URLSearchParams();
+  if (f.usuarioId) q.set("usuarioId", f.usuarioId);
+  if (f.clienteId) q.set("clienteId", f.clienteId);
+  for (const a of f.acciones) q.append("accion", a);
+  if (f.desde) q.set("desde", f.desde);
+  if (f.hasta) q.set("hasta", f.hasta);
+  return q;
+}
+
+/** ¿Hay algo que acote la lista? Solo «todo el historial» sin más filtros es la lista completa. */
+export function hayFiltros(f: FiltrosAuditoria): boolean {
+  return Boolean(f.usuarioId || f.clienteId || f.acciones.length > 0 || !f.todo);
+}
+
+/** `consulta` es el texto de `consultaDeFiltros(...)`; el cursor solo vale con los mismos filtros. */
 export async function listarAuditoria(
   cursor?: string | null,
+  consulta: string = "",
 ): Promise<RespuestaApi<PaginaAuditoriaVista>> {
-  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
-  const r = await api<unknown>(`/auditoria${query}`);
+  const q = new URLSearchParams(consulta);
+  if (cursor) q.set("cursor", cursor);
+  const texto = q.toString();
+  const r = await api<unknown>(`/auditoria${texto ? `?${texto}` : ""}`);
   if (!r.ok) return { ok: false, status: r.status, datos: null };
   const p = paginaAuditoriaSchema.safeParse(r.datos);
   return {
@@ -365,4 +500,18 @@ export async function listarAuditoria(
     status: r.status,
     datos: p.success ? p.data : null,
   };
+}
+
+/** `GET /auditoria/opciones`: miembros y clientes visibles para los selectores (`q` busca; `clienteId` lo agrega). */
+export async function opcionesAuditoria(
+  filtro: { q?: string; clienteId?: string } = {},
+): Promise<RespuestaApi<OpcionesAuditoria>> {
+  const q = new URLSearchParams();
+  if (filtro.q) q.set("q", filtro.q);
+  if (filtro.clienteId) q.set("clienteId", filtro.clienteId);
+  const texto = q.toString();
+  const r = await api<unknown>(`/auditoria/opciones${texto ? `?${texto}` : ""}`);
+  if (!r.ok) return { ok: false, status: r.status, datos: null };
+  const p = opcionesAuditoriaSchema.safeParse(r.datos);
+  return { ok: p.success, status: r.status, datos: p.success ? p.data : null };
 }
