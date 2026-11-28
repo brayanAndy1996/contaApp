@@ -33,7 +33,27 @@ export const PARAMETROS_EXPORTAR: Readonly<Record<LibroSire, Readonly<Record<str
   ventas: { codTipoArchivo: "0" },
 };
 
-export const RUTA_TICKET = `${BASE_LIBROS}/rvierce/gestionprocesosmasivos/web/masivo/consultaestadotickets`;
+/** 5.51 «Descargar RCE por periodo» (plan P-3): registro de compras ya generado. `perTributario` = periodo pedido. */
+export function rutaRegistroPresentado(periodo: string): string {
+  return `${BASE_LIBROS}/rce/ajustesposteriores/web/ajustesposteriores/${periodo}/solicitardescarga`;
+}
+
+/**
+ * `codProceso` de 5.51 (P-3a, decidido por el usuario el 2026-11-28): se pide `principal` y, solo si SUNAT responde «sin
+ * datos», UNA vez `sinDatos`. Nunca otro código.
+ */
+export const COD_PROCESO_REGISTRO = { principal: "01", sinDatos: "02" } as const;
+export type CodProcesoRegistro = (typeof COD_PROCESO_REGISTRO)[keyof typeof COD_PROCESO_REGISTRO];
+
+/**
+ * Query de 5.51: un ticket por periodo (`lisPeriodos` = `perTributario`). El nombre es `codOrigen`, no `codOrigenEnvio`.
+ * `codMoneda` se omite (P-3b).
+ */
+export function parametrosRegistro(periodo: string, codProceso: CodProcesoRegistro): Readonly<Record<string, string>> {
+  return { codTipoArchivo: "0", codProceso, codOrigen: "2", lisPeriodos: periodo };
+}
+
+export const RUTA_TICKET =`${BASE_LIBROS}/rvierce/gestionprocesosmasivos/web/masivo/consultaestadotickets`;
 export const RUTA_ARCHIVO = `${BASE_LIBROS}/rvierce/gestionprocesosmasivos/web/masivo/archivoreporte`;
 
 export const COD_LIBRO: Readonly<Record<LibroSire, string>> = { compras: "080000", ventas: "140000" };

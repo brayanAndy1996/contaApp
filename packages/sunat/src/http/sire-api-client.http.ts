@@ -13,6 +13,7 @@ import {
   TokenRechazadoError,
 } from "../errores.js";
 import type {
+  FilaPropuestaSire,
   LibroSire,
   PropuestaSire,
   RegistroPresentadoSire,
@@ -24,6 +25,7 @@ import type {
 import type { AlmacenTicketsSire } from "./almacen-tickets.js";
 import {
   COD_LIBRO,
+  COD_PROCESO_REGISTRO,
   GRAMATICA_PERIODO,
   GRAMATICA_RUC,
   MAX_BYTES_JSON,
@@ -36,7 +38,9 @@ import {
   TIMEOUT_DESCARGA_MS,
   TTL_TICKET_MS,
   armarUrl,
+  parametrosRegistro,
   rutaExportar,
+  rutaRegistroPresentado,
 } from "./endpoints.js";
 import { origenes, parsearJson, type OpcionesHttpSire } from "./sire-auth.http.js";
 import { interpretarConsultaTicket, planEsperaTicket, type ParteTicket } from "./ticket.js";
@@ -60,6 +64,16 @@ export type ContextoLectura = EsperadoTxt;
 
 /** Operación que nombra la clave del almacén (H-041-2-4): la propuesta y el registro presentado no comparten ticket. */
 type OperacionTicket = "propuesta" | "registro";
+
+/**
+ * Señal interna de «sin datos» del registro presentado (P-3a); nunca sale del adaptador: se reintenta con 02 o se lanza
+ * `error`, que es un `ErrorDatos` sin causa ni secretos.
+ */
+class SinDatosRegistro extends Error {
+  constructor(readonly error: ErrorDatos) {
+    super("sin datos");
+  }
+}
 
 /** Ticket listo para descargar. */
 interface TicketListo {
@@ -99,7 +113,8 @@ export class HttpSireApiClient implements SireApiClient {
     const contexto: ContextoLectura = { ruc, periodo };
     let propuesta: PropuestaSire;
     try {
-      const ticket = await this.obtenerTicketListo(token, libro, periodo, clave, inicio);
+      const url = armarUrl(this.origen, rutaExportar(libro, periodo), PARAMETROS_EXPORTAR[libro]);
+      const ticket = await this.obtenerTicketListo(token, url, "propuesta", periodo, clave, inicio);
       propuesta =
         libro === "compras"
           ? { libro, periodo, filas: await this.leerPartes(token, libro, ticket, inicio, (txt) => mapearCompras(txt, contexto)) }
@@ -114,13 +129,45 @@ export class HttpSireApiClient implements SireApiClient {
   }
 
   /**
-   * Spec 025 / CA-13: la ruta de 5.51/5.40 depende de P-3 (aún sin resolver). Hasta entonces falla sin reintentos y sin
-   * llamar a la red.
+   * Spec 025 / CA-13, plan P-3: registro de compras presentado (5.51) con el mismo flujo de ticket, `leerPartes` y
+   * `mapearCompras` que la propuesta, y las mismas reglas de guardar y borrar el ticket (clave `…:compras:{per}:registro`).
+   * P-3a: pide `codProceso` 01 y, si SUNAT responde «sin datos» (422 al solicitar o TXT sin filas), UNA vez 02 en este
+   * intento; si 02 tampoco tiene datos, ese error (permanente) se propaga. P-3b: sin `codMoneda`.
    */
-  descargarRegistroPresentado(token: TokenSire, solicitud: SolicitudRegistroPresentado): Promise<RegistroPresentadoSire> {
-    void token;
-    void solicitud;
-    return Promise.reject(new ErrorPortalSire("respuesta_inesperada"));
+  async descargarRegistroPresentado(token: TokenSire, solicitud: SolicitudRegistroPresentado): Promise<RegistroPresentadoSire> {
+    const { ruc, periodo } = solicitud;
+    if (!GRAMATICA_RUC.test(ruc) || !GRAMATICA_PERIODO.test(periodo)) throw new ErrorDatos();
+    const inicio = this.ahora().getTime();
+    const clave = this.claveAlmacen(solicitud.claveReanudacion, "compras", periodo, "registro");
+    const contexto: ContextoLectura = { ruc, periodo };
+    const ruta = rutaRegistroPresentado(periodo);
+    let filas: FilaPropuestaSire[] | undefined;
+    try {
+      for (const codProceso of [COD_PROCESO_REGISTRO.principal, COD_PROCESO_REGISTRO.sinDatos]) {
+        const esUltimo = codProceso === COD_PROCESO_REGISTRO.sinDatos;
+        try {
+          const url = armarUrl(this.origen, ruta, parametrosRegistro(periodo, codProceso));
+          // Con 02 no se retoma nada: el ticket de 01 ya se borró y 02 se solicita exactamente una vez.
+          const ticket = await this.obtenerTicketListo(token, url, "registro", periodo, clave, inicio, !esUltimo);
+          const leidas = await this.leerPartes(token, "compras", ticket, inicio, (txt) => mapearCompras(txt, contexto));
+          if (leidas.length === 0) throw new SinDatosRegistro(new ErrorDatosSire("sin_datos"));
+          filas = leidas;
+          break;
+        } catch (e) {
+          if (!(e instanceof SinDatosRegistro)) throw e;
+          if (esUltimo) throw e.error;
+          if (clave !== null) await this.almacen!.borrar(clave);
+        }
+      }
+    } catch (e) {
+      const conservar = e instanceof ErrorTransitorio || e instanceof TokenRechazadoError;
+      if (!conservar && clave !== null) await this.almacen!.borrar(clave);
+      throw e;
+    }
+    if (clave !== null) await this.almacen!.borrar(clave);
+    // El bucle siempre termina con `filas` o lanzando; esto solo satisface al compilador.
+    if (filas === undefined) throw new ErrorPortalSire("respuesta_inesperada");
+    return { libro: "compras", periodo, filas };
   }
 
   // ── Pasos ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -143,12 +190,14 @@ export class HttpSireApiClient implements SireApiClient {
    */
   private async obtenerTicketListo(
     token: TokenSire,
-    libro: LibroSire,
+    urlSolicitud: string,
+    operacion: OperacionTicket,
     periodo: string,
     clave: string | null,
     inicio: number,
+    retomar = true,
   ): Promise<TicketListo> {
-    const guardado = clave === null ? null : await this.almacen!.leer(clave);
+    const guardado = clave === null || !retomar ? null : await this.almacen!.leer(clave);
     if (guardado !== null && GRAMATICA_TICKET.test(guardado)) {
       try {
         return await this.esperarTicketListo(token, periodo, guardado, inicio);
@@ -157,14 +206,24 @@ export class HttpSireApiClient implements SireApiClient {
         await this.almacen!.borrar(clave!);
       }
     }
-    const numTicket = await this.exportar(token, libro, periodo, inicio);
+    const numTicket = await this.exportar(token, urlSolicitud, operacion, inicio);
     if (clave !== null) await this.almacen!.guardar(clave, numTicket, TTL_TICKET_MS);
     return this.esperarTicketListo(token, periodo, numTicket, inicio);
   }
 
-  private async exportar(token: TokenSire, libro: LibroSire, periodo: string, inicio: number): Promise<string> {
-    const url = armarUrl(this.origen, rutaExportar(libro, periodo), PARAMETROS_EXPORTAR[libro]);
-    const r = esquemaExportar.safeParse(await this.pedirJson(token, url, inicio));
+  /**
+   * Pide el ticket (exportación de la propuesta o 5.51 del registro). En el registro, un 422 al solicitar es «sin datos»
+   * (P-3) y se marca para que `descargarRegistroPresentado` decida si pide `codProceso` 02.
+   */
+  private async exportar(token: TokenSire, url: string, operacion: OperacionTicket, inicio: number): Promise<string> {
+    let cuerpo: unknown;
+    try {
+      cuerpo = await this.pedirJson(token, url, inicio);
+    } catch (e) {
+      if (operacion === "registro" && e instanceof ErrorDatos) throw new SinDatosRegistro(e);
+      throw e;
+    }
+    const r = esquemaExportar.safeParse(cuerpo);
     if (!r.success) throw new ErrorPortalSire("respuesta_inesperada");
     return r.data.numTicket;
   }

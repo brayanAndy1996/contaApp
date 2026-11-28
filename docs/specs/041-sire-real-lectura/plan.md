@@ -100,6 +100,7 @@ Mapeo (encabezado normalizado → campo). Compras: `Tipo CP/Doc.`→`tipo`, `Ser
 11. Si se elige P-3a (a): `registro: 01 sin datos → pide 02 una vez; 02 sin datos → ErrorDatos`. Según P-3b: `registro: no envía codMoneda` (o `pide PEN y USD y une`).
 12. `sire.contrato.spec.ts`: el caso del registro presentado imprime solo formas (columnas, si el encabezado coincide, estados y tiempos).
 **Pendiente del usuario**: P-3a (`codProceso`) y P-3b (`codMoneda`). Mientras no respondan, `descargarRegistroPresentado` sigue rechazando.
+Decidido por el usuario (2026-11-28): codProceso 01 y, si da sin datos, 02 una vez; codMoneda omitido; el fallback PEN+USD se evalúa tras la corrida real (T16).
 
 ## Riesgos
 - SUNAT cambia el layout o los nombres de columna → `ErrorPortalSire("encabezado")` + alerta (RNF-044); la prueba de contrato lo detecta antes.

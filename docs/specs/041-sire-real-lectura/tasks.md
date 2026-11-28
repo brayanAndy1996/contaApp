@@ -22,7 +22,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → atac
 | T14 | Pruebas de las correcciones de la ronda 2 (rojo) — omitida: las pruebas del adversario cubren los hallazgos | tester | sonnet | T13 | ✓ | — | [x] |
 | T15 | Corregir hallazgos de la ronda 2 | backend | opus | T14 | — | — | [x] |
 | T15b | Pruebas del registro presentado (P-3) | tester | sonnet | T15 | ✓ | — | [x] (20 pruebas en rojo en `registro-presentado.http.spec.ts`; `it.todo` de «SUNAT exige moneda»: el plan no fija la respuesta del servidor falso) |
-| T15c | Implementar registro presentado (P-3) | backend | opus | T15b | — | — | [ ] |
+| T15c | Implementar registro presentado (P-3) | backend | opus | T15b | — | — | [x] |
 | T16 | Corrida de la prueba de contrato contra SUNAT (la ejecuta el **usuario**) y ajustes de P-5/P-6 | tester | sonnet | T9, T15 | — | — | [ ] |
 | T17 | Verificar CA-1 a CA-15 con evidencia y suites de `sunat`, `queue` y `worker` | tester | sonnet | T16 | — | — | [ ] |
 | T18 | Revisión final contra la spec | arquitecto | opus | T17 | — | — | [ ] |
