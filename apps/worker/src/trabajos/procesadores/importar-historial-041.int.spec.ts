@@ -35,7 +35,7 @@ import {
   mundoSireHttp,
   registroTicket,
   respuestaToken,
-  zipDe,
+  zipRegistroRealDe,
   type ServidorSireFalso,
 } from "../../../test/sire-http.js";
 import {
@@ -143,8 +143,8 @@ const NOMBRE_ZIP_DE: Record<Moneda, string> = {
   USD: "registro-202610-usd.zip",
 };
 const zipRegistro = (m: Moneda) =>
-  zipDe(
-    `20700000002-registro-202610-${m.toLowerCase()}.txt`,
+  zipRegistroRealDe(
+    `20700000002-registro-202610-${m.toLowerCase()}`,
     leerFixture(FIXTURE_DE[m]),
   );
 const monedaDe = (p: { query: Record<string, string> }): Moneda =>

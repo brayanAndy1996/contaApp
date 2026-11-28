@@ -23,6 +23,7 @@ import {
   type ParteFalsa,
   type RelojVirtual,
 } from "./pruebas/ayudas-http.js";
+import { zipRegistroReal } from "./pruebas/zip-manual.js";
 import type { GuionRespuesta, PeticionFalsa, RespuestaFalsa } from "./pruebas/servidor-sire-falso.js";
 import { HttpSireApiClient } from "./sire-api-client.http.js";
 import type { OpcionesHttpSire } from "./sire-auth.http.js";
@@ -140,7 +141,7 @@ function textoFixture(nombre: string): string {
   return Buffer.from(fixture(nombre)).toString("utf8");
 }
 function zipDe(moneda: Moneda, contenido: Uint8Array): Uint8Array {
-  return zip(`20700000002-registro-202610-${moneda}.txt`, contenido);
+  return zipRegistroReal(`20700000002-registro-202610-${moneda}`, contenido);
 }
 /** Parte de registro de la moneda; por defecto con su fixture completo. */
 function parteRegistro(moneda: Moneda, nombre = `registro-${moneda.toLowerCase()}.zip`, txt: Uint8Array = fixture(TXT[moneda])): ParteFalsa {
@@ -595,7 +596,7 @@ describe("HttpSireApiClient · registro presentado (CA-11, CA-13, P-3)", () => {
         const celdas = filas[fila]!.split("|");
         celdas[3] = grande; // «CAR SUNAT»: no se mapea
         const contenido = new Uint8Array(Buffer.from(`${cab}\n${celdas.join("|")}\n`, "utf8"));
-        return { nombre, zip: zip("parte.txt", contenido) };
+        return { nombre, zip: zipRegistroReal("parte", contenido) };
       };
       // 2 partes PEN (120 MiB) y 3 partes USD (180 MiB): ninguna moneda pasa de 256 MiB sola, la 5.ª parte suma 300 MiB.
       const pen = [parteGrande("PEN", 0, "pen1.zip"), parteGrande("PEN", 1, "pen2.zip")];

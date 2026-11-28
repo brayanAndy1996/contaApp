@@ -69,6 +69,59 @@ export function zipDe(nombreEntrada: string, contenido: Uint8Array): Buffer {
   return Buffer.concat([parteLocal, parteCentral, fin]);
 }
 
+/**
+ * ZIP con la estructura REAL del registro presentado (servicio 5.32, corrida de contrato; spec 041 T15e): firma `PK\x07\x08`
+ * al inicio y TRES entradas en el directorio central: `base/base.txt` con datos (deflate), OTRA `base/base.txt` vacía
+ * (stored, tamaños y CRC 0) y la carpeta `base/`. Sin cifrado, sin ZIP64, sin descriptor de datos, banderas UTF-8.
+ */
+export function zipRegistroRealDe(base: string, contenido: Uint8Array): Buffer {
+  const archivo = Buffer.from(`${base}/${base}.txt`, "utf8");
+  const carpeta = Buffer.from(`${base}/`, "utf8");
+  const datos = Buffer.from(contenido);
+  const entradas = [
+    { nombre: archivo, metodo: 8, comprimido: deflateRawSync(datos), tamano: datos.length, crc: crc32(datos) },
+    { nombre: archivo, metodo: 0, comprimido: Buffer.alloc(0), tamano: 0, crc: 0 },
+    { nombre: carpeta, metodo: 0, comprimido: Buffer.alloc(0), tamano: 0, crc: 0 },
+  ];
+  const marca = Buffer.from([0x50, 0x4b, 0x07, 0x08]);
+  const cuerpo: Buffer[] = [marca];
+  const central: Buffer[] = [];
+  let desplazamiento = marca.length;
+  for (const e of entradas) {
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0x0800, 6);
+    local.writeUInt16LE(e.metodo, 8);
+    local.writeUInt32LE(e.crc >>> 0, 14);
+    local.writeUInt32LE(e.comprimido.length, 18);
+    local.writeUInt32LE(e.tamano, 22);
+    local.writeUInt16LE(e.nombre.length, 26);
+    const c = Buffer.alloc(46);
+    c.writeUInt32LE(0x02014b50, 0);
+    c.writeUInt16LE(20, 4);
+    c.writeUInt16LE(20, 6);
+    c.writeUInt16LE(0x0800, 8);
+    c.writeUInt16LE(e.metodo, 10);
+    c.writeUInt32LE(e.crc >>> 0, 16);
+    c.writeUInt32LE(e.comprimido.length, 20);
+    c.writeUInt32LE(e.tamano, 24);
+    c.writeUInt16LE(e.nombre.length, 28);
+    c.writeUInt32LE(desplazamiento, 42);
+    central.push(c, e.nombre);
+    cuerpo.push(local, e.nombre, e.comprimido);
+    desplazamiento += local.length + e.nombre.length + e.comprimido.length;
+  }
+  const directorio = Buffer.concat(central);
+  const fin = Buffer.alloc(22);
+  fin.writeUInt32LE(0x06054b50, 0);
+  fin.writeUInt16LE(entradas.length, 8);
+  fin.writeUInt16LE(entradas.length, 10);
+  fin.writeUInt32LE(directorio.length, 12);
+  fin.writeUInt32LE(desplazamiento, 16);
+  return Buffer.concat([...cuerpo, directorio, fin]);
+}
+
 /** Reloj controlado: `dormir` no espera; solo avanza el reloj y anota los milisegundos pedidos. */
 export class RelojSire {
   private t = Date.now();

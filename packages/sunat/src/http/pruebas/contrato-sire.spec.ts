@@ -17,7 +17,7 @@ import {
 } from "./ayudas-http.js";
 import { sinColumna } from "./ayudas-txt.js";
 import { analizarZip, diagnosticarZip, lineasEstructura, nombreSeguro, pareceTextoPlano } from "./estructura-zip.js";
-import { ZIP_RARO, noEsZip, zipManual, zipRaro } from "./zip-manual.js";
+import { ZIP_RARO, noEsZip, zipManual, zipRaro, zipRegistroReal } from "./zip-manual.js";
 import {
   CUERPO_422_FALSO,
   CUERPO_503_FALSO,
@@ -158,7 +158,7 @@ describe("contrato SIRE · registro presentado de compras (5.51) contra el servi
   const solicitudes = () => srv.sire.peticionesDe("GET", RUTAS.solicitarRegistro());
   const T_PEN = TICKET_REGISTRO_FALSO.PEN;
   const T_USD = TICKET_REGISTRO_FALSO.USD;
-  const zipRegistro = (nombre: string, txt: string) => ({ nombre, zip: zip(nombre.replace(".zip", ".txt"), fixture(txt)) });
+  const zipRegistro = (nombre: string, txt: string) => ({ nombre, zip: zipRegistroReal(nombre.replace(".zip", ""), fixture(txt)) });
   /** Guiona la solicitud (70 con PEN/USD → un ticket cada una) y el ticket de cada moneda con el fixture que se indique. */
   function guionarMonedas(pen: string, usd: string): void {
     guionarSolicitudRegistroFalsa(srv.sire);
@@ -313,7 +313,7 @@ describe("contrato SIRE · registro presentado de compras (5.51) contra el servi
       const nombre = p.query["nomArchivoReporte"] ?? "";
       const base = fixture(nombre === "registro-pen.zip" ? PEN : USD);
       return {
-        bytes: zip("x.txt", nombre === "registro-usd.zip" ? sinColumna(base, "Total CP") : base),
+        bytes: zipRegistroReal("x", nombre === "registro-usd.zip" ? sinColumna(base, "Total CP") : base),
         cabeceras: { "content-type": "application/zip" },
       };
     });
