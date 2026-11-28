@@ -4,6 +4,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   CANARIOS,
   PERIODO,
+  crearEntorno,
+  credencial,
+  CLIENT_ID,
   RUC,
   RUTAS,
   fixture,
@@ -14,11 +17,17 @@ import {
 } from "./ayudas-http.js";
 import { sinColumna } from "./ayudas-txt.js";
 import {
+  CUERPO_422_FALSO,
+  CUERPO_503_FALSO,
+  contratoDiagnostico,
   contratoLibro,
   contratoRegistro,
   contratoToken,
   credencialesDelEntorno,
   crearFetchObservado,
+  describirFallo,
+  diagnosticoActivo,
+  lineaFallo,
   lineaToken,
   lineaTotales,
   lineasLibro,
@@ -433,5 +442,213 @@ describe("formato de la salida", () => {
     expect(lineaToken({ ms: 12, tokenNoVacio: true, segundosDeVida: 3600, campos: ["access_token", "expires_in"] })).toBe(
       "[contrato-sire] token: 12 ms · campos access_token,expires_in · vida 3600 s",
     );
+  });
+});
+
+describe("contrato SIRE · diagnóstico de fallos HTTP (solo cod/msg y claves)", () => {
+  let srv: ServidorContratoFalso;
+  let token: Awaited<ReturnType<typeof contratoToken>>["token"];
+  const PROHIBIDOS = ["NO-IMPRIMIR-EXC", "NO-IMPRIMIR-VALOR", "NO-IMPRIMIR-TICKET", "NO-IMPRIMIR-DETALLE", RUC, CANARIOS.token, "202610000003"];
+  const sinValores = (salida: string): void => {
+    for (const v of PROHIBIDOS) expect(salida.includes(v), "la salida repite un valor del cuerpo de error").toBe(false);
+    expect(/\d{8,}/.test(salida), "la salida trae un número largo").toBe(false);
+  };
+  beforeAll(async () => {
+    srv = await prepararServidorFalso({ errores: true });
+    srv.entrada.dormir = sinEsperar;
+    token = (await contratoToken(srv.entrada)).token;
+  });
+  afterAll(async () => {
+    await srv.cerrar();
+  });
+
+  it("422 de 5.51 con lista de errores: imprime HTTP, claves de primer nivel y cod/msg de principal y lista; el cod ya no sale «?»", async () => {
+    const lineas: string[] = [];
+    const i = await contratoRegistro({ ...srv.entrada, emitir: (l) => lineas.push(l) }, token);
+    expect(i.solicitudes.map((x) => [x.codProceso, x.estado, x.errorSunat?.cod])).toEqual([
+      ["01", 422, "1138"],
+      ["02", 422, "1138"],
+    ]);
+    expect(i.solicitudes[0]?.codigosSunat).toEqual(["422", "1138", "1139"]);
+    expect(i.sinDatos).toBe(false);
+    expect(i.error?.clase).toBe("ErrorDatos");
+    const fallos = lineas.filter((l) => l.includes("FALLO HTTP"));
+    expect(fallos).toHaveLength(2);
+    expect(fallos[0]).toBe(
+      "[contrato-sire] registro-presentado 202610: FALLO HTTP 422 en solicitud codProceso 01 · " +
+        `${i.fallos[0]?.ms} ms · cuerpo {cod,msg,exc,errors,datos} · ` +
+        "SUNAT cod 422 msg «Unprocessable Entity - Se presentaron errores de validación que impidieron completar el Request» · " +
+        "errors[2]: cod 1138 msg «codProceso no válido para el RUC #» | cod 1139 msg «Parámetro rechazado»",
+    );
+    expect(lineas.join("\n")).not.toContain("cod ? ");
+    sinValores(lineas.join("\n"));
+    expect(lineas.every((l) => l.startsWith("[contrato-sire]"))).toBe(true);
+  });
+
+  it("un 422 con 1070 solo dentro de la lista de errores sigue contando como «sin datos»", async () => {
+    srv.sire.guionar("GET", RUTAS.solicitarRegistro(), {
+      estado: 422,
+      json: { cod: "422", msg: "Unprocessable Entity", errors: [{ cod: "1070", msg: "No existen datos" }] },
+    });
+    const i = await contratoRegistro(srv.entrada, token);
+    expect(i.sinDatos).toBe(true);
+    expect(i.solicitudes.map((x) => x.errorSunat?.cod)).toEqual(["1070", "1070"]);
+  });
+
+  it("5xx de la exportación de ventas con cuerpo de error: línea con HTTP 503, claves y cod/msg de la lista; sin valores ajenos", async () => {
+    guionarErrores();
+    const lineas: string[] = [];
+    const i = await contratoLibro({ ...srv.entrada, emitir: (l) => lineas.push(l) }, token, "ventas");
+    expect(i.exportar).toBeNull();
+    expect(i.error).toEqual({ clase: "ErrorTransitorioSire", detalle: "servidor" });
+    expect(i.fallos).toHaveLength(1);
+    const linea = lineas.find((l) => l.includes("FALLO HTTP"));
+    expect(linea).toBe(
+      `[contrato-sire] ventas 202610: FALLO HTTP 503 en exportar · ${i.fallos[0]?.ms} ms · cuerpo {cod,msg,errores,detalle} · ` +
+        "SUNAT cod 5000 msg «Servicio no disponible» · errores[1]: cod E-77 msg «Intente luego»",
+    );
+    sinValores(lineas.join("\n"));
+  });
+
+  it("el fallo de ventas no oculta los demás casos: compras y el registro siguen y se informan", async () => {
+    guionarErrores();
+    const compras = await contratoLibro(srv.entrada, token, "compras");
+    const ventas = await contratoLibro(srv.entrada, token, "ventas");
+    const registro = await contratoRegistro(srv.entrada, token);
+    expect(compras.error).toBeNull();
+    expect(compras.filas?.total).toBeGreaterThan(0);
+    expect(ventas.error).not.toBeNull();
+    expect(registro.solicitudes).toHaveLength(2);
+    expect(registro.fallos).toHaveLength(2);
+  });
+
+  it("cuerpo que no es JSON (HTML del 502): «cuerpo no JSON» y nada del texto", async () => {
+    srv.sire.guionar("GET", RUTAS.exportarRvie(), { estado: 502, texto: "<html>NO-IMPRIMIR-DETALLE 20700000002</html>" });
+    const lineas: string[] = [];
+    await contratoLibro({ ...srv.entrada, emitir: (l) => lineas.push(l) }, token, "ventas");
+    expect(lineas.find((l) => l.includes("FALLO HTTP"))).toMatch(/FALLO HTTP 502 en exportar · \d+ ms · cuerpo no JSON · sin cod\/msg$/);
+    sinValores(lineas.join("\n"));
+  });
+
+  it("fallos del ticket y de la descarga también se imprimen, con su paso", async () => {
+    guionarFlujoSano();
+    srv.sire.guionar("GET", RUTAS.ticket, { estado: 500, json: { cod: "9001", msg: "Falla interna", errors: [{ cod: "9002", msg: "Reintente" }] } });
+    const lineas: string[] = [];
+    await contratoLibro({ ...srv.entrada, emitir: (l) => lineas.push(l) }, token, "compras");
+    expect(lineas.some((l) => /FALLO HTTP 500 en ticket · \d+ ms · cuerpo \{cod,msg,errors\} · SUNAT cod 9001 msg «Falla interna» · errors\[1\]: cod 9002 msg «Reintente»$/.test(l))).toBe(true);
+
+    guionarFlujoSano();
+    srv.sire.guionar("GET", RUTAS.archivo, { estado: 403, json: { cod: "403", msg: "Prohibido" } });
+    const lineas2: string[] = [];
+    await contratoLibro({ ...srv.entrada, emitir: (l) => lineas2.push(l) }, token, "compras");
+    expect(lineas2.some((l) => /FALLO HTTP 403 en archivo · \d+ ms · cuerpo \{cod,msg\} · SUNAT cod 403 msg «Prohibido»$/.test(l))).toBe(true);
+  });
+
+  it("fallo del token: imprime la línea y vuelve a lanzar", async () => {
+    const entorno = await crearEntorno();
+    try {
+      entorno.seguridad.guionar("POST", RUTAS.token(CLIENT_ID), {
+        estado: 401,
+        json: { cod: "401", msg: "Credenciales inválidas", error_description: "NO-IMPRIMIR-DETALLE" },
+      });
+      const lineas: string[] = [];
+      await expect(
+        contratoToken({ credencial: credencial(), periodo: PERIODO, urlsDePrueba: entorno.urlsDePrueba, emitir: (l) => lineas.push(l) }),
+      ).rejects.toThrow();
+      expect(lineas).toHaveLength(1);
+      expect(lineas[0]).toMatch(/^\[contrato-sire\] token: FALLO HTTP 401 en token · \d+ ms · cuerpo \{cod,msg,error_description\} · SUNAT cod 401 msg «Credenciales inválidas»$/);
+      sinValores(lineas.join("\n"));
+    } finally {
+      await entorno.cerrar();
+    }
+  });
+
+  it("describirFallo: msg acotado a 200 caracteres, números de 6+ dígitos tapados, cod/msg raros como «?» y tope de elementos", () => {
+    const largo = "x".repeat(300);
+    const f = describirFallo("solicitud", 422, 5, {
+      cod: "x".repeat(40),
+      msg: `${largo} 123456789`,
+      "20700000002": "valor",
+      errors: Array.from({ length: 15 }, (_, n) => ({ cod: n === 0 ? "123456789" : String(n), msg: n === 1 ? "con\nsalto" : `m${n}` })),
+    });
+    expect(f.principal?.cod).toBe("?");
+    expect(f.principal?.msg).toBe("x".repeat(200));
+    expect(f.claves).toEqual(["cod", "msg", "?", "errors"]);
+    expect(f.listas[0]?.total).toBe(15);
+    expect(f.listas[0]?.items).toHaveLength(10);
+    expect(f.listas[0]?.items[0]).toEqual({ cod: "?", msg: "m0" });
+    expect(f.listas[0]?.items[1]).toEqual({ cod: "1", msg: "?" });
+    expect(lineaFallo("[contrato-sire] x", f)).not.toMatch(/\d{8,}/);
+  });
+
+  function guionarErrores(): void {
+    srv.sire.guionar("GET", RUTAS.exportarRvie(), { estado: 503, json: CUERPO_503_FALSO });
+    srv.sire.guionar("GET", RUTAS.solicitarRegistro(), { estado: 422, json: CUERPO_422_FALSO });
+    guionarFlujoSano();
+  }
+  function guionarFlujoSano(): void {
+    const sano = prepararFlujoSano();
+    srv.sire.guionar("GET", RUTAS.exportarRce(), { json: { numTicket: "202610000001" } });
+    srv.sire.guionar("GET", RUTAS.ticket, (p) => ({ json: cuerpoTicket([registroTicket(p.query["numTicket"] ?? "", "04", [archivo(sano.nombre)])]) }));
+    srv.sire.guionar("GET", RUTAS.archivo, { bytes: sano.zip, cabeceras: { "content-type": "application/zip" } });
+  }
+  function prepararFlujoSano(): { nombre: string; zip: Uint8Array } {
+    return { nombre: "compras-sano.zip", zip: zip("compras-sano.txt", fixture("compras-propuesta-202610.txt")) };
+  }
+});
+
+describe("contrato SIRE · modo diagnóstico de 5.51", () => {
+  let srv: ServidorContratoFalso;
+  let token: Awaited<ReturnType<typeof contratoToken>>["token"];
+  afterAll(async () => {
+    await srv.cerrar();
+  });
+  beforeAll(async () => {
+    srv = await prepararServidorFalso({ errores: true });
+    token = (await contratoToken(srv.entrada)).token;
+  });
+
+  it("está apagado por defecto: solo SIRE_CONTRATO_DIAGNOSTICO=1 lo enciende", () => {
+    expect(diagnosticoActivo({})).toBe(false);
+    expect(diagnosticoActivo({ SIRE_CONTRATO_DIAGNOSTICO: "0" })).toBe(false);
+    expect(diagnosticoActivo({ SIRE_CONTRATO_DIAGNOSTICO: "true" })).toBe(false);
+    expect(diagnosticoActivo({ SIRE_CONTRATO_DIAGNOSTICO: "1" })).toBe(true);
+  });
+
+  it("hace 12 GET de 5.51 en secuencia (70, 01, 02, 00 × sin codMoneda, PEN, USD) e imprime solo HTTP, tiempo y cod/msg", async () => {
+    const antes = srv.sire.peticionesDe("GET", RUTAS.solicitarRegistro()).length;
+    const lineas: string[] = [];
+    const v = await contratoDiagnostico({ ...srv.entrada, emitir: (l) => lineas.push(l) }, token);
+    const pedidas = srv.sire.peticionesDe("GET", RUTAS.solicitarRegistro()).slice(antes);
+    expect(pedidas.map((p) => `${p.query["codProceso"]}/${p.query["codMoneda"] ?? "-"}`)).toEqual([
+      "70/-", "70/PEN", "70/USD", "01/-", "01/PEN", "01/USD", "02/-", "02/PEN", "02/USD", "00/-", "00/PEN", "00/USD",
+    ]);
+    expect(pedidas.every((p) => p.query["codTipoArchivo"] === "0" && p.query["codOrigen"] === "2" && p.query["lisPeriodos"] === PERIODO)).toBe(true);
+    expect(pedidas.every((p) => (p.cabeceras["authorization"] ?? "").startsWith("Bearer "))).toBe(true);
+    expect(v).toHaveLength(12);
+    // Solo GET y nada más que la solicitud (no se sigue el flujo del ticket aunque 70 devuelva numTicket).
+    expect(srv.sire.peticiones.slice(-12).every((p) => p.metodo === "GET" && p.ruta === RUTAS.solicitarRegistro())).toBe(true);
+
+    expect(lineas[0]).toBe("[contrato-sire] diagnóstico 5.51 202610: 12 variantes, solo GET, en secuencia");
+    expect(lineas).toHaveLength(13);
+    expect(lineas[1]).toMatch(/^\[contrato-sire\] diagnóstico 5\.51 202610: codProceso 70 sin codMoneda: HTTP 200 · \d+ ms · devolvió numTicket \(no se sigue el flujo\)$/);
+    expect(lineas[2]).toContain("codProceso 70 codMoneda PEN: HTTP 200");
+    expect(lineas[4]).toMatch(
+      /codProceso 01 sin codMoneda: HTTP 422 · \d+ ms · SUNAT cod 422 msg «Unprocessable Entity - [^»]+» · errors\[2\]: cod 1138 msg «codProceso no válido para el RUC #» \| cod 1139 msg «Parámetro rechazado»$/,
+    );
+    const salida = lineas.join("\n");
+    for (const x of ["NO-IMPRIMIR-EXC", "NO-IMPRIMIR-VALOR", "NO-IMPRIMIR-TICKET", RUC, CANARIOS.token, "202610000003", "cuerpo {"]) {
+      expect(salida.includes(x), "el diagnóstico repite un valor o el cuerpo").toBe(false);
+    }
+    expect(/\d{8,}/.test(salida), "el diagnóstico trae un número largo").toBe(false);
+    expect(lineas.every((l) => l.startsWith("[contrato-sire]"))).toBe(true);
+  });
+
+  it("no pasa por el flujo normal: el modo normal sigue pidiendo 01 y, si no hay datos, 02 una vez, sin codMoneda", async () => {
+    srv.sire.guionar("GET", RUTAS.solicitarRegistro(), { estado: 422, json: { cod: "422", msg: "x", errors: [{ cod: "1070", msg: "sin datos" }] } });
+    const antes = srv.sire.peticionesDe("GET", RUTAS.solicitarRegistro()).length;
+    await contratoRegistro(srv.entrada, token);
+    const pedidas = srv.sire.peticionesDe("GET", RUTAS.solicitarRegistro()).slice(antes);
+    expect(pedidas.map((p) => [p.query["codProceso"], p.query["codMoneda"]])).toEqual([["01", undefined], ["02", undefined]]);
   });
 });

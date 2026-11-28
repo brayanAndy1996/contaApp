@@ -14,16 +14,25 @@
  * Solo hace el POST del token y GET (lectura). Imprime solo FORMAS y tiempos (líneas `[contrato-sire]`): nunca filas,
  * montos, RUC, nombres, tickets ni tokens. Las aserciones usan mensajes fijos para que un fallo tampoco los muestre.
  *
+ * Todo fallo HTTP (token, exportar, ticket, archivo, solicitud 5.51) imprime una línea `[contrato-sire] … FALLO HTTP n` con el
+ * código HTTP, las claves de primer nivel del cuerpo de error y `cod`/`msg` (principal y de su lista de errores): nunca el
+ * cuerpo. El fallo de un caso (p. ej. ventas) no impide que corran los demás (cada caso es un `it` aparte).
+ * `SIRE_CONTRATO_DIAGNOSTICO=1` (opcional, además de `SIRE_CONTRATO=1`): añade un caso que, para el registro presentado de
+ * cada periodo, hace 12 GET de 5.51 (codProceso 70, 01, 02, 00 × sin codMoneda, PEN, USD) y por variante imprime solo HTTP,
+ * tiempo y cod/msg; si una devuelve numTicket solo lo informa (no sigue el ticket). El modo normal no cambia.
+ *
  * `SIRE_CONTRATO_FALSO=1` (junto con `SIRE_CONTRATO=1`) corre lo mismo contra el servidor falso en 127.0.0.1 con los TXT
  * sintéticos y NO lee ninguna credencial: sirve para comprobar esta prueba sin SUNAT.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { LibroSire, TokenSire } from "../puertos.js";
 import {
+  contratoDiagnostico,
   contratoLibro,
   contratoRegistro,
   contratoToken,
   credencialesDelEntorno,
+  diagnosticoActivo,
   lineaTotales,
   prepararServidorFalso,
   sumarTotalesP5,
@@ -34,6 +43,9 @@ import {
 
 const activa = process.env["SIRE_CONTRATO"] === "1";
 const falso = process.env["SIRE_CONTRATO_FALSO"] === "1";
+/** Solo con el servidor falso: ventas da 503 y 5.51 da 422 con lista de errores (para comprobar la salida de los fallos). */
+const falsoConErrores = falso && process.env["SIRE_CONTRATO_FALSO_ERRORES"] === "1";
+const diagnostico = diagnosticoActivo(process.env);
 
 /** Anexo III: 01 cargado, 02 validando, 03 con errores, 04 sin errores, 05 en proceso, 06 terminado. */
 const ESTADOS_DEL_MANUAL = ["01", "02", "03", "04", "05", "06"];
@@ -112,7 +124,7 @@ describe.skipIf(!activa)(falso ? "contrato SIRE (servidor falso local)" : "contr
 
   beforeAll(async () => {
     if (falso) {
-      const servidor = await prepararServidorFalso();
+      const servidor = await prepararServidorFalso({ errores: falsoConErrores });
       entrada = { ...servidor.entrada, emitir };
       periodos = [servidor.entrada.periodo];
       cerrar = servidor.cerrar;
@@ -176,6 +188,17 @@ describe.skipIf(!activa)(falso ? "contrato SIRE (servidor falso local)" : "contr
         todos.push(informe);
       }
       for (const informe of informes) afirmarRegistro(informe);
+    },
+    TIMEOUT_MS * 2,
+  );
+
+  it.skipIf(!diagnostico)(
+    "diagnóstico 5.51: variantes de codProceso (70, 01, 02, 00) y codMoneda (sin, PEN, USD); solo informa",
+    async () => {
+      expect(token !== undefined, "diagnóstico: hay token (el primer paso debe pasar)").toBe(true);
+      let variantes = 0;
+      for (const periodo of periodos) variantes += (await contratoDiagnostico({ ...entrada!, periodo }, token!)).length;
+      expect(variantes, "diagnóstico: se probaron las 12 variantes de cada periodo").toBe(12 * periodos.length);
     },
     TIMEOUT_MS * 2,
   );

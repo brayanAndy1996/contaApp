@@ -9,13 +9,16 @@
  *    tiempos. Nunca valores de filas, montos, RUC, nombres, números de ticket ni tokens. Todo texto que viene de una
  *    respuesta pasa por `seguro()` (gramática cerrada) antes de entrar al informe.
  *  - Las aserciones se hacen sobre booleanos y conteos con mensaje fijo: vitest imprime el valor recibido de un `toBe`.
- *  - Del error de SUNAT solo se imprimen el código HTTP y los campos `cod` y `msg` (cod con gramática cerrada; msg sin
- *    números largos y acotado). Nunca el cuerpo.
+ *  - De TODO fallo HTTP (token, exportar, ticket, archivo, solicitud 5.51) solo se imprimen el código HTTP, las claves de
+ *    primer nivel del cuerpo de error y, de él y de cada elemento de sus listas de errores (`errors`, `errores`, `detalle`…),
+ *    `cod` (gramática cerrada) y `msg`/`mensaje` (acotado a 200 caracteres y con los números de 6+ dígitos tapados). Nunca
+ *    el cuerpo ni ningún otro valor.
+ *  - Modo diagnóstico opcional (`SIRE_CONTRATO_DIAGNOSTICO=1`): solo GET de 5.51 con variantes de `codProceso`/`codMoneda`.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CredencialSire, FilaPropuestaSire, FilaVentaSire, LibroSire, TokenSire } from "../../puertos.js";
-import { ORIGEN_SEGURIDAD, ORIGEN_SIRE, origenDe } from "../endpoints.js";
+import { ORIGEN_SEGURIDAD, ORIGEN_SIRE, armarUrl, origenDe, rutaRegistroPresentado } from "../endpoints.js";
 import { HttpSireApiClient } from "../sire-api-client.http.js";
 import { HttpSireAuth, type OpcionesHttpSire } from "../sire-auth.http.js";
 import { mismoEncabezado, normalizarEncabezado } from "../txt/encabezados.js";
@@ -23,6 +26,7 @@ import { extraerTxtDeZip } from "../zip-seguro.js";
 import {
   CLIENT_ID,
   PERIODO,
+  RUC,
   RUTAS,
   archivo,
   credencial,
@@ -100,8 +104,32 @@ export interface ObsSolicitudRegistro {
   ms: number;
   /** Nombres de campo de la respuesta 2xx. */
   campos: string[];
-  /** Solo si SUNAT rechazó: `cod` y `msg` del error. */
+  /** Solo si SUNAT rechazó: `cod` (el de la lista de errores si la hay, si no el de primer nivel) y `msg` del error. */
   errorSunat: { cod: string; msg: string } | null;
+  /** Todos los `cod` válidos del rechazo (primer nivel y lista de errores). */
+  codigosSunat: string[];
+}
+
+/** `cod` y `msg` de un error de SUNAT, ya pasados por las gramáticas cerradas («?» si no las cumplen). */
+export interface ItemErrorSunat {
+  cod: string;
+  msg: string;
+}
+
+/** Un fallo HTTP de cualquier paso, sin valores del cuerpo: solo claves de primer nivel y `cod`/`msg`. */
+export interface ObsFalloHttp {
+  /** Paso fijo: token, exportar, ticket, archivo, solicitud (con `codProceso`) u otro. */
+  paso: string;
+  estado: number;
+  ms: number;
+  /** El cuerpo era un objeto JSON. */
+  cuerpoJson: boolean;
+  /** Claves de primer nivel (nombres con gramática cerrada). */
+  claves: string[];
+  /** `cod`/`msg` de primer nivel, si el cuerpo trae alguno de los dos. */
+  principal: ItemErrorSunat | null;
+  /** Listas de errores de primer nivel (`errors`, `errores`, `detalle`…): nombre, cuántos elementos y sus `cod`/`msg` (tope 10). */
+  listas: { nombre: string; total: number; items: ItemErrorSunat[] }[];
 }
 
 export interface FormaFilas {
@@ -137,6 +165,8 @@ export interface InformeRegistro {
   sinDatos: boolean;
   ticket: ObsTicket;
   archivos: ObsArchivo[];
+  /** Todo fallo HTTP del registro (solicitudes, ticket, archivo), en orden. */
+  fallos: ObsFalloHttp[];
   filas: FormaFilas | null;
   error: { clase: string; detalle: string } | null;
 }
@@ -148,6 +178,8 @@ export interface InformeLibro {
   exportar: ObsExportar | null;
   ticket: ObsTicket;
   archivos: ObsArchivo[];
+  /** Todo fallo HTTP del libro (exportar, ticket, archivo), en orden. */
+  fallos: ObsFalloHttp[];
   filas: FormaFilas | null;
   error: { clase: string; detalle: string } | null;
 }
@@ -184,7 +216,73 @@ function esObjeto(v: unknown): v is Record<string, unknown> {
 }
 
 function campos(v: unknown): string[] {
-  return esObjeto(v) ? Object.keys(v).slice(0, 40).map((k) => seguro(k, NOMBRE_CAMPO)) : [];
+  return esObjeto(v) ? Object.keys(v).slice(0, 40).map((k) => (/\d{6,}/.test(k) ? "?" : seguro(k, NOMBRE_CAMPO))) : [];
+}
+
+/** `cod` de un error de SUNAT: cadena o entero, con la gramática cerrada y sin números de 6+ dígitos. */
+function codSeguro(valor: unknown): string {
+  const v = typeof valor === "number" && Number.isSafeInteger(valor) && valor >= 0 ? String(valor) : valor;
+  const cod = seguro(v, CODIGO_ERROR_SUNAT);
+  return /\d{6,}/.test(cod) ? "?" : cod;
+}
+
+const CLAVES_COD = ["cod", "codigo", "code"] as const;
+const CLAVES_MSG = ["msg", "mensaje", "message"] as const;
+const TOPE_ITEMS_ERROR = 10;
+
+function primerValor(o: Record<string, unknown>, claves: readonly string[]): unknown {
+  for (const c of claves) if (c in o) return o[c];
+  return undefined;
+}
+
+/** `cod`/`msg` de un objeto de error, o `null` si no trae ninguno de los dos campos. */
+function itemDe(o: Record<string, unknown>): ItemErrorSunat | null {
+  const tiene = [...CLAVES_COD, ...CLAVES_MSG].some((c) => c in o);
+  if (!tiene) return null;
+  return { cod: codSeguro(primerValor(o, CLAVES_COD)), msg: mensajeSeguro(primerValor(o, CLAVES_MSG)) };
+}
+
+/** Del cuerpo de un error de SUNAT solo la forma: claves de primer nivel y `cod`/`msg` (principal y de cada lista de errores). */
+export function describirFallo(paso: string, estado: number, ms: number, cuerpo: unknown): ObsFalloHttp {
+  const f: ObsFalloHttp = { paso, estado, ms, cuerpoJson: esObjeto(cuerpo), claves: campos(cuerpo), principal: null, listas: [] };
+  if (!esObjeto(cuerpo)) return f;
+  f.principal = itemDe(cuerpo);
+  for (const [clave, valor] of Object.entries(cuerpo).slice(0, 40)) {
+    const nombre = /\d{6,}/.test(clave) ? "?" : seguro(clave, NOMBRE_CAMPO);
+    if (Array.isArray(valor)) {
+      const items = (valor as unknown[])
+        .slice(0, TOPE_ITEMS_ERROR)
+        .map((x) => (esObjeto(x) ? itemDe(x) : null))
+        .filter((x): x is ItemErrorSunat => x !== null);
+      f.listas.push({ nombre, total: valor.length, items });
+    } else if (esObjeto(valor)) {
+      const item = itemDe(valor);
+      if (item !== null) f.listas.push({ nombre, total: 1, items: [item] });
+    }
+  }
+  return f;
+}
+
+/** `cod` y `msg` representativos de un fallo: el `cod` de la lista de errores si la hay (si no el de primer nivel) y el `msg` principal. */
+function errorPrincipal(f: ObsFalloHttp): { cod: string; msg: string } {
+  const delListado = f.listas.flatMap((l) => l.items).find((i) => i.cod !== "?");
+  const cod = delListado?.cod ?? f.principal?.cod ?? "?";
+  const msg = f.principal !== null && f.principal.msg !== "?" ? f.principal.msg : (f.listas.flatMap((l) => l.items).find((i) => i.msg !== "?")?.msg ?? "?");
+  return { cod, msg };
+}
+
+function codigosDe(f: ObsFalloHttp): string[] {
+  const todos = [f.principal?.cod ?? "?", ...f.listas.flatMap((l) => l.items.map((i) => i.cod))];
+  return [...new Set(todos.filter((c) => c !== "?"))];
+}
+
+function pasoDeRuta(ruta: string): string {
+  if (ruta.endsWith("/oauth2/token/")) return "token";
+  if (ruta.endsWith("/exportacioncomprobantepropuesta") || ruta.endsWith("/exportapropuesta")) return "exportar";
+  if (ruta.endsWith("/consultaestadotickets")) return "ticket";
+  if (ruta.endsWith("/archivoreporte")) return "archivo";
+  if (ruta.endsWith("/solicitardescarga")) return "solicitud";
+  return "otro";
 }
 
 // ── Fixture de referencia: el encabezado real copiado en los TXT sintéticos ────────────────────────────────────
@@ -223,6 +321,8 @@ export interface Observaciones {
   archivos: ObsArchivo[];
   /** Solicitudes 5.51 en el orden en que se hicieron. */
   solicitudes: ObsSolicitudRegistro[];
+  /** Todo fallo HTTP, en el orden en que ocurrió. */
+  fallos: ObsFalloHttp[];
   /** Solo para reconocer nuestro registro; jamás se imprime. */
   numTicket: string | null;
 }
@@ -245,6 +345,7 @@ export function nuevasObservaciones(libro: LibroSire | null): Observaciones {
     },
     archivos: [],
     solicitudes: [],
+    fallos: [],
     numTicket: null,
   };
 }
@@ -259,28 +360,39 @@ async function jsonDe(r: Response): Promise<unknown> {
 
 async function observar(url: URL, r: Response, msCabeceras: number, t0: number, obs: Observaciones): Promise<void> {
   const ruta = url.pathname;
-  if (ruta.endsWith("/solicitardescarga")) {
-    const cuerpo = await jsonDe(r);
-    const solicitud: ObsSolicitudRegistro = {
-      codProceso: seguro(url.searchParams.get("codProceso"), CODIGO_ESTADO),
-      estado: r.status,
-      ms: msCabeceras,
-      campos: r.ok ? campos(cuerpo) : [],
-      errorSunat: r.ok
-        ? null
-        : {
-            cod: seguro(esObjeto(cuerpo) ? cuerpo["cod"] : undefined, CODIGO_ERROR_SUNAT),
-            msg: mensajeSeguro(esObjeto(cuerpo) ? cuerpo["msg"] : undefined),
-          },
-    };
-    obs.solicitudes.push(solicitud);
-    if (r.ok) {
-      const num = esObjeto(cuerpo) ? cuerpo["numTicket"] : undefined;
-      obs.numTicket = typeof num === "string" && GRAMATICA_TICKET.test(num) ? num : null;
+  const esSolicitud = ruta.endsWith("/solicitardescarga");
+  if (!r.ok) {
+    // Todo fallo HTTP: solo la forma del error (claves de primer nivel y `cod`/`msg`), nunca el cuerpo.
+    const codProceso = seguro(url.searchParams.get("codProceso"), CODIGO_ESTADO);
+    const paso = esSolicitud ? `solicitud codProceso ${codProceso}` : pasoDeRuta(ruta);
+    const fallo = describirFallo(paso, r.status, msCabeceras, await jsonDe(r));
+    obs.fallos.push(fallo);
+    if (esSolicitud) {
+      obs.solicitudes.push({
+        codProceso,
+        estado: r.status,
+        ms: msCabeceras,
+        campos: [],
+        errorSunat: errorPrincipal(fallo),
+        codigosSunat: codigosDe(fallo),
+      });
     }
     return;
   }
-  if (!r.ok) return;
+  if (esSolicitud) {
+    const cuerpo = await jsonDe(r);
+    obs.solicitudes.push({
+      codProceso: seguro(url.searchParams.get("codProceso"), CODIGO_ESTADO),
+      estado: r.status,
+      ms: msCabeceras,
+      campos: campos(cuerpo),
+      errorSunat: null,
+      codigosSunat: [],
+    });
+    const num = esObjeto(cuerpo) ? cuerpo["numTicket"] : undefined;
+    obs.numTicket = typeof num === "string" && GRAMATICA_TICKET.test(num) ? num : null;
+    return;
+  }
   if (ruta.endsWith("/oauth2/token/")) {
     obs.token = { ms: msCabeceras, campos: campos(await jsonDe(r)) };
   } else if (ruta.endsWith("/exportacioncomprobantepropuesta") || ruta.endsWith("/exportapropuesta")) {
@@ -402,7 +514,13 @@ export async function contratoToken(e: EntradaContrato): Promise<{ informe: Info
   const obs = nuevasObservaciones(null);
   const auth = new HttpSireAuth(opcionesHttp(e, obs));
   const t0 = performance.now();
-  const token = await auth.obtenerToken(e.credencial);
+  let token: TokenSire;
+  try {
+    token = await auth.obtenerToken(e.credencial);
+  } catch (causa) {
+    for (const f of obs.fallos) e.emitir?.(lineaFallo(`${PREFIJO} token`, f));
+    throw causa;
+  }
   const ms = Math.round(performance.now() - t0);
   const informe: InformeToken = {
     ms,
@@ -434,6 +552,7 @@ export async function contratoLibro(e: EntradaContrato, token: TokenSire, libro:
     exportar: obs.exportar,
     ticket: obs.ticket,
     archivos: obs.archivos,
+    fallos: obs.fallos,
     filas,
     error,
   };
@@ -462,7 +581,7 @@ export async function contratoRegistro(e: EntradaContrato, token: TokenSire): Pr
   const ultima = solicitudes[solicitudes.length - 1];
   // «Sin datos»: el cliente lo reporta como `sin_datos` (TXT solo con encabezado) o como `ErrorDatos` sin detalle (422 de
   // 5.51). Solo cuenta si 01 y 02 se pidieron y todo rechazo de SUNAT fue el 422 con cod 1070 (otro código = rechazo real).
-  const rechazosAjenos = solicitudes.some((s) => s.errorSunat !== null && !(s.estado === 422 && s.errorSunat.cod === COD_SIN_DATOS));
+  const rechazosAjenos = solicitudes.some((s) => s.errorSunat !== null && !(s.estado === 422 && s.codigosSunat.includes(COD_SIN_DATOS)));
   const esErrorDeDatos = error !== null && (error.detalle === "sin_datos" || (error.clase === "ErrorDatos" && error.detalle === "?"));
   const informe: InformeRegistro = {
     periodo: e.periodo,
@@ -472,11 +591,101 @@ export async function contratoRegistro(e: EntradaContrato, token: TokenSire): Pr
     sinDatos: esErrorDeDatos && solicitudes.length === 2 && !rechazosAjenos,
     ticket: obs.ticket,
     archivos: obs.archivos,
+    fallos: obs.fallos,
     filas,
     error,
   };
   for (const linea of lineasRegistro(informe)) e.emitir?.(linea);
   return informe;
+}
+
+// ── Modo diagnóstico (opcional): variantes de la solicitud 5.51 ──────────────────────────────────────────────
+
+/** Variable que enciende el diagnóstico (además de `SIRE_CONTRATO=1`). Apagado por defecto. */
+export const VARIABLE_DIAGNOSTICO = "SIRE_CONTRATO_DIAGNOSTICO";
+
+export function diagnosticoActivo(env: Readonly<Record<string, string | undefined>>): boolean {
+  return env[VARIABLE_DIAGNOSTICO] === "1";
+}
+
+export const CODIGOS_PROCESO_DIAGNOSTICO = ["70", "01", "02", "00"] as const;
+/** `null` = sin `codMoneda`. */
+export const MONEDAS_DIAGNOSTICO = [null, "PEN", "USD"] as const;
+const TIMEOUT_DIAGNOSTICO_MS = 10_000;
+
+export interface ObsVariante {
+  codProceso: string;
+  codMoneda: "PEN" | "USD" | null;
+  /** `null` si no hubo respuesta (red o timeout). */
+  estado: number | null;
+  ms: number;
+  /** 2xx con `numTicket`: solo se informa, no se sigue el flujo del ticket. */
+  devolvioTicket: boolean;
+  /** Solo en 2xx: nombres de campo de la respuesta. */
+  campos: string[];
+  /** Solo si SUNAT rechazó. */
+  fallo: ObsFalloHttp | null;
+}
+
+/**
+ * Diagnóstico del 5.51 (registro presentado de compras): UN GET por variante de `codProceso` (70, 01, 02, 00) y `codMoneda`
+ * (omitido, PEN, USD), en secuencia. Imprime solo HTTP, tiempo y `cod`/`msg`; si una variante devuelve `numTicket` solo lo
+ * informa. Solo GET, y solo a los hosts permitidos del SIRE. No lo usa el modo normal.
+ */
+export async function contratoDiagnostico(e: EntradaContrato, token: TokenSire): Promise<ObsVariante[]> {
+  const obs = nuevasObservaciones("compras");
+  const origenSire = e.urlsDePrueba === undefined ? ORIGEN_SIRE : origenDe(e.urlsDePrueba.sire);
+  const origenSeguridad = e.urlsDePrueba === undefined ? ORIGEN_SEGURIDAD : origenDe(e.urlsDePrueba.seguridad);
+  const pedir = crearFetchObservado({
+    base: globalThis.fetch,
+    origenesPermitidos: [origenSeguridad, origenSire],
+    origenSeguridad,
+    obs,
+  });
+  const p = `${PREFIJO} diagnóstico 5.51 ${seguro(e.periodo, /^\d{6}$/)}`;
+  e.emitir?.(`${p}: ${CODIGOS_PROCESO_DIAGNOSTICO.length * MONEDAS_DIAGNOSTICO.length} variantes, solo GET, en secuencia`);
+  const variantes: ObsVariante[] = [];
+  for (const codProceso of CODIGOS_PROCESO_DIAGNOSTICO) {
+    for (const codMoneda of MONEDAS_DIAGNOSTICO) {
+      const parametros: Record<string, string> = { codTipoArchivo: "0", codProceso, codOrigen: "2", lisPeriodos: e.periodo };
+      if (codMoneda !== null) parametros["codMoneda"] = codMoneda;
+      const url = armarUrl(origenSire, rutaRegistroPresentado(e.periodo), parametros);
+      const t0 = performance.now();
+      const v: ObsVariante = { codProceso, codMoneda, estado: null, ms: 0, devolvioTicket: false, campos: [], fallo: null };
+      try {
+        const r = await pedir(url, {
+          method: "GET",
+          redirect: "manual",
+          headers: { authorization: `Bearer ${token.token}`, accept: "application/json" },
+          signal: AbortSignal.timeout(TIMEOUT_DIAGNOSTICO_MS),
+        });
+        v.ms = Math.round(performance.now() - t0);
+        v.estado = r.status;
+        const cuerpo = await jsonDe(r);
+        if (r.ok) {
+          const num = esObjeto(cuerpo) ? cuerpo["numTicket"] : undefined;
+          v.devolvioTicket = typeof num === "string" && GRAMATICA_TICKET.test(num);
+          v.campos = campos(cuerpo);
+        } else {
+          v.fallo = describirFallo("solicitud", r.status, v.ms, cuerpo);
+        }
+      } catch {
+        v.ms = Math.round(performance.now() - t0);
+      }
+      variantes.push(v);
+      e.emitir?.(lineaVariante(p, v));
+    }
+  }
+  return variantes;
+}
+
+export function lineaVariante(p: string, v: ObsVariante): string {
+  const moneda = v.codMoneda === null ? "sin codMoneda" : `codMoneda ${v.codMoneda}`;
+  const cabeza = `${p}: codProceso ${seguro(v.codProceso, CODIGO_ESTADO)} ${moneda}`;
+  if (v.estado === null) return `${cabeza}: sin respuesta (red o timeout) · ${v.ms} ms`;
+  if (v.fallo !== null) return `${cabeza}: HTTP ${v.estado} · ${v.ms} ms · ${textoErrores(v.fallo)}`;
+  const resultado = v.devolvioTicket ? "devolvió numTicket (no se sigue el flujo)" : `sin numTicket · campos ${lista(v.campos)}`;
+  return `${cabeza}: HTTP ${v.estado} · ${v.ms} ms · ${resultado}`;
 }
 
 // ── Forma de las filas ──────────────────────────────────────────────────────────────────────────────────────
@@ -565,6 +774,27 @@ export function analizarFilas(libro: LibroSire, filas: readonly (FilaPropuestaSi
 const PREFIJO = "[contrato-sire]";
 const lista = (v: readonly string[]): string => (v.length === 0 ? "-" : v.join(","));
 
+function textoItem(i: ItemErrorSunat): string {
+  return `cod ${i.cod} msg «${i.msg}»`;
+}
+
+/** Texto de los errores de un fallo: `cod`/`msg` principal y los de cada lista. Sin claves ni cuerpo. */
+function textoErrores(f: ObsFalloHttp): string {
+  const partes: string[] = [];
+  if (f.principal !== null) partes.push(`SUNAT ${textoItem(f.principal)}`);
+  for (const l of f.listas) {
+    const items = l.items.length === 0 ? "sin cod/msg" : l.items.map(textoItem).join(" | ");
+    partes.push(`${l.nombre}[${l.total}]: ${items}`);
+  }
+  return partes.length === 0 ? "sin cod/msg" : partes.join(" · ");
+}
+
+/** Línea de un fallo HTTP: código HTTP, paso, tiempo, claves de primer nivel y `cod`/`msg` (principal y de la lista de errores). */
+export function lineaFallo(p: string, f: ObsFalloHttp): string {
+  const cuerpo = f.cuerpoJson ? `cuerpo {${lista(f.claves)}}` : "cuerpo no JSON";
+  return `${p}: FALLO HTTP ${f.estado} en ${f.paso} · ${f.ms} ms · ${cuerpo} · ${textoErrores(f)}`;
+}
+
 export function lineaToken(i: InformeToken): string {
   return `${PREFIJO} token: ${i.ms} ms · campos ${lista(i.campos)} · vida ${i.segundosDeVida} s`;
 }
@@ -601,6 +831,7 @@ export function lineasLibro(periodo: string, i: InformeLibro): string[] {
   l.push(
     `${p}: total ${i.ms} ms · exportar ${i.exportar === null ? "sin respuesta" : `${i.exportar.ms} ms, campos ${lista(i.exportar.campos)}`}`,
   );
+  for (const f of i.fallos) l.push(lineaFallo(p, f));
   l.push(lineasTicket(p, i.ticket));
   l.push(...lineasArchivos(p, i.archivos, "sintético"));
   if (i.filas !== null) l.push(...lineasFilas(p, i.filas));
@@ -620,6 +851,7 @@ export function lineasRegistro(i: InformeRegistro): string[] {
       `${p}: solicitud ${n + 1} codProceso ${s.codProceso} (sin codMoneda) HTTP ${s.estado} · ${s.ms} ms · campos ${lista(s.campos)}${err}`,
     );
   });
+  for (const f of i.fallos) l.push(lineaFallo(p, f));
   l.push(lineasTicket(p, i.ticket));
   l.push(...lineasArchivos(p, i.archivos, "de la propuesta de compras"));
   if (i.filas !== null) l.push(...lineasFilas(p, i.filas));
@@ -738,11 +970,40 @@ export interface ServidorContratoFalso {
   cerrar(): Promise<void>;
 }
 
+/** Cuerpo de error con lista (forma de SUNAT) y datos que NUNCA deben salir en la salida: solo claves, `cod` y `msg`. */
+export const CUERPO_422_FALSO = {
+  cod: "422",
+  msg: "Unprocessable Entity - Se presentaron errores de validación que impidieron completar el Request",
+  exc: "NO-IMPRIMIR-EXC",
+  errors: [
+    { cod: "1138", msg: `codProceso no válido para el RUC ${RUC}`, valor: "NO-IMPRIMIR-VALOR" },
+    { cod: 1139, mensaje: "Parámetro rechazado", campo: "codMoneda" },
+  ],
+  datos: { ruc: RUC, numTicket: "NO-IMPRIMIR-TICKET" },
+} as const;
+export const CUERPO_503_FALSO = {
+  cod: "5000",
+  msg: "Servicio no disponible",
+  errores: [{ cod: "E-77", msg: "Intente luego" }],
+  detalle: "NO-IMPRIMIR-DETALLE",
+} as const;
+
+/**
+ * Modo «errores» del servidor falso (solo pruebas; no cambia sus API): la exportación de ventas da 503 con cuerpo de error
+ * y la solicitud 5.51 da 422 con lista de errores, salvo `codProceso=70` que devuelve `numTicket`.
+ */
+export function guionarErroresFalsos(sire: ServidorContratoFalso["sire"]): void {
+  sire.guionar("GET", RUTAS.exportarRvie(), { estado: 503, json: CUERPO_503_FALSO });
+  sire.guionar("GET", RUTAS.solicitarRegistro(), (p) =>
+    p.query["codProceso"] === "70" ? { json: { numTicket: "202610000003" } } : { estado: 422, json: CUERPO_422_FALSO },
+  );
+}
+
 /**
  * Servidor falso con los TXT sintéticos de `fixtures/sire/http`: el ticket sale «01» una vez y luego «04». Solo
  * 127.0.0.1; las credenciales son canarios sintéticos.
  */
-export async function prepararServidorFalso(): Promise<ServidorContratoFalso> {
+export async function prepararServidorFalso(opciones: { errores?: boolean } = {}): Promise<ServidorContratoFalso> {
   const entorno = await crearEntorno();
   const compras = parteCompras();
   const ventas = parteVentas();
@@ -772,6 +1033,7 @@ export async function prepararServidorFalso(): Promise<ServidorContratoFalso> {
     const parte = [compras, ventas, registro].find((x) => x.nombre === p.query["nomArchivoReporte"]);
     return parte === undefined ? { estado: 404 } : { bytes: parte.zip, cabeceras: { "content-type": "application/zip" } };
   });
+  if (opciones.errores === true) guionarErroresFalsos(entorno.sire);
   return {
     entrada: { credencial: credencial(), periodo: PERIODO, urlsDePrueba: entorno.urlsDePrueba },
     sire: entorno.sire,
