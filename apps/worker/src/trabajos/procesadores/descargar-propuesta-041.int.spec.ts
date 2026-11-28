@@ -3,6 +3,7 @@ import * as sunat from "@contapp/sunat";
 import type { SireApiClient, SireAuth } from "@contapp/sunat";
 import type { ContappDb } from "@contapp/db";
 import { iniciarServidorSireFalso } from "@contapp/sunat/dist/http/pruebas/servidor-sire-falso.js";
+import { planEsperaTicket } from "@contapp/sunat/dist/http/ticket.js";
 import type { Redis } from "ioredis";
 import {
   afterAll,
@@ -363,22 +364,32 @@ describe("CA-8: ticket que no termina (P-4 c)", () => {
   it("se guarda en Redis con estudio y cliente, el reintento retoma el mismo ticket sin exportar de nuevo y al terminar se borra", async () => {
     const m = await mundoSireHttp(e, backend, { ruc: RUC_FIXTURE });
     const TOKEN = canario("token_sire");
-    let listo = false;
-    guionarSire(srv, {
-      tokens: [TOKEN],
-      periodo: PERIODO,
-      zip: zipVentas(),
-      estadoTicket: () => (listo ? "06" : "02"),
+    // Sin depender de tiempos reales ni de cuándo la prueba «mire» a Redis: el guion cuenta consultas. Las del PRIMER intento
+    // (una por cada espera del plan y una final) responden «en proceso»; la primera del reintento queda retenida en el
+    // servidor falso hasta que la prueba suelta la compuerta, y entonces responde «listo».
+    const plan = planEsperaTicket();
+    const consultasPrimerIntento = plan.length + 1;
+    const sumaPlan = plan.reduce((a, b) => a + b, 0);
+    let recibidas = 0;
+    let soltar!: () => void;
+    const compuerta = new Promise<void>((res) => (soltar = res));
+    guionarSire(srv, { tokens: [TOKEN], periodo: PERIODO, zip: zipVentas() });
+    srv.guionar("GET", RUTAS_SIRE.ticket, (p) => {
+      const n = ++recibidas;
+      const numTicket = p.query["numTicket"] ?? "";
+      return n <= consultasPrimerIntento
+        ? { json: registroTicket(numTicket, "02", PERIODO) }
+        : { json: registroTicket(numTicket, "06", PERIODO), hasta: compuerta };
     });
 
     const clave = claveTicket(m);
     const r = await conWorkerHttp(async () => {
       const id = await encolarDescarga(backend, redis, prefijo, m, { periodo: PERIODO, libro: "ventas" });
-      // El ticket se guarda justo tras exportar (ronda 2), antes de que el primer intento termine: se espera además a que
-      // el sondeo haya agotado su presupuesto (suma de sueños del reloj falso >= 7 500 ms).
+      // El primer intento agotó su plan de espera (todas sus consultas respondieron «en proceso») y el reintento ya consulta
+      // el ticket guardado (retenido en la compuerta): el ticket pendiente está en Redis y nada puede terminar todavía.
       await esperarHasta(
-        async () => (await redis.get(clave)) !== null && reloj.dormidos.reduce((a, b) => a + b, 0) >= 7_500,
-        "el ticket pendiente queda en Redis y el primer intento agotó su presupuesto de sondeo",
+        async () => recibidas > consultasPrimerIntento && (await redis.get(clave)) !== null,
+        "el primer intento agotó su sondeo, el ticket pendiente sigue en Redis y el reintento lo retoma",
         { timeoutMs: 30_000 },
       );
       const numTicket = (await redis.get(clave))!;
@@ -391,17 +402,19 @@ describe("CA-8: ticket que no termina (P-4 c)", () => {
       expect(clave).toContain(m.c.id);
       expect(await redis.keys(`${prefijo}sire:ticket:*`)).toEqual([clave]);
       expect(await redis.exists(`${prefijo}sire:ticket:${m.T}:${m.c.id}:ventas:${PERIODO}:propuesta`)).toBe(1);
-      // El sondeo no durmió de verdad: el reloj falso avanzó el presupuesto.
+      // El sondeo no durmió de verdad: el reloj falso avanzó exactamente el plan del primer intento.
       expect(reloj.dormidos.length).toBeGreaterThan(0);
-      expect(reloj.dormidos.reduce((a, b) => a + b, 0)).toBeGreaterThanOrEqual(7_500);
+      expect(reloj.dormidos.reduce((a, b) => a + b, 0)).toBe(sumaPlan);
+      // Hasta aquí hubo un solo exportar (el reintento no exporta de nuevo) y el ticket no se ha borrado.
+      expect(peticiones(RUTAS_SIRE.exportar)).toHaveLength(1);
 
-      listo = true;
+      soltar();
       const f = await esperarTerminal(e, id, 60_000);
       return { f, numTicket };
     });
 
     expect([r.f.estado, r.f.motivo]).toEqual(["completado", null]);
-    expect(r.f.intentos).toBeGreaterThanOrEqual(1);
+    expect(r.f.intentos).toBe(1);
     // Un solo exportar en todo el trabajo: los reintentos retoman el ticket guardado.
     expect(peticiones(RUTAS_SIRE.exportar)).toHaveLength(1);
     const consultas = peticiones(RUTAS_SIRE.ticket);
