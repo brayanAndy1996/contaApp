@@ -9,8 +9,9 @@
  * `SIRE_CONTRATO_PERIODO` admite varios periodos AAAAMM separados por comas (p. ej. `202510,202509,202508`): cada caso
  * recorre todos, imprime las líneas P-5 por periodo y, al final, una línea con los totales sumados de P-5/P-6. Un periodo
  * sin datos no falla la prueba.
- * Casos: token, compras, ventas y registro presentado de compras (5.51, `descargarRegistroPresentado`: `codProceso` 70 con
- * `codMoneda` PEN y con USD, un ticket por moneda, unión de filas; el informe sale por moneda).
+ * Casos: token, compras, ventas y registro presentado de compras (5.51, `descargarRegistroPresentado`: UNA solicitud con
+ * `codProceso` 70 y `codMoneda` PEN —obligatorio pero sin efecto de filtro—, un ticket y un archivo con los comprobantes de todas
+ * las monedas, cada fila con la suya; el informe es plano).
  * Solo hace el POST del token y GET (lectura). Imprime solo FORMAS y tiempos (líneas `[contrato-sire]`): nunca filas,
  * montos, RUC, nombres, tickets ni tokens. Las aserciones usan mensajes fijos para que un fallo tampoco los muestre.
  *
@@ -24,13 +25,16 @@
  * Si el lector rechaza un archivo (`zip_invalido`), imprime su ESTRUCTURA (firma en hex, tamaño, EOCD, ZIP64, y por entrada: extensión,
  * ruta/directorio, nombre con las secuencias de 4+ dígitos tapadas, método, banderas, tamaños y CRC) y el motivo deducido contra las
  * reglas de `zip-seguro.ts`; nunca el contenido. En el registro, además, una línea con la estructura de la propuesta de compras
- * (referencia) y, con el archivo de la otra moneda que el cliente no llegó a pedir, la misma estructura (lo pide el transporte
- * de la prueba, solo GET). Los casos corren en el orden token, compras, ventas, registro: la referencia sale si compras corrió antes.
+ * (referencia). Los casos corren en el orden token, compras, ventas, registro: la referencia sale si compras corrió antes.
+ *
+ * Encabezado del registro: el real difiere del de la propuesta solo en la columna 34 («ID Proyecto Operadores/Partícipes», no se
+ * mapea). El informe lo distingue (`diferencia` «solo_no_mapeadas»): no es un fallo. Si la diferencia toca una columna que se
+ * mapea, el cliente falla con `encabezado` y el informe lo dice («mapeadas»).
  *
  * `SIRE_CONTRATO_FALSO=1` (junto con `SIRE_CONTRATO=1`) corre lo mismo contra el servidor falso en 127.0.0.1 con los TXT
- * sintéticos y NO lee ninguna credencial: sirve para comprobar esta prueba sin SUNAT. Con `SIRE_CONTRATO_FALSO_ARCHIVOS_RAROS=1`
- * los archivos del registro son rechazables (PEN: ZIP con 2 entradas, una con ruta y descriptor de datos; USD: no es ZIP) y la
- * prueba del registro FALLA a propósito, para ver las líneas de estructura.
+ * sintéticos y NO lee ninguna credencial: sirve para comprobar esta prueba sin SUNAT; el archivo del registro se sirve con la
+ * estructura real del ZIP (3 entradas). Con `SIRE_CONTRATO_FALSO_ARCHIVOS_RAROS=1` el archivo del registro es rechazable (ZIP con
+ * 2 entradas, una con ruta y descriptor de datos) y la prueba del registro FALLA a propósito, para ver las líneas de estructura.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { LibroSire, TokenSire } from "../puertos.js";
@@ -42,7 +46,6 @@ import {
   credencialesDelEntorno,
   diagnosticoActivo,
   lineaTotales,
-  MONEDAS_REGISTRO,
   prepararServidorFalso,
   sumarTotalesP5,
   type EntradaContrato,
@@ -106,40 +109,35 @@ function afirmarLibro(libro: LibroSire, i: InformeLibro): void {
 }
 
 /**
- * Registro presentado (5.51): un error `sin_datos` solo vale si las DOS monedas dijeron «sin datos»; cualquier otro fallo o
- * rechazo de SUNAT falla (sus `cod`/`msg` ya salieron). Por moneda con ticket: estados del anexo III, termina en 04/06, al
- * menos un archivo legible, encabezado igual al de la propuesta y toda fila con la moneda pedida.
+ * Registro presentado (5.51): un error `sin_datos` solo vale si SUNAT dijo «sin datos» (422/400 con cod 1070 o TXT solo con
+ * encabezado); cualquier otro fallo o rechazo de SUNAT falla (sus `cod`/`msg` ya salieron). Con ticket: estados del anexo III,
+ * termina en 04/06, al menos un archivo legible y encabezado igual al de la propuesta o que difiere solo en nombres de columnas
+ * que no se mapean. NO se exige que la columna `Moneda` sea la pedida: `codMoneda` no filtra y cada fila trae su moneda.
  */
 function afirmarRegistro(i: InformeRegistro): void {
-  const sinDatosAmbas = i.porMoneda.PEN.sinDatos && i.porMoneda.USD.sinDatos;
-  if (i.error !== null && i.error.detalle === "sin_datos" && sinDatosAmbas) return;
+  if (i.error !== null && i.error.detalle === "sin_datos" && i.sinDatos) return;
   expect(i.error, `registro presentado: fallo ${i.error?.clase ?? ""} ${i.error?.detalle ?? ""} (ver líneas HTTP/cod/msg)`).toBeNull();
-  for (const moneda of MONEDAS_REGISTRO) {
-    const m = i.porMoneda[moneda];
-    const etiqueta = `registro presentado ${moneda}`;
-    expect(m.solicitud !== null, `${etiqueta}: se hizo la solicitud 5.51`).toBe(true);
-    if (m.solicitud === null) continue;
-    expect(m.solicitud.codProceso, `${etiqueta}: codProceso 70`).toBe("70");
-    if (m.sinDatos && !m.solicitud.devolvioTicket) continue; // 422 «sin datos» al solicitar: no hay ticket que seguir
-    expect(m.solicitud.estado >= 200 && m.solicitud.estado < 300, `${etiqueta}: SUNAT aceptó la solicitud`).toBe(true);
-    expect(m.solicitud.devolvioTicket, `${etiqueta}: la solicitud devuelve numTicket`).toBe(true);
-    expect(m.ticket.estados.length > 0, `${etiqueta}: se consultó el ticket`).toBe(true);
-    expect(
-      m.ticket.estados.every((e) => ESTADOS_DEL_MANUAL.includes(e)),
-      `${etiqueta}: todos los estados del ticket son del anexo III`,
-    ).toBe(true);
-    expect(["04", "06"].includes(m.ticket.estados[m.ticket.estados.length - 1] ?? ""), `${etiqueta}: el ticket termina en 04 o 06`).toBe(true);
-    expect(m.archivos.length > 0, `${etiqueta}: se descargó al menos un archivo`).toBe(true);
-    expect(m.archivos.every((a) => a.zipLegible && a.columnas > 0), `${etiqueta}: cada parte es un ZIP con un TXT con encabezado`).toBe(true);
-    expect(m.archivos.every((a) => a.encabezadoCoincide), `${etiqueta}: el encabezado es igual al de la propuesta de compras`).toBe(true);
-    expect(
-      Object.keys(m.filasPorMoneda).every((k) => k === moneda),
-      `${etiqueta}: toda fila trae en Moneda la moneda pedida`,
-    ).toBe(true);
-    afirmarFormaFilas(etiqueta, m);
-  }
-  // La unión del cliente (PEN y luego USD) tiene la forma común de filas.
-  afirmarFormaFilas("registro presentado (unión)", i);
+  const etiqueta = "registro presentado";
+  expect(i.solicitud !== null, `${etiqueta}: se hizo la solicitud 5.51`).toBe(true);
+  if (i.solicitud === null) return;
+  expect(i.solicitud.codProceso, `${etiqueta}: codProceso 70`).toBe("70");
+  expect(i.solicitud.estado >= 200 && i.solicitud.estado < 300, `${etiqueta}: SUNAT aceptó la solicitud`).toBe(true);
+  expect(i.solicitud.devolvioTicket, `${etiqueta}: la solicitud devuelve numTicket`).toBe(true);
+  expect(i.ticket.estados.length > 0, `${etiqueta}: se consultó el ticket`).toBe(true);
+  expect(
+    i.ticket.estados.every((e) => ESTADOS_DEL_MANUAL.includes(e)),
+    `${etiqueta}: todos los estados del ticket son del anexo III`,
+  ).toBe(true);
+  expect(["04", "06"].includes(i.ticket.estados[i.ticket.estados.length - 1] ?? ""), `${etiqueta}: el ticket termina en 04 o 06`).toBe(true);
+  expect(i.archivos.length > 0, `${etiqueta}: se descargó al menos un archivo`).toBe(true);
+  expect(i.archivos.every((a) => a.zipLegible && a.columnas > 0), `${etiqueta}: cada parte es un ZIP con un TXT con encabezado`).toBe(true);
+  expect(
+    i.archivos.every((a) => a.encabezadoCoincide || a.diferencia === "solo_no_mapeadas"),
+    `${etiqueta}: el encabezado es igual al de la propuesta o solo difiere en nombres de columnas que no se mapean`,
+  ).toBe(true);
+  // Las filas traen su propia moneda (PEN o USD); no se compara con la pedida.
+  afirmarFormaFilas(etiqueta, { filas: i.filasArchivo });
+  afirmarFormaFilas(`${etiqueta} (devuelto por el cliente)`, i);
 }
 
 describe.skipIf(!activa)(falso ? "contrato SIRE (servidor falso local)" : "contrato SIRE (SUNAT real, solo lectura)", () => {
@@ -205,7 +203,7 @@ describe.skipIf(!activa)(falso ? "contrato SIRE (servidor falso local)" : "contr
   }
 
   it(
-    "compras: registro presentado (5.51) con el cliente real, codProceso 70 con PEN y con USD y unión de filas",
+    "compras: registro presentado (5.51) con el cliente real: una solicitud (codProceso 70 + codMoneda PEN), un ticket y un archivo con las filas de todas las monedas",
     async () => {
       expect(token !== undefined, "registro presentado: hay token (el primer paso debe pasar)").toBe(true);
       const informes: InformeRegistro[] = [];

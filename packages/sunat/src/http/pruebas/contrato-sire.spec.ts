@@ -15,7 +15,7 @@ import {
   registroTicket,
   zip,
 } from "./ayudas-http.js";
-import { sinColumna } from "./ayudas-txt.js";
+import { conEncabezado, sinColumna } from "./ayudas-txt.js";
 import { analizarZip, diagnosticarZip, lineasEstructura, nombreSeguro, pareceTextoPlano } from "./estructura-zip.js";
 import { ZIP_RARO, noEsZip, zipManual, zipRaro, zipRegistroReal } from "./zip-manual.js";
 import {
@@ -156,115 +156,143 @@ describe("contrato SIRE · registro presentado de compras (5.51) contra el servi
     await srv.cerrar();
   });
   const solicitudes = () => srv.sire.peticionesDe("GET", RUTAS.solicitarRegistro());
-  const T_PEN = TICKET_REGISTRO_FALSO.PEN;
-  const T_USD = TICKET_REGISTRO_FALSO.USD;
-  const zipRegistro = (nombre: string, txt: string) => ({ nombre, zip: zipRegistroReal(nombre.replace(".zip", ""), fixture(txt)) });
-  /** Guiona la solicitud (70 con PEN/USD → un ticket cada una) y el ticket de cada moneda con el fixture que se indique. */
-  function guionarMonedas(pen: string, usd: string): void {
+  const T = TICKET_REGISTRO_FALSO;
+  /** El ZIP real (3 entradas) del archivo del registro con el TXT dado. */
+  const zipRegistro = (txt: Uint8Array) => ({ nombre: "registro.zip", zip: zipRegistroReal("registro", txt) });
+  /** Guiona la solicitud (70 con PEN → un ticket) y el ticket (01 y luego 04) y el archivo con el TXT que se indique. */
+  function guionarRegistro(txt: Uint8Array): void {
     guionarSolicitudRegistroFalsa(srv.sire);
-    const partes = new Map([
-      [T_PEN, zipRegistro("registro-pen.zip", pen)],
-      [T_USD, zipRegistro("registro-usd.zip", usd)],
-    ]);
-    // Cada ticket sale «01» una vez y luego «04» (el contador es de este guion, no del servidor).
-    const consultas = new Map<string, number>();
+    const parte = zipRegistro(txt);
+    let consultas = 0;
     srv.sire.guionar("GET", RUTAS.ticket, (p) => {
-      const t = p.query["numTicket"] ?? "";
-      const parte = partes.get(t);
-      if (parte === undefined) return { estado: 404 };
-      const n = (consultas.get(t) ?? 0) + 1;
-      consultas.set(t, n);
-      return { json: cuerpoTicket([registroTicket(t, n === 1 ? "01" : "04", n === 1 ? [] : [archivo(parte.nombre)])]) };
+      if (p.query["numTicket"] !== T) return { estado: 404 };
+      consultas += 1;
+      return { json: cuerpoTicket([registroTicket(T, consultas === 1 ? "01" : "04", consultas === 1 ? [] : [archivo(parte.nombre)])]) };
     });
-    srv.sire.guionar("GET", RUTAS.archivo, (p) => {
-      const parte = [...partes.values()].find((x) => x.nombre === p.query["nomArchivoReporte"]);
-      return parte === undefined ? { estado: 404 } : { bytes: parte.zip, cabeceras: { "content-type": "application/zip" } };
-    });
+    srv.sire.guionar("GET", RUTAS.archivo, () => ({ bytes: parte.zip, cabeceras: { "content-type": "application/zip" } }));
   }
-  const PEN = "compras-registro-202610-pen.txt";
-  const USD = "compras-registro-202610-usd.txt";
+  /** El archivo del registro: 8 filas PEN y 1 USD, con el encabezado real (col. 34 renombrada). */
+  const REGISTRO = "compras-registro-202610-mixto.txt";
   const VACIO = "compras-registro-202610-solo-encabezado.txt";
-  const MIXTO = "compras-registro-202610-mixto.txt";
+  const COL_34_REAL = "ID Proyecto Operadores/Partícipes";
+  const COL_34_PROPUESTA = "ID Proyecto Operadores";
   const sin1070 = { estado: 422, json: { cod: "1070", msg: "No existen datos" } } as const;
 
-  it("modo normal: pide codProceso 70 con PEN y luego con USD, sigue cada ticket hasta el archivo e informa por moneda", async () => {
+  it("modo normal: UNA solicitud (codProceso 70 + codMoneda PEN), sigue el ticket hasta el archivo e informa las formas", async () => {
+    guionarRegistro(fixture(REGISTRO));
     const antes = solicitudes().length;
     const lineas: string[] = [];
     const i = await contratoRegistro({ ...srv.entrada, emitir: (l) => lineas.push(l) }, token);
     expect(i.error).toBeNull();
     const pedidas = solicitudes().slice(antes);
-    expect(pedidas.map((p) => [p.query["codProceso"], p.query["codMoneda"]])).toEqual([["70", "PEN"], ["70", "USD"]]);
-    expect(pedidas.every((p) => p.query["codTipoArchivo"] === "0" && p.query["codOrigen"] === "2" && p.query["lisPeriodos"] === PERIODO)).toBe(true);
-    expect(pedidas.every((p) => p.query["codOrigenEnvio"] === undefined)).toBe(true);
-    for (const [moneda, esperadas] of [["PEN", 8], ["USD", 3]] as const) {
-      const m = i.porMoneda[moneda];
-      expect(m.solicitud).toMatchObject({ codProceso: "70", codMoneda: moneda, estado: 200, campos: ["numTicket"], devolvioTicket: true, errorSunat: null, codigosSunat: [] });
-      expect(m.sinDatos).toBe(false);
-      expect(m.ticket.estados).toEqual(["01", "04"]);
-      expect(m.archivos).toHaveLength(1);
-      expect(m.archivos[0]).toMatchObject({ zipLegible: true, columnas: 80, encabezadoCoincide: true, faltantes: [], sobrantes: [], filas: esperadas });
-      expect(m.filasPorMoneda).toEqual({ [moneda]: esperadas });
-      expect(m.filas?.total).toBe(esperadas);
-      expect(m.filas).toMatchObject({ fechaInvalida: 0, monedaInvalida: 0, montoInvalido: 0, tipoCambioInvalido: 0, tipoInvalido: 0, numeroVacio: 0 });
-    }
-    expect(i.porMoneda.USD.filas?.usd).toBe(3);
-    expect(i.filas?.total).toBe(11);
+    expect(pedidas, "una sola solicitud por periodo: codMoneda no filtra").toHaveLength(1);
+    expect(pedidas[0]!.query).toEqual({ codTipoArchivo: "0", codProceso: "70", codOrigen: "2", lisPeriodos: PERIODO, codMoneda: "PEN" });
+    expect(i.solicitud).toMatchObject({ codProceso: "70", codMoneda: "PEN", estado: 200, campos: ["numTicket"], devolvioTicket: true, errorSunat: null, codigosSunat: [] });
+    expect(i.sinDatos).toBe(false);
+    expect(i.ticket.estados).toEqual(["01", "04"]);
+    expect(i.archivos).toHaveLength(1);
+    // El encabezado real difiere del de la propuesta solo en la columna 34 (renombrada, no se mapea): se distingue y no es fallo.
+    expect(i.archivos[0]).toMatchObject({
+      zipLegible: true,
+      columnas: 80,
+      encabezadoCoincide: false,
+      diferencia: "solo_no_mapeadas",
+      faltantes: [COL_34_PROPUESTA],
+      sobrantes: [COL_34_REAL],
+      filas: 9,
+    });
+    // `codMoneda` no filtra: PEN y USD en el mismo archivo, cada fila con su moneda; no se compara con la pedida.
+    expect(i.filasPorMoneda).toEqual({ PEN: 8, USD: 1 });
+    expect(i.filasArchivo?.total).toBe(9);
+    expect(i.filasArchivo).toMatchObject({ fechaInvalida: 0, monedaInvalida: 0, montoInvalido: 0, tipoCambioInvalido: 0, tipoInvalido: 0, numeroVacio: 0, usd: 1, usdConTipoCambio: 1 });
+    expect(i.filas?.total).toBe(9);
+    expect(i.filas?.usd).toBe(1);
+    expect(i.fallos).toHaveLength(0);
+
     const salida = lineas.join("\n");
-    expect(salida).toContain("registro-presentado 202610 PEN: solicitud codProceso 70 codMoneda PEN HTTP 200");
-    expect(salida).toContain("registro-presentado 202610 USD: solicitud codProceso 70 codMoneda USD HTTP 200");
+    expect(salida).toContain("registro-presentado 202610: solicitud codProceso 70 codMoneda PEN HTTP 200");
     expect(salida).toContain("devolvió ticket sí");
-    expect(salida).toContain("encabezado igual al de la propuesta de compras sí");
-    expect(salida).toContain("columna Moneda PEN 8");
-    expect(salida).toContain("columna Moneda USD 3");
+    expect(salida).toContain("encabezado igual al de la propuesta de compras no");
+    expect(salida).toContain(`faltan {${COL_34_PROPUESTA}} sobran {${COL_34_REAL}}`);
+    expect(salida).toContain("la diferencia es solo de nombre en columnas que no se mapean");
+    expect(salida).toContain("columna Moneda PEN 8, USD 1");
     expect(salida).toContain("P-5 · NC");
     expect(salida).toContain("registro-presentado 202610: total");
+    // No hay líneas por moneda ni verificación de la «moneda pedida».
+    expect(salida).not.toMatch(/registro-presentado 202610 (PEN|USD)/);
+    expect(salida).not.toContain("moneda pedida");
     expect(lineas.every((l) => l.startsWith("[contrato-sire]"))).toBe(true);
     expect(srv.sire.peticiones.every((p) => p.metodo === "GET" || p.metodo === "POST")).toBe(true);
   });
 
-  it("una moneda sin datos (422 con cod 1070) y la otra con filas: no es fallo; la sin datos no sigue ticket", async () => {
-    guionarMonedas(PEN, USD);
-    srv.sire.guionar("GET", RUTAS.solicitarRegistro(), (p) => (p.query["codMoneda"] === "USD" ? sin1070 : { json: { numTicket: T_PEN } }));
+  it("el informe es plano (sin porMoneda) y ya no hay un informe por moneda", async () => {
+    guionarRegistro(fixture(REGISTRO));
+    const i = await contratoRegistro(srv.entrada, token);
+    expect(Object.keys(i).sort()).toEqual(
+      ["archivos", "error", "fallos", "filas", "filasArchivo", "filasPorMoneda", "ms", "periodo", "referenciaPropuesta", "sinDatos", "solicitud", "ticket"].sort(),
+    );
+    expect((i as unknown as Record<string, unknown>)["porMoneda"]).toBeUndefined();
+  });
+
+  it("encabezado: igual al de la propuesta → «ninguna»; sin una columna que se mapea → «mapeadas» (y el cliente falla); solo la 34 → «solo_no_mapeadas»", async () => {
+    // Igual al de la propuesta: la columna 34 con su nombre de la propuesta.
+    guionarRegistro(conEncabezado(fixture(REGISTRO), (c) => c.map((x) => (x === COL_34_REAL ? COL_34_PROPUESTA : x))));
+    const igual = await contratoRegistro(srv.entrada, token);
+    expect(igual.error).toBeNull();
+    expect(igual.archivos[0]).toMatchObject({ encabezadoCoincide: true, diferencia: "ninguna", faltantes: [], sobrantes: [] });
+
+    // Falta una columna que se mapea: la diferencia afecta columnas mapeadas y el lector rechaza el encabezado.
+    guionarRegistro(sinColumna(fixture(REGISTRO), "Total CP"));
+    const lineas: string[] = [];
+    const sinTotal = await contratoRegistro({ ...srv.entrada, emitir: (l) => lineas.push(l) }, token);
+    expect(sinTotal.archivos[0]).toMatchObject({ columnas: 79, encabezadoCoincide: false, diferencia: "mapeadas", faltantes: [COL_34_PROPUESTA, "Total CP"] });
+    expect(sinTotal.filasArchivo).toBeNull();
+    expect(sinTotal.filas).toBeNull();
+    expect(sinTotal.error).toEqual({ clase: "ErrorPortalSire", detalle: "encabezado" });
+    expect(lineas.join("\n")).toContain("la diferencia afecta columnas que se mapean");
+    expect(lineas.join("\n")).not.toContain("la diferencia es solo de nombre");
+
+    // Una columna renombrada que NO se mapea (otra distinta de la 34): también es «solo_no_mapeadas».
+    guionarRegistro(conEncabezado(fixture(REGISTRO), (c) => c.map((x) => (x === "PorcPart" ? "PorcPart Renombrada" : x))));
+    const otra = await contratoRegistro(srv.entrada, token);
+    expect(otra.error).toBeNull();
+    expect(otra.archivos[0]).toMatchObject({ diferencia: "solo_no_mapeadas", faltantes: [COL_34_PROPUESTA, "PorcPart"], sobrantes: [COL_34_REAL, "PorcPart Renombrada"] });
+  });
+
+  it("422 con cod 1070: «sin datos», no sigue ticket ni archivo y es sin_datos (no un fallo del contrato)", async () => {
+    guionarRegistro(fixture(REGISTRO));
+    srv.sire.guionar("GET", RUTAS.solicitarRegistro(), sin1070);
+    const antes = srv.sire.peticionesDe("GET", RUTAS.ticket).length;
     const lineas: string[] = [];
     const i = await contratoRegistro({ ...srv.entrada, emitir: (l) => lineas.push(l) }, token);
-    expect(i.error).toBeNull();
-    expect(i.porMoneda.PEN.sinDatos).toBe(false);
-    expect(i.porMoneda.USD).toMatchObject({ sinDatos: true, solicitud: { estado: 422, devolvioTicket: false }, archivos: [], filas: null });
-    expect(i.porMoneda.USD.solicitud?.codigosSunat).toEqual(["1070"]);
-    expect(i.porMoneda.USD.ticket.consultas).toBe(0);
-    expect(i.filas?.total).toBe(8);
-    expect(lineas.join("\n")).toContain("registro-presentado 202610 USD: sin datos");
+    expect(i.sinDatos).toBe(true);
+    expect(i.solicitud).toMatchObject({ estado: 422, devolvioTicket: false });
+    expect(i.solicitud?.codigosSunat).toEqual(["1070"]);
+    expect(i.ticket.consultas).toBe(0);
+    expect(srv.sire.peticionesDe("GET", RUTAS.ticket).length).toBe(antes);
+    expect(i.archivos).toEqual([]);
+    expect(i.filasArchivo).toBeNull();
+    expect(i.filas).toBeNull();
+    expect(i.error).toEqual({ clase: "ErrorDatosSire", detalle: "sin_datos" });
+    expect(lineas.join("\n")).toContain("registro-presentado 202610: sin datos");
   });
 
-  it("TXT con solo encabezado en una moneda cuenta como «sin datos» de esa moneda (con ticket y archivo legibles)", async () => {
-    guionarMonedas(PEN, VACIO);
+  it("400 con cod 1070 también es «sin datos»", async () => {
+    guionarRegistro(fixture(REGISTRO));
+    srv.sire.guionar("GET", RUTAS.solicitarRegistro(), { estado: 400, json: { cod: "400", msg: "x", errors: [{ cod: "1070", msg: "No existen datos" }] } });
     const i = await contratoRegistro(srv.entrada, token);
-    expect(i.error).toBeNull();
-    expect(i.porMoneda.USD).toMatchObject({ sinDatos: true, filasPorMoneda: {} });
-    expect(i.porMoneda.USD.archivos[0]).toMatchObject({ zipLegible: true, filas: 0 });
-    expect(i.porMoneda.USD.ticket.estados).toEqual(["01", "04"]);
-    expect(i.porMoneda.PEN.sinDatos).toBe(false);
+    expect(i.sinDatos).toBe(true);
+    expect(i.error).toEqual({ clase: "ErrorDatosSire", detalle: "sin_datos" });
   });
 
-  it("PEN y USD sin datos (422 1070 o solo encabezado, cualquier combinación): error sin_datos y las dos monedas «sin datos»", async () => {
-    for (const [pen, usd] of [
-      [VACIO, VACIO],
-      ["1070", "1070"],
-      ["1070", VACIO],
-      [VACIO, "1070"],
-    ] as const) {
-      guionarMonedas(pen === "1070" ? PEN : pen, usd === "1070" ? USD : usd);
-      srv.sire.guionar("GET", RUTAS.solicitarRegistro(), (p) => {
-        const moneda = p.query["codMoneda"] === "USD" ? usd : pen;
-        return moneda === "1070" ? sin1070 : { json: { numTicket: p.query["codMoneda"] === "USD" ? T_USD : T_PEN } };
-      });
-      const lineas: string[] = [];
-      const i = await contratoRegistro({ ...srv.entrada, emitir: (l) => lineas.push(l) }, token);
-      expect(i.porMoneda.PEN.sinDatos && i.porMoneda.USD.sinDatos, `${pen}/${usd}: las dos monedas sin datos`).toBe(true);
-      expect(i.filas).toBeNull();
-      expect(i.error).toEqual({ clase: "ErrorDatosSire", detalle: "sin_datos" });
-      expect(lineas.join("\n")).toContain("FALLÓ ErrorDatosSire sin_datos");
-    }
+  it("TXT con solo encabezado (ticket y archivo legibles) cuenta como «sin datos»", async () => {
+    guionarRegistro(fixture(VACIO));
+    const i = await contratoRegistro(srv.entrada, token);
+    expect(i.sinDatos).toBe(true);
+    expect(i.archivos[0]).toMatchObject({ zipLegible: true, filas: 0 });
+    expect(i.filasPorMoneda).toEqual({});
+    expect(i.ticket.estados).toEqual(["01", "04"]);
+    expect(i.error).toEqual({ clase: "ErrorDatosSire", detalle: "sin_datos" });
   });
 
   it("SUNAT rechaza la solicitud (422 1061 u otro): imprime el HTTP y solo cod y msg (sin números largos) y NO lo toma por «sin datos»", async () => {
@@ -274,10 +302,10 @@ describe("contrato SIRE · registro presentado de compras (5.51) contra el servi
     });
     const lineas: string[] = [];
     const i = await contratoRegistro({ ...srv.entrada, emitir: (l) => lineas.push(l) }, token);
-    expect(i.porMoneda.PEN.sinDatos).toBe(false);
-    expect(i.porMoneda.PEN.solicitud).toMatchObject({ codProceso: "70", codMoneda: "PEN", estado: 422, devolvioTicket: false, errorSunat: { cod: "1061", msg: "Unprocessable Entity" } });
-    expect(i.porMoneda.PEN.solicitud?.codigosSunat).toEqual(["422", "1061"]);
-    expect(i.porMoneda.PEN.fallos).toHaveLength(1);
+    expect(i.sinDatos).toBe(false);
+    expect(i.solicitud).toMatchObject({ codProceso: "70", codMoneda: "PEN", estado: 422, devolvioTicket: false, errorSunat: { cod: "1061", msg: "Unprocessable Entity" } });
+    expect(i.solicitud?.codigosSunat).toEqual(["422", "1061"]);
+    expect(i.fallos).toHaveLength(1);
     expect(i.filas).toBeNull();
     expect(i.error?.clase).toBe("ErrorPortalSire");
     expect(i.error?.detalle).toBe("solicitud_rechazada");
@@ -291,58 +319,56 @@ describe("contrato SIRE · registro presentado de compras (5.51) contra el servi
   it("cod o msg con formas raras se imprimen como «?»", async () => {
     srv.sire.guionar("GET", RUTAS.solicitarRegistro(), { estado: 400, json: { cod: "<script>alert(1)</script>", msg: "linea\ncon salto" } });
     const i = await contratoRegistro(srv.entrada, token);
-    expect(i.porMoneda.PEN.solicitud?.errorSunat).toEqual({ cod: "?", msg: "?" });
-    expect(i.porMoneda.PEN.solicitud?.codigosSunat).toEqual([]);
+    expect(i.solicitud?.errorSunat).toEqual({ cod: "?", msg: "?" });
+    expect(i.solicitud?.codigosSunat).toEqual([]);
   });
 
-  it("una fila de otra moneda en el TXT de PEN se cuenta por forma (PEN 8, USD 1) y las formas de las filas salen aunque el cliente falle", async () => {
-    guionarMonedas(MIXTO, USD);
+  it("la columna Moneda se cuenta por valor (PEN 8, USD 1) y NO se exige que sea la pedida: un archivo solo USD pedido con PEN también pasa", async () => {
+    const [cab, ...filas] = Buffer.from(fixture(REGISTRO)).toString("utf8").split("\n").filter((l) => l !== "");
+    const soloUsd = new Uint8Array(Buffer.from(`${cab}\n${filas.filter((f) => f.includes("|USD|")).join("\n")}\n`, "utf8"));
+    guionarRegistro(soloUsd);
+    const i = await contratoRegistro(srv.entrada, token);
+    expect(i.error).toBeNull();
+    expect(i.solicitud?.codMoneda).toBe("PEN");
+    expect(i.filasPorMoneda).toEqual({ USD: 1 });
+    expect(i.filas?.usd).toBe(1);
+  });
+
+  it("las formas de las filas del archivo salen aunque el cliente falle (comprobante repetido → respuesta_inesperada)", async () => {
+    const base = Buffer.from(fixture(REGISTRO)).toString("utf8").split("\n").filter((l) => l !== "");
+    const repetida = base[1]!.replace("|PEN|1.000|", "|USD|3.300|");
+    expect(repetida).not.toBe(base[1]);
+    guionarRegistro(new Uint8Array(Buffer.from(`${[...base, repetida].join("\n")}\n`, "utf8")));
     const lineas: string[] = [];
     const i = await contratoRegistro({ ...srv.entrada, emitir: (l) => lineas.push(l) }, token);
-    expect(i.porMoneda.PEN.filasPorMoneda).toEqual({ PEN: 8, USD: 1 });
-    expect(i.porMoneda.PEN.filas?.total).toBe(9);
-    // El cliente corta en la primera moneda con error: USD no se lee.
-    expect(i.porMoneda.USD.archivos).toHaveLength(0);
+    expect(i.error).toEqual({ clase: "ErrorPortalSire", detalle: "respuesta_inesperada" });
     expect(i.filas).toBeNull();
-    expect(lineas.join("\n")).toContain("columna Moneda PEN 8, USD 1");
+    expect(i.filasArchivo?.total).toBe(10);
+    expect(i.filasPorMoneda).toEqual({ PEN: 8, USD: 2 });
+    expect(lineas.join("\n")).toContain("columna Moneda PEN 8, USD 2");
   });
 
-  it("un encabezado distinto del de la propuesta se informa con las columnas que faltan y sobran, solo en la moneda afectada", async () => {
-    guionarMonedas(PEN, USD);
-    srv.sire.guionar("GET", RUTAS.archivo, (p) => {
-      const nombre = p.query["nomArchivoReporte"] ?? "";
-      const base = fixture(nombre === "registro-pen.zip" ? PEN : USD);
-      return {
-        bytes: zipRegistroReal("x", nombre === "registro-usd.zip" ? sinColumna(base, "Total CP") : base),
-        cabeceras: { "content-type": "application/zip" },
-      };
-    });
-    const i = await contratoRegistro(srv.entrada, token);
-    expect(i.porMoneda.PEN.archivos[0]).toMatchObject({ encabezadoCoincide: true, faltantes: [], sobrantes: [] });
-    expect(i.porMoneda.USD.archivos[0]).toMatchObject({ columnas: 79, encabezadoCoincide: false, faltantes: ["Total CP"], sobrantes: [] });
-    expect(i.porMoneda.USD.filas).toBeNull();
-    expect(i.error).toEqual({ clase: "ErrorPortalSire", detalle: "encabezado" });
-  });
-
-  it("la salida del registro no contiene valores: ni RUC, razones sociales, canarios, tickets ni celdas de datos de PEN y USD", async () => {
-    guionarMonedas(PEN, USD);
+  it("la salida del registro no contiene valores: ni RUC, razones sociales, canarios, tickets ni celdas de datos", async () => {
+    guionarRegistro(fixture(REGISTRO));
     const lineas: string[] = [];
     await contratoRegistro({ ...srv.entrada, emitir: (l) => lineas.push(l) }, token);
     const salida = lineas.join("\n");
-    expect(lineas.length).toBeGreaterThanOrEqual(10);
-    const celdas = [PEN, USD]
-      .flatMap((f) => Buffer.from(fixture(f)).toString("utf8").split("\n").slice(1))
+    expect(lineas.length).toBeGreaterThanOrEqual(6);
+    const celdas = Buffer.from(fixture(REGISTRO))
+      .toString("utf8")
+      .split("\n")
+      .slice(1)
       .flatMap((fila) => fila.split("|"))
       .filter((c) => c.length >= 6 && c !== PERIODO);
     expect(celdas.length).toBeGreaterThan(0);
-    for (const v of [...rucs.flatMap((r) => [r.ruc, r.razonSocial]), ...Object.values(CANARIOS), T_PEN, T_USD, ...celdas]) {
+    for (const v of [...rucs.flatMap((r) => [r.ruc, r.razonSocial]), ...Object.values(CANARIOS), T, ...celdas]) {
       expect(salida.includes(v), "la salida repite un valor de los datos").toBe(false);
     }
     expect(/\d{8,}/.test(salida), "la salida trae un número largo").toBe(false);
   });
 });
 
-describe("contrato SIRE · observación del registro por moneda (sin el cliente)", () => {
+describe("contrato SIRE · observación del registro (sin el cliente)", () => {
   let srv: ServidorContratoFalso;
   beforeAll(async () => {
     srv = await prepararServidorFalso();
@@ -351,8 +377,8 @@ describe("contrato SIRE · observación del registro por moneda (sin el cliente)
     await srv.cerrar();
   });
 
-  /** Hace a mano lo que hará el cliente (PEN y USD, ticket y archivo de cada uno) con el fetch observado y devuelve el informe. */
-  async function recorrer(monedas: readonly ("PEN" | "USD")[]): Promise<ReturnType<typeof informeRegistro>> {
+  /** Hace a mano lo que hace el cliente (la solicitud, el ticket y el archivo) con el fetch observado y devuelve el informe. */
+  async function recorrer(): Promise<ReturnType<typeof informeRegistro>> {
     const obs = nuevasObservaciones("compras", { ruc: RUC, periodo: PERIODO });
     const origenSire = srv.entrada.urlsDePrueba!.sire;
     const f = crearFetchObservado({
@@ -363,44 +389,52 @@ describe("contrato SIRE · observación del registro por moneda (sin el cliente)
     });
     const pedir = (ruta: string, q: Record<string, string>): Promise<Response> =>
       f(`${origenSire}${ruta}?${new URLSearchParams(q)}`, { method: "GET" });
-    const tickets: Partial<Record<"PEN" | "USD", string>> = {};
-    for (const m of monedas) {
-      const r = await pedir(RUTAS.solicitarRegistro(), { codTipoArchivo: "0", codProceso: "70", codOrigen: "2", lisPeriodos: PERIODO, codMoneda: m });
-      if (r.ok) tickets[m] = ((await r.json()) as { numTicket: string }).numTicket;
-    }
-    for (const m of monedas) {
-      const t = tickets[m];
-      if (t === undefined) continue;
+    const r = await pedir(RUTAS.solicitarRegistro(), { codTipoArchivo: "0", codProceso: "70", codOrigen: "2", lisPeriodos: PERIODO, codMoneda: "PEN" });
+    if (r.ok) {
+      const t = ((await r.json()) as { numTicket: string }).numTicket;
       await pedir(RUTAS.ticket, { numTicket: t });
-      const r = await pedir(RUTAS.ticket, { numTicket: t });
-      const nombre = ((await r.json()) as { registros: { archivoReporte: { nomArchivoReporte: string }[] }[] }).registros[0]?.archivoReporte[0]?.nomArchivoReporte ?? "";
+      const lista = await pedir(RUTAS.ticket, { numTicket: t });
+      const nombre = ((await lista.json()) as { registros: { archivoReporte: { nomArchivoReporte: string }[] }[] }).registros[0]?.archivoReporte[0]?.nomArchivoReporte ?? "";
       await pedir(RUTAS.archivo, { nomArchivoReporte: nombre, numTicket: t });
     }
     return informeRegistro(PERIODO, 1, obs, null, null);
   }
 
-  it("atribuye la solicitud por codMoneda y el ticket y el archivo por numTicket: dos tickets, dos informes", async () => {
-    const i = await recorrer(["PEN", "USD"]);
-    expect(i.porMoneda.PEN.solicitud).toMatchObject({ codProceso: "70", codMoneda: "PEN", estado: 200, devolvioTicket: true });
-    expect(i.porMoneda.USD.solicitud).toMatchObject({ codProceso: "70", codMoneda: "USD", estado: 200, devolvioTicket: true });
-    expect(i.porMoneda.PEN.ticket.estados).toEqual(["01", "04"]);
-    expect(i.porMoneda.USD.ticket.estados).toEqual(["01", "04"]);
-    expect(i.porMoneda.PEN).toMatchObject({ filasPorMoneda: { PEN: 8 }, sinDatos: false });
-    expect(i.porMoneda.USD).toMatchObject({ filasPorMoneda: { USD: 3 }, sinDatos: false });
-    expect(i.porMoneda.PEN.archivos[0]?.encabezadoCoincide).toBe(true);
-    expect(i.porMoneda.PEN.filas?.total).toBe(8);
-    expect(i.porMoneda.USD.filas?.usdConTipoCambio).toBe(3);
+  it("atribuye la solicitud, el ticket y el archivo a un único informe plano", async () => {
+    const i = await recorrer();
+    expect(i.solicitud).toMatchObject({ codProceso: "70", codMoneda: "PEN", estado: 200, devolvioTicket: true });
+    expect(i.ticket.estados).toEqual(["01", "04"]);
+    expect(i).toMatchObject({ filasPorMoneda: { PEN: 8, USD: 1 }, sinDatos: false });
+    expect(i.archivos).toHaveLength(1);
+    expect(i.archivos[0]).toMatchObject({ diferencia: "solo_no_mapeadas", encabezadoCoincide: false });
+    expect(i.filasArchivo?.total).toBe(9);
+    expect(i.filasArchivo?.usdConTipoCambio).toBe(1);
   });
 
-  it("422 al solicitar una moneda: queda en su informe (con cod/msg) y la otra no se ve afectada", async () => {
-    srv.sire.guionar("GET", RUTAS.solicitarRegistro(), (p) =>
-      p.query["codMoneda"] === "PEN" ? { estado: 422, json: { cod: "422", msg: "x", errors: [{ cod: "1070", msg: "sin datos" }] } } : { json: { numTicket: TICKET_REGISTRO_FALSO.USD } },
-    );
-    const i = await recorrer(["PEN", "USD"]);
-    expect(i.porMoneda.PEN).toMatchObject({ sinDatos: true, solicitud: { estado: 422, devolvioTicket: false }, archivos: [] });
-    expect(i.porMoneda.PEN.fallos).toHaveLength(1);
-    expect(i.porMoneda.USD).toMatchObject({ sinDatos: false, filasPorMoneda: { USD: 3 } });
-    expect(i.porMoneda.USD.fallos).toHaveLength(0);
+  it("422 con 1070 al solicitar: queda en el informe (con cod/msg), sin ticket ni archivo", async () => {
+    srv.sire.guionar("GET", RUTAS.solicitarRegistro(), { estado: 422, json: { cod: "422", msg: "x", errors: [{ cod: "1070", msg: "sin datos" }] } });
+    const i = await recorrer();
+    expect(i).toMatchObject({ sinDatos: true, solicitud: { estado: 422, devolvioTicket: false }, archivos: [] });
+    expect(i.fallos).toHaveLength(1);
+    expect(i.ticket.consultas).toBe(0);
+  });
+
+  it("una consulta de un ticket que no es el nuestro no se atribuye al informe", async () => {
+    srv.sire.guionar("GET", RUTAS.solicitarRegistro(), { json: { numTicket: TICKET_REGISTRO_FALSO } });
+    const obs = nuevasObservaciones("compras", { ruc: RUC, periodo: PERIODO });
+    const origenSire = srv.entrada.urlsDePrueba!.sire;
+    const f = crearFetchObservado({
+      base: globalThis.fetch,
+      origenesPermitidos: [origenSire, srv.entrada.urlsDePrueba!.seguridad],
+      origenSeguridad: srv.entrada.urlsDePrueba!.seguridad,
+      obs,
+    });
+    await f(`${origenSire}${RUTAS.solicitarRegistro()}?${new URLSearchParams({ codProceso: "70", codMoneda: "PEN" })}`, { method: "GET" });
+    await f(`${origenSire}${RUTAS.ticket}?${new URLSearchParams({ numTicket: "202610009999" })}`, { method: "GET" });
+    const i = informeRegistro(PERIODO, 1, obs, null, null);
+    expect(i.ticket.consultas).toBe(0);
+    expect(i.fallos).toHaveLength(0);
+    expect(obs.fallos).toHaveLength(1); // el 404 del ticket ajeno queda sin atribuir
   });
 });
 
@@ -587,16 +621,16 @@ describe("contrato SIRE · diagnóstico de fallos HTTP (solo cod/msg y claves)",
   it("422 de 5.51 con lista de errores: imprime HTTP, claves de primer nivel y cod/msg de principal y lista; el cod ya no sale «?»", async () => {
     const lineas: string[] = [];
     const i = await contratoRegistro({ ...srv.entrada, emitir: (l) => lineas.push(l) }, token);
-    // La solicitud de PEN se rechaza: no hay reintento de codProceso ni de moneda.
-    expect(i.porMoneda.PEN.solicitud).toMatchObject({ codProceso: "70", codMoneda: "PEN", estado: 422, errorSunat: { cod: "1138" } });
-    expect(i.porMoneda.PEN.solicitud?.codigosSunat).toEqual(["422", "1138", "1139"]);
-    expect(i.porMoneda.PEN.sinDatos).toBe(false);
+    // La única solicitud se rechaza: no hay reintento de codProceso ni de moneda.
+    expect(i.solicitud).toMatchObject({ codProceso: "70", codMoneda: "PEN", estado: 422, errorSunat: { cod: "1138" } });
+    expect(i.solicitud?.codigosSunat).toEqual(["422", "1138", "1139"]);
+    expect(i.sinDatos).toBe(false);
     expect(i.error).toMatchObject({ clase: "ErrorPortalSire", detalle: "solicitud_rechazada" });
     const fallos = lineas.filter((l) => l.includes("FALLO HTTP"));
     expect(fallos).toHaveLength(1);
     expect(fallos[0]).toBe(
-      "[contrato-sire] registro-presentado 202610 PEN: FALLO HTTP 422 en solicitud codMoneda PEN · " +
-        `${i.porMoneda.PEN.fallos[0]?.ms} ms · cuerpo {cod,msg,exc,errors,datos} · ` +
+      "[contrato-sire] registro-presentado 202610: FALLO HTTP 422 en solicitud codMoneda PEN · " +
+        `${i.fallos[0]?.ms} ms · cuerpo {cod,msg,exc,errors,datos} · ` +
         "SUNAT cod 422 msg «Unprocessable Entity - Se presentaron errores de validación que impidieron completar el Request» · " +
         "errors[2]: cod 1138 msg «codProceso no válido para el RUC #» | cod 1139 msg «Parámetro rechazado»",
     );
@@ -605,17 +639,15 @@ describe("contrato SIRE · diagnóstico de fallos HTTP (solo cod/msg y claves)",
     expect(lineas.every((l) => l.startsWith("[contrato-sire]"))).toBe(true);
   });
 
-  it("un 422 con 1070 solo dentro de la lista de errores sigue contando como «sin datos» de esa moneda", async () => {
+  it("un 422 con 1070 solo dentro de la lista de errores sigue contando como «sin datos»", async () => {
     srv.sire.guionar("GET", RUTAS.solicitarRegistro(), {
       estado: 422,
       json: { cod: "422", msg: "Unprocessable Entity", errors: [{ cod: "1070", msg: "No existen datos" }] },
     });
     const i = await contratoRegistro(srv.entrada, token);
-    expect(i.porMoneda.PEN.sinDatos).toBe(true);
-    expect(i.porMoneda.USD.sinDatos).toBe(true);
+    expect(i.sinDatos).toBe(true);
     expect(i.error).toEqual({ clase: "ErrorDatosSire", detalle: "sin_datos" });
-    expect(i.porMoneda.PEN.solicitud?.errorSunat?.cod).toBe("1070");
-    expect(i.porMoneda.USD.solicitud?.errorSunat?.cod).toBe("1070");
+    expect(i.solicitud?.errorSunat?.cod).toBe("1070");
   });
 
   it("5xx de la exportación de ventas con cuerpo de error: línea con HTTP 503, claves y cod/msg de la lista; sin valores ajenos", async () => {
@@ -641,8 +673,8 @@ describe("contrato SIRE · diagnóstico de fallos HTTP (solo cod/msg y claves)",
     expect(compras.error).toBeNull();
     expect(compras.filas?.total).toBeGreaterThan(0);
     expect(ventas.error).not.toBeNull();
-    expect(registro.porMoneda.PEN.solicitud?.estado).toBe(422);
-    expect(registro.porMoneda.PEN.fallos).toHaveLength(1);
+    expect(registro.solicitud?.estado).toBe(422);
+    expect(registro.fallos).toHaveLength(1);
   });
 
   it("cuerpo que no es JSON (HTML del 502): «cuerpo no JSON» y nada del texto", async () => {
@@ -771,12 +803,12 @@ describe("contrato SIRE · modo diagnóstico de 5.51", () => {
     expect(lineas.every((l) => l.startsWith("[contrato-sire]"))).toBe(true);
   });
 
-  it("no pasa por el flujo normal: el modo normal pide solo codProceso 70, una vez con PEN y una con USD, sin variantes ni reintentos", async () => {
+  it("no pasa por el flujo normal: el modo normal pide UNA sola solicitud (codProceso 70 con PEN), sin variantes ni reintentos", async () => {
     srv.sire.guionar("GET", RUTAS.solicitarRegistro(), { estado: 422, json: { cod: "422", msg: "x", errors: [{ cod: "1070", msg: "sin datos" }] } });
     const antes = srv.sire.peticionesDe("GET", RUTAS.solicitarRegistro()).length;
     await contratoRegistro(srv.entrada, token);
     const pedidas = srv.sire.peticionesDe("GET", RUTAS.solicitarRegistro()).slice(antes);
-    expect(pedidas.map((p) => [p.query["codProceso"], p.query["codMoneda"]])).toEqual([["70", "PEN"], ["70", "USD"]]);
+    expect(pedidas.map((p) => [p.query["codProceso"], p.query["codMoneda"]])).toEqual([["70", "PEN"]]);
   });
 });
 
@@ -909,7 +941,7 @@ describe("contrato SIRE · estructura del archivo que el lector rechaza (servido
   });
   const archivosPedidos = () => srv.sire.peticionesDe("GET", RUTAS.archivo);
 
-  it("PEN rechazado: imprime su estructura, la de USD (que el cliente no pidió) y la de la propuesta como referencia, sin contenido ni dígitos del nombre", async () => {
+  it("el archivo del registro rechazado: imprime su estructura y la de la propuesta como referencia, sin contenido ni dígitos del nombre", async () => {
     const referenciaZip = {};
     await contratoLibro({ ...srv.entrada, referenciaZip }, token, "compras");
     const antes = archivosPedidos().length;
@@ -917,33 +949,26 @@ describe("contrato SIRE · estructura del archivo que el lector rechaza (servido
     const i = await contratoRegistro({ ...srv.entrada, referenciaZip, emitir: (l) => lineas.push(l) }, token);
 
     expect(i.error).toEqual({ clase: "ErrorPortalSire", detalle: "zip_invalido" });
-    expect(i.porMoneda.PEN.archivos[0]?.diagnostico.rechazo).not.toBeNull();
-    expect(i.porMoneda.PEN.archivoPendiente).toBeNull();
-    // El cliente corta con PEN; el archivo de USD lo pide la prueba aparte, una sola vez, con GET.
-    expect(i.porMoneda.USD.archivoPendiente).toBe("bajado");
-    expect(i.porMoneda.USD.archivos).toHaveLength(1);
-    expect(i.porMoneda.USD.archivos[0]?.diagnostico.estructura).toMatchObject({ firma: "3c68746d", esZip: false, textoPlano: true, eocd: false });
+    expect(i.archivos).toHaveLength(1);
+    expect(i.archivos[0]?.diagnostico.rechazo).not.toBeNull();
+    // Un solo ticket y un solo archivo: la prueba no pide nada aparte.
     const pedidos = archivosPedidos().slice(antes);
-    expect(pedidos.map((p) => p.query["numTicket"])).toEqual([TICKET_REGISTRO_FALSO.PEN, TICKET_REGISTRO_FALSO.USD]);
+    expect(pedidos.map((p) => p.query["numTicket"])).toEqual([TICKET_REGISTRO_FALSO]);
     expect(srv.sire.peticiones.every((p) => p.metodo === "GET")).toBe(true);
     expect(srv.sire.sinGuion).toHaveLength(0);
 
     const salida = lineas.join("\n");
-    const pen = "[contrato-sire] registro-presentado 202610 PEN";
-    const usd = "[contrato-sire] registro-presentado 202610 USD";
-    expect(salida).toContain(`${pen}: archivo 1 rechazado por el lector: ErrorPortalSire zip_invalido · motivo {mas_de_una_entrada,`);
-    expect(salida).toContain(`${pen}: archivo 1 estructura: firma 504b0304 (ZIP sí) ·`);
-    expect(salida).toContain(`${pen}: archivo 1 entrada 1: ext txt · ruta sí · directorio no · `);
-    expect(salida).toContain(`${pen}: archivo 1 entrada 2: ext txt · ruta no · directorio no · `);
-    expect(salida).toContain(`${pen}: referencia propuesta de compras: firma 504b0304 (ZIP sí)`);
-    expect(salida).toContain(`${usd}: archivo pendiente (diagnóstico): el cliente no llegó a pedirlo`);
-    expect(salida).toContain(`${usd}: archivo 1 rechazado por el lector: ErrorPortalSire zip_invalido · motivo {sin_eocd}`);
-    expect(salida).toContain(`${usd}: archivo 1 estructura: firma 3c68746d (no es ZIP · texto plano sí) ·`);
-    expect(salida).toContain(`${usd}: referencia propuesta de compras: firma 504b0304 (ZIP sí)`);
+    const p = "[contrato-sire] registro-presentado 202610";
+    expect(salida).toContain(`${p}: archivo 1 rechazado por el lector: ErrorPortalSire zip_invalido · motivo {mas_de_una_entrada,`);
+    expect(salida).toContain(`${p}: archivo 1 estructura: firma 504b0304 (ZIP sí) ·`);
+    expect(salida).toContain(`${p}: archivo 1 entrada 1: ext txt · ruta sí · directorio no · `);
+    expect(salida).toContain(`${p}: archivo 1 entrada 2: ext txt · ruta no · directorio no · `);
+    expect(salida).toContain(`${p}: referencia propuesta de compras: firma 504b0304 (ZIP sí)`);
+    expect(salida).not.toContain("archivo pendiente");
     expect(lineas.every((l) => l.startsWith("[contrato-sire]"))).toBe(true);
 
     // Nada de contenido ni de los dígitos de los nombres, del RUC, de los tickets ni de los canarios.
-    for (const v of [ZIP_RARO.contenido, "CANARIO", "<html>", ...ZIP_RARO.digitosEnNombres, RUC, ...Object.values(CANARIOS), ...Object.values(TICKET_REGISTRO_FALSO)]) {
+    for (const v of [ZIP_RARO.contenido, "CANARIO", "<html>", ...ZIP_RARO.digitosEnNombres, RUC, ...Object.values(CANARIOS), TICKET_REGISTRO_FALSO]) {
       expect(salida.includes(v), "la salida repite un valor del archivo, de los datos o de las credenciales").toBe(false);
     }
     for (const l of lineas.filter((x) => /archivo \d+ entrada \d+:/.test(x))) {
@@ -957,7 +982,7 @@ describe("contrato SIRE · estructura del archivo que el lector rechaza (servido
     const lineas: string[] = [];
     await contratoRegistro({ ...srv.entrada, emitir: (l) => lineas.push(l) }, token);
     const referencias = lineas.filter((l) => l.includes("referencia propuesta de compras"));
-    expect(referencias).toHaveLength(2);
+    expect(referencias).toHaveLength(1);
     expect(referencias.every((l) => l.includes("sin estructura (no se descargó la propuesta de compras de este periodo antes"))).toBe(true);
   });
 
@@ -977,7 +1002,7 @@ describe("contrato SIRE · estructura del archivo que el lector rechaza (servido
 });
 
 describe("contrato SIRE · el diagnóstico de estructura no se activa si el lector lee los archivos", () => {
-  it("registro sano: ninguna línea de estructura, referencia ni archivo pendiente, y un solo archivo pedido por moneda", async () => {
+  it("registro sano (con la estructura real de 3 entradas): ninguna línea de estructura ni referencia, y un solo archivo pedido", async () => {
     const srv = await prepararServidorFalso();
     srv.entrada.dormir = sinEsperar;
     try {
@@ -988,9 +1013,9 @@ describe("contrato SIRE · el diagnóstico de estructura no se activa si el lect
       const lineas: string[] = [];
       const i = await contratoRegistro({ ...srv.entrada, referenciaZip, emitir: (l) => lineas.push(l) }, token);
       expect(i.error).toBeNull();
-      expect(srv.sire.peticionesDe("GET", RUTAS.archivo).length - antes).toBe(2);
-      expect(i.porMoneda.PEN.archivoPendiente).toBeNull();
-      expect(i.porMoneda.USD.archivoPendiente).toBeNull();
+      expect(srv.sire.peticionesDe("GET", RUTAS.archivo).length - antes).toBe(1);
+      expect(i.archivos).toHaveLength(1);
+      expect(i.archivos[0]?.diagnostico.rechazo).toBeNull();
       const salida = lineas.join("\n");
       for (const x of ["estructura:", "referencia propuesta", "archivo pendiente", "rechazado por el lector", "entrada 1:"]) {
         expect(salida.includes(x), `salida normal con «${x}»`).toBe(false);

@@ -16,7 +16,7 @@ import { TOPE_ZIP_DESCOMPRIMIDO, extraerTxtDeZip } from "./zip-seguro.js";
 // hay, es prefijo del archivo con datos; (d) a lo sumo 8 entradas en el directorio central; (e) siguen los topes (64 MiB por
 // parte, 256 MiB acumulados, 200:1), el CRC, solo métodos 0 y 8, sin cifrado ni ZIP64 y los duplicados CON datos se rechazan.
 // Todo rechazo es `ErrorPortalSire("zip_invalido")`.
-const TXT = fixture("compras-registro-202610-pen.txt");
+const TXT = fixture("compras-registro-202610-mixto.txt");
 const B = "LE20700000002202610";
 const ARCHIVO = `${B}/${B}.txt`;
 const VACIO = new Uint8Array(0);
@@ -66,8 +66,8 @@ describe("extraerTxtDeZip · estructura REAL del registro presentado (CA-10, CA-
     expect(igual(r, TXT)).toBe(true);
   });
 
-  it("con el TXT del USD y con el TXT de solo encabezado también", () => {
-    for (const f of ["compras-registro-202610-usd.txt", "compras-registro-202610-solo-encabezado.txt"]) {
+  it("con el TXT de solo encabezado también", () => {
+    for (const f of ["compras-registro-202610-solo-encabezado.txt"]) {
       const t = fixture(f);
       expect(igual(extraerTxtDeZip(zipRegistroReal(B, t)), t)).toBe(true);
     }

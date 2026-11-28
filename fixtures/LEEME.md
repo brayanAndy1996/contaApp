@@ -72,14 +72,12 @@ Variantes (mismo sufijo en compras y ventas; el base lleva `-propuesta-202610`):
 
 Columnas sin equivalente con valor distinto de 0 (P-2) y fechas o montos inválidos no están como archivo: las pruebas modifican el texto del base.
 
-Registro presentado de compras (P-3, 5.51; el manual no documenta el TXT: se asume el layout de la propuesta, CA-13). Desde la corrida real de contrato se piden dos solicitudes por periodo (`codProceso` 70, `codMoneda` PEN y USD), cada una con su ticket y su TXT; el encabezado es idéntico al de `compras-propuesta-202610.txt` y la columna `Moneda` coincide con la moneda pedida. RUC `20700000002`, periodo 202610, proveedores de `rucs-prueba.json`, razones «PRUEBA…».
+Registro presentado de compras (P-3, 5.51; el manual no documenta el TXT: se asume el layout de la propuesta, CA-13). Desde la corrida real de contrato (2 RUC) se hace UNA solicitud por periodo (`codProceso` 70, `codMoneda` PEN): `codMoneda` NO filtra, así que el archivo trae todos los comprobantes con su moneda (PEN y USD mezcladas) y no se compara la columna `Moneda` con la pedida. El encabezado es el de `compras-propuesta-202610.txt` salvo la columna 34, que en el registro real se llama `ID Proyecto Operadores/Partícipes` (no se mapea). RUC `20700000002`, periodo 202610, proveedores de `rucs-prueba.json`, razones «PRUEBA…».
 
 | Archivo | Qué es |
 |---|---|
-| `compras-registro-202610-pen.txt` | Las 8 filas PEN del registro (San Juan ISC, mixta, ICBPER, zapatilla, nota de crédito 07, dominantes DG y DNG); es la parte de la solicitud con `codMoneda=PEN` |
-| `compras-registro-202610-usd.txt` | 3 filas USD con tipo de cambio (`F001-4062` redondeo USD con TC 3.300, `F004-30` y `F004-41` con TC 3.350); sin comprobantes en común con el de PEN; es la parte de `codMoneda=USD` |
-| `compras-registro-202610-mixto.txt` | El de PEN más la fila USD `F001-4062`: una parte de PEN con una fila de otra moneda -> `ErrorDatosSire("respuesta_ajena")` |
-| `compras-registro-202610-solo-encabezado.txt` | Solo el encabezado: moneda sin registro -> «sin datos» de esa moneda (las dos así -> `ErrorDatosSire("sin_datos")`) |
+| `compras-registro-202610-mixto.txt` | El archivo del registro: 8 filas PEN (San Juan ISC, mixta, ICBPER, zapatilla, nota de crédito 07, dominantes DG y DNG) y la fila USD `F001-4062` con TC 3.300 (redondeo USD); encabezado real con la columna 34 renombrada. Se sirve como una sola parte (ZIP de 3 entradas, `zipRegistroReal`) |
+| `compras-registro-202610-solo-encabezado.txt` | Solo el encabezado: periodo sin registro -> «sin datos» (`ErrorDatosSire("sin_datos")`) |
 
 ## Reglas
 

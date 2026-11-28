@@ -14,42 +14,29 @@
  *    `cod` (gramática cerrada) y `msg`/`mensaje` (acotado a 200 caracteres y con los números de 6+ dígitos tapados). Nunca
  *    el cuerpo ni ningún otro valor.
  *  - Modo diagnóstico opcional (`SIRE_CONTRATO_DIAGNOSTICO=1`): solo GET de 5.51 con variantes de `codProceso`/`codMoneda`.
- *  - Registro presentado (5.51, plan P-3): `codProceso` 70 fijo y `codMoneda` obligatorio → dos solicitudes (PEN y USD), un
- *    ticket por moneda. Todo se observa y se informa POR MONEDA: la solicitud por `codMoneda` y el ticket y el archivo por
- *    `numTicket` (el número nunca se imprime). De cada TXT solo se cuentan filas y valores de la columna `Moneda` por forma.
+ *  - Registro presentado (5.51, plan P-3, T15g): UNA sola solicitud con `codProceso` 70 y `codMoneda` PEN (obligatorio pero SIN
+ *    efecto de filtro: el archivo trae todos los comprobantes, cada fila con su moneda), un ticket y un archivo. Se informa la
+ *    solicitud (HTTP, `codigosSunat`, si devolvió ticket), el ticket (estados y tiempos), el archivo (ZIP, columnas, encabezado
+ *    frente al de la propuesta y, si difiere, si solo es en columnas que no se mapean, filas y conteo por valor de la columna
+ *    `Moneda`) y las formas de las filas. NO se verifica que `Moneda` coincida con la pedida. El `numTicket` nunca se imprime.
  *  - Archivo que el lector rechaza (`zip_invalido`): se imprime la ESTRUCTURA del ZIP (firma, EOCD, ZIP64, entradas del
  *    directorio central con el nombre sin secuencias de 4+ dígitos, método, banderas, tamaños y CRC) y el motivo deducido
  *    comparando con las reglas de `zip-seguro.ts` (`estructura-zip.ts`); nunca el contenido. Para el registro, además, una línea
- *    con la estructura de la propuesta de compras como referencia y, si el cliente cortó antes de pedir el archivo de la otra
- *    moneda, se lo pide el transporte de la prueba (solo GET, `descargarRegistroPresentado` no cambia).
+ *    con la estructura de la propuesta de compras como referencia.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CredencialSire, FilaPropuestaSire, FilaVentaSire, LibroSire, TokenSire } from "../../puertos.js";
-import {
-  COD_LIBRO,
-  COD_SIN_DATOS_REGISTRO,
-  MONEDAS_REGISTRO,
-  ORIGEN_SEGURIDAD,
-  ORIGEN_SIRE,
-  RUTA_ARCHIVO,
-  RUTA_TICKET,
-  TIMEOUT_API_MS,
-  TIMEOUT_DESCARGA_MS,
-  armarUrl,
-  origenDe,
-  rutaRegistroPresentado,
-  type MonedaRegistro,
-} from "../endpoints.js";
+import { COD_SIN_DATOS_REGISTRO, ORIGEN_SEGURIDAD, ORIGEN_SIRE, armarUrl, origenDe, rutaRegistroPresentado } from "../endpoints.js";
 import { HttpSireApiClient } from "../sire-api-client.http.js";
 import { HttpSireAuth, type OpcionesHttpSire } from "../sire-auth.http.js";
-import { interpretarConsultaTicket, planEsperaTicket } from "../ticket.js";
 import { mismoEncabezado, normalizarEncabezado } from "../txt/encabezados.js";
 import { leerTxt } from "../txt/leer-txt.js";
 import { mapearCompras } from "../txt/mapeo-compras.js";
+import { mapearVentas } from "../txt/mapeo-ventas.js";
 import { extraerTxtDeZip } from "../zip-seguro.js";
 import { diagnosticarZip, lineaReferenciaPropuesta, lineasEstructura, type DiagnosticoZip, type EstructuraZip } from "./estructura-zip.js";
-import { noEsZip, zipRaro } from "./zip-manual.js";
+import { zipRaro, zipRegistroReal } from "./zip-manual.js";
 import {
   CLIENT_ID,
   PERIODO,
@@ -64,7 +51,6 @@ import {
   parteCompras,
   parteVentas,
   registroTicket,
-  zip,
   type ParteFalsa,
 } from "./ayudas-http.js";
 
@@ -123,8 +109,15 @@ export interface ObsArchivo {
   /** Estructura del ZIP y, si el lector lo rechazó, el motivo deducido (solo formas; se imprime únicamente si lo rechazó). */
   diagnostico: DiagnosticoZip;
   columnas: number;
-  /** El encabezado es igual (normalizado, en el mismo orden) al del fixture sintético, que es el real. */
+  /** El encabezado es igual (normalizado, en el mismo orden) al del fixture de la propuesta, que es el real. */
   encabezadoCoincide: boolean;
+  /**
+   * Si no coincide: `solo_no_mapeadas` = el lector igualmente puede mapear ese encabezado (todas las columnas que se mapean están
+   * y una vez), o sea que solo difiere un nombre de columna que no se mapea (p. ej. la 34 del registro, «ID Proyecto
+   * Operadores/Partícipes»); `mapeadas` = falta o se repite una columna que sí se mapea. `ninguna` si coincide; `sin_leer` si no
+   * se pudo leer el encabezado del ZIP.
+   */
+  diferencia: "ninguna" | "solo_no_mapeadas" | "mapeadas" | "sin_leer";
   /** Columnas del fixture que no llegaron / columnas que llegaron y el fixture no tiene (nombres, tope 20). */
   faltantes: string[];
   sobrantes: string[];
@@ -134,17 +127,17 @@ export interface ObsArchivo {
   filasPorMoneda: Record<string, number>;
 }
 
-/** Las monedas del registro presentado, en el orden en que se piden (plan P-3): las de `endpoints.ts`. */
-export { MONEDAS_REGISTRO, type MonedaRegistro };
 /** `codProceso` único que acepta 5.51 (plan P-3). */
 const COD_PROCESO_REGISTRO = "70";
+/** `codMoneda` de la única solicitud 5.51: obligatorio, pero SIN efecto de filtro (el archivo trae todas las monedas). */
+export const MONEDA_SOLICITUD_REGISTRO = "PEN";
 
-/** Una solicitud 5.51 (registro presentado) de una moneda: lo que SUNAT contestó, sin valores. */
+/** La solicitud 5.51 (registro presentado): lo que SUNAT contestó, sin valores. */
 export interface ObsSolicitudRegistro {
   /** `codProceso` pedido («?» si no es de dos dígitos). */
   codProceso: string;
-  /** `codMoneda` pedido. */
-  codMoneda: MonedaRegistro;
+  /** `codMoneda` pedido («?» si no son tres mayúsculas). */
+  codMoneda: string;
   /** 2xx con `numTicket` de forma válida (el número no se conserva en el informe). */
   devolvioTicket: boolean;
   estado: number;
@@ -201,44 +194,29 @@ export interface FormaFilas {
   filasConMontoNegativo: number;
 }
 
-/** Lo observado de UNA moneda del registro presentado (solicitud por `codMoneda`; ticket y archivo por su `numTicket`). */
-export interface InformeRegistroMoneda {
-  moneda: MonedaRegistro;
-  /** Solo si el cliente cortó antes de pedir el archivo de esta moneda y otro archivo fue rechazado: qué pasó al pedirlo la prueba. */
-  archivoPendiente: ResultadoPendiente | null;
-  /** `null` si el cliente no llegó a solicitar esta moneda. */
-  solicitud: ObsSolicitudRegistro | null;
-  /** SUNAT dijo «sin datos» para esta moneda: 422 con cod 1070 al solicitar o TXT válido con solo encabezado. */
-  sinDatos: boolean;
-  ticket: ObsTicket;
-  archivos: ObsArchivo[];
-  /** Todo fallo HTTP de esta moneda (solicitud, ticket, archivo), en orden. */
-  fallos: ObsFalloHttp[];
-  /** Filas por valor de la columna `Moneda` de todos sus archivos (`PEN`, `USD`, `otra`). */
-  filasPorMoneda: Record<string, number>;
-  /** Forma de las filas de SUS TXT (mapeadas aquí, aunque el cliente falle); `null` sin archivos o si el TXT no se pudo mapear. */
-  filas: FormaFilas | null;
-}
-
-/** Resultado de pedir con el transporte de la prueba el archivo que el cliente no llegó a pedir (cerrado). */
-export type ResultadoPendiente =
-  | "bajado"
-  | "ticket_no_listo"
-  | "ticket_sin_archivos"
-  | "ticket_ilegible"
-  | "ticket_con_error_http"
-  | "nombre_de_archivo_no_valido"
-  | "descarga_con_error_http"
-  | "sin_red_o_timeout";
-
+/**
+ * Registro presentado de compras (5.51): una solicitud, un ticket, un archivo (con sus partes). `codMoneda` no filtra, así que
+ * el archivo trae filas de PEN y de USD y cada una conserva su moneda.
+ */
 export interface InformeRegistro {
   periodo: string;
   /** Estructura de la ZIP de la propuesta de compras del periodo (referencia comparativa); `null` si no se descargó antes. */
   referenciaPropuesta: EstructuraZip | null;
   /** Tiempo total de `descargarRegistroPresentado`. */
   ms: number;
-  porMoneda: Record<MonedaRegistro, InformeRegistroMoneda>;
-  /** Forma de la unión que devolvió el cliente (PEN y luego USD); `null` si el cliente falló. */
+  /** `null` si el cliente no llegó a solicitar. */
+  solicitud: ObsSolicitudRegistro | null;
+  /** SUNAT dijo «sin datos»: 422 (o 400) con cod 1070 al solicitar o TXT válido con solo encabezado. */
+  sinDatos: boolean;
+  ticket: ObsTicket;
+  archivos: ObsArchivo[];
+  /** Todo fallo HTTP (solicitud, ticket, archivo), en orden. */
+  fallos: ObsFalloHttp[];
+  /** Filas por valor de la columna `Moneda` de todos sus archivos (`PEN`, `USD`, `otra`). */
+  filasPorMoneda: Record<string, number>;
+  /** Forma de las filas de sus TXT (mapeadas aquí, aunque el cliente falle); `null` sin archivos o si el TXT no se pudo mapear. */
+  filasArchivo: FormaFilas | null;
+  /** Forma de las filas que devolvió el cliente; `null` si el cliente falló. */
   filas: FormaFilas | null;
   error: { clase: string; detalle: string } | null;
 }
@@ -266,6 +244,7 @@ const TIPO_MEDIA = /^[a-z0-9.+-]{1,40}\/[a-z0-9.+-]{1,40}$/;
 const NOMBRE_CLASE = /^[A-Za-z]{1,40}$/;
 const NOMBRE_DETALLE = /^[a-z_]{1,40}$/;
 const GRAMATICA_TICKET = /^[A-Za-z0-9_-]{1,64}$/;
+const CODIGO_MONEDA = /^[A-Z]{3}$/;
 const TOPE_LISTA = 20;
 const CODIGO_ERROR_SUNAT = /^[A-Za-z0-9_-]{1,12}$/;
 const MENSAJE_ERROR_SUNAT = /^[\p{L}\p{N}\p{P}\p{Zs}]{1,200}$/u;
@@ -382,8 +361,8 @@ function encabezadoDeZip(zip: Uint8Array): string[] | null {
 
 // ── Observación de las respuestas (sin conservar ningún valor) ──────────────────────────────────────────────
 
-/** Lo acumulado de una moneda del registro presentado. */
-interface AcumuladoMoneda {
+/** Lo acumulado del registro presentado (una solicitud, un ticket). */
+interface AcumuladoRegistro {
   solicitud: ObsSolicitudRegistro | null;
   /** Solo para reconocer nuestro ticket; jamás se imprime. */
   numTicket: string | null;
@@ -392,19 +371,15 @@ interface AcumuladoMoneda {
   fallos: ObsFalloHttp[];
   /** Filas mapeadas de sus TXT (en memoria, nunca se imprimen). */
   filasTxt: FilaPropuestaSire[];
-  /** Algún TXT de esta moneda no se pudo leer o mapear. */
+  /** Algún TXT no se pudo leer o mapear. */
   txtNoMapeable: boolean;
-  /** Resultado de pedir su archivo con el transporte de la prueba (el cliente cortó antes de pedirlo). */
-  pendiente: ResultadoPendiente | null;
 }
 
-/** Registro presentado: lo observado por moneda (solo cuando el paso es `contratoRegistro`). */
+/** Registro presentado: lo observado (solo cuando el paso es `contratoRegistro`). */
 interface ObservacionRegistro {
   ruc: string;
   periodo: string;
-  porMoneda: Record<MonedaRegistro, AcumuladoMoneda>;
-  /** `numTicket` → moneda con que se solicitó. Jamás se imprime. */
-  monedaDeTicket: Map<string, MonedaRegistro>;
+  acum: AcumuladoRegistro;
 }
 
 export interface Observaciones {
@@ -413,7 +388,7 @@ export interface Observaciones {
   exportar: ObsExportar | null;
   ticket: ObsTicket;
   archivos: ObsArchivo[];
-  /** Todo fallo HTTP, en el orden en que ocurrió (en el registro, solo los que no se pueden atribuir a una moneda). */
+  /** Todo fallo HTTP, en el orden en que ocurrió (en el registro, solo los que no se pueden atribuir a su solicitud o ticket). */
   fallos: ObsFalloHttp[];
   /** Solo para reconocer nuestro ticket; jamás se imprime. */
   numTicket: string | null;
@@ -435,8 +410,8 @@ function nuevoTicket(): ObsTicket {
   };
 }
 
-function nuevoAcumulado(): AcumuladoMoneda {
-  return { solicitud: null, numTicket: null, ticket: nuevoTicket(), archivos: [], fallos: [], filasTxt: [], txtNoMapeable: false, pendiente: null };
+function nuevoAcumulado(): AcumuladoRegistro {
+  return { solicitud: null, numTicket: null, ticket: nuevoTicket(), archivos: [], fallos: [], filasTxt: [], txtNoMapeable: false };
 }
 
 export function nuevasObservaciones(libro: LibroSire | null, registro?: { ruc: string; periodo: string }): Observaciones {
@@ -448,10 +423,7 @@ export function nuevasObservaciones(libro: LibroSire | null, registro?: { ruc: s
     archivos: [],
     fallos: [],
     numTicket: null,
-    registro:
-      registro === undefined
-        ? null
-        : { ...registro, porMoneda: { PEN: nuevoAcumulado(), USD: nuevoAcumulado() }, monedaDeTicket: new Map() },
+    registro: registro === undefined ? null : { ...registro, acum: nuevoAcumulado() },
   };
 }
 
@@ -461,11 +433,6 @@ async function jsonDe(r: Response): Promise<unknown> {
   } catch {
     return null;
   }
-}
-
-/** Moneda de un parámetro `codMoneda`, o `null` si no es una del registro. */
-function monedaDe(valor: string | null): MonedaRegistro | null {
-  return (MONEDAS_REGISTRO as readonly string[]).includes(valor ?? "") ? (valor as MonedaRegistro) : null;
 }
 
 /** Filas y valores de la columna `Moneda` de un ZIP del registro; solo conteos por forma (`PEN`, `USD`, `otra`). */
@@ -489,24 +456,20 @@ function contarMonedas(bytes: Uint8Array): { filas: number; porMoneda: Record<st
   }
 }
 
-/** Lo que cambia con 5.51: la solicitud se atribuye por `codMoneda`; el ticket y el archivo, por `numTicket`. */
+/** Lo que cambia con 5.51: la solicitud y, por `numTicket`, el ticket y el archivo. */
 async function observarRegistro(url: URL, r: Response, msCabeceras: number, t0: number, obs: Observaciones, reg: ObservacionRegistro): Promise<void> {
   const ruta = url.pathname;
-  const sinAtribuir = async (paso: string): Promise<void> => {
-    if (!r.ok) obs.fallos.push(describirFallo(paso, r.status, msCabeceras, await jsonDe(r)));
-  };
+  const acum = reg.acum;
   if (ruta.endsWith("/solicitardescarga")) {
-    const moneda = monedaDe(url.searchParams.get("codMoneda"));
-    if (moneda === null) return sinAtribuir("solicitud sin codMoneda del registro");
-    const acum = reg.porMoneda[moneda];
     const codProceso = seguro(url.searchParams.get("codProceso"), CODIGO_ESTADO);
+    const codMoneda = seguro(url.searchParams.get("codMoneda"), CODIGO_MONEDA);
     const cuerpo = await jsonDe(r);
     if (!r.ok) {
-      const fallo = describirFallo(`solicitud codMoneda ${moneda}`, r.status, msCabeceras, cuerpo);
+      const fallo = describirFallo(`solicitud codMoneda ${codMoneda}`, r.status, msCabeceras, cuerpo);
       acum.fallos.push(fallo);
       acum.solicitud = {
         codProceso,
-        codMoneda: moneda,
+        codMoneda,
         devolvioTicket: false,
         estado: r.status,
         ms: msCabeceras,
@@ -518,10 +481,9 @@ async function observarRegistro(url: URL, r: Response, msCabeceras: number, t0: 
     }
     const num = esObjeto(cuerpo) ? cuerpo["numTicket"] : undefined;
     acum.numTicket = typeof num === "string" && GRAMATICA_TICKET.test(num) ? num : null;
-    if (acum.numTicket !== null) reg.monedaDeTicket.set(acum.numTicket, moneda);
     acum.solicitud = {
       codProceso,
-      codMoneda: moneda,
+      codMoneda,
       devolvioTicket: acum.numTicket !== null,
       estado: r.status,
       ms: msCabeceras,
@@ -532,9 +494,10 @@ async function observarRegistro(url: URL, r: Response, msCabeceras: number, t0: 
     return;
   }
   const numTicket = url.searchParams.get("numTicket");
-  const moneda = numTicket === null ? undefined : reg.monedaDeTicket.get(numTicket);
-  if (moneda === undefined) return sinAtribuir(pasoDeRuta(ruta));
-  const acum = reg.porMoneda[moneda];
+  if (numTicket === null || numTicket !== acum.numTicket) {
+    if (!r.ok) obs.fallos.push(describirFallo(pasoDeRuta(ruta), r.status, msCabeceras, await jsonDe(r)));
+    return;
+  }
   if (!r.ok) {
     acum.fallos.push(describirFallo(pasoDeRuta(ruta), r.status, msCabeceras, await jsonDe(r)));
     return;
@@ -603,6 +566,22 @@ function observarTicket(cuerpo: unknown, ms: number, t: ObsTicket, numTicket: st
   });
 }
 
+/**
+ * ¿El lector podría mapear este encabezado? Se prueba con el mapeo real y CERO filas: solo valida las columnas requeridas
+ * (todas presentes y una vez). Así «solo difiere una columna que no se mapea» no depende de una lista copiada aquí.
+ */
+function encabezadoMapeable(libro: LibroSire, encabezado: string[]): boolean {
+  try {
+    const txt = { encabezado, filas: [] };
+    const esperado = { ruc: "", periodo: "" };
+    if (libro === "compras") mapearCompras(txt, esperado);
+    else mapearVentas(txt, esperado);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function observarArchivo(bytes: Uint8Array, r: Response, ms: number, libro: LibroSire | null): ObsArchivo {
   const base = {
     estado: r.status,
@@ -613,7 +592,7 @@ function observarArchivo(bytes: Uint8Array, r: Response, ms: number, libro: Libr
   const diagnostico = diagnosticarZip(bytes);
   const encabezado = encabezadoDeZip(bytes);
   if (encabezado === null || libro === null) {
-    return { ...base, diagnostico, zipLegible: false, columnas: 0, encabezadoCoincide: false, faltantes: [], sobrantes: [], filas: 0, filasPorMoneda: {} };
+    return { ...base, diagnostico, zipLegible: false, columnas: 0, encabezadoCoincide: false, diferencia: "sin_leer", faltantes: [], sobrantes: [], filas: 0, filasPorMoneda: {} };
   }
   const referencia = encabezadoDeReferencia(libro);
   const recibidas = new Set(encabezado.map(normalizarEncabezado));
@@ -623,12 +602,14 @@ function observarArchivo(bytes: Uint8Array, r: Response, ms: number, libro: Libr
       .filter((c) => dentro.has(normalizarEncabezado(c)) === queDebeEstar)
       .slice(0, TOPE_LISTA)
       .map((c) => seguro(c, NOMBRE_COLUMNA));
+  const coincide = mismoEncabezado(referencia, encabezado);
   return {
     ...base,
     diagnostico,
     zipLegible: true,
     columnas: encabezado.length,
-    encabezadoCoincide: mismoEncabezado(referencia, encabezado),
+    encabezadoCoincide: coincide,
+    diferencia: coincide ? "ninguna" : encabezadoMapeable(libro, encabezado) ? "solo_no_mapeadas" : "mapeadas",
     faltantes: nombres(referencia, recibidas, false),
     sobrantes: nombres(encabezado, conocidas, false),
     filas: 0,
@@ -737,8 +718,8 @@ export async function contratoLibro(e: EntradaContrato, token: TokenSire, libro:
 }
 
 /**
- * Paso del registro presentado de compras (5.51, P-3): el cliente real `descargarRegistroPresentado` (`codProceso` 70 con
- * `codMoneda` PEN y USD, un ticket por moneda, unión de filas). Un fallo o «sin datos» queda en el informe, no se lanza.
+ * Paso del registro presentado de compras (5.51, P-3, T15g): el cliente real `descargarRegistroPresentado` (UNA solicitud con
+ * `codProceso` 70 y `codMoneda` PEN, un ticket, un archivo). Un fallo o «sin datos» queda en el informe, no se lanza.
  */
 export async function contratoRegistro(e: EntradaContrato, token: TokenSire): Promise<InformeRegistro> {
   const obs = nuevasObservaciones("compras", { ruc: e.credencial.ruc, periodo: e.periodo });
@@ -753,84 +734,13 @@ export async function contratoRegistro(e: EntradaContrato, token: TokenSire): Pr
     const c = esObjeto(causa) ? causa : {};
     error = { clase: seguro(c["name"], NOMBRE_CLASE), detalle: seguro(c["detalle"], NOMBRE_DETALLE) };
   }
-  // Si el lector rechazó algún archivo, la otra moneda (cuyo archivo el cliente no llegó a pedir) se pide aparte para compararla.
-  if (obs.registro !== null && MONEDAS_REGISTRO.some((m) => obs.registro!.porMoneda[m].archivos.some((a) => a.diagnostico.rechazo !== null))) {
-    for (const m of MONEDAS_REGISTRO) {
-      const acum = obs.registro.porMoneda[m];
-      if (acum.archivos.length === 0 && acum.numTicket !== null) acum.pendiente = await pedirArchivoPendiente(e, token, obs, obs.registro, m);
-    }
-  }
   const informe = informeRegistro(e.periodo, Math.round(performance.now() - t0), obs, filas, error, e.referenciaZip?.[e.periodo] ?? null);
   for (const linea of lineasRegistro(informe)) e.emitir?.(linea);
   for (const f of obs.fallos) e.emitir?.(lineaFallo(`${PREFIJO} registro-presentado ${seguro(e.periodo, /^\d{6}$/)}`, f));
   return informe;
 }
 
-const PAUSA_REINTENTO_MS = 1_000;
-
-function parteDeTicket(cuerpo: unknown, numTicket: string): { nombre: string; codTipo: string | null; perTributario: string; codProceso: string } | "ticket_no_listo" | "ticket_sin_archivos" | "ticket_ilegible" {
-  try {
-    const estado = interpretarConsultaTicket(cuerpo, numTicket);
-    if (!estado.listo) return "ticket_no_listo";
-    const parte = estado.partes[0];
-    if (parte === undefined) return "ticket_sin_archivos";
-    return { nombre: parte.nombre, codTipo: parte.codTipo, perTributario: estado.perTributario, codProceso: estado.codProceso };
-  } catch {
-    return "ticket_ilegible";
-  }
-}
-
-/**
- * Pide con el transporte de la prueba (el fetch observado: solo GET) la 1.ª parte del archivo de una moneda cuyo ticket ya se
- * solicitó pero que el cliente no llegó a pedir porque cortó con otra moneda. Sigue el plan de espera del ticket y baja la parte;
- * el fetch observado la atribuye a su moneda y le calcula la estructura. No cambia `descargarRegistroPresentado`.
- */
-async function pedirArchivoPendiente(
-  e: EntradaContrato,
-  token: TokenSire,
-  obs: Observaciones,
-  reg: ObservacionRegistro,
-  moneda: MonedaRegistro,
-): Promise<ResultadoPendiente> {
-  const numTicket = reg.porMoneda[moneda].numTicket;
-  if (numTicket === null) return "ticket_ilegible";
-  const f = opcionesHttp(e, obs).fetch;
-  if (f === undefined) return "sin_red_o_timeout";
-  const origenSire = e.urlsDePrueba === undefined ? ORIGEN_SIRE : origenDe(e.urlsDePrueba.sire);
-  const dormir = e.dormir ?? ((ms: number) => new Promise<void>((resolver) => setTimeout(resolver, ms)));
-  const autorizacion = `Bearer ${token.token}`;
-  const urlTicket = armarUrl(origenSire, RUTA_TICKET, { perIni: reg.periodo, perFin: reg.periodo, page: "1", perPage: "20", numTicket });
-  try {
-    const esperas = planEsperaTicket();
-    for (let i = 0; ; i += 1) {
-      const r = await f(urlTicket, { method: "GET", redirect: "manual", headers: { authorization: autorizacion, accept: "application/json" }, signal: AbortSignal.timeout(TIMEOUT_API_MS) });
-      if (!r.ok) return "ticket_con_error_http";
-      const parte = parteDeTicket(await jsonDe(r), numTicket);
-      if (typeof parte === "object") {
-        if (!/^[A-Za-z0-9._-]{1,200}$/.test(parte.nombre) || parte.nombre.includes("..")) return "nombre_de_archivo_no_valido";
-        const url = armarUrl(origenSire, RUTA_ARCHIVO, {
-          nomArchivoReporte: parte.nombre,
-          codTipoArchivoReporte: parte.codTipo ?? "null",
-          perTributario: parte.perTributario,
-          codProceso: parte.codProceso,
-          numTicket,
-          codLibro: COD_LIBRO.compras,
-        });
-        const archivo = await f(url, { method: "GET", redirect: "manual", headers: { authorization: autorizacion }, signal: AbortSignal.timeout(TIMEOUT_DESCARGA_MS) });
-        await archivo.arrayBuffer();
-        return archivo.ok ? "bajado" : "descarga_con_error_http";
-      }
-      if (parte !== "ticket_no_listo") return parte;
-      const espera = esperas[i];
-      if (espera === undefined) return "ticket_no_listo";
-      await dormir(Math.max(espera, PAUSA_REINTENTO_MS));
-    }
-  } catch {
-    return "sin_red_o_timeout";
-  }
-}
-
-/** Arma el informe por moneda con lo observado (sin el cliente: lo usan las pruebas de la observación). */
+/** Arma el informe con lo observado (sin el cliente: lo usan las pruebas de la observación). */
 export function informeRegistro(
   periodo: string,
   ms: number,
@@ -839,27 +749,26 @@ export function informeRegistro(
   error: InformeRegistro["error"],
   referenciaPropuesta: EstructuraZip | null = null,
 ): InformeRegistro {
-  const acumulados = obs.registro?.porMoneda;
-  const deMoneda = (moneda: MonedaRegistro): InformeRegistroMoneda => {
-    const a = acumulados?.[moneda] ?? nuevoAcumulado();
-    const filasPorMoneda: Record<string, number> = {};
-    for (const x of a.archivos) for (const [k, n] of Object.entries(x.filasPorMoneda)) filasPorMoneda[k] = (filasPorMoneda[k] ?? 0) + n;
-    const s = a.solicitud;
-    const rechazoSinDatos = s !== null && s.estado === 422 && s.codigosSunat.some((c) => COD_SIN_DATOS_REGISTRO.includes(c));
-    const soloEncabezado = s?.devolvioTicket === true && a.archivos.length > 0 && a.archivos.every((x) => x.zipLegible && x.filas === 0);
-    return {
-      moneda,
-      archivoPendiente: a.pendiente,
-      solicitud: s,
-      sinDatos: rechazoSinDatos || soloEncabezado,
-      ticket: a.ticket,
-      archivos: a.archivos,
-      fallos: a.fallos,
-      filasPorMoneda,
-      filas: a.archivos.length > 0 && !a.txtNoMapeable ? analizarFilas("compras", a.filasTxt) : null,
-    };
+  const a = obs.registro?.acum ?? nuevoAcumulado();
+  const filasPorMoneda: Record<string, number> = {};
+  for (const x of a.archivos) for (const [k, n] of Object.entries(x.filasPorMoneda)) filasPorMoneda[k] = (filasPorMoneda[k] ?? 0) + n;
+  const s = a.solicitud;
+  const rechazoSinDatos = s !== null && (s.estado === 422 || s.estado === 400) && s.codigosSunat.some((c) => COD_SIN_DATOS_REGISTRO.includes(c));
+  const soloEncabezado = s?.devolvioTicket === true && a.archivos.length > 0 && a.archivos.every((x) => x.zipLegible && x.filas === 0);
+  return {
+    periodo,
+    referenciaPropuesta,
+    ms,
+    solicitud: s,
+    sinDatos: rechazoSinDatos || soloEncabezado,
+    ticket: a.ticket,
+    archivos: a.archivos,
+    fallos: a.fallos,
+    filasPorMoneda,
+    filasArchivo: a.archivos.length > 0 && !a.txtNoMapeable ? analizarFilas("compras", a.filasTxt) : null,
+    filas,
+    error,
   };
-  return { periodo, referenciaPropuesta, ms, porMoneda: { PEN: deMoneda("PEN"), USD: deMoneda("USD") }, filas, error };
 }
 
 // ── Modo diagnóstico (opcional): variantes de la solicitud 5.51 ──────────────────────────────────────────────
@@ -1070,6 +979,14 @@ function lineasTicket(p: string, t: ObsTicket): string {
   );
 }
 
+/** Qué tipo de diferencia de encabezado hay (solo si no coincide): si solo es en columnas que el lector no mapea, no es un fallo. */
+const TEXTO_DIFERENCIA: Readonly<Record<ObsArchivo["diferencia"], string>> = {
+  ninguna: "",
+  solo_no_mapeadas: " · la diferencia es solo de nombre en columnas que no se mapean (el lector lo acepta)",
+  mapeadas: " · la diferencia afecta columnas que se mapean (el lector lo rechaza)",
+  sin_leer: "",
+};
+
 /**
  * Una línea por archivo y, si el lector lo rechazó, las de su estructura (motivo, firma, EOCD, entradas). `referenciaZip`
  * (solo el registro): `undefined` = no imprimir; si no, además la línea con la estructura de la propuesta de compras.
@@ -1085,7 +1002,7 @@ function lineasArchivos(
     const l = [
       `${p}: archivo ${n + 1} HTTP ${a.estado} · ${a.ms} ms · ${a.bytes} bytes · ${a.tipoContenido} · zip legible ${a.zipLegible ? "sí" : "no"} · ` +
         `${a.columnas} columnas · encabezado igual al ${referencia} ${a.encabezadoCoincide ? "sí" : "no"} · ` +
-        `faltan {${lista(a.faltantes)}} sobran {${lista(a.sobrantes)}}` +
+        `faltan {${lista(a.faltantes)}} sobran {${lista(a.sobrantes)}}${TEXTO_DIFERENCIA[a.diferencia]}` +
         (conFilas ? ` · ${a.filas} fila(s) · columna Moneda ${textoConteo(a.filasPorMoneda)}` : ""),
     ];
     if (a.diagnostico.rechazo !== null) {
@@ -1095,17 +1012,6 @@ function lineasArchivos(
     return l;
   });
 }
-
-const TEXTO_PENDIENTE: Readonly<Record<ResultadoPendiente, string>> = {
-  bajado: "el cliente no llegó a pedirlo; lo pidió la prueba con el transporte de bajo nivel (ver sus líneas de archivo)",
-  ticket_no_listo: "el ticket no quedó listo en el plazo de la prueba; no se bajó",
-  ticket_sin_archivos: "el ticket listo no trae archivos",
-  ticket_ilegible: "la respuesta del ticket no se entendió",
-  ticket_con_error_http: "la consulta del ticket falló con HTTP de error",
-  nombre_de_archivo_no_valido: "el nombre del archivo del ticket no cumple la gramática; no se pidió",
-  descarga_con_error_http: "la descarga falló con HTTP de error",
-  sin_red_o_timeout: "sin respuesta (red o timeout)",
-};
 
 /** `PEN 8, USD 2` (solo formas conocidas; el resto cuenta como `otra`). */
 function textoConteo(c: Readonly<Record<string, number>>): string {
@@ -1137,36 +1043,31 @@ export function lineasLibro(periodo: string, i: InformeLibro): string[] {
 }
 
 /**
- * Líneas del registro presentado (5.51), POR MONEDA: solicitud (HTTP, `codigosSunat`, si devolvió ticket), «sin datos», ticket
- * (estados y tiempos), archivos (ZIP, columnas, encabezado igual al de la propuesta, faltan/sobran, filas y conteo de la
- * columna `Moneda`) y formas de las filas de su TXT; al final, la unión del cliente.
+ * Líneas del registro presentado (5.51): solicitud (HTTP, `codigosSunat`, si devolvió ticket), «sin datos», ticket (estados y
+ * tiempos), archivos (ZIP, columnas, encabezado frente al de la propuesta, faltan/sobran, filas y conteo de la columna `Moneda`),
+ * formas de las filas del TXT y, al final, lo que devolvió el cliente. No se compara `Moneda` con la pedida.
  */
 export function lineasRegistro(i: InformeRegistro): string[] {
   const periodo = seguro(i.periodo, /^\d{6}$/);
   const l: string[] = [];
-  for (const moneda of MONEDAS_REGISTRO) {
-    const m = i.porMoneda[moneda];
-    const p = `${PREFIJO} registro-presentado ${periodo} ${moneda}`;
-    const s = m.solicitud;
-    if (s === null) {
-      l.push(`${p}: sin solicitud (el cliente no llegó a pedirla)`);
-    } else {
-      const err = s.errorSunat === null ? "" : ` · SUNAT cod ${s.errorSunat.cod} msg «${s.errorSunat.msg}» · codigosSunat {${lista(s.codigosSunat)}}`;
-      l.push(
-        `${p}: solicitud codProceso ${s.codProceso} codMoneda ${s.codMoneda} HTTP ${s.estado} · ${s.ms} ms · campos ${lista(s.campos)} · ` +
-          `devolvió ticket ${s.devolvioTicket ? "sí" : "no"}${err}`,
-      );
-    }
-    if (m.sinDatos) l.push(`${p}: sin datos`);
-    for (const f of m.fallos) l.push(lineaFallo(p, f));
-    if (m.ticket.consultas > 0) l.push(lineasTicket(p, m.ticket));
-    if (m.archivoPendiente !== null) l.push(`${p}: archivo pendiente (diagnóstico): ${TEXTO_PENDIENTE[m.archivoPendiente]}`);
-    l.push(...lineasArchivos(p, m.archivos, "de la propuesta de compras", true, i.referenciaPropuesta));
-    if (m.filas !== null) l.push(...lineasFilas(p, m.filas));
-    else if (m.archivos.length > 0) l.push(`${p}: las filas del TXT no se pudieron mapear`);
-  }
   const p = `${PREFIJO} registro-presentado ${periodo}`;
-  l.push(`${p}: total ${i.ms} ms · unión del cliente ${i.filas === null ? "sin filas" : `${i.filas.total} fila(s)`}`);
+  const s = i.solicitud;
+  if (s === null) {
+    l.push(`${p}: sin solicitud (el cliente no llegó a pedirla)`);
+  } else {
+    const err = s.errorSunat === null ? "" : ` · SUNAT cod ${s.errorSunat.cod} msg «${s.errorSunat.msg}» · codigosSunat {${lista(s.codigosSunat)}}`;
+    l.push(
+      `${p}: solicitud codProceso ${s.codProceso} codMoneda ${s.codMoneda} HTTP ${s.estado} · ${s.ms} ms · campos ${lista(s.campos)} · ` +
+        `devolvió ticket ${s.devolvioTicket ? "sí" : "no"}${err}`,
+    );
+  }
+  if (i.sinDatos) l.push(`${p}: sin datos`);
+  for (const f of i.fallos) l.push(lineaFallo(p, f));
+  if (i.ticket.consultas > 0) l.push(lineasTicket(p, i.ticket));
+  l.push(...lineasArchivos(p, i.archivos, "de la propuesta de compras", true, i.referenciaPropuesta));
+  if (i.filasArchivo !== null) l.push(...lineasFilas(p, i.filasArchivo));
+  else if (i.archivos.length > 0) l.push(`${p}: las filas del TXT no se pudieron mapear`);
+  l.push(`${p}: total ${i.ms} ms · el cliente devolvió ${i.filas === null ? "sin filas" : `${i.filas.total} fila(s)`}`);
   if (i.error !== null) l.push(`${p}: FALLÓ ${i.error.clase} ${i.error.detalle}`);
   return l;
 }
@@ -1309,60 +1210,47 @@ export function guionarErroresFalsos(sire: ServidorContratoFalso["sire"]): void 
   sire.guionar("GET", RUTAS.solicitarRegistro(), { estado: 422, json: CUERPO_422_FALSO });
 }
 
-/** Tickets falsos del registro presentado por moneda (el servidor falso los resuelve a su ZIP). */
-export const TICKET_REGISTRO_FALSO: Readonly<Record<MonedaRegistro, string>> = { PEN: "202610000003", USD: "202610000004" };
-/** Fixtures del registro por moneda, en `fixtures/sire/http`. */
-export const FIXTURE_REGISTRO_FALSO: Readonly<Record<MonedaRegistro, string>> = {
-  PEN: "compras-registro-202610-pen.txt",
-  USD: "compras-registro-202610-usd.txt",
-};
+/** Ticket falso del registro presentado (el servidor falso lo resuelve a su ZIP). */
+export const TICKET_REGISTRO_FALSO = "202610000003";
+/** Fixture del archivo del registro, en `fixtures/sire/http`: 8 filas PEN y una USD, con el encabezado real (col. 34 renombrada). */
+export const FIXTURE_REGISTRO_FALSO = "compras-registro-202610-mixto.txt";
 
 /**
- * Guion de la solicitud 5.51 con el contrato real (plan P-3, corrida del usuario): solo `codProceso` 70 y `codMoneda`
- * obligatorio. Con 70 y PEN/USD → 200 `{numTicket}` (un ticket por moneda); otro `codProceso` → 422 cod 1026; sin
- * `codMoneda` → 422 cod 1061. No guiona el ticket ni el archivo.
+ * Guion de la solicitud 5.51 con el contrato real (plan P-3, corridas del usuario): solo `codProceso` 70 y `codMoneda`
+ * obligatorio (cualquier moneda conocida, sin efecto de filtro). Con 70 y PEN/USD → 200 `{numTicket}` (el mismo ticket); otro
+ * `codProceso` → 422 cod 1026; sin `codMoneda` → 422 cod 1061. No guiona el ticket ni el archivo.
  */
-export function guionarSolicitudRegistroFalsa(sire: ServidorContratoFalso["sire"], tickets: Readonly<Record<MonedaRegistro, string>> = TICKET_REGISTRO_FALSO): void {
+export function guionarSolicitudRegistroFalsa(sire: ServidorContratoFalso["sire"], ticket: string = TICKET_REGISTRO_FALSO): void {
   sire.guionar("GET", RUTAS.solicitarRegistro(), (p) => {
     if (p.query["codProceso"] !== COD_PROCESO_REGISTRO) {
       return { estado: 422, json: { cod: "422", msg: "Unprocessable Entity", errors: [{ cod: "1026", msg: "Código Proceso no permitido o no valido" }] } };
     }
-    const moneda = monedaDe(p.query["codMoneda"] ?? null);
-    if (moneda === null) {
+    const moneda = p.query["codMoneda"];
+    if (moneda !== "PEN" && moneda !== "USD") {
       return { estado: 422, json: { cod: "422", msg: "Unprocessable Entity", errors: [{ cod: "1061", msg: "El campo 'codMoneda' es nulo o vacio" }] } };
     }
-    return { json: { numTicket: tickets[moneda] } };
+    return { json: { numTicket: ticket } };
   });
 }
 
 /**
  * Servidor falso con los TXT sintéticos de `fixtures/sire/http`: el ticket sale «01» una vez y luego «04». Solo
- * 127.0.0.1; las credenciales son canarios sintéticos. `archivosRaros`: los archivos del registro son rechazados por el lector
- * (PEN: ZIP con 2 entradas, una con ruta y con descriptor de datos; USD: un cuerpo que no es ZIP), para ver el diagnóstico.
+ * 127.0.0.1; las credenciales son canarios sintéticos. El archivo del registro se sirve con la estructura real del ZIP (3
+ * entradas: `LE#/LE#.txt` con datos, otra vacía y la carpeta). `archivosRaros`: el archivo del registro es rechazado por el
+ * lector (ZIP con 2 entradas, una con ruta y con descriptor de datos), para ver el diagnóstico.
  */
 export async function prepararServidorFalso(opciones: { errores?: boolean; archivosRaros?: boolean } = {}): Promise<ServidorContratoFalso> {
   const entorno = await crearEntorno();
   const compras = parteCompras();
   const ventas = parteVentas();
-  const registro = Object.fromEntries(
-    MONEDAS_REGISTRO.map((m) => [
-      m,
-      {
-        nombre: `20700000002-registro-${m.toLowerCase()}-202610.zip`,
-        zip: zip(`20700000002-registro-${m.toLowerCase()}-202610.txt`, fixture(FIXTURE_REGISTRO_FALSO[m])),
-      } satisfies ParteFalsa,
-    ]),
-  ) as Record<MonedaRegistro, ParteFalsa>;
-  if (opciones.archivosRaros === true) {
-    // Archivos que el lector rechaza: PEN es un ZIP «raro» (2 entradas, una con ruta, con descriptor de datos) y USD ni es ZIP.
-    registro.PEN = { ...registro.PEN, zip: zipRaro() };
-    registro.USD = { ...registro.USD, zip: noEsZip() };
-  }
+  const registro: ParteFalsa = {
+    nombre: "20700000002-registro-202610.zip",
+    zip: opciones.archivosRaros === true ? zipRaro() : zipRegistroReal("LE20700000002202610", fixture(FIXTURE_REGISTRO_FALSO)),
+  };
   const tickets = new Map<string, { nombre: string; consultas: number }>([
     ["202610000001", { nombre: compras.nombre, consultas: 0 }],
     ["202610000002", { nombre: ventas.nombre, consultas: 0 }],
-    [TICKET_REGISTRO_FALSO.PEN, { nombre: registro.PEN.nombre, consultas: 0 }],
-    [TICKET_REGISTRO_FALSO.USD, { nombre: registro.USD.nombre, consultas: 0 }],
+    [TICKET_REGISTRO_FALSO, { nombre: registro.nombre, consultas: 0 }],
   ]);
   entorno.seguridad.guionar("POST", RUTAS.token(CLIENT_ID), { json: cuerpoToken() });
   entorno.sire.guionar("GET", RUTAS.exportarRce(), { json: { numTicket: "202610000001" } });
@@ -1378,7 +1266,7 @@ export async function prepararServidorFalso(opciones: { errores?: boolean; archi
     };
   });
   entorno.sire.guionar("GET", RUTAS.archivo, (p) => {
-    const parte = [compras, ventas, registro.PEN, registro.USD].find((x) => x.nombre === p.query["nomArchivoReporte"]);
+    const parte = [compras, ventas, registro].find((x) => x.nombre === p.query["nomArchivoReporte"]);
     return parte === undefined ? { estado: 404 } : { bytes: parte.zip, cabeceras: { "content-type": "application/zip" } };
   });
   if (opciones.errores === true) guionarErroresFalsos(entorno.sire);
