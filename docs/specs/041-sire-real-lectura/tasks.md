@@ -21,6 +21,8 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → atac
 | T13 | Ronda adversarial 2 (caja blanca): timeouts, presupuesto, reanudación entre estudios, memoria, codificación, concurrencia | adversario | opus | T12 | — | ✓ | [x] |
 | T14 | Pruebas de las correcciones de la ronda 2 (rojo) — omitida: las pruebas del adversario cubren los hallazgos | tester | sonnet | T13 | ✓ | — | [x] |
 | T15 | Corregir hallazgos de la ronda 2 | backend | opus | T14 | — | — | [x] |
+| T15b | Pruebas del registro presentado (P-3) | tester | sonnet | T15 | ✓ | — | [x] (20 pruebas en rojo en `registro-presentado.http.spec.ts`; `it.todo` de «SUNAT exige moneda»: el plan no fija la respuesta del servidor falso) |
+| T15c | Implementar registro presentado (P-3) | backend | opus | T15b | — | — | [ ] |
 | T16 | Corrida de la prueba de contrato contra SUNAT (la ejecuta el **usuario**) y ajustes de P-5/P-6 | tester | sonnet | T9, T15 | — | — | [ ] |
 | T17 | Verificar CA-1 a CA-15 con evidencia y suites de `sunat`, `queue` y `worker` | tester | sonnet | T16 | — | — | [ ] |
 | T18 | Revisión final contra la spec | arquitecto | opus | T17 | — | — | [ ] |
@@ -99,6 +101,16 @@ Reglas comunes:
 
 ## T14–T15 · Correcciones de la ronda 2
 - Igual que T11–T12.
+
+## T15b · Pruebas del registro presentado (P-3) (tester · sonnet)
+- **Contexto**: `plan.md` («P-3 · Registro presentado», fila «Registro» de Endpoints), `fixtures/sire/http/compras-registro-202610*.txt`, `packages/sunat/src/http/pruebas/ayudas-http.ts`, `sire-api-client.http.spec.ts` (modelo).
+- **Hacer**: las 11 pruebas de `registro-presentado.http.spec.ts` (la 12, del contrato, es de T16) con P-3a (01 y, si no hay datos, UNA vez 02) y P-3b (sin `codMoneda`); fixtures `compras-registro-202610.txt` y `-solo-encabezado.txt`; `RUTAS.solicitarRegistro`; paso 5 de Postman corregido.
+- **Hecho cuando**: fallan solo porque `descargarRegistroPresentado` aún rechaza siempre; el resto de `sunat` sigue verde. Commit `test(041): registro presentado del SIRE en rojo`.
+
+## T15c · Implementar registro presentado (P-3) (backend · opus)
+- **Contexto**: `plan.md` («P-3», Decisiones), `registro-presentado.http.spec.ts`, `endpoints.ts`, `sire-api-client.http.ts`.
+- **Hacer**: `rutaRegistroPresentado`, `parametrosRegistro`, `COD_PROCESO_REGISTRO`; `exportar` y `obtenerTicketListo` con URL y `operacion`; `descargarRegistroPresentado` hasta verde.
+- **Hecho cuando**: `registro-presentado.http.spec.ts` verde, el resto de `sunat` verde, `typecheck` y `lint` OK. Commit `feat(041): registro presentado del SIRE`.
 
 ## T16 · Contrato real (tester · sonnet; lo ejecuta el usuario)
 - **Contexto**: `tools/sire-postman/README.md`, `sire.contrato.spec.ts`, P-3/P-5/P-6.

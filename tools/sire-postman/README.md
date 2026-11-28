@@ -13,7 +13,7 @@ Basado en los manuales de SUNAT: *SIRE Compras v28* (RCE, libro `080000`) y *SIR
 | 2 | descargar propuesta | **No devuelve datos**: genera un ticket (lo guarda) |
 | 3 | consultar estado de ticket | Repetir hasta estado `06` terminado / `04` sin errores; guarda el nombre del archivo |
 | 4 | descargar archivo | Baja el ZIP con la propuesta (TXT) |
-| 5 | 5.51 registro presentado (solo Compras) | Pide la descarga con `codProceso=01` (00/02 según el manual); si da `numTicket`, sigue con 3 y 4 |
+| 5 | 5.51 registro presentado (solo Compras) | Pide la descarga con `codTipoArchivo=0`, `codProceso=01` (si no hay datos, 02), `codOrigen=2` y `lisPeriodos`; sin `codMoneda`; si da `numTicket`, sigue con 3 y 4 |
 | 6 | 5.40 exportar preliminar (solo Compras) | La ruta del manual va en la variable `ruta_5_40` (no está en el repo); si da `numTicket`, sigue con 3 y 4 |
 
 **No incluye** aceptar, reemplazar, registrar preliminar ni eliminar: esas operaciones cambian el registro real del contribuyente ante SUNAT. Los pasos 5 y 6 solo piden descargas (P-3 de la spec 041): sirven para decidir cuál usa `descargarRegistroPresentado`.

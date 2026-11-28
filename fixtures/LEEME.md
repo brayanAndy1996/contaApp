@@ -72,6 +72,13 @@ Variantes (mismo sufijo en compras y ventas; el base lleva `-propuesta-202610`):
 
 Columnas sin equivalente con valor distinto de 0 (P-2) y fechas o montos inválidos no están como archivo: las pruebas modifican el texto del base.
 
+Registro presentado de compras (P-3, 5.51; el manual no documenta el TXT: se asume el layout de la propuesta, CA-13):
+
+| Archivo | Qué es |
+|---|---|
+| `compras-registro-202610.txt` | Mismo encabezado y filas sintéticas que `compras-propuesta-202610.txt` (RUC `20700000002`, periodo 202610) |
+| `compras-registro-202610-solo-encabezado.txt` | Solo el encabezado: periodo sin registro -> `ErrorDatosSire("sin_datos")` |
+
 ## Reglas
 
 - **Nombres.** XML `{ruc}-{tipo}-{serie}-{numero}.xml`; SIRE `{ruc}-{libro}-{periodo}.json`; genéricos `generico-{libro}.json`.

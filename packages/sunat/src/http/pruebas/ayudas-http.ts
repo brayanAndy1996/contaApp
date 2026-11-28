@@ -165,6 +165,8 @@ export const RUTAS = {
   token: (clientId: string = CLIENT_ID) => `/v1/clientessol/${clientId}/oauth2/token/`,
   exportarRce: (per: string = PERIODO) => `${BASE}/rce/propuesta/web/propuesta/${per}/exportacioncomprobantepropuesta`,
   exportarRvie: (per: string = PERIODO) => `${BASE}/rvie/propuesta/web/propuesta/${per}/exportapropuesta`,
+  /** Servicio 5.51 (registro presentado de compras; P-3, mismo `perTributario` en la ruta). */
+  solicitarRegistro: (per: string = PERIODO) => `${BASE}/rce/ajustesposteriores/web/ajustesposteriores/${per}/solicitardescarga`,
   ticket: `${BASE}/rvierce/gestionprocesosmasivos/web/masivo/consultaestadotickets`,
   archivo: `${BASE}/rvierce/gestionprocesosmasivos/web/masivo/archivoreporte`,
 } as const;

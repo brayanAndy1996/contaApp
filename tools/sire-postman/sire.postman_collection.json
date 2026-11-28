@@ -71,7 +71,7 @@
     },
     {
       "key": "ruta_5_40",
-      "value": "",
+      "value": "rce/preliminar/web/registroslibros/{{periodo}}/exportareportepreliminar",
       "description": "Ruta del servicio 5.40 (manual RCE v28), después de /v1/contribuyente/migeigv/libros/, sin / inicial. Vacía hasta que la copies del manual."
     }
   ],
@@ -563,7 +563,7 @@
               }
             ],
             "url": {
-              "raw": "https://api-sire.sunat.gob.pe/v1/contribuyente/migeigv/libros/rce/ajustesposteriores/web/ajustesposteriores/{{periodo}}/solicitardescarga?codProceso=01",
+              "raw": "https://api-sire.sunat.gob.pe/v1/contribuyente/migeigv/libros/rce/ajustesposteriores/web/ajustesposteriores/{{periodo}}/solicitardescarga?codTipoArchivo=0&codProceso=01&codOrigen=2&lisPeriodos={{periodo}}",
               "protocol": "https",
               "host": [
                 "api-sire",
@@ -585,20 +585,38 @@
               ],
               "query": [
                 {
+                  "key": "codTipoArchivo",
+                  "value": "0",
+                  "disabled": false,
+                  "description": "0 = txt. Sin él SUNAT responde 422 (1059-1061)."
+                },
+                {
                   "key": "codProceso",
                   "value": "01",
                   "disabled": false,
-                  "description": "Manual 5.50/5.51: 00, 01 o 02 (misma URL). Empieza por 01; si no sirve prueba 02. El ejemplo del manual usa 70 («Descarga RCE», anexo I)."
+                  "description": "P-3a: pide 01 y, si SUNAT responde sin datos, reintenta UNA vez con 02 (nunca 00 ni 70)."
                 },
                 {
-                  "key": "codTipoArchivo",
-                  "value": "0",
+                  "key": "codOrigen",
+                  "value": "2",
+                  "disabled": false,
+                  "description": "El nombre es codOrigen, no codOrigenEnvio (aunque el error 1028 diga lo contrario)."
+                },
+                {
+                  "key": "lisPeriodos",
+                  "value": "{{periodo}}",
+                  "disabled": false,
+                  "description": "Mismo periodo que la ruta: un ticket por periodo."
+                },
+                {
+                  "key": "codMoneda",
+                  "value": "PEN",
                   "disabled": true,
-                  "description": "0 = txt. Actívalo solo si SUNAT lo pide."
+                  "description": "P-3b: se omite. Actívalo solo si SUNAT responde que lo exige (entonces PEN y USD en dos solicitudes)."
                 }
               ]
             },
-            "description": "Servicio 5.51 del manual de compras (P-3 opción a): solicitar la descarga del registro presentado. Misma URL que 5.50; cambia codProceso (00/01/02). Solo lectura: no modifica el registro. Si responde con numTicket, queda en rce_ticket y se sigue con los pasos 3 y 4 de Compras. Anota SOLO: código HTTP, nombres de campo, cod/msg de error y qué codProceso funcionó; nunca datos."
+            "description": "Servicio 5.51 del manual de compras (P-3 opción a): solicitar la descarga del registro presentado. Misma URL que 5.50. Envía codTipoArchivo=0, codProceso (01; si no hay datos, 02), codOrigen=2 y lisPeriodos={{periodo}}; sin codMoneda salvo que SUNAT lo exija. Solo lectura: no modifica el registro. Si responde con numTicket, queda en rce_ticket y se sigue con los pasos 3 y 4 de Compras. Anota SOLO: código HTTP, nombres de campo, cod/msg de error y qué codProceso funcionó; nunca datos."
           }
         },
         {
@@ -635,7 +653,7 @@
               }
             ],
             "url": {
-              "raw": "https://api-sire.sunat.gob.pe/v1/contribuyente/migeigv/libros/{{ruta_5_40}}?codTipoArchivo=0",
+              "raw": "https://api-sire.sunat.gob.pe/v1/contribuyente/migeigv/libros/{{ruta_5_40}}?codTipoArchivo=0&codOrigenEnvio=2",
               "protocol": "https",
               "host": [
                 "api-sire",
@@ -656,6 +674,11 @@
                   "value": "0",
                   "disabled": false,
                   "description": "0 = txt, 1 = csv (como en 5.34). Ajusta a lo que diga el manual."
+                },
+                {
+                  "key": "codOrigenEnvio",
+                  "value": "2",
+                  "disabled": false
                 }
               ]
             },

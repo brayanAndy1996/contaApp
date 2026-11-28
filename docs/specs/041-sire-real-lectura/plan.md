@@ -52,7 +52,7 @@ Endpoints (base `https://api-sire.sunat.gob.pe/v1/contribuyente/migeigv/libros`;
 | Exportar RVIE | GET `/rvie/propuesta/web/propuesta/{per}/exportapropuesta` | `codTipoArchivo=0` → `{numTicket}` |
 | Ticket | GET `/rvierce/gestionprocesosmasivos/web/masivo/consultaestadotickets` | `perIni=perFin={per}&page=1&perPage=20&numTicket` |
 | Archivo | GET `/rvierce/gestionprocesosmasivos/web/masivo/archivoreporte` | `nomArchivoReporte`, `codTipoArchivoReporte`, `perTributario`, `codProceso`, `numTicket`, `codLibro=080000\|140000` |
-| Registro | según P-3 | — |
+| Registro (5.51) | GET `/rce/ajustesposteriores/web/ajustesposteriores/{per}/solicitardescarga` | ver «P-3 · Registro presentado» → `{numTicket}`; luego Ticket y Archivo con `codLibro=080000` |
 
 Mapeo (encabezado normalizado → campo). Compras: `Tipo CP/Doc.`→`tipo`, `Serie del CDP`→`serie`, `Nro CP o Doc. Nro Inicial (Rango)`→`numero`, `Tipo Doc Identidad`→`tipoDocContraparte`, `Nro Doc Identidad`→`rucContraparte`, `Apellidos Nombres/ Razón Social`→`razonSocialContraparte`, `Fecha de emisión`, `Moneda`, `Tipo de Cambio` (solo USD), `BI Gravado DG/DGNG/DNG`, `IGV / IPM DG/DGNG/DNG`, `Valor Adq. NG`→`noGravado`, `ISC`, `ICBPER`, `Otros Trib/ Cargos`→`otros`, `Total CP`; control: `RUC`, `Periodo`; sin equivalente (P-2): `IMB`, `Nro Final (Rango)`. Ventas: `BI Gravada`→`baseGravada`, `IGV / IPM`→`igv`, `Mto Exonerado`, `Mto Inafecto`, `ISC`, `ICBPER`, `Otros Tributos`→`otros`, `Total CP`, `Nro Doc Identidad`→`docContraparte`; control `Ruc`, `Periodo`; sin equivalente (P-2): `Valor Facturado Exportación`, `Dscto BI`, `Dscto IGV / IPM`, `BI Grav IVAP`, `IVAP`, `Valor FOB Embarcado`, `Valor OP Gratuitas`, `Nro Final (Rango)`; ignoradas: CAR, vencimiento, doc. modificado, tipo de operación, `Est. Comp.`, `CLU*`. Regla P-2 (CA-7): toda columna monetaria o de rango sin equivalente es requerida en el encabezado; vacío, `0` o `0.00` pasa; otro valor con formato de monto válido → `columna_no_soportada`, con formato inválido → `fila_invalida`. Solo se ignoran columnas no monetarias.
 
@@ -76,6 +76,30 @@ Mapeo (encabezado normalizado → campo). Compras: `Tipo CP/Doc.`→`tipo`, `Ser
 - **Partes (H-6)**: se procesan en orden y de una en una. Cada parte se baja, se valida (ZIP, UTF-8, encabezado igual al de la 1.ª, filas) y se suelta antes de pedir la siguiente. Al primer error se corta y no se piden más partes. En memoria solo quedan las filas ya validadas; no se devuelven filas mientras falte alguna parte.
 - **Token (H-8)**: `conToken` borra la caché solo si el token guardado es el que fue rechazado (comparar y borrar de forma atómica). Si ya hay uno más nuevo, lo usa sin pedir otro.
 - **CA-10 «en total» (H-7)**: Decidido por el usuario (2026-11-27): 64 MiB por parte + 256 MiB acumulado entre partes; superado el acumulado → zip_invalido.
+
+## P-3 · Registro presentado (manual RCE v28, 2026-11-28)
+**Servicio**: 5.51 «Descargar RCE por periodo» (pp. 115-117). En el diagrama de la p. 40 cuelga de «¿Se generó el registro? Sí», o sea, del registro ya generado. 5.40 «Exportar preliminar de registro de compras» (pp. 99-100: GET `/rce/preliminar/web/registroslibros/{per}/exportareportepreliminar?codTipoArchivo=0&codOrigenEnvio=2`) baja el **preliminar** y cuelga de «Registrar preliminar»; se descarta. 5.50 (p. 114) es el consolidado (`codProceso` 69 del ejemplo) y comparte URL con 5.51.
+**Contrato 5.51**: GET `{BASE_LIBROS}/rce/ajustesposteriores/web/ajustesposteriores/{perTributario}/solicitardescarga`. Query: `codTipoArchivo=0` (txt), `codProceso` (P-3a), `codOrigen=2` (el nombre es `codOrigen`, no `codOrigenEnvio`, aunque el error 1028 diga lo contrario), `lisPeriodos={per}` y `codMoneda` (P-3b). Va con `Authorization: Bearer` y responde `{"numTicket":"AAAA99999999"}`. Es el mismo flujo de ticket que la propuesta: 5.31 (estados del Anexo III de ventas, p. 80-81: 01/02/05 pendiente, 04/06 listo, 03 con errores) y luego 5.32 con `codLibro=080000` y el `codProceso` y `perTributario` **que devuelva el ticket**. Errores 422 (p. 117): 1005-1007 periodo, 1059-1061 tipo de archivo, 1028-1030 origen, 1138-1139 `codProceso`. El manual **no documenta las columnas** del TXT: se asume el layout de la propuesta (CA-13) y lo confirma la prueba de contrato.
+**Decisiones**:
+- `endpoints.ts`: `rutaRegistroPresentado(per)` y `parametrosRegistro(per)`, con `COD_PROCESO_REGISTRO` como constante. `perTributario` y `lisPeriodos` son el mismo periodo pedido: un ticket por periodo, porque 025 itera periodo a periodo. El ejemplo del manual (`202305` en la ruta y `lisPeriodos=202212`) se comprueba en la prueba de contrato. Con un ticket de varios periodos, la validación `Periodo` por fila daría `respuesta_ajena`.
+- `sire-api-client.http.ts`: `exportar` y `obtenerTicketListo` reciben la URL de solicitud y la `operacion`. `descargarRegistroPresentado` copia a `descargarPropuesta` con `libro="compras"`, clave `…:compras:{per}:registro`, `leerPartes` y `mapearCompras` (sin un mapeo nuevo) y las mismas reglas de guardar y borrar el ticket. Las validaciones se reutilizan tal cual: RUC/periodo de entrada, gramática de `numTicket` y `nomArchivoReporte`, presupuesto de 90 s y topes del ZIP.
+- «Sin datos» → `ErrorDatos` (025 lo cuenta y sigue): un 422 al solicitar (lo mapea `transporte`, p. ej. 1070) o un TXT válido sin filas → `ErrorDatosSire("sin_datos")`, y en ambos casos se borra el ticket. Un ticket listo sin archivos sigue siendo `ErrorPortalSire("respuesta_inesperada")`, como en la propuesta, salvo que el contrato muestre que es la forma real de «sin movimiento».
+- El servidor falso no cambia: se guiona la ruta nueva. Fixture `fixtures/sire/http/compras-registro-202610.txt` (el mismo encabezado real de la propuesta) y uno con solo el encabezado.
+- T16: corregir en Postman el paso 5 (hoy solo manda `codProceso=01`; le faltan `codTipoArchivo`, `codOrigen` y `lisPeriodos`, y daría 422 1061/1028) y llenar `ruta_5_40` con la ruta de arriba. El contrato imprime solo formas de 5.51.
+**Pruebas (tester, `sire-api-client.http.spec.ts`; reemplazan el `it.todo` de CA-13)**:
+1. `registro: solicita 5.51 por GET con codTipoArchivo=0, codOrigen=2, lisPeriodos=per, perTributario=per y codProceso de P-3a; solo Bearer al host SIRE`
+2. `registro: ticket 06 → 5.32 con codLibro=080000 y codProceso/perTributario del ticket → mismas FilaPropuestaSire que la propuesta con el mismo TXT`
+3. `registro: varias partes en orden; encabezado distinto entre partes → ErrorPortalSire encabezado`
+4. `registro: 422 al solicitar → ErrorDatos; TXT solo con encabezado → ErrorDatosSire sin_datos; ambos borran el ticket`
+5. `registro: ticket 03 → ticket_con_errores; estado desconocido → estado_desconocido; listo sin archivos → respuesta_inesperada`
+6. `registro: ticket pendiente → guarda clave …:compras:{per}:registro y lanza ticket_pendiente; el reintento retoma sin volver a solicitar`
+7. `registro y propuesta del mismo periodo y cliente no comparten ticket guardado`
+8. `registro: fila con RUC o Periodo ajeno → respuesta_ajena sin filas`
+9. `registro: ruc o periodo fuera de gramática → ErrorDatos sin red`
+10. `registro: 401 → TokenRechazadoError conserva el ticket; 5xx/timeout → ErrorTransitorioSire conserva el ticket`
+11. Si se elige P-3a (a): `registro: 01 sin datos → pide 02 una vez; 02 sin datos → ErrorDatos`. Según P-3b: `registro: no envía codMoneda` (o `pide PEN y USD y une`).
+12. `sire.contrato.spec.ts`: el caso del registro presentado imprime solo formas (columnas, si el encabezado coincide, estados y tiempos).
+**Pendiente del usuario**: P-3a (`codProceso`) y P-3b (`codMoneda`). Mientras no respondan, `descargarRegistroPresentado` sigue rechazando.
 
 ## Riesgos
 - SUNAT cambia el layout o los nombres de columna → `ErrorPortalSire("encabezado")` + alerta (RNF-044); la prueba de contrato lo detecta antes.

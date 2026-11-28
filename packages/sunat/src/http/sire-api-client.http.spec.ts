@@ -672,6 +672,4 @@ describe("AlmacenTicketsMemoria", () => {
   });
 });
 
-describe("HttpSireApiClient · registro presentado (CA-13)", () => {
-  it.todo("descargarRegistroPresentado: mismo flujo y mapeo que la propuesta de compras; «sin datos» -> ErrorDatosSire sin_datos (requiere P-3: ruta de 5.51/5.40 según Postman)");
-});
+// El registro presentado (CA-13, P-3) tiene sus pruebas en `registro-presentado.http.spec.ts`.
