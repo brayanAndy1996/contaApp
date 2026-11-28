@@ -79,12 +79,30 @@ describe("AlmacenTicketsRedis (CA-8)", () => {
     expect(ttl).toBeLessThanOrEqual(3_600_000);
   });
 
-  it("libro y operación se reflejan en la clave de Redis (ventas/registro)", async () => {
+  it("libro y operación se reflejan en la clave de Redis (compras/registro-usd)", async () => {
     const { a, k } = almacen();
-    await a.guardar(clave(T1, C1, "ventas", "202609", "registro"), TICKET, 60_000);
+    await a.guardar(clave(T1, C1, "compras", "202609", "registro-usd"), TICKET, 60_000);
     expect(
-      await redis.get(k.ticketSire(T1, C1, "ventas", "202609", "registro")),
+      await redis.get(k.ticketSire(T1, C1, "compras", "202609", "registro-usd")),
     ).toBe(TICKET);
+  });
+
+  it("propuesta, registro-pen y registro-usd del mismo estudio, cliente, libro y periodo no chocan entre sí", async () => {
+    const { a, k } = almacen();
+    const ops = ["propuesta", "registro-pen", "registro-usd"] as const;
+    for (const [i, op] of ops.entries())
+      await a.guardar(clave(T1, C1, "compras", "202610", op), `10${i}`, 60_000);
+    for (const [i, op] of ops.entries()) {
+      expect(await a.leer(clave(T1, C1, "compras", "202610", op)), op).toBe(`10${i}`);
+      expect(
+        await redis.get(k.ticketSire(T1, C1, "compras", "202610", op)),
+        op,
+      ).toBe(`10${i}`);
+    }
+    await a.borrar(clave(T1, C1, "compras", "202610", "registro-pen"));
+    expect(await a.leer(clave(T1, C1, "compras", "202610", "registro-pen"))).toBeNull();
+    expect(await a.leer(clave(T1, C1, "compras", "202610", "registro-usd"))).toBe("102");
+    expect(await a.leer(clave(T1, C1, "compras", "202610", "propuesta"))).toBe("100");
   });
 
   it("estudios distintos con el mismo cliente no se ven entre sí", async () => {
@@ -124,6 +142,8 @@ describe("AlmacenTicketsRedis (CA-8)", () => {
       `${T1}:${C1}:compras:202610:propuesta:extra`, // 6 partes
       clave(T1, C1, "diario"), // libro desconocido
       clave(T1, C1, "compras", "202610", "otra"), // operación desconocida
+      clave(T1, C1, "compras", "202610", "registro"), // clave vieja del registro (sin moneda)
+      clave(T1, C1, "compras", "202610", "registro-eur"), // moneda fuera de PEN/USD
       clave("", C1), // estudio vacío
     ];
     for (const m of malas) {
