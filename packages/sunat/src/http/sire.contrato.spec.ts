@@ -21,8 +21,16 @@
  * cada periodo, hace 12 GET de 5.51 (codProceso 70, 01, 02, 00 × sin codMoneda, PEN, USD) y por variante imprime solo HTTP,
  * tiempo y cod/msg; si una devuelve numTicket solo lo informa (no sigue el ticket). No toca el flujo normal del registro.
  *
+ * Si el lector rechaza un archivo (`zip_invalido`), imprime su ESTRUCTURA (firma en hex, tamaño, EOCD, ZIP64, y por entrada: extensión,
+ * ruta/directorio, nombre con las secuencias de 4+ dígitos tapadas, método, banderas, tamaños y CRC) y el motivo deducido contra las
+ * reglas de `zip-seguro.ts`; nunca el contenido. En el registro, además, una línea con la estructura de la propuesta de compras
+ * (referencia) y, con el archivo de la otra moneda que el cliente no llegó a pedir, la misma estructura (lo pide el transporte
+ * de la prueba, solo GET). Los casos corren en el orden token, compras, ventas, registro: la referencia sale si compras corrió antes.
+ *
  * `SIRE_CONTRATO_FALSO=1` (junto con `SIRE_CONTRATO=1`) corre lo mismo contra el servidor falso en 127.0.0.1 con los TXT
- * sintéticos y NO lee ninguna credencial: sirve para comprobar esta prueba sin SUNAT.
+ * sintéticos y NO lee ninguna credencial: sirve para comprobar esta prueba sin SUNAT. Con `SIRE_CONTRATO_FALSO_ARCHIVOS_RAROS=1`
+ * los archivos del registro son rechazables (PEN: ZIP con 2 entradas, una con ruta y descriptor de datos; USD: no es ZIP) y la
+ * prueba del registro FALLA a propósito, para ver las líneas de estructura.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { LibroSire, TokenSire } from "../puertos.js";
@@ -46,6 +54,7 @@ const activa = process.env["SIRE_CONTRATO"] === "1";
 const falso = process.env["SIRE_CONTRATO_FALSO"] === "1";
 /** Solo con el servidor falso: ventas da 503 y 5.51 da 422 con lista de errores (para comprobar la salida de los fallos). */
 const falsoConErrores = falso && process.env["SIRE_CONTRATO_FALSO_ERRORES"] === "1";
+const falsoConArchivosRaros = falso && process.env["SIRE_CONTRATO_FALSO_ARCHIVOS_RAROS"] === "1";
 const diagnostico = diagnosticoActivo(process.env);
 
 /** Anexo III: 01 cargado, 02 validando, 03 con errores, 04 sin errores, 05 en proceso, 06 terminado. */
@@ -142,13 +151,13 @@ describe.skipIf(!activa)(falso ? "contrato SIRE (servidor falso local)" : "contr
 
   beforeAll(async () => {
     if (falso) {
-      const servidor = await prepararServidorFalso({ errores: falsoConErrores });
-      entrada = { ...servidor.entrada, emitir };
+      const servidor = await prepararServidorFalso({ errores: falsoConErrores, archivosRaros: falsoConArchivosRaros });
+      entrada = { ...servidor.entrada, emitir, referenciaZip: {} };
       periodos = [servidor.entrada.periodo];
       cerrar = servidor.cerrar;
     } else {
       const { credencial, periodo, periodos: lista } = credencialesDelEntorno(process.env);
-      entrada = { credencial, periodo, emitir };
+      entrada = { credencial, periodo, emitir, referenciaZip: {} };
       periodos = lista;
     }
   });

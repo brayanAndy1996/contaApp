@@ -16,6 +16,8 @@ import {
   zip,
 } from "./ayudas-http.js";
 import { sinColumna } from "./ayudas-txt.js";
+import { analizarZip, diagnosticarZip, lineasEstructura, nombreSeguro, pareceTextoPlano } from "./estructura-zip.js";
+import { ZIP_RARO, noEsZip, zipManual, zipRaro } from "./zip-manual.js";
 import {
   CUERPO_422_FALSO,
   CUERPO_503_FALSO,
@@ -775,5 +777,226 @@ describe("contrato SIRE · modo diagnóstico de 5.51", () => {
     await contratoRegistro(srv.entrada, token);
     const pedidas = srv.sire.peticionesDe("GET", RUTAS.solicitarRegistro()).slice(antes);
     expect(pedidas.map((p) => [p.query["codProceso"], p.query["codMoneda"]])).toEqual([["70", "PEN"], ["70", "USD"]]);
+  });
+});
+
+describe("diagnóstico de la estructura de un ZIP (solo formas, nunca contenido)", () => {
+  const txt = Buffer.from("columna|otra\n1|2\n", "utf8");
+  const TOPE_IMPRESO = /«([^»]*)»/g;
+
+  it("un ZIP que el lector lee: sin rechazo ni motivos (un descriptor de datos no lo rechaza por sí solo)", () => {
+    expect(diagnosticarZip(zip("x.txt", txt))).toMatchObject({ rechazo: null, motivos: [], observaciones: [] });
+    const conDescriptor = diagnosticarZip(zipManual([{ nombre: "x.txt", datos: txt, descriptor: true }]));
+    expect(conDescriptor.rechazo).toBeNull();
+    expect(conDescriptor.estructura.entradas[0]).toMatchObject({ descriptor: true, banderas: 0x0808 });
+  });
+
+  it("el ZIP «raro» (2 entradas, una con ruta, con descriptor de datos): firma, tamaño, EOCD, ZIP64, entradas y motivos", () => {
+    const z = zipRaro();
+    const d = diagnosticarZip(z);
+    expect(d.rechazo).toEqual({ clase: "ErrorPortalSire", detalle: "zip_invalido" });
+    expect(d.estructura).toMatchObject({ firma: "504b0304", esZip: true, bytes: z.length, eocd: true, zip64: false, entradasDeclaradas: 2 });
+    expect(d.estructura.fin).toMatchObject({ alFinal: true, total: 2 });
+    expect(d.estructura.entradas).toHaveLength(2);
+    expect(d.estructura.entradas[0]).toMatchObject({
+      indice: 1,
+      extension: "txt",
+      conRuta: true,
+      esDirectorio: false,
+      largoNombre: ZIP_RARO.nombres[0].length,
+      nombre: "#/#-registro-pen-#.txt",
+      metodo: 8,
+      banderas: 0x0808,
+      cifrado: false,
+      descriptor: true,
+      utf8: true,
+    });
+    expect(d.estructura.entradas[1]).toMatchObject({ indice: 2, conRuta: false, nombre: "LEEME-#-#.txt", metodo: 0, descriptor: true });
+    expect(d.motivos).toEqual(["mas_de_una_entrada", "directorio_central_no_es_exactamente_una_entrada", "nombre_con_ruta"]);
+    expect(d.observaciones).toEqual([
+      "entrada_1_con_descriptor_de_datos_no_rechaza_por_si_solo",
+      "entrada_2_con_descriptor_de_datos_no_rechaza_por_si_solo",
+    ]);
+  });
+
+  it("motivos por defecto del ZIP: cifrado, método, CRC, directorio, truncado, basura al final y ZIP64", () => {
+    const motivos = (z: Uint8Array): string[] => diagnosticarZip(z).motivos;
+    expect(motivos(zipManual([{ nombre: "x.txt", datos: txt, banderasExtra: 1 }]))).toEqual(["cifrado", "cabecera_local_cifrada"]);
+    expect(motivos(zipManual([{ nombre: "x.txt", datos: txt }], { crc: 0x12345678 }))).toEqual(["crc_distinto_del_declarado"]);
+    expect(motivos(zipManual([{ nombre: "carpeta/", datos: new Uint8Array(0), metodo: 0 }]))).toEqual(
+      expect.arrayContaining(["nombre_es_directorio", "nombre_no_termina_en_txt"]),
+    );
+    expect(motivos(zipManual([{ nombre: "datos.csv", datos: txt }]))).toEqual(["nombre_no_termina_en_txt"]);
+
+    const bueno = zip("x.txt", txt);
+    const metodo = Uint8Array.from(bueno);
+    const central = analizarZip(bueno).fin!.inicioCentral;
+    new DataView(metodo.buffer).setUint16(central + 10, 12, true);
+    expect(motivos(metodo)[0]).toBe("metodo_12_no_soportado");
+
+    expect(motivos(bueno.subarray(0, bueno.length - 5))).toEqual(["sin_eocd"]);
+    expect(motivos(Uint8Array.from([...bueno, 1, 2, 3]))).toContain("eocd_no_termina_al_final_del_archivo");
+
+    const z64 = Uint8Array.from(bueno);
+    new DataView(z64.buffer).setUint16(analizarZip(bueno).fin!.posicion + 10, 0xffff, true);
+    expect(analizarZip(z64).zip64).toBe(true);
+    expect(motivos(z64)).toEqual(["zip64"]);
+  });
+
+  it("un archivo que no es ZIP: firma en hex y «texto plano sí/no» sin imprimir los bytes", () => {
+    const html = analizarZip(noEsZip());
+    expect(html).toMatchObject({ firma: "3c68746d", esZip: false, textoPlano: true, eocd: false });
+    const binario = analizarZip(Uint8Array.from({ length: 100 }, (_, i) => i % 7));
+    expect(binario).toMatchObject({ firma: "00010203", esZip: false, textoPlano: false });
+    expect(pareceTextoPlano(new Uint8Array(0))).toBe(false);
+    expect(pareceTextoPlano(Buffer.from("a".repeat(64) + "\u0000"))).toBe(true); // solo se miran los 64 primeros
+    expect(pareceTextoPlano(Buffer.from("a".repeat(63) + "\u0000"))).toBe(false);
+    const lineas = lineasEstructura("[contrato-sire] x", 1, diagnosticarZip(noEsZip())).join("\n");
+    expect(lineas).toContain("firma 3c68746d (no es ZIP · texto plano sí)");
+    expect(lineas).toContain("motivo {sin_eocd}");
+    expect(lineas.includes(ZIP_RARO.contenido) || lineas.includes("html"), "la salida repite bytes del archivo").toBe(false);
+  });
+
+  it("el nombre sale con alfabeto cerrado y toda secuencia de 4+ dígitos tapada; solo la extensión; el largo es el real", () => {
+    expect(nombreSeguro(Buffer.from("20700000002-registro-pen-202610.txt"))).toBe("#-registro-pen-#.txt");
+    expect(nombreSeguro(Buffer.from("a123b1234c12345678d"))).toBe("a123b#c#d");
+    expect(nombreSeguro(Buffer.from("raz\u00f3n social <x>.txt", "utf8"))).toBe("raz?n social ?x?.txt");
+    expect(nombreSeguro(Buffer.from("x".repeat(200)))).toHaveLength(80);
+    const d = diagnosticarZip(zipManual([{ nombre: "20700000002.TXT2", datos: txt }]));
+    expect(d.estructura.entradas[0]).toMatchObject({ extension: "txt2", largoNombre: 16, nombre: "#.TXT2" });
+  });
+
+  it("las líneas del archivo rechazado traen motivo, firma, tamaño, EOCD, ZIP64, entradas y por entrada los campos pedidos", () => {
+    const z = zipRaro();
+    const lineas = lineasEstructura("[contrato-sire] registro-presentado 202610 PEN", 1, diagnosticarZip(z));
+    expect(lineas).toHaveLength(4);
+    expect(lineas[0]).toBe(
+      "[contrato-sire] registro-presentado 202610 PEN: archivo 1 rechazado por el lector: ErrorPortalSire zip_invalido · " +
+        "motivo {mas_de_una_entrada,directorio_central_no_es_exactamente_una_entrada,nombre_con_ruta} · " +
+        "observaciones {entrada_1_con_descriptor_de_datos_no_rechaza_por_si_solo,entrada_2_con_descriptor_de_datos_no_rechaza_por_si_solo}",
+    );
+    expect(lineas[1]).toBe(
+      `[contrato-sire] registro-presentado 202610 PEN: archivo 1 estructura: firma 504b0304 (ZIP sí) · ${z.length} bytes · ` +
+        "EOCD sí (al final del archivo sí) · ZIP64 no · entradas en el directorio central 2",
+    );
+    expect(lineas[2]).toMatch(
+      /archivo 1 entrada 1: ext txt · ruta sí · directorio no · nombre 47 bytes «#\/#-registro-pen-#\.txt» · método 8 · banderas 0x0808 \(cifrado no, descriptor de datos sí, UTF-8 sí\) · comprimido \d+ · descomprimido \d+ · CRC 0x[0-9a-f]{8}$/,
+    );
+    expect(lineas[3]).toMatch(/archivo 1 entrada 2: ext txt · ruta no · directorio no · nombre 25 bytes «LEEME-#-#\.txt» · método 0 · banderas 0x0808/);
+    for (const x of ZIP_RARO.digitosEnNombres) expect(lineas.join("\n").includes(x), "la salida repite dígitos del nombre").toBe(false);
+    expect(lineas.join("\n").includes(ZIP_RARO.contenido), "la salida repite el contenido del TXT").toBe(false);
+    for (const l of lineas.slice(2)) for (const m of l.matchAll(TOPE_IMPRESO)) expect(/\d{4,}/.test(m[1] ?? ""), "el nombre trae 4+ dígitos").toBe(false);
+  });
+
+  it("más de 20 entradas: se imprimen 20 y se avisa cuántas faltan", () => {
+    const muchas = zipManual(Array.from({ length: 25 }, (_, n) => ({ nombre: `e${n}.txt`, datos: txt })));
+    const lineas = lineasEstructura("[contrato-sire] x", 1, diagnosticarZip(muchas));
+    expect(lineas.filter((l) => /archivo 1 entrada \d+:/.test(l))).toHaveLength(20);
+    expect(lineas[lineas.length - 1]).toContain("5 entrada(s) más sin imprimir");
+  });
+});
+
+describe("contrato SIRE · estructura del archivo que el lector rechaza (servidor falso)", () => {
+  let srv: ServidorContratoFalso;
+  let token: Awaited<ReturnType<typeof contratoToken>>["token"];
+  beforeAll(async () => {
+    srv = await prepararServidorFalso({ archivosRaros: true });
+    srv.entrada.dormir = sinEsperar;
+    token = (await contratoToken(srv.entrada)).token;
+  });
+  afterAll(async () => {
+    await srv.cerrar();
+  });
+  const archivosPedidos = () => srv.sire.peticionesDe("GET", RUTAS.archivo);
+
+  it("PEN rechazado: imprime su estructura, la de USD (que el cliente no pidió) y la de la propuesta como referencia, sin contenido ni dígitos del nombre", async () => {
+    const referenciaZip = {};
+    await contratoLibro({ ...srv.entrada, referenciaZip }, token, "compras");
+    const antes = archivosPedidos().length;
+    const lineas: string[] = [];
+    const i = await contratoRegistro({ ...srv.entrada, referenciaZip, emitir: (l) => lineas.push(l) }, token);
+
+    expect(i.error).toEqual({ clase: "ErrorPortalSire", detalle: "zip_invalido" });
+    expect(i.porMoneda.PEN.archivos[0]?.diagnostico.rechazo).not.toBeNull();
+    expect(i.porMoneda.PEN.archivoPendiente).toBeNull();
+    // El cliente corta con PEN; el archivo de USD lo pide la prueba aparte, una sola vez, con GET.
+    expect(i.porMoneda.USD.archivoPendiente).toBe("bajado");
+    expect(i.porMoneda.USD.archivos).toHaveLength(1);
+    expect(i.porMoneda.USD.archivos[0]?.diagnostico.estructura).toMatchObject({ firma: "3c68746d", esZip: false, textoPlano: true, eocd: false });
+    const pedidos = archivosPedidos().slice(antes);
+    expect(pedidos.map((p) => p.query["numTicket"])).toEqual([TICKET_REGISTRO_FALSO.PEN, TICKET_REGISTRO_FALSO.USD]);
+    expect(srv.sire.peticiones.every((p) => p.metodo === "GET")).toBe(true);
+    expect(srv.sire.sinGuion).toHaveLength(0);
+
+    const salida = lineas.join("\n");
+    const pen = "[contrato-sire] registro-presentado 202610 PEN";
+    const usd = "[contrato-sire] registro-presentado 202610 USD";
+    expect(salida).toContain(`${pen}: archivo 1 rechazado por el lector: ErrorPortalSire zip_invalido · motivo {mas_de_una_entrada,`);
+    expect(salida).toContain(`${pen}: archivo 1 estructura: firma 504b0304 (ZIP sí) ·`);
+    expect(salida).toContain(`${pen}: archivo 1 entrada 1: ext txt · ruta sí · directorio no · `);
+    expect(salida).toContain(`${pen}: archivo 1 entrada 2: ext txt · ruta no · directorio no · `);
+    expect(salida).toContain(`${pen}: referencia propuesta de compras: firma 504b0304 (ZIP sí)`);
+    expect(salida).toContain(`${usd}: archivo pendiente (diagnóstico): el cliente no llegó a pedirlo`);
+    expect(salida).toContain(`${usd}: archivo 1 rechazado por el lector: ErrorPortalSire zip_invalido · motivo {sin_eocd}`);
+    expect(salida).toContain(`${usd}: archivo 1 estructura: firma 3c68746d (no es ZIP · texto plano sí) ·`);
+    expect(salida).toContain(`${usd}: referencia propuesta de compras: firma 504b0304 (ZIP sí)`);
+    expect(lineas.every((l) => l.startsWith("[contrato-sire]"))).toBe(true);
+
+    // Nada de contenido ni de los dígitos de los nombres, del RUC, de los tickets ni de los canarios.
+    for (const v of [ZIP_RARO.contenido, "CANARIO", "<html>", ...ZIP_RARO.digitosEnNombres, RUC, ...Object.values(CANARIOS), ...Object.values(TICKET_REGISTRO_FALSO)]) {
+      expect(salida.includes(v), "la salida repite un valor del archivo, de los datos o de las credenciales").toBe(false);
+    }
+    for (const l of lineas.filter((x) => /archivo \d+ entrada \d+:/.test(x))) {
+      const nombres = [...l.matchAll(/«([^»]*)»/g)].map((m) => m[1] ?? "");
+      expect(nombres).toHaveLength(1);
+      expect(/\d{4,}/.test(nombres[0] ?? ""), "el nombre de la entrada trae 4+ dígitos").toBe(false);
+    }
+  });
+
+  it("sin la propuesta de compras descargada antes, la referencia lo dice en una línea y el registro sigue", async () => {
+    const lineas: string[] = [];
+    await contratoRegistro({ ...srv.entrada, emitir: (l) => lineas.push(l) }, token);
+    const referencias = lineas.filter((l) => l.includes("referencia propuesta de compras"));
+    expect(referencias).toHaveLength(2);
+    expect(referencias.every((l) => l.includes("sin estructura (no se descargó la propuesta de compras de este periodo antes"))).toBe(true);
+  });
+
+  it("la propuesta de compras rechazada imprime su estructura, sin línea de referencia, y deja la estructura para el registro", async () => {
+    srv.sire.guionar("GET", RUTAS.exportarRce(), { json: { numTicket: "202610000009" } });
+    srv.sire.guionar("GET", RUTAS.ticket, (p) => ({ json: cuerpoTicket([registroTicket(p.query["numTicket"] ?? "", "04", [archivo("propuesta-rara.zip")])]) }));
+    srv.sire.guionar("GET", RUTAS.archivo, { bytes: zipRaro(), cabeceras: { "content-type": "application/zip" } });
+    const referenciaZip: Record<string, ReturnType<typeof analizarZip>> = {};
+    const lineas: string[] = [];
+    const i = await contratoLibro({ ...srv.entrada, referenciaZip, emitir: (l) => lineas.push(l) }, token, "compras");
+    expect(i.error).toMatchObject({ clase: "ErrorPortalSire", detalle: "zip_invalido" });
+    expect(lineas.some((l) => l.includes("compras 202610: archivo 1 rechazado por el lector: ErrorPortalSire zip_invalido · motivo {mas_de_una_entrada,"))).toBe(true);
+    expect(lineas.some((l) => l.includes("compras 202610: archivo 1 entrada 1: ext txt · ruta sí"))).toBe(true);
+    expect(lineas.some((l) => l.includes("referencia propuesta"))).toBe(false);
+    expect(referenciaZip[PERIODO]).toMatchObject({ firma: "504b0304", entradasDeclaradas: 2 });
+  });
+});
+
+describe("contrato SIRE · el diagnóstico de estructura no se activa si el lector lee los archivos", () => {
+  it("registro sano: ninguna línea de estructura, referencia ni archivo pendiente, y un solo archivo pedido por moneda", async () => {
+    const srv = await prepararServidorFalso();
+    srv.entrada.dormir = sinEsperar;
+    try {
+      const { token } = await contratoToken(srv.entrada);
+      const referenciaZip = {};
+      await contratoLibro({ ...srv.entrada, referenciaZip }, token, "compras");
+      const antes = srv.sire.peticionesDe("GET", RUTAS.archivo).length;
+      const lineas: string[] = [];
+      const i = await contratoRegistro({ ...srv.entrada, referenciaZip, emitir: (l) => lineas.push(l) }, token);
+      expect(i.error).toBeNull();
+      expect(srv.sire.peticionesDe("GET", RUTAS.archivo).length - antes).toBe(2);
+      expect(i.porMoneda.PEN.archivoPendiente).toBeNull();
+      expect(i.porMoneda.USD.archivoPendiente).toBeNull();
+      const salida = lineas.join("\n");
+      for (const x of ["estructura:", "referencia propuesta", "archivo pendiente", "rechazado por el lector", "entrada 1:"]) {
+        expect(salida.includes(x), `salida normal con «${x}»`).toBe(false);
+      }
+    } finally {
+      await srv.cerrar();
+    }
   });
 });
