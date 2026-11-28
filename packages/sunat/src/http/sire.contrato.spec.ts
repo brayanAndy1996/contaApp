@@ -9,8 +9,8 @@
  * `SIRE_CONTRATO_PERIODO` admite varios periodos AAAAMM separados por comas (p. ej. `202510,202509,202508`): cada caso
  * recorre todos, imprime las líneas P-5 por periodo y, al final, una línea con los totales sumados de P-5/P-6. Un periodo
  * sin datos no falla la prueba.
- * Casos: token, compras, ventas y registro presentado de compras (5.51, `descargarRegistroPresentado`, codProceso 01 y, si
- * no hay datos, 02 una vez; sin codMoneda).
+ * Casos: token, compras, ventas y registro presentado de compras (5.51, `descargarRegistroPresentado`: `codProceso` 70 con
+ * `codMoneda` PEN y con USD, un ticket por moneda, unión de filas; el informe sale por moneda).
  * Solo hace el POST del token y GET (lectura). Imprime solo FORMAS y tiempos (líneas `[contrato-sire]`): nunca filas,
  * montos, RUC, nombres, tickets ni tokens. Las aserciones usan mensajes fijos para que un fallo tampoco los muestre.
  *
@@ -19,7 +19,7 @@
  * cuerpo. El fallo de un caso (p. ej. ventas) no impide que corran los demás (cada caso es un `it` aparte).
  * `SIRE_CONTRATO_DIAGNOSTICO=1` (opcional, además de `SIRE_CONTRATO=1`): añade un caso que, para el registro presentado de
  * cada periodo, hace 12 GET de 5.51 (codProceso 70, 01, 02, 00 × sin codMoneda, PEN, USD) y por variante imprime solo HTTP,
- * tiempo y cod/msg; si una devuelve numTicket solo lo informa (no sigue el ticket). El modo normal no cambia.
+ * tiempo y cod/msg; si una devuelve numTicket solo lo informa (no sigue el ticket). No toca el flujo normal del registro.
  *
  * `SIRE_CONTRATO_FALSO=1` (junto con `SIRE_CONTRATO=1`) corre lo mismo contra el servidor falso en 127.0.0.1 con los TXT
  * sintéticos y NO lee ninguna credencial: sirve para comprobar esta prueba sin SUNAT.
@@ -34,6 +34,7 @@ import {
   credencialesDelEntorno,
   diagnosticoActivo,
   lineaTotales,
+  MONEDAS_REGISTRO,
   prepararServidorFalso,
   sumarTotalesP5,
   type EntradaContrato,
@@ -95,24 +96,41 @@ function afirmarLibro(libro: LibroSire, i: InformeLibro): void {
   afirmarFormaFilas(libro, i);
 }
 
-/** Registro presentado (5.51): «sin datos en 01 y 02» no falla; cualquier rechazo de SUNAT sí (sus `cod`/`msg` ya salieron). */
+/**
+ * Registro presentado (5.51): un error `sin_datos` solo vale si las DOS monedas dijeron «sin datos»; cualquier otro fallo o
+ * rechazo de SUNAT falla (sus `cod`/`msg` ya salieron). Por moneda con ticket: estados del anexo III, termina en 04/06, al
+ * menos un archivo legible, encabezado igual al de la propuesta y toda fila con la moneda pedida.
+ */
 function afirmarRegistro(i: InformeRegistro): void {
-  if (i.sinDatos) return;
-  expect(i.error, `registro presentado: fallo ${i.error?.clase ?? ""} ${i.error?.detalle ?? ""} (ver línea HTTP/cod/msg)`).toBeNull();
-  expect(
-    i.solicitudes.every((s) => s.estado >= 200 && s.estado < 300),
-    "registro presentado: SUNAT aceptó la solicitud 5.51",
-  ).toBe(true);
-  expect(i.codProcesoConDatos !== null, "registro presentado: algún codProceso (01 o 02) dio datos").toBe(true);
-  expect(i.ticket.estados.length > 0, "registro presentado: se consultó el ticket").toBe(true);
-  expect(
-    i.ticket.estados.every((e) => ESTADOS_DEL_MANUAL.includes(e)),
-    "registro presentado: todos los estados del ticket son del anexo III",
-  ).toBe(true);
-  expect(["04", "06"].includes(i.ticket.estados[i.ticket.estados.length - 1] ?? ""), "registro presentado: el ticket termina en 04 o 06").toBe(true);
-  expect(i.archivos.length > 0, "registro presentado: se descargó al menos un archivo").toBe(true);
-  expect(i.archivos.every((a) => a.zipLegible && a.columnas > 0), "registro presentado: cada parte es un ZIP con un TXT con encabezado").toBe(true);
-  afirmarFormaFilas("registro presentado", i);
+  const sinDatosAmbas = i.porMoneda.PEN.sinDatos && i.porMoneda.USD.sinDatos;
+  if (i.error !== null && i.error.detalle === "sin_datos" && sinDatosAmbas) return;
+  expect(i.error, `registro presentado: fallo ${i.error?.clase ?? ""} ${i.error?.detalle ?? ""} (ver líneas HTTP/cod/msg)`).toBeNull();
+  for (const moneda of MONEDAS_REGISTRO) {
+    const m = i.porMoneda[moneda];
+    const etiqueta = `registro presentado ${moneda}`;
+    expect(m.solicitud !== null, `${etiqueta}: se hizo la solicitud 5.51`).toBe(true);
+    if (m.solicitud === null) continue;
+    expect(m.solicitud.codProceso, `${etiqueta}: codProceso 70`).toBe("70");
+    if (m.sinDatos && !m.solicitud.devolvioTicket) continue; // 422 «sin datos» al solicitar: no hay ticket que seguir
+    expect(m.solicitud.estado >= 200 && m.solicitud.estado < 300, `${etiqueta}: SUNAT aceptó la solicitud`).toBe(true);
+    expect(m.solicitud.devolvioTicket, `${etiqueta}: la solicitud devuelve numTicket`).toBe(true);
+    expect(m.ticket.estados.length > 0, `${etiqueta}: se consultó el ticket`).toBe(true);
+    expect(
+      m.ticket.estados.every((e) => ESTADOS_DEL_MANUAL.includes(e)),
+      `${etiqueta}: todos los estados del ticket son del anexo III`,
+    ).toBe(true);
+    expect(["04", "06"].includes(m.ticket.estados[m.ticket.estados.length - 1] ?? ""), `${etiqueta}: el ticket termina en 04 o 06`).toBe(true);
+    expect(m.archivos.length > 0, `${etiqueta}: se descargó al menos un archivo`).toBe(true);
+    expect(m.archivos.every((a) => a.zipLegible && a.columnas > 0), `${etiqueta}: cada parte es un ZIP con un TXT con encabezado`).toBe(true);
+    expect(m.archivos.every((a) => a.encabezadoCoincide), `${etiqueta}: el encabezado es igual al de la propuesta de compras`).toBe(true);
+    expect(
+      Object.keys(m.filasPorMoneda).every((k) => k === moneda),
+      `${etiqueta}: toda fila trae en Moneda la moneda pedida`,
+    ).toBe(true);
+    afirmarFormaFilas(etiqueta, m);
+  }
+  // La unión del cliente (PEN y luego USD) tiene la forma común de filas.
+  afirmarFormaFilas("registro presentado (unión)", i);
 }
 
 describe.skipIf(!activa)(falso ? "contrato SIRE (servidor falso local)" : "contrato SIRE (SUNAT real, solo lectura)", () => {
@@ -178,7 +196,7 @@ describe.skipIf(!activa)(falso ? "contrato SIRE (servidor falso local)" : "contr
   }
 
   it(
-    "compras: registro presentado (5.51) con el cliente real, codProceso 01 y, sin datos, 02; sin codMoneda",
+    "compras: registro presentado (5.51) con el cliente real, codProceso 70 con PEN y con USD y unión de filas",
     async () => {
       expect(token !== undefined, "registro presentado: hay token (el primer paso debe pasar)").toBe(true);
       const informes: InformeRegistro[] = [];

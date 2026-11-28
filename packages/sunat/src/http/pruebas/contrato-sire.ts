@@ -14,6 +14,9 @@
  *    `cod` (gramática cerrada) y `msg`/`mensaje` (acotado a 200 caracteres y con los números de 6+ dígitos tapados). Nunca
  *    el cuerpo ni ningún otro valor.
  *  - Modo diagnóstico opcional (`SIRE_CONTRATO_DIAGNOSTICO=1`): solo GET de 5.51 con variantes de `codProceso`/`codMoneda`.
+ *  - Registro presentado (5.51, plan P-3): `codProceso` 70 fijo y `codMoneda` obligatorio → dos solicitudes (PEN y USD), un
+ *    ticket por moneda. Todo se observa y se informa POR MONEDA: la solicitud por `codMoneda` y el ticket y el archivo por
+ *    `numTicket` (el número nunca se imprime). De cada TXT solo se cuentan filas y valores de la columna `Moneda` por forma.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -22,6 +25,8 @@ import { ORIGEN_SEGURIDAD, ORIGEN_SIRE, armarUrl, origenDe, rutaRegistroPresenta
 import { HttpSireApiClient } from "../sire-api-client.http.js";
 import { HttpSireAuth, type OpcionesHttpSire } from "../sire-auth.http.js";
 import { mismoEncabezado, normalizarEncabezado } from "../txt/encabezados.js";
+import { leerTxt } from "../txt/leer-txt.js";
+import { mapearCompras } from "../txt/mapeo-compras.js";
 import { extraerTxtDeZip } from "../zip-seguro.js";
 import {
   CLIENT_ID,
@@ -94,12 +99,31 @@ export interface ObsArchivo {
   /** Columnas del fixture que no llegaron / columnas que llegaron y el fixture no tiene (nombres, tope 20). */
   faltantes: string[];
   sobrantes: string[];
+  /** Solo registro: filas de datos del TXT (0 si no es el registro o el TXT no se pudo leer). */
+  filas: number;
+  /** Solo registro: filas por valor de la columna `Moneda` (`PEN`, `USD` u `otra`: el valor real no se conserva). */
+  filasPorMoneda: Record<string, number>;
 }
 
-/** Una solicitud 5.51 (registro presentado): lo que SUNAT contestó, sin valores. */
+/** Las monedas del registro presentado, en el orden en que se piden (plan P-3). */
+export const MONEDAS_REGISTRO = ["PEN", "USD"] as const;
+export type MonedaRegistro = (typeof MONEDAS_REGISTRO)[number];
+/** `codProceso` único que acepta 5.51 (plan P-3). */
+const COD_PROCESO_REGISTRO = "70";
+/**
+ * `cod` con el que 5.51 dice «sin datos» al solicitar. Copia local de `COD_SIN_DATOS_REGISTRO` de `endpoints.ts` (T15d aún
+ * no lo exporta); cuando exista, importarlo de allí.
+ */
+const COD_SIN_DATOS_REGISTRO: readonly string[] = ["1070"];
+
+/** Una solicitud 5.51 (registro presentado) de una moneda: lo que SUNAT contestó, sin valores. */
 export interface ObsSolicitudRegistro {
   /** `codProceso` pedido («?» si no es de dos dígitos). */
   codProceso: string;
+  /** `codMoneda` pedido. */
+  codMoneda: MonedaRegistro;
+  /** 2xx con `numTicket` de forma válida (el número no se conserva en el informe). */
+  devolvioTicket: boolean;
   estado: number;
   ms: number;
   /** Nombres de campo de la respuesta 2xx. */
@@ -154,19 +178,29 @@ export interface FormaFilas {
   filasConMontoNegativo: number;
 }
 
+/** Lo observado de UNA moneda del registro presentado (solicitud por `codMoneda`; ticket y archivo por su `numTicket`). */
+export interface InformeRegistroMoneda {
+  moneda: MonedaRegistro;
+  /** `null` si el cliente no llegó a solicitar esta moneda. */
+  solicitud: ObsSolicitudRegistro | null;
+  /** SUNAT dijo «sin datos» para esta moneda: 422 con cod 1070 al solicitar o TXT válido con solo encabezado. */
+  sinDatos: boolean;
+  ticket: ObsTicket;
+  archivos: ObsArchivo[];
+  /** Todo fallo HTTP de esta moneda (solicitud, ticket, archivo), en orden. */
+  fallos: ObsFalloHttp[];
+  /** Filas por valor de la columna `Moneda` de todos sus archivos (`PEN`, `USD`, `otra`). */
+  filasPorMoneda: Record<string, number>;
+  /** Forma de las filas de SUS TXT (mapeadas aquí, aunque el cliente falle); `null` sin archivos o si el TXT no se pudo mapear. */
+  filas: FormaFilas | null;
+}
+
 export interface InformeRegistro {
   periodo: string;
   /** Tiempo total de `descargarRegistroPresentado`. */
   ms: number;
-  solicitudes: ObsSolicitudRegistro[];
-  /** `codProceso` con el que SUNAT dio datos; `null` si no hubo datos o la solicitud falló. */
-  codProcesoConDatos: string | null;
-  /** SUNAT contestó «sin datos» (TXT solo con encabezado o 422 con cod 1070) en 01 y en 02. */
-  sinDatos: boolean;
-  ticket: ObsTicket;
-  archivos: ObsArchivo[];
-  /** Todo fallo HTTP del registro (solicitudes, ticket, archivo), en orden. */
-  fallos: ObsFalloHttp[];
+  porMoneda: Record<MonedaRegistro, InformeRegistroMoneda>;
+  /** Forma de la unión que devolvió el cliente (PEN y luego USD); `null` si el cliente falló. */
   filas: FormaFilas | null;
   error: { clase: string; detalle: string } | null;
 }
@@ -197,9 +231,6 @@ const GRAMATICA_TICKET = /^[A-Za-z0-9_-]{1,64}$/;
 const TOPE_LISTA = 20;
 const CODIGO_ERROR_SUNAT = /^[A-Za-z0-9_-]{1,12}$/;
 const MENSAJE_ERROR_SUNAT = /^[\p{L}\p{N}\p{P}\p{Zs}]{1,200}$/u;
-/** Código de `cod` con el que SUNAT dice «sin datos» al solicitar el registro (plan, «Decisiones»). */
-const COD_SIN_DATOS = "1070";
-
 /** `msg` de un error de SUNAT: acotado, sin caracteres de control y con los números de 6+ dígitos tapados (podrían ser un RUC). */
 function mensajeSeguro(valor: unknown): string {
   if (typeof valor !== "string") return "?";
@@ -313,40 +344,74 @@ function encabezadoDeZip(zip: Uint8Array): string[] | null {
 
 // ── Observación de las respuestas (sin conservar ningún valor) ──────────────────────────────────────────────
 
+/** Lo acumulado de una moneda del registro presentado. */
+interface AcumuladoMoneda {
+  solicitud: ObsSolicitudRegistro | null;
+  /** Solo para reconocer nuestro ticket; jamás se imprime. */
+  numTicket: string | null;
+  ticket: ObsTicket;
+  archivos: ObsArchivo[];
+  fallos: ObsFalloHttp[];
+  /** Filas mapeadas de sus TXT (en memoria, nunca se imprimen). */
+  filasTxt: FilaPropuestaSire[];
+  /** Algún TXT de esta moneda no se pudo leer o mapear. */
+  txtNoMapeable: boolean;
+}
+
+/** Registro presentado: lo observado por moneda (solo cuando el paso es `contratoRegistro`). */
+interface ObservacionRegistro {
+  ruc: string;
+  periodo: string;
+  porMoneda: Record<MonedaRegistro, AcumuladoMoneda>;
+  /** `numTicket` → moneda con que se solicitó. Jamás se imprime. */
+  monedaDeTicket: Map<string, MonedaRegistro>;
+}
+
 export interface Observaciones {
   libro: LibroSire | null;
   token: { ms: number; campos: string[] } | null;
   exportar: ObsExportar | null;
   ticket: ObsTicket;
   archivos: ObsArchivo[];
-  /** Solicitudes 5.51 en el orden en que se hicieron. */
-  solicitudes: ObsSolicitudRegistro[];
-  /** Todo fallo HTTP, en el orden en que ocurrió. */
+  /** Todo fallo HTTP, en el orden en que ocurrió (en el registro, solo los que no se pueden atribuir a una moneda). */
   fallos: ObsFalloHttp[];
-  /** Solo para reconocer nuestro registro; jamás se imprime. */
+  /** Solo para reconocer nuestro ticket; jamás se imprime. */
   numTicket: string | null;
+  /** Solo en el paso del registro presentado. */
+  registro: ObservacionRegistro | null;
 }
 
-export function nuevasObservaciones(libro: LibroSire | null): Observaciones {
+function nuevoTicket(): ObsTicket {
+  return {
+    consultas: 0,
+    ms: [],
+    estados: [],
+    camposRespuesta: [],
+    camposRegistro: [],
+    camposArchivo: [],
+    registros: 0,
+    partes: 0,
+    codTipos: [],
+  };
+}
+
+function nuevoAcumulado(): AcumuladoMoneda {
+  return { solicitud: null, numTicket: null, ticket: nuevoTicket(), archivos: [], fallos: [], filasTxt: [], txtNoMapeable: false };
+}
+
+export function nuevasObservaciones(libro: LibroSire | null, registro?: { ruc: string; periodo: string }): Observaciones {
   return {
     libro,
     token: null,
     exportar: null,
-    ticket: {
-      consultas: 0,
-      ms: [],
-      estados: [],
-      camposRespuesta: [],
-      camposRegistro: [],
-      camposArchivo: [],
-      registros: 0,
-      partes: 0,
-      codTipos: [],
-    },
+    ticket: nuevoTicket(),
     archivos: [],
-    solicitudes: [],
     fallos: [],
     numTicket: null,
+    registro:
+      registro === undefined
+        ? null
+        : { ...registro, porMoneda: { PEN: nuevoAcumulado(), USD: nuevoAcumulado() }, monedaDeTicket: new Map() },
   };
 }
 
@@ -358,39 +423,105 @@ async function jsonDe(r: Response): Promise<unknown> {
   }
 }
 
-async function observar(url: URL, r: Response, msCabeceras: number, t0: number, obs: Observaciones): Promise<void> {
+/** Moneda de un parámetro `codMoneda`, o `null` si no es una del registro. */
+function monedaDe(valor: string | null): MonedaRegistro | null {
+  return (MONEDAS_REGISTRO as readonly string[]).includes(valor ?? "") ? (valor as MonedaRegistro) : null;
+}
+
+/** Filas y valores de la columna `Moneda` de un ZIP del registro; solo conteos por forma (`PEN`, `USD`, `otra`). */
+function contarMonedas(bytes: Uint8Array): { filas: number; porMoneda: Record<string, number> } {
+  const vacio = { filas: 0, porMoneda: {} as Record<string, number> };
+  try {
+    const txt = leerTxt(extraerTxtDeZip(bytes));
+    const objetivo = normalizarEncabezado("Moneda");
+    const i = txt.encabezado.findIndex((h) => normalizarEncabezado(h) === objetivo);
+    const porMoneda: Record<string, number> = {};
+    if (i >= 0) {
+      for (const fila of txt.filas) {
+        const v = fila[i] ?? "";
+        const clave = v === "PEN" || v === "USD" ? v : "otra";
+        porMoneda[clave] = (porMoneda[clave] ?? 0) + 1;
+      }
+    }
+    return { filas: txt.filas.length, porMoneda };
+  } catch {
+    return vacio;
+  }
+}
+
+/** Lo que cambia con 5.51: la solicitud se atribuye por `codMoneda`; el ticket y el archivo, por `numTicket`. */
+async function observarRegistro(url: URL, r: Response, msCabeceras: number, t0: number, obs: Observaciones, reg: ObservacionRegistro): Promise<void> {
   const ruta = url.pathname;
-  const esSolicitud = ruta.endsWith("/solicitardescarga");
-  if (!r.ok) {
-    // Todo fallo HTTP: solo la forma del error (claves de primer nivel y `cod`/`msg`), nunca el cuerpo.
+  const sinAtribuir = async (paso: string): Promise<void> => {
+    if (!r.ok) obs.fallos.push(describirFallo(paso, r.status, msCabeceras, await jsonDe(r)));
+  };
+  if (ruta.endsWith("/solicitardescarga")) {
+    const moneda = monedaDe(url.searchParams.get("codMoneda"));
+    if (moneda === null) return sinAtribuir("solicitud sin codMoneda del registro");
+    const acum = reg.porMoneda[moneda];
     const codProceso = seguro(url.searchParams.get("codProceso"), CODIGO_ESTADO);
-    const paso = esSolicitud ? `solicitud codProceso ${codProceso}` : pasoDeRuta(ruta);
-    const fallo = describirFallo(paso, r.status, msCabeceras, await jsonDe(r));
-    obs.fallos.push(fallo);
-    if (esSolicitud) {
-      obs.solicitudes.push({
+    const cuerpo = await jsonDe(r);
+    if (!r.ok) {
+      const fallo = describirFallo(`solicitud codMoneda ${moneda}`, r.status, msCabeceras, cuerpo);
+      acum.fallos.push(fallo);
+      acum.solicitud = {
         codProceso,
+        codMoneda: moneda,
+        devolvioTicket: false,
         estado: r.status,
         ms: msCabeceras,
         campos: [],
         errorSunat: errorPrincipal(fallo),
         codigosSunat: codigosDe(fallo),
-      });
+      };
+      return;
     }
-    return;
-  }
-  if (esSolicitud) {
-    const cuerpo = await jsonDe(r);
-    obs.solicitudes.push({
-      codProceso: seguro(url.searchParams.get("codProceso"), CODIGO_ESTADO),
+    const num = esObjeto(cuerpo) ? cuerpo["numTicket"] : undefined;
+    acum.numTicket = typeof num === "string" && GRAMATICA_TICKET.test(num) ? num : null;
+    if (acum.numTicket !== null) reg.monedaDeTicket.set(acum.numTicket, moneda);
+    acum.solicitud = {
+      codProceso,
+      codMoneda: moneda,
+      devolvioTicket: acum.numTicket !== null,
       estado: r.status,
       ms: msCabeceras,
       campos: campos(cuerpo),
       errorSunat: null,
       codigosSunat: [],
-    });
-    const num = esObjeto(cuerpo) ? cuerpo["numTicket"] : undefined;
-    obs.numTicket = typeof num === "string" && GRAMATICA_TICKET.test(num) ? num : null;
+    };
+    return;
+  }
+  const numTicket = url.searchParams.get("numTicket");
+  const moneda = numTicket === null ? undefined : reg.monedaDeTicket.get(numTicket);
+  if (moneda === undefined) return sinAtribuir(pasoDeRuta(ruta));
+  const acum = reg.porMoneda[moneda];
+  if (!r.ok) {
+    acum.fallos.push(describirFallo(pasoDeRuta(ruta), r.status, msCabeceras, await jsonDe(r)));
+    return;
+  }
+  if (ruta.endsWith("/consultaestadotickets")) {
+    observarTicket(await jsonDe(r), msCabeceras, acum.ticket, acum.numTicket);
+  } else if (ruta.endsWith("/archivoreporte")) {
+    const bytes = new Uint8Array(await r.clone().arrayBuffer());
+    const archivo = observarArchivo(bytes, r, Math.round(performance.now() - t0), "compras");
+    const conteo = contarMonedas(bytes);
+    acum.archivos.push({ ...archivo, filas: conteo.filas, filasPorMoneda: conteo.porMoneda });
+    try {
+      acum.filasTxt.push(...mapearCompras(leerTxt(extraerTxtDeZip(bytes)), { ruc: reg.ruc, periodo: reg.periodo }));
+    } catch {
+      acum.txtNoMapeable = true;
+    }
+  }
+}
+
+async function observar(url: URL, r: Response, msCabeceras: number, t0: number, obs: Observaciones): Promise<void> {
+  const ruta = url.pathname;
+  if (obs.registro !== null && (ruta.endsWith("/solicitardescarga") || ruta.endsWith("/consultaestadotickets") || ruta.endsWith("/archivoreporte"))) {
+    return observarRegistro(url, r, msCabeceras, t0, obs, obs.registro);
+  }
+  if (!r.ok) {
+    // Todo fallo HTTP: solo la forma del error (claves de primer nivel y `cod`/`msg`), nunca el cuerpo.
+    obs.fallos.push(describirFallo(pasoDeRuta(ruta), r.status, msCabeceras, await jsonDe(r)));
     return;
   }
   if (ruta.endsWith("/oauth2/token/")) {
@@ -401,21 +532,20 @@ async function observar(url: URL, r: Response, msCabeceras: number, t0: number, 
     obs.numTicket = typeof num === "string" && GRAMATICA_TICKET.test(num) ? num : null;
     obs.exportar = { estado: r.status, ms: msCabeceras, campos: campos(cuerpo) };
   } else if (ruta.endsWith("/consultaestadotickets")) {
-    observarTicket(await jsonDe(r), msCabeceras, obs);
+    observarTicket(await jsonDe(r), msCabeceras, obs.ticket, obs.numTicket);
   } else if (ruta.endsWith("/archivoreporte")) {
     const bytes = new Uint8Array(await r.clone().arrayBuffer());
     obs.archivos.push(observarArchivo(bytes, r, Math.round(performance.now() - t0), obs.libro));
   }
 }
 
-function observarTicket(cuerpo: unknown, ms: number, obs: Observaciones): void {
-  const t = obs.ticket;
+function observarTicket(cuerpo: unknown, ms: number, t: ObsTicket, numTicket: string | null): void {
   t.consultas += 1;
   t.ms.push(ms);
   t.camposRespuesta = campos(cuerpo);
   const registros = esObjeto(cuerpo) && Array.isArray(cuerpo["registros"]) ? (cuerpo["registros"] as unknown[]) : [];
   t.registros = registros.length;
-  const nuestro = registros.find((x) => esObjeto(x) && x["numTicket"] === obs.numTicket);
+  const nuestro = registros.find((x) => esObjeto(x) && x["numTicket"] === numTicket);
   if (!esObjeto(nuestro)) {
     t.estados.push("?");
     return;
@@ -442,7 +572,7 @@ function observarArchivo(bytes: Uint8Array, r: Response, ms: number, libro: Libr
   };
   const encabezado = encabezadoDeZip(bytes);
   if (encabezado === null || libro === null) {
-    return { ...base, zipLegible: false, columnas: 0, encabezadoCoincide: false, faltantes: [], sobrantes: [] };
+    return { ...base, zipLegible: false, columnas: 0, encabezadoCoincide: false, faltantes: [], sobrantes: [], filas: 0, filasPorMoneda: {} };
   }
   const referencia = encabezadoDeReferencia(libro);
   const recibidas = new Set(encabezado.map(normalizarEncabezado));
@@ -459,6 +589,8 @@ function observarArchivo(bytes: Uint8Array, r: Response, ms: number, libro: Libr
     encabezadoCoincide: mismoEncabezado(referencia, encabezado),
     faltantes: nombres(referencia, recibidas, false),
     sobrantes: nombres(encabezado, conocidas, false),
+    filas: 0,
+    filasPorMoneda: {},
   };
 }
 
@@ -561,11 +693,11 @@ export async function contratoLibro(e: EntradaContrato, token: TokenSire, libro:
 }
 
 /**
- * Paso del registro presentado de compras (5.51, P-3): el cliente real `descargarRegistroPresentado` (codProceso 01 y, si da
- * «sin datos», 02 una sola vez; `codMoneda` omitido). Un fallo o «sin datos» queda en el informe, no se lanza.
+ * Paso del registro presentado de compras (5.51, P-3): el cliente real `descargarRegistroPresentado` (`codProceso` 70 con
+ * `codMoneda` PEN y USD, un ticket por moneda, unión de filas). Un fallo o «sin datos» queda en el informe, no se lanza.
  */
 export async function contratoRegistro(e: EntradaContrato, token: TokenSire): Promise<InformeRegistro> {
-  const obs = nuevasObservaciones("compras");
+  const obs = nuevasObservaciones("compras", { ruc: e.credencial.ruc, periodo: e.periodo });
   const cliente = new HttpSireApiClient(opcionesHttp(e, obs));
   const t0 = performance.now();
   let filas: FormaFilas | null = null;
@@ -577,26 +709,40 @@ export async function contratoRegistro(e: EntradaContrato, token: TokenSire): Pr
     const c = esObjeto(causa) ? causa : {};
     error = { clase: seguro(c["name"], NOMBRE_CLASE), detalle: seguro(c["detalle"], NOMBRE_DETALLE) };
   }
-  const solicitudes = obs.solicitudes;
-  const ultima = solicitudes[solicitudes.length - 1];
-  // «Sin datos»: el cliente lo reporta como `sin_datos` (TXT solo con encabezado) o como `ErrorDatos` sin detalle (422 de
-  // 5.51). Solo cuenta si 01 y 02 se pidieron y todo rechazo de SUNAT fue el 422 con cod 1070 (otro código = rechazo real).
-  const rechazosAjenos = solicitudes.some((s) => s.errorSunat !== null && !(s.estado === 422 && s.codigosSunat.includes(COD_SIN_DATOS)));
-  const esErrorDeDatos = error !== null && (error.detalle === "sin_datos" || (error.clase === "ErrorDatos" && error.detalle === "?"));
-  const informe: InformeRegistro = {
-    periodo: e.periodo,
-    ms: Math.round(performance.now() - t0),
-    solicitudes,
-    codProcesoConDatos: filas !== null && ultima !== undefined ? ultima.codProceso : null,
-    sinDatos: esErrorDeDatos && solicitudes.length === 2 && !rechazosAjenos,
-    ticket: obs.ticket,
-    archivos: obs.archivos,
-    fallos: obs.fallos,
-    filas,
-    error,
-  };
+  const informe = informeRegistro(e.periodo, Math.round(performance.now() - t0), obs, filas, error);
   for (const linea of lineasRegistro(informe)) e.emitir?.(linea);
+  for (const f of obs.fallos) e.emitir?.(lineaFallo(`${PREFIJO} registro-presentado ${seguro(e.periodo, /^\d{6}$/)}`, f));
   return informe;
+}
+
+/** Arma el informe por moneda con lo observado (sin el cliente: lo usan las pruebas de la observación). */
+export function informeRegistro(
+  periodo: string,
+  ms: number,
+  obs: Observaciones,
+  filas: FormaFilas | null,
+  error: InformeRegistro["error"],
+): InformeRegistro {
+  const acumulados = obs.registro?.porMoneda;
+  const deMoneda = (moneda: MonedaRegistro): InformeRegistroMoneda => {
+    const a = acumulados?.[moneda] ?? nuevoAcumulado();
+    const filasPorMoneda: Record<string, number> = {};
+    for (const x of a.archivos) for (const [k, n] of Object.entries(x.filasPorMoneda)) filasPorMoneda[k] = (filasPorMoneda[k] ?? 0) + n;
+    const s = a.solicitud;
+    const rechazoSinDatos = s !== null && s.estado === 422 && s.codigosSunat.some((c) => COD_SIN_DATOS_REGISTRO.includes(c));
+    const soloEncabezado = s?.devolvioTicket === true && a.archivos.length > 0 && a.archivos.every((x) => x.zipLegible && x.filas === 0);
+    return {
+      moneda,
+      solicitud: s,
+      sinDatos: rechazoSinDatos || soloEncabezado,
+      ticket: a.ticket,
+      archivos: a.archivos,
+      fallos: a.fallos,
+      filasPorMoneda,
+      filas: a.archivos.length > 0 && !a.txtNoMapeable ? analizarFilas("compras", a.filasTxt) : null,
+    };
+  };
+  return { periodo, ms, porMoneda: { PEN: deMoneda("PEN"), USD: deMoneda("USD") }, filas, error };
 }
 
 // ── Modo diagnóstico (opcional): variantes de la solicitud 5.51 ──────────────────────────────────────────────
@@ -807,13 +953,20 @@ function lineasTicket(p: string, t: ObsTicket): string {
   );
 }
 
-function lineasArchivos(p: string, archivos: readonly ObsArchivo[], referencia: string): string[] {
+function lineasArchivos(p: string, archivos: readonly ObsArchivo[], referencia: string, conFilas = false): string[] {
   return archivos.map(
     (a, n) =>
       `${p}: archivo ${n + 1} HTTP ${a.estado} · ${a.ms} ms · ${a.bytes} bytes · ${a.tipoContenido} · zip legible ${a.zipLegible ? "sí" : "no"} · ` +
       `${a.columnas} columnas · encabezado igual al ${referencia} ${a.encabezadoCoincide ? "sí" : "no"} · ` +
-      `faltan {${lista(a.faltantes)}} sobran {${lista(a.sobrantes)}}`,
+      `faltan {${lista(a.faltantes)}} sobran {${lista(a.sobrantes)}}` +
+      (conFilas ? ` · ${a.filas} fila(s) · columna Moneda ${textoConteo(a.filasPorMoneda)}` : ""),
   );
+}
+
+/** `PEN 8, USD 2` (solo formas conocidas; el resto cuenta como `otra`). */
+function textoConteo(c: Readonly<Record<string, number>>): string {
+  const partes = Object.entries(c).map(([k, n]) => `${seguro(k, /^(PEN|USD|otra)$/)} ${n}`);
+  return partes.length === 0 ? "-" : partes.join(", ");
 }
 
 function lineasFilas(p: string, f: FormaFilas): string[] {
@@ -839,22 +992,36 @@ export function lineasLibro(periodo: string, i: InformeLibro): string[] {
   return l;
 }
 
-/** Líneas del registro presentado (5.51): solicitudes con su HTTP y, si SUNAT rechazó, `cod` y `msg`; luego lo mismo que un libro. */
+/**
+ * Líneas del registro presentado (5.51), POR MONEDA: solicitud (HTTP, `codigosSunat`, si devolvió ticket), «sin datos», ticket
+ * (estados y tiempos), archivos (ZIP, columnas, encabezado igual al de la propuesta, faltan/sobran, filas y conteo de la
+ * columna `Moneda`) y formas de las filas de su TXT; al final, la unión del cliente.
+ */
 export function lineasRegistro(i: InformeRegistro): string[] {
-  const p = `${PREFIJO} registro-presentado ${seguro(i.periodo, /^\d{6}$/)}`;
+  const periodo = seguro(i.periodo, /^\d{6}$/);
   const l: string[] = [];
-  const resultado = i.codProcesoConDatos !== null ? `con datos en codProceso ${i.codProcesoConDatos}` : i.sinDatos ? "sin datos en 01 y 02" : "sin resultado";
-  l.push(`${p}: total ${i.ms} ms · ${resultado}`);
-  i.solicitudes.forEach((s, n) => {
-    const err = s.errorSunat === null ? "" : ` · SUNAT cod ${s.errorSunat.cod} msg «${s.errorSunat.msg}»`;
-    l.push(
-      `${p}: solicitud ${n + 1} codProceso ${s.codProceso} (sin codMoneda) HTTP ${s.estado} · ${s.ms} ms · campos ${lista(s.campos)}${err}`,
-    );
-  });
-  for (const f of i.fallos) l.push(lineaFallo(p, f));
-  l.push(lineasTicket(p, i.ticket));
-  l.push(...lineasArchivos(p, i.archivos, "de la propuesta de compras"));
-  if (i.filas !== null) l.push(...lineasFilas(p, i.filas));
+  for (const moneda of MONEDAS_REGISTRO) {
+    const m = i.porMoneda[moneda];
+    const p = `${PREFIJO} registro-presentado ${periodo} ${moneda}`;
+    const s = m.solicitud;
+    if (s === null) {
+      l.push(`${p}: sin solicitud (el cliente no llegó a pedirla)`);
+    } else {
+      const err = s.errorSunat === null ? "" : ` · SUNAT cod ${s.errorSunat.cod} msg «${s.errorSunat.msg}» · codigosSunat {${lista(s.codigosSunat)}}`;
+      l.push(
+        `${p}: solicitud codProceso ${s.codProceso} codMoneda ${s.codMoneda} HTTP ${s.estado} · ${s.ms} ms · campos ${lista(s.campos)} · ` +
+          `devolvió ticket ${s.devolvioTicket ? "sí" : "no"}${err}`,
+      );
+    }
+    if (m.sinDatos) l.push(`${p}: sin datos`);
+    for (const f of m.fallos) l.push(lineaFallo(p, f));
+    if (m.ticket.consultas > 0) l.push(lineasTicket(p, m.ticket));
+    l.push(...lineasArchivos(p, m.archivos, "de la propuesta de compras", true));
+    if (m.filas !== null) l.push(...lineasFilas(p, m.filas));
+    else if (m.archivos.length > 0) l.push(`${p}: las filas del TXT no se pudieron mapear`);
+  }
+  const p = `${PREFIJO} registro-presentado ${periodo}`;
+  l.push(`${p}: total ${i.ms} ms · unión del cliente ${i.filas === null ? "sin filas" : `${i.filas.total} fila(s)`}`);
   if (i.error !== null) l.push(`${p}: FALLÓ ${i.error.clase} ${i.error.detalle}`);
   return l;
 }
@@ -989,14 +1156,38 @@ export const CUERPO_503_FALSO = {
 } as const;
 
 /**
- * Modo «errores» del servidor falso (solo pruebas; no cambia sus API): la exportación de ventas da 503 con cuerpo de error
- * y la solicitud 5.51 da 422 con lista de errores, salvo `codProceso=70` que devuelve `numTicket`.
+ * Modo «errores» del servidor falso (solo pruebas; no cambia sus API): la exportación de ventas da 503 con cuerpo de error y
+ * toda solicitud 5.51 da 422 con lista de errores.
  */
 export function guionarErroresFalsos(sire: ServidorContratoFalso["sire"]): void {
   sire.guionar("GET", RUTAS.exportarRvie(), { estado: 503, json: CUERPO_503_FALSO });
-  sire.guionar("GET", RUTAS.solicitarRegistro(), (p) =>
-    p.query["codProceso"] === "70" ? { json: { numTicket: "202610000003" } } : { estado: 422, json: CUERPO_422_FALSO },
-  );
+  sire.guionar("GET", RUTAS.solicitarRegistro(), { estado: 422, json: CUERPO_422_FALSO });
+}
+
+/** Tickets falsos del registro presentado por moneda (el servidor falso los resuelve a su ZIP). */
+export const TICKET_REGISTRO_FALSO: Readonly<Record<MonedaRegistro, string>> = { PEN: "202610000003", USD: "202610000004" };
+/** Fixtures del registro por moneda, en `fixtures/sire/http`. */
+export const FIXTURE_REGISTRO_FALSO: Readonly<Record<MonedaRegistro, string>> = {
+  PEN: "compras-registro-202610-pen.txt",
+  USD: "compras-registro-202610-usd.txt",
+};
+
+/**
+ * Guion de la solicitud 5.51 con el contrato real (plan P-3, corrida del usuario): solo `codProceso` 70 y `codMoneda`
+ * obligatorio. Con 70 y PEN/USD → 200 `{numTicket}` (un ticket por moneda); otro `codProceso` → 422 cod 1026; sin
+ * `codMoneda` → 422 cod 1061. No guiona el ticket ni el archivo.
+ */
+export function guionarSolicitudRegistroFalsa(sire: ServidorContratoFalso["sire"], tickets: Readonly<Record<MonedaRegistro, string>> = TICKET_REGISTRO_FALSO): void {
+  sire.guionar("GET", RUTAS.solicitarRegistro(), (p) => {
+    if (p.query["codProceso"] !== COD_PROCESO_REGISTRO) {
+      return { estado: 422, json: { cod: "422", msg: "Unprocessable Entity", errors: [{ cod: "1026", msg: "Código Proceso no permitido o no valido" }] } };
+    }
+    const moneda = monedaDe(p.query["codMoneda"] ?? null);
+    if (moneda === null) {
+      return { estado: 422, json: { cod: "422", msg: "Unprocessable Entity", errors: [{ cod: "1061", msg: "El campo 'codMoneda' es nulo o vacio" }] } };
+    }
+    return { json: { numTicket: tickets[moneda] } };
+  });
 }
 
 /**
@@ -1007,19 +1198,25 @@ export async function prepararServidorFalso(opciones: { errores?: boolean } = {}
   const entorno = await crearEntorno();
   const compras = parteCompras();
   const ventas = parteVentas();
-  const registro: ParteFalsa = {
-    nombre: "20700000002-registro-202610.zip",
-    zip: zip("20700000002-registro-202610.txt", fixture("compras-registro-202610.txt")),
-  };
+  const registro = Object.fromEntries(
+    MONEDAS_REGISTRO.map((m) => [
+      m,
+      {
+        nombre: `20700000002-registro-${m.toLowerCase()}-202610.zip`,
+        zip: zip(`20700000002-registro-${m.toLowerCase()}-202610.txt`, fixture(FIXTURE_REGISTRO_FALSO[m])),
+      } satisfies ParteFalsa,
+    ]),
+  ) as Record<MonedaRegistro, ParteFalsa>;
   const tickets = new Map<string, { nombre: string; consultas: number }>([
     ["202610000001", { nombre: compras.nombre, consultas: 0 }],
     ["202610000002", { nombre: ventas.nombre, consultas: 0 }],
-    ["202610000003", { nombre: registro.nombre, consultas: 0 }],
+    [TICKET_REGISTRO_FALSO.PEN, { nombre: registro.PEN.nombre, consultas: 0 }],
+    [TICKET_REGISTRO_FALSO.USD, { nombre: registro.USD.nombre, consultas: 0 }],
   ]);
   entorno.seguridad.guionar("POST", RUTAS.token(CLIENT_ID), { json: cuerpoToken() });
   entorno.sire.guionar("GET", RUTAS.exportarRce(), { json: { numTicket: "202610000001" } });
   entorno.sire.guionar("GET", RUTAS.exportarRvie(), { json: { numTicket: "202610000002" } });
-  entorno.sire.guionar("GET", RUTAS.solicitarRegistro(), { json: { numTicket: "202610000003" } });
+  guionarSolicitudRegistroFalsa(entorno.sire);
   entorno.sire.guionar("GET", RUTAS.ticket, (p) => {
     const t = tickets.get(p.query["numTicket"] ?? "");
     if (t === undefined) return { estado: 404 };
@@ -1030,7 +1227,7 @@ export async function prepararServidorFalso(opciones: { errores?: boolean } = {}
     };
   });
   entorno.sire.guionar("GET", RUTAS.archivo, (p) => {
-    const parte = [compras, ventas, registro].find((x) => x.nombre === p.query["nomArchivoReporte"]);
+    const parte = [compras, ventas, registro.PEN, registro.USD].find((x) => x.nombre === p.query["nomArchivoReporte"]);
     return parte === undefined ? { estado: 404 } : { bytes: parte.zip, cabeceras: { "content-type": "application/zip" } };
   });
   if (opciones.errores === true) guionarErroresFalsos(entorno.sire);
