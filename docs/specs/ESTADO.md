@@ -50,7 +50,7 @@ Una línea por spec; el detalle de las cerradas está en `NNN-*/cierre.md` y los
 | 038-diseno-visual | C | hecha | — | Mergeada en `main` (d1cc8fd). Modo oscuro fuera (P-1). Detalle: `038-*/cierre.md` |
 | 039-actualizar-next | D | hecha | — | Decisión del usuario 2026-11-17. `next` → 16.4.5 (GHSA-mfr8-8qww-v76h). CI verde con E2E. Detalle: `039-*/cierre.md` |
 | 040-avisos-dependencias | C | hecha | — | Decisión del usuario 2026-11-17. `pnpm audit --prod` de 6 avisos a 0. CI verde con E2E. Detalle: `040-*/cierre.md` |
-| 041-sire-real-lectura | A | en curso | T15 (corregir ronda 2) | SIRE real de solo lectura (`SIRE_CLIENT=http`, mock por defecto). Aprobada 2026-11-24 (P-1 a P-8 con la recomendación). Ronda 2: 8 hallazgos abiertos (H-041-2-1 a 8). Prerrequisito de 032. |
+| 041-sire-real-lectura | A | en curso | T15f (corregir ronda 3 del ZIP); T16 corrida real; T18 revisión | SIRE real de solo lectura (`SIRE_CLIENT=http`), aprobada 2026-11-24. Ronda 3: 8 abiertos (H-041-3-1 a 8); registro presentado 5.51 con codProceso 70 y PEN+USD (evidencia real); ZIP real de 3 entradas. |
 | 042-acelerar-desarrollo | D | hecha | — | Merge b3255e5 (PR #2). CI completo 2 h 46 min → 27–31 min; nivel 1 en spec/* 6–7 min; cobertura única por app; ESTADO liviano. Detalle: `042-acelerar-desarrollo/cierre.md` |
 
 ## Hallazgos adversariales abiertos
@@ -59,14 +59,14 @@ Los cerrados están en [HALLAZGOS.md](HALLAZGOS.md).
 
 | Spec | Prueba | Hallazgo | Estado |
 |---|---|---|---|
-| 041 | packages/sunat/src/http/ronda2.adv.spec.ts:130/:144 y apps/worker/src/trabajos/sire-http-r2.adv.int.spec.ts:77 | H-041-2-1 (media): el ticket recién exportado solo se guarda si queda pendiente; tras 401/503/reset se exporta de nuevo (CA-8). | abierto (en corrección, T15) |
-| 041 | packages/sunat/src/http/ronda2.adv.spec.ts:164/:177 | H-041-2-2 (media): el ticket se borra al quedar listo, antes de bajar las partes. | abierto (en corrección, T15) |
-| 041 | packages/sunat/src/http/ronda2.adv.spec.ts:200 | H-041-2-3 (media): ticket guardado que SUNAT ya no lista → `respuesta_ajena` permanente en vez de re-exportar. | abierto (en corrección, T15) |
-| 041 | packages/sunat/src/http/ronda2.adv.spec.ts:219 | H-041-2-4 (media, latente): clave del almacén sin `:operacion`; propuesta y registro (P-3) compartirían ticket. | abierto (en corrección, T15) |
-| 041 | packages/sunat/src/http/ronda2.adv.spec.ts:261 | H-041-2-5 (media): timeout por petición no recortado al presupuesto restante (~150 s vs 90 s). | abierto (en corrección, T15) |
-| 041 | packages/sunat/src/http/ronda2.adv.spec.ts:287 | H-041-2-6 (media): retiene todas las partes antes de validar la primera (memoria sin tope). | abierto (en corrección, T15) |
-| 041 | packages/sunat/src/http/ronda2.adv.spec.ts:298 | H-041-2-7 (media): el tope de 64 MiB descomprimidos es por ZIP, no en total (CA-10; posible decisión del usuario). | abierto (en corrección, T15) |
-| 041 | apps/worker/src/trabajos/sire-http-r2.adv.int.spec.ts:115 | H-041-2-8 (baja): `conToken` borra el token de caché sin ver si es el rechazado. | abierto (en corrección, T15) |
+| 041 | packages/sunat/src/http/ronda3.adv.spec.ts:277 | H-041-3-1 (media): la razón 200:1 se elude con basura tras el bloque final deflate, y caben datos ocultos tras el fin del flujo. | abierto (en corrección, T15f) |
+| 041 | packages/sunat/src/http/ronda3.adv.spec.ts:197 | H-041-3-2 (baja): una entrada vacía o una carpeta pueden llevar datos ocultos (la cabecera local no se compara con la central). | abierto (en corrección, T15f) |
+| 041 | packages/sunat/src/http/ronda3.adv.spec.ts:210 | H-041-3-3 (baja): la cabecera local de la entrada de datos se acepta con otro tamaño/CRC o en ZIP64. | abierto (en corrección, T15f) |
+| 041 | packages/sunat/src/http/ronda3.adv.spec.ts:220 | H-041-3-4 (baja): acepta bytes antepuestos que no son solo `PK\x07\x08`. | abierto (en corrección, T15f) |
+| 041 | packages/sunat/src/http/ronda3.adv.spec.ts:230 | H-041-3-5 (baja): acepta huecos sin reclamar entre cabeceras, central y EOCD. | abierto (en corrección, T15f) |
+| 041 | packages/sunat/src/http/ronda3.adv.spec.ts:263 | H-041-3-6 (baja): acepta entradas solapadas. | abierto (en corrección, T15f) |
+| 041 | packages/sunat/src/http/ronda3.adv.spec.ts:305 | H-041-3-7 (baja): acepta barras Unicode, `%2e%2e` y nombres reservados. | abierto (en corrección, T15f) |
+| 041 | packages/sunat/src/http/ronda3.adv.spec.ts:345 | H-041-3-8 (baja): con varios EOCD gana el último. | abierto (en corrección, T15f) |
 
 ## Decisiones pendientes del usuario
 

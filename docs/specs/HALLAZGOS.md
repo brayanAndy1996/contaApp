@@ -205,6 +205,14 @@ Hallazgos de las rondas adversariales ya cerrados (corregidos, aceptados por el 
 | 041-sire-real-lectura | packages/sunat/src/http/ronda1.adv.spec.ts:322 | H-041-1-1 (media): la misma parte listada dos veces en `archivoReporte` se descarga dos veces y duplica filas (montos e IGV duplicados sin error). | cerrado (c49186c) |
 | 041-sire-real-lectura | packages/sunat/src/http/ronda1.adv.spec.ts:402 | H-041-1-2 (media): `expires_in` inválido (1e13) deja `expiraEn` = Invalid Date en vez de ErrorPortal (CA-2). | cerrado (c49186c) |
 | 041-sire-real-lectura | packages/sunat/src/http/ronda1.adv.spec.ts:212 | H-041-1-3 (baja): «500» con espacio duro final (U+00A0) se acepta como monto en ventas; el plan exige formato estricto. | cerrado (c49186c) |
+| 041-sire-real-lectura | packages/sunat/src/http/ronda2.adv.spec.ts:130/:144 y apps/worker/src/trabajos/sire-http-r2.adv.int.spec.ts:77 | H-041-2-1 (media): el ticket recién exportado solo se guarda si queda pendiente; tras 401/503/reset se exporta de nuevo (CA-8). | cerrado (3427d67/6995bdd/…) |
+| 041-sire-real-lectura | packages/sunat/src/http/ronda2.adv.spec.ts:164/:177 | H-041-2-2 (media): el ticket se borra al quedar listo, antes de bajar las partes. | cerrado (3427d67/6995bdd/…) |
+| 041-sire-real-lectura | packages/sunat/src/http/ronda2.adv.spec.ts:200 | H-041-2-3 (media): ticket guardado que SUNAT ya no lista → `respuesta_ajena` permanente en vez de re-exportar. | cerrado (3427d67/6995bdd/…) |
+| 041-sire-real-lectura | packages/sunat/src/http/ronda2.adv.spec.ts:219 | H-041-2-4 (media, latente): clave del almacén sin `:operacion`; propuesta y registro (P-3) compartirían ticket. | cerrado (3427d67/6995bdd/…) |
+| 041-sire-real-lectura | packages/sunat/src/http/ronda2.adv.spec.ts:261 | H-041-2-5 (media): timeout por petición no recortado al presupuesto restante (~150 s vs 90 s). | cerrado (3427d67/6995bdd/…) |
+| 041-sire-real-lectura | packages/sunat/src/http/ronda2.adv.spec.ts:287 | H-041-2-6 (media): retiene todas las partes antes de validar la primera (memoria sin tope). | cerrado (3427d67/6995bdd/…) |
+| 041-sire-real-lectura | packages/sunat/src/http/ronda2.adv.spec.ts:298 | H-041-2-7 (media): el tope de 64 MiB descomprimidos es por ZIP, no en total (CA-10; posible decisión del usuario). | cerrado (3427d67/6995bdd/…) |
+| 041-sire-real-lectura | apps/worker/src/trabajos/sire-http-r2.adv.int.spec.ts:115 | H-041-2-8 (baja): `conToken` borra el token de caché sin ver si es el rechazado. | cerrado (3427d67/6995bdd/…) |
 
 ## Notas movidas
 
