@@ -26,7 +26,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → atac
 | T15d | Rediseño registro presentado (70 + PEN/USD) | backend | opus | T15c | ✓ | — | [x] tests rojos ✓ (3 testers) → verdes: sunat 1142, contrato falso 4 (+1 omitida), queue 797 + int 123, worker 630 + int 672; typecheck y lint OK |
 | T15e | Lector de ZIP acepta la estructura real del registro | backend | opus | T15d | ✓ | ✓ | [x] backend: sunat 1232, queue 797 + int 123, worker 630 + int 672; typecheck y lint OK · ronda adversarial 3 hecha (`ronda3.adv.spec.ts`, 8 rojas) |
 | T15f | Corregir hallazgos de la ronda adversarial 3 del lector de ZIP (H-041-3-1 a 3-8) | backend | sonnet | T15e | — | ✓ | [x] |
-| T15g | Registro presentado con una sola solicitud (evidencia real) | tester → backend | sonnet | T15f | ✓ | — | [ ] tester: pruebas en rojo (`registro-presentado.http.spec.ts`, `endpoints.spec.ts`, `contrato-sire.spec.ts`); falta backend (y worker/queue) |
+| T15g | Registro presentado con una sola solicitud (evidencia real) | tester → backend | sonnet | T15f | ✓ | — | [x] tester (rojo) + backend: una solicitud 70+PEN, clave `…:registro`; `sunat`, `queue` y `worker` verdes |
 | T16 | Corrida de la prueba de contrato contra SUNAT (la ejecuta el **usuario**) y ajustes de P-5/P-6 | tester | sonnet | T9, T15 | — | — | [ ] |
 | T17 | Verificar CA-1 a CA-15 con evidencia y suites de `sunat`, `queue` y `worker` | tester | sonnet | T16 | — | — | [x] (CA-1 a CA-14; CA-15 en T16) |
 | T18 | Revisión final contra la spec | arquitecto | opus | T17 | — | — | [ ] |

@@ -600,6 +600,7 @@ function observarArchivo(bytes: Uint8Array, r: Response, ms: number, libro: Libr
   const nombres = (lista: readonly string[], dentro: ReadonlySet<string>, queDebeEstar: boolean): string[] =>
     lista
       .filter((c) => dentro.has(normalizarEncabezado(c)) === queDebeEstar)
+      .sort()
       .slice(0, TOPE_LISTA)
       .map((c) => seguro(c, NOMBRE_COLUMNA));
   const coincide = mismoEncabezado(referencia, encabezado);

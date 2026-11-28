@@ -30,7 +30,6 @@ import {
   GRAMATICA_RUC,
   MAX_BYTES_JSON,
   MAX_BYTES_ZIP,
-  MONEDAS_REGISTRO,
   PARAMETROS_EXPORTAR,
   PRESUPUESTO_OPERACION_MS,
   RUTA_ARCHIVO,
@@ -39,7 +38,6 @@ import {
   TIMEOUT_DESCARGA_MS,
   TTL_TICKET_MS,
   armarUrl,
-  type MonedaRegistro,
   parametrosRegistro,
   rutaExportar,
   rutaRegistroPresentado,
@@ -65,19 +63,12 @@ const esquemaExportar = z.object({ numTicket: z.string().regex(GRAMATICA_TICKET)
 export type ContextoLectura = EsperadoTxt;
 
 /**
- * Operación que nombra la clave del almacén (H-041-2-4, P-3): la propuesta y el registro presentado de cada moneda no
- * comparten ticket. Debe coincidir con `OperacionTicketSire` de `@contapp/queue`.
+ * Operación que nombra la clave del almacén (H-041-2-4, P-3): la propuesta y el registro presentado no comparten ticket.
+ * Debe coincidir con `OperacionTicketSire` de `@contapp/queue`.
  */
-type OperacionTicket = "propuesta" | "registro-pen" | "registro-usd";
-const OPERACION_REGISTRO: Readonly<Record<MonedaRegistro, OperacionTicket>> = { PEN: "registro-pen", USD: "registro-usd" };
+type OperacionTicket = "propuesta" | "registro";
 
-/** Ticket del registro de una moneda tras la fase de solicitud: `retomado` si vino del almacén (no de esta solicitud). */
-interface TicketRegistro {
-  numTicket: string;
-  retomado: boolean;
-}
-
-/** Estado de lectura compartido por todas las partes de una operación: encabezado de la 1.ª parte y bytes acumulados. */
+/** Estado de lectura compartido por las partes de un ticket: encabezado de la 1.ª parte y bytes acumulados. */
 interface EstadoLectura {
   primero: readonly string[] | undefined;
   acumulado: number;
@@ -122,7 +113,7 @@ export class HttpSireApiClient implements SireApiClient {
     let propuesta: PropuestaSire;
     try {
       const url = armarUrl(this.origen, rutaExportar(libro, periodo), PARAMETROS_EXPORTAR[libro]);
-      const ticket = await this.obtenerTicketListo(token, url, periodo, clave, inicio);
+      const ticket = await this.obtenerTicketListo(token, () => this.exportar(token, url, inicio), periodo, clave, inicio);
       propuesta =
         libro === "compras"
           ? { libro, periodo, filas: await this.leerPartes(token, libro, ticket, inicio, (txt) => mapearCompras(txt, contexto)) }
@@ -137,73 +128,36 @@ export class HttpSireApiClient implements SireApiClient {
   }
 
   /**
-   * Spec 025 / CA-13, plan P-3: registro de compras presentado (5.51, `codProceso` 70) con el flujo de ticket, `leerPartes` y
-   * `mapearCompras` de la propuesta. Un ticket por moneda (PEN y luego USD, claves `…:compras:{per}:registro-pen|-usd`):
-   * (1) por moneda, retomar su ticket guardado o solicitarlo y guardarlo (SUNAT procesa los dos a la vez); (2) por moneda, en el
-   * mismo orden, esperar su ticket y leer sus partes. Todo en UN presupuesto de 90 s y un acumulado de 256 MiB (H-5, H-7).
-   * «Sin datos» por moneda: 422 con un `cod` de `COD_SIN_DATOS_REGISTRO` o TXT con solo encabezado; las dos sin datos →
-   * `ErrorDatosSire("sin_datos")`. Los dos tickets se borran solo al terminar (éxito, sin datos o error permanente); un
-   * `ErrorTransitorio` o un `TokenRechazadoError` los conserva. No se devuelven filas de una sola moneda.
+   * Spec 025 / CA-13, plan P-3: registro de compras presentado (5.51) con el flujo de ticket, `leerPartes` y `mapearCompras`
+   * de la propuesta. UNA solicitud por periodo (`codProceso` 70, `codMoneda` PEN: obligatorio pero no filtra), un ticket
+   * (clave `…:compras:{per}:registro`) y un archivo; cada fila conserva su moneda (no se compara con la pedida). Mismas reglas
+   * del ticket que la propuesta, un presupuesto de 90 s y 256 MiB acumulados entre las partes. «Sin datos»: 422/400 con un
+   * `cod` de `COD_SIN_DATOS_REGISTRO` o TXT con solo encabezado → `ErrorDatosSire("sin_datos")`. Un comprobante repetido en el
+   * archivo → `ErrorPortalSire("respuesta_inesperada")` (no se deduplica: montos distintos quedarían ocultos).
    */
   async descargarRegistroPresentado(token: TokenSire, solicitud: SolicitudRegistroPresentado): Promise<RegistroPresentadoSire> {
     const { ruc, periodo } = solicitud;
     if (!GRAMATICA_RUC.test(ruc) || !GRAMATICA_PERIODO.test(periodo)) throw new ErrorDatos();
     const inicio = this.ahora().getTime();
-    const claves = {} as Record<MonedaRegistro, string | null>;
-    for (const m of MONEDAS_REGISTRO) {
-      claves[m] = this.claveAlmacen(solicitud.claveReanudacion, "compras", periodo, OPERACION_REGISTRO[m]);
-    }
+    const clave = this.claveAlmacen(solicitud.claveReanudacion, "compras", periodo, "registro");
     const contexto: ContextoLectura = { ruc, periodo };
-    const borrarTodas = async (): Promise<void> => {
-      for (const m of MONEDAS_REGISTRO) {
-        const clave = claves[m];
-        if (clave !== null) await this.almacen!.borrar(clave);
-      }
-    };
-    const filas: FilaPropuestaSire[] = [];
+    let filas: FilaPropuestaSire[];
     try {
-      // (1) Solicitudes: las dos antes de esperar ninguna. `null` = sin datos al solicitar.
-      const tickets = {} as Record<MonedaRegistro, TicketRegistro | null>;
-      for (const m of MONEDAS_REGISTRO) tickets[m] = await this.ticketRegistro(token, periodo, m, claves[m], inicio);
-
-      // (2) Espera y lectura, en el mismo orden, con encabezado y acumulado compartidos.
-      const lectura: EstadoLectura = { primero: undefined, acumulado: 0 };
+      const ticket = await this.obtenerTicketListo(token, () => this.solicitarRegistro(token, periodo, inicio), periodo, clave, inicio);
+      filas = await this.leerPartes(token, "compras", ticket, inicio, (txt) => mapearCompras(txt, contexto));
       const vistos = new Set<string>();
-      for (const m of MONEDAS_REGISTRO) {
-        const t = tickets[m];
-        if (t === null) continue;
-        const listo = await this.esperarTicketRegistro(token, periodo, m, t, claves[m], inicio);
-        if (listo === null) continue;
-        const deMoneda = await this.leerPartes(
-          token,
-          "compras",
-          listo,
-          inicio,
-          (txt) => {
-            const mapeadas = mapearCompras(txt, contexto);
-            // `codMoneda` es un filtro: una fila de otra moneda es una respuesta ajena (falla cerrado).
-            if (mapeadas.some((f) => f.moneda !== m)) throw new ErrorDatosSire("respuesta_ajena");
-            return mapeadas;
-          },
-          lectura,
-        );
-        const propios = new Set<string>();
-        for (const f of deMoneda) {
-          const c = claveComprobante(f);
-          // Un comprobante en las dos monedas no se deduplica: montos distintos quedarían ocultos.
-          if (vistos.has(c)) throw new ErrorPortalSire("respuesta_inesperada");
-          propios.add(c);
-        }
-        for (const c of propios) vistos.add(c);
-        for (const f of deMoneda) filas.push(f);
+      for (const f of filas) {
+        const c = claveComprobante(f);
+        if (vistos.has(c)) throw new ErrorPortalSire("respuesta_inesperada");
+        vistos.add(c);
       }
       if (filas.length === 0) throw new ErrorDatosSire("sin_datos");
     } catch (e) {
       const conservar = e instanceof ErrorTransitorio || e instanceof TokenRechazadoError;
-      if (!conservar) await borrarTodas();
+      if (!conservar && clave !== null) await this.almacen!.borrar(clave);
       throw e;
     }
-    await borrarTodas();
+    if (clave !== null) await this.almacen!.borrar(clave);
     return { libro: "compras", periodo, filas };
   }
 
@@ -221,13 +175,13 @@ export class HttpSireApiClient implements SireApiClient {
   }
 
   /**
-   * Retoma el ticket guardado o exporta y lo guarda (una vez, justo tras exportar); luego espera a que esté listo. Si SUNAT
-   * ya no lista el ticket guardado, lo borra y exporta UNA vez más en este intento; el ticket nuevo sigue la regla normal
-   * (si tampoco aparece: `respuesta_ajena`).
+   * Retoma el ticket guardado o lo pide con `solicitar` (exportar la propuesta o solicitar el registro) y lo guarda (una vez,
+   * justo tras pedirlo); luego espera a que esté listo. Si SUNAT ya no lista el ticket guardado, lo borra y lo pide UNA vez
+   * más en este intento; el ticket nuevo sigue la regla normal (si tampoco aparece: `respuesta_ajena`).
    */
   private async obtenerTicketListo(
     token: TokenSire,
-    urlSolicitud: string,
+    solicitar: () => Promise<string>,
     periodo: string,
     clave: string | null,
     inicio: number,
@@ -241,7 +195,7 @@ export class HttpSireApiClient implements SireApiClient {
         await this.almacen!.borrar(clave!);
       }
     }
-    const numTicket = await this.exportar(token, urlSolicitud, inicio);
+    const numTicket = await solicitar();
     if (clave !== null) await this.almacen!.guardar(clave, numTicket, TTL_TICKET_MS);
     return this.esperarTicketListo(token, periodo, numTicket, inicio);
   }
@@ -251,57 +205,12 @@ export class HttpSireApiClient implements SireApiClient {
     return numTicketDe(await this.pedirJson(token, url, inicio));
   }
 
-  /** Fase 1 del registro de una moneda: retoma su ticket guardado o lo solicita y lo guarda. `null` = sin datos. */
-  private async ticketRegistro(
-    token: TokenSire,
-    periodo: string,
-    moneda: MonedaRegistro,
-    clave: string | null,
-    inicio: number,
-  ): Promise<TicketRegistro | null> {
-    const guardado = clave === null ? null : await this.almacen!.leer(clave);
-    if (guardado !== null && GRAMATICA_TICKET.test(guardado)) return { numTicket: guardado, retomado: true };
-    const numTicket = await this.solicitarRegistro(token, periodo, moneda, inicio);
-    if (numTicket === null) return null;
-    if (clave !== null) await this.almacen!.guardar(clave, numTicket, TTL_TICKET_MS);
-    return { numTicket, retomado: false };
-  }
-
   /**
-   * Fase 2 del registro de una moneda: espera su ticket. Si SUNAT ya no lista un ticket retomado, lo borra y solicita UNA vez
-   * más esa moneda (H-041-2-2); el ticket nuevo sigue la regla normal. `null` = esa nueva solicitud dijo «sin datos».
+   * Solicitud 5.51 (`codProceso` 70, `codMoneda` PEN). Un 400/422 llega como `ErrorPortalSire("solicitud_rechazada")` con los
+   * códigos de SUNAT: si alguno es de «sin datos», `ErrorDatosSire("sin_datos")`; si no, el rechazo es permanente y se propaga.
    */
-  private async esperarTicketRegistro(
-    token: TokenSire,
-    periodo: string,
-    moneda: MonedaRegistro,
-    ticket: TicketRegistro,
-    clave: string | null,
-    inicio: number,
-  ): Promise<TicketListo | null> {
-    try {
-      return await this.esperarTicketListo(token, periodo, ticket.numTicket, inicio);
-    } catch (e) {
-      if (!ticket.retomado || !(e instanceof ErrorDatosSire && e.detalle === "respuesta_ajena")) throw e;
-    }
-    if (clave !== null) await this.almacen!.borrar(clave);
-    const numTicket = await this.solicitarRegistro(token, periodo, moneda, inicio);
-    if (numTicket === null) return null;
-    if (clave !== null) await this.almacen!.guardar(clave, numTicket, TTL_TICKET_MS);
-    return this.esperarTicketListo(token, periodo, numTicket, inicio);
-  }
-
-  /**
-   * Solicitud 5.51 de una moneda (`codProceso` 70). Un 400/422 llega como `ErrorPortalSire("solicitud_rechazada")` con los
-   * códigos de SUNAT: si alguno es de «sin datos», devuelve `null`; si no, el rechazo es permanente y se propaga.
-   */
-  private async solicitarRegistro(
-    token: TokenSire,
-    periodo: string,
-    moneda: MonedaRegistro,
-    inicio: number,
-  ): Promise<string | null> {
-    const url = armarUrl(this.origen, rutaRegistroPresentado(periodo), parametrosRegistro(periodo, moneda));
+  private async solicitarRegistro(token: TokenSire, periodo: string, inicio: number): Promise<string> {
+    const url = armarUrl(this.origen, rutaRegistroPresentado(periodo), parametrosRegistro(periodo));
     let cuerpo: unknown;
     try {
       cuerpo = await this.pedirJson(token, url, inicio, "solicitud-registro");
@@ -311,7 +220,7 @@ export class HttpSireApiClient implements SireApiClient {
         e.detalle === "solicitud_rechazada" &&
         e.codigosSunat.some((c) => COD_SIN_DATOS_REGISTRO.includes(c))
       ) {
-        return null;
+        throw new ErrorDatosSire("sin_datos");
       }
       throw e;
     }
@@ -348,8 +257,7 @@ export class HttpSireApiClient implements SireApiClient {
   /**
    * Partes en el orden del ticket y de una en una (H-041-2-6): cada una se baja, se valida (ZIP, UTF-8, encabezado igual al
    * de la 1.ª, filas) y se suelta antes de pedir la siguiente; al primer error se corta. Tope de 64 MiB descomprimidos por
-   * parte y 256 MiB acumulados en la operación (CA-10, H-7): pasado el acumulado, `zip_invalido`. `lectura` se comparte entre
-   * los tickets de una operación (registro: PEN y USD), así que el encabezado y el acumulado son de toda la operación.
+   * parte y 256 MiB acumulados en la operación (CA-10, H-7): pasado el acumulado, `zip_invalido`.
    */
   private async leerPartes<F>(
     token: TokenSire,
@@ -357,8 +265,8 @@ export class HttpSireApiClient implements SireApiClient {
     ticket: TicketListo,
     inicio: number,
     mapear: (txt: TxtLeido) => F[],
-    lectura: EstadoLectura = { primero: undefined, acumulado: 0 },
   ): Promise<F[]> {
+    const lectura: EstadoLectura = { primero: undefined, acumulado: 0 };
     const filas: F[] = [];
     for (const parte of ticket.partes) {
       const bytes = extraerTxtDeZip(

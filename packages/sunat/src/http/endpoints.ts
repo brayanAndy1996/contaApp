@@ -44,19 +44,27 @@ export function rutaRegistroPresentado(periodo: string): string {
  */
 export const COD_PROCESO_REGISTRO = "70";
 
-/** Monedas del registro presentado, en el orden en que se piden: un ticket por periodo y moneda (`codMoneda` obligatorio). */
-export const MONEDAS_REGISTRO = ["PEN", "USD"] as const;
-export type MonedaRegistro = (typeof MONEDAS_REGISTRO)[number];
+/**
+ * `codMoneda` de 5.51: obligatorio (sin él, 422 cod 1061) pero NO filtra (evidencia de 2 RUC reales, 2026-11-28): con PEN el
+ * archivo trae todos los comprobantes, cada uno con su moneda. Una sola solicitud por periodo, siempre con PEN.
+ */
+export const MONEDA_SOLICITUD_REGISTRO = "PEN";
 
 /** `cod` de SUNAT con el que 5.51 responde «sin datos» al solicitar (422); cualquier otro es `solicitud_rechazada`. */
 export const COD_SIN_DATOS_REGISTRO: readonly string[] = ["1070"];
 
 /**
- * Query de 5.51: `lisPeriodos` = `perTributario`; el nombre es `codOrigen`, no `codOrigenEnvio`; `codMoneda` siempre (sin él,
- * 422 cod 1061).
+ * Query de 5.51: `lisPeriodos` = `perTributario`; el nombre es `codOrigen`, no `codOrigenEnvio`; `codMoneda` siempre
+ * `MONEDA_SOLICITUD_REGISTRO`.
  */
-export function parametrosRegistro(periodo: string, moneda: MonedaRegistro): Readonly<Record<string, string>> {
-  return { codTipoArchivo: "0", codProceso: COD_PROCESO_REGISTRO, codOrigen: "2", lisPeriodos: periodo, codMoneda: moneda };
+export function parametrosRegistro(periodo: string): Readonly<Record<string, string>> {
+  return {
+    codTipoArchivo: "0",
+    codProceso: COD_PROCESO_REGISTRO,
+    codOrigen: "2",
+    lisPeriodos: periodo,
+    codMoneda: MONEDA_SOLICITUD_REGISTRO,
+  };
 }
 
 export const RUTA_TICKET = `${BASE_LIBROS}/rvierce/gestionprocesosmasivos/web/masivo/consultaestadotickets`;

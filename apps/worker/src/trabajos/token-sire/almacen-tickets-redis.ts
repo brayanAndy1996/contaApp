@@ -12,8 +12,8 @@ export interface OpcionesAlmacenTicketsRedis {
 }
 
 const LIBROS = ["compras", "ventas"] as const;
-/** Plan 041, P-3 (H-4): la clave vieja `…:registro` (sin moneda) se rechaza; la de Redis vence sola (TTL 1 h). */
-const OPERACIONES = ["propuesta", "registro-pen", "registro-usd"] as const satisfies readonly OperacionTicketSire[];
+/** Plan 041, P-3: una sola operación de registro; las claves por moneda (`registro-pen`/`-usd`) se rechazan (vencen solas, TTL 1 h). */
+const OPERACIONES = ["propuesta", "registro"] as const satisfies readonly OperacionTicketSire[];
 
 export class AlmacenTicketsRedis implements AlmacenTicketsSire {
   private readonly redis: OpcionesAlmacenTicketsRedis["redis"];
