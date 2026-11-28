@@ -117,6 +117,23 @@ describe("AlmacenTicketsRedis (CA-8)", () => {
     await expect(a.borrar(clave(T1, C1))).resolves.toBeUndefined();
   });
 
+  it("H-041-2-4: la clave debe tener exactamente 5 partes con libro y operación válidos; si no, error y nada en Redis", async () => {
+    const { a, prefijo } = almacen();
+    const malas = [
+      `${T1}:${C1}:compras:202610`, // 4 partes: sin operación
+      `${T1}:${C1}:compras:202610:propuesta:extra`, // 6 partes
+      clave(T1, C1, "diario"), // libro desconocido
+      clave(T1, C1, "compras", "202610", "otra"), // operación desconocida
+      clave("", C1), // estudio vacío
+    ];
+    for (const m of malas) {
+      await expect(a.guardar(m, TICKET, 60_000), m).rejects.toThrow("clave de ticket SIRE inválida");
+      await expect(a.leer(m), m).rejects.toThrow("clave de ticket SIRE inválida");
+      await expect(a.borrar(m), m).rejects.toThrow("clave de ticket SIRE inválida");
+    }
+    expect(await redis.keys(`${prefijo}*`)).toEqual([]);
+  });
+
   it("vencido el TTL, leer devuelve null", async () => {
     const { a } = almacen();
     await a.guardar(clave(T1, C1), TICKET, 150);
