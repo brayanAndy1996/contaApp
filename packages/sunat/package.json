@@ -10,12 +10,14 @@
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run --passWithNoTests",
     "test:int": "vitest run --mode int --passWithNoTests",
+    "test:contrato": "vitest run --mode contrato --passWithNoTests",
     "test:cobertura": "vitest run --config vitest.cobertura.config.mts --coverage --passWithNoTests"
   },
   "dependencies": {
     "@contapp/domain": "workspace:*",
     "@contapp/shared": "workspace:*",
-    "fflate": "0.8.3"
+    "fflate": "0.8.3",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

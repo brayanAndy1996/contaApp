@@ -13,12 +13,71 @@ Todo lo de esta carpeta es **sintético**: inventado para el desarrollo y las pr
 | `sire/{ruc}-registro-compras-{periodo}.json`, `sire/generico-registro-compras.json`, `sire/{ruc}-registro-sin-datos.json` | Registro de compras ya presentado (spec 025, `descargarRegistroPresentado`): mismo formato que la propuesta, archivos distintos. El genérico es una plantilla de un periodo que el mock repite en el periodo pedido (mismo día), con proveedores de `rucs-prueba.json` y los casos de U-2 por periodo: dominante DNG (ISC), bajo umbral (MIXTO), mixto en la misma fila (BOLSAS), empate (USD), nota de crédito `07` en negativo (CALZADO), dominante DG (GENERICO) y un proveedor con DNI (`tipoDocContraparte` 1). `{ruc}-registro-sin-datos.json`, si existe, es una lista JSON de periodos AAAAMM sin registro (dan `ErrorDatos`); no hay uno en el repositorio, las pruebas lo generan. |
 | `sire/20700000100-compras-202610.json` | Propuesta de compras del cliente de Huánuco (01 §7 regla 3: zona Amazonía, ventas exoneradas, sin mixtas), para R-STD de la spec 025. El RUC es el último de `rucs-prueba.json`. |
 | `sire/generico-compras.json`, `sire/generico-ventas.json` | Conjunto genérico por libro, para un RUC y un periodo sin fixture propio. Es una plantilla y no lleva RUC del contribuyente. El de ventas trae solo las boletas B001-290 y B001-292. |
+| `sire/http/{compras,ventas}-propuesta-202610[-variante].txt` | TXT sintéticos del SIRE real (spec 041, T1): 80 columnas de compras y 40 de ventas. Ver «TXT del SIRE real (spec 041)» abajo. Encabezado verificado contra descargas reales. |
 | `sol/buzon/{ruc}.json` | Buzón SOL del contribuyente de prueba para `MockSolPortal` (spec 023, `SOL_PORTAL=mock`): forma `{mensajes: [...]}` con asunto, remitente, fecha ISO con zona, `codigoTipo`, `leidoEnSunat`, contenido (texto o HTML, uno con `<script>`) y adjuntos `{idSunat, nombre, base64}` o `{idSunat, nombre, tamano}` (bytes sintéticos que no se materializan si pasan el tope). Trae una coactiva, una RD, una RM, un requerimiento y comunes, con variantes de asunto (tildes, mayúsculas, abreviaturas); adjuntos PDF, XML, PNG, ZIP, dos de nombre hostil (`..\`, NUL, bidi) y uno de 25 MiB que sale omitido por tamaño. Un RUC sin archivo recibe un buzón generado por el mock, determinista por RUC. Sin RUC de 11 dígitos fuera de `rucs-prueba.json`; máximo 1 MiB. |
 | `sol/pdt621/{ruc}.json` | PDT 621 del contribuyente de prueba para `MockSolPortal.obtenerDeclaraciones621` (spec 026, `SOL_PORTAL=mock`): forma `{periodos: {AAAAMM: [Declaracion621] \| "error_datos"}}` (un periodo ausente es «sin declaración»). El de `20700000002` (cliente de la E2E de 026, 01 §7.4) trae 11 meses declarados (2025-11 a 2026-09) con ventas gravadas y exoneradas, 2026-10 sin declarar, una rectificatoria (2026-06) y prorrata usada «72.00» en 2026-09. Un RUC sin archivo recibe un PDT generado por el mock, determinista por RUC. Montos como cadenas con dos decimales; máximo 1 MiB. |
 | `ruc/ciiu.json` | Clase CIIU (4 dígitos) de la actividad principal por RUC para `MockConsultaRuc` (spec 027, `RUC_CLIENT=mock`): objeto `{ruc: clase \| null}`; `null` es «el padrón no informa la clase». Trae la ferretería `20700000002` (4752, cliente de la E2E de 027), el proveedor de zapatillas `20700000070` (4771), un restaurante `20700000045` (5610), el proveedor genérico `20700000096` (`null`) y el cliente de Huánuco `20700000100` (4711). Un RUC que no está recibe una clase determinista del mock. Un defecto del archivo hace que el mock rechace con `ErrorDatos`; máximo 1 MiB. Solo RUC de `rucs-prueba.json`. |
 | `generarFilasComprasVolumen` (código en `packages/sunat/src/mock/sire-api-client.mock.ts`) | Las 5.000 filas de compras de CA-15. Se generan y no se guardan como archivo, porque el mock rechaza los de más de 1 MiB. Son deterministas, con RUC y razones sociales de `rucs-prueba.json` (sin el contribuyente) y números que terminan en 0-6. |
 
 Cada `sire/*.json` tiene `libro`, `periodo` (AAAAMM) y `filas`. En compras, los campos de cada fila son los de `FilaPropuestaSire`: desde 014 traen `razonSocialContraparte`; `tipoDocContraparte` es opcional y ausente significa «6» (RUC), así que los fixtures de compras no lo traen. En ventas son los de `FilaVentaSire` (`tipo`, `serie`, `numero`, `tipoDocContraparte` solo con documento, `docContraparte`, `fechaEmision`, `moneda`, `tipoCambio` solo en USD, `baseGravada`, `igv`, `exonerada`, `inafecta`, `isc`, `icbper`, `otros` y `total`). Ventas ya no usa las columnas de compras (`biDg`, `igvDg`, `noGravado`…). Los montos van como cadenas con dos decimales, y `tipoCambio` (tres decimales) aparece solo en USD; una venta USD puede no traerlo, y entonces no suma en el resumen.
+
+## TXT del SIRE real (spec 041)
+
+Archivos de `sire/http/`, para las pruebas de `packages/sunat/src/http/txt/*` y del cliente HTTP. Los ZIP se arman en la prueba. Compras: UTF-8 sin BOM, LF, encabezado de 80 columnas sin `|` final y filas con `|` final. Ventas: igual pero con BOM UTF-8 y 40 columnas. Fechas `dd/mm/aaaa`; compras con montos de 2 decimales y ventas sin formato fijo (`500`, `1837.5`, `59.5`); tipo de cambio `1.000` también en PEN. Contribuyente `20700000002`, periodo `202610`; todos los RUC salen de `rucs-prueba.json`. Ninguna fila viene de un TXT real.
+
+**Encabezado verificado.** La primera línea de `compras-propuesta-202610.txt` y de `ventas-propuesta-202610.txt` es, byte a byte, la de una descarga real del SIRE de cada libro (comparada solo esa línea; ninguna fila ni dato real está en el repositorio). Rasgos que las pruebas deben respetar:
+
+- **Compras**: sin BOM, fin de línea LF, 80 columnas, encabezado sin `|` final. La columna 2 se llama `Apellidos y Nombres o Razón social` (contribuyente) y la 14 `Apellidos Nombres/ Razón  Social` con **doble espacio** (proveedor): son nombres distintos, así que el proveedor se identifica por su nombre y no hace falta mapeo posicional. La 33 es `Clasif de Bss y Sss`. Incluye `Año`, `Nro Final (Rango)`, `IMB`, `Incal` y `CLU1`–`CLU39`.
+- **Ventas**: con BOM UTF-8 (`EF BB BF`), LF, 40 columnas, sin `|` final. Empieza con `Ruc|Razon Social` (sin tilde), la 13 es `Apellidos Nombres/ Razón Social` (espacio simple), la 33 `ID Proyecto Operadores Atribución`, la 35 `Est. Comp` (sin punto) y termina con `DAM / CP|CLU`.
+- Las variantes `-permutado` (orden inverso), `-columna-extra`, `-columna-faltante`, `-parte*` usan estos mismos nombres. Las filas de datos son sintéticas y siguen el orden de este encabezado; el `|` final de las filas es una convención de estos fixtures.
+
+Archivos base (9 filas de compras, 8 de ventas):
+
+| Compras (`compras-propuesta-202610.txt`) | Caso |
+|---|---|
+| F001-1040 | San Juan: DG 770.00, IGV 0.00, total 770.00 (proveedor `20700000011`) |
+| F001-2056 | Mixta: DG 21.48, IGV DG 1.61, total 23.09 |
+| F001-3064 | ICBPER 1.50, DG 100.00, IGV 18.00, total 119.50 |
+| F001-4062 | USD, TC 3.300: DG 0.15, IGV 0.03, total 0.18 |
+| F001-5070 | Zapatilla: DG 150.00, IGV 27.00, total 177.00 |
+| NC `07` F001-6 | Negativa: -50.00, -9.00, -59.00 (con columnas de documento modificado, que se ignoran) |
+| F003-20 | Mixta DG + DGNG: DG 100.00/18.00, DGNG 50.00/9.00, total 177.00 |
+| F002-10 | Exonerada: `Valor Adq. NG` 120.00 |
+| F002-11 | Inafecta: `Valor Adq. NG` 80.00 |
+
+La razón social del contribuyente (columna 2) **varía por fila** a propósito (`PRUEBA CONTRIBUYENTE S.A.C.`, `... SAC`, `... - SUCURSAL`); la del proveedor es la columna 14.
+
+| Ventas (`ventas-propuesta-202610.txt`) | Caso |
+|---|---|
+| 01 F001-10 | Montos `500` / `90` / `590` |
+| 01 F001-11 | Montos `1837.5` / `330.75` / `2168.25` |
+| 03 B001-290 | Boleta a consumidor final: tipo y número de documento vacíos (P-5) |
+| 03 B001-292 | Boleta con ICBPER `0.5`, total `59.5` |
+| 07 F001-1 | Nota de crédito negativa (`-50`, `-9`, `-59`) con documento modificado |
+| 01 F002-1 | USD, TC 3.300: `200` / `36` / `236` |
+| 01 F001-12 | Exonerada `150` (cliente `20700000100`) |
+| 01 F001-13 | Inafecta `80` |
+
+Variantes (mismo sufijo en compras y ventas; el base lleva `-propuesta-202610`):
+
+| Sufijo | Qué cambia | Resultado esperado |
+|---|---|---|
+| `-permutado` | Columnas en orden inverso, también en las filas | Mismo resultado que el base (CA-5) |
+| `-columna-extra` | Columna `Columna Nueva Prueba` después de `Total CP` | Se ignora (CA-5) |
+| `-columna-faltante` | Sin `Total CP` | `ErrorPortalSire("encabezado")` (CA-5, P-1) |
+| `-parte1` / `-parte2` | El base partido en dos, mismo encabezado | Varias partes en orden (CA-9) |
+| `-parte2-encabezado-distinto` | La parte 2 con la columna extra | `ErrorPortal` por encabezados distintos entre partes (CA-9) |
+| `-ruc-ajeno` | 2 filas del base y una con otro RUC contribuyente (`20700000011`) | `ErrorDatosSire("respuesta_ajena")` sin filas (CA-6) |
+| `-periodo-ajeno` | 2 filas del base y una con `Periodo` 202609 | `ErrorDatosSire("respuesta_ajena")` sin filas (CA-6) |
+
+Columnas sin equivalente con valor distinto de 0 (P-2) y fechas o montos inválidos no están como archivo: las pruebas modifican el texto del base.
+
+Registro presentado de compras (P-3, 5.51; el manual no documenta el TXT: se asume el layout de la propuesta, CA-13). Desde la corrida real de contrato (2 RUC) se hace UNA solicitud por periodo (`codProceso` 70, `codMoneda` PEN): `codMoneda` NO filtra, así que el archivo trae todos los comprobantes con su moneda (PEN y USD mezcladas) y no se compara la columna `Moneda` con la pedida. El encabezado es el de `compras-propuesta-202610.txt` salvo la columna 34, que en el registro real se llama `ID Proyecto Operadores/Partícipes` (no se mapea). RUC `20700000002`, periodo 202610, proveedores de `rucs-prueba.json`, razones «PRUEBA…».
+
+| Archivo | Qué es |
+|---|---|
+| `compras-registro-202610-mixto.txt` | El archivo del registro: 8 filas PEN (San Juan ISC, mixta, ICBPER, zapatilla, nota de crédito 07, dominantes DG y DNG) y la fila USD `F001-4062` con TC 3.300 (redondeo USD); encabezado real con la columna 34 renombrada. Se sirve como una sola parte (ZIP de 3 entradas, `zipRegistroReal`) |
+| `compras-registro-202610-solo-encabezado.txt` | Solo el encabezado: periodo sin registro -> «sin datos» (`ErrorDatosSire("sin_datos")`) |
 
 ## Reglas
 

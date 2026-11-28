@@ -1,7 +1,8 @@
 // Procesador de `reglas.historial.importar` (spec 025, D-1, D-2, D-11; CA-1, CA-6, CA-12; plan Contratos: Worker).
 //  (1) Lee la importación y el RUC del cliente en una `withTenant` corta y la cierra. Los periodos salen de la fila, no del payload.
-//  (2) Por periodo, del más reciente al más antiguo, llama al puerto SIN transacción abierta (008 D6). `ErrorDatos` del puerto, o
-//      un registro de otro periodo que el pedido, = «sin datos» y sigue; si no se lee NINGÚN periodo, la importación falla con
+//  (2) Por periodo, del más reciente al más antiguo, llama al puerto SIN transacción abierta (008 D6). `ErrorDatos` plano o
+//      `ErrorDatosSire("sin_datos")` del puerto, o un registro de otro periodo que el pedido, = «sin datos» y sigue; otro
+//      `ErrorDatosSire` hace fallar el trabajo (`datos_invalidos`). Si no se lee NINGÚN periodo, la importación falla con
 //      `datos_invalidos` sin llamar a `completar` (no reemplaza la revisión anterior). Cada respuesta se reduce de inmediato a
 //      `FilaHistorial` (el registro crudo no se conserva).
 //  (3) `aprenderDeHistorial` (dominio) deduce las candidatas; las que la BD rechazaría por la gramática del documento (p. ej.
@@ -31,6 +32,7 @@ import {
 } from "@contapp/queue";
 import {
   ErrorDatos,
+  ErrorDatosSire,
   clasificarError,
   type FilaPropuestaSire,
   type SireApiClient,
@@ -158,12 +160,21 @@ export function importarHistorial(
           registro = await conToken((token) =>
             d.sireApi.descargarRegistroPresentado(
               { token, expiraEn: new Date(0) },
-              { ruc: imp.ruc, periodo },
+              {
+                ruc: imp.ruc,
+                periodo,
+                claveReanudacion: `${t.tenantId}:${t.clienteId}`,
+              },
             ),
           );
         } catch (e) {
-          // Periodo sin registro: se anota y sigue. Los demás errores (credencial, red) salen.
-          if (e instanceof ErrorDatos) {
+          // Periodo sin registro (el `ErrorDatos` plano del mock o `ErrorDatosSire("sin_datos")`): se anota y sigue. Cualquier
+          // otro `ErrorDatosSire` (fila ilegible, columna no soportada, respuesta ajena, ticket con errores) es un periodo que no
+          // se pudo leer: sale y el trabajo falla con `datos_invalidos` (spec 041 CA-7, H-1). Los demás (credencial, red) salen.
+          if (
+            e instanceof ErrorDatos &&
+            (!(e instanceof ErrorDatosSire) || e.detalle === "sin_datos")
+          ) {
             sinDatos.push(periodo);
             continue;
           }

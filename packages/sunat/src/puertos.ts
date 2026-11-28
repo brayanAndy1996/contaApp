@@ -178,6 +178,11 @@ export interface SolicitudPropuesta {
   /** AAAAMM */
   periodo: string;
   libro: LibroSire;
+  /**
+   * Spec 041: clave opaca (p. ej. «{tenantId}:{clienteId}») con la que el adaptador real retoma un ticket pendiente.
+   * Nunca llega a SUNAT; el mock la ignora.
+   */
+  claveReanudacion?: string;
 }
 
 /** Solicitud del registro presentado de compras (spec 025): sin `libro`, es solo de compras. */
@@ -185,6 +190,8 @@ export interface SolicitudRegistroPresentado {
   ruc: string;
   /** AAAAMM */
   periodo: string;
+  /** Spec 041: igual que en `SolicitudPropuesta`. Nunca llega a SUNAT; el mock la ignora. */
+  claveReanudacion?: string;
 }
 
 /** Registro presentado de compras de un periodo (spec 025): sus filas son `FilaPropuestaSire`. */

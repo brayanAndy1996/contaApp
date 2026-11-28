@@ -264,6 +264,7 @@ describe("CA-1: la primera descarga con el mock", () => {
       ruc: RUC_FIXTURE,
       periodo: PERIODO,
       libro: "compras",
+      claveReanudacion: `${m.T}:${m.c.id}`,
     });
 
     expect(r.resultado).toEqual({

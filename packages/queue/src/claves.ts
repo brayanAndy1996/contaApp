@@ -51,7 +51,22 @@ export interface ClavesCola {
   ejec(jobId: string): string;
   eventos(tenantId: string): string;
   tokenSire(proceso: string, tenantId: string, clienteId: string): string;
+  /** Ticket del SIRE pendiente (041): estudio Y cliente en la clave; el valor es solo el número de ticket. */
+  ticketSire(
+    tenantId: string,
+    clienteId: string,
+    libro: LibroTicketSire,
+    periodo: string,
+    operacion: OperacionTicketSire,
+  ): string;
 }
+
+export type LibroTicketSire = "compras" | "ventas";
+/**
+ * `propuesta` = descarga de la propuesta (013); `registro` = registro presentado (025), una sola solicitud y un ticket por
+ * periodo (plan 041, P-3: `codMoneda` no filtra). Ninguna contiene `:`, así que la clave sigue teniendo 5 partes tras el prefijo.
+ */
+export type OperacionTicketSire = "propuesta" | "registro";
 
 /** Constructores de claves; el prefijo se antepone tal cual (incluye los dos puntos). */
 export function crearClaves(prefijo: string = PREFIJO_POR_DEFECTO): ClavesCola {
@@ -66,5 +81,7 @@ export function crearClaves(prefijo: string = PREFIJO_POR_DEFECTO): ClavesCola {
     eventos: (tenantId) => `${prefijo}eventos:${tenantId}`,
     tokenSire: (proceso, tenantId, clienteId) =>
       `${prefijo}sire:token:${proceso}:${tenantId}:${clienteId}`,
+    ticketSire: (tenantId, clienteId, libro, periodo, operacion) =>
+      `${prefijo}sire:ticket:${tenantId}:${clienteId}:${libro}:${periodo}:${operacion}`,
   };
 }

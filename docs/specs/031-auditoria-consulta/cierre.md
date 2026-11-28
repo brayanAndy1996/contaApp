@@ -1,6 +1,6 @@
 # Cierre 031 · Consulta de auditoría con filtros e historial por cliente
 
-Verificada el 2026-11-27 (T11). Nivel B con ronda adversarial acotada (D-8). Rama `claude/bold-gauss-nzljd6` sin mergear, sobre 030. Migración 0088 (siguiente libre: 0089). CI de GitHub sin ejecutar; sin PR (solo cuando el usuario lo pida).
+Verificada el 2026-11-27 (T11). Nivel B con ronda adversarial acotada (D-8). Rama `claude/bold-gauss-nzljd6`, sobre 030, mergeada en `main` por el PR #7 (commit de merge `4bb0a50`). Migración 0088 (siguiente libre: 0089). CI de GitHub con la suite completa en verde en la corrida del PR.
 
 ## Qué entregó
 - `GET /auditoria` filtra por usuario, cliente, acción y fechas, solos o combinados. El cursor `(ocurridaEn, id)` se reinicia al cambiar un filtro.

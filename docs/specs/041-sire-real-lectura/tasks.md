@@ -6,25 +6,32 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → atac
 
 | # | Tarea | Rol | Modelo | Depende de | TDD | ADV | Estado |
 |---|---|---|---|---|---|---|---|
-| T1 | Fixtures TXT sintéticos con el encabezado real + `LEEME.md` | tester | sonnet | — ∥ T2, T3 | ✓ | — | [ ] |
-| T2 | Pruebas de `zip-seguro` y `txt/*` (lectura, encabezado, mapeo, límites) en rojo | tester | sonnet | T1 | ✓ | — | [ ] |
-| T3 | Pruebas de `HttpSireAuth` y `HttpSireApiClient` con el servidor falso (rojo) | tester | sonnet | — ∥ T1 | ✓ | — | [ ] |
-| T4 | Pruebas del worker: `SIRE_CLIENT=http`, almacén Redis, `claveReanudacion`, 401 → renovación (rojo) | tester | sonnet | — ∥ T1–T3 | ✓ | — | [ ] |
-| T5 | `zip-seguro.ts` y `txt/*` (lectura y mapeo) | backend | opus | T2 ∥ T6 | ✓ | — | [ ] |
-| T6 | `endpoints`, `transporte`, `HttpSireAuth`, `HttpSireApiClient`, `ticket`, errores con `detalle` | backend | opus | T3 ∥ T5 | ✓ | — | [ ] |
-| T7 | Worker: adaptadores, `almacen-tickets-redis`, `claves.ticketSire`, `TokenRechazadoError` desde sunat | backend | sonnet | T4, T6 | ✓ | — | [ ] |
-| T8 | `vitest` modo `contrato`, script `test:contrato`, exclusión verificada, `.env.example`, `03-arquitectura` §4 | devops | haiku | T6 ∥ T7 | — | — | [ ] |
-| T9 | Prueba de contrato manual `sire.contrato.spec.ts` + Postman 5.51/5.40 | tester | sonnet | T6, T8 | — | — | [ ] |
-| T10 | Ronda adversarial 1 (caja negra): ZIP, TXT, encabezados, filas ajenas, nombres hostiles, ticket ajeno, redirecciones, secretos | adversario | opus | T5, T6, T7 ∥ T9 | — | ✓ | [ ] |
-| T11 | Pruebas de las correcciones de la ronda 1 (rojo) | tester | sonnet | T10 | ✓ | — | [ ] |
-| T12 | Corregir hallazgos de la ronda 1 | backend | opus | T11 | — | — | [ ] |
-| T13 | Ronda adversarial 2 (caja blanca): timeouts, presupuesto, reanudación entre estudios, memoria, codificación, concurrencia | adversario | opus | T12 | — | ✓ | [ ] |
-| T14 | Pruebas de las correcciones de la ronda 2 (rojo) | tester | sonnet | T13 | ✓ | — | [ ] |
-| T15 | Corregir hallazgos de la ronda 2 | backend | opus | T14 | — | — | [ ] |
-| T16 | Corrida de la prueba de contrato contra SUNAT (la ejecuta el **usuario**) y ajustes de P-5/P-6 | tester | sonnet | T9, T15 | — | — | [ ] |
-| T17 | Verificar CA-1 a CA-15 con evidencia y suites de `sunat`, `queue` y `worker` | tester | sonnet | T16 | — | — | [ ] |
-| T18 | Revisión final contra la spec | arquitecto | opus | T17 | — | — | [ ] |
-| T19 | Cierre: `tasks.md`, `spec.md`, commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T18 | — | — | [ ] |
+| T1 | Fixtures TXT sintéticos con el encabezado real + `LEEME.md` | tester | sonnet | — ∥ T2, T3 | ✓ | — | [x] (encabezado verificado byte a byte contra descargas reales: compras sin BOM, ventas con BOM) |
+| T2 | Pruebas de `zip-seguro` y `txt/*` (lectura, encabezado, mapeo, límites) en rojo | tester | sonnet | T1 | ✓ | — | [x] |
+| T3 | Pruebas de `HttpSireAuth` y `HttpSireApiClient` con el servidor falso (rojo) | tester | sonnet | — ∥ T1 | ✓ | — | [x] |
+| T4 | Pruebas del worker: `SIRE_CLIENT=http`, almacén Redis, `claveReanudacion`, 401 → renovación (rojo) | tester | sonnet | — ∥ T1–T3 | ✓ | — | [x] |
+| T5 | `zip-seguro.ts` y `txt/*` (lectura y mapeo) | backend | opus | T2 ∥ T6 | ✓ | — | [x] («el periodo de la ruta es el pedido» devuelta al tester: su TXT es de 202610 y pide 202601 → `respuesta_ajena`) |
+| T6 | `endpoints`, `transporte`, `HttpSireAuth`, `HttpSireApiClient`, `ticket`, errores con `detalle` | backend | opus | T3 ∥ T5 | ✓ | — | [x] (21 pruebas del cliente esperan la lectura de T5; «otro periodo o libro…» devuelta al tester) |
+| T7 | Worker: adaptadores, `almacen-tickets-redis`, `claves.ticketSire`, `TokenRechazadoError` desde sunat | backend | sonnet | T4, T6 | ✓ | — | [x] (las pruebas de `descargar-propuesta-041.int` que pasan por el lector TXT esperan a T5) |
+| T8 | `vitest` modo `contrato`, script `test:contrato`, exclusión verificada, `.env.example`, `03-arquitectura` §4 | devops | haiku | T6 ∥ T7 | — | — | [x] (la tabla de adaptadores está en 03 §3; §4 es multitenancy) |
+| T9 | Prueba de contrato manual `sire.contrato.spec.ts` + Postman 5.51/5.40 | tester | sonnet | T6, T8 | — | — | [x] (apagada sin `SIRE_CONTRATO=1`; verde contra el servidor falso; la ruta del 5.40 no está en el repo: va en `ruta_5_40`) |
+| T10 | Ronda adversarial 1 (caja negra): ZIP, TXT, encabezados, filas ajenas, nombres hostiles, ticket ajeno, redirecciones, secretos | adversario | opus | T5, T6, T7 ∥ T9 | — | ✓ | [x] |
+| T11 | Pruebas de las correcciones de la ronda 1 (rojo) — omitida: las pruebas del adversario cubren los 3 hallazgos | tester | sonnet | T10 | ✓ | — | [x] omitidas: las pruebas del adversario cubren los hallazgos |
+| T12 | Corregir hallazgos de la ronda 1 | backend | opus | T11 | — | — | [x] |
+| T13 | Ronda adversarial 2 (caja blanca): timeouts, presupuesto, reanudación entre estudios, memoria, codificación, concurrencia | adversario | opus | T12 | — | ✓ | [x] |
+| T14 | Pruebas de las correcciones de la ronda 2 (rojo) — omitida: las pruebas del adversario cubren los hallazgos | tester | sonnet | T13 | ✓ | — | [x] omitidas: las pruebas del adversario cubren los hallazgos |
+| T15 | Corregir hallazgos de la ronda 2 | backend | opus | T14 | — | — | [x] |
+| T15b | Pruebas del registro presentado (P-3) | tester | sonnet | T15 | ✓ | — | [x] (20 pruebas en rojo en `registro-presentado.http.spec.ts`; `it.todo` de «SUNAT exige moneda»: el plan no fija la respuesta del servidor falso) |
+| T15c | Implementar registro presentado (P-3) | backend | opus | T15b | — | — | [x] |
+| T15d | Rediseño registro presentado (70 + PEN/USD) | backend | opus | T15c | ✓ | — | [x] tests rojos ✓ (3 testers) → verdes: sunat 1142, contrato falso 4 (+1 omitida), queue 797 + int 123, worker 630 + int 672; typecheck y lint OK |
+| T15e | Lector de ZIP acepta la estructura real del registro | backend | opus | T15d | ✓ | ✓ | [x] backend: sunat 1232, queue 797 + int 123, worker 630 + int 672; typecheck y lint OK · ronda adversarial 3 hecha (`ronda3.adv.spec.ts`, 8 rojas) |
+| T15f | Corregir hallazgos de la ronda adversarial 3 del lector de ZIP (H-041-3-1 a 3-8) | backend | sonnet | T15e | — | ✓ | [x] |
+| T15g | Registro presentado con una sola solicitud (evidencia real) | tester → backend | sonnet | T15f | ✓ | — | [x] tester (rojo) + backend: una solicitud 70+PEN, clave `…:registro`; `sunat`, `queue` y `worker` verdes |
+| T16 | Corrida de la prueba de contrato contra SUNAT (la ejecuta el **usuario**) y ajustes de P-5/P-6 | tester | sonnet | T9, T15 | — | — | [x] corrida real del usuario en 2 RUC (2026-11-28/29); salida en `resultados.md` (CA-15); P-3, P-5 y P-6 cerradas |
+| T17 | Verificar CA-1 a CA-15 con evidencia y suites de `sunat`, `queue` y `worker` | tester | sonnet | T16 | — | — | [x] CA-1 a CA-15 cumplidos (2026-11-28): sunat 1235, queue 797 + int 123, worker 630 + int 672; typecheck y lint OK; evidencia en `resultados.md` |
+| T18 | Revisión final contra la spec | arquitecto | opus | T17 | — | — | [x] 3 hallazgos (H-1 media; H-2 y H-3 bajas), corregidos en T20; spec.md «verificada» |
+| T19 | Cierre: `tasks.md`, `spec.md`, commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T18 | — | — | [x] cierre.md, ESTADO.md y HALLAZGOS.md actualizados (2026-11-28) |
+| T20 | Hallazgos H-1, H-2 y H-3 de la revisión final (tester rojo → backend; sección propia abajo) | tester → backend | — | T18 | ✓ | — | [x] sunat 1256; worker 641 + int 676; typecheck y lint OK |
 
 Paralelismo: oleada 1 = T1 ∥ T3 ∥ T4 (y T2 tras T1); oleada 2 = T5 ∥ T6; luego T7 ∥ T8; T9 ∥ T10. Las rondas y sus correcciones van en serie. Si una ronda no deja fallos, sus dos tareas siguientes se marcan `[x]` «sin hallazgos».
 
@@ -100,6 +107,41 @@ Reglas comunes:
 ## T14–T15 · Correcciones de la ronda 2
 - Igual que T11–T12.
 
+## T15b · Pruebas del registro presentado (P-3) (tester · sonnet)
+- **Contexto**: `plan.md` («P-3 · Registro presentado», fila «Registro» de Endpoints), `fixtures/sire/http/compras-registro-202610*.txt`, `packages/sunat/src/http/pruebas/ayudas-http.ts`, `sire-api-client.http.spec.ts` (modelo).
+- **Hacer**: las 11 pruebas de `registro-presentado.http.spec.ts` (la 12, del contrato, es de T16) con P-3a (01 y, si no hay datos, UNA vez 02) y P-3b (sin `codMoneda`); fixtures `compras-registro-202610.txt` y `-solo-encabezado.txt`; `RUTAS.solicitarRegistro`; paso 5 de Postman corregido.
+- **Hecho cuando**: fallan solo porque `descargarRegistroPresentado` aún rechaza siempre; el resto de `sunat` sigue verde. Commit `test(041): registro presentado del SIRE en rojo`.
+
+## T15c · Implementar registro presentado (P-3) (backend · opus)
+- **Contexto**: `plan.md` («P-3», Decisiones), `registro-presentado.http.spec.ts`, `endpoints.ts`, `sire-api-client.http.ts`.
+- **Hacer**: `rutaRegistroPresentado`, `parametrosRegistro`, `COD_PROCESO_REGISTRO`; `exportar` y `obtenerTicketListo` con URL y `operacion`; `descargarRegistroPresentado` hasta verde.
+- **Hecho cuando**: `registro-presentado.http.spec.ts` verde, el resto de `sunat` verde, `typecheck` y `lint` OK. Commit `feat(041): registro presentado del SIRE`.
+
+## T15d · Rediseño registro presentado (70 + PEN/USD) (backend · opus)
+- **Contexto**: `plan.md` («P-3 · Registro presentado», H-4/H-5/H-7), `registro-presentado.http.spec.ts`, `transporte.spec.ts`, `errores-sire.spec.ts`, `endpoints.spec.ts`, `endpoints.ts`, `errores.ts`, `transporte.ts`, `sire-api-client.http.ts`, `packages/queue/src/claves.ts`, `AlmacenTicketsRedis`.
+- **Hacer**: `COD_PROCESO_REGISTRO = "70"`, `MONEDAS_REGISTRO`, `COD_SIN_DATOS_REGISTRO`, `parametrosRegistro(per, moneda)`; `ErrorPortalSire("solicitud_rechazada")` con `codigosSunat`; transporte con cuerpo de error en la solicitud 5.51; dos solicitudes (PEN→USD) con un ticket cada una, claves `registro-pen`/`registro-usd`, un presupuesto de 90 s y un acumulado de 256 MiB, unión de filas (moneda, encabezado, comprobante repetido).
+- **Hecho cuando**: las pruebas rojas de T15d verdes en `sunat`, `queue` y `worker`; `typecheck` y `lint` OK. Commit `feat(041): registro presentado con codProceso 70 y monedas PEN/USD`.
+
+## T15e · Lector de ZIP acepta la estructura real del registro (tester rojo → backend opus → adversario acotado)
+- **Contexto**: `spec.md` (CA-10, CA-13), `packages/sunat/src/http/zip-seguro.ts`, `zip-seguro-registro.spec.ts`, `pruebas/zip-manual.ts` (`zipRegistroReal`), `registro-presentado.http.spec.ts`, `apps/worker/test/sire-http.ts` (`zipRegistroRealDe`).
+- **Estructura real (corrida de contrato, 2 RUC)**: `PK\x07\x08` al inicio, EOCD al final, sin ZIP64/cifrado/descriptor, banderas 0x0800, 3 entradas: `LE#/LE#.txt` con datos (deflate), OTRA `LE#/LE#.txt` vacía (stored, tamaños 0, CRC 0) y la carpeta `LE#/`.
+- **Decisión de lectura**: (a) se ignoran carpetas (nombre en `/`, tamaño 0, método 0) y archivos vacíos (comprimido 0, descomprimido 0, CRC 0, método 0); (b) exactamente UNA entrada con datos y extensión `.txt`; (c) se valida el NOMBRE de TODAS las entradas (sin `..`, ruta absoluta, `\`, `:`, NUL ni controles, un solo nivel de carpeta, ≤ 255 bytes, y la carpeta es prefijo del archivo con datos); (d) ≤ 8 entradas en el directorio central; (e) siguen topes 64 MiB/256 MiB/200:1, CRC, métodos 0 y 8, sin cifrado ni ZIP64, duplicados CON datos rechazados.
+- **Tester (hecho, rojo)**: `zip-seguro-registro.spec.ts` (12 rojas de 78: lectura de la estructura real con y sin firma, 8 entradas, 255 bytes, 64 MiB, tope acumulado; 66 verdes que deben seguir rechazando: hostiles en cada entrada, 9 entradas, CRC y tamaños falsos, bomba de 1 GiB y topes con carpeta); `registro-presentado.http.spec.ts`, `contrato-sire.spec.ts` (5.51) y `importar-historial-041.int.spec.ts` sirven el ZIP del registro con la estructura real y quedan rojas solo por `zip_invalido`.
+- **Hacer (backend) [x] hecho**: `zip-seguro.ts` según la decisión (plan «Decisiones de la ronda 3 · ZIP del registro»); `estructura-zip.ts` (diagnóstico de pruebas) puede quedar igual: solo se usa si el lector rechaza.
+- **Hecho cuando**: las pruebas rojas de T15e verdes en `sunat` y `worker`; `typecheck` y `lint` OK. Commit `fix(041): el lector de ZIP acepta la estructura real del registro presentado`. Luego una ronda adversarial acotada al lector.
+
+## T15f · Hallazgos de la ronda adversarial 3 del lector de ZIP (backend · sonnet) [x]
+- **Contexto**: plan «Decisiones de la ronda 3 · ZIP del registro» (incluye H-041-3-1 a 3-8), `zip-seguro.ts`, `ronda3.adv.spec.ts`.
+- **Hecho**: `ronda3.adv.spec.ts` verde sin editar; `zip-seguro-r3.spec.ts` cubre descriptor de datos y campo extra; siguen verdes las demás de `sunat`, `worker` y `queue`. Commit `fix(041): hallazgos de la ronda adversarial 3 del lector de ZIP`.
+
+## T15g · Registro presentado con una sola solicitud (evidencia real) (tester → backend)
+- **Evidencia (corrida real de contrato, 2 RUC: uno con NC en 202610 y otro con 2 comprobantes USD en 202506)**: `codMoneda` NO FILTRA en el 5.51. Con `codMoneda=PEN` el archivo trae TODOS los comprobantes (12 filas: Moneda USD 2 y PEN 10 en el RUC con USD) y con USD devuelve el mismo archivo. El ZIP real es de 3 entradas y ya se lee (T15e/T15f). El encabezado real difiere del de la propuesta solo en la columna 34: `ID Proyecto Operadores/Partícipes` (no se mapea).
+- **Diseño (decisión técnica del orquestador, sustituye lo de dos solicitudes de «P-3»; el backend actualiza `plan.md`)**: UNA solicitud al 5.51 por periodo con `codProceso=70` y `codMoneda=PEN` (obligatorio, sin efecto de filtro); un ticket, un archivo. NO hay dos solicitudes ni unión de monedas. NO se verifica la columna `Moneda` de cada fila (cada una conserva PEN o USD; solo se valida la forma como en la propuesta: RUC y Periodo propios, encabezado igual entre partes, valores). Un comprobante repetido dentro del archivo → `ErrorPortalSire("respuesta_inesperada")`. «Sin datos» = 422 con cod 1070 (o 400 con 1070) o TXT solo con encabezado → `ErrorDatosSire("sin_datos")`; cualquier otro 400/422 → `ErrorPortalSire("solicitud_rechazada")` con `codigosSunat`. Clave del ticket: de vuelta a `registro` (5 partes `{tenant}:{cliente}:compras:{periodo}:registro`; ya no existen `registro-pen` ni `registro-usd`). Ticket guardado una vez tras solicitar y borrado solo al validar; si SUNAT ya no lo lista se solicita una vez más; transitorios y 401 lo conservan; un presupuesto de 90 s y 256 MiB acumulados entre las partes.
+- **Contexto**: `spec.md` (CA-13), `plan.md` «P-3 · Registro presentado» (describe el diseño anterior), `registro-presentado.http.spec.ts`, `endpoints.spec.ts`, `endpoints.ts`, `sire-api-client.http.ts`, `packages/queue/src/claves.ts`, `AlmacenTicketsRedis`, `pruebas/contrato-sire.ts`.
+- **Tester `sunat` (hecho, rojo)**: `registro-presentado.http.spec.ts` reescrito para una sola solicitud (parámetros, ticket único, reanudación con `…:registro`, re-solicitud única si ya no se lista, transitorios/401, `sin_datos`, `solicitud_rechazada`, comprobante repetido, filas PEN y USD mezcladas, 90 s y 256 MiB); `endpoints.spec.ts` (`parametrosRegistro(per)` con `codMoneda` PEN fijo, `COD_PROCESO_REGISTRO="70"`, `MONEDA_SOLICITUD_REGISTRO="PEN"`, `MONEDAS_REGISTRO` desaparece); fixtures: se queda `compras-registro-202610-mixto.txt` (8 PEN + 1 USD, encabezado real) y `-solo-encabezado.txt`, se eliminan `-pen.txt` y `-usd.txt`; prueba de contrato (`contrato-sire.ts`, `sire.contrato.spec.ts`, `contrato-sire.spec.ts`): una solicitud, informe plano (sin `porMoneda`, sin «archivo pendiente», sin verificación de «moneda pedida»), `diferencia` de encabezado (`ninguna` / `solo_no_mapeadas` / `mapeadas`) y servidor falso con el ZIP real de 3 entradas.
+- **Hacer (backend)**: en `endpoints.ts`, `parametrosRegistro(per)` sin moneda (siempre `MONEDA_SOLICITUD_REGISTRO="PEN"`) y quitar `MONEDAS_REGISTRO`/`MonedaRegistro`; en `sire-api-client.http.ts`, una solicitud, un ticket, clave `registro`, sin verificación de moneda ni unión; `claves.ts` y `AlmacenTicketsRedis` vuelven a `registro`; actualizar `plan.md` y las pruebas de `queue` y `worker` (otro tester) y `ronda2.adv.spec.ts` (clave `registro-pen`/`-usd`).
+- **Hecho cuando**: las pruebas rojas de T15g verdes en `sunat`, `queue` y `worker`; `typecheck` y `lint` OK. Commit `feat(041): el registro presentado usa una sola solicitud (codMoneda no filtra)`.
+
 ## T16 · Contrato real (tester · sonnet; lo ejecuta el usuario)
 - **Contexto**: `tools/sire-postman/README.md`, `sire.contrato.spec.ts`, P-3/P-5/P-6.
 - **Hacer**: pasar al usuario el comando; recibir solo la salida de formas; si muestra diferencias (encabezado, NC, consumidor final, codificación, servicio de registro) proponer el ajuste y anotarlo como `requiere usuario`.
@@ -112,3 +154,13 @@ Reglas comunes:
 
 ## T18 · Revisión final (arquitecto · opus) · T19 · Cierre (devops · haiku)
 - Revisión contra la spec con evidencia; cierre con commit `docs(041): cierre`.
+
+## T20 · Hallazgos de la revisión final H-1, H-2, H-3 (tester rojo → backend) [x]
+- **H-1 (media)** `apps/worker/src/trabajos/procesadores/importar-historial.ts` (~l.170): hoy todo `ErrorDatos` cuenta como «periodo sin datos». Regla: solo el `ErrorDatos` plano (mock) y `ErrorDatosSire("sin_datos")` cuentan en `periodos_sin_datos` y sigue; cualquier otro `ErrorDatosSire` (`fila_invalida`, `columna_no_soportada`, `respuesta_ajena`, `ticket_con_errores`) hace FALLAR el trabajo (`error/datos_invalidos`, importación `fallida` con ese motivo) sin leer los demás periodos, sin marcar el periodo como sin datos y sin secretos.
+- **H-2 (baja)** `packages/sunat/src/http/transporte.ts` (~l.84): el 404 es transitorio solo en la DESCARGA del archivo (5.32). Las pruebas asumen un nuevo valor `"descarga"` en `ContextoHttp` (el cliente lo usa en `descargarParte`); en `"api"` (exportar, ticket) y `"solicitud-registro"` (5.51) un 404 es `ErrorPortalSire` permanente (sin reintento). `["api", 404]` de `transporte.spec.ts` pasó de transitorio a `ErrorPortalSire`.
+- **H-3 (baja)** `transporte.ts` (~l.189-196, `codigosDeError`): si la lectura del cuerpo de un 400/422 de la solicitud 5.51 se corta (timeout o red) el resultado es `ErrorTransitorioSire` (`timeout`/`red`), no `solicitud_rechazada` con 0 códigos; un cuerpo legible sin códigos o ilegible por contenido sigue siendo `solicitud_rechazada` con `[]`.
+- **Tester (hecho, rojo)**: H-1 `importar-historial-041.errores-datos.spec.ts` (8 rojas de 11, sin BD; las 3 de «sin datos» verdes) y `importar-historial-041.int.spec.ts` (4 rojas: columna `IMB` ≠ 0, fila de otro periodo, monto ilegible, ticket `03`; hoy el trabajo termina `completado` leyendo el periodo anterior); H-2 `transporte.spec.ts`, `sire-api-client.http.spec.ts`, `registro-presentado.http.spec.ts` (7 rojas; las de `descarga` y el 404 del archivo ya verdes como guarda); H-3 `transporte.spec.ts` (5 rojas).
+- **Hacer (backend)**: según las reglas de arriba; en `sire-api-client.http.ts` `descargarParte` usa `contexto: "descarga"`. No editar las pruebas ni `ronda*.adv.spec.ts`.
+- **Hecho cuando**: las pruebas rojas de T20 verdes en `sunat` y `worker` (`test` y `test:int`); `typecheck` y `lint` OK. Commit `fix(041): hallazgos H-1, H-2 y H-3 de la revisión final`.
+- **[x] backend (2026-11-28)**: sunat 1256 (cobertura `src/http` ≥ 92 % ramas), queue 797 + int 123, worker 641 + int 676; typecheck y lint OK.
+

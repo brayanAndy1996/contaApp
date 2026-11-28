@@ -15,6 +15,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run --passWithNoTests",
+    "test:rendimiento": "vitest run --config vitest.rendimiento.config.mts",
     "test:cobertura": "vitest run --config vitest.cobertura.config.mts --coverage --passWithNoTests",
     "test:cobertura:reglas": "vitest run --config vitest.cobertura-reglas.config.mts --coverage"
   },

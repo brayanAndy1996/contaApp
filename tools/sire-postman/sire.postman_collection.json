@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "ContApp · SIRE (solo lectura)",
-    "description": "Banco de pruebas de las APIs SIRE de SUNAT (Compras RCE v28 y Ventas RVIE v30). SOLO LECTURA: token, periodos, descargar propuesta, consultar ticket y descargar archivo. No incluye aceptar/reemplazar/registrar/eliminar. Ver README.md.",
+    "description": "Banco de pruebas de las APIs SIRE de SUNAT (Compras RCE v28 y Ventas RVIE v30). SOLO LECTURA: token, periodos, descargar propuesta, consultar ticket y descargar archivo (más 5.51 (PEN y USD) y 5.40 para el registro presentado, P-3 de la spec 041). No incluye aceptar/reemplazar/registrar/eliminar. Ver README.md.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -68,6 +68,11 @@
     {
       "key": "rvie_codTipoArchivoReporte",
       "value": ""
+    },
+    {
+      "key": "ruta_5_40",
+      "value": "rce/preliminar/web/registroslibros/{{periodo}}/exportareportepreliminar",
+      "description": "Ruta del servicio 5.40 (manual RCE v28), después de /v1/contribuyente/migeigv/libros/, sin / inicial. Vacía hasta que la copies del manual."
     }
   ],
   "item": [
@@ -522,6 +527,252 @@
               ]
             },
             "description": "Devuelve binario (ZIP). En Postman usa la flecha de 'Send' → 'Send and Download' para guardarlo. Guárdalo FUERA del repositorio o en tools/sire-postman/respuestas/ (ignorada por git)."
+          }
+        },
+        {
+          "name": "5. Registro presentado · 5.51 PEN (codProceso 70, solo lectura)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let r = null; try { r = pm.response.json(); } catch (e) { console.log('Respuesta no JSON, HTTP', pm.response.code); }",
+                  "if (r) {",
+                  "  console.log('Campos de la respuesta:', Object.keys(r).join(', '));",
+                  "  if (r.numTicket) {",
+                  "    pm.collectionVariables.set('rce_ticket', r.numTicket);",
+                  "    console.log('Ticket guardado en rce_ticket (sigue con los pasos 3 y 4 de Compras). Estado HTTP', pm.response.code);",
+                  "  } else { console.log('Sin numTicket. Códigos/campos de error:', r.cod, r.msg, Object.keys(r).join(', ')); }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://api-sire.sunat.gob.pe/v1/contribuyente/migeigv/libros/rce/ajustesposteriores/web/ajustesposteriores/{{periodo}}/solicitardescarga?codTipoArchivo=0&codProceso=70&codOrigen=2&lisPeriodos={{periodo}}&codMoneda=PEN",
+              "protocol": "https",
+              "host": [
+                "api-sire",
+                "sunat",
+                "gob",
+                "pe"
+              ],
+              "path": [
+                "v1",
+                "contribuyente",
+                "migeigv",
+                "libros",
+                "rce",
+                "ajustesposteriores",
+                "web",
+                "ajustesposteriores",
+                "{{periodo}}",
+                "solicitardescarga"
+              ],
+              "query": [
+                {
+                  "key": "codTipoArchivo",
+                  "value": "0",
+                  "disabled": false,
+                  "description": "0 = txt. Sin él SUNAT responde 422 (1059-1061)."
+                },
+                {
+                  "key": "codProceso",
+                  "value": "70",
+                  "disabled": false,
+                  "description": "Único valor que acepta 5.51 (corrida real, 2026-11-28): 00, 01 y 02 dan 422 cod 1026 «Código Proceso no permitido o no valido»."
+                },
+                {
+                  "key": "codOrigen",
+                  "value": "2",
+                  "disabled": false,
+                  "description": "El nombre es codOrigen, no codOrigenEnvio (aunque el error 1028 diga lo contrario)."
+                },
+                {
+                  "key": "lisPeriodos",
+                  "value": "{{periodo}}",
+                  "disabled": false,
+                  "description": "Mismo periodo que la ruta: un ticket por periodo."
+                },
+                {
+                  "key": "codMoneda",
+                  "value": "PEN",
+                  "disabled": false,
+                  "description": "Obligatorio: sin él, 422 cod 1061 «El campo 'codMoneda' es nulo o vacio». Un ticket por moneda: PEN en el paso 5 y USD en el 5b."
+                }
+              ]
+            },
+            "description": "Servicio 5.51 del manual de compras: solicitar la descarga del registro presentado en PEN. Misma URL que 5.50. Envía codTipoArchivo=0, codProceso=70 (el único aceptado), codOrigen=2, lisPeriodos={{periodo}} y codMoneda=PEN (obligatorio). Solo lectura: no modifica el registro. Con 200 devuelve numTicket: queda en rce_ticket y se sigue con los pasos 3 y 4 de Compras (un ticket por moneda: haz 5, 3 y 4 con PEN y luego 5b, 3 y 4 con USD). Anota SOLO: código HTTP, nombres de campo, cod/msg de error, estados del ticket y nombres de columna; nunca datos."
+          }
+        },
+        {
+          "name": "5b. Registro presentado · 5.51 USD (codProceso 70, solo lectura)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let r = null; try { r = pm.response.json(); } catch (e) { console.log('Respuesta no JSON, HTTP', pm.response.code); }",
+                  "if (r) {",
+                  "  console.log('Campos de la respuesta:', Object.keys(r).join(', '));",
+                  "  if (r.numTicket) {",
+                  "    pm.collectionVariables.set('rce_ticket', r.numTicket);",
+                  "    console.log('Ticket guardado en rce_ticket (sigue con los pasos 3 y 4 de Compras). Estado HTTP', pm.response.code);",
+                  "  } else { console.log('Sin numTicket. Códigos/campos de error:', r.cod, r.msg, Object.keys(r).join(', ')); }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://api-sire.sunat.gob.pe/v1/contribuyente/migeigv/libros/rce/ajustesposteriores/web/ajustesposteriores/{{periodo}}/solicitardescarga?codTipoArchivo=0&codProceso=70&codOrigen=2&lisPeriodos={{periodo}}&codMoneda=USD",
+              "protocol": "https",
+              "host": [
+                "api-sire",
+                "sunat",
+                "gob",
+                "pe"
+              ],
+              "path": [
+                "v1",
+                "contribuyente",
+                "migeigv",
+                "libros",
+                "rce",
+                "ajustesposteriores",
+                "web",
+                "ajustesposteriores",
+                "{{periodo}}",
+                "solicitardescarga"
+              ],
+              "query": [
+                {
+                  "key": "codTipoArchivo",
+                  "value": "0",
+                  "disabled": false,
+                  "description": "0 = txt. Sin él SUNAT responde 422 (1059-1061)."
+                },
+                {
+                  "key": "codProceso",
+                  "value": "70",
+                  "disabled": false,
+                  "description": "Único valor que acepta 5.51 (corrida real, 2026-11-28): 00, 01 y 02 dan 422 cod 1026 «Código Proceso no permitido o no valido»."
+                },
+                {
+                  "key": "codOrigen",
+                  "value": "2",
+                  "disabled": false,
+                  "description": "El nombre es codOrigen, no codOrigenEnvio (aunque el error 1028 diga lo contrario)."
+                },
+                {
+                  "key": "lisPeriodos",
+                  "value": "{{periodo}}",
+                  "disabled": false,
+                  "description": "Mismo periodo que la ruta: un ticket por periodo."
+                },
+                {
+                  "key": "codMoneda",
+                  "value": "USD",
+                  "disabled": false,
+                  "description": "Obligatorio: sin él, 422 cod 1061 «El campo 'codMoneda' es nulo o vacio». Un ticket por moneda: PEN en el paso 5 y USD en el 5b."
+                }
+              ]
+            },
+            "description": "Servicio 5.51 del manual de compras: solicitar la descarga del registro presentado en USD. Misma URL que 5.50. Envía codTipoArchivo=0, codProceso=70 (el único aceptado), codOrigen=2, lisPeriodos={{periodo}} y codMoneda=USD (obligatorio). Solo lectura: no modifica el registro. Con 200 devuelve numTicket: queda en rce_ticket y se sigue con los pasos 3 y 4 de Compras (un ticket por moneda: haz 5, 3 y 4 con PEN y luego 5b, 3 y 4 con USD). Anota SOLO: código HTTP, nombres de campo, cod/msg de error, estados del ticket y nombres de columna; nunca datos."
+          }
+        },
+        {
+          "name": "6. Exportar registro preliminar · 5.40 (solo lectura, P-3 b)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let r = null; try { r = pm.response.json(); } catch (e) { console.log('Respuesta no JSON, HTTP', pm.response.code); }",
+                  "if (r) {",
+                  "  console.log('Campos de la respuesta:', Object.keys(r).join(', '));",
+                  "  if (r.numTicket) {",
+                  "    pm.collectionVariables.set('rce_ticket', r.numTicket);",
+                  "    console.log('Ticket guardado en rce_ticket (sigue con los pasos 3 y 4 de Compras). Estado HTTP', pm.response.code);",
+                  "  } else { console.log('Sin numTicket. Códigos/campos de error:', r.cod, r.msg, Object.keys(r).join(', ')); }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://api-sire.sunat.gob.pe/v1/contribuyente/migeigv/libros/{{ruta_5_40}}?codTipoArchivo=0&codOrigenEnvio=2",
+              "protocol": "https",
+              "host": [
+                "api-sire",
+                "sunat",
+                "gob",
+                "pe"
+              ],
+              "path": [
+                "v1",
+                "contribuyente",
+                "migeigv",
+                "libros",
+                "{{ruta_5_40}}"
+              ],
+              "query": [
+                {
+                  "key": "codTipoArchivo",
+                  "value": "0",
+                  "disabled": false,
+                  "description": "0 = txt, 1 = csv (como en 5.34). Ajusta a lo que diga el manual."
+                },
+                {
+                  "key": "codOrigenEnvio",
+                  "value": "2",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "Servicio 5.40 del manual de compras «exportar preliminar de registro de compras» (P-3 opción b). La ruta exacta NO está en el repo: copia del manual v28 la parte posterior a /v1/contribuyente/migeigv/libros/ en la variable de colección ruta_5_40 (sin / inicial, con {per} ya reemplazado por el periodo). Es una exportación: no registra ni modifica nada. Si responde con numTicket, queda en rce_ticket y se sigue con los pasos 3 y 4 de Compras. Anota SOLO código HTTP, nombres de campo y cod/msg de error."
           }
         }
       ]

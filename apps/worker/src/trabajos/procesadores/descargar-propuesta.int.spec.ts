@@ -217,6 +217,7 @@ describe("CA-1: la primera descarga con el mock", () => {
       ruc: RUC_FIXTURE,
       periodo: PERIODO,
       libro: "ventas",
+      claveReanudacion: `${m.T}:${m.c.id}`,
     });
     expect(api.llamadas[0]!.token.length).toBeGreaterThan(0);
 

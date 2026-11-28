@@ -69,3 +69,72 @@ export function clasificarError(e: unknown): Clasificacion {
   if (e instanceof ErrorSunat) return { clase: e.clase, motivo: e.codigo };
   return { clase: "transitorio", motivo: "sunat_no_responde" };
 }
+
+// ── Spec 041 · adaptador HTTP del SIRE ──────────────────────────────────────────────────────────────────────
+
+/**
+ * 401 de la API del SIRE con el token entregado: la caché de 008 (`conToken`) lo renueva una sola vez. Vive aquí porque
+ * lo lanza el adaptador y el worker lo reexporta (plan 041). Mensaje fijo: nunca lleva el token.
+ */
+export class TokenRechazadoError extends Error {
+  readonly codigo = "token_rechazado";
+  constructor() {
+    super("El servicio SIRE rechazó el token");
+    this.name = "TokenRechazadoError";
+  }
+}
+
+export type DetalleDatosSire = "respuesta_ajena" | "fila_invalida" | "columna_no_soportada" | "ticket_con_errores" | "sin_datos";
+export type DetallePortalSire =
+  | "encabezado"
+  | "zip_invalido"
+  | "codificacion"
+  | "respuesta_inesperada"
+  | "estado_desconocido"
+  | "nombre_archivo"
+  | "solicitud_rechazada";
+export type DetalleTransitorioSire = "ticket_pendiente" | "red" | "timeout" | "servidor";
+
+/** `ErrorDatos` del SIRE con un `detalle` literal (nunca datos de la respuesta). */
+export class ErrorDatosSire extends ErrorDatos {
+  constructor(readonly detalle: DetalleDatosSire) {
+    super();
+  }
+}
+
+/** Código de error de SUNAT que puede viajar en un `ErrorPortalSire` (solo dígitos; nunca el `msg`). */
+const GRAMATICA_COD_SUNAT = /^\d{1,6}$/;
+/** Tope de códigos de SUNAT por error. */
+const MAX_CODIGOS_SUNAT = 5;
+
+/**
+ * `ErrorPortal` del SIRE con un `detalle` literal (nunca datos de la respuesta). `codigosSunat` (plan 041, P-3): solo en
+ * `solicitud_rechazada`, los `cod` del cuerpo de error filtrados a `^\d{1,6}$` y con tope de 5; es una copia congelada.
+ */
+export class ErrorPortalSire extends ErrorPortal {
+  readonly codigosSunat: readonly string[];
+
+  constructor(
+    readonly detalle: DetallePortalSire,
+    codigosSunat?: readonly string[],
+  ) {
+    super();
+    this.codigosSunat = Object.freeze(detalle === "solicitud_rechazada" ? filtrarCodigosSunat(codigosSunat) : []);
+  }
+}
+
+function filtrarCodigosSunat(codigos: readonly unknown[] | undefined): string[] {
+  const r: string[] = [];
+  for (const c of codigos ?? []) {
+    if (r.length >= MAX_CODIGOS_SUNAT) break;
+    if (typeof c === "string" && GRAMATICA_COD_SUNAT.test(c)) r.push(c);
+  }
+  return r;
+}
+
+/** `ErrorTransitorio` del SIRE con un `detalle` literal (nunca la causa original). */
+export class ErrorTransitorioSire extends ErrorTransitorio {
+  constructor(readonly detalle: DetalleTransitorioSire) {
+    super();
+  }
+}

@@ -12,19 +12,14 @@ import {
 import { crearClaves, type ClavesCola, type Reloj } from "@contapp/queue";
 import {
   ErrorCredencial,
+  TokenRechazadoError,
   type CredencialSire,
   type SireAuth,
 } from "@contapp/sunat";
 import type { Redis } from "ioredis";
 
-/** El servicio respondió 401 con el token entregado: `conToken` lo renueva una sola vez. */
-export class TokenRechazadoError extends Error {
-  readonly codigo = "token_rechazado";
-  constructor() {
-    super("El servicio SIRE rechazó el token");
-    this.name = "TokenRechazadoError";
-  }
-}
+/** El servicio respondió 401 con el token entregado: `conToken` lo renueva una sola vez. Es la clase de `@contapp/sunat` (041). */
+export { TokenRechazadoError };
 
 export interface ContextoToken {
   tenantId: string;
@@ -88,18 +83,45 @@ export class CacheTokenSire {
     ctx: ContextoToken,
     usar: (token: string) => Promise<T>,
   ): Promise<T> {
+    const rechazado = await this.obtener(ctx);
     try {
-      return await usar(await this.obtener(ctx));
+      return await usar(rechazado);
     } catch (e) {
       if (!(e instanceof TokenRechazadoError)) throw e;
     }
-    await this.redis.del(this.clave(ctx));
     try {
-      return await usar(await this.obtener(ctx));
+      return await usar(await this.renovar(ctx, rechazado));
     } catch (e) {
       if (e instanceof TokenRechazadoError) throw new ErrorCredencial();
       throw e;
     }
+  }
+
+  /**
+   * Token que reemplaza a `rechazado` (H-041-2-8). La caché se borra solo si guarda justo el token rechazado; si ya hay uno
+   * más nuevo (otro uso concurrente lo renovó) se usa ese sin pedir otro. Comparar, borrar y pedir el nuevo corren dentro
+   * de la obtención en vuelo del cliente, así que ningún otro `obtener`/`renovar` del mismo cliente se intercala (la clave
+   * es de este proceso: nadie más la escribe).
+   */
+  private async renovar(ctx: ContextoToken, rechazado: string): Promise<string> {
+    const id = `${ctx.tenantId}:${ctx.clienteId}`;
+    for (;;) {
+      const previo = this.enVuelo.get(id);
+      if (previo === undefined) break;
+      const t = await previo;
+      if (t !== rechazado) return t;
+    }
+    const p = this.reemplazar(ctx, rechazado).finally(() => this.enVuelo.delete(id));
+    this.enVuelo.set(id, p);
+    return p;
+  }
+
+  private async reemplazar(ctx: ContextoToken, rechazado: string): Promise<string> {
+    const clave = this.clave(ctx);
+    const actual = this.abrir(clave, await this.redis.getBuffer(clave));
+    if (actual !== null && actual !== rechazado) return actual;
+    if (actual !== null) await this.redis.del(clave);
+    return this.resolver(ctx);
   }
 
   private clave(ctx: ContextoToken): string {
