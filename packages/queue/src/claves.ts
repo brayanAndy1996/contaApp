@@ -62,8 +62,11 @@ export interface ClavesCola {
 }
 
 export type LibroTicketSire = "compras" | "ventas";
-/** `propuesta` = descarga de la propuesta (013); `registro` = registro presentado (025). */
-export type OperacionTicketSire = "propuesta" | "registro";
+/**
+ * `propuesta` = descarga de la propuesta (013); `registro-pen` / `registro-usd` = registro presentado (025), un ticket por
+ * moneda (plan 041, P-3). Ninguna contiene `:`, así que la clave sigue teniendo 5 partes tras el prefijo.
+ */
+export type OperacionTicketSire = "propuesta" | "registro-pen" | "registro-usd";
 
 /** Constructores de claves; el prefijo se antepone tal cual (incluye los dos puntos). */
 export function crearClaves(prefijo: string = PREFIJO_POR_DEFECTO): ClavesCola {

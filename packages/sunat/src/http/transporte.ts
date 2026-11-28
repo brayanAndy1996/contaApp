@@ -3,6 +3,7 @@
  * leer y mapeo HTTP → errores. Los errores llevan mensaje fijo y `detalle` literal: nunca la URL, las cabeceras, el cuerpo
  * ni la causa original (CA-12).
  */
+import { MAX_BYTES_JSON } from "./endpoints.js";
 import {
   ErrorCredencial,
   ErrorDatos,
@@ -11,8 +12,12 @@ import {
   TokenRechazadoError,
 } from "../errores.js";
 
-/** "token": endpoint OAuth de seguridad. "api": API del SIRE con token. */
-export type ContextoHttp = "token" | "api";
+/**
+ * "token": endpoint OAuth de seguridad. "api": API del SIRE con token. "solicitud-registro": la solicitud 5.51 del registro
+ * presentado (plan P-3): como "api", salvo que un 400/422 lee el cuerpo de error y lanza `ErrorPortalSire("solicitud_rechazada")`
+ * con TODOS sus códigos; el cliente decide cuáles son «sin datos» (`COD_SIN_DATOS_REGISTRO`).
+ */
+export type ContextoHttp = "token" | "api" | "solicitud-registro";
 
 export interface PeticionTransporte {
   url: string;
@@ -51,6 +56,9 @@ export async function pedir(p: PeticionTransporte): Promise<RespuestaTransporte>
   }
 
   if (r.status < 200 || r.status >= 300) {
+    if (p.contexto === "solicitud-registro" && (r.status === 400 || r.status === 422)) {
+      throw new ErrorPortalSire("solicitud_rechazada", await codigosDeError(r));
+    }
     await descartar(r);
     throw errorDeEstado(p.contexto, r.status);
   }
@@ -75,6 +83,34 @@ function errorDeEstado(contexto: ContextoHttp, estado: number): Error {
   if (estado === 422) return new ErrorDatos();
   if (estado === 404) return new ErrorTransitorioSire("servidor");
   return new ErrorPortalSire("respuesta_inesperada");
+}
+
+/**
+ * Códigos de SUNAT del cuerpo de error de la solicitud 5.51: `errors[].cod` y luego el `cod` plano, en orden. Solo se leen
+ * hasta `MAX_BYTES_JSON`; un cuerpo ilegible, demasiado grande o cortado da `[]`. El `msg` (y todo lo demás) se descarta; el
+ * filtro de gramática y el tope los aplica `ErrorPortalSire`.
+ */
+async function codigosDeError(r: Response): Promise<string[]> {
+  let cuerpo: unknown;
+  try {
+    const bytes = await leerConTope(r, MAX_BYTES_JSON);
+    cuerpo = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+  } catch {
+    await descartar(r);
+    return [];
+  }
+  if (typeof cuerpo !== "object" || cuerpo === null) return [];
+  const codigos: string[] = [];
+  const errores = (cuerpo as { errors?: unknown }).errors;
+  if (Array.isArray(errores)) {
+    for (const e of errores) {
+      const cod = typeof e === "object" && e !== null ? (e as { cod?: unknown }).cod : undefined;
+      if (typeof cod === "string") codigos.push(cod);
+    }
+  }
+  const plano = (cuerpo as { cod?: unknown }).cod;
+  if (typeof plano === "string") codigos.push(plano);
+  return codigos;
 }
 
 function esCorte(e: unknown): boolean {

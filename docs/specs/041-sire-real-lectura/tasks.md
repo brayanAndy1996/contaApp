@@ -23,7 +23,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → atac
 | T15 | Corregir hallazgos de la ronda 2 | backend | opus | T14 | — | — | [x] |
 | T15b | Pruebas del registro presentado (P-3) | tester | sonnet | T15 | ✓ | — | [x] (20 pruebas en rojo en `registro-presentado.http.spec.ts`; `it.todo` de «SUNAT exige moneda»: el plan no fija la respuesta del servidor falso) |
 | T15c | Implementar registro presentado (P-3) | backend | opus | T15b | — | — | [x] |
-| T15d | Rediseño registro presentado (70 + PEN/USD) | backend | opus | T15c | ✓ | — | [ ] tests rojos ✓ (3 testers: sunat `registro-presentado.http.spec.ts`, `transporte.spec.ts`, `errores-sire.spec.ts`, `endpoints.spec.ts`; worker/queue; contrato y Postman); implementación backend pendiente |
+| T15d | Rediseño registro presentado (70 + PEN/USD) | backend | opus | T15c | ✓ | — | [x] tests rojos ✓ (3 testers) → verdes: sunat 1142, contrato falso 4 (+1 omitida), queue 797 + int 123, worker 630 + int 672; typecheck y lint OK |
 | T16 | Corrida de la prueba de contrato contra SUNAT (la ejecuta el **usuario**) y ajustes de P-5/P-6 | tester | sonnet | T9, T15 | — | — | [ ] |
 | T17 | Verificar CA-1 a CA-15 con evidencia y suites de `sunat`, `queue` y `worker` | tester | sonnet | T16 | — | — | [x] (CA-1 a CA-14; CA-15 en T16) |
 | T18 | Revisión final contra la spec | arquitecto | opus | T17 | — | — | [ ] |

@@ -91,7 +91,8 @@ export type DetallePortalSire =
   | "codificacion"
   | "respuesta_inesperada"
   | "estado_desconocido"
-  | "nombre_archivo";
+  | "nombre_archivo"
+  | "solicitud_rechazada";
 export type DetalleTransitorioSire = "ticket_pendiente" | "red" | "timeout" | "servidor";
 
 /** `ErrorDatos` del SIRE con un `detalle` literal (nunca datos de la respuesta). */
@@ -101,11 +102,34 @@ export class ErrorDatosSire extends ErrorDatos {
   }
 }
 
-/** `ErrorPortal` del SIRE con un `detalle` literal (nunca datos de la respuesta). */
+/** Código de error de SUNAT que puede viajar en un `ErrorPortalSire` (solo dígitos; nunca el `msg`). */
+const GRAMATICA_COD_SUNAT = /^\d{1,6}$/;
+/** Tope de códigos de SUNAT por error. */
+const MAX_CODIGOS_SUNAT = 5;
+
+/**
+ * `ErrorPortal` del SIRE con un `detalle` literal (nunca datos de la respuesta). `codigosSunat` (plan 041, P-3): solo en
+ * `solicitud_rechazada`, los `cod` del cuerpo de error filtrados a `^\d{1,6}$` y con tope de 5; es una copia congelada.
+ */
 export class ErrorPortalSire extends ErrorPortal {
-  constructor(readonly detalle: DetallePortalSire) {
+  readonly codigosSunat: readonly string[];
+
+  constructor(
+    readonly detalle: DetallePortalSire,
+    codigosSunat?: readonly string[],
+  ) {
     super();
+    this.codigosSunat = Object.freeze(detalle === "solicitud_rechazada" ? filtrarCodigosSunat(codigosSunat) : []);
   }
+}
+
+function filtrarCodigosSunat(codigos: readonly unknown[] | undefined): string[] {
+  const r: string[] = [];
+  for (const c of codigos ?? []) {
+    if (r.length >= MAX_CODIGOS_SUNAT) break;
+    if (typeof c === "string" && GRAMATICA_COD_SUNAT.test(c)) r.push(c);
+  }
+  return r;
 }
 
 /** `ErrorTransitorio` del SIRE con un `detalle` literal (nunca la causa original). */

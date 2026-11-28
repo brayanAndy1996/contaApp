@@ -21,7 +21,16 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CredencialSire, FilaPropuestaSire, FilaVentaSire, LibroSire, TokenSire } from "../../puertos.js";
-import { ORIGEN_SEGURIDAD, ORIGEN_SIRE, armarUrl, origenDe, rutaRegistroPresentado } from "../endpoints.js";
+import {
+  COD_SIN_DATOS_REGISTRO,
+  MONEDAS_REGISTRO,
+  ORIGEN_SEGURIDAD,
+  ORIGEN_SIRE,
+  armarUrl,
+  origenDe,
+  rutaRegistroPresentado,
+  type MonedaRegistro,
+} from "../endpoints.js";
 import { HttpSireApiClient } from "../sire-api-client.http.js";
 import { HttpSireAuth, type OpcionesHttpSire } from "../sire-auth.http.js";
 import { mismoEncabezado, normalizarEncabezado } from "../txt/encabezados.js";
@@ -105,16 +114,10 @@ export interface ObsArchivo {
   filasPorMoneda: Record<string, number>;
 }
 
-/** Las monedas del registro presentado, en el orden en que se piden (plan P-3). */
-export const MONEDAS_REGISTRO = ["PEN", "USD"] as const;
-export type MonedaRegistro = (typeof MONEDAS_REGISTRO)[number];
+/** Las monedas del registro presentado, en el orden en que se piden (plan P-3): las de `endpoints.ts`. */
+export { MONEDAS_REGISTRO, type MonedaRegistro };
 /** `codProceso` único que acepta 5.51 (plan P-3). */
 const COD_PROCESO_REGISTRO = "70";
-/**
- * `cod` con el que 5.51 dice «sin datos» al solicitar. Copia local de `COD_SIN_DATOS_REGISTRO` de `endpoints.ts` (T15d aún
- * no lo exporta); cuando exista, importarlo de allí.
- */
-const COD_SIN_DATOS_REGISTRO: readonly string[] = ["1070"];
 
 /** Una solicitud 5.51 (registro presentado) de una moneda: lo que SUNAT contestó, sin valores. */
 export interface ObsSolicitudRegistro {

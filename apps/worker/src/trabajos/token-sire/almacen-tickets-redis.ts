@@ -2,7 +2,7 @@
 // presupuesto, para retomarlo en el siguiente intento sin exportar de nuevo. El valor es SOLO el número de ticket (no es un secreto;
 // nunca token ni credenciales). La clave que entrega `HttpSireApiClient` es `{tenant}:{cliente}:{libro}:{periodo}:{operacion}` y se
 // guarda en `crearClaves(prefijo).ticketSire(...)`: estudio Y cliente en la clave.
-import { crearClaves, type ClavesCola } from "@contapp/queue";
+import { crearClaves, type ClavesCola, type OperacionTicketSire } from "@contapp/queue";
 import type { AlmacenTicketsSire } from "@contapp/sunat";
 import type { Redis } from "ioredis";
 
@@ -12,7 +12,8 @@ export interface OpcionesAlmacenTicketsRedis {
 }
 
 const LIBROS = ["compras", "ventas"] as const;
-const OPERACIONES = ["propuesta", "registro"] as const;
+/** Plan 041, P-3 (H-4): la clave vieja `…:registro` (sin moneda) se rechaza; la de Redis vence sola (TTL 1 h). */
+const OPERACIONES = ["propuesta", "registro-pen", "registro-usd"] as const satisfies readonly OperacionTicketSire[];
 
 export class AlmacenTicketsRedis implements AlmacenTicketsSire {
   private readonly redis: OpcionesAlmacenTicketsRedis["redis"];

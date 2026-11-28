@@ -39,21 +39,27 @@ export function rutaRegistroPresentado(periodo: string): string {
 }
 
 /**
- * `codProceso` de 5.51 (P-3a, decidido por el usuario el 2026-11-28): se pide `principal` y, solo si SUNAT responde «sin
- * datos», UNA vez `sinDatos`. Nunca otro código.
+ * `codProceso` de 5.51 (plan P-3, evidencia de la corrida real de contrato, 2026-11-28): 70 es el único que SUNAT acepta
+ * (00/01/02 → 422 cod 1026). Nunca otro código ni reintento con otro.
  */
-export const COD_PROCESO_REGISTRO = { principal: "01", sinDatos: "02" } as const;
-export type CodProcesoRegistro = (typeof COD_PROCESO_REGISTRO)[keyof typeof COD_PROCESO_REGISTRO];
+export const COD_PROCESO_REGISTRO = "70";
+
+/** Monedas del registro presentado, en el orden en que se piden: un ticket por periodo y moneda (`codMoneda` obligatorio). */
+export const MONEDAS_REGISTRO = ["PEN", "USD"] as const;
+export type MonedaRegistro = (typeof MONEDAS_REGISTRO)[number];
+
+/** `cod` de SUNAT con el que 5.51 responde «sin datos» al solicitar (422); cualquier otro es `solicitud_rechazada`. */
+export const COD_SIN_DATOS_REGISTRO: readonly string[] = ["1070"];
 
 /**
- * Query de 5.51: un ticket por periodo (`lisPeriodos` = `perTributario`). El nombre es `codOrigen`, no `codOrigenEnvio`.
- * `codMoneda` se omite (P-3b).
+ * Query de 5.51: `lisPeriodos` = `perTributario`; el nombre es `codOrigen`, no `codOrigenEnvio`; `codMoneda` siempre (sin él,
+ * 422 cod 1061).
  */
-export function parametrosRegistro(periodo: string, codProceso: CodProcesoRegistro): Readonly<Record<string, string>> {
-  return { codTipoArchivo: "0", codProceso, codOrigen: "2", lisPeriodos: periodo };
+export function parametrosRegistro(periodo: string, moneda: MonedaRegistro): Readonly<Record<string, string>> {
+  return { codTipoArchivo: "0", codProceso: COD_PROCESO_REGISTRO, codOrigen: "2", lisPeriodos: periodo, codMoneda: moneda };
 }
 
-export const RUTA_TICKET =`${BASE_LIBROS}/rvierce/gestionprocesosmasivos/web/masivo/consultaestadotickets`;
+export const RUTA_TICKET = `${BASE_LIBROS}/rvierce/gestionprocesosmasivos/web/masivo/consultaestadotickets`;
 export const RUTA_ARCHIVO = `${BASE_LIBROS}/rvierce/gestionprocesosmasivos/web/masivo/archivoreporte`;
 
 export const COD_LIBRO: Readonly<Record<LibroSire, string>> = { compras: "080000", ventas: "140000" };
