@@ -63,9 +63,11 @@ import { AlmacenTicketsRedis } from "../token-sire/almacen-tickets-redis.js";
 // Spec 041 · T17 (verificación de CA-13; integración con PostgreSQL y Redis reales, BullMQ real y el SERVIDOR SUNAT FALSO de T3):
 // `reglas.historial.importar` (spec 025) con `SIRE_CLIENT=http` lee el REGISTRO PRESENTADO de compras (servicio 5.51 + 5.31 + 5.32,
 // codLibro 080000, plan «P-3») con `HttpSireAuth` + `HttpSireApiClient`, sin salir a internet ni dormir.
-// Rediseño P-3 (ronda 3): `codProceso=70` fijo y DOS solicitudes por periodo (codMoneda PEN y USD), un ticket cada una, con claves
-// `…:registro-pen` y `…:registro-usd`.
-// Fixtures: `fixtures/sire/http/compras-registro-202610-pen.txt` y `-usd.txt` (RUC 20700000002 y proveedores de `fixtures/rucs-prueba.json`).
+// Rediseño CA-13 (corrida real de contrato): `codMoneda` NO FILTRA en el 5.51 (con PEN el archivo trae todos los comprobantes, USD
+// incluidos). UNA sola solicitud por periodo (`codProceso=70`, `codMoneda=PEN`), un solo ticket, un solo archivo; sin unión ni
+// verificación de moneda por fila; la clave del ticket es `…:registro` (ya no existen `registro-pen` ni `registro-usd`).
+// Fixture: `fixtures/sire/http/compras-registro-202610-mixto.txt` (PEN y una fila USD; RUC 20700000002 y proveedores de
+// `fixtures/rucs-prueba.json`).
 
 vi.setConfig({ testTimeout: 120_000, hookTimeout: 60_000 });
 
@@ -132,50 +134,30 @@ afterAll(async () => {
   await Promise.all([backend?.close(), admin?.close()]);
 });
 
-type Moneda = "PEN" | "USD";
-const MONEDAS: readonly Moneda[] = ["PEN", "USD"];
-const FIXTURE_DE: Record<Moneda, string> = {
-  PEN: "compras-registro-202610-pen.txt",
-  USD: "compras-registro-202610-usd.txt",
-};
-const NOMBRE_ZIP_DE: Record<Moneda, string> = {
-  PEN: "registro-202610-pen.zip",
-  USD: "registro-202610-usd.zip",
-};
-const zipRegistro = (m: Moneda) =>
-  zipRegistroRealDe(
-    `20700000002-registro-202610-${m.toLowerCase()}`,
-    leerFixture(FIXTURE_DE[m]),
-  );
-const monedaDe = (p: { query: Record<string, string> }): Moneda =>
-  p.query["codMoneda"] === "USD" ? "USD" : "PEN";
+/** Archivo único del registro del periodo: comprobantes PEN y una fila USD (el 5.51 no filtra por moneda). */
+const FIXTURE_REGISTRO = "compras-registro-202610-mixto.txt";
+const NOMBRE_ZIP = "registro-202610.zip";
+const zipRegistro = () =>
+  zipRegistroRealDe("20700000002-registro-202610", leerFixture(FIXTURE_REGISTRO));
 
 /**
- * Token, solicitud 5.51 por moneda (PERIODO con registro; PERIODO_SIN_REGISTRO responde 422 «sin datos» en las dos),
- * ticket 06 (cada ticket con el ZIP de su moneda) y archivo según el nombre del ZIP pedido.
+ * Token, solicitud 5.51 (PERIODO con registro; PERIODO_SIN_REGISTRO responde 422 «sin datos»), ticket 06 con el único ZIP del
+ * registro y archivo.
  */
 function guionarRegistro(token: string): void {
   let n = 0;
-  const monedaDeTicket = new Map<string, Moneda>();
   srv.guionar("POST", RUTAS_SIRE.token, respuestaToken(token));
   srv.guionar("GET", RUTA_REGISTRO, (p) => {
     if (p.ruta.includes(`/${PERIODO_SIN_REGISTRO}/`))
       return { estado: 422, json: { errors: [{ cod: "1070", msg: "sin datos" }] } };
-    const numTicket = `2026100000${String(++n).padStart(4, "0")}`;
-    monedaDeTicket.set(numTicket, monedaDe(p));
-    return { json: { numTicket } };
+    return { json: { numTicket: `2026100000${String(++n).padStart(4, "0")}` } };
   });
-  srv.guionar("GET", RUTAS_SIRE.ticket, (p) => {
-    const num = p.query["numTicket"] ?? "";
-    return {
-      json: registroTicket(num, "06", PERIODO, {
-        archivos: [{ nom: NOMBRE_ZIP_DE[monedaDeTicket.get(num) ?? "PEN"], cod: "00" }],
-      }),
-    };
-  });
-  srv.guionar("GET", RUTAS_SIRE.archivo, (p) => ({
-    bytes: zipRegistro(p.query["nomArchivoReporte"] === NOMBRE_ZIP_DE.USD ? "USD" : "PEN"),
+  srv.guionar("GET", RUTAS_SIRE.ticket, (p) => ({
+    json: registroTicket(p.query["numTicket"] ?? "", "06", PERIODO, {
+      archivos: [{ nom: NOMBRE_ZIP, cod: "00" }],
+    }),
   }));
+  srv.guionar("GET", RUTAS_SIRE.archivo, () => ({ bytes: zipRegistro() }));
 }
 
 async function conWorkerHttp<T>(
@@ -202,7 +184,7 @@ async function conWorkerHttp<T>(
 }
 
 describe("CA-13: importar historial con registro presentado y SIRE_CLIENT=http", () => {
-  it("lee el registro presentado de dos periodos (uno sin datos en PEN y USD) contra el servidor falso: 5.51 dos veces por periodo, claves registro-pen/usd borradas, candidatas y sin secretos", async () => {
+  it("lee el registro presentado de dos periodos (uno sin datos) contra el servidor falso: una sola solicitud 5.51 y un solo ticket por periodo, archivo mixto PEN+USD completo, clave registro borrada, candidatas y sin secretos", async () => {
     const m = await mundoSireHttp(e, backend, { ruc: RUC_FIXTURE });
     const TOKEN = canario("token_sire");
     guionarRegistro(TOKEN);
@@ -248,7 +230,9 @@ describe("CA-13: importar historial con registro presentado y SIRE_CLIENT=http",
         (c) => c.razon_social === null || c.razon_social.startsWith("PRUEBA"),
       ),
     ).toBe(true);
-    // El proveedor mixto aparece en dos comprobantes PEN del registro (F001-2056 y F003-20); las filas USD se suman a las PEN.
+    // El archivo mixto se importa completo, sin unión ni verificación de moneda por fila: la fila USD (proveedor 20700000061) entra
+    // igual que las PEN. El proveedor mixto aparece en dos comprobantes PEN (F001-2056 y F003-20).
+    expect(cand.find((c) => c.doc_numero === "20700000061")).toMatchObject({ n_total: 1 });
     const mixto = cand.find((c) => c.doc_numero === "20700000045");
     expect(mixto).toMatchObject({ periodos_con_proveedor: 1 });
     expect(mixto!.n_total).toBeGreaterThanOrEqual(2);
@@ -261,20 +245,19 @@ describe("CA-13: importar historial con registro presentado y SIRE_CLIENT=http",
     const sin = solicitudes.filter((p) =>
       p.ruta.includes(`/${PERIODO_SIN_REGISTRO}/`),
     );
-    // 5.51 dos veces por periodo, PEN y luego USD, siempre con codProceso 70 (nunca 01/02 ni sin moneda).
-    expect(con.map((p) => p.query["codMoneda"])).toEqual(["PEN", "USD"]);
-    expect(sin.map((p) => p.query["codMoneda"])).toEqual(["PEN", "USD"]);
-    expect(solicitudes).toHaveLength(4);
+    // 5.51 UNA sola vez por periodo, con codMoneda PEN y siempre codProceso 70 (nunca 01/02, nunca USD).
+    expect(con.map((p) => p.query["codMoneda"])).toEqual(["PEN"]);
+    expect(sin.map((p) => p.query["codMoneda"])).toEqual(["PEN"]);
+    expect(solicitudes).toHaveLength(2);
     for (const p of solicitudes) {
       expect(p.query["codProceso"], p.ruta).toBe("70");
       expect(p.query["codTipoArchivo"], p.ruta).toBe("0");
       expect(p.query["codOrigen"], p.ruta).toBe("2");
     }
-    // Un ticket y un archivo por moneda del periodo con registro; el periodo sin datos no consulta ticket ni archivo.
+    // Un ticket y un archivo para el periodo con registro; el periodo sin datos no consulta ticket ni archivo.
+    expect(srv.peticionesDe("GET", RUTAS_SIRE.ticket)).toHaveLength(1);
     const archivo = srv.peticionesDe("GET", RUTAS_SIRE.archivo);
-    expect(archivo.map((p) => p.query["nomArchivoReporte"]).sort()).toEqual(
-      MONEDAS.map((m) => NOMBRE_ZIP_DE[m]).sort(),
-    );
+    expect(archivo.map((p) => p.query["nomArchivoReporte"])).toEqual([NOMBRE_ZIP]);
     for (const p of archivo)
       expect(p.query).toMatchObject({
         codLibro: "080000",
@@ -288,15 +271,14 @@ describe("CA-13: importar historial con registro presentado y SIRE_CLIENT=http",
       expect(p.cabeceras["authorization"], p.ruta).toBe(`Bearer ${TOKEN}`);
     expect(srv.sinGuion).toEqual([]);
 
-    // Los dos tickets terminados se borran de Redis (la clave lleva estudio, cliente, libro, periodo y «registro-pen»/«registro-usd»).
+    // El ticket terminado se borra de Redis (la clave lleva estudio, cliente, libro, periodo y la operación «registro»).
     for (const per of periodos)
-      for (const op of ["registro-pen", "registro-usd"])
-        expect(
-          await redis.exists(
-            (crearClaves(prefijo) as ClavesConTicket).ticketSire(m.T, m.c.id, "compras", per, op),
-          ),
-          `${per}:${op}`,
-        ).toBe(0);
+      expect(
+        await redis.exists(
+          (crearClaves(prefijo) as ClavesConTicket).ticketSire(m.T, m.c.id, "compras", per, "registro"),
+        ),
+        per,
+      ).toBe(0);
 
     // Ni el token ni los secretos de la credencial aparecen en logs, tablas, job_registro ni Redis.
     const jobs = await e.volcarJobs();
@@ -316,25 +298,23 @@ describe("CA-13: importar historial con registro presentado y SIRE_CLIENT=http",
     ).toBeGreaterThan(0);
   });
 
-  it("registro pendiente: guarda los tickets registro-pen y registro-usd en Redis y el reintento los retoma (5.51 una vez por moneda)", async () => {
+  it("registro pendiente: guarda el ticket `registro` en Redis y el reintento lo retoma sin repetir el 5.51", async () => {
     const m = await mundoSireHttp(e, backend, { ruc: RUC_FIXTURE });
     const TOKEN = canario("token_sire");
-    const claves = (crearClaves(prefijo) as ClavesConTicket);
-    const clavePen = claves.ticketSire(m.T, m.c.id, "compras", PERIODO, "registro-pen");
-    const claveUsd = claves.ticketSire(m.T, m.c.id, "compras", PERIODO, "registro-usd");
-    const TICKET_DE: Record<Moneda, string> = { PEN: "202610000098", USD: "202610000099" };
-    const monedaDeTicket = (num: string): Moneda =>
-      num === TICKET_DE.USD ? "USD" : "PEN";
+    const claveRegistro = (crearClaves(prefijo) as ClavesConTicket).ticketSire(
+      m.T,
+      m.c.id,
+      "compras",
+      PERIODO,
+      "registro",
+    );
+    const TICKET = "202610000098";
     srv.guionar("POST", RUTAS_SIRE.token, respuestaToken(TOKEN));
-    srv.guionar("GET", RUTA_REGISTRO, (p) => ({
-      json: { numTicket: TICKET_DE[monedaDe(p)] },
-    }));
+    srv.guionar("GET", RUTA_REGISTRO, () => ({ json: { numTicket: TICKET } }));
     srv.guionar("GET", RUTAS_SIRE.ticket, (p) => ({
       json: registroTicket(p.query["numTicket"] ?? "", "02", PERIODO),
     }));
-    srv.guionar("GET", RUTAS_SIRE.archivo, (p) => ({
-      bytes: zipRegistro(p.query["nomArchivoReporte"] === NOMBRE_ZIP_DE.USD ? "USD" : "PEN"),
-    }));
+    srv.guionar("GET", RUTAS_SIRE.archivo, () => ({ bytes: zipRegistro() }));
 
     const importacionId = await iniciarImportacion(backend, m, [PERIODO]);
     const r = await conWorkerHttp(async () => {
@@ -346,31 +326,29 @@ describe("CA-13: importar historial con registro presentado y SIRE_CLIENT=http",
         importacionId,
       );
       await esperarHasta(
-        async () =>
-          (await redis.exists(clavePen)) === 1 && (await redis.exists(claveUsd)) === 1,
-        "tickets de registro guardados",
+        async () => (await redis.exists(claveRegistro)) === 1,
+        "ticket de registro guardado",
         { timeoutMs: 30_000 },
       );
-      expect(await redis.get(clavePen)).toBe(TICKET_DE.PEN);
-      expect(await redis.get(claveUsd)).toBe(TICKET_DE.USD);
-      // Los tickets terminan: el siguiente intento del trabajo los retoma.
-      srv.guionar("GET", RUTAS_SIRE.ticket, (p) => {
-        const num = p.query["numTicket"] ?? "";
-        return {
-          json: registroTicket(num, "06", PERIODO, {
-            archivos: [{ nom: NOMBRE_ZIP_DE[monedaDeTicket(num)], cod: "00" }],
-          }),
-        };
-      });
+      expect(await redis.get(claveRegistro)).toBe(TICKET);
+      // El ticket termina: el siguiente intento del trabajo lo retoma (sin volver a pedir el 5.51).
+      srv.guionar("GET", RUTAS_SIRE.ticket, (p) => ({
+        json: registroTicket(p.query["numTicket"] ?? "", "06", PERIODO, {
+          archivos: [{ nom: NOMBRE_ZIP, cod: "00" }],
+        }),
+      }));
       return esperarTerminal(e, trabajoId, 60_000);
     });
     expect(r.estado).toBe("completado");
     const solicitudes = srv.peticionesDe("GET", RUTA_REGISTRO);
-    expect(solicitudes.map((p) => p.query["codMoneda"])).toEqual(["PEN", "USD"]);
-    expect(await redis.exists(clavePen)).toBe(0);
-    expect(await redis.exists(claveUsd)).toBe(0);
+    expect(solicitudes.map((p) => p.query["codMoneda"])).toEqual(["PEN"]);
+    expect(await redis.exists(claveRegistro)).toBe(0);
     expect((await importacionDe(admin, importacionId)).estado).toBe(
       "completada",
     );
+    // El ticket guardado es solo el número: ni el token ni los secretos de la credencial pasan por Redis.
+    const todoRedis = await volcarPrefijo(redis, prefijo);
+    for (const sec of [TOKEN, m.secretos.clave, m.secretos.clientSecret])
+      for (const x of rastros(sec)) expect(todoRedis, "Redis").not.toContain(x);
   });
 });

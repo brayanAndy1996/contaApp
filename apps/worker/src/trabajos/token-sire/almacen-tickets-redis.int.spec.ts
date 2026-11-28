@@ -79,17 +79,18 @@ describe("AlmacenTicketsRedis (CA-8)", () => {
     expect(ttl).toBeLessThanOrEqual(3_600_000);
   });
 
-  it("libro y operación se reflejan en la clave de Redis (compras/registro-usd)", async () => {
+  it("libro y operación se reflejan en la clave de Redis (compras/registro, 5 partes con operación `registro`)", async () => {
     const { a, k } = almacen();
-    await a.guardar(clave(T1, C1, "compras", "202609", "registro-usd"), TICKET, 60_000);
+    await a.guardar(clave(T1, C1, "compras", "202609", "registro"), TICKET, 60_000);
     expect(
-      await redis.get(k.ticketSire(T1, C1, "compras", "202609", "registro-usd")),
+      await redis.get(k.ticketSire(T1, C1, "compras", "202609", "registro")),
     ).toBe(TICKET);
+    expect(await a.leer(clave(T1, C1, "compras", "202609", "registro"))).toBe(TICKET);
   });
 
-  it("propuesta, registro-pen y registro-usd del mismo estudio, cliente, libro y periodo no chocan entre sí", async () => {
+  it("propuesta y registro del mismo estudio, cliente, libro y periodo no chocan entre sí", async () => {
     const { a, k } = almacen();
-    const ops = ["propuesta", "registro-pen", "registro-usd"] as const;
+    const ops = ["propuesta", "registro"] as const;
     for (const [i, op] of ops.entries())
       await a.guardar(clave(T1, C1, "compras", "202610", op), `10${i}`, 60_000);
     for (const [i, op] of ops.entries()) {
@@ -99,9 +100,8 @@ describe("AlmacenTicketsRedis (CA-8)", () => {
         op,
       ).toBe(`10${i}`);
     }
-    await a.borrar(clave(T1, C1, "compras", "202610", "registro-pen"));
-    expect(await a.leer(clave(T1, C1, "compras", "202610", "registro-pen"))).toBeNull();
-    expect(await a.leer(clave(T1, C1, "compras", "202610", "registro-usd"))).toBe("102");
+    await a.borrar(clave(T1, C1, "compras", "202610", "registro"));
+    expect(await a.leer(clave(T1, C1, "compras", "202610", "registro"))).toBeNull();
     expect(await a.leer(clave(T1, C1, "compras", "202610", "propuesta"))).toBe("100");
   });
 
@@ -135,15 +135,16 @@ describe("AlmacenTicketsRedis (CA-8)", () => {
     await expect(a.borrar(clave(T1, C1))).resolves.toBeUndefined();
   });
 
-  it("H-041-2-4: la clave debe tener exactamente 5 partes con libro y operación válidos; si no, error y nada en Redis", async () => {
+  it("H-041-2-4: la clave debe tener exactamente 5 partes con libro y operación válidos (propuesta | registro); si no, error y nada en Redis", async () => {
     const { a, prefijo } = almacen();
     const malas = [
       `${T1}:${C1}:compras:202610`, // 4 partes: sin operación
       `${T1}:${C1}:compras:202610:propuesta:extra`, // 6 partes
       clave(T1, C1, "diario"), // libro desconocido
       clave(T1, C1, "compras", "202610", "otra"), // operación desconocida
-      clave(T1, C1, "compras", "202610", "registro"), // clave vieja del registro (sin moneda)
-      clave(T1, C1, "compras", "202610", "registro-eur"), // moneda fuera de PEN/USD
+      clave(T1, C1, "compras", "202610", "registro-pen"), // claves por moneda del diseño anterior: ya no existen
+      clave(T1, C1, "compras", "202610", "registro-usd"),
+      clave(T1, C1, "compras", "202610", "registro-eur"),
       clave("", C1), // estudio vacío
     ];
     for (const m of malas) {
