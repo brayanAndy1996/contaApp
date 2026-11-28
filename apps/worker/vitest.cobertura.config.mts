@@ -20,7 +20,8 @@ for (const archivo of [ruta("../../.env"), ruta("./.env")]) {
 }
 
 // Los paquetes se importan desde la fuente para que cuenten en cobertura.
-// `@contapp/queue/worker` va antes que `@contapp/queue` (coincidencia por expresión exacta).
+// `@contapp/queue/worker` va antes que `@contapp/queue`. `@contapp/queue` y `@contapp/sunat` coinciden por expresión
+// exacta: un alias de texto reescribe también los imports profundos (p. ej. `@contapp/sunat/dist/...`).
 const alias = [
   { find: "@contapp/db", replacement: ruta("../../packages/db/src/index.ts") },
   {
@@ -28,7 +29,7 @@ const alias = [
     replacement: ruta("../../packages/shared/src/index.ts"),
   },
   {
-    find: "@contapp/sunat",
+    find: /^@contapp\/sunat$/,
     replacement: ruta("../../packages/sunat/src/index.ts"),
   },
   {
@@ -138,6 +139,9 @@ export default defineConfig({
         // Dobles de prueba (no son producción ni pruebas): fuera de la medición (plan 008, Ratificaciones (6)).
         "packages/db/src/trabajos/soporte-prueba.ts",
         "packages/queue/src/soporte-pruebas/**",
+        // Soporte y doble en memoria de pruebas de 041 (no producción): packages/sunat los excluye o los mide en agregado.
+        "packages/sunat/src/http/pruebas/**",
+        "packages/sunat/src/http/almacen-tickets.ts",
       ],
       reporter: ["text", "json-summary"],
       // Un bloque por glob medido.
