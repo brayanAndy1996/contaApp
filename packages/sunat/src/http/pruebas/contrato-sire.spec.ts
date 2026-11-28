@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   CANARIOS,
   PERIODO,
+  RUC,
   RUTAS,
   fixture,
   cuerpoTicket,
@@ -14,13 +15,17 @@ import {
 import { sinColumna } from "./ayudas-txt.js";
 import {
   contratoLibro,
+  contratoRegistro,
   contratoToken,
   credencialesDelEntorno,
   crearFetchObservado,
   lineaToken,
+  lineaTotales,
   lineasLibro,
+  lineasRegistro,
   nuevasObservaciones,
   prepararServidorFalso,
+  sumarTotalesP5,
   VARIABLES_CONTRATO,
   type ServidorContratoFalso,
 } from "./contrato-sire.js";
@@ -126,6 +131,199 @@ describe("contrato SIRE contra el servidor falso", () => {
   });
 });
 
+describe("contrato SIRE · registro presentado de compras (5.51) contra el servidor falso", () => {
+  let srv: ServidorContratoFalso;
+  let token: Awaited<ReturnType<typeof contratoToken>>["token"];
+  beforeAll(async () => {
+    srv = await prepararServidorFalso();
+    srv.entrada.dormir = sinEsperar;
+    token = (await contratoToken(srv.entrada)).token;
+  });
+  afterAll(async () => {
+    await srv.cerrar();
+  });
+  const solicitudes = () => srv.sire.peticionesDe("GET", RUTAS.solicitarRegistro());
+  const T_DATOS = "202610000003";
+  const T_VACIO = "202610000004";
+  const zipRegistro = (nombre: string, txt: string) => ({ nombre, zip: zip(nombre.replace(".zip", ".txt"), fixture(txt)) });
+  /** Ticket `T_DATOS` con el registro del fixture y `T_VACIO` con solo el encabezado. */
+  function guionarTickets(): void {
+    const partes = new Map([
+      [T_DATOS, zipRegistro("registro-con-datos.zip", "compras-registro-202610.txt")],
+      [T_VACIO, zipRegistro("registro-vacio.zip", "compras-registro-202610-solo-encabezado.txt")],
+    ]);
+    srv.sire.guionar("GET", RUTAS.ticket, (p) => {
+      const t = p.query["numTicket"] ?? "";
+      const parte = partes.get(t);
+      return parte === undefined ? { estado: 404 } : { json: cuerpoTicket([registroTicket(t, "04", [archivo(parte.nombre)])]) };
+    });
+    srv.sire.guionar("GET", RUTAS.archivo, (p) => {
+      const parte = [...partes.values()].find((x) => x.nombre === p.query["nomArchivoReporte"]);
+      return parte === undefined ? { estado: 404 } : { bytes: parte.zip, cabeceras: { "content-type": "application/zip" } };
+    });
+  }
+
+  it("con datos en 01: una sola solicitud sin codMoneda, encabezado igual al de la propuesta y formas válidas", async () => {
+    const antes = solicitudes().length;
+    const lineas: string[] = [];
+    const i = await contratoRegistro({ ...srv.entrada, emitir: (l) => lineas.push(l) }, token);
+    expect(i.error).toBeNull();
+    expect(i.sinDatos).toBe(false);
+    expect(i.codProcesoConDatos).toBe("01");
+    const pedidas = solicitudes().slice(antes);
+    expect(pedidas).toHaveLength(1);
+    expect(pedidas[0]?.query["codProceso"]).toBe("01");
+    expect(pedidas[0]?.query["codMoneda"]).toBeUndefined();
+    expect(i.solicitudes).toMatchObject([{ codProceso: "01", estado: 200, campos: ["numTicket"], errorSunat: null }]);
+    expect(i.ticket.estados).toEqual(["01", "04"]);
+    expect(i.archivos[0]).toMatchObject({ zipLegible: true, columnas: 80, encabezadoCoincide: true, faltantes: [], sobrantes: [] });
+    expect(i.filas?.total).toBeGreaterThan(0);
+    expect(i.filas).toMatchObject({ fechaInvalida: 0, monedaInvalida: 0, montoInvalido: 0, tipoCambioInvalido: 0, tipoInvalido: 0, numeroVacio: 0 });
+    const salida = lineas.join("\n");
+    expect(salida).toContain("registro-presentado 202610: total");
+    expect(salida).toContain("con datos en codProceso 01");
+    expect(salida).toContain("encabezado igual al de la propuesta de compras sí");
+    expect(salida).toContain("P-5 · NC");
+    expect(lineas.every((l) => l.startsWith("[contrato-sire]"))).toBe(true);
+    expect(srv.sire.peticiones.every((p) => p.metodo === "GET")).toBe(true);
+  });
+
+  it("01 rechazado con 422 «sin datos» (cod 1070): pide 02 una vez y el informe dice con cuál obtuvo datos", async () => {
+    guionarTickets();
+    const antes = solicitudes().length;
+    srv.sire.guionar("GET", RUTAS.solicitarRegistro(), (p) =>
+      p.query["codProceso"] === "01" ? { estado: 422, json: { cod: "1070", msg: "No existen datos" } } : { json: { numTicket: T_DATOS } },
+    );
+    const i = await contratoRegistro(srv.entrada, token);
+    expect(solicitudes().slice(antes).map((p) => p.query["codProceso"])).toEqual(["01", "02"]);
+    expect(i.codProcesoConDatos).toBe("02");
+    expect(i.sinDatos).toBe(false);
+    expect(i.error).toBeNull();
+    expect(i.solicitudes.map((x) => [x.codProceso, x.estado, x.errorSunat?.cod ?? null])).toEqual([
+      ["01", 422, "1070"],
+      ["02", 200, null],
+    ]);
+    expect(lineasRegistro(i).join("\n")).toContain("con datos en codProceso 02");
+  });
+
+  it("01 con TXT solo con encabezado y 02 sin datos: «sin datos en 01 y 02», dos solicitudes y ninguna más", async () => {
+    guionarTickets();
+    const antes = solicitudes().length;
+    srv.sire.guionar("GET", RUTAS.solicitarRegistro(), { json: { numTicket: T_VACIO } });
+    const i = await contratoRegistro(srv.entrada, token);
+    expect(solicitudes().slice(antes).map((p) => p.query["codProceso"])).toEqual(["01", "02"]);
+    expect(i.sinDatos).toBe(true);
+    expect(i.codProcesoConDatos).toBeNull();
+    expect(i.filas).toBeNull();
+    expect(i.error).toEqual({ clase: "ErrorDatosSire", detalle: "sin_datos" });
+    const salida = lineasRegistro(i).join("\n");
+    expect(salida).toContain("sin datos en 01 y 02");
+    expect(salida).toContain("solicitud 2 codProceso 02");
+  });
+
+  it("422 sin datos (1070) en 01 y en 02: «sin datos en 01 y 02»", async () => {
+    srv.sire.guionar("GET", RUTAS.solicitarRegistro(), { estado: 422, json: { cod: "1070", msg: "No existen datos" } });
+    const i = await contratoRegistro(srv.entrada, token);
+    expect(i.sinDatos).toBe(true);
+    expect(i.solicitudes.map((x) => x.codProceso)).toEqual(["01", "02"]);
+    expect(i.archivos).toHaveLength(0);
+  });
+
+  it("SUNAT exige moneda o rechaza: imprime el HTTP y solo cod y msg (sin números largos) y NO lo toma por «sin datos»", async () => {
+    srv.sire.guionar("GET", RUTAS.solicitarRegistro(), {
+      estado: 422,
+      json: { cod: "1101", msg: `Debe indicar codMoneda para el RUC ${RUC}`, detalle: "NO-IMPRIMIR-ESTO", numTicket: CANARIOS.token },
+    });
+    const lineas: string[] = [];
+    const i = await contratoRegistro({ ...srv.entrada, emitir: (l) => lineas.push(l) }, token);
+    expect(i.sinDatos).toBe(false);
+    expect(i.codProcesoConDatos).toBeNull();
+    expect(i.error?.clase).toBe("ErrorDatos");
+    expect(i.solicitudes[0]).toMatchObject({ codProceso: "01", estado: 422, errorSunat: { cod: "1101", msg: "Debe indicar codMoneda para el RUC #" } });
+    const salida = lineas.join("\n");
+    expect(salida).toContain("HTTP 422");
+    expect(salida).toContain("cod 1101 msg «Debe indicar codMoneda para el RUC #»");
+    for (const v of [RUC, "NO-IMPRIMIR-ESTO", CANARIOS.token]) expect(salida.includes(v), "la salida repite un valor del cuerpo").toBe(false);
+  });
+
+  it("cod o msg con formas raras se imprimen como «?»", async () => {
+    srv.sire.guionar("GET", RUTAS.solicitarRegistro(), { estado: 400, json: { cod: "<script>alert(1)</script>", msg: "linea\ncon salto" } });
+    const i = await contratoRegistro(srv.entrada, token);
+    expect(i.solicitudes[0]?.errorSunat).toEqual({ cod: "?", msg: "?" });
+  });
+
+  it("la salida del registro no contiene valores: ni RUC, razones sociales, canarios, tickets ni celdas de datos", async () => {
+    srv.sire.guionar("GET", RUTAS.solicitarRegistro(), { json: { numTicket: T_DATOS } });
+    guionarTickets();
+    const lineas: string[] = [];
+    await contratoRegistro({ ...srv.entrada, emitir: (l) => lineas.push(l) }, token);
+    const salida = lineas.join("\n");
+    expect(lineas.length).toBeGreaterThanOrEqual(5);
+    const celdas = Buffer.from(fixture("compras-registro-202610.txt"))
+      .toString("utf8")
+      .split("\n")
+      .slice(1)
+      .flatMap((fila) => fila.split("|"))
+      .filter((c) => c.length >= 6 && c !== PERIODO);
+    expect(celdas.length).toBeGreaterThan(0);
+    for (const v of [...rucs.flatMap((r) => [r.ruc, r.razonSocial]), ...Object.values(CANARIOS), T_DATOS, T_VACIO, ...celdas]) {
+      expect(salida.includes(v), "la salida repite un valor de los datos").toBe(false);
+    }
+    expect(/\d{8,}/.test(salida), "la salida trae un número largo").toBe(false);
+  });
+});
+
+describe("totales P-5/P-6 de varios periodos", () => {
+  const forma = (extra: Record<string, number>) => ({
+    total: 10,
+    fechaInvalida: 0,
+    monedaInvalida: 0,
+    montoInvalido: 0,
+    tipoCambioInvalido: 0,
+    tipoInvalido: 0,
+    numeroVacio: 0,
+    tiposVistos: [],
+    monedasVistas: [],
+    usd: 0,
+    usdConTipoCambio: 0,
+    notasCredito: 0,
+    notasCreditoConTotalNegativo: 0,
+    notasDebito: 0,
+    boletas: 0,
+    boletasSinDocumento: 0,
+    sinDocumento: 0,
+    filasConMontoNegativo: 0,
+    ...extra,
+  });
+
+  it("suma NC, ND, USD con TC, boletas, sin documento y negativos de todos los informes; un periodo sin datos no suma ni falla", () => {
+    const t = sumarTotalesP5(3, [
+      { filas: forma({ notasCredito: 2, notasCreditoConTotalNegativo: 2, usd: 1, usdConTipoCambio: 1, filasConMontoNegativo: 2 }), error: null },
+      { filas: forma({ notasDebito: 1, boletas: 4, boletasSinDocumento: 3, sinDocumento: 3 }), error: null },
+      { filas: null, error: { detalle: "sin_datos" } },
+      { filas: null, error: { detalle: "codificacion" } },
+    ]);
+    expect(t).toMatchObject({
+      periodos: 3,
+      filas: 20,
+      notasCredito: 2,
+      notasCreditoConTotalNegativo: 2,
+      notasDebito: 1,
+      usd: 1,
+      usdConTipoCambio: 1,
+      boletas: 4,
+      boletasSinDocumento: 3,
+      sinDocumento: 3,
+      filasConMontoNegativo: 2,
+      erroresCodificacion: 1,
+    });
+    expect(lineaTotales(t)).toBe(
+      "[contrato-sire] totales P-5/P-6 (3 periodo(s), compras+ventas+registro): filas 20 · NC 2 (total negativo 2) · ND 1 · USD 1 (con TC 1) · " +
+        "boletas 4 (sin documento 3) · sin documento 3 · filas con algún monto negativo 2 · errores de codificación (P-6) 1",
+    );
+  });
+});
+
 describe("guardas del fetch de la prueba de contrato", () => {
   const origen = "https://api-sire.sunat.gob.pe";
   const seguridad = "https://api-seguridad.sunat.gob.pe";
@@ -184,6 +382,20 @@ describe("credenciales de la prueba de contrato", () => {
     const r = credencialesDelEntorno(completo(), hoy);
     expect(r.periodo).toBe("202610");
     expect(r.credencial).toMatchObject({ clientId: "cid-0000", ruc: "20700000002", usuarioSol: "USUARIOSOL" });
+  });
+
+  it("acepta varios periodos separados por comas (con espacios y repetidos), en el orden dado", () => {
+    const r = credencialesDelEntorno(completo({ SIRE_CONTRATO_PERIODO: "202510, 202509,202508,202510" }), hoy);
+    expect(r.periodos).toEqual(["202510", "202509", "202508"]);
+    expect(r.periodo).toBe("202510");
+  });
+
+  it("un periodo malo o futuro dentro de la lista falla sin repetir el valor", () => {
+    for (const malo of ["202510,202513", "202510,202611", "202510,,202509", "202510;202509", "202510,abc"]) {
+      const f = (): unknown => credencialesDelEntorno(completo({ SIRE_CONTRATO_PERIODO: malo }), hoy);
+      expect(f).toThrow("SIRE_CONTRATO_PERIODO");
+      expect(f).not.toThrow(/202513|202611|abc/);
+    }
   });
 
   it("si faltan, nombra las variables y no repite ningún valor", () => {
