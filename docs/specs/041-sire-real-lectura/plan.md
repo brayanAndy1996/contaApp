@@ -109,6 +109,14 @@ Otras: `transporte*.spec.ts` `solicitud 5.51: 400/422 → códigos de errors[].c
 Decidido por el usuario (2026-11-28): codProceso 01→02 y codMoneda omitido; **superado por la evidencia** de T16 (1061/1026). Con la delegación técnica del usuario rige lo de arriba.
 Decidido (2026-11-28, evidencia de la corrida real de contrato): codProceso 70 fijo; codMoneda obligatorio; PEN y USD; sustituye el 01→02.
 
+## Decisiones de la ronda 3 · ZIP del registro (T15e)
+Evidencia (corrida de contrato, 5.51 → 5.32): `PK\x07\x08` al inicio, EOCD al final, sin ZIP64, cifrado ni descriptor, 3 entradas: `LE#/LE#.txt` con datos (deflate), otra `LE#/LE#.txt` vacía y la carpeta `LE#/`. Regla de `extraerTxtDeZip` (decisión técnica delegada):
+- Directorio central con 1..8 entradas (`MAX_ENTRADAS_ZIP`), que lo ocupan exactamente; `enDisco = total`.
+- Se ignoran las de directorio (nombre en `/`, método 0, tamaños 0, CRC 0) y las de archivo vacías (método 0, tamaños 0, CRC 0). Cualquier otra cuenta como «con datos»: debe haber exactamente UNA y terminar en `.txt` (0 o ≥ 2 → `zip_invalido`; un duplicado con datos es un 2.º archivo).
+- El NOMBRE de TODAS se valida: 1..255 bytes, UTF-8 válido, sin NUL ni controles (C0, DEL, C1), sin `\`, `:` ni `..`, sin `/` inicial ni segmentos vacíos o que empiecen con `.`, a lo sumo una carpeta. Toda entrada vive en la carpeta del archivo con datos (la de directorio es su prefijo exacto). Si el archivo con datos está en una carpeta y no hay entrada de directorio, la carpeta debe llamarse como el archivo sin `.txt` (`LE#/LE#.txt`); así `dir/x.txt` suelto sigue rechazado (CA-10, rondas 1 y 2).
+- Cada entrada (también las ignoradas) tiene cabecera local coherente (firma, mismo nombre y método, sin cifrar, antes del directorio central). Sin campo extra ZIP64.
+- Siguen: 64 MiB por parte / 256 MiB acumulados, 200:1, inflado por trozos de 4 KiB cortando en lo declarado, tamaño y CRC verificados, solo métodos 0 y 8. Los nombres solo se validan: nunca se usan como ruta ni se escribe a disco; el error es fijo.
+
 ## Riesgos
 - SUNAT cambia el layout o los nombres de columna → `ErrorPortalSire("encabezado")` + alerta (RNF-044); la prueba de contrato lo detecta antes.
 - Formas no vistas (NC, USD, boletas, anulados) → P-5; la spec no se cierra sin una corrida de contrato que las incluya o sin decisión del usuario.

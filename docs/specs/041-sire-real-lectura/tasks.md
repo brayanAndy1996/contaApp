@@ -24,6 +24,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → atac
 | T15b | Pruebas del registro presentado (P-3) | tester | sonnet | T15 | ✓ | — | [x] (20 pruebas en rojo en `registro-presentado.http.spec.ts`; `it.todo` de «SUNAT exige moneda»: el plan no fija la respuesta del servidor falso) |
 | T15c | Implementar registro presentado (P-3) | backend | opus | T15b | — | — | [x] |
 | T15d | Rediseño registro presentado (70 + PEN/USD) | backend | opus | T15c | ✓ | — | [x] tests rojos ✓ (3 testers) → verdes: sunat 1142, contrato falso 4 (+1 omitida), queue 797 + int 123, worker 630 + int 672; typecheck y lint OK |
+| T15e | Lector de ZIP acepta la estructura real del registro | backend | opus | T15d | ✓ | ✓ | [~] backend [x]: sunat 1232, queue 797 + int 123, worker 630 + int 672; typecheck y lint OK · falta la ronda adversarial acotada al lector |
 | T16 | Corrida de la prueba de contrato contra SUNAT (la ejecuta el **usuario**) y ajustes de P-5/P-6 | tester | sonnet | T9, T15 | — | — | [ ] |
 | T17 | Verificar CA-1 a CA-15 con evidencia y suites de `sunat`, `queue` y `worker` | tester | sonnet | T16 | — | — | [x] (CA-1 a CA-14; CA-15 en T16) |
 | T18 | Revisión final contra la spec | arquitecto | opus | T17 | — | — | [ ] |
@@ -123,7 +124,7 @@ Reglas comunes:
 - **Estructura real (corrida de contrato, 2 RUC)**: `PK\x07\x08` al inicio, EOCD al final, sin ZIP64/cifrado/descriptor, banderas 0x0800, 3 entradas: `LE#/LE#.txt` con datos (deflate), OTRA `LE#/LE#.txt` vacía (stored, tamaños 0, CRC 0) y la carpeta `LE#/`.
 - **Decisión de lectura**: (a) se ignoran carpetas (nombre en `/`, tamaño 0, método 0) y archivos vacíos (comprimido 0, descomprimido 0, CRC 0, método 0); (b) exactamente UNA entrada con datos y extensión `.txt`; (c) se valida el NOMBRE de TODAS las entradas (sin `..`, ruta absoluta, `\`, `:`, NUL ni controles, un solo nivel de carpeta, ≤ 255 bytes, y la carpeta es prefijo del archivo con datos); (d) ≤ 8 entradas en el directorio central; (e) siguen topes 64 MiB/256 MiB/200:1, CRC, métodos 0 y 8, sin cifrado ni ZIP64, duplicados CON datos rechazados.
 - **Tester (hecho, rojo)**: `zip-seguro-registro.spec.ts` (12 rojas de 78: lectura de la estructura real con y sin firma, 8 entradas, 255 bytes, 64 MiB, tope acumulado; 66 verdes que deben seguir rechazando: hostiles en cada entrada, 9 entradas, CRC y tamaños falsos, bomba de 1 GiB y topes con carpeta); `registro-presentado.http.spec.ts`, `contrato-sire.spec.ts` (5.51) y `importar-historial-041.int.spec.ts` sirven el ZIP del registro con la estructura real y quedan rojas solo por `zip_invalido`.
-- **Hacer (backend)**: `zip-seguro.ts` según la decisión; `estructura-zip.ts` (diagnóstico de pruebas) puede quedar igual: solo se usa si el lector rechaza.
+- **Hacer (backend) [x] hecho**: `zip-seguro.ts` según la decisión (plan «Decisiones de la ronda 3 · ZIP del registro»); `estructura-zip.ts` (diagnóstico de pruebas) puede quedar igual: solo se usa si el lector rechaza.
 - **Hecho cuando**: las pruebas rojas de T15e verdes en `sunat` y `worker`; `typecheck` y `lint` OK. Commit `fix(041): el lector de ZIP acepta la estructura real del registro presentado`. Luego una ronda adversarial acotada al lector.
 
 ## T16 · Contrato real (tester · sonnet; lo ejecuta el usuario)

@@ -1,12 +1,18 @@
 /**
- * Lectura segura del ZIP que devuelve el SIRE (plan 041, «zip-seguro.ts»; spec CA-10). Síncrona y sin IO.
+ * Lectura segura del ZIP que devuelve el SIRE (plan 041, «zip-seguro.ts» y «Decisiones de la ronda 3 · ZIP del registro»;
+ * spec CA-10, CA-13). Síncrona y sin IO.
  *
- * No se confía en nada del ZIP: se exige exactamente UNA entrada `.txt` de nombre plano, sin cifrar, con método
- * «stored» o «deflate», y se descomprime por streaming (`fflate` `Inflate`, en trozos pequeños) contando los bytes
- * reales: el tamaño declarado en la cabecera solo sirve para rechazar antes y como tope de lo que se acepta producir.
+ * No se confía en nada del ZIP. El directorio central trae a lo sumo 8 entradas; las de directorio (`X/`, método 0,
+ * tamaños 0) y las de archivo vacías (método 0, tamaños 0, CRC 0) se ignoran, pero el NOMBRE de todas se valida (sin
+ * `..`, rutas absolutas, `\`, `:`, NUL ni controles, a lo sumo una carpeta, ≤ 255 bytes, UTF-8 válido) y todas viven en
+ * la carpeta del archivo con datos. Debe haber exactamente UNA entrada con datos, `.txt`, sin cifrar, con método «stored»
+ * o «deflate»; si está en una carpeta, la carpeta figura como entrada de directorio o se llama igual que el archivo sin
+ * `.txt` (estructura real `LE#/LE#.txt`). Se descomprime por streaming (`fflate` `Inflate`, en trozos pequeños) contando
+ * los bytes reales: el tamaño declarado solo sirve para rechazar antes y como tope de lo que se acepta producir.
  * Memoria: el destino se reserva una sola vez con el tamaño declarado ya acotado (≤ 64 MiB y ≤ 200 × comprimido) y
  * cada trozo de entrada produce como mucho ~4 MiB, así que una bomba de 1 GiB nunca llega a la memoria.
  *
+ * Los nombres solo se leen para validarlos: nunca se usan como ruta ni se escribe nada a disco.
  * Todo rechazo es `ErrorPortalSire("zip_invalido")` con mensaje fijo: ni nombres de entrada ni bytes.
  */
 import { crc32 } from "node:zlib";
@@ -22,6 +28,8 @@ export const TOPE_ZIP_DESCOMPRIMIDO = 64 * MIB;
 export const TOPE_ZIP_DESCOMPRIMIDO_TOTAL = 256 * MIB;
 /** Razón máxima descomprimido / comprimido (CA-10). */
 export const RAZON_MAX_ZIP = 200;
+/** Tope de entradas en el directorio central (ronda 3: el registro real trae 3). */
+export const MAX_ENTRADAS_ZIP = 8;
 
 /** Entrada comprimida que se entrega a `Inflate` en cada paso: deflate no pasa de ~1032:1, o sea ≤ ~4 MiB por paso. */
 const TROZO_INFLATE = 4 * 1024;
@@ -38,6 +46,8 @@ const BANDERAS_CIFRADO = (1 << 0) | (1 << 6) | (1 << 13);
 const METODO_STORED = 0;
 const METODO_DEFLATE = 8;
 const MAX_LARGO_NOMBRE = 255;
+/** Id del campo extra ZIP64. */
+const EXTRA_ZIP64 = 0x0001;
 
 const decodificador = new TextDecoder("utf-8", { fatal: true });
 
@@ -48,8 +58,13 @@ function invalido(): ErrorPortalSire {
   return new ErrorPortalSire("zip_invalido");
 }
 
+type Clase = "directorio" | "vacia" | "datos";
+
 interface EntradaCentral {
-  nombre: Uint8Array;
+  nombreBytes: Uint8Array;
+  /** Nombre ya validado (solo para comparar; nunca se usa como ruta). */
+  nombre: string;
+  clase: Clase;
   metodo: number;
   crc: number;
   comprimido: number;
@@ -60,19 +75,21 @@ interface EntradaCentral {
 }
 
 /**
- * Devuelve los bytes del único TXT del ZIP o lanza `ErrorPortalSire("zip_invalido")`. `topeDescomprimido` acota aún más
- * lo que se acepta producir (el cliente pasa lo que queda del tope acumulado del periodo); nunca pasa de 64 MiB.
+ * Devuelve los bytes del único TXT con datos del ZIP o lanza `ErrorPortalSire("zip_invalido")`. `topeDescomprimido`
+ * acota aún más lo que se acepta producir (el cliente pasa lo que queda del tope acumulado del periodo); nunca pasa de
+ * 64 MiB.
  */
 export function extraerTxtDeZip(zip: Uint8Array, topeDescomprimido: number = TOPE_ZIP_DESCOMPRIMIDO): Uint8Array {
   if (!(zip instanceof Uint8Array) || zip.length < LARGO_FIN || zip.length > TOPE_ZIP_COMPRIMIDO) throw invalido();
   const tope = Number.isFinite(topeDescomprimido) ? Math.max(0, Math.min(topeDescomprimido, TOPE_ZIP_DESCOMPRIMIDO)) : 0;
   const dv = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
   const finCentral = buscarFinDirectorio(zip, dv);
-  const entrada = leerEntradaCentral(zip, dv, finCentral, tope);
-  validarNombre(entrada.nombre);
+  const entradas = leerDirectorioCentral(zip, dv, finCentral, tope);
+  const entrada = elegirEntradaConDatos(entradas);
+  // Las ignoradas también deben tener cabecera local coherente (mismo nombre y método, sin cifrar, dentro del archivo).
+  for (const e of entradas) if (e !== entrada) ubicarDatos(zip, dv, e, finCentral.inicioCentral);
   const datos = ubicarDatos(zip, dv, entrada, finCentral.inicioCentral);
-  const salida =
-    entrada.metodo === METODO_STORED ? copiarStored(datos, entrada) : inflar(datos, entrada);
+  const salida = entrada.metodo === METODO_STORED ? copiarStored(datos, entrada) : inflar(datos, entrada);
   if ((crc32(salida) >>> 0) !== entrada.crc) throw invalido();
   return salida;
 }
@@ -80,6 +97,7 @@ export function extraerTxtDeZip(zip: Uint8Array, topeDescomprimido: number = TOP
 interface FinDirectorio {
   inicioCentral: number;
   largoCentral: number;
+  total: number;
 }
 
 /** Registro de fin del directorio central: debe terminar justo al final del archivo (sin basura ni truncado). */
@@ -95,39 +113,71 @@ function buscarFinDirectorio(zip: Uint8Array, dv: DataView): FinDirectorio {
     const total = dv.getUint16(i + 10, true);
     const largoCentral = dv.getUint32(i + 12, true);
     const inicioCentral = dv.getUint32(i + 16, true);
-    if (disco !== 0 || discoCentral !== 0 || enDisco !== 1 || total !== 1) throw invalido();
+    // 0xFFFF / 0xFFFFFFFF (ZIP64) quedan fuera por el tope de entradas y por el límite del archivo.
+    if (disco !== 0 || discoCentral !== 0 || enDisco !== total || total < 1 || total > MAX_ENTRADAS_ZIP) throw invalido();
     if (inicioCentral + largoCentral > i) throw invalido();
-    return { inicioCentral, largoCentral };
+    return { inicioCentral, largoCentral, total };
   }
   throw invalido();
 }
 
-function leerEntradaCentral(zip: Uint8Array, dv: DataView, fin: FinDirectorio, tope: number): EntradaCentral {
-  const o = fin.inicioCentral;
-  if (fin.largoCentral < LARGO_CENTRAL || dv.getUint32(o, true) !== FIRMA_CENTRAL) throw invalido();
-  const banderas = dv.getUint16(o + 8, true);
-  const metodo = dv.getUint16(o + 10, true);
-  const crc = dv.getUint32(o + 16, true);
-  const comprimido = dv.getUint32(o + 20, true);
-  const descomprimido = dv.getUint32(o + 24, true);
-  const largoNombre = dv.getUint16(o + 28, true);
-  const largoExtra = dv.getUint16(o + 30, true);
-  const largoComentario = dv.getUint16(o + 32, true);
-  const discoInicio = dv.getUint16(o + 34, true);
-  const inicioLocal = dv.getUint32(o + 42, true);
-  // Una sola entrada: el directorio central es exactamente su registro.
-  if (LARGO_CENTRAL + largoNombre + largoExtra + largoComentario !== fin.largoCentral) throw invalido();
-  if ((banderas & BANDERAS_CIFRADO) !== 0 || discoInicio !== 0) throw invalido();
-  if (metodo !== METODO_STORED && metodo !== METODO_DEFLATE) throw invalido();
-  // ZIP64 (0xFFFFFFFF) no cabe en los topes; el declarado se acota antes de reservar nada.
-  if (descomprimido > tope || comprimido >= zip.length) throw invalido();
-  if (descomprimido > RAZON_MAX_ZIP * Math.max(comprimido, 1)) throw invalido();
-  const nombre = zip.subarray(o + LARGO_CENTRAL, o + LARGO_CENTRAL + largoNombre);
-  return { nombre, metodo, crc, comprimido, descomprimido, inicioLocal, tope };
+/** Lee las `total` entradas del directorio central, que debe ocuparlo exactamente; clasifica y valida cada una. */
+function leerDirectorioCentral(zip: Uint8Array, dv: DataView, fin: FinDirectorio, tope: number): EntradaCentral[] {
+  const entradas: EntradaCentral[] = [];
+  const limite = fin.inicioCentral + fin.largoCentral;
+  let o = fin.inicioCentral;
+  for (let n = 0; n < fin.total; n += 1) {
+    if (o + LARGO_CENTRAL > limite || dv.getUint32(o, true) !== FIRMA_CENTRAL) throw invalido();
+    const banderas = dv.getUint16(o + 8, true);
+    const metodo = dv.getUint16(o + 10, true);
+    const crc = dv.getUint32(o + 16, true);
+    const comprimido = dv.getUint32(o + 20, true);
+    const descomprimido = dv.getUint32(o + 24, true);
+    const largoNombre = dv.getUint16(o + 28, true);
+    const largoExtra = dv.getUint16(o + 30, true);
+    const largoComentario = dv.getUint16(o + 32, true);
+    const discoInicio = dv.getUint16(o + 34, true);
+    const inicioLocal = dv.getUint32(o + 42, true);
+    const finRegistro = o + LARGO_CENTRAL + largoNombre + largoExtra + largoComentario;
+    if (finRegistro > limite) throw invalido();
+    if ((banderas & BANDERAS_CIFRADO) !== 0 || discoInicio !== 0) throw invalido();
+    if (metodo !== METODO_STORED && metodo !== METODO_DEFLATE) throw invalido();
+    const inicioNombre = o + LARGO_CENTRAL;
+    if (tieneExtraZip64(dv, inicioNombre + largoNombre, largoExtra)) throw invalido();
+    const nombreBytes = zip.subarray(inicioNombre, inicioNombre + largoNombre);
+    const nombre = decodificarNombre(nombreBytes);
+    const clase = clasificar(nombre, metodo, crc, comprimido, descomprimido);
+    validarRuta(nombre, clase);
+    if (clase === "datos") {
+      // ZIP64 (0xFFFFFFFF) no cabe en los topes; el declarado se acota antes de reservar nada.
+      if (descomprimido > tope || comprimido >= zip.length) throw invalido();
+      if (descomprimido > RAZON_MAX_ZIP * Math.max(comprimido, 1)) throw invalido();
+    }
+    entradas.push({ nombreBytes, nombre, clase, metodo, crc, comprimido, descomprimido, inicioLocal, tope });
+    o = finRegistro;
+  }
+  if (o !== limite) throw invalido();
+  return entradas;
 }
 
-/** Nombre plano `*.txt`: UTF-8 válido, sin rutas, unidades, «..» ni caracteres de control. */
-function validarNombre(bytes: Uint8Array): void {
+function tieneExtraZip64(dv: DataView, inicio: number, largo: number): boolean {
+  let p = inicio;
+  const fin = inicio + largo;
+  while (p + 4 <= fin) {
+    if (dv.getUint16(p, true) === EXTRA_ZIP64) return true;
+    p += 4 + dv.getUint16(p + 2, true);
+  }
+  return false;
+}
+
+function clasificar(nombre: string, metodo: number, crc: number, comprimido: number, descomprimido: number): Clase {
+  const sinBytes = metodo === METODO_STORED && comprimido === 0 && descomprimido === 0 && crc === 0;
+  if (!sinBytes) return "datos";
+  return nombre.endsWith("/") ? "directorio" : "vacia";
+}
+
+/** UTF-8 válido, 1..255 bytes, sin NUL, controles (C0, DEL, C1), `\` ni `:`. */
+function decodificarNombre(bytes: Uint8Array): string {
   if (bytes.length === 0 || bytes.length > MAX_LARGO_NOMBRE) throw invalido();
   let nombre: string;
   try {
@@ -135,8 +185,51 @@ function validarNombre(bytes: Uint8Array): void {
   } catch {
     throw invalido();
   }
-  if (/[\u0000-\u001f\u007f/\\:]/.test(nombre) || nombre.includes("..")) throw invalido();
-  if (!/^[^.].*\.txt$/i.test(nombre)) throw invalido();
+  if (/[\u0000-\u001f\u007f-\u009f\\:]/.test(nombre) || nombre.includes("..")) throw invalido();
+  return nombre;
+}
+
+/**
+ * Ruta relativa de a lo sumo una carpeta: sin `/` inicial, sin segmentos vacíos ni que empiecen con `.` (cubre `.` y
+ * `..`). Directorio: `X/`. Archivo: `nombre` o `X/nombre`.
+ */
+function validarRuta(nombre: string, clase: Clase): void {
+  const ruta = clase === "directorio" ? nombre.slice(0, -1) : nombre;
+  const segmentos = ruta.split("/");
+  const maxSegmentos = clase === "directorio" ? 1 : 2;
+  if (segmentos.length > maxSegmentos) throw invalido();
+  for (const s of segmentos) if (s.length === 0 || s.startsWith(".")) throw invalido();
+}
+
+function carpetaDe(nombre: string): string {
+  const i = nombre.lastIndexOf("/");
+  return i < 0 ? "" : nombre.slice(0, i + 1);
+}
+
+/**
+ * Exactamente una entrada con datos y `.txt`; las ignoradas viven en su misma carpeta (el directorio, si hay, es su
+ * prefijo). Sin entrada de directorio, la carpeta debe llamarse como el archivo sin `.txt` (`LE#/LE#.txt`).
+ */
+function elegirEntradaConDatos(entradas: readonly EntradaCentral[]): EntradaCentral {
+  const conDatos = entradas.filter((e) => e.clase === "datos");
+  if (conDatos.length !== 1) throw invalido();
+  const d = conDatos[0] as EntradaCentral;
+  if (!/\.txt$/i.test(d.nombre)) throw invalido();
+  const carpeta = carpetaDe(d.nombre);
+  let carpetaDeclarada = false;
+  for (const e of entradas) {
+    if (e.clase === "directorio") {
+      if (e.nombre !== carpeta) throw invalido();
+      carpetaDeclarada = true;
+    } else if (carpetaDe(e.nombre) !== carpeta) {
+      throw invalido();
+    }
+  }
+  if (carpeta !== "" && !carpetaDeclarada) {
+    const archivo = d.nombre.slice(carpeta.length);
+    if (carpeta.slice(0, -1) !== archivo.slice(0, -".txt".length)) throw invalido();
+  }
+  return d;
 }
 
 /** Cabecera local coherente con la central (mismo nombre y método, sin cifrar) y datos dentro del archivo. */
@@ -147,9 +240,9 @@ function ubicarDatos(zip: Uint8Array, dv: DataView, e: EntradaCentral, inicioCen
   const metodo = dv.getUint16(o + 8, true);
   const largoNombre = dv.getUint16(o + 26, true);
   const largoExtra = dv.getUint16(o + 28, true);
-  if ((banderas & BANDERAS_CIFRADO) !== 0 || metodo !== e.metodo || largoNombre !== e.nombre.length) throw invalido();
+  if ((banderas & BANDERAS_CIFRADO) !== 0 || metodo !== e.metodo || largoNombre !== e.nombreBytes.length) throw invalido();
   const nombreLocal = zip.subarray(o + LARGO_LOCAL, o + LARGO_LOCAL + largoNombre);
-  for (let i = 0; i < largoNombre; i += 1) if (nombreLocal[i] !== e.nombre[i]) throw invalido();
+  for (let i = 0; i < largoNombre; i += 1) if (nombreLocal[i] !== e.nombreBytes[i]) throw invalido();
   const inicio = o + LARGO_LOCAL + largoNombre + largoExtra;
   const fin = inicio + e.comprimido;
   if (fin > inicioCentral) throw invalido();
