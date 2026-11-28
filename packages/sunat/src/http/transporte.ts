@@ -13,11 +13,13 @@ import {
 } from "../errores.js";
 
 /**
- * "token": endpoint OAuth de seguridad. "api": API del SIRE con token. "solicitud-registro": la solicitud 5.51 del registro
- * presentado (plan P-3): como "api", salvo que un 400/422 lee el cuerpo de error y lanza `ErrorPortalSire("solicitud_rechazada")`
- * con TODOS sus códigos; el cliente decide cuáles son «sin datos» (`COD_SIN_DATOS_REGISTRO`).
+ * "token": endpoint OAuth de seguridad. "api": API del SIRE con token (exportar, consulta de ticket); un 404 es
+ * `ErrorPortalSire` permanente. "descarga": la descarga del archivo (5.32), como "api" salvo que un 404 es transitorio (el
+ * archivo aún no está listo). "solicitud-registro": la solicitud 5.51 del registro presentado (plan P-3): como "api", salvo que
+ * un 400/422 lee el cuerpo de error y lanza `ErrorPortalSire("solicitud_rechazada")` con TODOS sus códigos; el cliente decide
+ * cuáles son «sin datos» (`COD_SIN_DATOS_REGISTRO`). Si esa lectura se corta (timeout o red), es `ErrorTransitorioSire`.
  */
-export type ContextoHttp = "token" | "api" | "solicitud-registro";
+export type ContextoHttp = "token" | "api" | "descarga" | "solicitud-registro";
 
 export interface PeticionTransporte {
   url: string;
@@ -81,21 +83,23 @@ function errorDeEstado(contexto: ContextoHttp, estado: number): Error {
   if (estado === 401) return new TokenRechazadoError();
   if (estado === 403) return new ErrorCredencial();
   if (estado === 422) return new ErrorDatos();
-  if (estado === 404) return new ErrorTransitorioSire("servidor");
+  if (estado === 404 && contexto === "descarga") return new ErrorTransitorioSire("servidor");
   return new ErrorPortalSire("respuesta_inesperada");
 }
 
 /**
  * Códigos de SUNAT del cuerpo de error de la solicitud 5.51: `errors[].cod` y luego el `cod` plano, en orden. Solo se leen
- * hasta `MAX_BYTES_JSON`; un cuerpo ilegible, demasiado grande o cortado da `[]`. El `msg` (y todo lo demás) se descarta; el
- * filtro de gramática y el tope los aplica `ErrorPortalSire`.
+ * hasta `MAX_BYTES_JSON`; un cuerpo ilegible o demasiado grande da `[]`. Una lectura cortada (timeout o red) NO es un rechazo:
+ * relanza el `ErrorTransitorioSire` de `leerConTope` (H-3). El `msg` (y todo lo demás) se descarta; el filtro de gramática y el
+ * tope los aplica `ErrorPortalSire`.
  */
 async function codigosDeError(r: Response): Promise<string[]> {
   let cuerpo: unknown;
   try {
     const bytes = await leerConTope(r, MAX_BYTES_JSON);
     cuerpo = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
-  } catch {
+  } catch (e) {
+    if (e instanceof ErrorTransitorioSire) throw e;
     await descartar(r);
     return [];
   }

@@ -302,7 +302,7 @@ export class HttpSireApiClient implements SireApiClient {
       url,
       metodo: "GET",
       cabeceras: { authorization: `Bearer ${token.token}` },
-      contexto: "api",
+      contexto: "descarga",
       timeoutMs: this.timeoutPaso(inicio, TIMEOUT_DESCARGA_MS),
       maxBytes: MAX_BYTES_ZIP,
       ...(this.fetch === undefined ? {} : { fetch: this.fetch }),

@@ -154,11 +154,12 @@ Reglas comunes:
 ## T18 · Revisión final (arquitecto · opus) · T19 · Cierre (devops · haiku)
 - Revisión contra la spec con evidencia; cierre con commit `docs(041): cierre`.
 
-## T20 · Hallazgos de la revisión final H-1, H-2, H-3 (tester rojo → backend)
+## T20 · Hallazgos de la revisión final H-1, H-2, H-3 (tester rojo → backend) [x]
 - **H-1 (media)** `apps/worker/src/trabajos/procesadores/importar-historial.ts` (~l.170): hoy todo `ErrorDatos` cuenta como «periodo sin datos». Regla: solo el `ErrorDatos` plano (mock) y `ErrorDatosSire("sin_datos")` cuentan en `periodos_sin_datos` y sigue; cualquier otro `ErrorDatosSire` (`fila_invalida`, `columna_no_soportada`, `respuesta_ajena`, `ticket_con_errores`) hace FALLAR el trabajo (`error/datos_invalidos`, importación `fallida` con ese motivo) sin leer los demás periodos, sin marcar el periodo como sin datos y sin secretos.
 - **H-2 (baja)** `packages/sunat/src/http/transporte.ts` (~l.84): el 404 es transitorio solo en la DESCARGA del archivo (5.32). Las pruebas asumen un nuevo valor `"descarga"` en `ContextoHttp` (el cliente lo usa en `descargarParte`); en `"api"` (exportar, ticket) y `"solicitud-registro"` (5.51) un 404 es `ErrorPortalSire` permanente (sin reintento). `["api", 404]` de `transporte.spec.ts` pasó de transitorio a `ErrorPortalSire`.
 - **H-3 (baja)** `transporte.ts` (~l.189-196, `codigosDeError`): si la lectura del cuerpo de un 400/422 de la solicitud 5.51 se corta (timeout o red) el resultado es `ErrorTransitorioSire` (`timeout`/`red`), no `solicitud_rechazada` con 0 códigos; un cuerpo legible sin códigos o ilegible por contenido sigue siendo `solicitud_rechazada` con `[]`.
 - **Tester (hecho, rojo)**: H-1 `importar-historial-041.errores-datos.spec.ts` (8 rojas de 11, sin BD; las 3 de «sin datos» verdes) y `importar-historial-041.int.spec.ts` (4 rojas: columna `IMB` ≠ 0, fila de otro periodo, monto ilegible, ticket `03`; hoy el trabajo termina `completado` leyendo el periodo anterior); H-2 `transporte.spec.ts`, `sire-api-client.http.spec.ts`, `registro-presentado.http.spec.ts` (7 rojas; las de `descarga` y el 404 del archivo ya verdes como guarda); H-3 `transporte.spec.ts` (5 rojas).
 - **Hacer (backend)**: según las reglas de arriba; en `sire-api-client.http.ts` `descargarParte` usa `contexto: "descarga"`. No editar las pruebas ni `ronda*.adv.spec.ts`.
 - **Hecho cuando**: las pruebas rojas de T20 verdes en `sunat` y `worker` (`test` y `test:int`); `typecheck` y `lint` OK. Commit `fix(041): hallazgos H-1, H-2 y H-3 de la revisión final`.
+- **[x] backend (2026-11-28)**: sunat 1256 (cobertura `src/http` ≥ 92 % ramas), queue 797 + int 123, worker 641 + int 676; typecheck y lint OK.
 
