@@ -16,10 +16,10 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → atac
 | T8 | `vitest` modo `contrato`, script `test:contrato`, exclusión verificada, `.env.example`, `03-arquitectura` §4 | devops | haiku | T6 ∥ T7 | — | — | [x] (la tabla de adaptadores está en 03 §3; §4 es multitenancy) |
 | T9 | Prueba de contrato manual `sire.contrato.spec.ts` + Postman 5.51/5.40 | tester | sonnet | T6, T8 | — | — | [x] (apagada sin `SIRE_CONTRATO=1`; verde contra el servidor falso; la ruta del 5.40 no está en el repo: va en `ruta_5_40`) |
 | T10 | Ronda adversarial 1 (caja negra): ZIP, TXT, encabezados, filas ajenas, nombres hostiles, ticket ajeno, redirecciones, secretos | adversario | opus | T5, T6, T7 ∥ T9 | — | ✓ | [x] |
-| T11 | Pruebas de las correcciones de la ronda 1 (rojo) — omitida: las pruebas del adversario cubren los 3 hallazgos | tester | sonnet | T10 | ✓ | — | [x] |
+| T11 | Pruebas de las correcciones de la ronda 1 (rojo) — omitida: las pruebas del adversario cubren los 3 hallazgos | tester | sonnet | T10 | ✓ | — | [x] omitidas: las pruebas del adversario cubren los hallazgos |
 | T12 | Corregir hallazgos de la ronda 1 | backend | opus | T11 | — | — | [x] |
 | T13 | Ronda adversarial 2 (caja blanca): timeouts, presupuesto, reanudación entre estudios, memoria, codificación, concurrencia | adversario | opus | T12 | — | ✓ | [x] |
-| T14 | Pruebas de las correcciones de la ronda 2 (rojo) — omitida: las pruebas del adversario cubren los hallazgos | tester | sonnet | T13 | ✓ | — | [x] |
+| T14 | Pruebas de las correcciones de la ronda 2 (rojo) — omitida: las pruebas del adversario cubren los hallazgos | tester | sonnet | T13 | ✓ | — | [x] omitidas: las pruebas del adversario cubren los hallazgos |
 | T15 | Corregir hallazgos de la ronda 2 | backend | opus | T14 | — | — | [x] |
 | T15b | Pruebas del registro presentado (P-3) | tester | sonnet | T15 | ✓ | — | [x] (20 pruebas en rojo en `registro-presentado.http.spec.ts`; `it.todo` de «SUNAT exige moneda»: el plan no fija la respuesta del servidor falso) |
 | T15c | Implementar registro presentado (P-3) | backend | opus | T15b | — | — | [x] |
@@ -27,10 +27,11 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → atac
 | T15e | Lector de ZIP acepta la estructura real del registro | backend | opus | T15d | ✓ | ✓ | [x] backend: sunat 1232, queue 797 + int 123, worker 630 + int 672; typecheck y lint OK · ronda adversarial 3 hecha (`ronda3.adv.spec.ts`, 8 rojas) |
 | T15f | Corregir hallazgos de la ronda adversarial 3 del lector de ZIP (H-041-3-1 a 3-8) | backend | sonnet | T15e | — | ✓ | [x] |
 | T15g | Registro presentado con una sola solicitud (evidencia real) | tester → backend | sonnet | T15f | ✓ | — | [x] tester (rojo) + backend: una solicitud 70+PEN, clave `…:registro`; `sunat`, `queue` y `worker` verdes |
-| T16 | Corrida de la prueba de contrato contra SUNAT (la ejecuta el **usuario**) y ajustes de P-5/P-6 | tester | sonnet | T9, T15 | — | — | [ ] |
+| T16 | Corrida de la prueba de contrato contra SUNAT (la ejecuta el **usuario**) y ajustes de P-5/P-6 | tester | sonnet | T9, T15 | — | — | [x] corrida real del usuario en 2 RUC (2026-11-28/29); salida en `resultados.md` (CA-15); P-3, P-5 y P-6 cerradas |
 | T17 | Verificar CA-1 a CA-15 con evidencia y suites de `sunat`, `queue` y `worker` | tester | sonnet | T16 | — | — | [x] CA-1 a CA-15 cumplidos (2026-11-28): sunat 1235, queue 797 + int 123, worker 630 + int 672; typecheck y lint OK; evidencia en `resultados.md` |
-| T18 | Revisión final contra la spec | arquitecto | opus | T17 | — | — | [ ] |
-| T19 | Cierre: `tasks.md`, `spec.md`, commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T18 | — | — | [ ] |
+| T18 | Revisión final contra la spec | arquitecto | opus | T17 | — | — | [x] 3 hallazgos (H-1 media; H-2 y H-3 bajas), corregidos en T20; spec.md «verificada» |
+| T19 | Cierre: `tasks.md`, `spec.md`, commit (el orquestador actualiza `ESTADO.md`) | devops | haiku | T18 | — | — | [x] cierre.md, ESTADO.md y HALLAZGOS.md actualizados (2026-11-28) |
+| T20 | Hallazgos H-1, H-2 y H-3 de la revisión final (tester rojo → backend; sección propia abajo) | tester → backend | — | T18 | ✓ | — | [x] sunat 1256; worker 641 + int 676; typecheck y lint OK |
 
 Paralelismo: oleada 1 = T1 ∥ T3 ∥ T4 (y T2 tras T1); oleada 2 = T5 ∥ T6; luego T7 ∥ T8; T9 ∥ T10. Las rondas y sus correcciones van en serie. Si una ronda no deja fallos, sus dos tareas siguientes se marcan `[x]` «sin hallazgos».
 

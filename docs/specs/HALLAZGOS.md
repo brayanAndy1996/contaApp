@@ -213,6 +213,17 @@ Hallazgos de las rondas adversariales ya cerrados (corregidos, aceptados por el 
 | 041-sire-real-lectura | packages/sunat/src/http/ronda2.adv.spec.ts:287 | H-041-2-6 (media): retiene todas las partes antes de validar la primera (memoria sin tope). | cerrado (3427d67/6995bdd/…) |
 | 041-sire-real-lectura | packages/sunat/src/http/ronda2.adv.spec.ts:298 | H-041-2-7 (media): el tope de 64 MiB descomprimidos es por ZIP, no en total (CA-10; posible decisión del usuario). | cerrado (3427d67/6995bdd/…) |
 | 041-sire-real-lectura | apps/worker/src/trabajos/sire-http-r2.adv.int.spec.ts:115 | H-041-2-8 (baja): `conToken` borra el token de caché sin ver si es el rechazado. | cerrado (3427d67/6995bdd/…) |
+| 041-sire-real-lectura | packages/sunat/src/http/ronda3.adv.spec.ts:277 | H-041-3-1 (media): la razón 200:1 se elude con basura tras el bloque final deflate, y caben datos ocultos tras el fin del flujo. | cerrado (61b820af) |
+| 041-sire-real-lectura | packages/sunat/src/http/ronda3.adv.spec.ts:197 | H-041-3-2 (baja): una entrada vacía o una carpeta pueden llevar datos ocultos (la cabecera local no se compara con la central). | cerrado (61b820af) |
+| 041-sire-real-lectura | packages/sunat/src/http/ronda3.adv.spec.ts:210 | H-041-3-3 (baja): la cabecera local de la entrada de datos se acepta con otro tamaño/CRC o en ZIP64. | cerrado (61b820af) |
+| 041-sire-real-lectura | packages/sunat/src/http/ronda3.adv.spec.ts:220 | H-041-3-4 (baja): acepta bytes antepuestos que no son solo `PK\x07\x08`. | cerrado (61b820af) |
+| 041-sire-real-lectura | packages/sunat/src/http/ronda3.adv.spec.ts:230 | H-041-3-5 (baja): acepta huecos sin reclamar entre cabeceras, central y EOCD. | cerrado (61b820af) |
+| 041-sire-real-lectura | packages/sunat/src/http/ronda3.adv.spec.ts:263 | H-041-3-6 (baja): acepta entradas solapadas. | cerrado (61b820af) |
+| 041-sire-real-lectura | packages/sunat/src/http/ronda3.adv.spec.ts:305 | H-041-3-7 (baja): acepta barras Unicode, `%2e%2e` y nombres reservados. | cerrado (61b820af) |
+| 041-sire-real-lectura | packages/sunat/src/http/ronda3.adv.spec.ts:345 | H-041-3-8 (baja): con varios EOCD gana el último. | cerrado (61b820af) |
+| 041-sire-real-lectura | T18 · `apps/worker/src/trabajos/procesadores/importar-historial.ts:~170` | H-1 (media): todo `ErrorDatos` contaba como «periodo sin datos»; con una fila de otro periodo o un monto ilegible el trabajo terminaba `completado`. | cerrado (5a10c23) |
+| 041-sire-real-lectura | T18 · `packages/sunat/src/http/transporte.ts:~84` | H-2 (baja): el 404 era transitorio en todas las llamadas; solo lo es en la descarga del archivo (5.32). En exportar, ticket y registro 5.51 es permanente. | cerrado (5a10c23) |
+| 041-sire-real-lectura | T18 · `packages/sunat/src/http/transporte.ts:~189-196` | H-3 (baja): si la lectura del cuerpo de un 400/422 de 5.51 se cortaba, el resultado era `solicitud_rechazada` con 0 códigos; ahora es transitorio (`timeout`/`red`). | cerrado (5a10c23) |
 
 ## Notas movidas
 

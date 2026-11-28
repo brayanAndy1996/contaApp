@@ -41,7 +41,7 @@ Una línea por spec; el detalle de las cerradas está en `NNN-*/cierre.md` y los
 | 029-cuenta-segura | A | hecha | — | Rama spec/029-cuenta-segura sin mergear (desde main). Migraciones 0078–0081 (siguiente libre: 0082). 2 riesgos bajos aceptados. Detalle: `029-*/cierre.md` |
 | 030-roles-personalizados | A | hecha | — | Rama sin mergear (sobre 029). Migraciones 0082–0087 (siguiente libre: 0088). Ronda 1: 2 altos, 3 medios, 4 bajos; ronda 2: 1 alto, 1 medio, 1 bajo; todos resueltos. Detalle: `030-*/cierre.md` |
 | 031-auditoria-consulta | B | verificada | — | Rama claude/bold-gauss-nzljd6 sin mergear (sobre 030); migración 0088 (siguiente libre: 0089); CI sin ejecutar. Detalle: `031-*/cierre.md`. |
-| 032-envio-sire-ticket | A | bloqueada | — | RF-104 · HU-27. Aprobada 2026-11-24 (P-1 a P-10 con la recomendación). Bloqueada hasta la spec del formato oficial de importación (P-1). Depende de 041. |
+| 032-envio-sire-ticket | A | bloqueada | — | RF-104 · HU-27. Aprobada 2026-11-24 (P-1 a P-10 con la recomendación). Bloqueada hasta la spec del formato oficial de importación (P-1). Depende de 041, ya verificada (2026-11-28). |
 | 033-catalogo-global-icb | A | pendiente | — | RF-084, 087. Curado por super-admin + conteos anónimos desde N estudios (D4 = a). |
 | 034-lupa-ventas | C | pendiente | — | Nota [lupa de ventas]. Antes de 035. |
 | 035-cruce-emitidos-sol | B | pendiente | — | RF-054 · HU-13. |
@@ -50,23 +50,14 @@ Una línea por spec; el detalle de las cerradas está en `NNN-*/cierre.md` y los
 | 038-diseno-visual | C | hecha | — | Mergeada en `main` (d1cc8fd). Modo oscuro fuera (P-1). Detalle: `038-*/cierre.md` |
 | 039-actualizar-next | D | hecha | — | Decisión del usuario 2026-11-17. `next` → 16.4.5 (GHSA-mfr8-8qww-v76h). CI verde con E2E. Detalle: `039-*/cierre.md` |
 | 040-avisos-dependencias | C | hecha | — | Decisión del usuario 2026-11-17. `pnpm audit --prod` de 6 avisos a 0. CI verde con E2E. Detalle: `040-*/cierre.md` |
-| 041-sire-real-lectura | A | en curso | T15f (corregir ronda 3 del ZIP); T16 corrida real; T18 revisión | SIRE real de solo lectura (`SIRE_CLIENT=http`), aprobada 2026-11-24. Ronda 3: 8 abiertos (H-041-3-1 a 8); registro presentado 5.51 con codProceso 70 y PEN+USD (evidencia real); ZIP real de 3 entradas. |
+| 041-sire-real-lectura | A | verificada | — | SIRE real de solo lectura (`SIRE_CLIENT=http`). Rama `claude/bold-gauss-nzljd6` sin mergear; sin migraciones; prueba de contrato corrida por el usuario en 2 RUC. Detalle: `041-*/cierre.md` |
 | 042-acelerar-desarrollo | D | hecha | — | Merge b3255e5 (PR #2). CI completo 2 h 46 min → 27–31 min; nivel 1 en spec/* 6–7 min; cobertura única por app; ESTADO liviano. Detalle: `042-acelerar-desarrollo/cierre.md` |
 
 ## Hallazgos adversariales abiertos
 
 Los cerrados están en [HALLAZGOS.md](HALLAZGOS.md).
 
-| Spec | Prueba | Hallazgo | Estado |
-|---|---|---|---|
-| 041 | packages/sunat/src/http/ronda3.adv.spec.ts:277 | H-041-3-1 (media): la razón 200:1 se elude con basura tras el bloque final deflate, y caben datos ocultos tras el fin del flujo. | abierto (en corrección, T15f) |
-| 041 | packages/sunat/src/http/ronda3.adv.spec.ts:197 | H-041-3-2 (baja): una entrada vacía o una carpeta pueden llevar datos ocultos (la cabecera local no se compara con la central). | abierto (en corrección, T15f) |
-| 041 | packages/sunat/src/http/ronda3.adv.spec.ts:210 | H-041-3-3 (baja): la cabecera local de la entrada de datos se acepta con otro tamaño/CRC o en ZIP64. | abierto (en corrección, T15f) |
-| 041 | packages/sunat/src/http/ronda3.adv.spec.ts:220 | H-041-3-4 (baja): acepta bytes antepuestos que no son solo `PK\x07\x08`. | abierto (en corrección, T15f) |
-| 041 | packages/sunat/src/http/ronda3.adv.spec.ts:230 | H-041-3-5 (baja): acepta huecos sin reclamar entre cabeceras, central y EOCD. | abierto (en corrección, T15f) |
-| 041 | packages/sunat/src/http/ronda3.adv.spec.ts:263 | H-041-3-6 (baja): acepta entradas solapadas. | abierto (en corrección, T15f) |
-| 041 | packages/sunat/src/http/ronda3.adv.spec.ts:305 | H-041-3-7 (baja): acepta barras Unicode, `%2e%2e` y nombres reservados. | abierto (en corrección, T15f) |
-| 041 | packages/sunat/src/http/ronda3.adv.spec.ts:345 | H-041-3-8 (baja): con varios EOCD gana el último. | abierto (en corrección, T15f) |
+Ninguno.
 
 ## Decisiones pendientes del usuario
 
@@ -154,3 +145,8 @@ No son decisiones tomadas ni pendientes del usuario: cada spec las resuelve al p
 - [029] El token de invitación/registro vive solo en memoria (005 D15): quien debe enrolar TOTP reabre el enlace después. → `029-*/cierre.md`
 - [031] El enlace «Historial» de la auditoría usa `clientes.ver` (no hay permiso de compras separado; si se quisiera, spec aparte que cambie el catálogo de 005/030). → `031-*/cierre.md`
 - [031] `public.auditoria_ms` es LEAKPROOF: revisar si se redefine o se extiende. → `031-*/cierre.md`
+- [real] Notas de débito sin verificar con datos reales (P-5). → `041-*/cierre.md`
+- [real] SIRE 5.51: `codProceso` 70 y `codMoneda` obligatorio sin efecto de filtro (una sola solicitud). → `041-*/cierre.md`
+- [041] El tope de 24 h de `expires_in` no está en la spec de 041: debe fijarlo la del token (008). → `041-*/cierre.md`
+- [041] 256 MiB acumulados de TXT se vuelven objetos fila que ocupan varias veces ese tamaño: vigilar el heap del worker. → `041-*/cierre.md`
+- [pruebas] `obtener-xml-027.int.spec.ts` inestable bajo carga en el int del worker (ajena a 041). → `041-*/cierre.md`
