@@ -23,6 +23,7 @@ Nivel A. Flujo 04 §1.3: pruebas primero (rojo) → implementar (verde) → atac
 | T15 | Corregir hallazgos de la ronda 2 | backend | opus | T14 | — | — | [x] |
 | T15b | Pruebas del registro presentado (P-3) | tester | sonnet | T15 | ✓ | — | [x] (20 pruebas en rojo en `registro-presentado.http.spec.ts`; `it.todo` de «SUNAT exige moneda»: el plan no fija la respuesta del servidor falso) |
 | T15c | Implementar registro presentado (P-3) | backend | opus | T15b | — | — | [x] |
+| T15d | Rediseño registro presentado (70 + PEN/USD) | backend | opus | T15c | ✓ | — | [ ] tests rojos ✓ (3 testers: sunat `registro-presentado.http.spec.ts`, `transporte.spec.ts`, `errores-sire.spec.ts`, `endpoints.spec.ts`; worker/queue; contrato y Postman); implementación backend pendiente |
 | T16 | Corrida de la prueba de contrato contra SUNAT (la ejecuta el **usuario**) y ajustes de P-5/P-6 | tester | sonnet | T9, T15 | — | — | [ ] |
 | T17 | Verificar CA-1 a CA-15 con evidencia y suites de `sunat`, `queue` y `worker` | tester | sonnet | T16 | — | — | [x] (CA-1 a CA-14; CA-15 en T16) |
 | T18 | Revisión final contra la spec | arquitecto | opus | T17 | — | — | [ ] |
@@ -111,6 +112,11 @@ Reglas comunes:
 - **Contexto**: `plan.md` («P-3», Decisiones), `registro-presentado.http.spec.ts`, `endpoints.ts`, `sire-api-client.http.ts`.
 - **Hacer**: `rutaRegistroPresentado`, `parametrosRegistro`, `COD_PROCESO_REGISTRO`; `exportar` y `obtenerTicketListo` con URL y `operacion`; `descargarRegistroPresentado` hasta verde.
 - **Hecho cuando**: `registro-presentado.http.spec.ts` verde, el resto de `sunat` verde, `typecheck` y `lint` OK. Commit `feat(041): registro presentado del SIRE`.
+
+## T15d · Rediseño registro presentado (70 + PEN/USD) (backend · opus)
+- **Contexto**: `plan.md` («P-3 · Registro presentado», H-4/H-5/H-7), `registro-presentado.http.spec.ts`, `transporte.spec.ts`, `errores-sire.spec.ts`, `endpoints.spec.ts`, `endpoints.ts`, `errores.ts`, `transporte.ts`, `sire-api-client.http.ts`, `packages/queue/src/claves.ts`, `AlmacenTicketsRedis`.
+- **Hacer**: `COD_PROCESO_REGISTRO = "70"`, `MONEDAS_REGISTRO`, `COD_SIN_DATOS_REGISTRO`, `parametrosRegistro(per, moneda)`; `ErrorPortalSire("solicitud_rechazada")` con `codigosSunat`; transporte con cuerpo de error en la solicitud 5.51; dos solicitudes (PEN→USD) con un ticket cada una, claves `registro-pen`/`registro-usd`, un presupuesto de 90 s y un acumulado de 256 MiB, unión de filas (moneda, encabezado, comprobante repetido).
+- **Hecho cuando**: las pruebas rojas de T15d verdes en `sunat`, `queue` y `worker`; `typecheck` y `lint` OK. Commit `feat(041): registro presentado con codProceso 70 y monedas PEN/USD`.
 
 ## T16 · Contrato real (tester · sonnet; lo ejecuta el usuario)
 - **Contexto**: `tools/sire-postman/README.md`, `sire.contrato.spec.ts`, P-3/P-5/P-6.

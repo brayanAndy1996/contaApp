@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   CANARIOS,
+  SECRETOS,
   capturar,
   claseError,
   crearEntorno,
@@ -196,5 +197,64 @@ describe("pedir · tope de bytes", () => {
     esperarError(e, "ErrorPortalSire", "respuesta_inesperada");
     expect(cancelado).toBe(true);
     expect(enviados).toBeLessThan(1000);
+  });
+});
+
+// Solicitud 5.51 del registro presentado (plan «P-3 · Registro presentado», rechazo de contrato): SOLO en ese contexto, un 400 o 422
+// se lee el cuerpo de error (tope MAX_BYTES_JSON) y se lanza ErrorPortalSire("solicitud_rechazada") con `codigosSunat` (de
+// `errors[].cod` y de `cod`; solo `^\d{1,6}$`, tope 5; nunca el `msg`). El plan no nombra el contexto: se asume
+// `"solicitud-registro"` (nuevo valor de `ContextoHttp`). El transporte NO decide qué códigos son «sin datos»: los entrega todos
+// y el cliente compara con `COD_SIN_DATOS_REGISTRO`. En el contexto "api" (la propuesta) un 422 sigue siendo ErrorDatos.
+const CTX_REGISTRO = "solicitud-registro" as ContextoHttp;
+const MSG = `El campo 'codMoneda' es nulo o vacio ${CANARIOS.token}`;
+
+describe("pedir · solicitud 5.51: 400/422 → solicitud_rechazada con códigos", () => {
+  const casos: [string, number, unknown, string[]][] = [
+    ["422 errors[].cod", 422, { errors: [{ cod: "1061", msg: MSG }] }, ["1061"]],
+    ["400 errors[].cod", 400, { errors: [{ cod: "1026", msg: MSG }] }, ["1026"]],
+    ["422 cod de nivel superior", 422, { cod: "1070", msg: MSG }, ["1070"]],
+    ["422 con varios códigos, en orden", 422, { errors: [{ cod: "1061", msg: MSG }, { cod: "1026", msg: MSG }] }, ["1061", "1026"]],
+    ["422 códigos fuera de gramática descartados", 422, { errors: [{ cod: "12a" }, { cod: "1234567" }, { cod: " 1070" }, { cod: "1026\n" }, { cod: "" }, { cod: "1061" }] }, ["1061"]],
+    ["422 con tope de 5 códigos", 422, { errors: ["1", "2", "3", "4", "5", "6", "7"].map((cod) => ({ cod })) }, ["1", "2", "3", "4", "5"]],
+    ["422 sin códigos", 422, { errors: [], msg: MSG }, []],
+  ];
+  it.each(casos)("%s", async (_nombre, estado, cuerpo, codigos) => {
+    ent.sire.guionar("GET", "/x", { estado, json: cuerpo });
+    const e = await capturar(pedir({ ...base(CTX_REGISTRO), url: `${ent.sire.origen}/x`, metodo: "GET" }));
+    esperarError(e, "ErrorPortalSire", "solicitud_rechazada");
+    expect((e as { codigosSunat?: unknown }).codigosSunat).toEqual(codigos);
+    sinSecretos(e, [...SECRETOS, "El campo 'codMoneda'", "nulo o vacio"]);
+  });
+
+  it.each([
+    [422, "<html>no es json</html>"],
+    [400, ""],
+    [422, "[1, 2"],
+  ] as const)("HTTP %i con cuerpo ilegible (%j) → solicitud_rechazada sin códigos", async (estado, texto) => {
+    ent.sire.guionar("GET", "/x", { estado, texto });
+    const e = await capturar(pedir({ ...base(CTX_REGISTRO), url: `${ent.sire.origen}/x`, metodo: "GET" }));
+    esperarError(e, "ErrorPortalSire", "solicitud_rechazada");
+    expect((e as { codigosSunat?: unknown }).codigosSunat).toEqual([]);
+    sinSecretos(e);
+  });
+
+  it("el resto del mapeo no cambia en ese contexto: 401, 403 y 5xx", async () => {
+    for (const [estado, clase, detalle] of [
+      [401, "TokenRechazadoError", undefined],
+      [403, "ErrorCredencial", undefined],
+      [503, "ErrorTransitorioSire", "servidor"],
+    ] as const) {
+      ent.sire.guionar("GET", "/x", { estado, json: { errors: [{ cod: "1061" }] } });
+      const e = await capturar(pedir({ ...base(CTX_REGISTRO), url: `${ent.sire.origen}/x`, metodo: "GET" }));
+      esperarError(e, clase, detalle);
+    }
+  });
+
+  it("propuesta: 422 sigue siendo ErrorDatos (y no ErrorPortalSire) aunque traiga los mismos códigos", async () => {
+    ent.sire.guionar("GET", "/x", { estado: 422, json: { errors: [{ cod: "1061", msg: MSG }] } });
+    const e = await capturar(pedir({ ...base("api"), url: `${ent.sire.origen}/x`, metodo: "GET" }));
+    esperarError(e, "ErrorDatos");
+    expect(e).not.toBeInstanceOf(claseError("ErrorPortalSire"));
+    sinSecretos(e);
   });
 });
