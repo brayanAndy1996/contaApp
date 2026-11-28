@@ -40,7 +40,7 @@ Una línea por spec; el detalle de las cerradas está en `NNN-*/cierre.md` y los
 | 028-correo-avisos | A | hecha | — | Mergeada en `main` (df50fd7). Migraciones 0073–0077 (siguiente libre: 0078). Deuda O-1–O-10 en la tarjeta T24. Detalle: `028-*/cierre.md` |
 | 029-cuenta-segura | A | hecha | — | Rama spec/029-cuenta-segura sin mergear (desde main). Migraciones 0078–0081 (siguiente libre: 0082). 2 riesgos bajos aceptados. Detalle: `029-*/cierre.md` |
 | 030-roles-personalizados | A | hecha | — | Rama sin mergear (sobre 029). Migraciones 0082–0087 (siguiente libre: 0088). Ronda 1: 2 altos, 3 medios, 4 bajos; ronda 2: 1 alto, 1 medio, 1 bajo; todos resueltos. Detalle: `030-*/cierre.md` |
-| 031-auditoria-consulta | B | verificada | — | Rama claude/bold-gauss-nzljd6 sin mergear (sobre 030); migración 0088 (siguiente libre: 0089); CI sin ejecutar. Detalle: `031-*/cierre.md`. |
+| 031-auditoria-consulta | B | hecha | — | Mergeada en `main` (4bb0a50, PR #7). CI verde con la suite completa. Migración 0088 (siguiente libre: 0089). Detalle: `031-*/cierre.md` |
 | 032-envio-sire-ticket | A | bloqueada | — | RF-104 · HU-27. Aprobada 2026-11-24 (P-1 a P-10 con la recomendación). Bloqueada hasta la spec del formato oficial de importación (P-1). Depende de 041, ya verificada (2026-11-28). |
 | 033-catalogo-global-icb | A | pendiente | — | RF-084, 087. Curado por super-admin + conteos anónimos desde N estudios (D4 = a). |
 | 034-lupa-ventas | C | pendiente | — | Nota [lupa de ventas]. Antes de 035. |
