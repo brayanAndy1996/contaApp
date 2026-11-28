@@ -9,6 +9,7 @@ import {
   URL_REAL,
   archivo,
   capturar,
+  claseError,
   columnaDe,
   contarFilas,
   crearEntorno,
@@ -415,6 +416,16 @@ describe("HttpSireApiClient · códigos HTTP de la API (CA-11)", () => {
     const e = await capturar(cliente().descargarPropuesta(TOKEN, COMPRAS));
     esperarError(e, "ErrorTransitorioSire");
     sinSecretos(e);
+  });
+
+  // H-2 (CA-11): el 404 solo es transitorio en la descarga del archivo; en exportar y en la consulta del ticket la ruta cambió.
+  it.each(["exportar", "ticket"] as const)("H-2 · 404 de %s -> ErrorPortalSire permanente (no ErrorTransitorio)", async (paso) => {
+    guionarConFalla(paso, { estado: 404, json: ECO });
+    const e = await capturar(cliente().descargarPropuesta(TOKEN, COMPRAS));
+    esperarError(e, "ErrorPortalSire");
+    expect(e).not.toBeInstanceOf(claseError("ErrorTransitorio"));
+    sinSecretos(e);
+    noLlamadosDespuesDe(paso);
   });
 
   for (const paso of PASOS) {

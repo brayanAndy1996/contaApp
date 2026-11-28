@@ -17,8 +17,11 @@ import { pedir, type ContextoHttp } from "./transporte.js";
 //    Devuelve `{ estado, cabeceras (nombres en minúsculas), cuerpo: Uint8Array }` SOLO para 2xx; todo lo demás lanza.
 //  - `contexto` "token" (OAuth) o "api" (SIRE). Mapeo:
 //        token: 400/401 -> ErrorCredencial; 429/5xx -> ErrorTransitorioSire("servidor"); 3xx -> ErrorPortalSire.
-//        api:   401 -> TokenRechazadoError; 403 -> ErrorCredencial; 422 -> ErrorDatos; 404/429/5xx -> ErrorTransitorioSire;
-//               3xx -> ErrorPortalSire. (Otros 4xx: ErrorPortalSire "respuesta_inesperada"; no se prueban.)
+//        api:   401 -> TokenRechazadoError; 403 -> ErrorCredencial; 422 -> ErrorDatos; 429/5xx -> ErrorTransitorioSire;
+//               3xx -> ErrorPortalSire. 404 -> ErrorPortalSire (H-2: cambio de ruta, permanente sin reintento).
+//               (Otros 4xx: ErrorPortalSire "respuesta_inesperada"; no se prueban.)
+//        descarga (H-2, nuevo valor de `ContextoHttp`: el archivo del 5.32): igual que "api" salvo 404 -> ErrorTransitorioSire
+//               (CA-11: «404 del archivo ... -> ErrorTransitorio»).
 //  - Fallo de `fetch`: TimeoutError/AbortError -> ErrorTransitorioSire("timeout"); cualquier otro (red, ECONNRESET) ->
 //    ErrorTransitorioSire("red").
 //  - El cuerpo se lee con tope `maxBytes` contando los bytes realmente leídos (no se confía en `Content-Length`): al pasarse
@@ -71,6 +74,9 @@ describe("pedir · éxito", () => {
   });
 });
 
+// H-2: el contexto de la descarga del archivo (5.32) no existe aún en `ContextoHttp`: se asume `"descarga"`.
+const CTX_DESCARGA = "descarga" as ContextoHttp;
+
 describe("pedir · mapeo de estados", () => {
   const tabla: [ContextoHttp, number, string][] = [
     ["token", 400, "ErrorCredencial"],
@@ -82,7 +88,7 @@ describe("pedir · mapeo de estados", () => {
     ["api", 401, "TokenRechazadoError"],
     ["api", 403, "ErrorCredencial"],
     ["api", 422, "ErrorDatos"],
-    ["api", 404, "ErrorTransitorioSire"],
+    ["api", 404, "ErrorPortalSire"],
     ["api", 429, "ErrorTransitorioSire"],
     ["api", 500, "ErrorTransitorioSire"],
     ["api", 502, "ErrorTransitorioSire"],
@@ -92,6 +98,13 @@ describe("pedir · mapeo de estados", () => {
     ["api", 302, "ErrorPortalSire"],
     ["api", 307, "ErrorPortalSire"],
     ["api", 308, "ErrorPortalSire"],
+    [CTX_DESCARGA, 401, "TokenRechazadoError"],
+    [CTX_DESCARGA, 403, "ErrorCredencial"],
+    [CTX_DESCARGA, 404, "ErrorTransitorioSire"],
+    [CTX_DESCARGA, 422, "ErrorDatos"],
+    [CTX_DESCARGA, 429, "ErrorTransitorioSire"],
+    [CTX_DESCARGA, 503, "ErrorTransitorioSire"],
+    [CTX_DESCARGA, 302, "ErrorPortalSire"],
   ];
   it.each(tabla)("%s · HTTP %i -> %s", async (contexto, estado, clase) => {
     ent.sire.guionar("GET", "/x", { estado, json: { error: "x" }, cabeceras: { location: `${ent.ajeno.origen}/robar` } });
@@ -99,6 +112,24 @@ describe("pedir · mapeo de estados", () => {
     esperarError(e, clase as Parameters<typeof esperarError>[1]);
     sinSecretos(e);
     expect(ent.ajeno.peticiones).toHaveLength(0);
+  });
+
+  // H-2: un 404 solo es transitorio en la descarga del archivo; en exportar, ticket y solicitud 5.51 es cambio de ruta.
+  it.each([["api"], ["solicitud-registro"]] as const)("H-2 · %s · 404 es ErrorPortalSire permanente, no ErrorTransitorioSire", async (contexto) => {
+    ent.sire.guionar("GET", "/x", { estado: 404, json: { error: `${CANARIOS.token}` } });
+    const e = await capturar(pedir({ ...base(contexto as ContextoHttp), url: `${ent.sire.origen}/x`, metodo: "GET" }));
+    esperarError(e, "ErrorPortalSire");
+    expect(e).not.toBeInstanceOf(claseError("ErrorTransitorioSire"));
+    expect(e).not.toBeInstanceOf(claseError("ErrorTransitorio"));
+    sinSecretos(e);
+  });
+
+  it("H-2 · descarga · 404 es ErrorTransitorioSire y no ErrorPortalSire", async () => {
+    ent.sire.guionar("GET", "/x", { estado: 404, json: { error: `${CANARIOS.token}` } });
+    const e = await capturar(pedir({ ...base(CTX_DESCARGA), url: `${ent.sire.origen}/x`, metodo: "GET" }));
+    esperarError(e, "ErrorTransitorioSire", "servidor");
+    expect(e).not.toBeInstanceOf(claseError("ErrorPortalSire"));
+    sinSecretos(e);
   });
 
   it("en el contexto token un 401 NO es TokenRechazadoError", async () => {
@@ -256,5 +287,62 @@ describe("pedir · solicitud 5.51: 400/422 → solicitud_rechazada con códigos"
     esperarError(e, "ErrorDatos");
     expect(e).not.toBeInstanceOf(claseError("ErrorPortalSire"));
     sinSecretos(e);
+  });
+});
+
+// H-3: si la lectura del cuerpo de error del 400/422 de la solicitud 5.51 se corta (timeout o red), NO se sabe qué códigos traía:
+// es ErrorTransitorioSire (reintentable), no `solicitud_rechazada` permanente con 0 códigos. Un cuerpo legible sin códigos, o
+// ilegible por su contenido, sigue siendo `solicitud_rechazada` con [] (casos arriba).
+describe("pedir · solicitud 5.51: cuerpo de error cortado → ErrorTransitorioSire (H-3)", () => {
+  /** Un fetch que responde `estado` con un cuerpo que entrega `antes` y luego falla con `fallo`. */
+  function fetchCortado(estado: number, antes: string, fallo: unknown): typeof fetch {
+    return (() => {
+      const cuerpo = new ReadableStream<Uint8Array>({
+        start(c) {
+          if (antes !== "") c.enqueue(new TextEncoder().encode(antes));
+        },
+        pull(c) {
+          c.error(fallo);
+        },
+      });
+      return Promise.resolve(new Response(cuerpo, { status: estado }));
+    }) as typeof fetch;
+  }
+  const corteTimeout = (): unknown => new DOMException("The operation was aborted due to timeout", "TimeoutError");
+  const corteRed = (): unknown => Object.assign(new Error(`read ECONNRESET ${CANARIOS.token}`), { code: "ECONNRESET" });
+
+  it.each([
+    [400, "timeout", corteTimeout],
+    [422, "timeout", corteTimeout],
+    [400, "red", corteRed],
+    [422, "red", corteRed],
+  ] as const)("HTTP %i, el cuerpo se corta por %s → ErrorTransitorioSire", async (estado, detalle, fallo) => {
+    const e = await capturar(
+      pedir({ ...base(CTX_REGISTRO), url: "http://127.0.0.1:9/x", metodo: "GET", fetch: fetchCortado(estado, "", fallo()) }),
+    );
+    esperarError(e, "ErrorTransitorioSire", detalle);
+    expect(e).not.toBeInstanceOf(claseError("ErrorPortalSire"));
+    sinSecretos(e);
+  });
+
+  it("se corta a mitad del JSON (ya había leído parte): sigue siendo transitorio", async () => {
+    const e = await capturar(
+      pedir({
+        ...base(CTX_REGISTRO),
+        url: "http://127.0.0.1:9/x",
+        metodo: "GET",
+        fetch: fetchCortado(422, '{"errors":[{"cod":"1061"', corteRed()),
+      }),
+    );
+    esperarError(e, "ErrorTransitorioSire");
+    expect(e).not.toBeInstanceOf(claseError("ErrorPortalSire"));
+    sinSecretos(e);
+  });
+
+  it("contraste: cuerpo legible sin códigos → solicitud_rechazada con 0 códigos (no transitorio)", async () => {
+    ent.sire.guionar("GET", "/x", { estado: 422, json: { errors: [], msg: MSG } });
+    const e = await capturar(pedir({ ...base(CTX_REGISTRO), url: `${ent.sire.origen}/x`, metodo: "GET" }));
+    esperarError(e, "ErrorPortalSire", "solicitud_rechazada");
+    expect((e as { codigosSunat?: unknown }).codigosSunat).toEqual([]);
   });
 });

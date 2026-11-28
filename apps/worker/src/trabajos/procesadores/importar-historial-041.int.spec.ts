@@ -138,7 +138,10 @@ afterAll(async () => {
 const FIXTURE_REGISTRO = "compras-registro-202610-mixto.txt";
 const NOMBRE_ZIP = "registro-202610.zip";
 const zipRegistro = () =>
-  zipRegistroRealDe("20700000002-registro-202610", leerFixture(FIXTURE_REGISTRO));
+  zipRegistroRealDe(
+    "20700000002-registro-202610",
+    leerFixture(FIXTURE_REGISTRO),
+  );
 
 /**
  * Token, solicitud 5.51 (PERIODO con registro; PERIODO_SIN_REGISTRO responde 422 «sin datos»), ticket 06 con el único ZIP del
@@ -149,7 +152,10 @@ function guionarRegistro(token: string): void {
   srv.guionar("POST", RUTAS_SIRE.token, respuestaToken(token));
   srv.guionar("GET", RUTA_REGISTRO, (p) => {
     if (p.ruta.includes(`/${PERIODO_SIN_REGISTRO}/`))
-      return { estado: 422, json: { errors: [{ cod: "1070", msg: "sin datos" }] } };
+      return {
+        estado: 422,
+        json: { errors: [{ cod: "1070", msg: "sin datos" }] },
+      };
     return { json: { numTicket: `2026100000${String(++n).padStart(4, "0")}` } };
   });
   srv.guionar("GET", RUTAS_SIRE.ticket, (p) => ({
@@ -232,7 +238,9 @@ describe("CA-13: importar historial con registro presentado y SIRE_CLIENT=http",
     ).toBe(true);
     // El archivo mixto se importa completo, sin unión ni verificación de moneda por fila: la fila USD (proveedor 20700000061) entra
     // igual que las PEN. El proveedor mixto aparece en dos comprobantes PEN (F001-2056 y F003-20).
-    expect(cand.find((c) => c.doc_numero === "20700000061")).toMatchObject({ n_total: 1 });
+    expect(cand.find((c) => c.doc_numero === "20700000061")).toMatchObject({
+      n_total: 1,
+    });
     const mixto = cand.find((c) => c.doc_numero === "20700000045");
     expect(mixto).toMatchObject({ periodos_con_proveedor: 1 });
     expect(mixto!.n_total).toBeGreaterThanOrEqual(2);
@@ -257,7 +265,9 @@ describe("CA-13: importar historial con registro presentado y SIRE_CLIENT=http",
     // Un ticket y un archivo para el periodo con registro; el periodo sin datos no consulta ticket ni archivo.
     expect(srv.peticionesDe("GET", RUTAS_SIRE.ticket)).toHaveLength(1);
     const archivo = srv.peticionesDe("GET", RUTAS_SIRE.archivo);
-    expect(archivo.map((p) => p.query["nomArchivoReporte"])).toEqual([NOMBRE_ZIP]);
+    expect(archivo.map((p) => p.query["nomArchivoReporte"])).toEqual([
+      NOMBRE_ZIP,
+    ]);
     for (const p of archivo)
       expect(p.query).toMatchObject({
         codLibro: "080000",
@@ -275,7 +285,13 @@ describe("CA-13: importar historial con registro presentado y SIRE_CLIENT=http",
     for (const per of periodos)
       expect(
         await redis.exists(
-          (crearClaves(prefijo) as ClavesConTicket).ticketSire(m.T, m.c.id, "compras", per, "registro"),
+          (crearClaves(prefijo) as ClavesConTicket).ticketSire(
+            m.T,
+            m.c.id,
+            "compras",
+            per,
+            "registro",
+          ),
         ),
         per,
       ).toBe(0);
@@ -350,5 +366,158 @@ describe("CA-13: importar historial con registro presentado y SIRE_CLIENT=http",
     const todoRedis = await volcarPrefijo(redis, prefijo);
     for (const sec of [TOKEN, m.secretos.clave, m.secretos.clientSecret])
       for (const x of rastros(sec)) expect(todoRedis, "Redis").not.toContain(x);
+  });
+
+  // T20 · H-1 (rojo): con SIRE_CLIENT=http un `ErrorDatosSire` que NO es `sin_datos` no es «periodo sin datos»: falla el trabajo con
+  // el error de datos (`error/datos_invalidos`, sin reintentos) en vez de dejar el periodo fuera de la deducción sin aviso (CA-7).
+  // El periodo más reciente (PERIODO) se lee primero; el más antiguo no se pide y nunca queda en `periodos_sin_datos`.
+  describe("H-1: ErrorDatosSire distinto de sin_datos hace fallar el trabajo (CA-7)", () => {
+    /** El TXT del registro con una celda de su primera fila de datos cambiada (la columna se busca por su nombre de encabezado). */
+    const txtCambiado = (columna: string, valor: string): Uint8Array => {
+      const lineas = leerFixture(FIXTURE_REGISTRO).toString("utf8").split("\n");
+      const i = lineas[0]!.split("|").indexOf(columna);
+      expect(i, `columna ${columna} en el encabezado`).toBeGreaterThan(-1);
+      const celdas = lineas[1]!.split("|");
+      celdas[i] = valor;
+      lineas[1] = celdas.join("|");
+      return new Uint8Array(Buffer.from(lineas.join("\n"), "utf8"));
+    };
+
+    const CASOS: [
+      string,
+      (
+        | "fila_invalida"
+        | "columna_no_soportada"
+        | "respuesta_ajena"
+        | "ticket_con_errores"
+      ),
+      Uint8Array | null,
+    ][] = [
+      // IMB (sin equivalente en el puerto) con un valor distinto de cero: «no se pierde en silencio».
+      [
+        "columna monetaria desconocida con valor",
+        "columna_no_soportada",
+        txtCambiado("IMB", "5.00"),
+      ],
+      // Una fila de otro periodo que el pedido.
+      [
+        "fila de otro periodo",
+        "respuesta_ajena",
+        txtCambiado("Periodo", PERIODO_SIN_REGISTRO),
+      ],
+      // Un monto que no es decimal.
+      ["monto ilegible", "fila_invalida", txtCambiado("Total CP", "12,5x")],
+      // El ticket de SUNAT termina con errores (codEstadoProceso 03); sin archivo que leer.
+      ["ticket terminado con errores", "ticket_con_errores", null],
+    ];
+
+    it.each(CASOS)(
+      "%s (%s): error/datos_invalidos sin reintentos, importación fallida, el periodo no es «sin datos», no sigue con el periodo siguiente y sin secretos",
+      async (_caso, _detalle, txt) => {
+        const m = await mundoSireHttp(e, backend, { ruc: RUC_FIXTURE });
+        const TOKEN = canario("token_sire");
+        srv.guionar("POST", RUTAS_SIRE.token, respuestaToken(TOKEN));
+        // Cada periodo tiene su ticket (el sufijo es el mes) y su archivo. El más reciente (PERIODO) trae el defecto del caso; el más
+        // antiguo trae un registro válido propio: si el worker lo contara como «sin datos» y siguiera, leería este y completaría.
+        const registroDe = (per: string): Uint8Array =>
+          per === PERIODO
+            ? (txt ?? leerFixture(FIXTURE_REGISTRO))
+            : new Uint8Array(
+                Buffer.from(
+                  leerFixture(FIXTURE_REGISTRO)
+                    .toString("utf8")
+                    .replaceAll(PERIODO, per)
+                    .replaceAll("/10/2026", `/${per.slice(4)}/2026`),
+                  "utf8",
+                ),
+              );
+        srv.guionar("GET", RUTA_REGISTRO, (p) => ({
+          json: {
+            numTicket: `2026${p.ruta.includes(`/${PERIODO}/`) ? "10" : "09"}00000077`,
+          },
+        }));
+        srv.guionar("GET", RUTAS_SIRE.ticket, (p) => {
+          const per = (p.query["numTicket"] ?? "").startsWith("202610")
+            ? PERIODO
+            : PERIODO_SIN_REGISTRO;
+          return {
+            json: registroTicket(
+              p.query["numTicket"] ?? "",
+              txt === null && per === PERIODO ? "03" : "06",
+              per,
+              {
+                archivos: [{ nom: NOMBRE_ZIP, cod: "00" }],
+              },
+            ),
+          };
+        });
+        srv.guionar("GET", RUTAS_SIRE.archivo, (p) => {
+          const per = p.query["perTributario"] ?? PERIODO;
+          return {
+            bytes: zipRegistroRealDe(
+              `20700000002-registro-${per}`,
+              registroDe(per),
+            ),
+          };
+        });
+        const espia = loggerEspia();
+
+        const importacionId = await iniciarImportacion(backend, m, [
+          PERIODO_SIN_REGISTRO,
+          PERIODO,
+        ]);
+        const r = await conWorkerHttp(
+          async () => {
+            const trabajoId = await encolarImportacion(
+              backend,
+              redis,
+              prefijo,
+              m,
+              importacionId,
+            );
+            return esperarTerminal(e, trabajoId, 60_000);
+          },
+          { logger: espia.logger },
+        );
+        expect([r.estado, r.motivo, r.intentos]).toEqual([
+          "error",
+          "datos_invalidos",
+          0,
+        ]);
+
+        await esperarHasta(
+          async () =>
+            (await importacionDe(admin, importacionId)).estado === "fallida",
+          "la importación queda fallida",
+          { timeoutMs: 10_000 },
+        );
+        const imp = await importacionDe(admin, importacionId);
+        expect(imp).toMatchObject({
+          estado: "fallida",
+          motivo: "datos_invalidos",
+        });
+        expect(
+          imp.periodos_sin_datos ?? [],
+          "el periodo rechazado NO es «sin datos»",
+        ).toEqual([]);
+        expect(await candidatasDe(admin, { importacionId })).toEqual([]);
+        // Falla en el primer periodo (el más reciente): el más antiguo no se pide.
+        const solicitudes = srv.peticionesDe("GET", RUTA_REGISTRO);
+        expect(solicitudes).toHaveLength(1);
+        expect(solicitudes[0]!.ruta).toContain(`/${PERIODO}/`);
+
+        const jobs = await e.volcarJobs();
+        const todoRedis = await volcarPrefijo(redis, prefijo);
+        const logs = volcado(espia.llamadas);
+        const tablas = await volcarTablasAprendizaje(admin, [m.T]);
+        for (const sec of [TOKEN, m.secretos.clave, m.secretos.clientSecret])
+          for (const x of rastros(sec)) {
+            expect(jobs, "job_registro").not.toContain(x);
+            expect(todoRedis, "Redis").not.toContain(x);
+            expect(logs, "logs").not.toContain(x);
+            expect(tablas, "tablas").not.toContain(x);
+          }
+      },
+    );
   });
 });

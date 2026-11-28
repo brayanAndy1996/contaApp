@@ -10,6 +10,7 @@ import {
   SECRETOS,
   archivo,
   capturar,
+  claseError,
   crearEntorno,
   cuerpoTicket,
   esperarError,
@@ -359,6 +360,41 @@ describe("HttpSireApiClient · registro presentado (CA-11, CA-13, P-3)", () => {
       expect(almacen.guardados, "error permanente al solicitar: no hay ticket que guardar").toHaveLength(0);
       expect(await almacen.leer(CLAVE_REGISTRO)).toBeNull();
     });
+  });
+
+  // H-2 (CA-11): un 404 solo es transitorio al descargar el archivo (5.32); al solicitar (5.51) y al consultar el ticket (5.31) es
+  // cambio de ruta: ErrorPortalSire permanente, sin reintento.
+  it("H-2 · registro: 404 al solicitar -> ErrorPortalSire (no ErrorTransitorio), sin ticket ni reintento", async () => {
+    solicitar({ estado: 404, json: { error: MSG_SUNAT } });
+    guionarTickets({ [TICKET]: { estado: "04", partes: [parteRegistro()] } });
+    const almacen = new AlmacenEspia(reloj.ahora);
+    const e = await capturar(cliente({ almacenTickets: almacen }).descargarRegistroPresentado(TOKEN, conClave()));
+    esperarError(e, "ErrorPortalSire");
+    expect(e).not.toBeInstanceOf(claseError("ErrorTransitorio"));
+    sinSecretos(e, [...SECRETOS, MSG_SUNAT]);
+    expect(solicitudes()).toHaveLength(1);
+    expect(ent.sire.peticionesDe("GET", RUTAS.ticket)).toHaveLength(0);
+  });
+
+  it("H-2 · registro: 404 al consultar el ticket -> ErrorPortalSire (no ErrorTransitorio) y no descarga", async () => {
+    solicitarSana();
+    ent.sire.guionar("GET", RUTAS.ticket, { estado: 404, json: { error: MSG_SUNAT } });
+    ent.sire.guionar("GET", RUTAS.archivo, { bytes: new Uint8Array(0) });
+    const e = await capturar(cliente().descargarRegistroPresentado(TOKEN, conClave()));
+    esperarError(e, "ErrorPortalSire");
+    expect(e).not.toBeInstanceOf(claseError("ErrorTransitorio"));
+    sinSecretos(e, [...SECRETOS, MSG_SUNAT]);
+    expect(ent.sire.peticionesDe("GET", RUTAS.ticket)).toHaveLength(1);
+    expect(ent.sire.peticionesDe("GET", RUTAS.archivo)).toHaveLength(0);
+  });
+
+  it("H-2 · registro: 404 del archivo sigue siendo ErrorTransitorioSire", async () => {
+    solicitarSana();
+    guionarTickets({ [TICKET]: { estado: "04", partes: [{ nombre: "registro.zip", zip: zipDe(fixture(REGISTRO)) }] } });
+    ent.sire.guionar("GET", RUTAS.archivo, { estado: 404, json: { error: MSG_SUNAT } });
+    const e = await capturar(cliente().descargarRegistroPresentado(TOKEN, conClave()));
+    esperarError(e, "ErrorTransitorioSire");
+    sinSecretos(e, [...SECRETOS, MSG_SUNAT]);
   });
 
   it("registro: nunca pide un codProceso distinto de 70 ni más de una solicitud (y siempre con codMoneda=PEN)", async () => {
