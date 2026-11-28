@@ -150,3 +150,4 @@ No son decisiones tomadas ni pendientes del usuario: cada spec las resuelve al p
 - [041] El tope de 24 h de `expires_in` no está en la spec de 041: debe fijarlo la del token (008). → `041-*/cierre.md`
 - [041] 256 MiB acumulados de TXT se vuelven objetos fila que ocupan varias veces ese tamaño: vigilar el heap del worker. → `041-*/cierre.md`
 - [pruebas] `obtener-xml-027.int.spec.ts` inestable bajo carga en el int del worker (ajena a 041). → `041-*/cierre.md`
+- [pruebas] La prueba de rendimiento de 027 (CA-15) pasó a `test:rendimiento` de domain, paso en serie de la CI (inestable dentro de `turbo test`; decisión del usuario 2026-11-28).

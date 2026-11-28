@@ -59,6 +59,10 @@ jobs:
       - name: Pruebas unitarias
         run: pnpm exec turbo run test --filter='!@contapp/db' --concurrency=1
 
+      # Rendimiento de domain (027 CA-15) fuera de turbo: entre las suites en paralelo la razón de tiempos falla por carga.
+      - name: Rendimiento de @contapp/domain (en serie, fuera de turbo)
+        run: pnpm --filter @contapp/domain test:rendimiento
+
       - name: Cobertura de @contapp/domain (90 % por archivo)
         run: pnpm cobertura:dominio
 
